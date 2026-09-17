@@ -1604,6 +1604,207 @@ namespace bpr::adapters::git {
 			return aDiagnostic;
 		}
 
+		/// \brief Git's own default severity for one fsck message identifier.
+		enum class fsck_severity : std::uint8_t {
+			fatal,
+			error,
+			warn,
+			info,
+			ignored,
+		};
+
+		/// \brief One entry of Git's fsck message table, as this adapter reads it.
+		///
+		/// \details `Since*` is the oldest Git measured to recognise the
+		/// identifier, never this machine's version. Git answers an identifier
+		/// it does not know with `fatal: Unhandled message id` and exits 128, so
+		/// shipping one an installation has never heard of would fail every
+		/// import on it. An identifier is therefore only ever offered to an
+		/// installation at or above its recorded version, and a version recorded
+		/// too high only leaves that Git as strict as it is today. BPR-0880
+		/// measured every row against Git 2.39.5, the oldest admitted Git that
+		/// could be obtained, and against Git 2.53.0.
+		struct fsck_message final
+		{
+			std::string_view Id;
+			fsck_severity    Severity;
+			std::uint32_t    SinceMajor;
+			std::uint32_t    SinceMinor;
+			std::uint32_t    SincePatch;
+		};
+
+		/// \brief Whether the installation is new enough to know an identifier.
+		[[nodiscard]] auto knows_fsck_message(
+			const application::git_installation& aInstallation,
+			const fsck_message&                  aMessage) -> bool
+		{
+			if (aInstallation.VersionMajor != aMessage.SinceMajor) {
+				return aInstallation.VersionMajor > aMessage.SinceMajor;
+			}
+			if (aInstallation.VersionMinor != aMessage.SinceMinor) {
+				return aInstallation.VersionMinor > aMessage.SinceMinor;
+			}
+			return aInstallation.VersionPatch >= aMessage.SincePatch;
+		}
+
+		/// \brief Git's object-level fsck messages with their default severities.
+		///
+		/// \details Read from Git 2.53.0's own `git fsck` message table and
+		/// confirmed by running `index-pack` against objects that trigger them
+		/// (BPR-0880). Ref-storage identifiers (`badRefContent`, `symlinkRef`,
+		/// the `packed-refs` and reftable families) are absent on purpose:
+		/// `index-pack` inspects objects and can never report them, so naming
+		/// them would only add identifiers an older Git might not know.
+		///
+		/// The `warn` and `info` rows the installation is old enough to know are
+		/// the closed list this adapter passes to Git. `git clone` accepts every
+		/// one of them, Git's own transfer path leaves `fetch.fsckObjects` false,
+		/// and this cache verifies pack closure separately with
+		/// `verify_connectivity`, so refusing a repository Git itself accepts
+		/// costs the reviewer the whole pull request for integrity the product
+		/// does not rely on. `=ignore` rather than `=warn` because `=warn` still
+		/// writes the finding to standard error and an accepted exit that wrote
+		/// to standard error is malformed output here, which would leave the
+		/// repository just as unopenable while quietly weakening BPR-0846's
+		/// exact-output rule. `info` is in the list for that second reason
+		/// alone: it never made `index-pack` exit nonzero, but the `warning:`
+		/// line it wrote reached the same dead end.
+		///
+		/// `error` rows stay fatal, and the two `fatal` rows cannot be demoted
+		/// at all — Git answers `fatal: Cannot demote ... to ignore`. Both kinds
+		/// are listed anyway so that a refusal can be named rather than reported
+		/// as a bare process failure.
+		// BPR_0880_FSCK_MESSAGE_TABLE_BEGIN
+		inline constexpr std::array<fsck_message, 60U> fsck_messages{ {
+			{ "badDate", fsck_severity::error, 2U, 39U, 0U },
+			{ "badDateOverflow", fsck_severity::error, 2U, 39U, 0U },
+			{ "badEmail", fsck_severity::error, 2U, 39U, 0U },
+			{ "badFilemode", fsck_severity::info, 2U, 39U, 0U },
+			{ "badGpgsig", fsck_severity::error, 2U, 53U, 0U },
+			{ "badHeaderContinuation", fsck_severity::error, 2U, 53U, 0U },
+			{ "badName", fsck_severity::error, 2U, 39U, 0U },
+			{ "badObjectSha1", fsck_severity::error, 2U, 39U, 0U },
+			{ "badParentSha1", fsck_severity::error, 2U, 39U, 0U },
+			{ "badTagName", fsck_severity::info, 2U, 39U, 0U },
+			{ "badTimezone", fsck_severity::error, 2U, 39U, 0U },
+			{ "badTree", fsck_severity::error, 2U, 39U, 0U },
+			{ "badTreeSha1", fsck_severity::error, 2U, 39U, 0U },
+			{ "badType", fsck_severity::error, 2U, 39U, 0U },
+			{ "duplicateEntries", fsck_severity::error, 2U, 39U, 0U },
+			{ "emptyName", fsck_severity::warn, 2U, 39U, 0U },
+			{ "extraHeaderEntry", fsck_severity::ignored, 2U, 39U, 0U },
+			{ "fullPathname", fsck_severity::warn, 2U, 39U, 0U },
+			{ "gitattributesBlob", fsck_severity::error, 2U, 39U, 5U },
+			{ "gitattributesLarge", fsck_severity::error, 2U, 39U, 5U },
+			{ "gitattributesLineLength", fsck_severity::error, 2U, 39U, 5U },
+			{ "gitattributesMissing", fsck_severity::error, 2U, 39U, 5U },
+			{ "gitattributesSymlink", fsck_severity::info, 2U, 39U, 5U },
+			{ "gitignoreSymlink", fsck_severity::info, 2U, 39U, 5U },
+			{ "gitmodulesBlob", fsck_severity::error, 2U, 39U, 0U },
+			{ "gitmodulesLarge", fsck_severity::error, 2U, 39U, 0U },
+			{ "gitmodulesMissing", fsck_severity::error, 2U, 39U, 0U },
+			{ "gitmodulesName", fsck_severity::error, 2U, 39U, 0U },
+			{ "gitmodulesParse", fsck_severity::info, 2U, 39U, 0U },
+			{ "gitmodulesPath", fsck_severity::error, 2U, 39U, 0U },
+			{ "gitmodulesSymlink", fsck_severity::error, 2U, 39U, 0U },
+			{ "gitmodulesUpdate", fsck_severity::error, 2U, 39U, 0U },
+			{ "gitmodulesUrl", fsck_severity::error, 2U, 39U, 0U },
+			{ "hasDot", fsck_severity::warn, 2U, 39U, 0U },
+			{ "hasDotdot", fsck_severity::warn, 2U, 39U, 0U },
+			{ "hasDotgit", fsck_severity::warn, 2U, 39U, 0U },
+			{ "largePathname", fsck_severity::warn, 2U, 53U, 0U },
+			{ "mailmapSymlink", fsck_severity::info, 2U, 39U, 5U },
+			{ "missingAuthor", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingCommitter", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingEmail", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingNameBeforeEmail", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingObject", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingSpaceBeforeDate", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingSpaceBeforeEmail", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingTag", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingTagEntry", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingTaggerEntry", fsck_severity::info, 2U, 39U, 0U },
+			{ "missingTree", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingType", fsck_severity::error, 2U, 39U, 0U },
+			{ "missingTypeEntry", fsck_severity::error, 2U, 39U, 0U },
+			{ "multipleAuthors", fsck_severity::error, 2U, 39U, 0U },
+			{ "nulInCommit", fsck_severity::warn, 2U, 39U, 0U },
+			{ "nulInHeader", fsck_severity::fatal, 2U, 39U, 5U },
+			{ "nullSha1", fsck_severity::warn, 2U, 39U, 0U },
+			{ "treeNotSorted", fsck_severity::error, 2U, 39U, 0U },
+			{ "unknownType", fsck_severity::error, 2U, 39U, 0U },
+			{ "unterminatedHeader", fsck_severity::fatal, 2U, 39U, 5U },
+			{ "zeroPaddedDate", fsck_severity::error, 2U, 39U, 0U },
+			{ "zeroPaddedFilemode", fsck_severity::warn, 2U, 39U, 0U },
+		} };
+		// BPR_0880_FSCK_MESSAGE_TABLE_END
+
+		/// \brief Builds the closed `<msg-id>=ignore` list Git is given.
+		[[nodiscard]] auto ignored_fsck_message_policy(
+			const application::git_installation& aInstallation) -> std::string
+		{
+			std::string policy;
+			for (const auto& message : fsck_messages) {
+				if (
+					(message.Severity != fsck_severity::warn
+					 && message.Severity != fsck_severity::info)
+					|| !knows_fsck_message(aInstallation, message)) {
+					continue;
+				}
+				if (!policy.empty()) {
+					policy.push_back(',');
+				}
+				policy.append(message.Id);
+				policy.append("=ignore");
+			}
+			return policy;
+		}
+
+		/// \brief Names the fsck message class an `index-pack` refusal reported.
+		///
+		/// \details Git writes one `error: object <oid>: <msg-id>: <text>` line
+		/// per refused object. Only the identifier is taken, and only when the
+		/// table above already contains it, so the returned text is always one of
+		/// this adapter's own fixed names and never a path, an object name, or
+		/// anything else the pack's author chose (BPR-0852's rule). An
+		/// unrecognized refusal names nothing and stays a plain nonzero exit.
+		[[nodiscard]] auto refused_fsck_message(
+			const std::string_view aDiagnostic) -> std::string_view
+		{
+			constexpr std::string_view reported{ "error: object " };
+			for (std::size_t offset = 0U; offset < aDiagnostic.size();) {
+				const auto ending = aDiagnostic.find('\n', offset);
+				const auto line   = aDiagnostic.substr(
+					offset,
+					ending == std::string_view::npos ? ending : ending - offset);
+				offset = ending == std::string_view::npos
+					? aDiagnostic.size()
+					: ending + 1U;
+				if (!line.starts_with(reported)) {
+					continue;
+				}
+				const auto named  = line.substr(reported.size());
+				const auto object = named.find(": ");
+				if (object == std::string_view::npos) {
+					continue;
+				}
+				const auto identifier = named.substr(object + 2U);
+				const auto terminator = identifier.find(':');
+				if (terminator == std::string_view::npos) {
+					continue;
+				}
+				const auto candidate = identifier.substr(0U, terminator);
+				const auto known     = std::ranges::find(
+					fsck_messages,
+					candidate,
+					&fsck_message::Id);
+				if (known != fsck_messages.end()) {
+					return known->Id;
+				}
+			}
+			return { };
+		}
+
 		// The supervisor, rather than Git, retains the journal lock. Git may
 		// close inherited descriptors or leave descendants behind when it exits.
 		struct git_workspace_lifetime
@@ -3908,6 +4109,24 @@ namespace bpr::adapters::git {
 				return index_pack_impl(aRequest, aStop, true);
 			}
 
+			/// \brief The sparse path's fsck option for the bound installation.
+			///
+			/// \details `index-pack --fsck-objects` accepts
+			/// `<msg-id>=<severity>` only from Git 2.44. Earlier installations
+			/// reject the whole option, so they keep the bare form: the sparse
+			/// import stays exactly as strict as it is today rather than failing
+			/// on every pack.
+			[[nodiscard]] auto sparse_fsck_argument() const -> std::string
+			{
+				if (
+					Installation.VersionMajor < 2U
+					|| (Installation.VersionMajor == 2U
+						&& Installation.VersionMinor < 44U)) {
+					return "--fsck-objects";
+				}
+				return "--fsck-objects=" + ignored_fsck_message_policy(Installation);
+			}
+
 			[[nodiscard]] auto index_pack_impl(const application::git_index_pack_request& aRequest,
 											   std::stop_token aStop, bool aSparse) -> git_process_result<application::git_index_pack_success>
 			{
@@ -3946,11 +4165,21 @@ namespace bpr::adapters::git {
 				}
 
 				auto arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+				// [[BPR-0880]] Both paths carry the same closed list of Git's own
+				// warning- and information-class message identifiers. `--strict`
+				// has taken `<msg-id>=<severity>` since well before the oldest
+				// admitted Git, because that is how `fetch-pack` has passed
+				// `fetch.fsck.*` down since Git 2.19. `--fsck-objects` only
+				// learned the same parameter in Git 2.44, so an older
+				// installation keeps the bare option and the stricter behaviour
+				// rather than being handed an argument it would reject outright.
 				append_arguments(
 					arguments,
 					"index-pack",
 					"--stdin",
-					aSparse ? "--fsck-objects" : "--strict");
+					aSparse
+						? sparse_fsck_argument()
+						: "--strict=" + ignored_fsck_message_policy(Installation));
 				if (!aSparse) {
 					append_arguments(arguments, "--check-self-contained-and-connected");
 				}
@@ -3979,6 +4208,21 @@ namespace bpr::adapters::git {
 					},
 					aStop);
 				if (!result.has_value()) {
+					// [[BPR-0880]] An error-class object is still refused, but it
+					// is refused by name. `process_failure` alone told a reviewer
+					// only that some Git command failed somewhere.
+					if (result.error() == git_process_failure::nonzero_exit) {
+						if (
+							const auto refused = refused_fsck_message(
+								result.error().Detail);
+							!refused.empty()) {
+							return std::unexpected{
+								git_process_error{
+									git_process_failure::unsupported_object,
+									std::string{ refused } }
+							};
+						}
+					}
 					return std::unexpected{ result.error() };
 				}
 				const auto expected = "pack\t" + object_text(aRequest.ExpectedPack) + "\n";

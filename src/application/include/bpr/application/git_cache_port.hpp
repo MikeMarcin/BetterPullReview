@@ -674,6 +674,13 @@ namespace bpr::application {
 		ref_conflict,
 		repair_required,
 		cancelled,
+		/// \brief The fetched range carries an object Git refuses to accept.
+		///
+		/// \details `Detail` names the fsck message class, so the refusal can
+		/// say what is wrong with the repository instead of reporting that some
+		/// Git command failed. Nothing about it is repairable locally and no
+		/// retry can help (BPR-0880).
+		unsupported_object,
 	};
 
 	/// \brief Carries a cache failure and any safe installed-Git explanation.

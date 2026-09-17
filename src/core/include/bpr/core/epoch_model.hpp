@@ -899,6 +899,16 @@ namespace bpr::core {
 		/// failed, which is what the code is for; the text stays in the adapter
 		/// that produced it.
 		process_failure,
+		/// \brief Installed Git refuses an object in the fetched range.
+		///
+		/// \details Separate from `process_failure` because it is not a failure
+		/// of the command: Git ran, read the pack, and rejected an object its
+		/// own fsck rules class as an error. Nothing is broken locally, so
+		/// `repair_required` would send an operator to rebuild a cache that is
+		/// fine. BPR-0880 keeps the same division of labour BPR-0361 settled:
+		/// the code says the range cannot be accepted, and the adapter that ran
+		/// Git retains the message class it named.
+		unsupported_object,
 	};
 
 	/// \brief Describes the epoch catalog load failed event record.
@@ -1375,6 +1385,7 @@ namespace bpr::core {
 		process_failure,
 		cancelled,
 		cancellation_after_point_of_no_return,
+		unsupported_object,
 	};
 
 	/// \brief Computes the reason for result.

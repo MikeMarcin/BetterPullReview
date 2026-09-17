@@ -674,12 +674,69 @@ git -c core.fsync=all
     --git-dir=<validated bare cache>
     index-pack
     --stdin
-    --strict
+    --strict=<closed warning-and-information-class ignore list>
     --check-self-contained-and-connected
     --max-input-size=<fixed-decimal-operation-bound>
     --threads=1
     --no-rev-index
 ```
+
+BPR-0880 fixes that severity list, and the sparse variant passes the same list
+to `--fsck-objects`. It names exactly the message identifiers whose default
+severity in Git's own fsck table is warning or information: `badFilemode`,
+`badTagName`, `emptyName`, `fullPathname`, `gitattributesSymlink`,
+`gitignoreSymlink`, `gitmodulesParse`, `hasDot`, `hasDotdot`, `hasDotgit`,
+`mailmapSymlink`, `missingTaggerEntry`, `nulInCommit`, `nullSha1` and
+`zeroPaddedFilemode`. Every other identifier stays fatal.
+
+Each identifier carries the oldest Git measured to recognise it, and is offered
+only to an installation at or above that version. Git answers an identifier it
+does not know with `fatal: Unhandled message id` and exits 128, so shipping one
+an installation has never heard of would fail every import on it; a version
+recorded too high only leaves that Git as strict as it is today. The four
+identifiers above whose introduction postdates a plain 2.39 — the three symlink
+checks and `gitattributesSymlink` — are recorded against 2.39.5, the oldest
+admitted Git the change was measured on.
+
+The reason is that `index-pack --strict` promotes a warning to a fatal error,
+so a repository whose history carries one of these — an old tree with a
+zero-padded file mode, say — could never be opened at all, while GitHub serves
+it and `git clone` accepts it. An information-class finding never made
+`index-pack` exit nonzero, but the `warning:` line it wrote to standard error
+reached the same dead end through the rule below. Git's own transfer path leaves
+`fetch.fsckObjects` false by default, and this cache verifies the full object
+closure separately with `verify_connectivity`, so refusing a repository Git
+itself accepts costs the reviewer the entire pull request for integrity the
+product does not rely on. The severity is `ignore` rather than `warn` because
+`warn` still writes the finding to standard error, and an accepted exit that
+wrote to standard error is malformed output here: the repository would stay
+unopenable and BPR-0846's exact-output rule would be the thing that had moved.
+
+`largePathname` is the one warning-class identifier left out: it is unknown to
+Git 2.39.5 and its introduction could not be dated, so it is recorded against
+2.53.0 and reaches only an installation that new. The two `fatal`-severity
+identifiers cannot be demoted at all — Git answers
+`fatal: Cannot demote ... to ignore`. `--fsck-objects` only learned to take a
+severity parameter in Git 2.44, so an older installation keeps the bare option
+and the stricter sparse behaviour rather than being handed an argument it would
+reject. `fsck.<msg-id>` configuration is not an alternative on either path:
+`index-pack` does not read it. The `fsck_severity_fixture_contract` test proves,
+against the installed Git on each platform, that every shipped identifier is one
+that Git knows.
+
+Ignoring `nullSha1` lets fsck accept a tree entry that names the null object,
+but the strict path still refuses such a pack: `--check-self-contained-and-connected`
+answers `fatal: did not receive expected object 0000...`, which is a closure
+failure rather than an fsck finding and so arrives unnamed. The sparse path
+accepts it, consistently with `sparse_commit_trees` residency, which already
+tolerates objects the pack does not carry and does not run `verify_connectivity`.
+
+An object Git refuses for an error-class finding is reported as
+`git_cache_failure::unsupported_object`, whose detail names the fsck message
+class, rather than as a bare process failure. The cache is not broken and no
+retry helps, so the epoch path carries `epoch_failure::unsupported_object`
+instead of `repair_required`; as in BPR-0361, the code says what cannot be
+accepted and the text Git wrote stays in the adapter.
 
 The client never requests a thin pack, so `--fix-thin` is absent. `--keep`,
 `fetch-pack`, `unpack-objects`, and loose-object ingestion are forbidden. The

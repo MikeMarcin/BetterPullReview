@@ -384,6 +384,11 @@ namespace bpr::application {
 				// answer the core can carry, and it is enough to say which
 				// layer to look at.
 				return core::epoch_failure::process_failure;
+			case git_cache_failure::unsupported_object:
+				// [[BPR-0880]] Git refused an object its own rules call an
+				// error. Repair cannot help and neither can a retry: the code
+				// says so, and the class Git named stays in the adapter.
+				return core::epoch_failure::unsupported_object;
 			case git_cache_failure::invalid_path:
 			case git_cache_failure::lock_unavailable:
 			case git_cache_failure::spool_failure:
