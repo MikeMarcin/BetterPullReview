@@ -113,6 +113,15 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # chain step described above.
     "sqlite_queue_enrollment_storage": "dos-volume-name",
     "sqlite_workbench_settings_storage": "dos-volume-name",
+    # BPR-0833 (integrator decision: pin). Measured on JaegAW 2026-09-17, both passing
+    # uncontained. Contained, the automated run's private profile is refused before
+    # composition (AUTOMATED_PROFILE_PRIVATE_FAILED): make_storage_root_owner_private
+    # cannot open the QTemporaryDir for WRITE_DAC (error 5), because Qt writes it with
+    # an owner-only DACL that excludes the container. Creating the root with the
+    # container SID instead (option (i), measured, not applied) then stops at the
+    # stores' validate_ancestor_chain (error 5): the application step described above.
+    "application_composition_capabilities_inside_boundary": "dos-volume-name",
+    "application_composition_capabilities_product_run": "dos-volume-name",
     # BPR-0834: measured on JaegAW 2026-09-17, both passing uncontained once the
     # course root and its parent are owner-private. Contained, with both narrowed
     # to the user and the container, the composed application still refuses

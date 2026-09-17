@@ -325,3 +325,64 @@ integrator chooses **(2)**. Both capability rows are pinned
   unchanged.
 - The pinned rows remain visible to the manifest gate as enumerated
   exceptions.
+
+## Windows station: pinned, 2026-09-17 (task-20260917-win-pin-capability-rows)
+
+The base is `83349437954610dce544e3eebd966ba24f96eb51`, which has the adapter
+half `aa3c6ef1` and `main.cpp` unchanged. Logs are under
+`build/logs/task-20260917-win-pin-capability-rows/`.
+
+### The first failing call on this code, measured again
+
+With a reverted diagnostic at each refusal of
+`make_storage_root_owner_private`, the call `main.cpp` makes at this base, both
+rows fail contained at the same point, with the marker set and with it unset:
+**`open_existing_object(root, directory, WRITE_DAC)` returns error 5.** The
+root is the `QTemporaryDir`, which Qt creates with a protected owner-only DACL
+that names no container SID. The run then prints
+`AUTOMATED_PROFILE_PRIVATE_FAILED`.
+
+That is not the call the pin request names. The request's
+`validate_ancestor_chain` refusal (error 5, after a private root created with
+the container SID) was measured under the option (i) patch, which is not
+applied. The pin comment records both, in order:
+
+- the refusal this code reaches first;
+- the documented application step (the stores' ancestor-chain walk) that the
+  row reaches once that first refusal is removed.
+
+Both rows are pinned `dos-volume-name`, as the request directs. If the
+vocabulary should instead name the WRITE_DAC refusal separately, that is a
+one-word change in the comment and the value.
+
+### Change
+
+- `tests/end_to_end/CMakeLists.txt`: both capability rows are registered
+  `WINDOWS_UNCONTAINED`. This changes nothing outside Windows.
+- `scripts/verify_test_network_isolation.py`: both rows are pinned
+  `dos-volume-name`, with the measurement above in the comment.
+
+### Results, as registered, after a full rebuild at the base
+
+| Check | Result |
+|---|---|
+| `application_composition_capabilities_inside_boundary` | **Passed**, 1.62 s: `AUTOMATED_PROFILE_PRIVATE_OK`, `COMPOSITION_TEST_BOUNDARY:inside` |
+| `application_composition_capabilities_product_run` | **Passed**, 1.61 s: `AUTOMATED_PROFILE_PRIVATE_OK`, `COMPOSITION_TEST_BOUNDARY:outside` |
+| `test_network_isolation_manifest` | **Passed**: `TEST_NETWORK_ISOLATION_OK:configured=357:registrations=344`, no finding |
+| `test_network_isolation_structure_contract` | Passed |
+| `architecture_boundaries` | Passed |
+| BPR-0820's other 13 rows and `runtime_process_surface` | All passed: `application_public_path`, `_ghes_cli_unavailable`, the four device-authorization rows, the four anonymous-preview rows, `application_render`, `runtime_audit_contract` and `runtime_process_surface` (18 of 18 in the run) |
+
+### Leftovers
+
+The two diagnostic contained runs of this task each left one
+`bpr-automated-profile-*` directory under the container temporary directory.
+A contained run cannot delete the owner-only `QTemporaryDir` it created. Both
+were removed by hand. No `bpr-automated-profile-*` directory remains, and
+none remained from earlier tasks at the start of this one.
+
+The card is left In Progress for the integrator.
+
+**Portable sources touched:** `tests/end_to_end/CMakeLists.txt` (two
+`WINDOWS_UNCONTAINED` markers) and `scripts/verify_test_network_isolation.py`
+(pins).

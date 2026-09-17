@@ -557,6 +557,7 @@ else()
 endif()
 bpr_add_network_isolated_test(
     NAME application_composition_capabilities_inside_boundary
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --self-test
@@ -582,6 +583,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_composition_capabilities_product_run
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --self-test
