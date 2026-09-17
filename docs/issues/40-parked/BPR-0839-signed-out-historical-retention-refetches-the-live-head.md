@@ -176,3 +176,20 @@ serves recorded packs.
 
 Options 2 and 3 are architecture changes, so this station stops here, as
 instructed. Option 3 also decides the live-path defect above.
+
+## Integrator decision (dsp-003): keep the refetch; finished
+
+Option **1**. The refetch is needed: the only journaled import path requires
+that fetch's receipt, inventory and authorization tokens, and the fetch
+re-checks that the live base and head are still advertised. It adds no
+objects and costs about 1 ms of a roughly 225 ms import on Linux. Options 2
+and 3 would change the Git cache port, the append journal or the pack import
+contract to save that cost, so they are declined here.
+
+`PUBLIC_PREVIEW_SMART_ACQUISITIONS:4` stays. Where the 7.5 s per import on
+macOS goes is not established, and the Linux timing suggests it is not the
+fetch; that question is not this card's.
+
+The haves exposure the investigation found on the live path is a separate
+suspected defect, [[BPR-0846]]. Option 3's import-rule change belongs there,
+if it reproduces.

@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0846",
+    "BPR-0847",
+    "BPR-0848"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-003: haves vs self-contained index-pack, Linux profile activation drain, main.cpp format",
+  "created": "2026-09-17T14:15:35.479959+00:00",
+  "base": "15eb199349a631e82b111db44ef300f94b660fa1"
+}
