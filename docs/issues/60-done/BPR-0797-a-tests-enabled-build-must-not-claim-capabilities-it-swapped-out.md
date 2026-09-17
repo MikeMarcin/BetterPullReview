@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0797"
 title: "A tests-enabled build must not claim the capabilities it swapped out"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0015", "RFC-BPR-0016"]
 depends_on: []
 platforms: ["mac"]
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"owner amendments r4 and r5, 2026-09-16, Settings > Accounts & hosts on the github.com card","acceptance":["one root cause, two reported symptoms"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1 - A build that cannot open a browser never tells the reviewer that it opened one; the fix is which handoff the composition can honestly produce, not new wording","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"Two things had to change and both did. Which handoff the composition can produce: a run outside the automated test boundary - the configuration a person's own build runs in - binds bpr::app::system_browser_opener, so the handoff it reports is a real dispatch rather than a recorder's `++Opens; return true`. Demonstrated on binary sha256 abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577 at zero pending build actions, by running the SAME argv against the SAME binary with only one ENVIRONMENT_MODIFICATION entry different: marker set -> COMPOSITION_TEST_BOUNDARY:inside / COMPOSITION_BROWSER:recording; marker erased -> outside / system (build/bpr0797-d13-probe3-inside.log, build/bpr0797-d13-probe3-outside.log). That is its own negative control: the same binary yields the other answer when the one input changes. And what the panel may claim: device_authorization_handoff::opened no longer renders \"Opened in your browser.\" - that string is absent from the binary in UTF-8, UTF-16LE and UTF-16BE, and survives in the source only inside explanatory comments and one negative assertion. It renders \"Your browser was asked to open the page. If it did not, enter the code at the address above on any device.\", which claims the dispatch and not the window, and keeps the same way out the other three states offer. The existing unavailable sentence is untouched and is still the construction cut's only answer. Pinned by the new qt course test_an_accepted_handoff_does_not_claim_a_browser_opened at three scales (qt_device_authorization_scale_100/125/200 green), which asserts the absence of the old claim, the presence of \"asked to open\" and \"any device\", that the button stays enabled, and that the code and address are still on screen. LIMITATION: this establishes that the build no longer overclaims and that it binds the real opener. It does NOT establish that a browser window appears; see AC5."}},{"criterion":"AC2 - The GitHub CLI way in is either usable in the build a developer runs, or the card says why not in words that name the reason","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"Usable, and usable means with its consent gates intact - which took two commits. b1f89533 made the offer real: the label and the transport factory now follow cli_read_offered_here() rather than `__APPLE__ && !BPR_BUILD_TESTING`, so the same binary reports COMPOSITION_CLI_READ:available and the label 'GitHub.com - GitHub CLI (uses your gh sign-in)' outside the boundary, and unavailable with the '(unavailable)' label inside it. ComposedCliReadAvailable is read off the factory the run actually holds, so it cannot disagree with the label. THEN INDEPENDENT CRITICAL REVIEW FOUND THAT b1f89533 HAD MADE THE OFFER REAL WITHOUT ITS CONSENT GATES, and it was right: the read opt-in warning in dispatch_intent and confirm_cli_publication were both still gated on BPR_BUILD_TESTING, and confirm_cli_publication's tests-enabled branch is `return true`. Confirmed on the 5f13c390 binary in three encodings: 'uses your gh sign-in' present while 'Use configured GitHub CLI', 'Confirm GitHub CLI publication' and 'Each publication requires a separate write confirmation' were all absent. That falsified BPR-0786 AC1 for the default BUILD_TESTING=ON build. Fixed at a78eefcf by moving both gates to the same run-time question. Before and after on the same fixture-less command outside the boundary: 5f13c390 printed CLI_OPT_IN_REQUIRED_FAILED with CLI_OPT_IN_GUARD_COUNT:0; abe15f40 prints CLI_OPT_IN_REQUIRED_OK with CLI_OPT_IN_GUARD_COUNT:1 (build/bpr0797-d13-cli-outside.log). Both dialog titles are now in the binary. gh_cli_transport, github_cli_process_runner, application_review_submission_contract, application_review_submission_application_host and application_review_submission_composition_public_path all pass. LIMITATION: the gh process launch itself is NOT demonstrated by d13 or its reviewer - this station's credential store is locked for the session, so every fixture-less --self-test row stops at 'The operating system credential store is unavailable.' What is demonstrated is that the consent guard refuses before a transport is built; the hop to findExecutable(\"gh\") is read from code."}},{"criterion":"AC3 - A course asserts the identity of the composed device_authorization_browser_port in the configuration the application is actually run in","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"application_composition_capabilities_inside_boundary and application_composition_capabilities_product_run both green. They assert the composed identity by name - COMPOSITION_BROWSER:recording and COMPOSITION_BROWSER:system - and the second is the configuration the application is actually run in, which is the half no existing course covered: device_browser_opens() had no reader in tests/ at all. Read out of CTest's own manifest, the two rows register byte-identical commands against binary abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577 and differ in exactly one property entry, the product-run row's trailing BPR_AUTOMATED_TEST_BOUNDARY=unset: appended after the seam's set:1. Neither row opens anything: the probe reports and shuts down at the start stage, selects no device path so no verification address exists, runs no CLI course so it needs no platform vault, and carries --network-denied against a closed loopback port under sandbox-exec. The composed identity is also now reported in github_application_status (DeviceAuthorizationBrowser, ComposedCliReadAvailable) rather than inferred from defines. application_device_authorization_browser_handoff, _absent and _address and composed_application_hosts all still pass unchanged."}},{"criterion":"AC4 - The safety rule in the existing seam's own comment is preserved: nothing here authorizes a test run to launch a browser","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"Preserved, and now audited rather than asserted. The marker is injected by bpr_add_network_isolated_test, the single registration seam every isolated test on all three platforms goes through, and a selected fixture counts as inside on its own so a fixture course started by hand outside CTest cannot hand a recorded address to the real opener. ENVIRONMENT_MODIFICATION rather than ENVIRONMENT, because a row's own set_tests_properties(... ENVIRONMENT ...) replaces the property after the seam returns; an independent reviewer demonstrated the CTest semantics on a purpose-built five-row CMake 4.4.3 project - set:1 survives a later row-level ENVIRONMENT write, set:1 then unset: erases, unset: then set:1 does not - and verified per row that every application_device_authorization_* course carries the marker alongside its own offscreen variable. verify_test_network_isolation.py reads the marker back out of the manifest for every configured row, names the product-run row as the sole permitted erasure and requires the two entries in that order. Its 46 positive controls pass, six of them naming the boundary. The reviewer could not find any registered row that reaches the src/app composition outside the boundary except the deliberate product-run row, and confirmed that row cannot reach a browser or gh with a logging fake gh first on PATH. TWO NAMED GAPS, recorded rather than glossed: gh_cli_git_smart_transport is a raw add_test at tests/github_contract/CMakeLists.txt:1200 that escapes the seam - the gate reports it, and it carries zero bpr::app:: symbols so it cannot compose the application; and the marker is read only in src/app/main.cpp, so tests/end_to_end/github_application_liveness_tests.cpp:55, which composes github_application in process with no fixture, is outside the boundary whatever its row says. It presses nothing. Both are follow-up work, not this card's acceptance."}},{"criterion":"AC5 (added by d13) - The owner presses Open browser on a build that binds the real opener and reports whether a browser actually appeared, and whether the sentence the panel then shows is true of what they saw","outcome":"pending","revision":"a78eefcf","evidence":{"kind":"observation","detail":"NOT RUN, and not runnable by any course. QDesktopServices::openUrl returns when the desktop accepts the launch; the window it asks for is a window on somebody's screen, which github_application.cpp says in its own comment this process cannot observe. One attended candidate is prepared and deliberately NOT performed: bpr-0797-device-browser-opens, fingerprint 3b3dff8b7b78f2864b4e5c07a4b04a3b9ea11daea7b678d9bf74b2a08ca40977, revision 'b1f89533 + a78eefcf / app sha256 abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577', in session e966c88f3320638208adf4fcf0651e31 at /Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review, with the reviewed bundle pinned as a resource at that digest. It asks one question about one gesture and carries a six-option group so the outcome and the wording come back as one bounded decision. A BOUNDARY JUDGMENT IS RECORDED WITH IT AND THE USER MAY OVERRULE IT: reaching the gesture needs the first leg of a device sign-in, because openUrl is reachable in the shipped graph only through system_browser_opener, which is bound only as the device browser port, and that opener accepts https alone - there is no harmless local address to hand it. The candidate therefore asks the owner to press the button and then CANCEL, never to enter the code or approve anything, tells them not to paste any code or token anywhere, and offers an explicit 'I did not start the device sign-in' option that leaves this criterion unanswered rather than passed. No agent performed or may perform a device authorization. If the user judges even the first leg out of bounds, the candidate should be withdrawn and this criterion recorded permanently not-observable."}}]
+acceptance: [{"criterion":"AC1 - A build that cannot open a browser never tells the reviewer that it opened one; the fix is which handoff the composition can honestly produce, not new wording","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"Two things had to change and both did. Which handoff the composition can produce: a run outside the automated test boundary - the configuration a person's own build runs in - binds bpr::app::system_browser_opener, so the handoff it reports is a real dispatch rather than a recorder's `++Opens; return true`. Demonstrated on binary sha256 abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577 at zero pending build actions, by running the SAME argv against the SAME binary with only one ENVIRONMENT_MODIFICATION entry different: marker set -> COMPOSITION_TEST_BOUNDARY:inside / COMPOSITION_BROWSER:recording; marker erased -> outside / system (build/bpr0797-d13-probe3-inside.log, build/bpr0797-d13-probe3-outside.log). That is its own negative control: the same binary yields the other answer when the one input changes. And what the panel may claim: device_authorization_handoff::opened no longer renders \"Opened in your browser.\" - that string is absent from the binary in UTF-8, UTF-16LE and UTF-16BE, and survives in the source only inside explanatory comments and one negative assertion. It renders \"Your browser was asked to open the page. If it did not, enter the code at the address above on any device.\", which claims the dispatch and not the window, and keeps the same way out the other three states offer. The existing unavailable sentence is untouched and is still the construction cut's only answer. Pinned by the new qt course test_an_accepted_handoff_does_not_claim_a_browser_opened at three scales (qt_device_authorization_scale_100/125/200 green), which asserts the absence of the old claim, the presence of \"asked to open\" and \"any device\", that the button stays enabled, and that the code and address are still on screen. LIMITATION: this establishes that the build no longer overclaims and that it binds the real opener. It does NOT establish that a browser window appears; see AC5."}},{"criterion":"AC2 - The GitHub CLI way in is either usable in the build a developer runs, or the card says why not in words that name the reason","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"Usable, and usable means with its consent gates intact - which took two commits. b1f89533 made the offer real: the label and the transport factory now follow cli_read_offered_here() rather than `__APPLE__ && !BPR_BUILD_TESTING`, so the same binary reports COMPOSITION_CLI_READ:available and the label 'GitHub.com - GitHub CLI (uses your gh sign-in)' outside the boundary, and unavailable with the '(unavailable)' label inside it. ComposedCliReadAvailable is read off the factory the run actually holds, so it cannot disagree with the label. THEN INDEPENDENT CRITICAL REVIEW FOUND THAT b1f89533 HAD MADE THE OFFER REAL WITHOUT ITS CONSENT GATES, and it was right: the read opt-in warning in dispatch_intent and confirm_cli_publication were both still gated on BPR_BUILD_TESTING, and confirm_cli_publication's tests-enabled branch is `return true`. Confirmed on the 5f13c390 binary in three encodings: 'uses your gh sign-in' present while 'Use configured GitHub CLI', 'Confirm GitHub CLI publication' and 'Each publication requires a separate write confirmation' were all absent. That falsified BPR-0786 AC1 for the default BUILD_TESTING=ON build. Fixed at a78eefcf by moving both gates to the same run-time question. Before and after on the same fixture-less command outside the boundary: 5f13c390 printed CLI_OPT_IN_REQUIRED_FAILED with CLI_OPT_IN_GUARD_COUNT:0; abe15f40 prints CLI_OPT_IN_REQUIRED_OK with CLI_OPT_IN_GUARD_COUNT:1 (build/bpr0797-d13-cli-outside.log). Both dialog titles are now in the binary. gh_cli_transport, github_cli_process_runner, application_review_submission_contract, application_review_submission_application_host and application_review_submission_composition_public_path all pass. LIMITATION: the gh process launch itself is NOT demonstrated by d13 or its reviewer - this station's credential store is locked for the session, so every fixture-less --self-test row stops at 'The operating system credential store is unavailable.' What is demonstrated is that the consent guard refuses before a transport is built; the hop to findExecutable(\"gh\") is read from code. D14 UPDATE, ON THE OWNER'S OWN REPORT AND A RE-RUN. The owner's note on the attended candidate reads, verbatim: \"Sign in worked, but I was only able to use CLI *after* I had already done the device page sign in.\" That does not falsify this criterion and it is not dismissed. The offer is present and honestly labelled to somebody who has not signed in: qt_composed_github_scale_100 asserts cli_offer_button() visible on the github.com card with the text 'GitHub CLI (uses your gh sign-in)' at the point where sign_in_button() is still visible and default - that is, signed out, before any gesture - and it is green at e2095a3e (tests/adapters_qt/composed_github_tests.cpp:5496; build/bpr0797-d14-composed-github.log). What the note is about is when the offer is reachable, not whether it exists: server_card::apply_account_row computes offered = !flowRow && !cliPresented && !waiting && shown.ConnectAdmitted, and flowRow is true exactly while the device flow holds the account row and the user is not yet signed in, so the offer is withdrawn for the duration of the flow and returns when the sign-in completes. That is BPR-0773's rule, stated in that function's own comment. The owner walked that path and reported that order of events. Whether the offer should be reachable from inside the flow is a product question no existing acceptance answers, and it is carded as BPR-0803, which also records the competing reading - that the candidate told them not to click the row, so they used it later by choice - because the session cannot separate the two. THE LIMITATION ABOVE IS ALSO CORRECTED: the gh process launch is still not demonstrated by any agent, but the reason has changed. Re-run at e2095a3e, application_public_path_ghes_cli_unavailable now stops at PROFILE_ALREADY_OPEN, because the owner's reviewed application still holds the profile (pid 88792, the same bundle). The run never reaches a credential store, so d13's locked keychain is neither confirmed nor refuted today (build/bpr0797-d14-ghes-verbose.log). D14 did not stop the owner's application to obtain a green. The owner's remark that they used the CLI is the first indication from a person that the path functions; it is unstructured, no agent observed a spawn, and this criterion does not rest on it."}},{"criterion":"AC3 - A course asserts the identity of the composed device_authorization_browser_port in the configuration the application is actually run in","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"application_composition_capabilities_inside_boundary and application_composition_capabilities_product_run both green. They assert the composed identity by name - COMPOSITION_BROWSER:recording and COMPOSITION_BROWSER:system - and the second is the configuration the application is actually run in, which is the half no existing course covered: device_browser_opens() had no reader in tests/ at all. Read out of CTest's own manifest, the two rows register byte-identical commands against binary abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577 and differ in exactly one property entry, the product-run row's trailing BPR_AUTOMATED_TEST_BOUNDARY=unset: appended after the seam's set:1. Neither row opens anything: the probe reports and shuts down at the start stage, selects no device path so no verification address exists, runs no CLI course so it needs no platform vault, and carries --network-denied against a closed loopback port under sandbox-exec. The composed identity is also now reported in github_application_status (DeviceAuthorizationBrowser, ComposedCliReadAvailable) rather than inferred from defines. application_device_authorization_browser_handoff, _absent and _address and composed_application_hosts all still pass unchanged."}},{"criterion":"AC4 - The safety rule in the existing seam's own comment is preserved: nothing here authorizes a test run to launch a browser","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"command","detail":"Preserved, and now audited rather than asserted. The marker is injected by bpr_add_network_isolated_test, the single registration seam every isolated test on all three platforms goes through, and a selected fixture counts as inside on its own so a fixture course started by hand outside CTest cannot hand a recorded address to the real opener. ENVIRONMENT_MODIFICATION rather than ENVIRONMENT, because a row's own set_tests_properties(... ENVIRONMENT ...) replaces the property after the seam returns; an independent reviewer demonstrated the CTest semantics on a purpose-built five-row CMake 4.4.3 project - set:1 survives a later row-level ENVIRONMENT write, set:1 then unset: erases, unset: then set:1 does not - and verified per row that every application_device_authorization_* course carries the marker alongside its own offscreen variable. verify_test_network_isolation.py reads the marker back out of the manifest for every configured row, names the product-run row as the sole permitted erasure and requires the two entries in that order. Its 46 positive controls pass, six of them naming the boundary. The reviewer could not find any registered row that reaches the src/app composition outside the boundary except the deliberate product-run row, and confirmed that row cannot reach a browser or gh with a logging fake gh first on PATH. TWO NAMED GAPS, recorded rather than glossed: gh_cli_git_smart_transport is a raw add_test at tests/github_contract/CMakeLists.txt:1200 that escapes the seam - the gate reports it, and it carries zero bpr::app:: symbols so it cannot compose the application; and the marker is read only in src/app/main.cpp, so tests/end_to_end/github_application_liveness_tests.cpp:55, which composes github_application in process with no fixture, is outside the boundary whatever its row says. It presses nothing. Both are follow-up work, not this card's acceptance."}},{"criterion":"AC5 (added by d13) - The owner presses Open browser on a build that binds the real opener and reports whether a browser actually appeared, and whether the sentence the panel then shows is true of what they saw","outcome":"pass","revision":"a78eefcf","evidence":{"kind":"observation","detail":"OBSERVED BY THE OWNER, AND THE HALF THAT WAS NOT IS NAMED RATHER THAN ABSORBED. Attended session e966c88f3320638208adf4fcf0651e31 at /Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review, candidate bpr-0797-device-browser-opens, fingerprint 3b3dff8b7b78f2864b4e5c07a4b04a3b9ea11daea7b678d9bf74b2a08ca40977, bound to application sha256 abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577 from a78eefcf at zero pending build actions. Decision 946daa16-131e-4052-ab42-110e8e87bb75, saved 2026-09-17T02:33:38Z, actor human, outcome select, session sequence 111. FIRST HALF - PASS BY OBSERVATION. The owner ticked exactly one of six options: 'A browser window opened at the GitHub device page.' The candidate also offered 'I did not start the device sign-in, so I cannot answer the browser question' and said in words that declining was a legitimate answer which would leave this criterion unanswered rather than passed; that option was on the page and was not taken. So the window is a reported observation and not a click-through, which is the only way this half could ever close, because QDesktopServices::openUrl cannot see the window it asks for. SECOND HALF - NOT TICKED, AND RESTING ON AN AMBIGUOUS REMARK PLUS AC1. The owner ticked neither 'The sentence under the button was true of what I saw' nor 'The sentence under the button was wrong or confusing', and not 'The code and the address stayed on screen'. The candidate asked for the outcome and the wording as one decision; the session holds only the outcome. After the sitting the owner said, verbatim, 'The wording was fine.', relayed uninterpreted by the coordinator. It is probably the missing wording answer - the candidate had just asked for exactly that judgment and no other wording was under review - but not certainly, because the remark followed a conversation about the coordinator's own phrasing and nothing written down fixes its referent. It is recorded as owner input on the two sentences, not as the session's verdict. The wording half therefore rests on that remark together with AC1's course, which pins the exact text ('Your browser was asked to open the page. If it did not, enter the code at the address above on any device.') and the absence of the old claim at three scales. No tick was ever made for it and this record does not pretend one was. BOUNDARY, RECORDED HONESTLY. The owner completed the device sign-in although the candidate asked them to press Cancel: their note says 'Sign in worked.' That was their own act on their own account. No agent performed or attempted any device authorization, and no device code, user code, token or credential is recorded on this card, in any log, in any fixture or in any commit. Two consequences for a successor: this station's credential state is no longer what d13 described, and the reviewed application was still running as pid 88792 during d14's checks. The note's separate remark about the GitHub CLI is adjudicated under AC2 and carried as BPR-0803. PROVENANCE OF THE CANDIDATE, since the session's count moved from 19 to 20 during this sitting: the 20th is this candidate itself, created by d13 at 2026-09-17T01:56:35Z at revision 'b1f89533 / app sha256 5f13c390...' and replaced at 02:10:13Z with 'b1f89533 + a78eefcf / app sha256 abe15f40...' after the consent-gate correction changed the binary. The first revision sits in the session history with phase waiting and decision null: never prepared, never shown, no verdict. One id, two revisions, one verdict."}}]
 ---
 
 # BPR-0797: A tests-enabled build must not claim the capabilities it swapped out
@@ -396,65 +395,154 @@ application.
   a device path, so no verification address exists in either run to hand
   anywhere.
 
-## Current frontier - the pack's one open card, bpr-shell-surfaces-20260915 d13 / rfc-integrator-d13 / mandate r8
+### The attended verdict, d14 - what the owner answered and what they did not
 
-- **Why this card carries it.** [[BPR-0782]], [[BPR-0796]], [[BPR-0779]],
-  [[BPR-0780]], [[BPR-0781]] and [[BPR-0791]] are all Done. This card is the pack's
-  one open card, and it belongs to none of the pack's three RFCs: the owner reported
-  it in the same sitting, and it is a composition-root change against RFC-BPR-0015
-  and RFC-BPR-0016.
+- **The session record.** `e966c88f3320638208adf4fcf0651e31`, sequence 111,
+  handed back `2026-09-17T02:33:43Z`. Candidate `bpr-0797-device-browser-opens`,
+  fingerprint `3b3dff8b…`, bound to application sha256 `abe15f40…` from
+  `a78eefcf`. Decision `946daa16-131e-4052-ab42-110e8e87bb75`, saved
+  `2026-09-17T02:33:38Z`, actor `human`, outcome `select`.
+- **Which candidate this was, since the count moved.** The session went from 19
+  candidates to 20 during this sitting, and the 20th is this candidate itself, not
+  a new question. d13 created it at `2026-09-17T01:56:35Z` (event 105) at revision
+  `b1f89533 / app sha256 5f13c390…`, then replaced it at `02:10:13Z` (event 106)
+  with `b1f89533 + a78eefcf / app sha256 abe15f40…` once the consent-gate
+  correction changed the binary. The first revision is in the session's `history`
+  with `phase: waiting` and `decision: null`: never prepared, never shown, no
+  verdict. One id, two revisions, one verdict.
+- **What the owner ticked.** Exactly one of the six options: "A browser window
+  opened at the GitHub device page." The note reads, verbatim: "Sign in worked,
+  but I was only able to use CLI *after* I had already done the device page sign
+  in."
+- **The decline option was on the page and was not taken.** "I did not start the
+  device sign-in, so I cannot answer the browser question" was one of the six, and
+  the candidate said in words that rejecting was a legitimate answer that would
+  leave this criterion unanswered. The owner instead reported a window. **AC5's
+  first half is therefore closed by observation, not by a click-through** - which
+  is the only way it could ever have closed, since `QDesktopServices::openUrl`
+  cannot see the window it asks for.
+- **What the owner did not tick.** Neither wording line: not "The sentence under
+  the button was true of what I saw", and not "The sentence under the button was
+  wrong or confusing". Nor "The code and the address stayed on screen". The
+  candidate asked for the outcome **and** the wording as one decision; the session
+  holds only the outcome. On the session record alone, the wording half of AC5 is
+  unanswered.
+- **One out-of-session remark, recorded with its ambiguity rather than cleaned
+  up.** After the sitting the owner said, verbatim: "The wording was fine." It was
+  relayed to d14 by the coordinator, uninterpreted. It is **probably** the missing
+  wording answer: the candidate had just asked for exactly that judgment, and no
+  other wording was under review. It is **not certainly** that: the remark
+  followed a conversation about the coordinator's own phrasing, so its referent is
+  not fixed by anything written down. It is recorded here as owner input on the
+  two sentences, not as the session's verdict, and the wording half of AC5 rests on
+  it together with AC1's course pinning the sentence's exact text - not on a tick
+  that was never made.
+- **The owner completed the sign-in the candidate asked them to cancel.** "Sign in
+  worked." That was their own act on their own account, and it is theirs to make.
+  No agent performed or attempted any device authorization, and no device code,
+  user code, token or credential is recorded on this card, in any log, in any
+  fixture or in any commit. Two consequences a successor must know rather than
+  discover: this station's credential state is no longer what d13 described, and
+  the reviewed application was still running as pid 88792 during d14's checks.
+- **The note's CLI sentence does not falsify AC2, and is not dismissed either.**
+  The offer is present and honestly labelled to someone who has not signed in:
+  `qt_composed_github_scale_100` asserts `cli_offer_button()` visible with the text
+  `GitHub CLI (uses your gh sign-in)` at the point where `sign_in_button()` is
+  still visible and default, and it is green at `e2095a3e`
+  (`build/bpr0797-d14-composed-github.log`). What the note is about is that
+  `server_card::apply_account_row` withdraws the offer while the device flow holds
+  the row - `offered = !flowRow && !cliPresented && !waiting &&
+  shown.ConnectAdmitted`, with `flowRow` true exactly while the flow is shown and
+  the user is not yet signed in - which is [[BPR-0773]]'s rule, in that function's
+  own comment. So the owner walked a path where the offer really was not there,
+  and it came back when the sign-in finished. Whether that is right is a product
+  question no existing acceptance answers: [[BPR-0803]]. The competing reading -
+  that the candidate told them not to click the row, so they simply used it later -
+  is recorded there too, because the session cannot separate the two.
+- **A reported-open row has a different reason today, and the old reason is no
+  longer verified.** `application_public_path_ghes_cli_unavailable` still fails,
+  but its output is now `PROFILE_ALREADY_OPEN`: the owner's reviewed application
+  holds the profile. The run never reaches a credential store, so d13's locked
+  keychain is neither confirmed nor refuted today. d14 did not stop the owner's
+  application to obtain a green, and a successor should not either without asking.
+- **One inherited sentence corrected.** d13 recorded `coding-format-check` as red
+  "on files this card does not touch". `src/app/main.cpp` is both flagged and
+  changed by `b1f89533`. The accurate claim is about lines, not files: all three
+  flagged lines in that file (`3241`, `5392`, `5420`) blame to `0ec1136a` and
+  `284d1eac`, neither of which is this card's work.
+
+## Current frontier - closed, bpr-shell-surfaces-20260915 d14 / rfc-integrator-d14 / mandate r8
+
+- **Disposition.** Done, on the attended verdict recorded immediately above. Source
+  revision `a78eefcf`; application sha256
+  `abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577` at zero
+  pending build actions, re-confirmed by d14 (`ninja -C build/dev -n`: no work to
+  do, at `e2095a3e`).
 - **Usable behaviour, now.** A build made with this project's CMake default binds
   the real browser opener and offers the real GitHub CLI read with both of its
   consent gates present. A run inside the automated test boundary binds the
   recorder and composes a factory that cannot serve a CLI read. The boundary is one
   run-time fact, injected by the one registration seam every isolated test on every
-  platform goes through, and audited out of CTest's own manifest.
-- **Current candidate.** Application binary sha256
-  `abe15f40ba8575e69d84e74686e385b77a688ddd14130635c3a867f6d895d577`, from source
-  `a78eefcf` (`b1f89533` plus its correction), at zero pending build actions.
-- **Why this card is Parked and not Done.** Every acceptance bullet here is met on
-  suite evidence. The owner's own symptom is not: whether a browser window appears
-  on their Mac is a window on somebody's screen, which this process cannot observe
-  and says so in its own comment. One attended candidate,
-  `bpr-0797-device-browser-opens`, is prepared against `abe15f40…` and **not
-  performed**. Closing this on suite evidence would repeat the error [[BPR-0779]]
-  B1 recorded, where the macOS half was false at the moment the owner read it.
-- **The one boundary judgment a successor should check rather than inherit.**
-  Reaching the gesture needs the first leg of a device sign-in, because
-  `QDesktopServices::openUrl` is reachable in the shipped graph only through
-  `system_browser_opener`, which is bound only as the device browser port, and the
-  opener accepts `https` alone - so there is no harmless local address to hand it.
-  The candidate therefore asks the owner to press Open browser and then **cancel**,
-  never to enter the code or approve anything, and offers an explicit "I did not
-  start it" option that leaves the question unanswered rather than passed. No agent
-  performed or may perform a device authorization, and no code or token is recorded
-  anywhere. If the user judges even that first leg out of bounds, the candidate
-  should be withdrawn and this criterion recorded permanently not-observable.
-- **Unresolved obligations.**
-  1. The attended verdict above.
-  2. `gh_cli_git_smart_transport` escapes `bpr_add_network_isolated_test`
-     (`tests/github_contract/CMakeLists.txt:1200`, a raw `add_test`). Harmless
-     today - zero `bpr::app::` symbols, so it cannot compose the application - but
-     it is the one registered row the new audit names and cannot cover.
-  3. `tests/end_to_end/github_application_liveness_tests.cpp:55` composes
-     `github_application` in process with no fixture, so `application_poller_liveness`
-     is outside the boundary whatever its row's environment says. It presses nothing.
-     The marker is read only in `src/app/main.cpp`, so the seam argument covers the
-     application binary, not every composition root.
-  4. `test_network_isolation_manifest` and `coding-format-check` are both red, both
-     were red at `68aa7ab1`, and both are red on files this card does not touch.
-  5. `coding-tidy` was NOT RUN. The tests-disabled `app-release` build is run and
-     clean, and `BPR_AUTOMATED_TEST_BOUNDARY` is confirmed absent from the Release.
-  6. `strings` on a binary can no longer tell which GitHub CLI label a row shows,
+  platform goes through, and audited out of CTest's own manifest. **And the owner
+  has now seen a browser window open from the button that did nothing.**
+- **Why this is Done and not still Parked.** d13 parked it deliberately, because
+  closing it on suite evidence would have repeated the error [[BPR-0779]] B1
+  recorded, where the macOS half was false at the moment the owner read it. That
+  reason is spent: the owner pressed the button on `abe15f40…` and reported the
+  window. The residual is the wording half, and it is named above rather than
+  absorbed - it rests on an ambiguous out-of-session remark plus AC1's course, and
+  a successor is entitled to know that no tick was ever made for it.
+- **Unresolved obligations, carried forward with their true status.**
+  1. `coding-tidy` - **NOT RUN**, by d13 and not by d14 either. The tests-disabled
+     `app-release` build is run and clean, and `BPR_AUTOMATED_TEST_BOUNDARY` is
+     confirmed absent from the Release.
+  2. `test_network_isolation_manifest` - **RED**, seven findings at `e2095a3e`
+     (`build/bpr0797-d14-recheck.log`). Four name `gh_cli_git_smart_transport`
+     (marker, scrubs, label, runner) and are [[BPR-0802]]. Three - `raw add_test
+     ownership`, `designated live source registration ... calls=2`, and
+     `WINDOWS_UNCONTAINED appears 190 times ... expected between one and 105` - are
+     the gate scanning `.claude/worktrees/bpr-dif-integration-rfc-3c2904`, a second
+     checkout inside this one that this mandate may not touch. It is the same
+     checkout that stops `architecture_boundaries`.
+  3. `coding-format-check` - **RED**, 228 findings across 18 files
+     (`build/bpr0797-d14-format-check.log`). None of them is a line this card
+     wrote; see the correction above.
+  4. `application_public_path_ghes_cli_unavailable` - **RED**, today for
+     `PROFILE_ALREADY_OPEN` rather than a locked credential store
+     (`build/bpr0797-d14-ghes-verbose.log`).
+  5. The `gh` process launch itself is **still not demonstrated** by any agent. The
+     owner's note says they used the CLI, which is the first indication from a
+     person that the path functions, but it is an unstructured remark and no
+     course covers the spawn. What is demonstrated is that the consent guard
+     refuses before a transport is built.
+  6. Seven sandbox-blocked courses on [[BPR-0775]] remain blocked.
+  7. `strings` on a binary can no longer tell which GitHub CLI label a row shows,
      because both arms of a run-time ternary are present in every build. That is
-     the technique d8 used to diagnose this card. Recorded above; a successor
-     auditing a Release should not reach for it.
-- **Next bounded objective.** Take the attended verdict, then either finish this
-  card or open the follow-up its rejection names. The two audit gaps above deserve
-  one small card between them; neither is this card's acceptance.
-- **Where d13's evidence lives.** `build/bpr0797-d13-*.log` in this checkout
-  (`/build/` is git-ignored), and the immediately preceding dispatch's evidence at
-  `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/d10-evidence/`.
+     the technique d8 used to diagnose this card. A successor auditing a Release
+     should not reach for it.
+- **Pack state at closure.** Every other card in `bpr-shell-surfaces-v1` is Done:
+  [[BPR-0770]] through [[BPR-0783]], [[BPR-0789]], [[BPR-0790]], [[BPR-0791]] and
+  [[BPR-0796]]. The authored `verification-closeout` milestone's work is
+  [[BPR-0779]], [[BPR-0780]], [[BPR-0781]], [[BPR-0782]] and [[BPR-0791]], all
+  Done, and the plan's `unplanned_work` is empty. Deferred to Backlog on purpose:
+  [[BPR-0798]], [[BPR-0799]], [[BPR-0800]], [[BPR-0801]], [[BPR-0802]] and
+  [[BPR-0803]].
+- **What formal closure still waits on, unforced.** RFC-BPR-0032, RFC-BPR-0033 and
+  RFC-BPR-0034 are all `Proposed`, and the terminal status is `Auto-Verified`.
+  RFC-BPR-0032 depends on RFC-BPR-0016 (`Auto-Verified`), RFC-BPR-0018
+  (`Proposed`) and RFC-BPR-0028 (`Proposed`); RFC-BPR-0033 on RFC-BPR-0024
+  (`Deferred`); RFC-BPR-0034 on RFC-BPR-0006 (`Auto-Verified`) and RFC-BPR-0018
+  (`Proposed`). Three dependencies are therefore not terminal, so none of the three
+  can be closed in canonical order yet. That ordering is the remaining work on this
+  pack, and no status here is advanced to make the board look finished.
+- **Next bounded objective.** Nothing in this pack's authorized scope. The pack is
+  complete apart from the strictly-ordered RFC closure above, which is gated on
+  RFC-BPR-0018, RFC-BPR-0028 and RFC-BPR-0024 rather than on anything in it.
+- **Where the evidence lives.** `build/bpr0797-d13-*.log` and
+  `build/bpr0797-d14-*.log` in this checkout (`/build/` is git-ignored), the
+  attended session at
+  `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review`, and d10's
+  evidence at `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/d10-evidence/`.
 
 ## Boundaries
 
