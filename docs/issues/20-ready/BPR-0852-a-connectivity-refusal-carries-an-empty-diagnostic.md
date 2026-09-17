@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0852"
 title: "A Git cache connectivity refusal carries an empty diagnostic"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P3"

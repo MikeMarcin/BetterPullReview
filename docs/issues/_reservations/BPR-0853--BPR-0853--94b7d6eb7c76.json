@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0853"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-004: bpr-win's epoch_maintenance_integration red on Windows (migrated catalog invalid_permissions)",
+  "created": "2026-09-17T16:09:09.823314+00:00",
+  "base": "e9fdeb8ade03a3cbccad25cd64581eb66b25763d"
+}
