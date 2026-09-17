@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0862"
 title: "The project formatting gate is red on main for seventeen files, and no sweep row would notice"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
