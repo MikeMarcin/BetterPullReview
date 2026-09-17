@@ -77,3 +77,42 @@ ownership.
 **Registration.** The row is registered on every platform
 (`WINDOWS_UNCONTAINED`), and it is the only user of
 `--native-notification-probe`.
+
+## Fix and reseal (dsp-004, Mac)
+
+**The change.** `github_application_fixture_access::notification_tray` is a
+new accessor, compiled only in test builds. It returns the runtime sink's
+`tray_icon()`. `schedule_native_notification_run` now uses it in place of
+`window().findChild`. The activation stage already uses the stored
+`PlatformTray`, so this one site covers both. The sink stays owned by the
+runtime, as [[BPR-0705]] made it. The fixture access header also gets an
+alignment-only clang-format fix of two lines that were already misaligned.
+
+**Product behaviour did not regress.** The runtime-owned sink still creates,
+names and shows its tray and delivers through `showMessage`. Only the probe's
+lookup was broken. `application_native_notification_attended_contract` now
+passes through the platform tray path.
+
+**Review.** An `rfc-reviewer` read the diff before the build and found no
+blocking issue:
+
+- `SystemNotificationSink` is set in both the real and the BPR-0442 display
+  capture branches.
+- `UseGrantedNotificationSink` is never set for the probe.
+- The tray icon lives as long as the runtime.
+- The definition sits inside the test-build region.
+- The forward declaration matches the existing pattern.
+
+**Reseal.** The pinned scope has no other change since the last reseal,
+`08c1aa30`: `git log 08c1aa30..HEAD -- src/app` is empty. The full-application
+pin moves from `4f417065…` to `15871968…`, and the manifest pin from `d0d6c631…`
+to `cc903934…`. The mutation-branch pin is unchanged.
+
+**Runs (macOS, `build/r2-dev`).**
+- `application_native_notification_attended_contract` and
+  `application_review_round_trip_composition_contract` pass
+  (`build/r2-logs/dsp4-int3-ctest.log`).
+- `qt_system_tray_notification_sink` and
+  `application_queue_composition_contract` pass
+  (`dsp4-int3-ctest-neighbours.log`).
+- Linux and Windows still have to run the row.

@@ -7290,9 +7290,11 @@ namespace {
 		bpr::app::github_application&                  aApplication,
 		const std::shared_ptr<native_notification_run> aRun)
 	{
-		aRun->Started      = automated_clock::now();
-		aRun->PlatformTray = aApplication.window().findChild<QSystemTrayIcon*>(
-			QStringLiteral("reviewQueueNotificationTray"));
+		aRun->Started = automated_clock::now();
+		// [[BPR-0861]]. The profile runtime owns the sink (BPR-0705), so its tray
+		// is no child of the window; ask the runtime for it.
+		aRun->PlatformTray = bpr::app::detail::github_application_fixture_access::notification_tray(
+			aApplication);
 		if (!aRun->SignalObservationCut) {
 			if (aRun->PlatformTray == nullptr) {
 				fail_native_notification_run(

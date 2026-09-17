@@ -13534,6 +13534,15 @@ namespace bpr::app {
 			: detail::review_mutation_fixture_evidence{ };
 	}
 
+	auto detail::github_application_fixture_access::notification_tray(
+		github_application& aApplication) noexcept -> QSystemTrayIcon*
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->SystemNotificationSink != nullptr
+			? implementation->SystemNotificationSink->tray_icon()
+			: nullptr;
+	}
+
 	auto detail::github_application_fixture_access::queue_notification_evidence(
 		const github_application& aApplication) noexcept
 		-> detail::queue_notification_fixture_evidence

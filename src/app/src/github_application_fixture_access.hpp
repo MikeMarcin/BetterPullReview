@@ -23,6 +23,8 @@
 #include <string_view>
 #include <vector>
 
+class QSystemTrayIcon;
+
 namespace bpr::qt {
 	class device_authorization_panel;
 	class finding_queue_view;
@@ -75,8 +77,8 @@ namespace bpr::app::detail {
 
 	struct github_public_path_fixture_options
 	{
-		std::optional<std::filesystem::path>             ApplicationDataRoot;
-		std::shared_ptr<qt::dif_catalog_provider>        DifCatalog;
+		std::optional<std::filesystem::path>      ApplicationDataRoot;
+		std::shared_ptr<qt::dif_catalog_provider> DifCatalog;
 		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
 		/// so both the resident and the quit outcome are observable on one machine.
 		/// Unset selects the running platform's own policy.
@@ -732,6 +734,11 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto queue_notification_evidence(
 			const github_application& aApplication) noexcept
 			-> queue_notification_fixture_evidence;
+		/// \brief The runtime notification sink's platform tray icon, if composed.
+		/// \details The profile runtime owns the sink, so the icon is not a child of
+		/// any window (BPR-0705, [[BPR-0861]]).
+		[[nodiscard]] static auto notification_tray(
+			github_application& aApplication) noexcept -> QSystemTrayIcon*;
 		/// \brief Emits one activation through the legacy fixture-only sink.
 		[[nodiscard]] static auto activate_fixture_notification(
 			github_application& aApplication) -> bool;
