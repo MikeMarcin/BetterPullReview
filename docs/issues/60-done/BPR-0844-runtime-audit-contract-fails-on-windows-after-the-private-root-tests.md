@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0844"
 title: "runtime_audit_contract fails on Windows after BPR-0820's private-root script tests"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-private-roots step 1","found_at":"6c44b6eaedfc7a752f0ab78255c2403bc4f406e4","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 runtime_audit_contract passes on the Windows station as registered, and on macOS","outcome":"pass","revision":"59df97a151ef13ae206a1af3c6a72eb4073cc649 (Windows); eade8828 (macOS)","evidence":{"kind":"command","detail":"bpr-win: runtime_audit_contract passes contained (18 tests, 1 skipped) and runtime_process_surface passes; reverted trial at the base gives failures=1, errors=3. macOS: both pass at eade8828 (build/r2-logs/dsp3-int8-ctest.log)."}}]
 ---
 
 # BPR-0844: runtime_audit_contract fails on Windows after BPR-0820's private-root script tests
