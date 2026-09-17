@@ -45,3 +45,76 @@ them ([[BPR-0806]]). macOS and Linux pass the course.
 
 - The course passes on Windows, 3 runs in a row, and still passes on macOS.
   The cause is named here.
+
+## Cause (dsp-004, bpr-win, task-20260917-win-0853)
+
+The course is at fault, not the product. The course has three Windows
+faults in a row, and each one hid the next. Each was measured with a
+temporary diagnostic that was then reverted.
+
+1. **The copied catalog lacks the store's descriptors.** `icacls` on the two
+   trees just before the reopen:
+
+   | Object | Original (store-created) | Copy (`std::filesystem::copy`) |
+   | --- | --- | --- |
+   | `catalog\state` | `mikem:(OI)(CI)(F)` | `mikem:(I)(OI)(CI)(F)` |
+   | `catalog\state\v1` | `mikem:(OI)(CI)(F)` | `mikem:(I)(OI)(CI)(F)` |
+   | `state\v1\epoch-catalog.sqlite3` | `mikem:(F)` | `mikem:(I)(F)` |
+   | `state\v1\epoch-catalog.lock` | `mikem:(F)` | `mikem:(I)(F)` |
+
+   The copy only inherits. `validate_private_security`
+   (`catalog_database.cpp` ~2275) requires an existing directory to have a
+   protected DACL with one `(OI)(CI)` owner grant, and an existing store file
+   to have one explicit grant. It accepts an inherited grant only while
+   admitting a file SQLite has just created ([[BPR-0806]]). The reopen
+   therefore returns `invalid_permissions` (2). Giving only the directories
+   the store's descriptor was not enough: the course still failed the same
+   way on the inherited files. The owner-private refusal is correct and was
+   not changed.
+2. **The frozen `binding` file was written in text mode.** With the catalog
+   fixed, the MCP helper answered `snapshot_unavailable`. The course wrote
+   `binding` with a text `std::ofstream`, so on Windows the line ends
+   `\r\n`. The product writes this file in binary
+   (`github_application.cpp` ~3261), and the helper reads it in binary and
+   does not decode the carriage return.
+3. **The fixture agent's stdout was in text mode.** With `binding` fixed,
+   the agent's single event matched the receipt except for a trailing
+   carriage return: `migrated_binding_agent_fixture.cpp` wrote its receipt
+   through the CRT's text mode. Every other raw-protocol fixture selects
+   binary streams (BPR-0240).
+
+macOS and Linux have none of the three: `copy` keeps the 0700/0600 modes,
+and there is no text-mode translation.
+
+## Fix (bpr-win)
+
+Test code only; no product, storage-authority or manifest change.
+
+- `tests/git_contract/epoch_maintenance_integration_tests.cpp`: after the
+  recursive copy, every copied catalog object, parents first, gets the
+  store's explicit owner-private descriptor through the existing test
+  support `bpr::tests::sqlite_contract::make_owner_private(path, directory)`.
+  On POSIX it sets 0700/0600, which the copy already carried. `binding` is
+  written with `std::ios::binary`.
+- `tests/git_contract/migrated_binding_agent_fixture.cpp`: on Windows,
+  standard streams are set to `_O_BINARY` first, the same idiom as
+  `tests/fixtures/agent/agent_canary_main.cpp`.
+
+## Verification (Windows, bpr-win)
+
+Windows 11 Home 10.0.26200, Visual Studio 18, Qt 6.10.3, Git for Windows
+2.55.0.windows.3, `windows-dev` Debug, based on
+`156fde6b69e54ab0bd85795cea0de9f467514845`.
+
+- `epoch_maintenance_integration`: failed 3 of 3 before the fix (`construct
+  real SQLite catalog`). After the fix it passed 3 runs in a row: 13.23,
+  13.25 and 13.13 s.
+- `git_haves_trimmed_pack_update` (neighbour): passed, 6.61 s.
+- `test_network_isolation_manifest`: passed, 6.32 s.
+- `clang-format`: no drift in either file.
+
+## For macOS
+
+Run `epoch_maintenance_integration` once. The only POSIX-visible change is
+the `make_owner_private` pass over the copied catalog, which sets 0700 on
+directories and 0600 on files.

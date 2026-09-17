@@ -1,10 +1,16 @@
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
+
+#if defined(_WIN32)
+	#include <fcntl.h>
+	#include <io.h>
+#endif
 
 namespace {
 	auto consume_binding() -> bool
@@ -56,6 +62,17 @@ namespace {
 
 auto main() -> int
 {
+#if defined(_WIN32)
+	// [[BPR-0853]]. Binary standard streams, as every raw-protocol fixture in
+	// this tree selects (BPR-0240): the CRT's text mode would end the receipt
+	// line with "\r\n", and the parent compares the bytes this fixture wrote.
+	for (FILE* stream : { stdin, stdout, stderr }) {
+		const auto descriptor = _fileno(stream);
+		if (descriptor >= 0) {
+			static_cast<void>(_setmode(descriptor, _O_BINARY));
+		}
+	}
+#endif
 	if (!consume_binding()) {
 		std::cerr << "migration binding rejected\n";
 		return EXIT_FAILURE;
