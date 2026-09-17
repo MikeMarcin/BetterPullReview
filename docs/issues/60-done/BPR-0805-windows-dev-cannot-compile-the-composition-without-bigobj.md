@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0805"
 title: "windows-dev cannot compile the application composition without /bigobj"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win during task-20260917-win-evidence (BPR-0798 automated half)","found_at":"f2b8e682255fc553a87d4d164c3b27f061300e07","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"windows-dev Debug compiles and links better_pull_review_composition and test_profile_management_public_path","outcome":"pass","revision":"32a983e6","evidence":{"kind":"observation","detail":"bpr-win native Windows build of windows-dev Debug targets with /bigobj; C1128 gone; course executed and passes at d587b5f1"}},{"criterion":"windows-app-release still compiles","outcome":"pass","revision":"32a983e6","evidence":{"kind":"observation","detail":"bpr-win windows-app-release build; image sha256 46619a53... used for BPR-0806/0730/0798 evidence"}},{"criterion":"macOS dev configure unchanged (MSVC-gated)","outcome":"pass","revision":"c0f2fa31","evidence":{"kind":"command","detail":"cmake --preset dev -B build/r2-dev exit 0 at merge; 15 storage/profile courses built and passed; build/r2-logs/merge1-configure.log, merge1-ctest.log"}}]
 ---
 
 # BPR-0805: windows-dev cannot compile the application composition without /bigobj
