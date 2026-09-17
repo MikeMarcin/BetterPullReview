@@ -53,3 +53,42 @@ gate and a nested checkout hid several failures like this.
 - Both contracts pass on macOS, and the cause is named here.
 - The Linux station reruns all three appearance contracts and records the
   result. A separate Linux cause gets its own card.
+
+## Cause and fix (dsp-002)
+
+**First bad revision: `284d1eac`** ([[BPR-0771]], "Retire the stacked session
+chrome"). The bisect ran from `e337c1fa` (pass) to `867e4bed` (fail).
+Parent `e0c7caaf` passes both contracts (theme 25.82 s, store fallback
+13.11 s); `284d1eac` fails both (`build/r2-logs/dsp2-0823-bisect.log`,
+`dsp2-0823-ctest-{e0c7caaf,284d1eac}.log`).
+
+**Mechanism: a course that did not follow a product change.** BPR-0771
+removed the locator, so the fixture course opens its pull request through the
+Home bar. A pull request opened that way lands on Overview (RFC-BPR-0028's
+opening overview, [[BPR-0661]]'s default modality). The centre then shows the
+overview page, and the comparison's visible area is 0x0
+(`dsp2-0823-ctest-head-diag.log`). A person sees the comparison once they
+choose Read or Review, which is the designed behaviour, so the product was
+not changed.
+
+The timeout was an older fault, from `07faf400` ([[BPR-0219]]). After the
+visibility failure the tick returned instead of breaking, so shutdown never
+rearmed and the process hung until the harness timeout.
+
+**Fix `10f30f0496a9f452be01d625a23d9e53e24b71db`.** The diff probe chooses Review before it measures, which is
+what this path showed before BPR-0771, and a visibility failure now breaks
+and fails fast. With the modality step disabled, both contracts fail with
+`DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED` in about 12 s
+(`dsp2-0823-ctest-negative.log`).
+
+**macOS.** At `10f30f04` both contracts pass, and
+`application_appearance_gesture_contract` still passes
+(`build/r2-logs/dsp2-int8-ctest.log`). Both pass again at the integrated
+head (`dsp2-int9-courses.log`). With this fixed,
+`application_diff_workbench_public_path` reached a separate stale pass
+expression, now [[BPR-0828]].
+
+**Status.** The macOS criterion is met. Linux reruns of all three appearance
+contracts, including the gesture contract's `EPOCH_FIXTURE_SEED_FAILED`, go
+with the next `bpr-linux` envelope. The card stays In Progress until they
+are recorded.
