@@ -18,8 +18,14 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 lose which writers are live. It is superseded by whatever dsp-006 writes at its
 boundary.
 
-**Base.** All three refs began at `026d610f`. Main is now `058e8668` (two
-claims), pushed. The `project-integrator` lease is **held**.
+**Base.** All three refs began at `026d610f`. Main is at `d9901619`, pushed.
+The `project-integrator` lease is **held**.
+
+**Landed so far on main:** [[BPR-0881]] (`68f8152e`, with its pin reseal), the
+Windows containment answer and two card corrections (`3601b835`), and five new
+cards — [[BPR-0894]], [[BPR-0895]], [[BPR-0896]], [[BPR-0897]], [[BPR-0898]].
+`ctest --preset core-only` is **145/145** at `68f8152e`
+(`build/r2-logs/dsp6-int-core-ctest.log`).
 
 **Live writers, all four dispatched against `026d610f`:**
 
