@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0830"
 title: "The ledger round trip still reads \"present on entry\" from a counter the window's re-read can satisfy"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0007"]
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux"]
 metadata: {"found_by":"bpr-linux under BPR-0824 (task-20260917-lnx-verify new defect 4)","found_at":"3b968fcc0027c774187c11489f4020c2463bcd2f","run":"run-20260916-stations","dispatch":"dsp-002"}
+acceptance: [{"criterion":"AC1 the round-trip course and application_review_ledger_composition_contract pass on macOS and Linux, repeated","outcome":"pass","revision":"4b677d8be911f68ddbd8f387e955e76c24befd9a (Linux); build/r2-dev from 2842f484 plus BPR-0820, compiled sources equal to 866c5b90 (macOS)","evidence":{"kind":"command","detail":"Linux: composition contract 10/10, diff workbench public path 10/10, seed-then-reuse 10/10 (docs/verification/dsp2-linux-confirmation.md, BPR-0830). macOS: composition contract 5/5, diff workbench public path 5/5 with PRESENT_ON_ENTRY:0, seed-then-reuse 5/5 with reuse PRESENT_ON_ENTRY:1 (build/r2-logs/dsp3-0830-s1-ctest.log, dsp3-0830-s2-roundtrip.log)."}},{"criterion":"AC2 the negative control fails as expected","outcome":"pass","revision":"same as AC1","evidence":{"kind":"command","detail":"file_receipt rows deleted before reuse: reuse reports PRESENT_ON_ENTRY:0 on Linux 3/3 and macOS 3/3 (dsp3-0830-s3-negative-control.log); Linux lldb-forced re-sample showed the old counter printing :1 and the fix :0."}}]
 ---
 
 # BPR-0830: The ledger round trip still reads "present on entry" from a counter the window's re-read can satisfy
