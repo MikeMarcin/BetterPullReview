@@ -12006,6 +12006,7 @@ namespace bpr::app {
 		{
 			enum class phase {
 				awaiting_observation,
+				awaiting_review_modality,
 				awaiting_resource_diff,
 				awaiting_support_diff,
 				awaiting_resource_return,
@@ -12023,6 +12024,16 @@ namespace bpr::app {
 			std::size_t                                   IntentDispatches         = 0U;
 			std::size_t                                   ChangeDispatches         = 0U;
 			std::size_t                                   Waits                    = 0U;
+			/// \brief [[BPR-0859]]. Whether the reveal this phase waited for landed.
+			///
+			/// \details Kept so the wait for the product's own scroll and the
+			/// wait for the paint that follows it are separate bounds, rather
+			/// than one counter each tick resets for the other. A reset that
+			/// runs on every tick of a phase makes the next cap in that phase
+			/// unreachable, which is why both role-paint caps below were dead.
+			std::size_t RevealWaits      = 0U;
+			bool        ResourceRevealed = false;
+			bool        RcRevealed       = false;
 		};
 		std::optional<uiforetw_selected_diff_probe_state>
 			UIforEtwSelectedDiffProbe;
@@ -15305,11 +15316,17 @@ namespace bpr::app {
 			return aPane.cursorRect(start).united(aPane.cursorRect(finish));
 		}
 
+		/// \brief Scrolls both panes until two intraline pairs are on screen.
+		///
+		/// \details [[BPR-0859]]. `aReport` names what stayed off screen. A
+		/// caller that waits for the reveal reports only on the tick it gives
+		/// up, so a run that settles on its third tick stays quiet.
 		[[nodiscard]] auto reveal_intraline_pairs(
 			qt::diff_workbench&             aWorkbench,
 			const core::computed_file_diff& aResult,
 			const intraline_pair_location&  aFirst,
-			const intraline_pair_location&  aSecond) -> bool;
+			const intraline_pair_location&  aSecond,
+			bool                            aReport = true) -> bool;
 
 		[[nodiscard]] auto navigate_to_group(
 			qt::diff_workbench&             aWorkbench,
@@ -15357,24 +15374,41 @@ namespace bpr::app {
 			qt::diff_workbench&             aWorkbench,
 			const core::computed_file_diff& aResult,
 			const std::string_view          aLeftFragment,
-			const std::string_view          aRightFragment) -> bool
+			const std::string_view          aRightFragment,
+			const bool                      aReport = true) -> bool
 		{
 			const auto location = find_intraline_pair(
 				aResult, aLeftFragment, aRightFragment);
-			if (!location.has_value()) {
+			// [[BPR-0859]]. Each refusal names itself. A reveal that fails
+			// leaves the role-paint evidence false without the role check ever
+			// running, so an unnamed refusal here reads as a repaint defect.
+			if (!location.has_value() || !location->Group.has_value()) {
+				if (aReport) {
+					QTextStream{ stderr }
+						<< "UIFORETW_REVEAL_PAIR_UNLOCATED:found="
+						<< (location.has_value() ? 1 : 0) << '\n';
+				}
 				return false;
 			}
-			return location->Group.has_value()
-				&& navigate_to_group(aWorkbench, aResult, *location->Group)
-				&& reveal_intraline_pairs(
-					   aWorkbench, aResult, *location, *location);
+			if (!navigate_to_group(aWorkbench, aResult, *location->Group)) {
+				if (aReport) {
+					QTextStream{ stderr }
+						<< "UIFORETW_REVEAL_PAIR_UNSELECTED:groups="
+						<< static_cast<qulonglong>(aResult.Alignment.Groups.size())
+						<< '\n';
+				}
+				return false;
+			}
+			return reveal_intraline_pairs(
+				aWorkbench, aResult, *location, *location, aReport);
 		}
 
 		[[nodiscard]] auto reveal_intraline_pairs(
 			qt::diff_workbench&             aWorkbench,
 			const core::computed_file_diff& aResult,
 			const intraline_pair_location&  aFirst,
-			const intraline_pair_location&  aSecond) -> bool
+			const intraline_pair_location&  aSecond,
+			const bool                      aReport) -> bool
 		{
 			const auto reveal = [](
 									QPlainTextEdit&                    aPane,
@@ -15418,40 +15452,82 @@ namespace bpr::app {
 					aFirst.RightSpan,
 					aSecond.Right,
 					aSecond.RightSpan)) {
+				// [[BPR-0859]]. The horizontal scroll could not be placed, so
+				// no later visibility report would be meaningful.
+				if (aReport) {
+					QTextStream{ stderr }
+						<< "UIFORETW_REVEAL_PAIR_UNPLACED:first_left="
+						<< static_cast<qulonglong>(aFirst.Left)
+						<< " second_left=" << static_cast<qulonglong>(aSecond.Left)
+						<< " first_right=" << static_cast<qulonglong>(aFirst.Right)
+						<< " second_right="
+						<< static_cast<qulonglong>(aSecond.Right) << '\n';
+				}
 				return false;
 			}
 			QApplication::processEvents();
-			const auto visible = [](
+			// [[BPR-0859]]. Every mark is weighed, not only the first, and an
+			// offscreen one prints the rectangle it computed beside the
+			// viewport it had to fit inside.
+			const auto visible = [aReport](
 									 QPlainTextEdit&                    aPane,
+									 const char* const                  aName,
 									 const core::decoded_text_document& aDocument,
 									 const std::uint32_t                aLine,
 									 const core::byte_span              aSpan) {
 				const auto rect = intraline_selection_rect(
 					aPane, aDocument, aLine, aSpan);
-				return rect.has_value() && !rect->isEmpty()
-					&& QRect{ QPoint{ 0, 0 }, aPane.viewport()->size() }.contains(
-						*rect, true);
+				const auto viewport
+					= QRect{ QPoint{ 0, 0 }, aPane.viewport()->size() };
+				const auto shown = rect.has_value() && !rect->isEmpty()
+					&& viewport.contains(*rect, true);
+				if (!shown && aReport) {
+					const auto* const vertical = aPane.verticalScrollBar();
+					QTextStream{ stderr }
+						<< "UIFORETW_REVEAL_PAIR_OFFSCREEN:" << aName
+						<< " line=" << static_cast<qulonglong>(aLine)
+						<< " placed=" << (rect.has_value() ? 1 : 0) << " rect="
+						<< (rect.has_value()
+								? QStringLiteral("%1,%2 %3x%4")
+									  .arg(rect->left())
+									  .arg(rect->top())
+									  .arg(rect->width())
+									  .arg(rect->height())
+								: QStringLiteral("none"))
+						<< " viewport=" << viewport.width() << 'x'
+						<< viewport.height() << " vscroll=" << vertical->value()
+						<< '/' << vertical->maximum()
+						<< " top_block="
+						<< aPane.cursorForPosition(QPoint{ 0, 0 }).blockNumber()
+						<< " shown_pane=" << (aPane.isVisible() ? 1 : 0) << '\n';
+				}
+				return shown;
 			};
-			return visible(
-					   *aWorkbench.left_pane(),
-					   *aResult.LeftDocument,
-					   aFirst.Left,
-					   aFirst.LeftSpan)
-				&& visible(
-					   *aWorkbench.left_pane(),
-					   *aResult.LeftDocument,
-					   aSecond.Left,
-					   aSecond.LeftSpan)
-				&& visible(
-					   *aWorkbench.right_pane(),
-					   *aResult.RightDocument,
-					   aFirst.Right,
-					   aFirst.RightSpan)
-				&& visible(
-					   *aWorkbench.right_pane(),
-					   *aResult.RightDocument,
-					   aSecond.Right,
-					   aSecond.RightSpan);
+			const auto firstLeft = visible(
+				*aWorkbench.left_pane(),
+				"left-first",
+				*aResult.LeftDocument,
+				aFirst.Left,
+				aFirst.LeftSpan);
+			const auto secondLeft = visible(
+				*aWorkbench.left_pane(),
+				"left-second",
+				*aResult.LeftDocument,
+				aSecond.Left,
+				aSecond.LeftSpan);
+			const auto firstRight = visible(
+				*aWorkbench.right_pane(),
+				"right-first",
+				*aResult.RightDocument,
+				aFirst.Right,
+				aFirst.RightSpan);
+			const auto secondRight = visible(
+				*aWorkbench.right_pane(),
+				"right-second",
+				*aResult.RightDocument,
+				aSecond.Right,
+				aSecond.RightSpan);
+			return firstLeft && secondLeft && firstRight && secondRight;
 		}
 
 		/// \brief The colours one intraline role can legitimately paint as.
@@ -15528,6 +15604,141 @@ namespace bpr::app {
 							|| aSelection.format.fontUnderline())
 						&& aSelection.cursor.hasSelection();
 				}));
+		}
+
+		/// \brief [[BPR-0859]]. How many intraline marks a stalled check names.
+		///
+		/// \details Enough to show the revealed pair and its neighbours on both
+		/// sides, and short of one line per changed span on an all-changed
+		/// screenful.
+		inline constexpr std::size_t role_paint_report_marks = 12U;
+
+		/// \brief [[BPR-0859]]. Ticks an intraline reveal may take to settle.
+		///
+		/// \details The reveal is the product's own scroll: selecting the change
+		/// group asks the linked controller to bring the segment on screen, and
+		/// the geometry that positions it is measured on the completion lane
+		/// rather than inside the gesture. Asserting on the first tick read a
+		/// scroll still in flight as a change that never came on screen, which
+		/// is how this course failed. The automated run advances the probe about
+		/// once every ten milliseconds, so this is roughly two and a half
+		/// seconds: far longer than a measured reveal needs, far short of the
+		/// forty-second run budget, and bounded so the stall names itself.
+		inline constexpr std::size_t uiforetw_intraline_reveal_waits = 256U;
+
+		/// \brief [[BPR-0859]]. Ticks entering the Review modality may take.
+		///
+		/// \details The modality travels the decision lane and the layout that
+		/// follows it is applied on the way back, so the panes are shown a few
+		/// ticks after the strip is pressed. Bounded so a modality that never
+		/// arrives names itself rather than expiring the run budget.
+		inline constexpr std::size_t uiforetw_review_modality_waits = 512U;
+
+		/// \brief [[BPR-0859]]. Reports what one pane's role-paint check saw.
+		///
+		/// \details A capped wait that gives up must say what it saw, or its
+		/// only evidence is that it did not see what it wanted: BPR-0859 spent
+		/// two scouting passes on a stall that printed one word. The accepted
+		/// renderings are named with their colour specs, because `QColor ==`
+		/// compares the spec as well as the value, and every mark the pane
+		/// actually holds is named beside them. A pane holding no marks at all
+		/// is a pane this modality never composed, or a target outside the
+		/// painted bounds; marks in an unaccepted colour are a repaint or an
+		/// expectation defect. The two are indistinguishable without this.
+		void report_role_paint(
+			QTextStream&                   aStream,
+			const QPlainTextEdit&          aPane,
+			const char* const              aName,
+			const QColor&                  aExpected,
+			const QColor&                  aRowBand,
+			const core::appearance_variant aVariant)
+		{
+			const auto describe = [](const QColor& aColor) {
+				return aColor.isValid()
+					? aColor.name(QColor::HexArgb) + QStringLiteral("/spec")
+						+ QString::number(static_cast<int>(aColor.spec()))
+					: QStringLiteral("invalid");
+			};
+			const auto accepted
+				= role_renderings(aPane, aExpected, aRowBand, aVariant);
+			const auto selections = aPane.extraSelections();
+			const auto mark       = [](const QTextEdit::ExtraSelection& aSelection) {
+				return !aSelection.format.boolProperty(
+						   QTextFormat::FullWidthSelection)
+					&& aSelection.cursor.hasSelection();
+			};
+			const auto marks = static_cast<std::size_t>(
+				std::ranges::count_if(selections, mark));
+			const auto height = aPane.viewport()->height();
+			aStream << "UIFORETW_ROLE_PAINT_PANE:" << aName
+					<< " marks=" << static_cast<qulonglong>(marks) << " matched="
+					<< static_cast<qulonglong>(role_paint_count(
+						   aPane, aExpected, aRowBand, aVariant))
+					<< " selections=" << static_cast<qulonglong>(selections.size())
+					<< " blocks=" << aPane.document()->blockCount() << " top="
+					<< aPane.cursorForPosition(QPoint{ 0, 0 }).blockNumber()
+					<< " bottom="
+					<< aPane.cursorForPosition(QPoint{ 0, height }).blockNumber()
+					<< " viewport=" << aPane.viewport()->width() << 'x' << height
+					<< " shown=" << (aPane.isVisible() ? 1 : 0)
+					<< " role=" << describe(accepted[0])
+					<< " washed=" << describe(accepted[1])
+					<< " derived=" << describe(accepted[2])
+					<< " band=" << describe(aRowBand) << " highlight="
+					<< describe(aPane.palette().color(QPalette::Highlight))
+					<< '\n';
+			auto reported = std::size_t{ 0U };
+			for (const auto& selection : selections) {
+				if (!mark(selection) || ++reported > role_paint_report_marks) {
+					continue;
+				}
+				const auto background = selection.format.background().color();
+				aStream << "UIFORETW_ROLE_PAINT_MARK:" << aName
+						<< " block=" << selection.cursor.blockNumber()
+						<< " from=" << selection.cursor.selectionStart()
+						<< " to=" << selection.cursor.selectionEnd()
+						<< " background=" << describe(background) << " brush="
+						<< static_cast<int>(selection.format.background().style())
+						<< " underline="
+						<< (selection.format.fontUnderline() ? 1 : 0)
+						<< " accepted="
+						<< (std::ranges::contains(accepted, background) ? 1 : 0)
+						<< '\n';
+			}
+		}
+
+		/// \brief [[BPR-0859]]. Reports both panes' role paint at a stall.
+		///
+		/// \details The modality is named first. A course that samples panes the
+		/// review modality on screen never composed reads a correctly painted
+		/// comparison as an unpainted one, which is how BPR-0860, BPR-0823 and
+		/// BPR-0858 failed in this same run.
+		void report_intraline_roles(
+			const qt::diff_workbench&     aWorkbench,
+			const qt::appearance_profile& aProfile,
+			const std::size_t             aMinimum,
+			const char* const             aTerm)
+		{
+			auto stream = QTextStream{ stderr };
+			stream << aTerm << ":minimum=" << static_cast<qulonglong>(aMinimum)
+				   << " one_pane=" << (aWorkbench.one_pane_enabled() ? 1 : 0)
+				   << " variant=" << static_cast<int>(aProfile.variant()) << '\n';
+			report_role_paint(
+				stream,
+				*aWorkbench.left_pane(),
+				"left",
+				aProfile.color(
+					core::appearance_role::diff_intraline_removed_background),
+				aProfile.color(core::appearance_role::diff_removed_background),
+				aProfile.variant());
+			report_role_paint(
+				stream,
+				*aWorkbench.right_pane(),
+				"right",
+				aProfile.color(
+					core::appearance_role::diff_intraline_added_background),
+				aProfile.color(core::appearance_role::diff_added_background),
+				aProfile.variant());
 		}
 
 		[[nodiscard]] auto intraline_roles_visible(
@@ -16414,13 +16625,66 @@ namespace bpr::app {
 			if (!probe.Evidence.ExactCommitPair) {
 				return fail();
 			}
+			window->resize(1'280, 1'000);
+			QApplication::processEvents();
+			// [[BPR-0859]]. Leave Overview before reading the comparison.
+			// Since [[BPR-0771]] this course names its pull request in the Home
+			// bar, so the window opens on [[BPR-0661]]'s default opening
+			// modality, Overview, which shows no comparison at all. The panes
+			// still hold the diff's text, so every marker up to the reveal
+			// passed while the surface carrying them was hidden: unmeasured,
+			// never scrolled to the selected change, and therefore never
+			// painting an intraline mark where this course looked for one. A
+			// reviewer who wants to read a file's changes leaves Overview
+			// first, through the strip; the course now does the same.
+			// [[BPR-0863]] records the three other courses caught by this.
+			if (window->modality() == nullptr) {
+				return fail();
+			}
+			window->modality()
+				->action(qt::review_modality::review)
+				->trigger();
+			probe.Waits = 0U;
+			probe.Phase = state_type::phase::awaiting_review_modality;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_review_modality) {
+			auto* const left  = workbench == nullptr ? nullptr
+													 : workbench->left_pane();
+			auto* const right = workbench == nullptr ? nullptr
+													 : workbench->right_pane();
+			if (window->current_modality() != qt::review_modality::review
+				|| left == nullptr || right == nullptr || !left->isVisible()
+				|| !right->isVisible()
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				if (++probe.Waits <= uiforetw_review_modality_waits) {
+					return result::pending;
+				}
+				QTextStream{ stderr }
+					<< "UIFORETW_REVIEW_MODALITY_STALLED:modality="
+					<< static_cast<int>(window->current_modality())
+					<< " left_shown=" << (left != nullptr && left->isVisible())
+					<< " right_shown=" << (right != nullptr && right->isVisible())
+					<< " outstanding="
+					<< static_cast<qulonglong>(
+						   implementation->WorkbenchHost->outstanding_requests())
+					<< '\n';
+				return fail();
+			}
+			// Taken here, after the modality has settled, so the file-selection
+			// gesture below is measured against a window that is not still
+			// changing what it shows.
 			probe.WindowStatistics = window->statistics();
 			probe.SelectedDiffPublications
 				= implementation->SelectedDiffPublications;
 			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
-			window->resize(1'280, 1'000);
-			QApplication::processEvents();
-			view->setCurrentIndex(resource);
+			probe.Waits                = 0U;
+			const auto resourceRow     = drawer_row(*window, uiforetw_resource_path);
+			if (!resourceRow.isValid() || view == nullptr) {
+				return fail();
+			}
+			view->setCurrentIndex(resourceRow);
 			probe.Phase = state_type::phase::awaiting_resource_diff;
 			return result::pending;
 		}
@@ -16465,8 +16729,13 @@ namespace bpr::app {
 				}
 				return result::pending;
 			}
-			probe.Evidence.ResourceExactBlobs    = true;
-			probe.Waits                          = 0U;
+			// [[BPR-0859]]. Reset once, on the tick the blobs first match.
+			// Resetting on every tick made the role-paint cap below
+			// unreachable: the count could never pass and never give up.
+			if (!probe.Evidence.ResourceExactBlobs) {
+				probe.Evidence.ResourceExactBlobs = true;
+				probe.Waits                       = 0U;
+			}
 			const auto& computed                 = *workbench->current_result();
 			probe.Evidence.ResourceIntralinePair = find_intraline_pair(
 													   computed,
@@ -16476,18 +16745,38 @@ namespace bpr::app {
 			if (!probe.Evidence.ResourceGesture
 				|| !probe.Evidence.ResourcePublication
 				|| !probe.Evidence.ResourceExactBlobs
-				|| !probe.Evidence.ResourceIntralinePair
-				|| !reveal_intraline_pair(
-					*workbench,
-					computed,
-					"_APS_NEXT_RESOURCE_VALUE        136",
-					"_APS_NEXT_RESOURCE_VALUE        137")) {
+				|| !probe.Evidence.ResourceIntralinePair) {
 				return fail();
+			}
+			// [[BPR-0859]]. The reveal is a condition this stage waits for, not
+			// one it controls: the scroll that brings the selected change on
+			// screen is positioned from geometry measured on the completion
+			// lane. One tick cannot tell "not yet" from "wrong".
+			if (!probe.ResourceRevealed) {
+				if (!reveal_intraline_pair(
+						*workbench,
+						computed,
+						"_APS_NEXT_RESOURCE_VALUE        136",
+						"_APS_NEXT_RESOURCE_VALUE        137",
+						probe.RevealWaits >= uiforetw_intraline_reveal_waits)) {
+					if (++probe.RevealWaits > uiforetw_intraline_reveal_waits) {
+						return fail();
+					}
+					return result::pending;
+				}
+				probe.ResourceRevealed = true;
+				probe.RevealWaits      = 0U;
+				probe.Waits            = 0U;
 			}
 			probe.Evidence.ResourceRolePaint = intraline_roles_visible(
 				*workbench, *implementation->AppearanceProfile, 1U);
 			if (!probe.Evidence.ResourceRolePaint) {
 				if (++probe.Waits > 64U) {
+					report_intraline_roles(
+						*workbench,
+						*implementation->AppearanceProfile,
+						1U,
+						"UIFORETW_RESOURCE_ROLE_PAINT_STALLED");
 					return fail();
 				}
 				return result::pending;
@@ -16691,21 +16980,38 @@ namespace bpr::app {
 				}
 				return result::pending;
 			}
-			probe.Waits = 0U;
 			if (!probe.Evidence.RcGesture || !probe.Evidence.RcPublication
 				|| !probe.Evidence.RcExactBlobs
-				|| !probe.Evidence.RcIntralinePairs
-				|| !reveal_intraline_pair(
-					*workbench,
-					computed,
-					"WS_TABSTOP,464,28,67,10",
-					"WS_TABSTOP,464,24,67,10")) {
+				|| !probe.Evidence.RcIntralinePairs) {
 				return fail();
+			}
+			// [[BPR-0859]]. As on the resource file: the reveal is waited for
+			// and bounded, and its wait is not the paint's wait.
+			if (!probe.RcRevealed) {
+				if (!reveal_intraline_pair(
+						*workbench,
+						computed,
+						"WS_TABSTOP,464,28,67,10",
+						"WS_TABSTOP,464,24,67,10",
+						probe.RevealWaits >= uiforetw_intraline_reveal_waits)) {
+					if (++probe.RevealWaits > uiforetw_intraline_reveal_waits) {
+						return fail();
+					}
+					return result::pending;
+				}
+				probe.RcRevealed  = true;
+				probe.RevealWaits = 0U;
+				probe.Waits       = 0U;
 			}
 			probe.Evidence.RcRolePaint = intraline_roles_visible(
 				*workbench, *implementation->AppearanceProfile, 2U);
 			if (!probe.Evidence.RcRolePaint) {
 				if (++probe.Waits > 64U) {
+					report_intraline_roles(
+						*workbench,
+						*implementation->AppearanceProfile,
+						2U,
+						"UIFORETW_RC_ROLE_PAINT_STALLED");
 					return fail();
 				}
 				return result::pending;
@@ -16745,33 +17051,47 @@ namespace bpr::app {
 			}
 			// [[BPR-0651]]. The third drawer collapses to its rail like the
 			// other two, so the focused layout is the comparison alone.
-			if (repositories->isChecked()) {
+			//
+			// [[BPR-0859]]. Each toggle proves its wire whatever the drawer
+			// starts as. Review expands the files drawer and leaves the other
+			// two on their rails, so an evidence bit set only inside
+			// `if (isChecked())` asserted the opening modality rather than the
+			// toggle, and stayed false for a drawer that was already down. A
+			// drawer on its rail is now expanded and collapsed again -- the two
+			// presses a reviewer would make -- so every press still travels the
+			// intent wire and the layout still ends focused.
+			const auto press = [implementation](QAction* const aAction) {
 				const auto dispatches = implementation->WorkbenchIntentDispatches;
-				repositories->trigger();
-				probe.Evidence.RepositoriesDrawerToggle
-					= implementation->WorkbenchIntentDispatches == dispatches + 1U
-					&& !repositories->isChecked();
-			}
-			if (files->isChecked()) {
-				const auto dispatches = implementation->WorkbenchIntentDispatches;
-				files->trigger();
-				probe.Evidence.FilesDrawerToggle
-					= implementation->WorkbenchIntentDispatches == dispatches + 1U
-					&& !files->isChecked();
-			}
-			if (conversations->isChecked()) {
-				const auto dispatches = implementation->WorkbenchIntentDispatches;
-				conversations->trigger();
-				probe.Evidence.ConversationsDrawerToggle
-					= implementation->WorkbenchIntentDispatches == dispatches + 1U
-					&& !conversations->isChecked();
-			}
+				const auto checked    = aAction->isChecked();
+				aAction->trigger();
+				return implementation->WorkbenchIntentDispatches == dispatches + 1U
+					&& aAction->isChecked() != checked;
+			};
+			const auto collapse = [&press](QAction* const aAction) {
+				if (!aAction->isChecked() && !press(aAction)) {
+					return false;
+				}
+				return press(aAction) && !aAction->isChecked();
+			};
+			probe.Evidence.RepositoriesDrawerToggle  = collapse(repositories);
+			probe.Evidence.FilesDrawerToggle         = collapse(files);
+			probe.Evidence.ConversationsDrawerToggle = collapse(conversations);
 			if (details->isChecked()) {
 				details->trigger();
 			}
 			if (!probe.Evidence.FilesDrawerToggle
 				|| !probe.Evidence.ConversationsDrawerToggle
 				|| !probe.Evidence.RepositoriesDrawerToggle) {
+				QTextStream{ stderr }
+					<< "UIFORETW_DRAWER_TOGGLE_REFUSED:files="
+					<< probe.Evidence.FilesDrawerToggle << " conversations="
+					<< probe.Evidence.ConversationsDrawerToggle
+					<< " repositories="
+					<< probe.Evidence.RepositoriesDrawerToggle
+					<< " files_checked=" << files->isChecked()
+					<< " conversations_checked=" << conversations->isChecked()
+					<< " repositories_checked=" << repositories->isChecked()
+					<< '\n';
 				return fail();
 			}
 			probe.Waits = 0U;
@@ -16797,10 +17117,30 @@ namespace bpr::app {
 				&& !window->epoch_selectors()->details_visible()
 				&& detail != nullptr && !detail->isVisible();
 			if (!focused) {
-				if (++probe.Waits > 64U) {
-					return fail();
+				if (++probe.Waits <= 64U) {
+					return result::pending;
 				}
-				return result::pending;
+				// [[BPR-0859]]. Name the part of the focused layout that did
+				// not arrive, rather than the stage it did not leave.
+				QTextStream{ stderr }
+					<< "UIFORETW_FOCUSED_LAYOUT_STALLED:rail="
+					<< qt::workbench_drawer_rail::width_pixels
+					<< " files=" << window->files_drawer()->width()
+					<< " conversations=" << window->conversations_drawer()->width()
+					<< " repositories=" << window->repositories_drawer()->width()
+					<< " files_checked="
+					<< window->files_drawer_toggle_action()->isChecked()
+					<< " repositories_checked="
+					<< window->repositories_drawer_toggle_action()->isChecked()
+					<< " conversations_checked="
+					<< window->conversations_drawer_toggle_action()->isChecked()
+					<< " details_checked="
+					<< window->review_details_toggle_action()->isChecked()
+					<< " selector_details="
+					<< window->epoch_selectors()->details_visible()
+					<< " detail_shown="
+					<< (detail != nullptr && detail->isVisible()) << '\n';
+				return fail();
 			}
 			probe.Evidence.FocusedReviewLayout = true;
 			probe.Phase                        = state_type::phase::passed;
@@ -17096,7 +17436,12 @@ namespace bpr::app {
 					  && toolbarActions[static_cast<qsizetype>(aIndex)]->objectName()
 					  == QLatin1String{ aName };
 			  };
-		const auto exactRowOrder = toolbarActions.size() == 24U
+		// [[BPR-0859]]. Home's Group, State headers and Filter controls joined
+		// the same strip when Home became a list of state panels, so the exact
+		// row is twenty-seven actions and those three sit between the review
+		// controls and refresh. The row is still asserted whole and in order;
+		// only what the product composes has changed.
+		const auto exactRowOrder = toolbarActions.size() == 27U
 			&& widgetActionNamed(0U, "workbenchStripInsetAction")
 			&& toolbarActions[1] == window->home_action()
 			&& toolbarActions[2] == repositoriesAction
@@ -17116,11 +17461,30 @@ namespace bpr::app {
 			&& widgetActionNamed(16U, "workbenchModalitySpacerAction")
 			&& toolbarActions[17] == reviewDetails
 			&& reviewControlsAction == toolbarActions.begin() + 18
-			&& toolbarActions[19] == window->github_refresh_action()
-			&& toolbarActions[20] == conversationsAction
-			&& widgetActionNamed(21U, "workbenchStripRightDividerAction")
-			&& toolbarActions[22] == window->account_action()
-			&& toolbarActions[23] == window->settings_action();
+			&& widgetActionNamed(19U, "homeGroupAction")
+			&& widgetActionNamed(20U, "homeStateHeadersAction")
+			&& widgetActionNamed(21U, "homeFilterAction")
+			&& toolbarActions[22] == window->github_refresh_action()
+			&& toolbarActions[23] == conversationsAction
+			&& widgetActionNamed(24U, "workbenchStripRightDividerAction")
+			&& toolbarActions[25] == window->account_action()
+			&& toolbarActions[26] == window->settings_action();
+		if (!exactRowOrder) {
+			// [[BPR-0859]]. An exact strip order that no longer holds names the
+			// row it did find, so the difference is read from the run rather
+			// than from twenty-four conjuncts in a debugger.
+			auto stream = QTextStream{ stderr };
+			stream << "UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions="
+				   << toolbarActions.size() << '\n';
+			for (auto index = qsizetype{ 0 }; index < toolbarActions.size();
+				 ++index) {
+				stream << "UIFORETW_NAVIGATION_ROW_ACTION:" << index << '='
+					   << (toolbarActions[index]->objectName().isEmpty()
+							   ? QStringLiteral("<unnamed>")
+							   : toolbarActions[index]->objectName())
+					   << '\n';
+			}
+		}
 		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
 		auto nativeIcons = true;
 		auto accessible  = true;
