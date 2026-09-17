@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0867"
 title: "The contained temporary helper needs Python 3.12 while the tree's declared floor is 3.10"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
