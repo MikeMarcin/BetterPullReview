@@ -118,3 +118,22 @@ The remaining term is the course's exact string comparison
 `launch.WorkingDirectory == aSnapshotRoot.string()`, which differs on Windows
 in path spelling. That is a course defect in this card's own change. Next:
 compare the two as paths (normalised), and confirm on Windows.
+
+## Windows and Linux confirmed; finished (dsp-003)
+
+- **Windows.** `bpr-win` measured the remaining term. The helper's
+  `WorkingDirectory` is native (`C:\…`), while the course's snapshot root
+  kept Qt's forward-slash prefix. `c3557ca1` compares
+  `std::filesystem::path{WorkingDirectory}.lexically_normal()` with
+  `aSnapshotRoot.lexically_normal()`, a lexical comparison only. Both
+  contracts then pass twice on Windows
+  ([the Windows observation](../../verification/BPR-0835-windows-observation.md)).
+- **Linux.** At `94f6f885`, which contains `3cc2ac48`, both contracts pass 3
+  of 3, and the other finding rows pass: 14 of 14
+  ([the Linux confirmation](../../verification/BPR-0835-linux-confirmation.md)).
+- **macOS.**
+  - A quiet serial rerun at `d1a2b865` passes 2 of 2 for both contracts, and
+    for `workshop_press` and `chat_stale` (load about 2;
+    `build/r2-logs/dsp3-0835-quiet-{1,2}.log`).
+  - After the Windows change merged (`3bd65861`), both contracts pass 2 of 2
+    (`dsp3-int10-0835-{1,2}.log`).
