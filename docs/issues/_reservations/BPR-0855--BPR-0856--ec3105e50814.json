@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0855",
+    "BPR-0856"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-004: Linux-only sweep failures application_epoch_host and application_large_review_benchmark",
+  "created": "2026-09-17T17:14:22.747670+00:00",
+  "base": "a777e9d1f06fb015b70a18b3637483d12a93dc10"
+}
