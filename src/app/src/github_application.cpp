@@ -1918,7 +1918,7 @@ namespace bpr::app {
 				-> application::git_smart_transport_result<
 					application::git_smart_transport> override
 			{
-				++Acquisitions;
+				Acquisitions.fetch_add(1U, std::memory_order_relaxed);
 				// [[BPR-0715]]. Under a recorded fixture the signed-out lease
 				// is the fixture's own credential-free transport, so a course
 				// reaches an exact comparison over the real epoch path instead
@@ -1956,15 +1956,21 @@ namespace bpr::app {
 					aContext);
 			}
 
+			// [[BPR-0838]]. Epoch work, historical retention imports among it,
+			// acquires on worker threads, and `status()` reads on the Qt thread.
+			// The count is one independent value that shares no invariant with
+			// another field, so relaxed ordering is enough, as for the counters
+			// above. A reader that needs every import counted waits for the
+			// imports to finish.
 			[[nodiscard]] auto acquisitions() const noexcept -> std::size_t
 			{
-				return Acquisitions;
+				return Acquisitions.load(std::memory_order_relaxed);
 			}
 
 		private:
 			const validated_github_host_profile*                           Profile = nullptr;
 			std::shared_ptr<application::git_smart_transport_factory_port> Recorded;
-			std::size_t                                                    Acquisitions = 0U;
+			std::atomic_size_t                                             Acquisitions = 0U;
 		};
 
 #if defined(BPR_BUILD_TESTING)
