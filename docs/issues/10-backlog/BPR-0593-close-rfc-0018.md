@@ -12,90 +12,114 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-002, mandate r3): Mac P1 regressions closed, lanes integrated
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-002, mandate r3): handoff at an integrated boundary
 
-Integrator dsp-002 holds the `project-integrator` lease as `bpr-main-mac`.
-The station protocol and hazards in the dsp-001 section below still hold.
-Main is `c19fa196`, pushed. `linux-lane` was fast-forwarded to it;
-`windows-lane` was not, because `bpr-win` is still building on it. There
-are no Mac worker subagents or scratch worktrees.
+Dispatch dsp-002 ends here, and a fresh integrator takes over. The station
+protocol and hazards in the dsp-001 section below still hold. Main is
+`780d0a1c`, pushed. `linux-lane` is fast-forwarded to it. `windows-lane` is
+not: `bpr-win` is building on it from `de58ebc6`. At return there are no Mac
+worker subagents, reviewers, scratch worktrees or test processes, and the
+`project-integrator` lease is released.
+
+**Protocol additions learned in dsp-002.**
+
+- **Round-trip pins.** When a merge or fix moves the round-trip contract's
+  pins, reseal them by the procedure at the top of
+  `tests/end_to_end/application_review_round_trip_composition_contract.cmake`:
+  run `-DBPR_PRINT_PINNED_DIGESTS=ON`, and name the reviewed range in the
+  commit that records the reviews. The last reseal is `6a58b6f8`
+  (`7e42643f..fe629c90`); the mutation-branch pin has never changed.
+- **Worker turn limits.** Workers stop at a 56-turn limit. Tell them to
+  chain build and test into single blocking commands, and resume the same
+  worker with SendMessage.
+- **Orphaned test apps.** A course that hangs until its harness timeout can
+  leave its test app running and costing CPU. Before timing claims, check
+  `pgrep -fl build/r2-dev/src/app` and scratch worktree paths, and kill only
+  those, never PID 88792 (the person's app from `build/dev`).
+- **Stale regexes.** Several contiguous-block pass expressions were stale
+  (BPR-0828, BPR-0829); a new status line needs a regex line.
+- **Default profile.** Courses without a fixture or a private data root
+  contend for the default profile while the person's app is open: [[BPR-0820]].
 
 **Done in dsp-002.**
 
-- [[BPR-0815]]: the course read a hidden Settings child after [[BPR-0705]].
-- [[BPR-0818]]: [[BPR-0751]]'s refresh hold hid the review-wide roots; the
-  widening now runs on its own turn.
-- [[BPR-0819]]: resealed after reconciling 29 commits; the pins now have a
-  print mode and a written procedure.
-- [[BPR-0821]]: the composition contract re-expresses BPR-0797's run-time
-  consent gates.
-- [[BPR-0816]]: the macOS half.
-- [[BPR-0806]]: the Linux storage courses.
+- Mac regressions: [[BPR-0815]], [[BPR-0818]], [[BPR-0819]], [[BPR-0821]],
+  [[BPR-0827]], [[BPR-0822]].
+- Station cards finished on main: [[BPR-0816]], [[BPR-0806]], [[BPR-0824]].
 - [[BPR-0799]], Done on `bpr-linux`.
 
 **Integrated station work.**
 
-- `windows-lane` `e11f19eb` (BPR-0622 slice a) and `dd88b9c9` (slice b) were
-  merged `--no-ff` and passed their Mac runs.
-- `linux-lane` `4e4fd6b9` was merged as `fb84f41c`, then the round-trip pins
-  were resealed for [[BPR-0817]]'s `1c6eaf21`.
+- `windows-lane` BPR-0622 slices (a) `e11f19eb`, (b) `dd88b9c9` and
+  (c)(d) `c94e02b1`, each merged `--no-ff` with a Mac run.
+- `linux-lane` `4e4fd6b9` and `3b968fcc`.
+- Logs: `build/r2-logs/dsp2-int{1..9}-*`.
 
-Integration logs are `build/r2-logs/dsp2-int{1,2,3}-*`. At `99712ec3`, every
-check passes except:
+**Open, with the next step.**
 
-- `test_network_isolation_manifest`: only [[BPR-0802]]'s five findings;
-- the two appearance contracts, now [[BPR-0823]];
-- `application_device_authorization_ghes_refusal`, now [[BPR-0820]].
+- [[BPR-0622]], In Progress: the Windows criteria are implemented and
+  verified, a critical review found no blocker (follow-ups in [[BPR-0825]]),
+  and the Mac and Linux coverage of slices (a) and (b) passes. It waits only
+  on Linux coverage of slices (c) and (d), in `task-20260917-lnx-confirm`
+  step 1. Then finish it.
+- [[BPR-0802]], In Progress: the macOS half is done at `49d7df69`. It waits
+  on Windows confirmation (`task-20260917-win-hardening` step 1: expect 24
+  findings, one fewer) and Linux confirmation (`lnx-confirm` step 1).
+- [[BPR-0826]], In Progress: the macOS criterion is met. It waits on the
+  Windows rerun, which is NOT yet in the Windows envelope; add it to the
+  next one. The Linux rerun is in `lnx-confirm`.
+- [[BPR-0823]] and [[BPR-0828]], In Progress: macOS met; they wait on the
+  Linux reruns in `lnx-confirm`.
+- [[BPR-0829]], In Progress: the history line is fixed. The course still
+  fails because `PUBLIC_PREVIEW_SMART_ACQUISITIONS` is 2 on macOS against the
+  expected 1. Next, a Mac diagnosis: a duplicate acquisition, or a count that
+  depends on timing.
+- [[BPR-0644]], Parked human-review: the fixture criteria pass after a
+  critical review and a correction (`1925d0cc`, `3ad87ee4`). Pending: the
+  attended relaunch and the owner question below.
+- [[BPR-0750]], [[BPR-0794]], [[BPR-0795]]: as in dsp-001. The attended read
+  still needs its focused set rerun and a tests-disabled bundle rebuilt.
 
-`application_large_review_history` passes quietly, but refresh 32's pulse
-is 93.3 ms against its 100 ms limit (noted on [[BPR-0673]]).
+**Active station envelopes (writers active).**
 
-**Active Mac slices (writers active, uncommitted, in scratch worktrees
-outside the checkout).**
+- `bpr-win` `task-20260917-win-hardening`, base `de58ebc6`:
+  1. BPR-0802 Windows confirmation;
+  2. [[BPR-0812]];
+  3. [[BPR-0825]];
+  4. [[BPR-0813]].
+- `bpr-linux` `task-20260917-lnx-confirm`, base `780d0a1c`:
+  1. confirmation runs for BPR-0622 (c)(d), BPR-0802, BPR-0826, BPR-0823,
+     BPR-0828, BPR-0829 (x5, with the acquisition count) and BPR-0644's
+     courses, recorded in `docs/verification/dsp2-linux-confirmation.md`;
+  2. [[BPR-0830]].
 
-- [[BPR-0802]], claimed: its Mac half, from `7fc0e498`. Logs:
-  `build/r2-logs/dsp2-0802-*`.
-- [[BPR-0644]], claimed: its fixture criteria, from `90bedde4`. Logs:
-  `build/r2-logs/dsp2-0644-*`. The attended relaunch stays human-pending.
+**Owner asks (exact).**
 
-**Active station envelopes (writers active):**
-
-- `bpr-win` `task-20260917-win-workspace-recovery`, base `743c59d7`: BPR-0622
-  slices (c), guarded Git through the supervisor, and (d), app wiring and
-  crash recovery. After them, ask for the `windows-lane` fast-forward. Next
-  Windows envelopes: [[BPR-0653]], then [[BPR-0812]] and [[BPR-0813]].
-- `bpr-linux` `task-20260917-lnx-verify`, base `c19fa196`, in this order:
-  1. Linux coverage of BPR-0622 slices (a) and (b);
-  2. BPR-0810's Linux multi-window confirmation;
-  3. [[BPR-0824]];
-  4. [[BPR-0822]].
-
-**New cards from dsp-002.**
-
-- [[BPR-0820]]: the GHES refusal course opens the interactive default
-  profile.
-- [[BPR-0821]]: done.
-- [[BPR-0822]]: the GCC 15.2 double-destroy survey, Linux.
-- [[BPR-0823]]: the appearance contracts, Mac first.
-- [[BPR-0824]]: Linux-only workbench and ledger failures.
-
-**Owner asks.**
-
-- [[BPR-0817]] criterion 2, relayed to the user: the exit code under a
-  pre-existing group-writable parent, and whether the refusal must be visible
-  at Home.
-- Unchanged from dsp-001: [[BPR-0803]], [[BPR-0800]], [[BPR-0801]],
-  [[BPR-0604]], [[BPR-0644]]'s attended relaunch, and the
+- [[BPR-0817]] criterion 2, already relayed:
+  (1) Under a pre-existing group-writable data parent, should closing the last
+  window still exit 1, or exit 0 with the refusal shown only in the app?
+  (2) Is the agent-panel refusal enough, or must it also be visible at Home?
+- [[BPR-0644]]: after a restart, should a remembered device grant survive a
+  launch whose Keychain answers locked or denied, or whose network is down
+  (keep the material, fail visibly, retry at the next launch)? Today such a
+  launch erases it, under BPR-0541's fail-closed rule. The same question
+  covers an offline launch after the access token expired. Also: the
+  attended relaunch more than 8 hours after a device sign-in.
+- [[BPR-0824]]'s seam question was answered by the integrator with option
+  (a); the owner may override.
+- Unchanged: [[BPR-0803]], [[BPR-0800]], [[BPR-0801]], [[BPR-0604]], and the
   [[BPR-0794]]/[[BPR-0795]] attended read.
 
 **Next Mac objectives, in order.**
 
-1. [[BPR-0802]]'s Mac half, together with Linux and Windows confirmation.
-   Moving the boundary reader into `github_application` changes the pinned
-   file: reseal by the procedure, with a review.
-2. [[BPR-0644]]'s fixture criteria (P1).
-3. [[BPR-0823]] and [[BPR-0820]].
-4. [[BPR-0809]], [[BPR-0814]] and [[BPR-0673]].
+1. Integrate the station replies above, then finish BPR-0622, BPR-0802,
+   BPR-0823, BPR-0826 and BPR-0828 on their confirmations.
+2. [[BPR-0829]]'s acquisition-count diagnosis.
+3. [[BPR-0820]], the default profile.
+4. [[BPR-0809]], [[BPR-0814]], [[BPR-0673]] (refresh-32 pulse margin
+   93.3 ms against 100).
+5. Attended preparation for BPR-0794/0795 and BPR-0644's relaunch: one
+   tests-disabled bundle at a current head.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2, mandate r2/r3): handoff at an integrated boundary
 
