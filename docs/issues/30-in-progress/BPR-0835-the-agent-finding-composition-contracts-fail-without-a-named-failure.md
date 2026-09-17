@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0835"
 title: "The agent finding composition contracts fail without a named failure"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
