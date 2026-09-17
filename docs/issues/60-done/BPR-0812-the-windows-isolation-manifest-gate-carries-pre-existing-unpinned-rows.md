@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0812"
 title: "The Windows isolation manifest gate carries pre-existing unpinned uncontained rows"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win under BPR-0806","found_at":"1f29eaa4","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"AC1 test_network_isolation_manifest on the Windows station reports no finding except those owned by BPR-0802","outcome":"pass","revision":"aedf471f864f23fb8c31aed2c217fa400056315d","evidence":{"kind":"command","detail":"bpr-win: TEST_NETWORK_ISOLATION_OK:configured=357:registrations=344:backend=windows-appcontainer, zero findings, after BPR-0812's six rows and BPR-0834's two rows were contained or pinned with measured reasons."}},{"criterion":"AC2 verify_test_network_isolation_tests.py still passes","outcome":"pass","revision":"013d2036018ed608c54e1ae5dc1c19b904e327cc","evidence":{"kind":"command","detail":"test_network_isolation_structure_contract passes on the Windows station and on macOS at 013d2036 (build/r2-logs/dsp3-int5-ctest.log)."}}]
 ---
 
 # BPR-0812: The Windows isolation manifest gate carries pre-existing unpinned uncontained rows
