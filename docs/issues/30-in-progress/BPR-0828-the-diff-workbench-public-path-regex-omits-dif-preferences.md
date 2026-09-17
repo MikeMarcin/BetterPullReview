@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0828"
 title: "The diff workbench public path's pass expression omits the DIF_PREFERENCES line"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0031"]
 depends_on: []
 priority: "P2"
