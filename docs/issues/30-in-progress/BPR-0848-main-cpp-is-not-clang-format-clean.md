@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0848"
 title: "src/app/main.cpp is not clang-format clean"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
