@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0826"
 title: "The agent invocation composition contract expects application session 1 and sees 2"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0012"]
 depends_on: []
 priority: "P2"
