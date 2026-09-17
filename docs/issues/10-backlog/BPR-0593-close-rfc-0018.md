@@ -12,6 +12,58 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-006, mandate r5): in flight
+
+**This section is written mid-dispatch on purpose**, so an interruption cannot
+lose which writers are live. It is superseded by whatever dsp-006 writes at its
+boundary.
+
+**Base.** All three refs began at `026d610f`. Main is now `058e8668` (two
+claims), pushed. The `project-integrator` lease is **held**.
+
+**Live writers, all four dispatched against `026d610f`:**
+
+| Owner | Card | Exclusive scope |
+|---|---|---|
+| `bpr-win`, `task-20260917-win-0875-name-cleanup` | [[BPR-0875]] | `windows-lane`; `src/app/src/github_application.cpp` ~11762-11812, `profile_desktop.cpp` |
+| `bpr-linux`, `task-20260917-lnx-0880-fsck-policy` | [[BPR-0880]] | `linux-lane`; `src/adapters/git/**`, `tests/git_contract/**` |
+| Mac worker | [[BPR-0879]] | `src/adapters/github/**`, `src/application/**`, `tests/github_contract/**`; build dir `build/r2-dev` |
+| Mac worker | [[BPR-0881]] | `src/adapters/sqlite/**`, `tests/sqlite_contract/**`, the `make_profile_activation_server` hunk only of `github_application.cpp`; build dir `build/core-only` |
+
+Both stations confirmed identity and fast-forwarded their local lanes to
+`026d610f` before starting. Both Mac workers hit the 56-turn limit once and
+were resumed with their edits intact.
+
+**The one decision dsp-006 made rather than parked.** [[BPR-0880]] offered two
+defensible policies and the card asked for a deliberate choice. Main chose to
+**accept what Git accepts**: a closed, explicit `--strict=<msgid>=ignore` list
+covering exactly the default WARN/INFO-severity msgids, error-class findings
+still fatal, and an error-class refusal that names the object class instead of
+the bare `process_failure`. `=ignore` rather than `=warn` because `=warn` still
+writes to stderr and `installed_git_process.cpp:2464-2476` turns any stderr on
+an accepted exit into `malformed_output` — with `=ignore` stderr stays empty
+and [[BPR-0846]]'s exact-output rule is untouched. The station was told to
+encode for the **oldest** Git across the three platforms, not its own 2.53.0.
+
+**Reseal owed at merge, once, covering both.** `src/app/src/github_application.cpp`
+and `src/profile_desktop.cpp` are both in `bpr_production_app_sources`, so the
+whole-file and manifest pins in
+`tests/end_to_end/application_review_round_trip_composition_contract.cmake`
+go red as soon as either edit lands. The pins last matched at `2b2e5549` and
+**nothing has touched the pinned scope since**, so the reviewed range is
+`2b2e5549..<merge>`. Print values without building:
+
+    cmake -DBPR_PRINT_PINNED_DIGESTS=ON -DBPR_SOURCE_ROOT=<checkout> \
+        -P tests/end_to_end/application_review_round_trip_composition_contract.cmake
+
+**Envelope correction to carry forward.** dsp-006 wrote the `checkout` field
+from memory and got it wrong for both stations — the same fabrication class as
+dsp-005's hand-expanded SHAs. The real paths are `/home/mmarcin/bpr-linux`
+and `C:/code/git/bpr-windows`. `checkout` is informative, so both stations
+warned and continued; every binding field would have been a refusal. Also,
+"nothing to merge" must be stated as "origin/<lane> equals base_commit;
+fast-forward your local lane to it" — both stations were behind their origin.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-005, mandate r5): handoff after three sweeps and five critical reviews
 
 Dispatch dsp-005 ends here. The dsp-004 protocol and hazards below still hold.
