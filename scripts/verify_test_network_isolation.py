@@ -104,6 +104,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # BPR-0813: measured on JaegAW 2026-09-17. Contained, the contract's scratch
     # root stops at `canonical: Access is denied.` of the temporary directory.
     "sqlite_private_store_open": "dos-volume-name",
+    # BPR-0833: measured on JaegAW 2026-09-17. Contained, the scratch root stops at
+    # `canonical: Access is denied.` before any course step; it passes uncontained.
+    "sqlite_profile_storage_root": "dos-volume-name",
     # BPR-0834: measured on JaegAW 2026-09-17, both passing uncontained once the
     # course root and its parent are owner-private. Contained, with both narrowed
     # to the user and the container, the composed application still refuses
