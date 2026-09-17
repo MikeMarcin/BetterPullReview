@@ -103,3 +103,90 @@ cannot meet the seam's terms is a row whose terms need stating, not a seam that
 needs loosening. Do not edit
 `.claude/worktrees/bpr-dif-integration-rfc-3c2904`: it belongs to another
 checkout.
+
+## macOS half, 2026-09-17 (dsp-002)
+
+Implemented by an `rfc-worker` slice and integrated on main as `49d7df695ff7115dd1020b3dce330ec00a657c48`.
+Slice logs: `build/r2-logs/dsp2-0802-*`. Integrated run:
+`build/r2-logs/dsp2-int5-ctest.log`.
+
+**Criterion 1: a named, enumerated exception.** Under the seam's runner,
+`gh_cli_git_smart_transport` fails at "fixture sandbox version launch".
+The adapter wraps every `gh` launch in `/usr/bin/sandbox-exec`, and macOS
+refuses nested sandboxes (`dsp2-0802-nesting-probe.log`). So the row is the
+one `MACOS_UNSANDBOXED_TESTS` entry in
+`scripts/verify_test_network_isolation.py`. On macOS the gate requires:
+
+- the exact raw `add_test` (`NAME … COMMAND <target>`) in
+  `tests/github_contract/CMakeLists.txt`, and no other raw registration;
+- a direct executable with no wrapper or argument;
+- exactly the `bpr_local_only_fixture` label;
+- on every run, zero `bpr::app::` symbols in the built binary, found with
+  `nm -C`. The check fails closed when the table cannot be read or holds no
+  `bpr::` symbol;
+- a stale-pin failure if the row ever appears under the runner.
+
+The row still gets the seam's boundary marker and its 20 pre-boundary scrubs,
+now from one function, `bpr_apply_automated_test_environment`, which the
+seam itself also calls. Every other row's configured environment is
+byte-identical (`dsp2-0802-r3-manifest-compare.log`).
+
+Gate negative controls on the real build: a pin pointed at the liveness
+binary is reported as linking 11215 `bpr::app::` symbols; an unlisted copy
+of the row and an extra raw `add_test` are both reported. The structure
+contract adds 12 controls; it passes 58 tests.
+
+**Criterion 2: one reader, in the composition.** `github_profile_runtime`
+now decides `InsideAutomatedTestBoundary` from the marker (or a selected
+fixture), where the browser and the CLI factory are chosen. `main.cpp` and
+`github_application_config` no longer carry it; `github_application_status`
+reports it. `github_application_liveness_tests` sets the marker in
+`main()` and asserts an in-process composition with no fixture is inside,
+binds the recording browser and offers no CLI read. With the reader removed,
+that check and the new single-reader contract test both fail
+(`dsp2-0802-r3-mutation-reader-removed.log`). The Release byte scan now
+forbids the marker's name. The outside direction is covered only by the
+designated `application_composition_capabilities_product_run` row, which
+the gate can see, not by an in-process test.
+
+**Criterion 3.** `test_network_isolation_manifest` passes on macOS
+(`TEST_NETWORK_ISOLATION_OK:configured=374`).
+
+**Criterion 4.** No test gained the ability to open a browser or spawn `gh`.
+The marker, scrubs, sandbox profile and loopback denial are unchanged.
+
+**Integrated run at `49d7df695ff7115dd1020b3dce330ec00a657c48`.** These pass:
+
+- `architecture_boundaries`;
+- both isolation gates;
+- `gh_cli_git_smart_transport`;
+- `application_composition_contract` (167.80 s);
+- `application_review_round_trip_composition_contract`, with this finish
+  commit's reseal;
+- the panel course and its twin;
+- `application_device_authorization_browser_handoff`;
+- `qt_composed_github_scale_100`;
+- `composed_application_hosts`.
+
+`application_poller_liveness` prints `github-application-boundary-tests:pass`,
+then fails on the tick subtest, which was already red at HEAD before this
+change: [[BPR-0827]].
+
+**Round-trip pins resealed in this card's commit** for the reviewed range
+`99712ec3..49d7df695ff7115dd1020b3dce330ec00a657c48`. It covers two changes. The first is [[BPR-0622]]'s
+`c94e02b1`, which enables the workspace registry and recovery for
+`Q_OS_WIN` and appends the neighbourhood leaf natively; the dsp-002 critical
+review found no blocker. The second is this card's `49d7df695ff7115dd1020b3dce330ec00a657c48`, reviewed by the
+integrator above. New values:
+
+- whole file `9e5a612127cfcec0e4cc47bb0549195e2118c2ea79e39cbdc1e4c04194813736`;
+- manifest `cabf96c66cc646cc24767f6cebb898a2b6452fcb4ac03a40414a35a3fb71402f`;
+- mutation branch unchanged.
+
+**Still open: Windows and Linux confirmation.** The gate and the seam
+function are portable. Windows should report 24 findings instead of 25, since
+the raw `add_test` ownership finding is gone, with no other change. Linux
+should pass its manifest and structure contract. Both go with the next station
+envelopes. The `application_composition_capabilities_*` rows stop at
+`PROFILE_ALREADY_OPEN` while a person's app holds the default profile:
+[[BPR-0820]].
