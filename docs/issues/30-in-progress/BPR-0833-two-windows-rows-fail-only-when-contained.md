@@ -386,3 +386,22 @@ The card is left In Progress for the integrator.
 **Portable sources touched:** `tests/end_to_end/CMakeLists.txt` (two
 `WINDOWS_UNCONTAINED` markers) and `scripts/verify_test_network_isolation.py`
 (pins).
+
+## Merged; finished (dsp-003)
+
+Main merged `windows-lane` at `f91321e3` as `b85d1dbc`. The first contained
+refusal on the code that is actually merged is
+`make_storage_root_owner_private`'s `WRITE_DAC` open of the `QTemporaryDir`
+(error 5): Qt's owner-only DACL excludes the container. The ancestor-walk
+refusal comes next only under the unapplied option (i) patch. The pin comment
+records both, in that order. The integrator's decision is unchanged: no
+product security change, so pin.
+
+On macOS at `0c58092e`, both capability rows,
+`test_network_isolation_manifest`, `test_network_isolation_structure_contract`
+and `architecture_boundaries` pass (`build/r2-logs/dsp3-int11-ctest.log`).
+
+**Latent, recorded here rather than carded.** On Windows, a contained
+automated run that fails with `AUTOMATED_PROFILE_PRIVATE_FAILED` leaves its
+`QTemporaryDir` behind, because the contained process cannot remove it. With
+both rows now uncontained, no registered row does this.
