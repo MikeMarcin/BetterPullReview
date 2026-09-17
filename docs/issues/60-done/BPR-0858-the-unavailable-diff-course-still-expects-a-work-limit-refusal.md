@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0858"
 title: "application_unavailable_diff_public_path still expects the work-limit refusal BPR-0719 retired"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep; reproduced on macOS by dsp-004; scouted","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"The row passes on macOS and Linux, asserting the unavailable state for a segment overflow","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"application_unavailable_diff_public_path passes on macOS at 14.78 s in the full macOS sweep at 2b2e5549 and on Linux at 3.82 s in bpr-linux's merged-head runs and 3.84 s in its full sweep at the same commit. It now proves a segment overflow rather than the work limit BPR-0719 retired: the course's test-only limits set MaximumSegments = 2, so large/comparison.cpp is refused with unavailable/compute_limit and its status text while the recovery file still computes. A second fault was found and fixed behind the first -- the review opened on Overview, which replaces the comparison and hid the status label -- so the course enters Read through the strip's public modality action before selecting a file. Every original assertion is unchanged."}},{"criterion":"The approximate-alignment public path is covered and named here","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"The new application_approximate_diff_public_path row is registered on all platforms, network isolated, RUN_SERIAL, TIMEOUT 120. It passes on macOS at 13.28 s in the full macOS sweep and on Linux at 3.69 s in the merged-head runs and 3.72 s in the full sweep. It asserts a text comparison with no diagnostic, AlignmentApproximate, the exact approximate status with a non-zero count, and both panes holding the exact source. Its negative control with default limits fails at 'work-limited host result must be marked approximate alignment' (dsp4-0858-negative-approximate.log). It is the row that raised the Linux sweep from 366 to 367."}}]
 ---
 
 # BPR-0858: application_unavailable_diff_public_path still expects the work-limit refusal BPR-0719 retired
