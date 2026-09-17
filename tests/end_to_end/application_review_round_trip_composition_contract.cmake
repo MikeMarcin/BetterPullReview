@@ -721,6 +721,12 @@ foreach(forbidden_live_action IN ITEMS
     endif()
 endforeach()
 
+# [[BPR-0875]]. The data root moves inside an owned parent, because the build
+# tree this course roots in is writable by other principals and the agent
+# workspace neighbourhood refuses such a parent.
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_private_data_root(BPR_ROOT)
+
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")

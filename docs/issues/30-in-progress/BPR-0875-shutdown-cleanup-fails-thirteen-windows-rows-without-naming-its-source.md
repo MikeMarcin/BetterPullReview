@@ -252,3 +252,97 @@ output rather than its verdict. **The pins are not resealed**; printed with
 - `production_mutation_branch`: `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a` (unchanged)
 
 The repository's `format_check.py` (clang-format 22.1.8) passes on `src/app`.
+
+## Fixed in the harness: one owned level under each course's root (bpr-win)
+
+The base is `9ea17894022687512e15a015ac0dcc0bdedbae64`. The Windows
+parent-trust rule is unchanged, as the integrator decided: it refuses a parent
+another principal can write, and `build/windows-dev/tests/end_to_end` really is
+such a parent. The courses get a parent that satisfies it instead.
+
+### A real installation was never affected, measured both directions
+
+| Parent of the data root | icacls | The row |
+| --- | --- | --- |
+| `C:\Users\mikem\AppData\Local\BetterPullReview` (real install) | `mikem:(F)`, SYSTEM, Administrators, and `CodexSandboxUsers:(RX)` — no `Authenticated Users`, and the one foreign principal has **no write right** | `WORKBENCH_COMPOSITION_CONTRACT_OK`, cmake exit 0, zero `CLEANUP_SOURCE` lines |
+| `build\windows-dev\tests\end_to_end` (the courses) | `Authenticated Users:(I)(M)`, `Users:(I)(RX)` | fails with `agent-workspace-recovery:…:repair-required` |
+
+Same row, same application, one variable. `CodexSandboxUsers` is a local
+artefact of this host and would not exist on a clean Windows box; it does not
+matter either way, because `workspace_parent_trusted` skips an allow entry that
+grants no write right. So this is a test-environment defect, not a shipped one.
+
+### The mechanism, and a deviation from the approved plan
+
+The plan was a tests-owned tool wrapping `create_storage_root_owner_private`.
+While implementing it I found the harness **already has** the shared mechanism:
+`tests/end_to_end/bpr_narrow_owner_private.cmake`, which these very courses
+already call for their `state` and `state/v1` directories, and which writes the
+descriptor with `icacls /inheritance:r /grant:r`.
+
+So no new tool and no new target: one function is added beside the existing one.
+
+```cmake
+function(bpr_private_data_root root_variable)
+    set(parent "${${root_variable}}")
+    file(MAKE_DIRECTORY "${parent}")
+    bpr_narrow_owner_private("${parent}")
+    set(${root_variable} "${parent}/data" PARENT_SCOPE)
+endfunction()
+```
+
+The directory each course was given becomes the private parent, and the data
+root moves one level inside it. Every course calls it in one line before its
+first use of the root. **This adds no second descriptor author** — it reuses the
+harness's own, which is the property the integrator asked for; it is not
+`create_storage_root_owner_private`, which is the part that differs from the
+approved plan and is flagged for that reason. If the two should be one author,
+that is a follow-up and a small one: only this function would change.
+[[BPR-0825]] item 3's answer would move it, not rewrite it.
+
+### The inheritance hazard, checked deliberately
+
+The integrator named the way this plan could silently fail: a created directory
+that carries its own owner-private entries **plus** an inherited
+`Authenticated Users:(M)`. `icacls` on the directory the mechanism creates:
+
+```text
+C:\code\git\bpr-windows\build\windows-dev\tests\end_to_end\workbench-composition-contract
+    JAEGAW\mikem:(OI)(CI)(F)
+```
+
+One entry, and **no `(I)` entry at all**: inheritance is disabled, so nothing
+foreign survives from the build tree. The hazard does not apply to this
+mechanism.
+
+### Result: thirteen rows, eleven green, two failing on other things
+
+One run of all thirteen at this head. **Zero `CLEANUP_SOURCE` lines and zero
+`PROFILE_QUIT_CLEANUP_SOURCE` lines remain**, so an ordinary quit no longer
+exits 1 and [[BPR-0808]]'s repair presentation no longer appears.
+
+| Row | Result |
+| --- | --- |
+| `application_native_notification_attended_contract` | Pass, 13.18 s |
+| `application_workbench_composition_contract` | Pass, 14.32 s |
+| `application_overview_since_review_contract` | Pass, 47.46 s |
+| `application_review_behaviour_contract` | Pass, 47.32 s |
+| `application_saved_server_contract` | Pass, 45.75 s |
+| `application_appearance_theme_customization_contract` | Pass, 25.49 s |
+| `application_epoch_persistence_github-com` | Pass, 22.55 s |
+| `application_epoch_persistence_ghes-3_18` | Pass, 21.58 s |
+| `application_epoch_maintenance_public_path` | Pass, 27.55 s |
+| `application_appearance_gesture_contract` | Pass, 35.15 s |
+| `application_appearance_store_fallback_contract` | Pass, 21.02 s |
+| `application_uiforetw_selected_diff_contract` | **Cleanup fixed** (`cleanup_failed=0`), still fails on its own [[BPR-0859]] Windows problem: `UIFORETW_SELECTED_DIFF_EVIDENCE_FAILED`, `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, `presentation=0`. It failed on those two markers before this change as well |
+| `application_review_round_trip_composition_contract` | Fails only on the whole-file digest pin, as expected and **not resealed** |
+
+### The introducing commit
+
+`c94e02b1` (2026-09-17, [[BPR-0622]]) added `Q_OS_WIN` to the guard around the
+workspace recovery post in `start_services`, and `dd88b9c9` put the ownership
+journal on Windows the same day. Before those, Windows never called recovery.
+This station's 2026-08-27 matrix run has
+`application_workbench_composition_contract` passing in 6.90 s, which is the
+before-evidence. So this is a regression from this run rather than a
+long-standing fault.
