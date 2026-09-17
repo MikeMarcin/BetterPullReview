@@ -1476,10 +1476,20 @@ namespace {
 	/// [[BPR-0722]]. With a long identity published, the strip shows the
 	/// repository and number at the default size and at 1280, nothing enters
 	/// the toolbar's overflow at any width, and the parts yield in order:
-	/// title, owner, positions, then the number. At 100% scale the other
-	/// strip items fill about 900 pixels, the window's floor, so below about
-	/// 960 the number has no room and the identity yields whole; which
-	/// control should give way there is asked of the owner on the card.
+	/// title, owner, modality shortcuts, positions, then the number. Where
+	/// the number has no room the identity yields whole; which control should
+	/// give way there is asked of the owner on the card.
+	///
+	/// [[BPR-0824]]. The widths at which the shortcuts, the positions and the
+	/// number stop fitting are measured here, not pinned, because they are
+	/// the strip's laid-out width and that differs by platform. On macOS the
+	/// strip starts with a 78 pixel inset for the window buttons, is set in
+	/// the system font through Core Text, and each segment's shortcut is the
+	/// command glyph and a digit; on Linux there is no inset, the font comes
+	/// through fontconfig, and the shortcut reads "Ctrl+1". At 100% scale the
+	/// number stops fitting near 1000 pixels on macOS and near 930 on Linux,
+	/// so a fixed 960 pixel case expected opposite things on the two. What is
+	/// pinned is the order, at every width.
 	void test_strip_identity_stays_at_every_width()
 	{
 		intent_log           log;
@@ -1511,52 +1521,83 @@ namespace {
 		};
 		struct width_case
 		{
-			int  Width     = 0;
-			bool Identity  = false;
-			bool Title     = false;
-			bool Owner     = false;
-			bool Positions = false;
+			int  Width = 0;
+			bool Title = false;
 		};
+		// Both widths hold the number and the positions on every platform.
 		const auto cases = std::array{
-			width_case{ 1'920, true, true, true, true },
-			width_case{ 1'280, true, false, true, true },
-			width_case{ 960, false, false, false, true },
-			width_case{ window.minimumWidth(), false, false, false, false },
+			width_case{ 1'920, true },
+			width_case{ 1'280, false },
 		};
 		for (const auto& testCase : cases) {
 			window.resize(testCase.Width, 820);
 			QApplication::processEvents();
 			expect(!overflowShown(), "no strip control folds into an overflow menu at any width");
-			expect(window.file_position_label()->isVisible() == testCase.Positions,
-				   "the positions yield before the number does and keep their rule once it has gone");
-			expect(window.identity_label()->isVisible() == testCase.Identity,
-				   "the identity is visible wherever its number has room");
-			if (!testCase.Identity) {
-				continue;
-			}
+			expect(window.identity_label()->isVisible() && window.file_position_label()->isVisible(),
+				   "the identity and the positions both have room at 1920 and 1280");
 			const auto text = window.identity_label()->text();
 			expect(text.contains(QStringLiteral("#20607")), "the strip identity carries the number");
 			expect(text.contains(QStringLiteral("terminal")), "the strip identity keeps the repository");
 			expect(text.contains(QStringLiteral("Fix the ScreenBufferTests")) == testCase.Title,
 				   "the title is the first part of the identity to yield");
-			expect(text.contains(QStringLiteral("microsoft/")) == testCase.Owner,
-				   "the owner yields after the title");
+			expect(text.contains(QStringLiteral("microsoft/")), "the owner yields after the title");
 			expect(window.identity_label()->toolTip().contains(QStringLiteral("microsoft/terminal  #20607 Fix the ScreenBufferTests")),
 				   "the full identity stays in the tooltip");
 		}
-		// Every width between: nothing folds, and once the identity has
-		// yielded it does not come back at a narrower width.
-		auto identityGone = false;
-		for (auto width = 1'920; width >= window.minimumWidth(); width -= 20) {
+		// Every width down to the floor: 20 pixels at a time to 1300, then
+		// pixel by pixel. The number and the positions both still show at
+		// 1280, so where each of them yields falls in the fine part, and
+		// segments that change form on every resize show in either part.
+		constexpr auto positionsRule    = 960; // apply_strip_width's own rule for the positions
+		auto           identityGone     = false;
+		auto           positionsYielded = false;
+		auto           widestYield      = 0; // the widest width with the positions gone beside the number
+		auto           narrowestNumber  = 0; // the narrowest width that still shows the number
+		for (auto width = 1'920; width >= window.minimumWidth(); width -= width > 1'300 ? 20 : 1) {
 			window.resize(width, 820);
 			QApplication::processEvents();
 			expect(!overflowShown(), "no strip control folds into an overflow menu at any width");
-			const auto identity = window.identity_label()->isVisible();
+			const auto identity  = window.identity_label()->isVisible();
+			const auto positions = window.file_position_label()->isVisible();
 			expect(!identity || window.identity_label()->text().contains(QStringLiteral("#20607")),
 				   "a visible identity always carries the number");
 			expect(!(identityGone && identity), "the identity yields once, at the width its number stops fitting");
+			expect(positions == (width >= positionsRule) || identity,
+				   "the positions yield before the number does and keep their rule once it has gone");
+			expect(width >= positionsRule || !positions, "below their own rule the positions never show");
+			if (identity) {
+				expect(positions || window.modality()->compact(),
+					   "the modality shortcuts yield before the positions do");
+				expect(!(positionsYielded && positions),
+					   "once the positions have yielded beside the number they stay gone while it shows");
+				if (!positions && !positionsYielded) {
+					widestYield = width;
+				}
+				positionsYielded = positionsYielded || !positions;
+				narrowestNumber  = width;
+			}
 			identityGone = identityGone || !identity;
 		}
+		// The positions yield for room above their own rule where the strip is
+		// as wide as it is on macOS and Linux. Where it is narrower they yield
+		// at the rule instead, beside a number that still fits; either way
+		// they yield first.
+		expect(widestYield > narrowestNumber,
+			   "the positions yield before the number does and keep their rule once it has gone");
+		// [[BPR-0722]]. The sweep ends at the floor, where the identity has
+		// yielded whole and the positions follow their rule.
+		expect(identityGone && !window.identity_label()->isVisible()
+				   && !window.file_position_label()->isVisible(),
+			   "at the width floor the identity has yielded whole and the positions keep their rule");
+		// Straight from the default width to the narrowest that shows the
+		// positions beside the number: the toolbar measures the segments in
+		// the form this resize gives them, not the form the last one left.
+		window.resize(1'920, 820);
+		QApplication::processEvents();
+		window.resize(widestYield + 1, 820);
+		QApplication::processEvents();
+		expect(window.identity_label()->isVisible() && window.file_position_label()->isVisible(),
+			   "one large resize lays out the positions beside the number as a gradual one does");
 		window.hide();
 	}
 
@@ -2293,6 +2334,22 @@ namespace {
 		// evidence of pointer position and that diagnosis has to be reopened.
 		// Read only at whole-number scales, for the same reason the
 		// resting-pointer sequence above is.
+		//
+		// [[BPR-0824]]. Qt::WA_Hover is the style's to set, not the handle's:
+		// the application's own style sets it when it polishes the handle, and
+		// Fusion does too, but the basic Windows style that the headless Linux
+		// lane forces through QT_STYLE_OVERRIDE does not, and without it Qt
+		// sends the handle no hover event and nothing repaints it. The
+		// screenshot is of the application under its own style, so a forced
+		// style cannot speak to whether the attribute is set. Under one, the
+		// handle is given the attribute its own style would give it, and what
+		// the reading rests on -- a repaint on arrival and another on
+		// departure, with underMouse() following both -- is still measured.
+		const auto forcedStyle = !qEnvironmentVariableIsEmpty("QT_STYLE_OVERRIDE");
+		const auto styleHover  = handle->testAttribute(Qt::WA_Hover);
+		if (forcedStyle) {
+			handle->setAttribute(Qt::WA_Hover, true);
+		}
 		struct paint_counter final : QObject
 		{
 			int Painted = 0;
@@ -2324,8 +2381,10 @@ namespace {
 		const auto left      = counter.Painted;
 		const auto heldAfter = handle->underMouse();
 		handle->removeEventFilter(&counter);
-		std::cout << "seam repaint on pointer movement: WA_Hover="
-				  << handle->testAttribute(Qt::WA_Hover) << " settled=" << settled
+		std::cout << "seam repaint on pointer movement: style "
+				  << QApplication::style()->name().toStdString()
+				  << (forcedStyle ? " (forced)" : "") << " sets WA_Hover=" << styleHover
+				  << " settled=" << settled
 				  << " idle=" << idle << " on arrival=" << arrived << " on departure="
 				  << left << "; underMouse on arrival=" << heldOnRest << " after departure="
 				  << heldAfter << "; handleWidth=" << splitter->handleWidth()
@@ -2335,7 +2394,7 @@ namespace {
 			   "an idle event loop does not repaint the seam, so a repaint counted "
 			   "below is the pointer's doing and nothing else");
 		expect(fractional
-				   || (handle->testAttribute(Qt::WA_Hover) && arrived > idle && left > arrived
+				   || ((styleHover || forcedStyle) && arrived > idle && left > arrived
 					   && heldOnRest && !heldAfter),
 			   "the seam is repainted when the pointer arrives on it and again when the "
 			   "pointer leaves, so a rule drawn from the pointer's state witnesses where "

@@ -7293,9 +7293,9 @@ namespace bpr::qt {
 		// then the positions, and last the identity's number. Each step only
 		// frees room, so nothing that has yielded returns at a narrower
 		// width. When the number has no room even after all of them -- at
-		// 100% scale the other items fill about 900 pixels, the window's
-		// floor -- the identity yields whole and the positions keep their
-		// own rule; which control should give way there is the owner's
+		// 100% scale on macOS the other items fill about 900 pixels, the
+		// window's floor -- the identity yields whole and the positions keep
+		// their own rule; which control should give way there is the owner's
 		// call, not this card's.
 		const auto identityShort = [this] {
 			return IdentityAction->isVisible() && strip_identity_budget() < strip_identity_minimum();
@@ -7316,7 +7316,26 @@ namespace bpr::qt {
 			// the expanded segments overflowed the strip between 1000 and
 			// about 1050 (a 1040 window laid out 1050 pixels), which the
 			// width sweep in the window tests now pins.
-			Modality->set_compact(available < 1'100 || identityShort());
+			// [[BPR-0824]]. Decided from the width alone. It once measured the
+			// segments in whatever form the previous resize had left: compact
+			// segments made the number fit, so they expanded and the positions
+			// yielded instead, and the next resize compacted them again, so
+			// every resize alternated and the number could go while the
+			// positions stayed. And the toolbar's hint does not always follow
+			// set_compact, so a large resize measured the segments at their old
+			// width. Hence the form the width admits first, then compact only if
+			// the number is still short, with the toolbar remeasured after each.
+			const auto remeasure = [this] {
+				if (auto* const layout = PrimaryToolbar->layout(); layout != nullptr) {
+					layout->invalidate();
+				}
+			};
+			Modality->set_compact(available < 1'100);
+			remeasure();
+			if (identityShort()) {
+				Modality->set_compact(true);
+				remeasure();
+			}
 		}
 		if (positions && identityShort()) {
 			positions = false;
