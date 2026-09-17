@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0833"
 title: "Two Windows rows fail only when contained"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-hardening new defect","found_at":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 both rows pass on the Windows station as registered, or are pinned with a measured reason, and the manifest reports no new finding","outcome":"pass","revision":"0e37446fc0175643c73623c872631769fa804735 and f91321e3ddb1820386b98bd789f6b16e784c6ab7","evidence":{"kind":"command","detail":"sqlite_profile_storage_root pinned dos-volume-name (contained canonical Access is denied, measured) and passes as registered; both capability rows registered WINDOWS_UNCONTAINED and pinned dos-volume-name with the measured WRITE_DAC refusal (and the ancestor-walk refusal under option (i)); all 18 checked rows pass on Windows; TEST_NETWORK_ISOLATION_OK:configured=357 with no finding. macOS: both rows and both isolation gates pass at 0c58092e (build/r2-logs/dsp3-int11-ctest.log)."}}]
 ---
 
 # BPR-0833: Two Windows rows fail only when contained
