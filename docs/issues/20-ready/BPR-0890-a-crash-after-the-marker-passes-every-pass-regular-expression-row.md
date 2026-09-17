@@ -57,3 +57,36 @@ currently no evidence that shutdown succeeded.
 - The existing expected-failure rows still behave.
 - The card records how many previously green rows were hiding a non-zero exit,
   on each platform.
+
+## The fail-closed verdict is not pinned on ordinary rows either
+
+From the same review, and the same machinery, so it belongs here rather than
+in its own card.
+
+`cmake/BprTestIsolation.cmake:770-773` sets
+`FAIL_REGULAR_EXPRESSION "PUBLIC_PATH_FAILED"` with a **non-append**
+`set_property`. Any later row-level
+`set_tests_properties(... FAIL_REGULAR_EXPRESSION ...)` silently replaces it.
+
+The gate does not catch that. `scripts/verify_test_network_isolation.py:641-659`
+checks the property only for the fourteen `EXIT_VERDICT_TESTS`, and
+`configured_failures` (`:903-1003`) never asserts its **presence** for a
+`bpr_network_isolated` row that lacks the `bpr_expects_failed_run` label.
+
+Today no row overrides it — grep confirms — so nothing is broken. But the
+comment at `BprTestIsolation.cmake:753-756` claims "a row added later inherits
+it and the guarantee cannot drift", and nothing enforces that claim. The
+reviewer verified the gap directly: adding `FAIL_REGULAR_EXPRESSION "x"` to one
+row and running `ctest --show-only=json-v1` still passes
+`test_network_isolation_manifest`.
+
+**Deliberately not taken as a quick fix in dsp-005.** The check itself is a few
+lines in `configured_failures`, but it has to get the live lane, the
+`bpr_expects_failed_run` rows and any legitimate exception right, and an
+assertion that is wrong in the strict direction turns the manifest gate red for
+every platform at once. It wants the same pass as this card's exit-status work,
+which touches the same property on the same rows.
+
+Additional acceptance: a row that replaces the inherited
+`FAIL_REGULAR_EXPRESSION` fails `test_network_isolation_manifest`, shown by
+adding one deliberately.

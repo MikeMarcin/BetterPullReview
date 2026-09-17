@@ -59,3 +59,28 @@ different fault. Worth deciding together.
   contract that reuses one store.
 - A genuine post-admission corruption still latches, and that is still pinned.
 - The card records how this interacts with BPR-0541 and BPR-0644.
+
+## A second failure path in the same file, from the core+application review
+
+Folded in here rather than carded separately, because it is the same file and
+the same question — what a failure on this lane should do to the lane.
+
+`src/adapters/sqlite/src/device_binding_store.cpp:139-157`: `submit()` catches
+a failure from `Effects.post` and then calls `Decisions.post(...)` **outside
+any try**. If that throws, the exception escapes `enqueue()` after the job has
+already been pushed (`:112`). The job then sits at `Requests.front()` with no
+scheduled completion; every later `enqueue` sees `Requests.size() != 1` and
+never calls `submit()`, and `is_quiescent()` (`:189`) never returns true — so
+host quiescence stalls for the rest of the process.
+
+Only reachable on an executor allocation or refusal failure, which is why it is
+not urgent. The repair is local: wrap the fallback post, and on failure pop the
+job and complete it synchronously or mark it failed, so the lane stays live.
+
+**Deliberately not taken as a quick fix in dsp-005.** The wrapping is trivial;
+deciding what a failed job should report is the same decision this card already
+owes for cancellation and `unavailable`, and making it twice in two passes is
+how inconsistent failure semantics get built. Decide once, here.
+
+Additional acceptance: a fallback `post` that throws leaves the queue drainable
+and `is_quiescent()` reachable, shown by a test that injects the throw.

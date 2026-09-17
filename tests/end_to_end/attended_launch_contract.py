@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -75,11 +76,18 @@ def refused(*arguments: str) -> tuple[bool, str]:
 
 
 def test_it_refuses_to_share_the_wheel() -> None:
+    # r5 critical review. These paths are reached only if a refusal fails to
+    # come first, so they must not be literal /tmp names: two build trees
+    # running the suite at once would share them, the runner already points
+    # TMPDIR at a per-test fixture root, and on Windows /tmp is not a
+    # directory at all. The capture assertion below uses the same path.
+    unreached = Path(tempfile.gettempdir()) / "bpr-attended-none"
+    capture   = unreached.with_suffix(".png")
     combinations = {
         "no fixture at all": ["--attended-launch"],
         "the diff workbench probe": [
             "--github-fixture", "github-com", "--attended-launch",
-            "--diff-workbench-probe", "--diff-interaction-evidence", "/tmp/bpr-attended-none",
+            "--diff-workbench-probe", "--diff-interaction-evidence", str(unreached),
         ],
         "the shutdown probe": [
             "--github-fixture", "github-com", "--attended-launch",
@@ -95,7 +103,7 @@ def test_it_refuses_to_share_the_wheel() -> None:
         ],
         "a render capture": [
             "--github-fixture", "github-com", "--attended-launch",
-            "--render-evidence", "/tmp/bpr-attended-none.png",
+            "--render-evidence", str(capture),
         ],
     }
     for name, arguments in combinations.items():
@@ -105,7 +113,6 @@ def test_it_refuses_to_share_the_wheel() -> None:
     # And no window is shown on refusal. The render path is the observable
     # proxy: a refused launch that had composed a window would have had one to
     # capture.
-    capture = Path("/tmp/bpr-attended-none.png")
     expect(
         not capture.exists(),
         "a refused attended launch composes nothing, so no capture appears",

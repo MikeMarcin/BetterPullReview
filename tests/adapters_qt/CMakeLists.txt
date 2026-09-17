@@ -921,7 +921,15 @@ foreach(bpr_workbench_window_scale IN ITEMS 100 125 200)
             ENVIRONMENT
                 "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_workbench_window_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_workbench_window_scale_factor};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/workbench-window-${bpr_workbench_window_scale}.png"
             PASS_REGULAR_EXPRESSION "workbench-window-tests:pass"
-            TIMEOUT 120
+            # [[BPR-0653]]. Raised from 120 s at the Windows station's request.
+            # This row sweeps the strip width by width, so its cost grows with
+            # the strip's contents: the Windows title row took it from about
+            # 83 s to about 105 s there, and in a sequential sweep the 100%
+            # scale hit the old bound at 120.03 s and then passed alone. A
+            # bound with 15% of headroom reports load as a defect. macOS runs
+            # it in about 18 s and Linux in about 24-30 s, so 300 s is far
+            # above every platform's real cost while still catching a hang.
+            TIMEOUT 300
     )
 endforeach()
 
