@@ -203,3 +203,38 @@ Re-run clean after the change: `contained_temporary_usage_contract` (6 cases,
   and says so. [[BPR-0876]]'s recorded leak,
   `AC\Temp\bpr-0644-relaunch-612768de307ca452`, is the case to re-run first: with
   this change that row prints the path and raises instead of leaking quietly.
+
+## Two of three acceptance lines are met; the third needs the Windows station (dsp-006)
+
+Landed in `e9c9d5c6`, with [[BPR-0867]] finished alongside it. Verified on this
+Mac in the dispatch's integration pass:
+`contained_temporary_support_contract` Passed 0.09 s,
+`contained_temporary_usage_contract` Passed 1.72 s,
+`test_network_isolation_manifest` Passed 4.41 s
+(`build/r2-logs/dsp6-int-newrows.log`).
+
+- **Met** — a removal error is raised *and* reported by name, and the card
+  records which and why.
+- **Met** — all 56 first-party callers were audited by AST rather than sampled.
+  Five catch an escaping `OSError`; every one reports and exits non-zero, so
+  none depended on the silence. No tolerance knob was added, because no caller
+  needs one.
+- **Not met, and it cannot be met from here** — "the five Windows contained
+  courses from [[BPR-0854]] item 1 run without leaking a directory, and a
+  deliberately held handle is shown to be reported."
+
+The card therefore stays In Progress. That last line is also the only way to
+exercise the **retry's rescue** under a real `FILE_ATTRIBUTE_READONLY`: on
+POSIX a read-only file inside a writable directory is removed with no retry at
+all, so the Mac gate proves the seam and says so in its own docstring rather
+than overclaiming. [[BPR-0876]]'s recorded leak
+`AC\Temp\bpr-0644-relaunch-612768de307ca452` is the first case to re-run — that
+row now prints the path and raises instead of leaking quietly.
+
+Noted so nobody rediscovers it as a swallow: three scripts use
+`shutil.rmtree(..., ignore_errors=True)`
+(`scripts/run_rfc0016_production_course_attended.py:514`,
+`scripts/verify_runtime_surface.py:298`, and one under
+`scripts/verification/rfc0016_attended_contract/`). That is deliberate,
+explicit tolerance stated at the call site, which is exactly the shape this
+card asks for, so it was left alone.
