@@ -130,7 +130,9 @@ namespace bpr::adapters::syntax {
 		/// directive grey, the header name of an `#include` is a string rather
 		/// than an import, and an ALL_CAPS predefined macro is a macro rather
 		/// than an unclassified other. All three are conventions of these two
-		/// grammars alone, so no other packaged definition sees them.
+		/// grammars alone, so no other packaged definition sees them. The same
+		/// gate carries the comment after a null directive, which both grammars
+		/// paint as an error (BPR-0747).
 		[[nodiscard]] auto uses_identifier_heuristics(const std::string_view aName) noexcept
 			-> bool
 		{
@@ -600,10 +602,30 @@ namespace bpr::adapters::syntax {
 					&& !is_condition_operator(word) && !is_builtin_test(word);
 			}
 
+			/// \brief Reports whether the run opens the `//` comment of a null
+			/// directive: nothing but blanks, one `#` and blanks precede it.
+			///
+			/// \details Both grammars hand the rest of a line to `LineError` when
+			/// no directive keyword follows its `#`, so `#        // …`, which Qt
+			/// writes to keep a comment aligned with the directives around it,
+			/// painted as an error. Comments are removed before directives are
+			/// read, so that line is a null directive and a comment. The other
+			/// ways into `LineError` stay errors: an unknown directive,
+			/// `#endif junk` and a stray `#` open their error run before any `//`,
+			/// and `#define // …`, which lacks its macro name, has a keyword
+			/// between the `#` and the `//`. BPR-0747.
+			[[nodiscard]] auto opens_null_directive_comment(const qsizetype aBegin) const noexcept
+				-> bool
+			{
+				const auto hash = skip_blanks(Text, 0);
+				return hash < aBegin && Text[hash] == u'#'
+					&& skip_blanks(Text, hash + 1) == aBegin && Text.mid(aBegin, 2) == u"//";
+			}
+
 			/// \brief Applies the C and C++ corrections the packaged grammar does
 			/// not make to a whole styled run.
 			///
-			/// \details Two styles mean something narrower in C and C++ than the
+			/// \details Three styles mean something narrower in C and C++ than the
 			/// role vocabulary gives them, so the two definitions that already run
 			/// the post-pass correct them at the range the grammar reported.
 			///
@@ -627,6 +649,9 @@ namespace bpr::adapters::syntax {
 			/// a comment. BPR-0744. Conditional lowercase names additionally
 			/// require the grammar's named macro format so comment substyles
 			/// remain untouched (BPR-0748).
+			///
+			/// The third is the error style, which is a comment only where it
+			/// opens the `//` of a null directive (BPR-0747).
 			[[nodiscard]] auto c_family_role(
 				const core::appearance_role aRole,
 				const int                   aBegin,
@@ -650,6 +675,10 @@ namespace bpr::adapters::syntax {
 					&& (is_macro_case(Text.mid(aBegin, aEnd - aBegin))
 						|| (aPredefinedMacro && is_conditional_macro(aBegin, aEnd)))) {
 					return core::appearance_role::syntax_macro;
+				}
+				if (aRole == core::appearance_role::syntax_error
+					&& opens_null_directive_comment(aBegin)) {
+					return core::appearance_role::syntax_comment;
 				}
 				return aRole;
 			}

@@ -37,6 +37,9 @@
 #if __has_cpp_attribute /* note \
     ) */ (nodiscard) && after_test // BPR-CONTINUED-TEST-COMMENT
 #endif
+#        // BPR-NULL-DIRECTIVE-COMMENT TARGET_OS_IOS is only available in newer SDKs,
+#define // BPR-MALFORMED-DEFINE
+#bogus BPR_FIXTURE_GUARD // BPR-UNKNOWN-DIRECTIVE
 // clang-format on
 #define replacement ordinary_name // BPR-REPLACEMENT
 

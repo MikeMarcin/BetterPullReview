@@ -30,10 +30,12 @@ namespace bpr::adapters::syntax {
 	/// normal-styled run (BPR-0726), and in revision 2 the macro arguments of a
 	/// preprocessor run together with the string role of an `#include` header
 	/// name (BPR-0744). Revision 3 recognizes conditional macro identifiers
-	/// independently of capitalization (BPR-0748). It is folded into those definitions' published version,
+	/// independently of capitalization (BPR-0748). Revision 4 paints the `//`
+	/// comment after a null directive as a comment rather than an error
+	/// (BPR-0747). It is folded into those definitions' published version,
 	/// so raising it retires every span set cached under the previous
 	/// heuristics.
-	inline constexpr std::uint32_t identifier_heuristic_revision = 3U;
+	inline constexpr std::uint32_t identifier_heuristic_revision = 4U;
 
 	/// \brief Supplies the complete bytes of one blob.
 	///

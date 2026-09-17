@@ -736,6 +736,43 @@ namespace {
 			   "define replacement identifiers are not broadened");
 	}
 
+	/// \brief [[BPR-0747]]: the `//` comment of a null directive is a comment,
+	/// and a malformed directive is still an error.
+	///
+	/// \details Both grammars paint the rest of a line as an error when no
+	/// directive keyword follows its `#`, which is how Qt's aligned
+	/// `#        // …` read as salmon. The two controls reach the same error
+	/// state by its neighbouring paths: a `#define` with no name meets the
+	/// same `//`, and an unknown directive carries its trailing comment into
+	/// its error run.
+	void null_directive_contract(
+		const std::string_view      aDefinition,
+		const std::string_view      aText,
+		const app::token_span_list& aSpans)
+	{
+		using role           = core::appearance_role;
+		const auto expectFor = [aDefinition](const bool aCondition, const std::string_view aMessage) {
+			if (!aCondition) {
+				std::cerr << aDefinition << ": ";
+			}
+			expect(aCondition, aMessage);
+		};
+
+		const auto nullLine = line_of(aText, "BPR-NULL-DIRECTIVE-COMMENT");
+		expectFor(word_has_role(aSpans, aText, nullLine,
+								"// BPR-NULL-DIRECTIVE-COMMENT TARGET_OS_IOS is only available in newer SDKs,",
+								role::syntax_comment),
+				  "a comment after a null directive is a comment at its own exact range");
+		expectFor(word_inside_role(aSpans, aText, nullLine, "#", role::syntax_preprocessor),
+				  "the # of a null directive is the directive grey");
+		expectFor(word_has_role(aSpans, aText, line_of(aText, "BPR-MALFORMED-DEFINE"),
+								"// BPR-MALFORMED-DEFINE", role::syntax_error),
+				  "a #define without a name stays an error where a comment follows it");
+		expectFor(word_has_role(aSpans, aText, line_of(aText, "BPR-UNKNOWN-DIRECTIVE"),
+								"bogus BPR_FIXTURE_GUARD // BPR-UNKNOWN-DIRECTIVE", role::syntax_error),
+				  "an unknown directive stays an error through its trailing comment");
+	}
+
 	void identifier_role_contract(const syntax::packaged_definition_catalog& aCatalog)
 	{
 		const auto text  = read_fixture("identifier_roles.cpp");
@@ -819,6 +856,14 @@ namespace {
 			   "no heuristic role is named inside a block comment");
 
 		directive_role_contract(text, spans);
+		null_directive_contract("C++", text, spans);
+
+		// The C grammar reaches its error state by the same path, and the
+		// post-pass gate covers both definitions.
+		const auto asC = classifier.classify(request(oid, *aCatalog.definition_named("C")), { });
+		expect(asC.Status == app::syntax_classification_status::available,
+			   "the identifier fixture classifies under the C definition");
+		null_directive_contract("C", text, asC.Spans);
 	}
 } // namespace
 
