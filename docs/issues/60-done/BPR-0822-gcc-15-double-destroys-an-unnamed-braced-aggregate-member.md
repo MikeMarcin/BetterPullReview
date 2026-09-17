@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0822"
 title: "GCC 15.2 destroys an unnamed braced aggregate member twice when a later initializer throws"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux under BPR-0816 (task-20260917-lnx-build)","found_at":"4883dbd9","run":"run-20260916-stations","dispatch":"dsp-002"}
+acceptance: [{"criterion":"The survey's method, and every site it found, are listed here with their disposition","outcome":"pass","revision":"de528ce3","evidence":{"kind":"artifact","detail":"GCC GIMPLE/EH-dump survey over all 614 translation units of both Linux presets (scripts/survey_gcc_aggregate_cleanups.py with 25 calibration shapes); 46 base sites, 10 src/ fixed by naming types, 30 tests/ listed with dispositions; docs/verification/BPR-0822-linux-gcc-aggregate-cleanup-survey.md and this card."}},{"criterion":"The committed reproducer passes (no ASan report) under GCC 15.2 once the pattern is avoided, and fails with the pattern present","outcome":"pass","revision":"3b968fcc","evidence":{"kind":"artifact","detail":"bpr-linux: the ASan reproducer of both BPR-0816 shapes and the survey's calibration shapes; with BPR-0816's fix reverted the survey flags exactly those sites; recorded in the survey evidence file."}},{"criterion":"The Linux dev and app-release presets still build stock, and the macOS dev build still passes","outcome":"pass","revision":"0eb18210f8bfb8f4e4e13e58b745af79868f7a2a","evidence":{"kind":"command","detail":"Linux: stock fresh configure and clean build at de528ce3, dev 1241/1241, app-release 429/429. macOS: r2-dev AppleClang -Werror build of fe629c90 exit 0 (dsp2-int9-build.log); focused tests pass (dsp2-int9-*.log)."}}]
 ---
 
 # BPR-0822: GCC 15.2 destroys an unnamed braced aggregate member twice when a later initializer throws
@@ -190,3 +191,17 @@ survey lists `tests/` without gating it.
   - An `rfc-reviewer` found nothing blocking in the code. Its findings were
     applied in `de528ce3`.
   - **The macOS dev build was not run.** The card stays In Progress for main.
+
+## macOS half (dsp-002)
+
+main merged `linux-lane` `3b968fcc` `--no-ff` as `fe629c90`. The `r2-dev` tree
+(AppleClang, `-Werror`) built it with exit 0 (`build/r2-logs/dsp2-int9-build.log`).
+The products whose nested types were named still pass their focused tests on
+macOS: `application_review_mutation_application_host`,
+`live_review_mutation_provider`, `live_review_submission_provider`,
+`sqlite_profile_registry_storage`, `application_github_host`,
+`application_review_ledger_host`, and the round-trip and composition
+contracts (`dsp2-int9-units.log`, `dsp2-int9-courses.log`). The round-trip
+pins that `de528ce3` moved are resealed in [[BPR-0644]]'s commit. That
+commit's range covers this card's `de528ce3`, which the station's
+`rfc-reviewer` reviewed. All three criteria are now met.
