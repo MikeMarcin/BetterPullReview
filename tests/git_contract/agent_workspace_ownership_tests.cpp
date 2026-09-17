@@ -1,8 +1,12 @@
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 
-#include <fcntl.h>
-#include <sys/file.h>
-#include <unistd.h>
+#if defined(_WIN32)
+	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
+#else
+	#include <fcntl.h>
+	#include <sys/file.h>
+	#include <unistd.h>
+#endif
 
 #include <array>
 #include <filesystem>
@@ -116,7 +120,8 @@ auto main(int argc, char** argv) -> int
 		std::filesystem::create_directory(layout.Workspace / ".git");
 		std::filesystem::permissions(layout.Workspace / ".git", std::filesystem::perms::owner_all);
 		{
-			std::ofstream marker{ layout.Workspace / ".git" / "bpr-owned-workspace" };
+			// Binary, so Windows writes the marker's exact bytes rather than CRLF.
+			std::ofstream marker{ layout.Workspace / ".git" / "bpr-owned-workspace", std::ios::binary };
 			marker << layout.OwnershipMarker;
 		}
 		std::filesystem::permissions(layout.Workspace / ".git" / "bpr-owned-workspace", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
@@ -124,12 +129,23 @@ auto main(int argc, char** argv) -> int
 			throw std::runtime_error{ "mark ready failed" };
 		}
 		if (phase == "busy-cleanup") {
+#if defined(_WIN32)
+			auto guard = bpr::adapters::agent::detail::open_windows_workspace_guard(
+				std::filesystem::path{ std::u8string{ layout.Guard.Path.begin(), layout.Guard.Path.end() } }.wstring(), layout.Guard.FileIdentity,
+				bpr::adapters::agent::detail::windows_guard_lock::shared);
+			if (!guard) {
+				throw std::runtime_error{ "independent guard lock failed" };
+			}
+			const auto removed = owner->cleanup();
+			guard.reset();
+#else
 			const auto guard = ::open(layout.Guard.Path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
 			if (guard < 0 || ::flock(guard, LOCK_SH | LOCK_NB) != 0) {
 				throw std::runtime_error{ "independent guard lock failed" };
 			}
 			const auto removed = owner->cleanup();
 			static_cast<void>(::close(guard));
+#endif
 			if (removed) {
 				throw std::runtime_error{ "cleanup bypassed independent live owner" };
 			}

@@ -16,7 +16,7 @@
 // Standard handles belong to the selected agent protocol and pass straight to
 // the child. No Qt, repository, credential, settings or network capability is
 // linked here.
-#include "windows_workspace_guard.hpp"
+#include "bpr/adapters/agent/windows_workspace_guard.hpp"
 
 #include <algorithm>
 #include <array>

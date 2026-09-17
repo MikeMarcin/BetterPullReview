@@ -58,6 +58,8 @@
 
 #if defined(Q_OS_WIN)
 	#include <qt_windows.h>
+
+	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
 #endif
 
 namespace bpr::adapters::git {
@@ -2665,26 +2667,40 @@ namespace bpr::adapters::git {
 			}
 		}
 
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
+	#if defined(Q_OS_WIN)
+		namespace win_guard                         = adapters::agent::detail;
+		using journal_native                        = HANDLE;
+		inline const journal_native journal_invalid = INVALID_HANDLE_VALUE;
+	#else
+		using journal_native                            = int;
+		inline constexpr journal_native journal_invalid = -1;
+	#endif
+		void close_journal(const journal_native aValue) noexcept
+		{
+			if (aValue != journal_invalid) {
+	#if defined(Q_OS_WIN)
+				static_cast<void>(CloseHandle(aValue));
+	#else
+				static_cast<void>(::close(aValue));
+	#endif
+			}
+		}
 		class workspace_descriptor
 		{
 		public:
-			explicit workspace_descriptor(int aValue)
+			explicit workspace_descriptor(journal_native aValue)
 				: Value{ aValue }
 			{ }
-			~workspace_descriptor()
-			{
-				if (Value >= 0) {
-					static_cast<void>(::close(Value));
-				}
-			}
+			~workspace_descriptor() { close_journal(Value); }
 			workspace_descriptor(const workspace_descriptor&)                                  = delete;
 			auto               operator=(const workspace_descriptor&) -> workspace_descriptor& = delete;
-			[[nodiscard]] auto get() const noexcept -> int { return Value; }
-			[[nodiscard]] auto release() noexcept -> int { return std::exchange(Value, -1); }
+			[[nodiscard]] auto get() const noexcept -> journal_native { return Value; }
+			[[nodiscard]] auto valid() const noexcept -> bool { return Value != journal_invalid; }
+			[[nodiscard]] auto release() noexcept -> journal_native { return std::exchange(Value, journal_invalid); }
 
 		private:
-			int Value;
+			journal_native Value;
 		};
 		void workspace_checkpoint([[maybe_unused]] std::string_view aName)
 		{
@@ -2692,9 +2708,387 @@ namespace bpr::adapters::git {
 			installed_workspace_checkpoint(aName);
 	#endif
 		}
+		[[nodiscard]] auto absent(const std::filesystem::path& aPath) -> bool
+		{
+			std::error_code error;
+			const auto      status = std::filesystem::symlink_status(aPath, error);
+			return error == std::errc::no_such_file_or_directory || (!error && status.type() == std::filesystem::file_type::not_found);
+		}
 		using ownership_identity                              = std::array<std::uint64_t, 4U>;
 		constexpr std::size_t maximum_workspace_records       = 64U;
 		constexpr std::size_t maximum_workspace_journal_bytes = 64U * 1024U;
+
+	#if defined(Q_OS_WIN)
+		// [[BPR-0622]]. The Windows journal primitives. Privacy is the exact
+		// protected current-user descriptor the journal and its directories are
+		// created with, read back from the opened handle; the weaker path-level
+		// private_directory check alone does not prove it. Locks are the fixed
+		// guard range the launcher and supervisor share.
+		[[nodiscard]] auto windows_object_private(const std::filesystem::path& aPath, const bool aDirectory) -> bool
+		{
+			const auto principals = win_guard::windows_private_principals::load();
+			if (!principals) {
+				return false;
+			}
+			const auto handle = win_guard::windows_handle{ CreateFileW(
+				aPath.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+				FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr) };
+			return static_cast<bool>(handle) && win_guard::windows_private_to_current_user(handle.get(), *principals, aDirectory);
+		}
+		[[nodiscard]] auto journal_lock(const journal_native aHandle, const bool aExclusive) -> bool
+		{
+			auto overlapped       = OVERLAPPED{ };
+			overlapped.Offset     = static_cast<DWORD>(win_guard::windows_workspace_guard_lock_offset & 0xFFFF'FFFFULL);
+			overlapped.OffsetHigh = static_cast<DWORD>(win_guard::windows_workspace_guard_lock_offset >> 32U);
+			return LockFileEx(aHandle, LOCKFILE_FAIL_IMMEDIATELY | (aExclusive ? LOCKFILE_EXCLUSIVE_LOCK : 0U), 0U, 1U, 0U, &overlapped) != FALSE;
+		}
+		[[nodiscard]] auto journal_unlock(const journal_native aHandle) -> bool
+		{
+			auto overlapped       = OVERLAPPED{ };
+			overlapped.Offset     = static_cast<DWORD>(win_guard::windows_workspace_guard_lock_offset & 0xFFFF'FFFFULL);
+			overlapped.OffsetHigh = static_cast<DWORD>(win_guard::windows_workspace_guard_lock_offset >> 32U);
+			return UnlockFileEx(aHandle, 0U, 1U, 0U, &overlapped) != FALSE;
+		}
+		[[nodiscard]] auto lock_busy() -> bool
+		{
+			return GetLastError() == ERROR_LOCK_VIOLATION;
+		}
+	#else
+		[[nodiscard]] auto journal_lock(const journal_native aDescriptor, const bool aExclusive) -> bool
+		{
+			return ::flock(aDescriptor, (aExclusive ? LOCK_EX : LOCK_SH) | LOCK_NB) == 0;
+		}
+		[[nodiscard]] auto lock_busy() -> bool
+		{
+			return errno == EWOULDBLOCK || errno == EAGAIN;
+		}
+	#endif
+
+		/// The owner holds a shared lock; cleanup needs exclusive access. flock
+		/// converts in place and can drop the shared lock on failure; Windows
+		/// releases and retakes. Either way the registry boundary lock the caller
+		/// holds excludes recovery until shared ownership is restored.
+		[[nodiscard]] auto upgrade_journal_lock(const journal_native aHandle, bool& aPoisoned) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			if (!journal_unlock(aHandle)) {
+				aPoisoned = true;
+				return false;
+			}
+	#endif
+			if (journal_lock(aHandle, true)) {
+				return true;
+			}
+			if (!journal_lock(aHandle, false)) {
+				aPoisoned = true;
+			}
+			return false;
+		}
+
+		[[nodiscard]] auto workspace_private_directory(const std::filesystem::path& aPath) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			return private_directory(aPath) && windows_object_private(aPath, true);
+	#else
+			return private_directory(aPath);
+	#endif
+		}
+		[[nodiscard]] auto workspace_empty_private_directory(const std::filesystem::path& aPath) -> bool
+		{
+			std::error_code error;
+			return workspace_private_directory(aPath) && std::filesystem::is_empty(aPath, error) && !error;
+		}
+		[[nodiscard]] auto workspace_private_file(const std::filesystem::path& aPath) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			return private_regular_file(aPath) && windows_object_private(aPath, false);
+	#else
+			return private_regular_file(aPath);
+	#endif
+		}
+
+		/// Exclusive creation of one private directory; never adopts an existing one.
+		[[nodiscard]] auto create_workspace_directory(const std::filesystem::path& aPath) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			const auto principals = win_guard::windows_private_principals::load();
+			auto       descriptor = principals ? win_guard::windows_private_descriptor::make(*principals, true) : std::nullopt;
+			return descriptor && CreateDirectoryW(aPath.c_str(), descriptor->attributes()) != FALSE;
+	#else
+			return ::mkdir(aPath.c_str(), S_IRWXU) == 0;
+	#endif
+		}
+
+		[[nodiscard]] auto sync_workspace_directory(const std::filesystem::path& aPath) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			// NTFS flushes a directory's metadata through a handle opened for
+			// writing with backup semantics.
+			const auto handle = win_guard::windows_handle{ CreateFileW(
+				aPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+				FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+			return static_cast<bool>(handle) && FlushFileBuffers(handle.get()) != FALSE;
+	#else
+			const auto fd = ::open(aPath.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+			if (fd < 0) {
+				return false;
+			}
+			const auto result = ::fsync(fd) == 0;
+			static_cast<void>(::close(fd));
+			return result;
+	#endif
+		}
+
+		struct journal_status
+		{
+			ownership_identity File{ };
+			std::uint64_t      Size    = 0U;
+			bool               Private = false;
+		};
+		/// Exact identity, size and privacy of an open journal: a single-link
+		/// regular file owned privately by the current user.
+		[[nodiscard]] auto journal_stat(const journal_native aHandle) -> std::optional<journal_status>
+		{
+	#if defined(Q_OS_WIN)
+			const auto identity   = win_guard::windows_regular_file_identity(aHandle);
+			const auto principals = win_guard::windows_private_principals::load();
+			auto       size       = LARGE_INTEGER{ };
+			if (!identity || !principals || GetFileSizeEx(aHandle, &size) == FALSE || size.QuadPart < 0) {
+				return std::nullopt;
+			}
+			return journal_status{
+				.File    = *identity,
+				.Size    = static_cast<std::uint64_t>(size.QuadPart),
+				.Private = win_guard::windows_private_to_current_user(aHandle, *principals, false),
+			};
+	#else
+			struct stat info{ };
+			if (::fstat(aHandle, &info) != 0 || !S_ISREG(info.st_mode) || info.st_nlink != 1 || info.st_size < 0) {
+				return std::nullopt;
+			}
+			return journal_status{
+				.File    = { 1U, static_cast<std::uint64_t>(info.st_dev), 0U, static_cast<std::uint64_t>(info.st_ino) },
+				.Size    = static_cast<std::uint64_t>(info.st_size),
+				.Private = info.st_uid == ::geteuid() && (info.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0,
+			};
+	#endif
+		}
+		[[nodiscard]] auto journal_read(const journal_native aHandle, std::string& aBytes) -> bool
+		{
+			std::size_t read = 0U;
+			while (read < aBytes.size()) {
+	#if defined(Q_OS_WIN)
+				auto overlapped       = OVERLAPPED{ };
+				overlapped.Offset     = static_cast<DWORD>(read & 0xFFFF'FFFFU);
+				overlapped.OffsetHigh = static_cast<DWORD>(static_cast<std::uint64_t>(read) >> 32U);
+				auto count            = DWORD{ 0U };
+				if (ReadFile(aHandle, aBytes.data() + read, static_cast<DWORD>(aBytes.size() - read), &count, &overlapped) == FALSE || count == 0U) {
+					return false;
+				}
+	#else
+				const auto count = ::pread(aHandle, aBytes.data() + read, aBytes.size() - read, static_cast<off_t>(read));
+				if (count < 0 && errno == EINTR) {
+					continue;
+				}
+				if (count <= 0) {
+					return false;
+				}
+	#endif
+				read += static_cast<std::size_t>(count);
+			}
+			return true;
+		}
+		[[nodiscard]] auto journal_truncate(const journal_native aHandle, const std::uint64_t aSize) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			auto position     = LARGE_INTEGER{ };
+			position.QuadPart = static_cast<LONGLONG>(aSize);
+			return SetFilePointerEx(aHandle, position, nullptr, FILE_BEGIN) != FALSE && SetEndOfFile(aHandle) != FALSE
+				&& FlushFileBuffers(aHandle) != FALSE;
+	#else
+			return ::ftruncate(aHandle, static_cast<off_t>(aSize)) == 0 && ::fsync(aHandle) == 0;
+	#endif
+		}
+		/// Appends within the journal bound and makes it durable. A partial or
+		/// unflushed write poisons the owner.
+		[[nodiscard]] auto journal_append(const journal_native aHandle, const std::string_view aBytes, bool& aPoisoned) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			auto end = LARGE_INTEGER{ };
+			if (SetFilePointerEx(aHandle, LARGE_INTEGER{ }, &end, FILE_END) == FALSE || end.QuadPart < 0
+				|| static_cast<std::uint64_t>(end.QuadPart) + aBytes.size() > maximum_workspace_journal_bytes) {
+				return false;
+			}
+			std::size_t written = 0U;
+			while (written < aBytes.size()) {
+				auto count = DWORD{ 0U };
+				if (WriteFile(aHandle, aBytes.data() + written, static_cast<DWORD>(aBytes.size() - written), &count, nullptr) == FALSE || count == 0U) {
+					aPoisoned = true;
+					return false;
+				}
+				written += count;
+			}
+			if (FlushFileBuffers(aHandle) == FALSE) {
+				aPoisoned = true;
+				return false;
+			}
+			return true;
+	#else
+			const auto offset = ::lseek(aHandle, 0, SEEK_END);
+			if (offset < 0 || static_cast<std::uint64_t>(offset) + aBytes.size() > maximum_workspace_journal_bytes) {
+				return false;
+			}
+			std::size_t written = 0U;
+			while (written < aBytes.size()) {
+				const auto count = ::write(aHandle, aBytes.data() + written, aBytes.size() - written);
+				if (count < 0 && errno == EINTR) {
+					continue;
+				}
+				if (count <= 0) {
+					aPoisoned = true;
+					return false;
+				}
+				written += static_cast<std::size_t>(count);
+			}
+			if (::fsync(aHandle) != 0) {
+				aPoisoned = true;
+				return false;
+			}
+			return true;
+	#endif
+		}
+		/// Opens an existing journal for the owner or recovery without following
+		/// a link. Windows shares read and write with the launcher and supervisor
+		/// guard opens, and delete so a completed journal can be removed.
+		[[nodiscard]] auto open_journal(const std::filesystem::path& aPath) -> journal_native
+		{
+	#if defined(Q_OS_WIN)
+			return CreateFileW(
+				aPath.c_str(), GENERIC_READ | GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+	#else
+			return ::open(aPath.c_str(), O_RDWR | O_CLOEXEC | O_NOFOLLOW);
+	#endif
+		}
+		enum class journal_creation : std::uint8_t {
+			created,
+			exists,
+			failed,
+		};
+		[[nodiscard]] auto create_journal(const std::filesystem::path& aPath, journal_native& aHandle) -> journal_creation
+		{
+	#if defined(Q_OS_WIN)
+			const auto principals = win_guard::windows_private_principals::load();
+			auto       descriptor = principals ? win_guard::windows_private_descriptor::make(*principals, false) : std::nullopt;
+			if (!descriptor) {
+				return journal_creation::failed;
+			}
+			aHandle = CreateFileW(
+				aPath.c_str(), GENERIC_READ | GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, descriptor->attributes(),
+				CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+			if (aHandle == INVALID_HANDLE_VALUE) {
+				return GetLastError() == ERROR_FILE_EXISTS ? journal_creation::exists : journal_creation::failed;
+			}
+			return journal_creation::created;
+	#else
+			aHandle = ::open(aPath.c_str(), O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR);
+			if (aHandle < 0) {
+				return errno == EEXIST ? journal_creation::exists : journal_creation::failed;
+			}
+			return journal_creation::created;
+	#endif
+		}
+		/// Removes the completed journal while its lock is still held. Windows
+		/// uses POSIX delete semantics, so the name disappears at once.
+		[[nodiscard]] auto delete_journal(const journal_native aHandle, const std::filesystem::path& aPath) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			static_cast<void>(aPath);
+			auto disposition  = FILE_DISPOSITION_INFO_EX{ };
+			disposition.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS;
+			return SetFileInformationByHandle(aHandle, FileDispositionInfoEx, &disposition, sizeof(disposition)) != FALSE;
+	#else
+			static_cast<void>(aHandle);
+			return ::unlink(aPath.c_str()) == 0;
+	#endif
+		}
+		/// The neighbourhood's parent may not be writable by anyone but this user
+		/// (and, on Windows, the package, SYSTEM and Administrators, the analogue of
+		/// root), so nobody else can swap the neighbourhood out from under it.
+		[[nodiscard]] auto workspace_parent_trusted(const std::filesystem::path& aParent) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			if (canonical_existing(aParent) != aParent || !private_directory(aParent)) {
+				return false;
+			}
+			const auto           principals = win_guard::windows_private_principals::load();
+			const auto           handle     = win_guard::windows_handle{ CreateFileW(
+				aParent.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+				FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr) };
+			PSID                 owner      = nullptr;
+			PACL                 dacl       = nullptr;
+			PSECURITY_DESCRIPTOR descriptor = nullptr;
+			if (!principals || !handle
+				|| GetSecurityInfo(handle.get(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &owner, nullptr, &dacl, nullptr, &descriptor)
+					!= ERROR_SUCCESS) {
+				return false;
+			}
+			const auto freed = std::unique_ptr<void, decltype(&LocalFree)>{ descriptor, &LocalFree };
+			if (owner == nullptr || EqualSid(owner, principals->user()) == FALSE || dacl == nullptr) {
+				return false;
+			}
+			std::array<BYTE, SECURITY_MAX_SID_SIZE> system{ };
+			std::array<BYTE, SECURITY_MAX_SID_SIZE> administrators{ };
+			auto                                    systemSize         = static_cast<DWORD>(system.size());
+			auto                                    administratorsSize = static_cast<DWORD>(administrators.size());
+			if (CreateWellKnownSid(WinLocalSystemSid, nullptr, system.data(), &systemSize) == FALSE
+				|| CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, administrators.data(), &administratorsSize) == FALSE) {
+				return false;
+			}
+			constexpr auto write_rights = static_cast<ACCESS_MASK>(
+				FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES | FILE_DELETE_CHILD | DELETE | WRITE_DAC | WRITE_OWNER
+				| GENERIC_WRITE | GENERIC_ALL);
+			for (DWORD index = 0U; index < dacl->AceCount; ++index) {
+				void* entry = nullptr;
+				if (GetAce(dacl, index, &entry) == FALSE) {
+					return false;
+				}
+				const auto* const header = static_cast<ACE_HEADER*>(entry);
+				if (header->AceType != ACCESS_ALLOWED_ACE_TYPE) {
+					continue;
+				}
+				const auto* const allowed = static_cast<ACCESS_ALLOWED_ACE*>(entry);
+				const auto        sid     = static_cast<PSID>(static_cast<void*>(const_cast<DWORD*>(&allowed->SidStart)));
+				if ((allowed->Mask & write_rights) == 0U || EqualSid(sid, principals->user()) != FALSE
+					|| (principals->container() != nullptr && EqualSid(sid, principals->container()) != FALSE)
+					|| EqualSid(sid, system.data()) != FALSE || EqualSid(sid, administrators.data()) != FALSE) {
+					continue;
+				}
+				return false;
+			}
+			return true;
+	#else
+			struct stat info{ };
+			return canonical_existing(aParent) == aParent && ::lstat(aParent.c_str(), &info) == 0 && S_ISDIR(info.st_mode)
+				&& info.st_uid == ::geteuid() && (info.st_mode & static_cast<mode_t>(S_IWGRP | S_IWOTH)) == 0;
+	#endif
+		}
+		/// The registry and neighbourhood roots themselves: created private, or an
+		/// existing one accepted only when it is private.
+		[[nodiscard]] auto make_workspace_root_directory(const std::filesystem::path& aPath) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			if (!absent(aPath)) {
+				return workspace_private_directory(aPath);
+			}
+			if (!create_workspace_directory(aPath) && GetLastError() != ERROR_ALREADY_EXISTS) {
+				return false;
+			}
+			return workspace_private_directory(aPath);
+	#else
+			return make_private_directory(aPath);
+	#endif
+		}
 		struct workspace_record
 		{
 			std::uint32_t Version = 1U;
@@ -2722,26 +3116,10 @@ namespace bpr::adapters::git {
 			};
 		};
 
-		[[nodiscard]] auto sync_workspace_directory(const std::filesystem::path& aPath) -> bool
-		{
-			const auto fd = ::open(aPath.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-			if (fd < 0) {
-				return false;
-			}
-			const auto result = ::fsync(fd) == 0;
-			static_cast<void>(::close(fd));
-			return result;
-		}
 		[[nodiscard]] auto ownership_id(const std::filesystem::path& aPath, exact_artifact_kind aKind) -> ownership_identity
 		{
 			const auto identity = exact_identity(aPath, aKind);
 			return identity ? workspace_directory_identity(*identity).Opaque : ownership_identity{ };
-		}
-		[[nodiscard]] auto absent(const std::filesystem::path& aPath) -> bool
-		{
-			std::error_code error;
-			const auto      status = std::filesystem::symlink_status(aPath, error);
-			return error == std::errc::no_such_file_or_directory || (!error && status.type() == std::filesystem::file_type::not_found);
 		}
 		[[nodiscard]] auto record_transition(const workspace_record& aOld, const workspace_record& aNew) -> bool
 		{
@@ -2772,7 +3150,7 @@ namespace bpr::adapters::git {
 		class workspace_ownership final : public installed_agent_workspace_ownership
 		{
 		public:
-			workspace_ownership(std::filesystem::path aRegistry, std::filesystem::path aNeighbourhood, workspace_record aRecord, int aDescriptor)
+			workspace_ownership(std::filesystem::path aRegistry, std::filesystem::path aNeighbourhood, workspace_record aRecord, journal_native aDescriptor)
 				: Record{ std::move(aRecord) }
 				, Registry{ std::move(aRegistry) }
 				, Neighbourhood{ std::move(aNeighbourhood) }
@@ -2787,17 +3165,15 @@ namespace bpr::adapters::git {
 			}
 			~workspace_ownership() override
 			{
-				if (Descriptor >= 0) {
-					static_cast<void>(::close(Descriptor));
-				}
+				close_journal(Descriptor);
 			}
 			[[nodiscard]] auto layout() const noexcept -> const installed_agent_workspace_layout& override { return Layout; }
 			[[nodiscard]] auto boundary_valid() const -> bool
 			{
-				return !Poisoned && private_directory(Registry) && private_directory(Neighbourhood)
+				return !Poisoned && workspace_private_directory(Registry) && workspace_private_directory(Neighbourhood)
 					&& ownership_id(Registry, exact_artifact_kind::directory) == Record.Registry
 					&& ownership_id(Neighbourhood, exact_artifact_kind::directory) == Record.Neighbourhood
-					&& private_regular_file(Journal) && ownership_id(Journal, exact_artifact_kind::regular_file) == Record.File;
+					&& workspace_private_file(Journal) && ownership_id(Journal, exact_artifact_kind::regular_file) == Record.File;
 			}
 			[[nodiscard]] auto append(workspace_record aNext, bool aInitial = false) -> bool
 			{
@@ -2809,24 +3185,7 @@ namespace bpr::adapters::git {
 					return false;
 				}
 				bytes += '\n';
-				const auto offset = ::lseek(Descriptor, 0, SEEK_END);
-				if (offset < 0 || static_cast<std::uint64_t>(offset) + bytes.size() > maximum_workspace_journal_bytes) {
-					return false;
-				}
-				std::size_t written = 0U;
-				while (written < bytes.size()) {
-					const auto count = ::write(Descriptor, bytes.data() + written, bytes.size() - written);
-					if (count < 0 && errno == EINTR) {
-						continue;
-					}
-					if (count <= 0) {
-						Poisoned = true;
-						return false;
-					}
-					written += static_cast<std::size_t>(count);
-				}
-				if (::fsync(Descriptor) != 0) {
-					Poisoned = true;
+				if (!journal_append(Descriptor, bytes, Poisoned)) {
 					return false;
 				}
 				Record = std::move(aNext);
@@ -2852,12 +3211,7 @@ namespace bpr::adapters::git {
 				if (!boundary.valid()) {
 					return false;
 				}
-				// flock conversion can drop the shared lock on failure. The registry
-				// lock excludes recovery until shared ownership is restored.
-				if (::flock(Descriptor, LOCK_EX | LOCK_NB) != 0) {
-					if (::flock(Descriptor, LOCK_SH | LOCK_NB) != 0) {
-						Poisoned = true;
-					}
+				if (!upgrade_journal_lock(Descriptor, Poisoned)) {
 					return false;
 				}
 				return cleanup_locked();
@@ -2875,7 +3229,7 @@ namespace bpr::adapters::git {
 					}
 				}
 				if (Record.Phase == 1U) {
-					if (ownership_id(Layout.Parent, exact_artifact_kind::directory) != Record.Parent || !empty_private_directory(Layout.Parent) || !advance(5U)) {
+					if (ownership_id(Layout.Parent, exact_artifact_kind::directory) != Record.Parent || !workspace_empty_private_directory(Layout.Parent) || !advance(5U)) {
 						return false;
 					}
 				}
@@ -2887,7 +3241,7 @@ namespace bpr::adapters::git {
 				if (Record.Phase == 4U) {
 					if (ownership_id(Layout.Parent, exact_artifact_kind::directory) != Record.Parent
 						|| !remove_planned(Layout.Workspace, childTrash, Record.Child, true)
-						|| !empty_private_directory(Layout.Parent) || !advance(5U)) {
+						|| !workspace_empty_private_directory(Layout.Parent) || !advance(5U)) {
 						return false;
 					}
 				}
@@ -2897,11 +3251,11 @@ namespace bpr::adapters::git {
 				if (Record.Phase != 6U || !absent(Layout.Parent) || !absent(parentTrash) || !boundary_valid()) {
 					return false;
 				}
-				return ::unlink(Journal.c_str()) == 0 && sync_workspace_directory(Registry);
+				return delete_journal(Descriptor, Journal) && sync_workspace_directory(Registry);
 			}
 			[[nodiscard]] auto directories_match() const -> bool
 			{
-				return private_directory(Layout.Parent) && private_directory(Layout.Workspace)
+				return workspace_private_directory(Layout.Parent) && workspace_private_directory(Layout.Workspace)
 					&& ownership_id(Layout.Parent, exact_artifact_kind::directory) == Record.Parent
 					&& ownership_id(Layout.Workspace, exact_artifact_kind::directory) == Record.Child;
 			}
@@ -2928,7 +3282,7 @@ namespace bpr::adapters::git {
 					return true;
 				}
 				workspace_checkpoint(aRecursive ? "child-quarantined" : "parent-quarantined");
-				if (!private_directory(aTrash) || ownership_id(aTrash, exact_artifact_kind::directory) != aIdentity) {
+				if (!workspace_private_directory(aTrash) || ownership_id(aTrash, exact_artifact_kind::directory) != aIdentity) {
 					return false;
 				}
 				std::error_code error;
@@ -2942,7 +3296,7 @@ namespace bpr::adapters::git {
 			std::filesystem::path            Registry;
 			std::filesystem::path            Neighbourhood;
 			std::filesystem::path            Journal;
-			int                              Descriptor = -1;
+			journal_native                   Descriptor = journal_invalid;
 			bool                             Poisoned   = false;
 			installed_agent_workspace_layout Layout;
 		};
@@ -2954,24 +3308,15 @@ namespace bpr::adapters::git {
 			bool validate_trailing_whitespace = true;
 			constexpr workspace_json_options() { error_on_missing_keys = true; }
 		};
-		[[nodiscard]] auto load_workspace_record(int aFd, const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::string_view aToken) -> std::optional<workspace_record>
+		[[nodiscard]] auto load_workspace_record(journal_native aFd, const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::string_view aToken) -> std::optional<workspace_record>
 		{
-			struct stat info{ };
-			if (::fstat(aFd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != ::geteuid() || info.st_nlink != 1
-				|| (info.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0 || info.st_size <= 0 || static_cast<std::uint64_t>(info.st_size) > maximum_workspace_journal_bytes) {
+			const auto status = journal_stat(aFd);
+			if (!status || !status->Private || status->Size == 0U || status->Size > maximum_workspace_journal_bytes) {
 				return std::nullopt;
 			}
-			std::string bytes(static_cast<std::size_t>(info.st_size), '\0');
-			std::size_t read = 0U;
-			while (read < bytes.size()) {
-				const auto count = ::pread(aFd, bytes.data() + read, bytes.size() - read, static_cast<off_t>(read));
-				if (count < 0 && errno == EINTR) {
-					continue;
-				}
-				if (count <= 0) {
-					return std::nullopt;
-				}
-				read += static_cast<std::size_t>(count);
+			std::string bytes(static_cast<std::size_t>(status->Size), '\0');
+			if (!journal_read(aFd, bytes)) {
+				return std::nullopt;
 			}
 			std::optional<workspace_record> previous;
 			std::size_t                     offset = 0U;
@@ -2984,7 +3329,7 @@ namespace bpr::adapters::git {
 				if (glz::read<workspace_json_options{ }>(record, std::string_view{ bytes }.substr(offset, end - offset))
 					|| record.Version != 1U || record.Token != aToken || record.Registry != ownership_id(aRegistry, exact_artifact_kind::directory)
 					|| record.Neighbourhood != ownership_id(aNeighbourhood, exact_artifact_kind::directory)
-					|| record.File != ownership_identity{ 1U, static_cast<std::uint64_t>(info.st_dev), 0U, static_cast<std::uint64_t>(info.st_ino) }
+					|| record.File != status->File
 					|| (record.Head.size() != 40U && record.Head.size() != 64U)
 					|| !std::ranges::all_of(record.Head, [](char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f'); })
 					|| std::ranges::any_of(record.Scope, [](auto aId) { return aId == 0U; })
@@ -2995,7 +3340,7 @@ namespace bpr::adapters::git {
 				previous = std::move(record);
 				offset   = end + 1U;
 			}
-			if (!previous || (offset != bytes.size() && (::ftruncate(aFd, static_cast<off_t>(offset)) != 0 || ::fsync(aFd) != 0))) {
+			if (!previous || (offset != bytes.size() && !journal_truncate(aFd, offset))) {
 				return std::nullopt;
 			}
 			return previous;
@@ -3003,19 +3348,16 @@ namespace bpr::adapters::git {
 		[[nodiscard]] auto prepare_workspace_neighbourhood(const std::filesystem::path& aPath) -> bool
 		{
 			if (!absent(aPath)) {
-				return private_directory(aPath);
+				return workspace_private_directory(aPath);
 			}
-			const auto  parent = aPath.parent_path();
-			struct stat info{ };
-			if (canonical_existing(parent) != parent || ::lstat(parent.c_str(), &info) != 0
-				|| !S_ISDIR(info.st_mode) || info.st_uid != ::geteuid()
-				|| (info.st_mode & static_cast<mode_t>(S_IWGRP | S_IWOTH)) != 0) {
+			const auto parent = aPath.parent_path();
+			if (!workspace_parent_trusted(parent)) {
 				return false;
 			}
-			if (::mkdir(aPath.c_str(), S_IRWXU) != 0 && errno != EEXIST) {
+			if (!create_workspace_directory(aPath) && absent(aPath)) {
 				return false;
 			}
-			return private_directory(aPath) && sync_workspace_directory(parent);
+			return workspace_private_directory(aPath) && sync_workspace_directory(parent);
 		}
 		[[nodiscard]] auto prepare_workspace_registry(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood) -> bool
 		{
@@ -3028,8 +3370,8 @@ namespace bpr::adapters::git {
 				&& aRegistry != aNeighbourhood
 				&& !path_begins_with(aNeighbourhood, aRegistry)
 				&& prepare_workspace_neighbourhood(aNeighbourhood)
-				&& private_directory(aRegistry.parent_path())
-				&& make_private_directory(aRegistry)
+				&& workspace_private_directory(aRegistry.parent_path())
+				&& make_workspace_root_directory(aRegistry)
 				&& sync_workspace_directory(aRegistry.parent_path());
 		}
 		[[nodiscard]] auto recover_workspaces_locked(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::stop_token aStop)
@@ -3080,16 +3422,16 @@ namespace bpr::adapters::git {
 				if (aStop.stop_requested()) {
 					return std::unexpected{ workspace_ownership_failure::cancelled };
 				}
-				if (!private_regular_file(path)) {
+				if (!workspace_private_file(path)) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
-				workspace_descriptor descriptor{ ::open(path.c_str(), O_RDWR | O_CLOEXEC | O_NOFOLLOW) };
+				workspace_descriptor descriptor{ open_journal(path) };
 				const auto           fd = descriptor.get();
-				if (fd < 0) {
+				if (!descriptor.valid()) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
-				if (::flock(fd, LOCK_EX | LOCK_NB) != 0) {
-					const auto busy = errno == EWOULDBLOCK || errno == EAGAIN;
+				if (!journal_lock(fd, true)) {
+					const auto busy = lock_busy();
 					if (!busy) {
 						return std::unexpected{ workspace_ownership_failure::unavailable };
 					}
@@ -5843,7 +6185,7 @@ namespace bpr::adapters::git {
 		const std::stop_token        aStop)
 		-> std::expected<workspace_recovery_statistics, workspace_ownership_failure>
 	{
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 		try {
 			if (aStop.stop_requested()) {
 				return std::unexpected{ workspace_ownership_failure::cancelled };
@@ -5873,7 +6215,7 @@ namespace bpr::adapters::git {
 		const std::stop_token                                       aStop)
 		-> std::expected<std::unique_ptr<installed_agent_workspace_ownership>, workspace_ownership_failure>
 	{
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 		try {
 			if (aStop.stop_requested()) {
 				return std::unexpected{ workspace_ownership_failure::cancelled };
@@ -5916,18 +6258,20 @@ namespace bpr::adapters::git {
 				if (!absent(parent) || !absent(aRequest.ParentDirectory / (".bpr-cleanup-" + record.Token))) {
 					continue;
 				}
-				workspace_descriptor descriptor{ ::open(journal.c_str(), O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR) };
-				if (descriptor.get() < 0) {
-					if (errno == EEXIST) {
-						continue;
-					}
+				auto                 created = journal_invalid;
+				const auto           outcome = create_journal(journal, created);
+				workspace_descriptor descriptor{ created };
+				if (outcome == journal_creation::exists) {
+					continue;
+				}
+				if (outcome != journal_creation::created) {
 					return std::unexpected{ workspace_ownership_failure::unavailable };
 				}
-				struct stat info{ };
-				if (::fstat(descriptor.get(), &info) != 0 || !S_ISREG(info.st_mode) || info.st_nlink != 1 || ::flock(descriptor.get(), LOCK_SH | LOCK_NB) != 0) {
+				const auto status = journal_stat(descriptor.get());
+				if (!status || !status->Private || !journal_lock(descriptor.get(), false)) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
-				record.File = { 1U, static_cast<std::uint64_t>(info.st_dev), 0U, static_cast<std::uint64_t>(info.st_ino) };
+				record.File = status->File;
 				auto owner  = std::make_unique<workspace_ownership>(aRegistry, aRequest.ParentDirectory, record, descriptor.get());
 				static_cast<void>(descriptor.release());
 				if (!owner->append(record, true) || !sync_workspace_directory(aRegistry)) {
@@ -5935,7 +6279,7 @@ namespace bpr::adapters::git {
 				}
 				// Exclusive mkdir never adopts a pre-existing directory. A crash
 				// before recording its identity preserves it and refuses admission.
-				if (::mkdir(parent.c_str(), S_IRWXU) != 0 || !sync_workspace_directory(aRequest.ParentDirectory)) {
+				if (!create_workspace_directory(parent) || !sync_workspace_directory(aRequest.ParentDirectory)) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
 				workspace_checkpoint("parent-created");
@@ -5944,7 +6288,7 @@ namespace bpr::adapters::git {
 				if (!owner->append(record)) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
-				if (::mkdir(owner->layout().Workspace.c_str(), S_IRWXU) != 0 || !sync_workspace_directory(parent)) {
+				if (!create_workspace_directory(owner->layout().Workspace) || !sync_workspace_directory(parent)) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
 				workspace_checkpoint("child-created");

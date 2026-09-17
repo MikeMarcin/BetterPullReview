@@ -87,6 +87,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # 3 with no output at std::filesystem::canonical of its root argument, the
     # same lowbox refusal as the BPR-0806 rows; it passes uncontained.
     "agent_parent_death": "dos-volume-name",
+    # BPR-0622: measured on JaegAW 2026-09-17. Contained, the journal course stops
+    # in CPython realpath (Path.resolve(strict=True)) of its fixture executable with
+    # "[WinError 5] Access is denied" before any course step; it passes uncontained.
+    "agent_workspace_ownership": "dos-volume-name",
     "application_device_binding_restart": "dos-volume-name",
     "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
     "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",

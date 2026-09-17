@@ -23,7 +23,7 @@
 #include <vector>
 
 #if defined(Q_OS_WIN)
-	#include "../../src/adapters/agent/src/windows_workspace_guard.hpp"
+	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
 
 	#include <aclapi.h>
 #endif

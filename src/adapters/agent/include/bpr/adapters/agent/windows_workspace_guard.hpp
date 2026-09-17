@@ -1,5 +1,5 @@
-#ifndef BPR_SRC_ADAPTERS_AGENT_SRC_WINDOWS_WORKSPACE_GUARD_HPP
-#define BPR_SRC_ADAPTERS_AGENT_SRC_WINDOWS_WORKSPACE_GUARD_HPP
+#ifndef BPR_ADAPTERS_AGENT_WINDOWS_WORKSPACE_GUARD_HPP
+#define BPR_ADAPTERS_AGENT_WINDOWS_WORKSPACE_GUARD_HPP
 
 // [[BPR-0622]]. The Windows half of the workspace lifetime guard: exact file
 // identity, a private current-user security descriptor, and a byte-range lock
@@ -10,7 +10,8 @@
 // alive after that process dies. Every holder therefore opens the guard and
 // takes its own lock; nothing hands a locked handle to another process.
 //
-// Header-only and free of Qt, so the standalone supervisor can use it too.
+// Header-only and free of Qt, so the standalone supervisor and the Git
+// adapter's ownership journal use the same rules.
 
 #if !defined(WIN32_LEAN_AND_MEAN)
 	#define WIN32_LEAN_AND_MEAN
@@ -35,9 +36,11 @@ namespace bpr::adapters::agent::detail {
 	/// ever touch the locked range.
 	inline constexpr std::uint64_t windows_workspace_guard_lock_offset = 0x4000'0000'0000'0000ULL;
 
-	/// Identity kind 2 distinguishes a Windows (volume serial, file index)
-	/// identity from the Unix kind 1 (st_dev, st_ino) identity.
-	inline constexpr std::uint64_t windows_file_identity_kind = 2U;
+	/// Kind 1 names a regular file, as in the Git adapter's opaque workspace
+	/// identities (kind 2 is a directory); the remaining words are the volume
+	/// serial and the high and low file index, where Unix records st_dev and
+	/// st_ino.
+	inline constexpr std::uint64_t windows_file_identity_kind = 1U;
 
 	class windows_handle final
 	{
@@ -289,7 +292,7 @@ namespace bpr::adapters::agent::detail {
 			return { };
 		}
 		auto guard = windows_handle{ ::CreateFileW(
-			aPath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+			aPath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
 		if (!guard) {
 			return { };
 		}
@@ -308,4 +311,4 @@ namespace bpr::adapters::agent::detail {
 	}
 } // namespace bpr::adapters::agent::detail
 
-#endif // BPR_SRC_ADAPTERS_AGENT_SRC_WINDOWS_WORKSPACE_GUARD_HPP
+#endif // BPR_ADAPTERS_AGENT_WINDOWS_WORKSPACE_GUARD_HPP

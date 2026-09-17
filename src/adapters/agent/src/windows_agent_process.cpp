@@ -1,7 +1,7 @@
 #include "windows_agent_process.hpp"
 
 #include "agent_protocol_loop.hpp"
-#include "windows_workspace_guard.hpp"
+#include "bpr/adapters/agent/windows_workspace_guard.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX

@@ -2,12 +2,18 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
+
+if os.name == "posix":
+    import fcntl
+else:
+    import ctypes
+    from ctypes import wintypes
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
@@ -15,11 +21,75 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 from process_kill_support import kill_at_checkpoint, run
 
 
+def make_private(path: Path) -> None:
+    """A fixture directory as private as the product creates them.
+
+    POSIX: mode 0700. Windows ([[BPR-0622]]): a protected DACL with one
+    full-access, inheritable grant for the current user; the directory is
+    created by this user, so the user owns it.
+    """
+    if os.name == "posix":
+        path.chmod(0o700)
+        return
+    user = os.environ["USERDOMAIN"] + "\\" + os.environ["USERNAME"]
+    # Python's mkdir(mode=0o700) on Windows writes explicit SYSTEM,
+    # Administrators and OWNER RIGHTS grants; a private workspace object has
+    # only the user's.
+    subprocess.run(["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:(OI)(CI)F",
+                    "/remove:g", "*S-1-5-18", "*S-1-5-32-544", "*S-1-3-4"],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def create_root(parent: Path, name: str) -> Path:
     root = parent / name
     root.mkdir(mode=0o700)
+    make_private(root)
     (root / "neighbourhood").mkdir(mode=0o700)
+    make_private(root / "neighbourhood")
     return root
+
+
+if os.name != "posix":
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    GUARD_LOCK_OFFSET = 0x4000_0000_0000_0000
+
+    class OVERLAPPED(ctypes.Structure):
+        _fields_ = [("Internal", ctypes.c_void_p), ("InternalHigh", ctypes.c_void_p),
+                    ("Offset", wintypes.DWORD), ("OffsetHigh", wintypes.DWORD), ("hEvent", wintypes.HANDLE)]
+
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                     wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel32.LockFileEx.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
+                                    wintypes.DWORD, ctypes.POINTER(OVERLAPPED)]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    class SharedGuard:
+        """An independent live owner: this process's own shared guard lock."""
+
+        def __init__(self, path: Path) -> None:
+            self.handle = kernel32.CreateFileW(str(path), 0x80000000, 0x1 | 0x2 | 0x4, None, 3, 0x00200000, None)
+            if self.handle in (None, wintypes.HANDLE(-1).value):
+                raise RuntimeError(f"cannot open journal guard ({ctypes.get_last_error()})")
+            overlapped = OVERLAPPED()
+            overlapped.Offset = GUARD_LOCK_OFFSET & 0xFFFFFFFF
+            overlapped.OffsetHigh = GUARD_LOCK_OFFSET >> 32
+            if not kernel32.LockFileEx(self.handle, 0x1, 0, 1, 0, ctypes.byref(overlapped)):
+                kernel32.CloseHandle(self.handle)
+                raise RuntimeError(f"cannot take shared journal guard ({ctypes.get_last_error()})")
+
+        def close(self) -> None:
+            if self.handle:
+                kernel32.CloseHandle(self.handle)
+                self.handle = None
+
+
+def hold_shared(path: Path):
+    if os.name == "posix":
+        guard = path.open("rb")
+        fcntl.flock(guard, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return guard
+    return SharedGuard(path)
 
 
 def check(exe: Path, phase: str, root: Path, expected: str) -> None:
@@ -88,8 +158,12 @@ def main() -> None:
     exe = args.executable.resolve(strict=True)
     with contained_temporary_directory(prefix="bpr-workspace-ownership-") as temporary:
         parent = Path(temporary).resolve()
-        check_neighbourhood_parent_rule(exe, parent)
-        # Real SIGKILL between committed native phases, including both renames.
+        if os.name == "posix":
+            # BPR-0817's mode-bit parent rule. Windows proves its own
+            # untrusted-parent refusal through the DACL courses (BPR-0622).
+            check_neighbourhood_parent_rule(exe, parent)
+        # Real forced death (SIGKILL, TerminateProcess) between committed native
+        # phases, including both renames.
         for point in [*(f"journal-{i}" for i in range(7)), "child-quarantined", "parent-quarantined"]:
             root = create_root(parent, point)
             kill_at_checkpoint(exe, point, root)
@@ -140,6 +214,7 @@ def main() -> None:
                     target.symlink_to(root / "original", target_is_directory=True)
                 else:
                     target.mkdir(mode=0o700)
+                    make_private(target)
                     (target / "unowned").write_text("preserve")
             elif kind == "missing-journal":
                 record.rename(root / "original.jsonl")
@@ -176,6 +251,29 @@ def main() -> None:
             after = {str(p.relative_to(root)): (p.lstat().st_ino, p.read_bytes() if p.is_file() and not p.is_symlink() else None) for p in root.rglob("*")}
             if before != after:
                 raise RuntimeError(f"{kind}: refusal altered original or substitute artifacts")
+        if os.name != "posix":
+            # [[BPR-0622]]. Windows privacy is the descriptor, not the mode: a
+            # journal readable by Everyone is refused and left exactly as found.
+            root = create_root(parent, "negative-acl")
+            check(exe, "ready-abandon", root, "ready")
+            record = journal(root)
+            subprocess.run(["icacls", str(record), "/grant", "*S-1-1-0:(R)"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            before = {str(p.relative_to(root)): (p.lstat().st_ino, p.read_bytes() if p.is_file() and not p.is_symlink() else None) for p in root.rglob("*")}
+            check(exe, "recover", root, "failure=1")
+            check(exe, "abandon", root, "failure=1")
+            after = {str(p.relative_to(root)): (p.lstat().st_ino, p.read_bytes() if p.is_file() and not p.is_symlink() else None) for p in root.rglob("*")}
+            if before != after:
+                raise RuntimeError("acl: refusal altered original artifacts")
+            # A neighbourhood is never created under a parent another principal can write.
+            root = parent / "untrusted-parent"
+            root.mkdir()
+            make_private(root)
+            subprocess.run(["icacls", str(root), "/grant", "*S-1-1-0:(OI)(CI)(M)"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            check(exe, "abandon", root, "failure=1")
+            if (root / "neighbourhood").exists():
+                raise RuntimeError("neighbourhood created under a foreign-writable parent")
         # A replaced quarantine is no more authoritative than a replaced source.
         for point in ("child-quarantined", "parent-quarantined"):
             root = create_root(parent, "replaced-" + point)
@@ -183,6 +281,7 @@ def main() -> None:
             trash = workspace(root).parent / ".bpr-cleanup-workspace" if point == "child-quarantined" else root / "neighbourhood" / (".bpr-cleanup-" + journal(root).stem)
             trash.rename(root / "original")
             trash.mkdir(mode=0o700)
+            make_private(trash)
             (trash / "keep").write_text("unowned")
             check(exe, "recover", root, "failure=1")
             if (trash / "keep").read_text() != "unowned" or not (root / "original").is_dir():
@@ -203,9 +302,7 @@ def main() -> None:
                 added = set((root / "registry").glob("*.jsonl")) - prior
                 if len(added) != 1:
                     raise RuntimeError("admission did not add exactly one journal")
-                guard = added.pop().open("rb")
-                fcntl.flock(guard, fcntl.LOCK_SH | fcntl.LOCK_NB)
-                guards.append(guard)
+                guards.append(hold_shared(added.pop()))
             check(exe, "recover", root, "recovered=0 live=64")
             check(exe, "abandon", root, "failure=2")
             if len(list((root / "neighbourhood").iterdir())) != 64:
