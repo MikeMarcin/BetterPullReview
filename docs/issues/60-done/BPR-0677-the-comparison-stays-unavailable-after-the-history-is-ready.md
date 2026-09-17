@@ -43,7 +43,7 @@ after it.
 - Ninety-five seconds of silent preparation is the rest of it: the reviewer
   is owed some sign that something is happening, and the wait itself is
   worth measuring against
-  [BPR-0673](../10-backlog/BPR-0673-the-large-review-benchmark-exceeds-two-mac-budgets.md).
+  [BPR-0673](../20-ready/BPR-0673-the-large-review-benchmark-exceeds-two-mac-budgets.md).
 - Whether a comparison actually arrives after a successful
   `revision_prepare` on the public path is still unobserved: the owner's
   screenshot was taken three seconds after it and they stopped there. A
@@ -91,4 +91,4 @@ The screenshot on the BPR-0646 decision
 ([owner-read-chrome-2026-09-11.png](../../verification/reviews/rfc-bpr-0028-attended-v006/captures/owner-read-chrome-2026-09-11.png))
 shows file 2 of 4 selected, "Diff ready — 2 semantic changes" and "Review history is ready."
 Done. The ninety-five-second silent preparation stays with
-[BPR-0673](../10-backlog/BPR-0673-the-large-review-benchmark-exceeds-two-mac-budgets.md).
+[BPR-0673](../20-ready/BPR-0673-the-large-review-benchmark-exceeds-two-mac-budgets.md).
