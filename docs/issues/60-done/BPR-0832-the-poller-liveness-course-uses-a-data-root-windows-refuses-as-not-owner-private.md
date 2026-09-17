@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0832"
 title: "The poller liveness course uses a data root Windows refuses as not owner-private"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-hardening new defect","found_at":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 application_poller_liveness passes on the Windows station, reaching its boundary line and the tick subtest","outcome":"pass","revision":"1c10d56616084f022e0cec6aaee6d1d429a6cc42","evidence":{"kind":"command","detail":"bpr-win: passes in 1.91 s printing github-application-boundary-tests:pass then github-application-liveness-tests:pass; reverted trial at the base still fails at application startup succeeds (card Windows section)."}},{"criterion":"AC2 it still passes on macOS","outcome":"pass","revision":"013d2036018ed608c54e1ae5dc1c19b904e327cc","evidence":{"kind":"command","detail":"application_poller_liveness passes on macOS at 013d2036 (build/r2-logs/dsp3-int5-ctest.log)."}}]
 ---
 
 # BPR-0832: The poller liveness course uses a data root Windows refuses as not owner-private
