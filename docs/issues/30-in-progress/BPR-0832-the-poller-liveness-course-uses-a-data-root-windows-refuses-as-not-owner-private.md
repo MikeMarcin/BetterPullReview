@@ -38,3 +38,38 @@ Reported by `bpr-win` in `task-20260917-win-hardening` step 1
 - `application_poller_liveness` passes on the Windows station, reaching its
   boundary line and the tick subtest.
 - It still passes on macOS.
+
+## Windows station, 2026-09-17 (task-20260917-win-startup-roots)
+
+The base is `559377700d52f37d6c094cd646200c67ab20eeb5`.
+
+**Change.** `with_fixtureless_application` in
+`tests/end_to_end/github_application_liveness_tests.cpp` keeps the
+`QTemporaryDir` and its canonical path. It then makes the root owner-private
+by construction, using the stores' own rule:
+
+- it narrows the temporary directory with
+  `bpr::adapters::sqlite::make_storage_root_owner_private`;
+- it creates `data` inside it and narrows that too;
+- it starts the application on `<canonical temporary directory>/data`.
+
+The root sits inside the narrowed directory rather than being it, because the
+agent workspace neighbourhood is created beside the root and trusts only a
+private parent. This station's `%TEMP%` grants other principals Modify.
+
+This is the same rule the agent chat and finding courses use since
+[[BPR-0812]]. [[BPR-0820]]'s private automated root has not reached
+`windows-lane`, so it was not available to reuse.
+
+**Results.**
+
+| Run | Result |
+|---|---|
+| `ctest --preset windows-dev -R "^application_poller_liveness$" -V` with the change | **Passed**, 1.91 s: `github-application-boundary-tests:pass`, then `github-application-liveness-tests:pass`, i.e. the boundary line and [[BPR-0827]]'s tick subtest |
+| **Reverted trial:** the HEAD version of the file, rebuilt at this base | **Fails**: `FAILED: application startup succeeds` |
+| The change restored and rebuilt | Passes again |
+
+**Portable sources touched:**
+`tests/end_to_end/github_application_liveness_tests.cpp`. On POSIX the
+narrowing is `chmod 0700` on two directories the course creates, and the root
+becomes `<temporary directory>/data`. The macOS run is the integrator's.

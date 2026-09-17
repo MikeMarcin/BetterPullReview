@@ -1,3 +1,4 @@
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/github_application.hpp"
 
 #include "public_path_poll.hpp"
@@ -46,12 +47,25 @@ namespace {
 			= QFileInfo{ dataRoot.path() }.canonicalFilePath();
 		expect(!canonicalDataRoot.isEmpty(),
 			   "the data root resolves to a canonical path");
+		// [[BPR-0832]]. Owner-private by the stores' own definition. On Windows a
+		// temporary directory inherits its parent's access-control list, which
+		// the profile registry refuses. The root sits inside the narrowed
+		// temporary directory rather than being it, because the agent workspace
+		// neighbourhood is created beside the root and trusts only a private
+		// parent.
+		const auto privateParent = std::filesystem::path{ canonicalDataRoot.toStdU16String() };
+		const auto privateRoot   = privateParent / "data";
+		auto       rootError     = std::error_code{ };
+		expect(bpr::adapters::sqlite::make_storage_root_owner_private(privateParent)
+				   && std::filesystem::create_directory(privateRoot, rootError) && !rootError
+				   && bpr::adapters::sqlite::make_storage_root_owner_private(privateRoot),
+			   "the data root is owner-private");
 
 		std::unique_ptr<bpr::app::github_application> application;
 		auto                                          startupTerminal = false;
 		auto                                          startup         = bpr::app::github_application::start(
 			bpr::app::github_application_config{
-				.ApplicationDataRoot = std::filesystem::path{ canonicalDataRoot.toStdU16String() } },
+				.ApplicationDataRoot = privateRoot },
 			[&](auto aResult) {
 				startupTerminal = true;
 				if (aResult) {
