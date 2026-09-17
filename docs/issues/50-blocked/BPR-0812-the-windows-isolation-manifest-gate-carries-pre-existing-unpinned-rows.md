@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0812"
 title: "The Windows isolation manifest gate carries pre-existing unpinned uncontained rows"
-status: "In Progress"
+status: "Blocked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win under BPR-0806","found_at":"1f29eaa4","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+blocked_by: "bpr-0834-epoch-rows-fail-at-windows-startup"
 ---
 
 # BPR-0812: The Windows isolation manifest gate carries pre-existing unpinned uncontained rows
