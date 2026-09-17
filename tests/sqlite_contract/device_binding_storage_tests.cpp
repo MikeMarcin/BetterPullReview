@@ -1,5 +1,6 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 
 #include <sqlite3.h>
 #if !defined(_WIN32)
@@ -77,7 +78,7 @@ namespace {
 	void legacy(const std::filesystem::path& aRoot)
 	{
 		std::filesystem::create_directory(aRoot);
-		std::filesystem::permissions(aRoot, std::filesystem::perms::owner_all);
+		expect(adapters::sqlite::make_storage_root_owner_private(aRoot), "fixture root is owner-private under the canonical storage policy");
 		seed(aRoot);
 		mutate(aRoot, "DROP TABLE binding_scope; DROP TABLE device_binding; CREATE TABLE device_binding(profile TEXT PRIMARY KEY,revision TEXT NOT NULL,host TEXT NOT NULL,hostname TEXT NOT NULL,account TEXT NOT NULL,server INTEGER NOT NULL CHECK(server BETWEEN 0 AND 1),provenance INTEGER NOT NULL CHECK(provenance=1),issued INTEGER NOT NULL CHECK(issued>0),access_expiry INTEGER NOT NULL CHECK(access_expiry>issued),refresh_expiry INTEGER NOT NULL CHECK(refresh_expiry>issued),tombstone INTEGER NOT NULL CHECK(tombstone IN(0,1))) STRICT; INSERT INTO device_binding VALUES('1','2','3','github.com','4',0,1,1000,4600,10000,0); PRAGMA user_version=1");
 	}
@@ -142,7 +143,7 @@ namespace {
 				legacy(hostileRoot);
 			} else {
 				std::filesystem::create_directory(hostileRoot);
-				std::filesystem::permissions(hostileRoot, std::filesystem::perms::owner_all);
+				expect(adapters::sqlite::make_storage_root_owner_private(hostileRoot), "fixture root is owner-private under the canonical storage policy");
 				seed(hostileRoot);
 			}
 			mutate(hostileRoot, "UPDATE device_binding SET hostname=CAST(zeroblob(2097152) AS TEXT)");
@@ -167,9 +168,9 @@ namespace {
 		auto second                       = adapters::sqlite::make_device_binding_store(secondRoot, core::bpr_profile_id{ 3U });
 		expect(!first->store(secondRecord, { }) && !first->erase(secondRecord.Authority, { }) && !std::filesystem::exists(firstRoot), "foreign writes refuse before creating a root");
 		std::filesystem::create_directory(firstRoot);
-		std::filesystem::permissions(firstRoot, std::filesystem::perms::owner_all);
+		expect(adapters::sqlite::make_storage_root_owner_private(firstRoot), "fixture root is owner-private under the canonical storage policy");
 		std::filesystem::create_directory(secondRoot);
-		std::filesystem::permissions(secondRoot, std::filesystem::perms::owner_all);
+		expect(adapters::sqlite::make_storage_root_owner_private(secondRoot), "fixture root is owner-private under the canonical storage policy");
 		expect(first->store(firstRecord, { }).has_value() && second->store(secondRecord, { }).has_value(), "separate BPR profiles store identical host and account");
 		expect(first->load({ })->front() == firstRecord && second->load({ })->front() == secondRecord, "scope survives independent store reads");
 		first.reset();
@@ -227,7 +228,7 @@ int main()
 {
 	const auto root = std::filesystem::canonical(std::filesystem::temp_directory_path()) / ("bpr-device-binding-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 	std::filesystem::create_directory(root);
-	std::filesystem::permissions(root, std::filesystem::perms::owner_all);
+	expect(bpr::adapters::sqlite::make_storage_root_owner_private(root), "scratch root is owner-private under the canonical storage policy");
 #if !defined(_WIN32)
 	in_child(seed, root);
 	in_child(reopen, root);

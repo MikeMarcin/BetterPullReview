@@ -67,6 +67,16 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # does not have to re-measure it.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_device_binding_storage": "dos-volume-name",
+    # BPR-0806: measured on JaegAW 2026-09-17. Contained, std::filesystem::canonical
+    # on the package temp root reports "Access is denied" before any course step
+    # (the registry, restoration and storage contract fixtures), and the profile
+    # public paths' make_storage_root_owner_private refuses the same root; all
+    # five pass uncontained.
+    "sqlite_profile_registry_storage": "dos-volume-name",
+    "sqlite_window_review_restoration_storage": "dos-volume-name",
+    "application_windows_profile_storage_startup_contract": "dos-volume-name",
+    "application_profile_management_public_path": "dos-volume-name",
+    "application_profile_startup_public_path": "dos-volume-name",
     "application_device_binding_restart": "dos-volume-name",
     "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
     "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",

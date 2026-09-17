@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/profile_management_window.hpp"
@@ -288,7 +289,7 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(native::activation_policy_is_regular(), "the process asked AppKit for a Dock tile and a menu bar");
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private desktop test root");
-	const auto root = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
 
 	app::github_application* initial  = nullptr;
 	auto                     terminal = false;

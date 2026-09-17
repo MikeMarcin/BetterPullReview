@@ -1,4 +1,5 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/logging/quill_log.hpp"
 
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
@@ -472,16 +473,6 @@ namespace bpr::app {
 					&& application::valid(selection.ActingIdentity)
 				? std::optional{ std::move(selection) }
 				: std::nullopt;
-		}
-
-		[[nodiscard]] auto native_filesystem_path(const QString& aValue)
-			-> std::filesystem::path
-		{
-#if defined(_WIN32)
-			return std::filesystem::path{ aValue.toStdWString() };
-#else
-			return std::filesystem::path{ aValue.toStdString() };
-#endif
 		}
 
 		struct local_defect_identity
@@ -12403,7 +12394,7 @@ namespace bpr::app {
 				Config.DifCatalog          = Options.DifCatalog;
 				if (!Config.ApplicationDataRoot) {
 					auto temporary             = std::make_shared<QTemporaryDir>(QDir::temp().filePath(QStringLiteral("bpr-public-path-XXXXXX")));
-					Config.ApplicationDataRoot = temporary->isValid() ? std::filesystem::path{ QFileInfo{ temporary->path() }.canonicalFilePath().toStdString() } / "data" : std::filesystem::path{ };
+					Config.ApplicationDataRoot = temporary->isValid() ? native_filesystem_path(QFileInfo{ temporary->path() }.canonicalFilePath()) / "data" : std::filesystem::path{ };
 					Scratch                    = std::move(temporary);
 				}
 			}

@@ -4620,6 +4620,82 @@ namespace bpr::adapters::sqlite::detail {
 		return state_directory{ std::move(opened) };
 #endif
 	}
+	auto admit_private_store_file(state_directory& aDirectory, const std::string_view aName)
+		-> std::expected<void, state_directory_failure>
+	{
+		if (aName.empty() || aName.find_first_of("/\\:") != std::string_view::npos || aName == "." || aName == "..") {
+			return std::unexpected(state_directory_failure::invalid_path);
+		}
+#if defined(_WIN32)
+		try {
+			auto&      opened  = aDirectory.handles();
+			const auto path    = opened.Path / std::filesystem::path{ std::wstring{ aName.begin(), aName.end() } };
+			const auto missing = path_missing(path);
+			if (!missing) {
+				return std::unexpected(as_state_directory_failure(missing.error()));
+			}
+			if (*missing) {
+				return { };
+			}
+			// [[BPR-0806]]. The same private-object rules the catalog applies:
+			// a regular file with one link and no reparse point, owned by this
+			// user, whose DACL grants only this user (and the AppContainer when
+			// contained). A file sqlite created under state/v1 carries that one
+			// grant inherited; it is accepted and made explicit. Anything wider
+			// is refused rather than repaired.
+			auto file = open_private_object(
+				path, windows_object_kind::regular_file, opened.Security, WRITE_DAC, true);
+			if (!file) {
+				return std::unexpected(as_state_directory_failure(file.error()));
+			}
+			return { };
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(state_directory_failure::unavailable);
+		}
+#else
+		std::error_code error;
+		const auto      status = std::filesystem::symlink_status(aDirectory.path() / std::string{ aName }, error);
+		if (std::filesystem::exists(status)
+			&& (!std::filesystem::is_regular_file(status)
+				|| (status.permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) != std::filesystem::perms::none)) {
+			return std::unexpected(state_directory_failure::invalid_permissions);
+		}
+		return { };
+#endif
+	}
+
+	auto restrict_private_store_file(state_directory& aDirectory, const std::string_view aName)
+		-> std::expected<void, state_directory_failure>
+	{
+		if (aName.empty() || aName.find_first_of("/\\:") != std::string_view::npos || aName == "." || aName == "..") {
+			return std::unexpected(state_directory_failure::invalid_path);
+		}
+#if defined(_WIN32)
+		try {
+			auto&      opened = aDirectory.handles();
+			const auto path   = opened.Path / std::filesystem::path{ std::wstring{ aName.begin(), aName.end() } };
+			auto       file   = open_private_object(
+				path, windows_object_kind::regular_file, opened.Security, WRITE_DAC, true);
+			if (!file) {
+				return std::unexpected(as_state_directory_failure(file.error()));
+			}
+			return { };
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(state_directory_failure::unavailable);
+		}
+#else
+		std::error_code error;
+		std::filesystem::permissions(
+			aDirectory.path() / std::string{ aName },
+			std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+			std::filesystem::perm_options::replace,
+			error);
+		if (error) {
+			return std::unexpected(state_directory_failure::unavailable);
+		}
+		return { };
+#endif
+	}
 } // namespace bpr::adapters::sqlite::detail
 
 namespace bpr::adapters::sqlite {

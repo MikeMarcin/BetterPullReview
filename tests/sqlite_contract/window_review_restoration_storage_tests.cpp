@@ -1,4 +1,5 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include <chrono>
 #include <cstdlib>
@@ -31,7 +32,7 @@ namespace {
 		{
 			Root = std::filesystem::temp_directory_path() / ("bpr-0709-restoration-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 			std::filesystem::create_directory(Root);
-			std::filesystem::permissions(Root, std::filesystem::perms::owner_all);
+			expect(bpr::adapters::sqlite::make_storage_root_owner_private(Root), "scratch root is owner-private under the canonical storage policy");
 			Root = std::filesystem::canonical(Root);
 		}
 		~scratch_directory() { std::filesystem::remove_all(Root); }

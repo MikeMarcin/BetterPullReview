@@ -51,6 +51,11 @@ if(BPR_BUILD_QT)
     target_compile_features(better_pull_review_composition PUBLIC cxx_std_23)
     bpr_enable_hardening(better_pull_review_composition)
     bpr_enable_warnings(better_pull_review_composition)
+    if(MSVC)
+        # github_application.cpp exceeds the COFF object's section limit in the
+        # windows-dev Debug graph (C1128).
+        target_compile_options(better_pull_review_composition PRIVATE /bigobj)
+    endif()
     if(BUILD_TESTING)
         target_compile_definitions(
             better_pull_review_composition

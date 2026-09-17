@@ -2458,7 +2458,7 @@ target_compile_definitions(test_profile_startup_public_path PRIVATE BPR_BUILD_TE
 target_compile_features(test_profile_startup_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_startup_public_path)
 bpr_enable_warnings(test_profile_startup_public_path)
-bpr_add_network_isolated_test(NAME application_profile_startup_public_path COMMAND test_profile_startup_public_path)
+bpr_add_network_isolated_test(NAME application_profile_startup_public_path WINDOWS_UNCONTAINED COMMAND test_profile_startup_public_path)
 set_tests_properties(application_profile_startup_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "profile-startup-public-path:pass")
@@ -2469,12 +2469,29 @@ target_compile_definitions(test_profile_management_public_path PRIVATE BPR_BUILD
 target_compile_features(test_profile_management_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_management_public_path)
 bpr_enable_warnings(test_profile_management_public_path)
-bpr_add_network_isolated_test(NAME application_profile_management_public_path COMMAND test_profile_management_public_path)
+bpr_add_network_isolated_test(NAME application_profile_management_public_path WINDOWS_UNCONTAINED COMMAND test_profile_management_public_path)
 # [[BPR-0777]]. The course now drives both empty-desktop policies and three
 # reopening gestures, so it starts several more profile runtimes than it did at 90 s.
 set_tests_properties(application_profile_management_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "profile-management-public-path:pass")
+
+if(WIN32)
+    # [[BPR-0806]]. The tests-disabled Windows image could not start its profile
+    # desktop. This holds the Qt-boundary path conversion, the strict storage root
+    # validator and the private-object admission of an existing store file on the
+    # target itself.
+    bpr_add_executable(test_windows_profile_storage_startup_contract windows_profile_storage_startup_contract_tests.cpp)
+    target_link_libraries(test_windows_profile_storage_startup_contract PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite advapi32)
+    target_compile_features(test_windows_profile_storage_startup_contract PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_windows_profile_storage_startup_contract)
+    bpr_enable_warnings(test_windows_profile_storage_startup_contract)
+    bpr_add_network_isolated_test(NAME application_windows_profile_storage_startup_contract WINDOWS_UNCONTAINED COMMAND test_windows_profile_storage_startup_contract)
+    set_tests_properties(application_windows_profile_storage_startup_contract PROPERTIES
+        TIMEOUT 60
+        PASS_REGULAR_EXPRESSION "windows-profile-storage-startup-contract:pass")
+    set_property(TEST application_windows_profile_storage_startup_contract APPEND PROPERTY LABELS "BPR-0806;target-native-windows")
+endif()
 
 if(APPLE)
     # RFC-BPR-0033 B1 and B2, the native half. The owner's attended review of the

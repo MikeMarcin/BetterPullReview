@@ -1,6 +1,9 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -111,7 +114,8 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private desktop test root");
-	const auto root = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+	expect(adapters::sqlite::make_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
 	{
 		auto store = adapters::sqlite::make_appearance_settings_store({ .StorageRoot = root });
 		expect(store.has_value(), "legacy appearance store");
@@ -221,7 +225,28 @@ auto main(int aArgc, char** aArgv) -> int
 	quit->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "desktop Quit drains every profile and startup");
 	desktop.reset();
+	// [[BPR-0701]] claims a per-profile diagnostics file where the file sink exists.
+	// Windows has none: its file support is the owner-deferred RFC-BPR-0027 phase
+	// held by [[BPR-0603]]. The adapter's own typed status states which claim this
+	// platform makes, and each claim is asserted exactly, so a missing sink where
+	// one is claimed, or a partial sink where none is, fails the course.
+	const auto sinkStatus = [&] {
+		adapters::logging::quill_log probe{ root / "diagnostic-sink-probe" };
+		const auto                   status = probe.status();
+		probe.close();
+		return status;
+	}();
+#if defined(_WIN32)
+	expect(sinkStatus == application::diagnostic_log_status::unavailable, "Windows reports no diagnostics file sink");
+#else
+	expect(sinkStatus == application::diagnostic_log_status::available, "this platform reports its diagnostics file sink");
+#endif
 	for (const auto& logRoot : { root, root / "profiles" / ("profile-" + std::to_string(workId.value())), root / "profiles" / ("profile-" + std::to_string(personalId.value())) }) {
+		if (sinkStatus != application::diagnostic_log_status::available) {
+			expect(!std::filesystem::exists(logRoot / "logs/diagnostics.log"),
+				   "no concurrent profile writes a diagnostics file where the platform has no file sink");
+			continue;
+		}
 		std::ifstream     stream{ logRoot / "logs/diagnostics.log" };
 		const std::string text{ std::istreambuf_iterator<char>{ stream }, { } };
 		expect(text.find("op=application outcome=started") != std::string::npos
