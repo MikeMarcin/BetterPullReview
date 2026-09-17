@@ -1,4 +1,5 @@
 #include "../sqlite_contract/epoch_catalog_legacy_fixture.hpp"
+#include "../sqlite_contract/platform_test_support.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
@@ -1022,12 +1023,24 @@ namespace {
 			.Host = catalog_key().Host, .Repository = catalog_key().Repository, .PullRequest = catalog_key().PullRequest, .BaseOid = *core::parse_git_commit_oid(commit_hex), .HeadOid = *core::parse_git_commit_oid(commit_hex), .LeftEpoch = epoch.Ordinal, .RightEpoch = epoch.Ordinal
 		};
 		{
-			std::ofstream bindingFile{ original.Path / "binding" };
+			// [[BPR-0853]]. Binary, as the product writes it: a text stream on
+			// Windows ends the line with a carriage return the helper will not decode.
+			std::ofstream bindingFile{ original.Path / "binding", std::ios::binary };
 			bindingFile << bpr::adapters::mcp::encode_revision_binding(oldBinding) << '\n';
 			bindingFile.close();
 			require(bindingFile.good(), "original MCP binding freezes before migration");
 		}
 		std::filesystem::copy(original.Path / "catalog", copied.Path / "catalog", std::filesystem::copy_options::recursive);
+		// [[BPR-0853]]. A copy is not a catalog the store created. On Windows every
+		// copied directory and file inherits its parent's list, and the store
+		// refuses an existing catalogue object whose owner-private descriptor is
+		// not its own explicit, protected one. Give each copied object, parents
+		// first, that descriptor, as the store created the original. On POSIX
+		// this restates the owner-only modes the copy carried.
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ copied.Path / "catalog" }) {
+			require(bpr::tests::sqlite_contract::make_owner_private(entry.path(), entry.is_directory()),
+					"copied catalogue object carries the store's private descriptor");
+		}
 		std::filesystem::copy_file(original.Path / "binding", copied.Path / "binding");
 		{
 			legacy_catalog_copy database{ copied.Path / "catalog/state/v1/epoch-catalog.sqlite3" };
