@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0881"
 title: "macOS: profile activation can never bind for a non-default profile, because the socket path exceeds sun_path"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
