@@ -58,3 +58,9 @@ Log: `build/logs/task-20260917-win-startup-roots/build-dev-base831.log`.
 
 **Portable sources touched:** `tests/end_to_end/large_review_benchmark.cpp`.
 The macOS and Linux builds belong to the integrator.
+
+## macOS build (dsp-003)
+
+Main merged `windows-lane` at `aedf471f` as `013d2036`. On macOS the benchmark
+object rebuilt, and the build succeeds (`build/r2-logs/dsp3-int5-build.log`).
+The Linux build goes with the next `bpr-linux` envelope.
