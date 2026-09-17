@@ -111,3 +111,28 @@ Nothing was changed for these rows.
 **Portable sources touched on this card:** `tests/sqlite_contract/CMakeLists.txt`
 (a `WINDOWS_UNCONTAINED` marker, a no-op elsewhere) and
 `scripts/verify_test_network_isolation.py` (pin).
+
+## Integrator decision (dsp-003): option (a)
+
+The integrator chooses **(a)**: create the automated profile's private
+directory with the adapter's owner-private descriptor at creation, so a
+contained run never needs `WRITE_DAC` on a directory it did not create. The
+two capability rows are the containment evidence for BPR-0802's boundary
+answer, and giving that up on Windows would weaken the only designated
+outside-direction row. (a) stays inside the SQLite adapter's existing ownership
+and adds no dependency edge.
+
+Constraints for the implementation:
+
+- On Windows, the adapter's storage-root creation creates a directory with
+  its private security attributes, including the container SID when
+  contained, rather than `create_directories` followed by narrowing. The
+  POSIX behaviour is unchanged.
+- The automated-run seam in `src/app/main.cpp` gets its private parent from
+  that creation rule, for example as a uniquely named child of the
+  `QTemporaryDir`. The `QTemporaryDir` still owns removal. BPR-0820's gate and
+  marker stay.
+- The product's own data-root creation keeps working on Windows. Run the
+  profile startup and storage courses listed on [[BPR-0813]].
+- `src/app/main.cpp` is pinned by the round-trip contract. List it for the
+  Mac run; main reseals after review.

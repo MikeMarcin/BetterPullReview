@@ -114,3 +114,16 @@ belongs to the owner.
 - `src/adapters/sqlite/src/device_binding_store.cpp`: the admission before the
   helper. On POSIX this means an admission refusal no longer latches.
 - `tests/sqlite_contract/private_store_open_tests.cpp` is Windows only.
+
+## Integrator decision (dsp-003): item 3 declined
+
+Item 3 (SQLite opens `-journal` side files by path without refusing a reparse
+point) is **declined**. Placing a reparse point in `state\v1` needs write
+access to the owner-private state directory. That is the owner, or someone
+with the owner's rights, and they can already replace the store files
+themselves, so following such a link crosses no privilege boundary. The
+code behaved the same before [[BPR-0813]]. A per-store secure VFS, or a second
+smaller VFS, would add a lifetime and registration surface to every store for
+no protection against an actor who cannot already write the stores. If a
+later threat model admits an attacker with write access to `state\v1` who
+cannot write the store files, this decision should be revisited.
