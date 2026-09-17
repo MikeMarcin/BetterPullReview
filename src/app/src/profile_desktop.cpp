@@ -14,6 +14,7 @@
 #include <QPointer>
 #include <QTimer>
 #include <algorithm>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <utility>
@@ -850,6 +851,12 @@ namespace bpr::app {
 					continue;
 				}
 				if (entry.Runtime && entry.Runtime->profile_shutdown_cleanup_failed()) {
+					// [[BPR-0875]]. This is the exit 1 a person gets from a real
+					// quit, so the cleanup that caused it is named on the way out
+					// rather than left to a bisect.
+					const auto detail = entry.Runtime->profile_shutdown_cleanup_detail();
+					std::cerr << "PROFILE_QUIT_CLEANUP_SOURCE:"
+							  << (detail.empty() ? std::string{ "unnamed" } : detail) << std::endl;
 					ExitCode = 1;
 				}
 				position = Runtimes.erase(position);
