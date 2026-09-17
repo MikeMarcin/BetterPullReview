@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0824"
 title: "Linux: the workbench position rule and the review ledger reopen fail only on Linux"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0007", "RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
