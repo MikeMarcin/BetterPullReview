@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0807"
 title: "architecture_boundaries stops on three findings main never saw"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0032"]
 depends_on: []
 priority: "P1"
