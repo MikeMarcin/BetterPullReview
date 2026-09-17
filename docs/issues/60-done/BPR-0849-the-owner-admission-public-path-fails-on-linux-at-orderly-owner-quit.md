@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0849"
 title: "The owner admission public path fails on Linux at the orderly owner quit"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0847-drain new defect 1","found_at":"03dd9ffd0eeda0866c2648859697be7b564dddbc","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"AC1 the course passes on Linux 3 runs in a row and still passes on macOS","outcome":"pass","revision":"4dbb00fd","evidence":{"kind":"command","detail":"Test-only fix 9c1de120 (bpr-linux): a POSIX owner-only private parent when BPR_TEST_SOCKET_ROOT is unset, Windows branch unchanged. Linux: unchanged driver fails at orderly owner quit; fixed 3/3 consecutive at 9c1de120; negative control BPR_TEST_SOCKET_ROOT=/tmp fails by name; rfc-reviewer no blocking findings (task-20260917-lnx-0846-0849). macOS passes after the merge at 4dbb00fd (build/r2-logs/dsp4-int1-ctest.log), and passed before at a1e276b7 (dsp4-0849-mac-baseline.log). Sibling fallbacks surveyed on the card: none need the change."}}]
 ---
 
 # BPR-0849: The owner admission public path fails on Linux at the orderly owner quit
