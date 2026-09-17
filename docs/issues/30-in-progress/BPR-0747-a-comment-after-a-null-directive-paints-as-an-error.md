@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0747"
 title: "A comment after a null directive paints as an error"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P3"
