@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0799"
 title: "Linux: observe the native empty-desktop quit"
-status: "Blocked"
+status: "In Progress"
 rfcs: ["RFC-BPR-0033"]
 depends_on: []
 platforms: ["linux"]
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"RFC-BPR-0033 B1, carried as not run since the profile-chooser milestone","acceptance":["B1"]}
-blocked_by: "bpr-0817-group-writable-data-root"
 ---
 
 # BPR-0799: Linux: observe the native empty-desktop quit

@@ -205,7 +205,7 @@ rather than answering it on its merits. The Windows and Linux halves of B1 have 
 and are recorded as not run, on
 [BPR-0798](../issues/60-done/BPR-0798-windows-native-empty-desktop-quit-evidence.md)
 and
-[BPR-0799](../issues/50-blocked/BPR-0799-linux-native-empty-desktop-quit-evidence.md).
+[BPR-0799](../issues/30-in-progress/BPR-0799-linux-native-empty-desktop-quit-evidence.md).
 
 RFC-BPR-0022 and RFC-BPR-0023 were reconciled and imported together on
 2026-09-04 with implementation explicitly deferred. The off-hunk pack retains
