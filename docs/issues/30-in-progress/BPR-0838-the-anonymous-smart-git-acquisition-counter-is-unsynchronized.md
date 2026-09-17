@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0838"
 title: "The anonymous smart-Git acquisition counter is read across threads without synchronization"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P3"
