@@ -12,60 +12,134 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r4): in progress
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r4): handoff at an integrated boundary
 
-Dispatch dsp-004 took over from dsp-003's handoff below, whose protocol,
-hazards and owner asks still hold. It holds the `project-integrator` lease
-(`bpr-main-mac`).
+Dispatch dsp-004 ends here, and a fresh integrator takes over. The protocol
+and hazards in the dsp-001 to dsp-003 sections below still hold.
 
 **Mandate r4.** At a good stable point the coordinator starts two read-only
-whole-project critical reviews, Fable and Codex. The integrator only reports
-the stable point and its main SHA.
+whole-project critical reviews: Fable and Codex. The integrator reports only
+the stable point and its main SHA. **This handoff is not a stable point:**
 
-- **Heads.** Main is `92f1e3f1`, pushed.
-  - `windows-lane` is at `20d99914`, where `bpr-win` is working.
-  - `linux-lane` is at `e794da85`, where `bpr-linux` is working.
-- **Done in dsp-004:**
-  - [[BPR-0848]]: round-trip pin resealed at `08c1aa30`;
-  - [[BPR-0847]];
-  - [[BPR-0850]];
-  - [[BPR-0849]];
-  - [[BPR-0853]];
-  - [[BPR-0846]]: haves-trimmed packs, on all three platforms;
-  - [[BPR-0836]];
-  - [[BPR-0851]];
-  - [[BPR-0852]].
-- **Main is not green over the full suite.** `bpr-linux`'s first full sweep at
-  `a1864fa2` passed 355/366. The integrator reproduced 9 of the 11 failures on
-  macOS (`build/r2-logs/dsp4-linux-sweep-mac-classify.log`). Two scouts
-  classified the rest, and every failure is now carded:
-  - [[BPR-0854]]: four source-scan contracts;
-  - [[BPR-0855]]: `application_epoch_host`, Linux only;
-  - [[BPR-0856]]: `application_large_review_benchmark`, Linux only;
-  - [[BPR-0857]]: the v1 downgrade misses `append_residency`;
-  - [[BPR-0858]]: the unavailable-diff course is stale after BPR-0719;
-  - [[BPR-0859]]: UIforETW intraline role paint;
-  - [[BPR-0860]]: a workbench composition stall;
-  - [[BPR-0861]]: the notification probe loses the tray.
+- both stations are still working;
+- the full suite on main is not green (see below).
 
-  Earlier integration passes ran focused selections, so these rows stayed red,
-  most of them since 2026-09-08 to 09-15.
-- **In progress on the Mac.** [[BPR-0840]]: a worker is diagnosing under load.
-  Its temporary diagnostics are uncommitted in `src/adapters/git`,
-  `src/adapters/agent` and `src/application`, and must be reverted before
-  return.
-- **Active station envelopes (writers active).**
-  - `bpr-win` `task-20260917-win-0653-implement`: [[BPR-0653]], with a 902-pixel
-    Windows floor and three-character labels as the last yield. This is the
-    owner's answer.
-  - `bpr-linux` `task-20260917-lnx-sweep-fixes`: [[BPR-0856]], [[BPR-0855]],
-    [[BPR-0854]]. `scripts/**` changes come back as proposed patches for main.
-- **Next on the Mac.**
-  1. Collect BPR-0840.
-  2. Take BPR-0857 and BPR-0858, then BPR-0861, BPR-0859 and BPR-0860, one
-     at a time in `build/r2-dev`.
-  3. Merge the station replies, with a macOS run and any reseal.
-- **Logs:** `build/r2-logs/dsp4-*`.
+**State at handoff.**
+
+- **Heads.** Main is `fe75b3a4`, pushed. `windows-lane` is at `20d99914`,
+  where `bpr-win` is working. `linux-lane` is at `e794da85`, where `bpr-linux`
+  is working.
+- **Mac.** No worker, reviewer, scout, scratch worktree or test process
+  remains. The `project-integrator` lease is released.
+- **Owner's app.** PID 88792, started Wed Sep 16 19:31:44, was running at the
+  start of dsp-004. At handoff (10:43 local) no BetterPullReview process is
+  running. dsp-004 never signalled it or used `build/dev`.
+- **Round-trip pins.** Last resealed at `fe5b4b64` for [[BPR-0861]]: reviewed
+  range `08c1aa30..bb736f53` plus that change. Before that, `08c1aa30` for
+  [[BPR-0848]].
+
+**Done in dsp-004 (14 cards).**
+
+- [[BPR-0848]], [[BPR-0847]], [[BPR-0850]], [[BPR-0849]], [[BPR-0853]];
+- [[BPR-0846]], [[BPR-0836]], [[BPR-0851]], [[BPR-0852]], [[BPR-0840]].
+
+Their evidence is on each card, and the logs are in `build/r2-logs/dsp4-*`.
+
+**Usable behaviour gained.**
+
+- **Haves-trimmed packs load.** A pull request update whose pack a server
+  trimmed with haves now loads, on all three platforms. The import accepts
+  `index-pack` exit 1 only with exact output, and only after full closure is
+  verified.
+- **Missing objects no longer force repair.** A missing-object refusal now
+  leaves a usable cache instead of `repair_required`.
+- **Connectivity refusals name their findings.** They report fsck's findings by
+  kind.
+- **Capsule image build.** The production capsule image build detaches its own
+  leaked write-once device, or refuses. A gate pins the detach.
+- **Test and gate repairs.** `git_protocol_boundary`, the Linux profile
+  activation and owner admission courses, and Windows
+  `epoch_maintenance_integration` are green again.
+
+**In progress, with the next step.**
+
+- [[BPR-0857]]: the v1 downgrade and version 7 assertions; passes on macOS.
+  Needs a Linux run.
+- [[BPR-0858]]: segment-overflow unavailable course plus the new
+  `application_approximate_diff_public_path`; macOS 3/3. Needs Linux runs.
+- [[BPR-0861]]: the probe asks the runtime for its tray; resealed. Needs
+  Linux and Windows runs (the row is registered on every platform).
+- [[BPR-0653]]: `bpr-win` `task-20260917-win-0653-implement`, a 902-pixel
+  Windows floor and three-character labels as the last yield, per the owner's
+  answer. At merge:
+  - run the Qt selectors it names on macOS;
+  - reseal the `src/app` pins with a recorded review;
+  - criterion 4's attended capture stays an owner task.
+- `bpr-linux` `task-20260917-lnx-sweep-fixes` covers [[BPR-0856]], [[BPR-0855]]
+  and [[BPR-0854]]. At merge:
+  - run macOS;
+  - review and apply its proposed `scripts/verify_conditional_branches.py`
+    patch, since `scripts/**` is outside lane authority;
+  - reseal if `src/app` moved.
+- [[BPR-0859]] (UIforETW intraline role paint) and [[BPR-0860]] (workbench
+  composition width-store stall): Ready, Mac. Read-only scouts ruled out the
+  suspected commits; the cards list the runtime candidates. Each needs
+  instrumentation and a bisect from the last green run (2026-09-11), with
+  `build/r2-dev` exclusive. BPR-0860 also caps its uncapped wait.
+
+**Full-suite status.** `bpr-linux`'s first full sweep at `a1864fa2` passed
+355/366. All 11 failures are carded above (BPR-0854 to BPR-0861), and 9 of them
+also fail on macOS. Integration passes had run focused selections, so these
+rows had been red since 2026-09-08 to 09-15. The fixes landed so far are
+BPR-0857, 0858 and 0861 on macOS.
+
+**Owner asks (exact), unchanged from dsp-003.**
+
+- [[BPR-0825]] item 3: where the Windows owner-private descriptor definition
+  lives, (a), (b) or (c). The integrator recommends (c).
+- [[BPR-0644]]: whether a remembered device grant should survive a
+  locked or denied Keychain, or an offline launch; plus the attended relaunch
+  more than 8 hours after sign-in.
+- [[BPR-0817]]: the exit code under a group-writable data parent, and whether
+  the refusal must show at Home.
+- [[BPR-0824]]: option (a) is provisional.
+- [[BPR-0803]], [[BPR-0800]], [[BPR-0801]], [[BPR-0604]].
+- The attended packet for [[BPR-0794]] and [[BPR-0795]]
+  (`docs/verification/reviews/rfc-bpr-0013-attended-v001/operator-packet.md`,
+  bundle `build/app-release-dsp3`) is intact.
+- [[BPR-0653]]'s width floor is answered: 902 on Windows.
+
+**Next objectives, in order.**
+
+1. Integrate the two station replies above as they arrive.
+2. Send the next `bpr-linux` envelope: Linux runs of BPR-0857
+   (`sqlite_anonymous_epoch_authority`, `sqlite_epoch_catalog_storage_contract`),
+   BPR-0858 (both diff courses) and BPR-0861
+   (`application_native_notification_attended_contract`).
+3. Send the next `bpr-win` envelope, after BPR-0653: the Windows runs of
+   BPR-0861 and BPR-0858's two rows.
+4. Mac: [[BPR-0860]], then [[BPR-0859]].
+5. Run a macOS full-suite sweep and a second Linux sweep. Then, with the
+   stations idle, report the r4 stable point with the main SHA.
+
+**Hazards learned in dsp-004.**
+
+- **Sweep the full suite periodically.** Focused integration passes let 11
+  rows stay red for days.
+- **zsh eats `$H:refs/...`** as a history modifier. Write `${H}:refs/...` in
+  push refspecs.
+- **`ls` is aliased to a coloured listing.** Use `/bin/ls` or explicit file
+  names in command substitution.
+- **Workers held behind a quiet-machine gate burn turns waiting.** Tell them
+  when the gate is clear, and do not edit shared sources during their
+  measurement runs.
+- **Reseal every change to pinned `src/app` sources**, even test-only fixture
+  access, with a recorded review. An `rfc-reviewer` before the build caught a
+  second cause in BPR-0857.
+- **Stations may not edit `scripts/**`.** Ask for proposed patches and apply
+  them on main.
+- **Git for Windows leaves `tmp_pack_*` READONLY|ARCHIVE.** The cache's exact
+  removal handles it.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): handoff at an integrated boundary
 
