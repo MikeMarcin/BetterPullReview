@@ -4936,8 +4936,20 @@ namespace bpr::adapters::sqlite {
 			if (error || status.type() != std::filesystem::file_type::directory) {
 				return false;
 			}
+#if defined(_WIN32)
+			// [[BPR-0833]]. `std::filesystem::canonical` asks for the DOS form of
+			// the final path, which an AppContainer is denied. The adapter's own
+			// rule asks the same questions without it: not a reparse point, and a
+			// spelling that is already its own full path. The created root is then
+			// validated with its whole ancestor chain.
+			const auto attributes = ::GetFileAttributesW(aPath.c_str());
+			return attributes != INVALID_FILE_ATTRIBUTES
+				&& (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0U
+				&& detail::canonical_windows_root(aPath).has_value();
+#else
 			const auto canonical = std::filesystem::canonical(aPath, error);
 			return !error && canonical == aPath;
+#endif
 		}
 
 #if !defined(_WIN32)
@@ -5022,13 +5034,32 @@ namespace bpr::adapters::sqlite {
 				return false;
 			}
 #if defined(_WIN32)
-			// No umask: what the chain inherits is unchanged, and the root's
-			// descriptor is written by the narrowing below, as before.
-			std::error_code error;
-			if (!std::filesystem::create_directories(aRoot, error) || error) {
+			// No umask: the folders above the root inherit, as before. The root
+			// itself is created with the adapter's private security attributes,
+			// the container SID included when contained ([[BPR-0833]]). Narrowing
+			// afterwards needs WRITE_DAC, which an AppContainer does not hold on a
+			// directory that inherited its parent's list, so the descriptor is
+			// written at creation instead. A root someone else created first is
+			// accepted only if it validates, exactly like a pre-existing root.
+			const auto security = detail::private_security::load();
+			if (!security) {
 				return false;
 			}
-			return make_storage_root_owner_private(aRoot);
+			std::error_code error;
+			const auto      parent = aRoot.parent_path();
+			if (!std::filesystem::exists(parent, error)
+				&& (!std::filesystem::create_directories(parent, error) || error)) {
+				return false;
+			}
+			detail::private_security_attributes attributes;
+			if (!attributes.initialize(*security, detail::windows_object_kind::directory)) {
+				return false;
+			}
+			if (::CreateDirectoryW(aRoot.c_str(), attributes.attributes()) == 0
+				&& ::GetLastError() != ERROR_ALREADY_EXISTS) {
+				return false;
+			}
+			return detail::validate_private_storage_root(aRoot).has_value();
 #else
 			// A trailing separator names no folder to create, and the stores
 			// refuse that spelling of a root anyway.

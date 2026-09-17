@@ -136,3 +136,86 @@ Constraints for the implementation:
   profile startup and storage courses listed on [[BPR-0813]].
 - `src/app/main.cpp` is pinned by the round-trip contract. List it for the
   Mac run; main reseals after review.
+
+## Windows station: option (a), 2026-09-17 (task-20260917-win-creation-descriptor)
+
+The base is `31fff50675a71bc2c5ce55857c72e57dc36933df`. Logs are under
+`build/logs/task-20260917-win-creation-descriptor/`.
+
+### Implemented: storage-root creation writes the descriptor at creation (Windows)
+
+In `src/adapters/sqlite/src/catalog_database.cpp`:
+
+- **`create_storage_root_owner_private`** on Windows no longer calls
+  `create_directories` and then narrows. Missing folders above the root are
+  created as before and inherit. The root itself is created with
+  `CreateDirectoryW` and the adapter's `private_security_attributes` (the
+  token user, plus the container SID when contained). A root that already
+  exists is accepted only if `validate_private_storage_root` admits it, which
+  is also the final check after creation. POSIX is unchanged.
+- **`real_canonical_directory`,** the existing-ancestor check, uses the
+  adapter's own rule on Windows: not a reparse point, and a spelling that
+  `canonical_windows_root` accepts. The reason is measured: inside the
+  container `std::filesystem::canonical` is denied, which was the first refusal
+  after the creation change (`real_canonical_directory` returned false). POSIX
+  is unchanged.
+
+Verification after a full rebuild, all passing as registered:
+
+- `application_profile_startup_public_path`,
+  `application_profile_management_public_path`,
+  `application_profile_multi_window_public_path`,
+  `application_windows_profile_storage_startup_contract`,
+  `application_device_binding_restart`, `application_public_path`,
+  `application_render`;
+- `sqlite_profile_storage_root`, `sqlite_storage_root_contract`,
+  `sqlite_private_store_open`, the store storage courses;
+- `architecture_boundaries` and both isolation gates, with zero findings.
+
+`sqlite_queue_enrollment_storage` and `sqlite_workbench_settings_storage` fail
+contained, but identically with this change reverted, so they are reported
+separately as pre-existing.
+
+### Blocked: the automated-run seam cannot use a child of the `QTemporaryDir` inside the container
+
+The seam change the card describes was made and measured, then **not
+committed**; the patch is kept at
+`build/logs/task-20260917-win-creation-descriptor/main-seam-child-of-qtemporarydir.patch`.
+It took the private parent as `<QTemporaryDir>/profile`, created by
+`create_storage_root_owner_private`.
+
+| Run | Result |
+|---|---|
+| Uncontained | Works: `AUTOMATED_PROFILE_PRIVATE_OK`, `COMPOSITION_TEST_BOUNDARY:inside` |
+| Contained (`application_composition_capabilities_inside_boundary` and `_product_run`) | Still `AUTOMATED_PROFILE_PRIVATE_FAILED` |
+
+Measured with reverted diagnostics inside `create_storage_root_owner_private`:
+
+1. The first contained refusal was `real_canonical_directory`
+   (`std::filesystem::canonical` denied). That is fixed above.
+2. The next is `CreateDirectoryW(<QTemporaryDir>/profile, private attributes)`
+   → **error 5**. Inside the container even `GetNamedSecurityInfoW` on the
+   `QTemporaryDir` fails.
+3. Uncontained, that directory's descriptor reads
+   `O:<user>D:P(A;OICI;FA;;;<user>)(A;OICI;0x120080;;;ME)(A;OICI;0x120080;;;WD)`.
+   Qt 6 writes its `0700` as a **protected** owner-only DACL. It names no
+   AppContainer SID, so the contained process that created it cannot list it,
+   create children in it or read its descriptor.
+
+So no child of a `QTemporaryDir` is usable inside the container, whatever
+descriptor the child would get.
+
+**The decision needed.** The card's constraint says the `QTemporaryDir`
+still owns removal. Either:
+
+- **(i)** the seam creates its unique private directory directly under
+  `QDir::temp()` with `create_storage_root_owner_private` (a fresh random
+  name), and a small scope guard (for example `QDir::removeRecursively`)
+  owns removal instead of `QTemporaryDir`; or
+- **(ii)** the seam keeps `QTemporaryDir`, and the contained rows stay failing
+  or are pinned, which reopens the choice (a) was meant to close.
+
+Nothing in `src/app/main.cpp` was changed.
+
+**Portable sources touched:** `src/adapters/sqlite/src/catalog_database.cpp`,
+Windows branches only. `src/app/main.cpp` is untouched.
