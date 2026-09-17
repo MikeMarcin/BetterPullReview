@@ -3007,8 +3007,19 @@ namespace {
 					return false;
 				}
 				homeSignIn->click();
-				const auto* const settings = aWindow.findChild<QWidget*>(QStringLiteral("settingsWindow"));
-				return settings != nullptr && settings->isVisible();
+				// [[BPR-0815]]. Settings is the profile's one window since
+				// [[BPR-0705]]: the gesture mounts this window's pages into
+				// that parentless shell and leaves the window's own Settings
+				// child hidden, so a child lookup reads the wrong Settings.
+				// `settings()` answers the one presented, and the pressed
+				// begin must be on its Accounts & hosts page.
+				const auto* const settings = aWindow.settings();
+				if (settings == nullptr || !settings->isVisible()
+					|| settings->current_page() != bpr::qt::settings_page::accounts_and_hosts) {
+					return false;
+				}
+				const auto* const accounts = settings->page_widget(bpr::qt::settings_page::accounts_and_hosts);
+				return accounts != nullptr && accounts->isAncestorOf(button);
 			}
 			return false;
 		}
