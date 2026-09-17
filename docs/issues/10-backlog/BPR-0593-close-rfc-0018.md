@@ -14,23 +14,43 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r3): in progress
 
-Dispatch dsp-004 took over from dsp-003's handoff below, which still holds
-for protocol, hazards and owner asks. It holds the `project-integrator`
-lease (`bpr-main-mac`).
+Dispatch dsp-004 took over from dsp-003's handoff below, whose protocol,
+hazards and owner asks still hold. It holds the `project-integrator` lease
+(`bpr-main-mac`).
 
-- **Heads.** Main is `014489e3`, pushed. `windows-lane` and `linux-lane` are
+- **Heads.** Main is `a1864fa2`, pushed. `windows-lane` and `linux-lane` are
   fast-forwarded to it.
-- **Done so far:** [[BPR-0848]]. The round-trip manifest pin was resealed at
-  `08c1aa30` after a whitespace-only review.
-- **Promoted to Ready:** [[BPR-0653]] for `bpr-win`, and [[BPR-0848]].
-- **Active station envelopes (writers active):**
-  - `bpr-linux` `task-20260917-lnx-0847-drain`: [[BPR-0847]]. macOS passes
-    that course 3/3 (`build/r2-logs/dsp4-0847-mac-a1e276b7-run{1,2,3}.log`).
-  - `bpr-win` `task-20260917-win-0843-compile-0653`: (1) the Windows dev build
-    of BPR-0843's `main.cpp`, confirming the noncanonical-root course is
-    UNIX-only; then (2) [[BPR-0653]], criteria 1-3, with the attended capture
-    left pending.
-- **Mac:** [[BPR-0846]] is claimed on main, for its offline reproduction.
+- **Done so far:**
+  - [[BPR-0848]]: round-trip manifest pin resealed at `08c1aa30`;
+  - [[BPR-0847]];
+  - [[BPR-0850]];
+  - [[BPR-0849]];
+  - [[BPR-0853]].
+- **In progress on main.**
+  - [[BPR-0846]]: the import accepts a pack trimmed by haves (`bbdf8cc0`). The
+    critical review found no blocker. macOS, Linux and Windows runs all pass.
+    Its finish waits only on the BPR-0851 follow-ups it carried.
+  - [[BPR-0851]] and [[BPR-0852]]: candidate `15eb1540`. The critical review
+    is running, and the station runs are in the envelopes below.
+  - [[BPR-0836]]: candidate on the scratch worktree
+    `BetterPullReview.dsp4-worktrees/bpr-0836`, commits `1774ae80` and
+    `a6b9d390`. The critical review found no blocker, and a narrow recheck of
+    the corrections is running. The candidate is not yet on main.
+- **Active station envelopes (writers active).**
+  - `bpr-win` `task-20260917-win-0653-resume`, three steps:
+    1. measure the owner's 3-character modality labels at the 900-pixel floor;
+    2. the BPR-0851/0852 Windows runs;
+    3. [[BPR-0653]] criteria 1-3, if the labels fit.
+  - `bpr-linux` `task-20260917-lnx-0851-sweep`: the BPR-0851/0852 Linux runs,
+    then a full read-only Linux ctest sweep.
+- **Owner answers recorded:** [[BPR-0653]], the width floor. The labels may
+  shorten, and every control stays.
+- **Next on the Mac:**
+  1. Consume the reviews.
+  2. Cherry-pick BPR-0836 onto main, with a gate run.
+  3. Finish BPR-0846, 0851 and 0852 on the station evidence.
+  4. [[BPR-0840]], on a quiet machine.
+- **Logs:** `build/r2-logs/dsp4-*`.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): handoff at an integrated boundary
 
