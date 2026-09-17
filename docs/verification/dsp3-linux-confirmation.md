@@ -11,9 +11,12 @@
 - **Scope.** Confirmation only. BPR-0829, BPR-0813, BPR-0831, BPR-0820,
   BPR-0835 and BPR-0825 are the integrator's cards. This file is evidence
   only: no card is edited or moved, and failures are recorded, not fixed.
-- **State.** Steps 0 to 3 are recorded below, and all of them pass. Steps 4
-  to 7 are not yet run.
-- **Commands.** None is active.
+- **State.** Every step is recorded below. Steps 0 to 5 and 7 pass.
+  Step 6 (BPR-0835) fails on Linux as on macOS, and a rerun fails the same
+  way. A read-only debugger pass named the false terms (see "Step 6").
+- **Commands.** None is active. No child agent was used.
+- **Next.** BPR-0835 belongs to the Mac owner. This file adds the Linux
+  reproduction and the terms that are false.
 - **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-dsp3-confirm/`.
   None is committed.
 
@@ -76,10 +79,10 @@ The Secret Service check ran immediately before each group.
 | 1 | BPR-0831 | Benchmark target compiled | none | n/a |
 | 2 | BPR-0829 | Pass, 5 of 5, each `SMART_ACQUISITIONS:4` | none | n/a |
 | 3 | BPR-0813 | Pass, 11 of 11 | none | n/a |
-| 4 | BPR-0820 | not yet run | | |
-| 5 | portable test changes | not yet run | | |
-| 6 | BPR-0835 | not yet run | | |
-| 7 | BPR-0825 | not yet run | | |
+| 4 | BPR-0820 | Pass, 16 of 16 | none | n/a |
+| 5 | portable test changes | Pass, 8 of 8 | none | n/a |
+| 6 | BPR-0835 | **Fail, 2 of 2, twice** | `agent-finding-positive-evidence:1:1:1:1:1:1:0:1:0:0`; the full-agent row also prints `agent-finding-full-agent:0:0:802982:0:0:0` | No |
+| 7 | BPR-0825 | Pass, 6 of 6 | none | n/a |
 
 ## Step 2: BPR-0829, the anonymous public preview course
 
@@ -140,3 +143,187 @@ Group `0813-stores`, 12:33:14Z, 48.80 s, ctest rc 0.
 - **Offscreen by registration:** the four `application_*` rows run
   `QT_QPA_PLATFORM=offscreen` with `QT_STYLE_OVERRIDE=Windows`. The seven
   `sqlite_*` rows set no Qt platform.
+
+## Step 4: BPR-0820, the private-profile rows
+
+Group `0820`, 12:35:07Z, 411.89 s, ctest rc 0.
+
+| Test | Result | Duration | Markers |
+|---|---|---|---|
+| `application_public_path` | Pass | 0.32 s | `PROFILE_PRIVATE_OK`, `PUBLIC_PATH_OK`, `CLI_UNAVAILABLE_OK` |
+| `application_public_path_ghes_cli_unavailable` | Pass | 0.33 s | `PROFILE_PRIVATE_OK`, `PUBLIC_PATH_OK`, `CLI_UNAVAILABLE_OK` |
+| `application_device_authorization_public_path` | Pass | 0.37 s | `PROFILE_PRIVATE_OK`, `DEVICE_FLOW_REGISTERED_SELECTION_OK` |
+| `application_device_authorization_unavailable` | Pass | 0.39 s | `PROFILE_PRIVATE_OK`, `DEVICE_FLOW_REGISTERED_SELECTION_OK` |
+| `application_composition_capabilities_inside_boundary` | Pass | 0.30 s | `PROFILE_PRIVATE_OK`, `COMPOSITION_TEST_BOUNDARY:inside`, `COMPOSITION_BROWSER:recording` |
+| `application_composition_capabilities_product_run` | Pass | 0.31 s | `PROFILE_PRIVATE_OK`, `COMPOSITION_TEST_BOUNDARY:outside`, `COMPOSITION_BROWSER:system` |
+| `application_device_authorization_ghes_refusal` | Pass | 0.33 s | `PROFILE_PRIVATE_OK`, `DEVICE_FLOW_GHES_BEGIN_REFUSED:true`, `DEVICE_FLOW_GHES_REFUSAL_OK` |
+| `application_device_authorization_release_contract` | Pass | 0.37 s | `PROFILE_PRIVATE_OK`, `DEVICE_FLOW_REGISTERED_SELECTION_OK` |
+| `application_anonymous_public_preview_unavailable` | Pass | 0.34 s | `PROFILE_PRIVATE_OK`, `PUBLIC_PREVIEW_UNAVAILABLE_OK` |
+| `application_anonymous_public_preview_release_contract` | Pass | 0.32 s | `PROFILE_PRIVATE_OK`, `PUBLIC_PREVIEW_UNAVAILABLE_OK` |
+| `application_anonymous_public_preview_enabled_probe` | Pass | 0.33 s | `PROFILE_PRIVATE_OK`, `PUBLIC_PREVIEW_ENABLED_OK` |
+| `application_anonymous_public_preview_live_candidate_wiring` | Pass | 0.32 s | `PROFILE_PRIVATE_OK`, `PUBLIC_PREVIEW_LIVE_CANDIDATE_OK`, `PUBLIC_PREVIEW_REQUESTS:0` |
+| `application_render` | Pass | 0.37 s | `PROFILE_PRIVATE_OK`, `RENDER_OK` |
+| `runtime_process_surface` | Pass | 0.54 s | `RUNTIME_SURFACE_OK` |
+| `runtime_audit_contract` | Pass | 0.09 s | `Ran 18 tests`, `OK (skipped=1)` |
+| `application_composition_contract` | Pass | **406.84 s** | `Ran 7 tests in 406.786s`, `OK` |
+
+- **The private profile is in effect.** All 13 `--self-test` and
+  `--render-evidence` rows printed `PROFILE_PRIVATE_OK`, and no command line
+  names a data root. The runtime surface row's registered command is
+  `verify_runtime_surface.py --private-data-root <application>`.
+- **The audit contract's output.** Its skip is
+  `test_darwin_native_query_detects_a_real_direct_child`, which needs macOS
+  libproc. Its stderr line `private data root was not composed:
+  /tmp/bpr-runtime-surface-…/data` is printed by the negative case
+  `test_private_root_that_was_never_composed_fails_and_is_removed`.
+- **Timeout margin.** `application_composition_contract` performs nested
+  configures and a tests-disabled Release build. It used 406.84 s of its
+  600 s timeout, at a 1-minute load average of about 2 when the group began.
+  No earlier Linux duration for this row is recorded. Other records put it at
+  107 to 293 s on other hosts.
+- **Offscreen by registration.** The 13 application rows run
+  `QT_QPA_PLATFORM=offscreen` (`application_render` also sets
+  `QT_SCALE_FACTOR=1.25`). `verify_runtime_surface.py` sets
+  `QT_QPA_PLATFORM=offscreen` for the process it launches, and so does
+  `composition_contract_tests.py` for its runtime launches. The audit contract
+  starts no Qt process.
+
+## Step 5: portable test changes
+
+Group `portable`, 12:42:33Z, 163.75 s, ctest rc 0.
+
+| Test | Result | Duration | Marker |
+|---|---|---|---|
+| `application_poller_liveness` | Pass | 0.21 s | `github-application-boundary-tests:pass`, `github-application-liveness-tests:pass` |
+| `application_epoch_ordinary_update_recreated` | Pass | 4.31 s | `EPOCH_ORDINARY_RECREATED_OK:1` |
+| `application_epoch_portable_occurrence_two_catalogues` | Pass | 12.05 s | `EPOCH_PORTABLE_TWO_CATALOGUES_OK:3` |
+| `architecture_boundary_contract` | Pass | 134.71 s | `Ran 132 tests`, `OK` |
+| `architecture_boundaries` | Pass | 8.98 s | `Application, provider, and Qt architecture boundaries verified` |
+| `test_network_isolation_manifest` | Pass | 1.18 s | `TEST_NETWORK_ISOLATION_OK:configured=362:registrations=344:backend=linux-network-namespace` |
+| `test_network_isolation_structure_contract` | Pass | 0.75 s | `Ran 58 tests`, `OK (skipped=1)` |
+| `application_review_round_trip_composition_contract` | Pass | 1.55 s | `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK` |
+
+- **The round-trip pins hold at this base.** The contract passes with the
+  pins resealed in `df235fa1`, which covers the BPR-0829 `main.cpp` change
+  (`7555cba4`).
+- **The structure contract's output.** The skip is the Mach-O composition
+  symbol probe, which runs only on `darwin`. Its
+  `TEST_NETWORK_ISOLATION_RUNNER_FAILED:profile-template-contains-network-allow`
+  line is printed by a negative case of `run_network_isolated_test.py`.
+- **Designated-live rows: none exists on Linux.** The changed
+  `designated_live_macos_capsule_tests.py` is registered as
+  `designated_live_macos_capsule_contract` only `if(APPLE)`
+  (`tests/CMakeLists.txt`). `ctest -N -R 'designated|capsule|macos'` lists
+  `designated_live_mutation_gate`,
+  `designated_live_mutation_runner_digest_mismatch` and
+  `application_designated_review_authority_bootstrap`. They are not in this
+  step's list, and they were not run. `tests/network_isolation/`,
+  `tests/application/` and `src/application/` are unchanged since dsp-002's
+  base.
+- **Offscreen by registration.** The poller, both epoch rows and the round
+  trip run `QT_QPA_PLATFORM=offscreen` with `QT_STYLE_OVERRIDE=Windows`, and
+  both epoch scripts also set `QT_QPA_PLATFORM=offscreen` for the launches
+  they make. The architecture and network-isolation rows start no Qt process.
+
+## Step 6: BPR-0835, the agent finding composition contracts
+
+Group `0835`, 12:45:40Z, 2.62 s, ctest rc 8. Diagnostic rerun `0835-rerun`,
+12:46:25Z, 2.61 s, ctest rc 8.
+
+| Test | Run | Rerun | Printed |
+|---|---|---|---|
+| `application_agent_finding_composition_contract` | **Fail**, 1.29 s | **Fail** | `agent-finding-positive-evidence:1:1:1:1:1:1:0:1:0:0`, `panel-status:Finished: success` |
+| `application_agent_finding_full_agent_contract` | **Fail**, 1.32 s | **Fail** | the same two lines, then `agent-finding-full-agent:0:0:802982:0:0:0` |
+
+- **First failing marker.** ctest reports `Required regular expression not
+  found` for `agent-finding-composition:pass` and `agent-finding-full-agent:pass`.
+  The first line the course prints is
+  `agent-finding-positive-evidence:1:1:1:1:1:1:0:1:0:0`. The rerun printed
+  identical lines.
+- **Not Linux-specific.** The card records the same two lines on macOS at
+  `5a2e264a` and at `2ee49a16`. The path construction below has no platform
+  branch.
+- **Every printed field has its expected value.** The ten fields are
+  deliveries 1, queued findings 1, frozen files 1, snapshot writes 1, workshop
+  proposals 1, draft commands 1, `helperRefusal` 0 (`mcp_helper_refusal::none`,
+  the passing value), MCP completions 1, submissions 0 and target
+  observations 0. The failing terms are ones the line does not print.
+
+### Which terms are false (read-only diagnosis)
+
+`lldb-22` ran the `positive` course four times inside the network sandbox
+with the ctest environment. It sampled the verdict at
+`agent_finding_composition_public_path.cpp:791` (`if (!exact)`) and changed
+no source and no value. The scripts and logs are in `0835-lldb/`.
+
+| Term | Value |
+|---|---|
+| `exact` | false |
+| `noGithubMutation` | true (0, 0, 0) |
+| `positiveMarker` | false |
+| Its composed flags, queued findings 1, workshop proposals 1, draft body, side-chat presentations 9 | all as required |
+| `exact_helper_launch(evidence, snapshotRoot)` | **false**: `launch.WorkingDirectory == aSnapshotRoot.string()` fails |
+| `exists(snapshotRoot / "binding")`, `exists(snapshotRoot / "alignment")` | **false** |
+| Every other conjunct of `exact` (statistics, claim text, anchor state, workshop texts, draft bodies, MCP starts 1 and refusals 0) | as required |
+
+- **What was observed.** The helper's working directory is
+  `<tmp>/data/mcp-snapshot/window-1-generation-1`. The course expects
+  `<tmp>/data/mcp-snapshot`. With the process stopped at the verdict,
+  `mcp-snapshot/` holds only `window-1-generation-1/`, which contains
+  `binding`, `alignment` and `files/`.
+- **Where the subdirectory comes from.** `src/app/src/github_application.cpp`
+  (~6410) sets `McpSnapshotRoot = ApplicationDataRoot / "mcp-snapshot" /
+  ("window-" + … + "-generation-" + …)`. Source history (`git log -S`) shows
+  that `826fb871` ("Finish BPR-0705", 2026-09-08) made this change. At its
+  parent the root was `ApplicationDataRoot / "mcp-snapshot"`. The contract
+  (`bacd5177`, BPR-0504) still expects the old root.
+- **The full-agent row fails a second term, `noSecondEdge`.** Counting the
+  contract's tokens in the 802982-byte composition source, every count matches
+  except `->submit(`, which occurs **3** times against the required 1:
+  `SetupDestination->submit(` at ~5723 and ~6067, and
+  `ReviewLedgerHost->submit(` at ~7406. Source history puts the count at 1
+  from `5fc45d2f`, 2 from `554564f8` ("Finish BPR-0689", 2026-09-08) and 3
+  from `91383cc4` ("Finish BPR-0733", 2026-09-11). `554564f8` is an ancestor
+  of `826fb871`.
+- **Limits.** The revisions are inferred from source history, not from runs
+  at those revisions. An earlier failure on some other term is not excluded.
+  Whether the course or the product is wrong is the owner's call. lldb
+  reported a DWARF base-class resolution error for `std::optional`, and its
+  formatter showed `McpLaunch` as empty. Reading the object's bytes showed it
+  engaged, and the working directory above was read from that memory.
+- **Offscreen by registration:** `QT_QPA_PLATFORM=offscreen`,
+  `QT_STYLE_OVERRIDE=Windows`.
+
+## Step 7: BPR-0825, POSIX sanity
+
+Group `0825`, 12:46:32Z, 126.18 s, ctest rc 0.
+
+| Test | Result | Duration | Marker |
+|---|---|---|---|
+| `agent_workspace_ownership` | Pass | 0.73 s | `AGENT_WORKSPACE_OWNERSHIP_OK` |
+| `git_process_contract` | Pass | 5.36 s | `Git process contract passed` |
+| `agent_parent_death` | Pass | 23.93 s | `agent-parent-death:owner-pid:pass`, `agent-parent-death:owner-group:pass` |
+| `qt_agent_launch_canary` | Pass | 70.40 s | `agent-launch-canary-tests:pass` |
+| `application_agent_crash_recovery` | Pass | 18.69 s | `agent-composition-kill:owned-workspace-reclaimed entries=18`, `agent-composition-kill:pass` |
+| `application_agent_materialization_crash_recovery` | Pass | 7.07 s | `agent-materialization-kill:pass` |
+
+- **What this covers.** BPR-0825 changed
+  `src/adapters/git/src/installed_git_process.cpp`,
+  `windows_agent_supervisor.cpp` and `agent_workspace_ownership_tests.py`.
+  The POSIX Git contract, the ownership and parent-death courses, the launch
+  canary and both crash-recovery courses still pass on Linux.
+- **Offscreen by registration.** `qt_agent_launch_canary` and both
+  crash-recovery rows run `QT_QPA_PLATFORM=offscreen` with
+  `QT_STYLE_OVERRIDE=Windows`. `agent_workspace_ownership`,
+  `git_process_contract` and `agent_parent_death` set no Qt platform.
+
+## New defects
+
+None is carded, as the envelope allows no reservation. Only one observation
+is not covered by an existing card: `application_composition_contract` used
+406.84 s of its 600 s timeout on this host (step 4). BPR-0835's false terms
+are that card's own scope.
+
+Logs: `step0.summary`, `dev.configure.log`, `dev.build.log`, `ctest-N.txt`,
+`names-check.txt`, `ctest-show-only.json`, `groups.summary`,
+`groups.results`, `<group>.ctest.log`, `docgate-*.log` and `0835-lldb/`.
