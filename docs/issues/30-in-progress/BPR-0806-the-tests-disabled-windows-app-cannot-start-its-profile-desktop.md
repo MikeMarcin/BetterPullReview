@@ -93,3 +93,36 @@ Not run at card creation. The trace above comes from bpr-win's
 2026-09-16/17 investigation at `f2b8e682`, which was reverted. The fix is
 dispatched to bpr-win. The integrator finishes this card on `main` after
 merging the station's commits and collecting its evidence file.
+
+## Evidence, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2)
+
+bpr-win implemented the fix in station commits `d0964fdd`, `d587b5f1`,
+`1f29eaa4`, `e93d9215` and `cae3de01`, merged on main in `c0f2fa31` and
+`53a0a747`. The full record is
+[the Windows evidence](../../verification/BPR-0806-windows-profile-storage-startup.md).
+
+| Criterion | Result | Revision |
+|---|---|---|
+| Release image starts on an empty default root, shows the window, quits cleanly; relaunch without `STARTUP_FAILED` | **pass**: window after 0.8 s; `WindowPattern.Close` → exit 0 after 55 ms; relaunch window, exit 0; second process → `PROFILE_ALREADY_OPEN` exit 1 (image sha256 `46619a53…`) | `d587b5f1` |
+| `application_profile_management_public_path` passes on `windows-dev` incl. `native_empty_desktop_policy() == quit` | **pass** through `ctest --preset windows-dev` (13.85 s). Windows asserts `diagnostic_log_status::unavailable` and no `logs/diagnostics.log` (integrator ruling Q1: [[BPR-0701]]/[[BPR-0603]]); sink platforms keep the line assertion and now also require `available` | `d587b5f1` |
+| Focused Windows contract | **pass**: `application_windows_profile_storage_startup_contract`. It fails without the conversion ("a Qt forward-slash root becomes the native Windows spelling") and with the old POSIX check ("a second open admits the registry file it created"). It covers `/`, UNC, `\\?\` and relative refusals, a hard-link refusal, and an Everyone-read DACL refused twice without repair | `d587b5f1` |
+| macOS and Linux storage courses still pass; `architecture_boundaries` passes | **macOS pass**: 15 storage/profile courses at `c0f2fa31`, and the integrated pass at `a5667197` with `architecture_boundaries` green after [[BPR-0807]]. **Linux pending**: the sqlite store courses have not run on the Linux station; the next Linux envelope includes them | `a5667197` |
+
+Registration (integrator ruling Q2): the five rows this card needed are
+`WINDOWS_UNCONTAINED`, pinned as `dos-volume-name` with the measured contained
+cause (`filesystem_error: canonical: Access is denied` on the package
+`AC\Temp` root). The Windows isolation gate reports the same 25 findings before
+and after, so the delta is zero; the pre-existing findings are [[BPR-0812]].
+The runtime lease trace found no design question: `validates_profile_runtime_lease`'s
+`_WIN32` false has only POSIX activation-server callers, and the Windows lease
+is real.
+
+Independent critical review found no blocker. Its follow-ups are [[BPR-0813]]:
+Windows sqlite reopens by path after admission, where `SQLITE_OPEN_NOFOLLOW` is
+a no-op, and `path.string()` is ANSI-code-page encoded. Out of scope and carded:
+[[BPR-0810]] (multi-window empty optional) and [[BPR-0811]] (device-binding
+restart). `application_setup_destination_public_path` passes when run directly
+on Windows but its contained registration still fails; `application_logging` is
+not registered on Windows.
+
+This card stays In Progress until the Linux storage courses are recorded.
