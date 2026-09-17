@@ -14,6 +14,16 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/p
 
 RFC base: `6c9ef2038b7389f49028e71f2bb8219b07191267`.
 
+**Digest reseal, 2026-09-17 ([[BPR-0819]]).** The
+`application_review_round_trip_composition_contract` pins cited in the d1
+checkpoint below went stale at `cdf6175c` and stayed red. BPR-0819 resealed
+the whole-file and manifest pins after a per-commit reconciliation. The
+RFC-BPR-0015 commits it covers are `cdf6175c`, `df458d30`, `b1f89533`,
+`a78eefcf` and `f2b8e682`, plus `c97bb64a`, which had no review until the
+integrator's recorded one. The mutation-branch pin never changed.
+[[BPR-0821]] owns the two composition-contract assertions that still encode
+BPR-0797's retired compile-time gates. Closeout should rerun both contracts.
+
 ## Closeout checklist
 
 | Criterion | Direct check | Current result |
