@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0844"
 title: "runtime_audit_contract fails on Windows after BPR-0820's private-root script tests"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P2"
