@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0857"
 title: "sqlite_anonymous_epoch_authority's v1 downgrade misses the append_residency table"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
