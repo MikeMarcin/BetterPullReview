@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0855"
 title: "application_epoch_host fails on Linux at the superseded durable commit"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"The row passes on Linux 3 runs in a row, still passes on macOS, and the cause is named here","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"bpr-linux ran application_epoch_host 8x at 346e64fc (0.25 s each, zero FAILED markers), 3x again at its lane tip, and once more in the full Linux sweep at 2b2e5549 (0.29 s) -- well past three in a row. macOS passes at 0.27 s in the full macOS sweep at the same commit (build/r2-logs/dsp5-mac-full-sweep.log). The cause is named on the card and is a test-side standard-library defect, not a product one: the fake catalog ran scripted hooks through a moved-from std::function, which libstdc++ empties and libc++ leaves armed, so the second import of the two new cases found an empty observation queue and the host correctly failed closed. The three hook sites now use std::exchange."}}]
 ---
 
 # BPR-0855: application_epoch_host fails on Linux at the superseded durable commit
@@ -193,3 +194,10 @@ at this head.
 ## For macOS
 
 - **Still needed:** `application_epoch_host` passes on macOS with this change.
+
+## macOS confirmation (dsp-005, integrator)
+
+`application_epoch_host` passes on macOS in the full macOS sweep at 2b2e5549 (build/r2-logs/dsp5-mac-full-sweep.log, 378 of 381, serial), at 0.27 s. Combined with the Linux
+runs recorded above, this card's platform obligations are met and it is
+finished. Its evidence is the station's Linux runs plus this sweep; nothing
+was re-derived.
