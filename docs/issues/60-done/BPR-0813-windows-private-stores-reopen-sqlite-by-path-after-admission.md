@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0813"
 title: "Windows private stores reopen SQLite by path after admission"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"BPR-0806 critical review","found_at":"c0f2fa31","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"AC1 a Windows contract shows a substituted reparse point or hard link between admission and open is refused, failing against the current code","outcome":"pass","revision":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","evidence":{"kind":"command","detail":"sqlite_private_store_open symbolic-link course refused (restored=1:loaded=0); reverted trial served the substituted database (loaded=1); hard-link refused. Independent critical review found no blocker."}},{"criterion":"AC2 a Windows contract opens all three stores under a root outside the ANSI code page","outcome":"pass","revision":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","evidence":{"kind":"command","detail":"non-ansi-root course opens and creates all three public stores; the reverted trial aborted with exit 3 on path.string()."}},{"criterion":"AC3 the macOS and Linux store courses still pass","outcome":"pass","revision":"8a03a5be and d514e76e (macOS); 84ac5e0c (Linux)","evidence":{"kind":"command","detail":"macOS: build/r2-logs/dsp3-int1-ctest.log and dsp3-int7-ctest.log; Linux 11/11 in docs/verification/dsp3-linux-confirmation.md step 3."}}]
 ---
 
 # BPR-0813: Windows private stores reopen SQLite by path after admission
