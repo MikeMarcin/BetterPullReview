@@ -1257,6 +1257,27 @@ namespace {
 				"delete isolated installation refusal cache after verification");
 	}
 
+	// Every file under `aRoot` with index-pack's temporary name, sorted.
+	[[nodiscard]] auto index_residue(const std::filesystem::path& aRoot) -> std::vector<std::string>
+	{
+		auto names = std::vector<std::string>{ };
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ aRoot }) {
+			const auto name = entry.path().filename().string();
+			if (name.starts_with("tmp_pack_") || name.starts_with("tmp_idx_")) {
+				names.push_back(name);
+			}
+		}
+		std::ranges::sort(names);
+		return names;
+	}
+
+	[[nodiscard]] auto count_named(const std::filesystem::path& aRoot, const std::string_view aName) -> std::size_t
+	{
+		return static_cast<std::size_t>(std::ranges::count_if(
+			std::filesystem::recursive_directory_iterator{ aRoot },
+			[&](const auto& aEntry) { return aEntry.path().filename().string() == aName; }));
+	}
+
 	auto verify_sparse_residency(
 		application::git_cache_port& aCache,
 		const std::filesystem::path& aRoot,
@@ -1292,7 +1313,9 @@ namespace {
 			return std::vector<std::uint8_t>{ packed.Output.begin(), packed.Output.end() };
 		};
 		const auto sparsePack = makePack(headText + "\n" + treeText + "\n");
-		for (std::uint8_t course = 0U; course != 6U; ++course) {
+		// Courses 5-8 import the sparse pack strictly first. Index-pack dies and
+		// leaves tmp_pack_XXXXXX; 6-8 plant entries the cleanup must leave (BPR-0851).
+		for (std::uint8_t course = 0U; course != 9U; ++course) {
 			const auto cacheRequest = request(static_cast<std::uint8_t>(0xd0U + course), static_cast<std::uint8_t>(0xe0U + course));
 			auto       opened       = aCache.open(cacheRequest, { });
 			require(opened.has_value(), "open sparse fixture cache");
@@ -1344,13 +1367,45 @@ namespace {
 						"cancelled sparse import neither installs nor witnesses");
 			}
 
-			if (course == 5U) {
-				require(!(*opened)->prepare_revision(prepareRequest, { }, witness) && !witnessed,
-						"strict complete import refuses sparse pack without publication");
-				// Git may leave failed-index residue. Keep this isolated refusal course
-				// out of the positive cache; the owned fixture root removes it at exit.
-				opened->reset();
-				continue;
+			if (course >= 5U) {
+				const auto marker = aRoot
+					/ (course == 6U       ? "inject-cache-preexisting-index-residue"
+						   : course == 7U ? "inject-cache-extra-pack-during-index"
+										  : "inject-cache-foreign-index-residue-during-index");
+				if (course != 5U) {
+					write_file(marker, "inject");
+				}
+				const auto strict = (*opened)->prepare_revision(prepareRequest, { }, witness);
+				if (course != 5U) {
+					std::filesystem::remove(marker);
+				}
+				const auto residue = index_residue(aRoot);
+				std::cout << "SPARSE_STRICT_REFUSAL:" << static_cast<int>(course) << ':'
+						  << (strict ? -1 : static_cast<int>(strict.error().Code)) << ':' << residue.size() << '\n';
+				require(!strict && !witnessed, "strict complete import refuses sparse pack without publication");
+				if (course == 5U) {
+					require(strict.error() == application::git_cache_failure::process_failure && residue.empty(),
+							"a refused strict import reports index-pack's failure and leaves no temporary file");
+				} else {
+					require(strict.error() == application::git_cache_failure::repair_required,
+							"a store changed beyond index-pack's own residue still needs repair");
+					auto planted = std::vector<std::string>{ "tmp_pack_BPRpre" };
+					if (course == 8U) {
+						planted.insert(planted.end(), { "tmp_idx_BPRln2", "tmp_pack_BPRln1" });
+#if !defined(_WIN32)
+						planted.emplace_back("tmp_idx_BPRshr");
+#endif
+						std::ranges::sort(planted);
+					}
+					require(residue == planted && count_named(aRoot, "tmp_pack_BPRpre") == 1U,
+							"the cleanup removed Git's residue and left every planted temporary name");
+					require(course == 6U
+								|| (count_named(aRoot, "pack-" + std::string(40U, 'e') + ".pack") == 1U
+									&& count_named(aRoot, "pack-" + std::string(40U, 'e') + ".idx") == 1U),
+							"the cleanup leaves a planted extra pack");
+					opened->reset();
+					continue;
+				}
 			}
 			const auto prepared = (*opened)->prepare_sparse_revision(prepareRequest, { }, witness);
 			if (!prepared && course != 1U && course != 2U && course != 3U) {

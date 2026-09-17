@@ -795,6 +795,13 @@ namespace {
 				std::cerr << "note: accepted exit still wrote here\n";
 				return 0;
 			}
+			if (input.starts_with("BPR_EXIT_ONE_ERROR")) {
+				// The accepted BPR-0846 exit, with the exact pack line, but
+				// something on standard error (BPR-0851).
+				std::cout << "pack\t" << sha1_pack_hex << '\n';
+				std::cerr << "warning: accepted exit one still wrote here\n";
+				return 1;
+			}
 			if (input.starts_with("BPR_MALFORMED")) {
 				std::cout << "pack\tinvalid\n";
 				return 0;
@@ -883,6 +890,13 @@ namespace {
 			return 0;
 		}
 		if (aArguments.contains("fsck")) {
+			// A broken closure: findings on standard output, nothing on
+			// standard error, exit 2, as Git's fsck reports it (BPR-0852).
+			if (std::filesystem::exists(fake_isolation_root() / "fsck-output")) {
+				const auto output = read_text(fake_isolation_root() / "fsck-output");
+				std::cout.write(output.data(), static_cast<std::streamsize>(output.size()));
+				return 2;
+			}
 			return 0;
 		}
 		if (aArguments.contains("update-ref")) {
@@ -1998,6 +2012,13 @@ namespace {
 					&& missingParent.error()
 						== application::git_process_failure::nonzero_exit,
 				"missing head parent fails complete connectivity");
+			// fsck reports the closure on standard output; the detail counts
+			// it without naming the object (BPR-0852).
+			expect(
+				!missingParent.has_value()
+					&& missingParent.error().Detail.find("1 missing commit") != std::string::npos
+					&& missingParent.error().Detail.find(fixture.MissingParent) == std::string::npos,
+				"a connectivity refusal names the missing object's kind, not its name");
 			expect(
 				run_fixture_git(
 					repository,
@@ -3631,6 +3652,17 @@ namespace {
 						== application::git_process_failure::malformed_output
 					&& quiet.error().Detail.empty(),
 				"accepted output with stderr is malformed and textless");
+			const auto exitOneError = fake_index_request(
+				*adapter,
+				repository,
+				operation,
+				"BPR_EXIT_ONE_ERROR");
+			require(
+				!exitOneError.has_value()
+					&& exitOneError.error()
+						== application::git_process_failure::malformed_output
+					&& exitOneError.error().Detail.empty(),
+				"an accepted index-pack exit 1 with standard error is malformed and textless");
 			require(
 				fake_index_request(
 					*adapter,
@@ -3639,6 +3671,61 @@ namespace {
 					"BPR_SILENT_SUCCESS")
 					.has_value(),
 				"a silent accepted invocation succeeds");
+
+			// BPR-0852: fsck's standard output becomes counts, never text.
+			const auto verify = [&] {
+				return adapter->verify_connectivity(
+					{
+						.Repository = repository,
+						.Base       = object<application::git_commit_id>(std::string(40U, 'a'), application::git_hash_algorithm::sha1),
+						.Head       = object<application::git_commit_id>(std::string(40U, 'b'), application::git_hash_algorithm::sha1),
+					},
+					{ });
+			};
+			const auto blobName = std::string(40U, 'c');
+			write_text(
+				root.Path / "fsck-output",
+				"broken link from    tree " + std::string(40U, 'd') + "\n"
+					+ "              to    blob " + blobName + "\n"
+					+ "missing blob " + blobName + "\n"
+					+ "missing commit " + std::string(40U, 'a') + "\n"
+					+ "missing tree " + std::string(40U, 'd') + "\n"
+					+ "missing tree " + std::string(40U, 'e') + "\n"
+					+ "fatal: /private/bpr-canary https://user:bpr-canary@remote.invalid/x\n");
+			const auto summarized = verify();
+			require(
+				!summarized.has_value()
+					&& summarized.error() == application::git_process_failure::nonzero_exit
+					&& summarized.error().Detail
+						== "fsck reported 1 missing commit, 2 missing trees, 1 missing blob, 1 broken link, 1 other line",
+				"a connectivity refusal carries fixed counts of fsck's findings");
+			require(
+				summarized.error().Detail.find(blobName) == std::string::npos
+					&& summarized.error().Detail.find("bpr-canary") == std::string::npos,
+				"the connectivity summary repeats no object name, path or unrecognised text");
+			// The bound is the standard-output limit: 18 lines of 54 bytes and a
+			// 52-byte line fill 1024, and one byte more is refused without text.
+			auto atLimit = std::string{ };
+			for (auto line = 0U; line != 18U; ++line) {
+				atLimit += "missing blob " + std::string(40U, 'c') + "\n";
+			}
+			atLimit += std::string(1024U - atLimit.size() - 1U, 'x') + "\n";
+			write_text(root.Path / "fsck-output", atLimit);
+			const auto bounded = verify();
+			require(
+				!bounded.has_value()
+					&& bounded.error() == application::git_process_failure::nonzero_exit
+					&& bounded.error().Detail == "fsck reported 18 missing blobs, 1 other line",
+				"the connectivity summary counts retained output up to the standard-output limit");
+			write_text(root.Path / "fsck-output", atLimit + "x");
+			const auto overLimit = verify();
+			require(
+				!overLimit.has_value()
+					&& overLimit.error() == application::git_process_failure::standard_output_limit
+					&& overLimit.error().Detail.empty(),
+				"fsck output past the standard-output limit is refused without text");
+			std::filesystem::remove(root.Path / "fsck-output");
+			require(verify().has_value(), "an empty fsck report still verifies");
 		}
 	}
 }

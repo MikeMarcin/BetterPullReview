@@ -85,3 +85,62 @@ A timeout or cancel probably leaves the same residue; that is unverified.
   So is a pre-existing `tmp_pack_*`, and the planted file is not deleted.
 - The missing-object course asserts the failure code, and the process
   contract covers exit 1 with stderr.
+
+## Fix (dsp-004, Mac)
+
+**What changed.** `prepare_revision_impl` lists the names in `objects/pack`
+just before `index-pack` runs, under the operation mutex and the cache lock.
+The list is capped at 4 x the pack-count limit + 16.
+
+If `index-pack` fails, and the failure is not `reap_failure`, the cache
+removes only the entries that meet all of these:
+
+- the name is `tmp_pack_` or `tmp_idx_` followed by exactly six ASCII letters
+  or digits, which is Git's mkstemp template;
+- the name was absent from the list;
+- the file is regular, not a symlink, private, owned by this uid and has one
+  link.
+
+`remove_exact_private_file` removes each file by exact identity, and the
+directory is synced once. The existing inventory and rollback checks then run
+unchanged, so any other change to the store still gives `repair_required`, and
+nothing planted is deleted. The sparse import shares this code. A timed-out or
+cancelled `index-pack` takes the same branch, but no test covers that.
+
+**Tests.**
+
+- `git_haves_trimmed_pack_missing-object` requires the `process_failure`
+  reason with no `repair_required` reason, and finds no `tmp_*` file. Base
+  stays the latest head. After a host restart, a normal import of Head2 loads
+  without repair.
+- Course 5 in `git_cache_contract_tests.cpp` no longer resets the cache. It
+  requires `process_failure` with no residue, then imports the same pack
+  sparsely.
+- Courses 6-8 use test-only fault injection to plant a pre-existing
+  `tmp_pack_*`, an extra pack, and temporary files that are hard-linked or,
+  on POSIX, not private. Each still gives `repair_required`, and every
+  planted file remains.
+- A process-contract row pins that an accepted `index-pack` exit 1 with stderr
+  is `malformed_output`.
+- The `index_pack` doc comment is separated from the port's group note by a
+  blank line.
+
+**Runs (macOS, `build/r2-dev`).**
+
+- The git process, cache and sparse-cache contracts,
+  `epoch_maintenance_integration`, both kill-recovery courses,
+  `application_epoch_maintenance_public_path`, `architecture_boundaries` and
+  `test_network_isolation_manifest` pass (`dsp4-0851-verification.log`).
+- The three haves courses pass 3/3 (`dsp4-0851-courses-x3.log`).
+- Negative control: without the cleanup, the missing-object course reports
+  `EPOCH_CACHE_FAILURE:13`, and sparse course 5 fails
+  (`dsp4-0851-negative-control.log`).
+
+**Before this fix.** `bpr-linux` (Git 2.53.0) and `bpr-win` (Git for Windows
+2.55.0) both reproduced code 13 on the missing-object course
+(`docs/verification/dsp4-linux-confirmation.md`,
+`docs/verification/dsp4-windows-confirmation.md`).
+
+**Still open.** A critical review, and the Linux and Windows runs of the fix.
+Git for Windows may create `tmp_pack_*` read-only, or with a descriptor that
+the private check refuses; in that case the cleanup fails closed at 13.

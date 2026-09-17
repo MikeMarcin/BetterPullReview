@@ -2791,6 +2791,108 @@ namespace bpr::adapters::git {
 				&& synchronize_directory(packDirectory);
 		}
 
+		// Bounds both pack-directory walks of the failed-index cleanup. A larger
+		// directory is not cleaned; the inventory refuses it instead.
+		inline constexpr std::size_t maximum_pack_directory_walk = 4U * application::maximum_git_cache_pack_count + 16U;
+
+		// `index-pack` names its temporary files from Git's six-character mkstemp
+		// template: `tmp_pack_XXXXXX` and `tmp_idx_XXXXXX`.
+		[[nodiscard]] auto index_pack_temporary_name(
+			const std::filesystem::path::string_type& aName) -> bool
+		{
+			using character     = std::filesystem::path::value_type;
+			const auto prefixed = [&](const std::string_view aPrefix) {
+				return aName.size() == aPrefix.size() + 6U
+					&& std::equal(aPrefix.begin(), aPrefix.end(), aName.begin(), [](const char aExpected, const character aActual) {
+						   return static_cast<character>(aExpected) == aActual;
+					   });
+			};
+			return (prefixed("tmp_pack_") || prefixed("tmp_idx_"))
+				&& std::all_of(aName.end() - 6, aName.end(), [](const character aCharacter) {
+					   return (aCharacter >= '0' && aCharacter <= '9')
+						   || (aCharacter >= 'A' && aCharacter <= 'Z')
+						   || (aCharacter >= 'a' && aCharacter <= 'z');
+				   });
+		}
+
+		/// \brief Lists the pack directory's names before `index-pack` runs.
+		/// \details Taken under the operation mutex and the cache lock. No value
+		/// means the directory could not be listed within its bound, and the
+		/// failed-index cleanup then removes nothing.
+		[[nodiscard]] auto pack_directory_names(
+			const std::filesystem::path& aRepository)
+			-> std::optional<std::vector<std::filesystem::path::string_type>>
+		{
+			const auto directory = aRepository / "objects" / "pack";
+			auto       names     = std::vector<std::filesystem::path::string_type>{ };
+			if (missing(directory)) {
+				return names;
+			}
+			if (!private_directory(directory)) {
+				return std::nullopt;
+			}
+			std::error_code error;
+			for (auto entry = std::filesystem::directory_iterator{ directory, error };
+				 !error && entry != std::filesystem::directory_iterator{ };
+				 entry.increment(error)) {
+				if (names.size() == maximum_pack_directory_walk) {
+					return std::nullopt;
+				}
+				names.push_back(entry->path().filename().native());
+			}
+			if (error) {
+				return std::nullopt;
+			}
+			std::ranges::sort(names);
+			return names;
+		}
+
+		/// \brief Removes the temporary files a failed `index-pack` left behind.
+		/// \details An `index-pack` that dies, on a missing object or a truncated
+		/// pack, leaves `objects/pack/tmp_pack_XXXXXX` (BPR-0851); a killed one
+		/// may too. Only an entry with index-pack's temporary name that was absent
+		/// from `aBefore` and is a private, single-link regular file this user owns
+		/// is removed, each by exact identity. Everything else stays for the
+		/// inventory to refuse, so a store changed any other way still needs repair.
+		auto remove_failed_index_residue(
+			const std::filesystem::path&                           aRepository,
+			const std::vector<std::filesystem::path::string_type>& aBefore) -> void
+		{
+			const auto directory = aRepository / "objects" / "pack";
+			if (!private_directory(directory)) {
+				return;
+			}
+			auto            candidates = std::vector<std::filesystem::path>{ };
+			std::size_t     visited    = 0U;
+			std::error_code error;
+			for (auto entry = std::filesystem::directory_iterator{ directory, error };
+				 !error && entry != std::filesystem::directory_iterator{ };
+				 entry.increment(error)) {
+				if (++visited > maximum_pack_directory_walk) {
+					return;
+				}
+				const auto name = entry->path().filename().native();
+				if (index_pack_temporary_name(name) && !std::ranges::binary_search(aBefore, name)) {
+					candidates.push_back(entry->path());
+				}
+			}
+			if (error) {
+				return;
+			}
+			auto removed = false;
+			for (const auto& candidate : candidates) {
+				const auto identity = exact_identity(candidate, exact_artifact_kind::regular_file);
+				if (
+					identity.has_value() && private_regular_file(candidate)
+					&& remove_exact_private_file(candidate, *identity)) {
+					removed = true;
+				}
+			}
+			if (removed) {
+				static_cast<void>(synchronize_directory(directory));
+			}
+		}
+
 		[[nodiscard]] auto deletion_marker_present(
 			const std::filesystem::path& aStorage,
 			const std::string_view       aCacheText)
@@ -3320,8 +3422,22 @@ namespace bpr::adapters::git {
 							invalid_repository
 					};
 				}
-				const auto indexPack = aSparse ? &application::git_process_port::index_sparse_pack : &application::git_process_port::index_pack;
-				auto       indexed   = (State->Process.get()->*indexPack)(
+#if defined(BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION)
+				// Plants a file with index-pack's temporary name before the snapshot,
+				// so the failed-index cleanup must leave it (BPR-0851).
+				std::error_code preexistingResidueInjectionError;
+				if (
+					std::filesystem::exists(State->StorageRoot / "inject-cache-preexisting-index-residue", preexistingResidueInjectionError)
+					&& !preexistingResidueInjectionError) {
+					static constexpr std::array<std::uint8_t, 7U> planted{ 'p', 'l', 'a', 'n', 't', 'e', 'd' };
+					static_cast<void>(write_new_private_file(State->Repository / "objects" / "pack" / "tmp_pack_BPRpre", planted));
+				}
+#endif
+				// The failed-index cleanup removes only what this child could have
+				// created, so the snapshot is taken last, under the lock (BPR-0851).
+				const auto packNamesBeforeIndex = pack_directory_names(State->Repository);
+				const auto indexPack            = aSparse ? &application::git_process_port::index_sparse_pack : &application::git_process_port::index_pack;
+				auto       indexed              = (State->Process.get()->*indexPack)(
 					application::git_index_pack_request{
 						.Repository        = State->Repository,
 						.Operation         = process_operation(aRequest.Receipt.Operation),
@@ -3441,6 +3557,37 @@ namespace bpr::adapters::git {
 						indexed.error()
 						== application::git_process_failure::reap_failure) {
 						return std::unexpected{ failure };
+					}
+#if defined(BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION)
+					// Plants, after the snapshot, entries the failed-index cleanup must
+					// leave: an extra pack, or temporary names that are hard-linked or,
+					// on POSIX, not private (BPR-0851).
+					std::error_code                               residueInjectionError;
+					const auto                                    packDirectory = State->Repository / "objects" / "pack";
+					static constexpr std::array<std::uint8_t, 7U> planted{ 'p', 'l', 'a', 'n', 't', 'e', 'd' };
+					if (
+						std::filesystem::exists(State->StorageRoot / "inject-cache-extra-pack-during-index", residueInjectionError)
+						&& !residueInjectionError) {
+						const auto stem = std::string{ "pack-" }
+							+ std::string(State->Request.ObjectFormat == core::git_hash_algorithm::sha1 ? 40U : 64U, 'e');
+						static_cast<void>(write_new_private_file(packDirectory / (stem + ".pack"), planted));
+						static_cast<void>(write_new_private_file(packDirectory / (stem + ".idx"), planted));
+					}
+					if (
+						std::filesystem::exists(State->StorageRoot / "inject-cache-foreign-index-residue-during-index", residueInjectionError)
+						&& !residueInjectionError) {
+						if (write_new_private_file(packDirectory / "tmp_pack_BPRln1", planted)) {
+							std::filesystem::create_hard_link(packDirectory / "tmp_pack_BPRln1", packDirectory / "tmp_idx_BPRln2", residueInjectionError);
+						}
+	#if defined(Q_OS_UNIX)
+						if (write_new_private_file(packDirectory / "tmp_idx_BPRshr", planted)) {
+							std::filesystem::permissions(packDirectory / "tmp_idx_BPRshr", std::filesystem::perms::group_read, std::filesystem::perm_options::add, residueInjectionError);
+						}
+	#endif
+					}
+#endif
+					if (packNamesBeforeIndex.has_value()) {
+						remove_failed_index_residue(State->Repository, *packNamesBeforeIndex);
 					}
 					const auto afterFailure = State->validated_inventory({ }, false);
 					if (!afterFailure.has_value()) {

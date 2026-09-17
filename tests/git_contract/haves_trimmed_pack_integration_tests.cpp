@@ -447,11 +447,38 @@ namespace {
 		std::int64_t Next = 1'000;
 	};
 
-	class discarding_projection final : public application::epoch_projection_port
+	// Keeps the reason codes the host projects, which is where a cache
+	// failure's mapped code reaches presentation.
+	class recording_projection final : public application::epoch_projection_port
 	{
 	public:
-		void publish(const application::epoch_presentation_update&) override { }
+		void publish(const application::epoch_presentation_update& aUpdate) override
+		{
+			if (aUpdate.Transition) {
+				for (const auto& diagnostic : aUpdate.Transition->Diagnostics) {
+					Reasons.push_back(diagnostic.Code);
+				}
+			}
+		}
+
+		[[nodiscard]] auto saw(const core::epoch_reason_code aReason) const -> bool
+		{
+			return std::ranges::find(Reasons, aReason) != Reasons.end();
+		}
+
+		std::vector<core::epoch_reason_code> Reasons;
 	};
+
+	// Every file under `aRoot` with index-pack's temporary name.
+	[[nodiscard]] auto index_residue(const std::filesystem::path& aRoot) -> std::size_t
+	{
+		return static_cast<std::size_t>(std::ranges::count_if(
+			std::filesystem::recursive_directory_iterator{ aRoot },
+			[](const auto& aEntry) {
+				const auto name = aEntry.path().filename().string();
+				return name.starts_with("tmp_pack_") || name.starts_with("tmp_idx_");
+			}));
+	}
 
 	[[nodiscard]] auto catalog_key() -> application::epoch_catalog_authority_key
 	{
@@ -491,7 +518,13 @@ namespace {
 			require(madeCache.has_value() && madeCatalog.has_value(), "construct the real cache and catalog");
 			Caches   = std::move(*madeCache);
 			Catalogs = std::move(*madeCatalog);
-			Host     = std::make_unique<application::epoch_application_host>(
+			start();
+		}
+
+		// Starts a host over the same cache and catalog, as a relaunch would.
+		void start()
+		{
+			Host = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{ .ApplicationSession = core::application_session_id{ 91U } }, *Caches, *Catalogs,
 				Entropy, Clock, Effects, Decisions, Projection, application::epoch_host_limits{ });
 		}
@@ -589,7 +622,7 @@ namespace {
 		deterministic_clock                                  Clock;
 		queued_executor                                      Effects;
 		queued_executor                                      Decisions;
-		discarding_projection                                Projection;
+		recording_projection                                 Projection;
 		std::unique_ptr<application::epoch_application_host> Host;
 		std::vector<served_fetch>                            Fetches;
 	};
@@ -614,13 +647,15 @@ namespace {
 		std::cout << "haves-update-loads:pass\n";
 	}
 
-	// A pack that lacks an object the cache does not hold is refused, and the
-	// earlier head stays the latest live revision.
+	// A pack that lacks an object the cache does not hold is refused as
+	// index-pack's failure, the earlier head stays the latest live revision,
+	// and the cache stays usable (BPR-0851).
 	auto verify_missing_object_refused() -> void
 	{
 		composed_live_path value{ "missing" };
 		value.accept(1U, value.History.Base);
 		require(value.Host->state().Status == core::epoch_status::ready, "the base-only head loads");
+		value.Projection.Reasons.clear();
 		value.accept(2U, value.History.Head2, value.History.Head1);
 		require(value.Fetches.size() == 2U, "the update fetched");
 		const auto exit = value.index_pack_exit(value.Fetches.back().Pack, value.History.Base, "missing-check");
@@ -628,7 +663,23 @@ namespace {
 		require(exit != 0 && exit != 1, "the forged have left the served pack missing an object");
 		require(value.Host->state().Status != core::epoch_status::ready || value.Host->state().AcceptedRevision->Source.Snapshot != core::provider_snapshot_id{ 2U },
 				"a pack with a missing object never loads its head");
+		std::cout << "MISSING_REFUSAL_REASONS:";
+		for (const auto reason : value.Projection.Reasons) {
+			std::cout << static_cast<int>(reason) << ' ';
+		}
+		std::cout << '\n';
+		require(value.Projection.saw(core::epoch_reason_code::process_failure) && !value.Projection.saw(core::epoch_reason_code::repair_required),
+				"the refusal is index-pack's process failure, not a repair");
+		require(index_residue(value.Root.Path / "git") == 0U, "the refused import leaves no index-pack temporary file");
 		require(value.latest_live_head() == commit_oid(value.History.Base), "the refused update leaves the earlier head latest");
+
+		value.start();
+		value.Projection.Reasons.clear();
+		value.accept(3U, value.History.Head2);
+		require(value.Fetches.size() == 3U, "the later update fetched");
+		require(value.Host->state().Status == core::epoch_status::ready && !value.Projection.saw(core::epoch_reason_code::repair_required),
+				"a later valid import loads without repair");
+		require(value.latest_live_head() == commit_oid(value.History.Head2), "the later update is the latest live head");
 		std::cout << "haves-missing-object-refused:pass\n";
 	}
 
@@ -745,6 +796,11 @@ namespace {
 				"a pack not connected to resident history is refused before anything is journaled");
 		require(update.Failure->Code == application::git_cache_failure::process_failure,
 				"the refusal is the connectivity verification's, and the new pack is rolled back");
+		// fsck names the closure's gaps on standard output; the detail counts
+		// them by kind and repeats no object name (BPR-0852).
+		require(update.Failure->Detail.find("1 missing commit") != std::string::npos
+					&& update.Failure->Detail.find(history.Base) == std::string::npos,
+				"the connectivity refusal names the missing object's kind");
 		const auto head = session.inspect_commit_object(commit_oid(history.Head2), { });
 		require(!head.has_value() || !application::valid(*head), "the refused head is not resident");
 

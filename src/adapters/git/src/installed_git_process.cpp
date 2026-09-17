@@ -108,13 +108,19 @@ namespace bpr::adapters::git {
 
 		using process_input = std::variant<memory_input, file_input>;
 
+		// Turns a non-zero exit's retained standard output into fixed,
+		// secret-free text for the failure detail (BPR-0852). Null keeps
+		// standard output out of the detail.
+		using failed_output_summarizer = std::string (*)(std::string_view);
+
 		struct process_request
 		{
 			std::vector<std::string>                                   Arguments;
-			process_input                                              Input               = memory_input{ };
-			std::chrono::milliseconds                                  Timeout             = process_timeout;
-			std::size_t                                                StandardOutputLimit = standard_output_limit;
-			bool                                                       AllowExitOne        = false;
+			process_input                                              Input                 = memory_input{ };
+			std::chrono::milliseconds                                  Timeout               = process_timeout;
+			std::size_t                                                StandardOutputLimit   = standard_output_limit;
+			bool                                                       AllowExitOne          = false;
+			failed_output_summarizer                                   SummarizeFailedOutput = nullptr;
 			std::optional<application::agent_workspace_lifetime_guard> WorkspaceGuard;
 		};
 
@@ -1517,6 +1523,87 @@ namespace bpr::adapters::git {
 			return result;
 		}
 
+		/// \brief Counts what `git fsck --connectivity-only` found, without repeating it.
+		/// \details On a broken closure fsck writes `broken link` and `missing <type> <oid>`
+		/// lines to standard output, exits non-zero and may leave standard error empty
+		/// (BPR-0852). The summary keeps fixed words and counts only: never an object
+		/// name, a path or an unrecognised line's text. Its input is the runner's
+		/// retained output, which the standard-output limit already bounds.
+		[[nodiscard]] auto summarize_connectivity_output(
+			const std::string_view aOutput) -> std::string
+		{
+			static constexpr std::array<std::string_view, 4U> kinds{ "commit", "tree", "blob", "tag" };
+			auto                                              missing = std::array<std::size_t, 4U>{ };
+			std::size_t                                       broken  = 0U;
+			std::size_t                                       other   = 0U;
+			std::size_t                                       start   = 0U;
+			while (start < aOutput.size()) {
+				const auto end   = std::min(aOutput.find('\n', start), aOutput.size());
+				const auto line  = aOutput.substr(start, end - start);
+				start            = end + 1U;
+				const auto first = line.find_first_not_of(' ');
+				if (first == std::string_view::npos) {
+					continue;
+				}
+				const auto text = line.substr(first);
+				if (text.starts_with("broken link from ")) {
+					++broken;
+					continue;
+				}
+				// The second line of a `broken link` report is indented.
+				if (first != 0U && text.starts_with("to ")) {
+					continue;
+				}
+				if (first == 0U && text.starts_with("missing ")) {
+					const auto rest  = text.substr(8U);
+					const auto type  = rest.substr(0U, rest.find(' '));
+					const auto found = std::ranges::find(kinds, type);
+					if (found != kinds.end() && type.size() != rest.size()) {
+						++missing[static_cast<std::size_t>(found - kinds.begin())];
+						continue;
+					}
+				}
+				++other;
+			}
+			std::string summary;
+			const auto  append = [&](const std::size_t aCount, const std::string_view aNoun) {
+				if (aCount == 0U) {
+					return;
+				}
+				summary += summary.empty() ? "fsck reported " : ", ";
+				summary += std::to_string(aCount);
+				summary += ' ';
+				summary += aNoun;
+				if (aCount != 1U) {
+					summary += 's';
+				}
+			};
+			for (std::size_t index = 0U; index < kinds.size(); ++index) {
+				append(missing[index], "missing " + std::string{ kinds[index] });
+			}
+			append(broken, "broken link");
+			append(other, "other line");
+			return summary;
+		}
+
+		/// \brief Appends a fixed output summary to a redacted diagnostic within the stderr limit.
+		[[nodiscard]] auto with_output_summary(
+			std::string            aDiagnostic,
+			const std::string_view aSummary) -> std::string
+		{
+			if (aSummary.empty() || aSummary.size() >= standard_error_limit) {
+				return aDiagnostic;
+			}
+			if (aDiagnostic.size() > standard_error_limit - aSummary.size() - 1U) {
+				aDiagnostic.resize(standard_error_limit - aSummary.size() - 1U);
+			}
+			if (!aDiagnostic.empty() && aDiagnostic.back() != '\n') {
+				aDiagnostic.push_back('\n');
+			}
+			aDiagnostic.append(aSummary);
+			return aDiagnostic;
+		}
+
 		// The supervisor, rather than Git, retains the journal lock. Git may
 		// close inherited descriptors or leave descendants behind when it exits.
 		struct git_workspace_lifetime
@@ -2377,10 +2464,16 @@ namespace bpr::adapters::git {
 				if (
 					exitCode != 0
 					&& !(aRequest.AllowExitOne && exitCode == 1)) {
+					auto diagnostic = redacted_diagnostic(standardError);
+					if (aRequest.SummarizeFailedOutput != nullptr && !standardOutput.empty()) {
+						diagnostic = with_output_summary(
+							std::move(diagnostic),
+							aRequest.SummarizeFailedOutput(standardOutput));
+					}
 					return failed(
 						git_process_error{
 							git_process_failure::nonzero_exit,
-							redacted_diagnostic(standardError) });
+							std::move(diagnostic) });
 				}
 				// An accepted exit that wrote to standard error is malformed output,
 				// not an explanation, so it carries no retained text.
@@ -4778,7 +4871,10 @@ namespace bpr::adapters::git {
 					object_text(aRequest.Base),
 					object_text(aRequest.Head));
 				const auto result = submit(
-					process_request{ .Arguments = std::move(arguments) },
+					process_request{
+						.Arguments             = std::move(arguments),
+						.SummarizeFailedOutput = summarize_connectivity_output,
+					},
 					aStop);
 				if (!result.has_value()) {
 					return std::unexpected{ result.error() };

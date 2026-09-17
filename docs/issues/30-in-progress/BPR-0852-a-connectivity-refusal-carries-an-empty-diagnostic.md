@@ -37,3 +37,40 @@ pack over broken history is refused.
 
 - The unconnected BPR-0846 course's refusal names a missing-object kind, and
   a contract row pins the bound.
+
+## Fix (dsp-004, Mac)
+
+**What changed.** `verify_connectivity` passes
+`summarize_connectivity_output` to the process runner, through a new
+`process_request` field. On a non-zero exit, the runner appends a summary of
+fsck's stdout to the redacted stderr text, within the stderr limit.
+
+The summary counts three kinds of line:
+
+- `missing <commit|tree|blob|tag>`;
+- `broken link`;
+- anything else.
+
+An example is `fsck reported 1 missing commit, 1 missing blob, 2 broken links`.
+The summary never repeats an object name, a path or unrecognised text. The
+existing 1024-byte stdout limit still applies, and larger output is refused as
+`standard_output_limit` with no text. The success rule, that stdout must be
+empty, is unchanged.
+
+**Evidence.**
+
+- `git_haves_trimmed_pack_unconnected` prints
+  `UNCONNECTED_CACHE_FAILURE:10:fsck reported 1 missing commit, 1 missing blob, 2 broken links`.
+  It requires "1 missing commit", and it requires that the object's name does
+  not appear.
+- Process-contract rows pin these cases:
+  - the exact summary, with no canary text;
+  - 1024 bytes of output, still counted;
+  - 1025 bytes, refused as `standard_output_limit` with no text.
+
+  The real-Git missing-parent row requires "1 missing commit".
+- Negative control: without the summary, both assertions fail
+  (`build/r2-logs/dsp4-0851-negative-control.log`).
+
+**Still open.** The critical review, which covers BPR-0851's slice, and the
+Linux and Windows runs.
