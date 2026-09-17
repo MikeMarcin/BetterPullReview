@@ -176,29 +176,32 @@ Backlog and the three RFCs Proposed; the three closeouts are independent of each
 On 2026-09-16 the owner reviewed the shipped macOS build and returned seventeen
 verdicts through the attended-review workflow: sixteen acceptances and one
 rejection, that closing the last window closes the menu bar, which is now
-[BPR-0796](../issues/40-parked/BPR-0796-keep-the-macos-menu-bar-when-the-last-window-closes.md).
+[BPR-0796](../issues/60-done/BPR-0796-keep-the-macos-menu-bar-when-the-last-window-closes.md).
 They reviewed the fixed build the same day and rejected that too — "it stays
 running in the bottom dock but not in the top menu bar" — which turned out to be
 about which application owns the menu bar rather than about which menus are on
 it, and which needed no further change to `src/`. The eighteenth verdict and its
-adjudication are on that card.
+adjudication are on that card. On the same day they answered the replacement
+candidate `bpr-0796-empty-desktop-menu-bar-activation` with `accept` and the note
+"I don't care about this right now. move on." — the nineteenth verdict, bound to
+the fixed build's own digest. The attended gate B5 names is therefore cleared;
+the note closes the question rather than reporting a fresh observation, and the
+card says so.
 All three RFCs stay `Proposed`, and none of the three is waiting on evidence
 that was simply never gathered. RFC-BPR-0032's and RFC-BPR-0034's own criteria
 are met and their closeout rows are complete; they stay `Proposed` only because
 closure is strictly ordered and RFC-BPR-0018 — and, for RFC-BPR-0032, also
-RFC-BPR-0028 — are not `Auto-Verified`. RFC-BPR-0033 stays `Proposed` for two
-independent reasons: RFC-BPR-0024 is `Deferred`, and B5 needs the owner's
-acceptance of the empty desktop on a real macOS build. The defect behind the
+RFC-BPR-0028 — are not `Auto-Verified`. RFC-BPR-0033 now stays `Proposed` for one
+reason only: RFC-BPR-0024 is `Deferred`. B5's attended clause is answered. The defect behind the
 first rejection is fixed — the windowless menu bar now carries the same menus a
 window's bar carries — and B1's macOS half and B2's native half are met on the
 fixed build. The first console in this pack that was unlocked closed most of what
 had been left to a person: the windowless bar is photographed and is the same
 image as the windowed one, and the Dock tile, ⌘N, the Profiles menu and Quit were
-all exercised on the real screen. What is left is genuinely the owner's — whether
-the application was the front one when they closed that window — and one
-replacement candidate is prepared against the same digest, carrying those
-photographs, and has not been performed. A verdict on the old build cannot be carried
-onto a new one. The Windows and Linux halves of B1 have never been observed
+all exercised on the real screen. What had been left to the owner — whether
+the application was the front one when they closed that window — was put to them
+on a replacement candidate bound to the same digest, and they closed the question
+rather than answering it on its merits. The Windows and Linux halves of B1 have never been observed
 and are recorded as not run, on
 [BPR-0798](../issues/10-backlog/BPR-0798-windows-native-empty-desktop-quit-evidence.md)
 and
