@@ -165,3 +165,42 @@ run did not record how its root was made, so its cause is not named.
 
 **Still open:** the independent review of this change, and the round-trip
 reseal that follows it.
+
+## Review, reseal and finish (dsp-003)
+
+An independent `rfc-reviewer` read `866c5b90` and found **no blocker**. The
+patch it read has SHA-256
+`d06ce85642796ec64d952c9a92cbe51494793649d715543f4686d18335e33f57`, and its
+content is identical to the commit. The reviewer found:
+
+- **The gate.** It sits after every argument refusal and immediately before
+  the only three start calls. No lease or store is touched before it. The
+  reviewer's own sort of every registration and driver matched the 55-row
+  list. The unattended launches without `--self-test` (`--attended-launch`,
+  the native notification and appearance probes) all carry a fixture, and a
+  fixture ignores `config` and requires an admitted root.
+- **Release.** Only the temporary directory's prefix changed, and nothing
+  references the old one. A new `AUTOMATED_PROFILE_PRIVATE_FAILED` appears
+  only when narrowing fails. The Release contract still expects
+  `AUTOMATED_PROFILE_PRIVATE_OK`. The attended approval and replay-reset
+  paths keep the default root. A tests-disabled build never parses
+  `--test-application-data-root`.
+- **Lifetime.** `desktop` is destroyed before the `QTemporaryDir` on every
+  exit. The restart contracts' `--self-test --test-application-data-root`
+  path is unchanged. A fixture run given an explicit root is still refused.
+
+Non-blocking findings:
+
+- The script's usage text changed, and a lone `--private-data-root` now
+  prints usage. The launch itself is unchanged.
+- `make_storage_root_owner_private`'s POSIX branch follows a symbolic link
+  before refusing one. It only ever sets 0700, and this path always passes
+  it a fresh canonical `mkdtemp` directory.
+
+The round-trip manifest pin was resealed in `df235fa1` for
+`8a03a5be..7555cba4`. `application_review_round_trip_composition_contract`
+and `application_composition_contract` (7 of 7) then pass
+(`build/r2-logs/dsp3-reseal2-ctest.log`).
+
+Windows and Linux runs of the seam rows go with the next station envelopes
+as confirmation. They are not criteria of this macOS card.
