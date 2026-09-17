@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0807",
+    "BPR-0808",
+    "BPR-0809",
+    "BPR-0810",
+    "BPR-0811",
+    "BPR-0812",
+    "BPR-0813"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Defects found during run-20260916-stations Mac and Windows verification",
+  "created": "2026-09-17T05:39:53.985798+00:00",
+  "base": "49566de843ae11942e2a17afb1869d6dd93fdf5a"
+}
