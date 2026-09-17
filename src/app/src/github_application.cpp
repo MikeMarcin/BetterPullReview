@@ -31,6 +31,7 @@
 	#include "macos_keychain.hpp"
 #elif defined(_WIN32)
 	#include "windows_credential_manager.hpp"
+	#include "windows_title_row_host.hpp"
 #elif defined(__linux__)
 	#include "linux_secret_service.hpp"
 #endif
@@ -6056,6 +6057,11 @@ namespace bpr::app {
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); },
 				nullptr,
 				aConfig.DifCatalog);
+#if defined(_WIN32)
+			// [[BPR-0653]]. The strip is the title row: the host removes the
+			// system title bar and answers the platform's hit test for it.
+			TitleRow = std::make_unique<windows_title_row_host>(*Window);
+#endif
 
 			SetupDestination = std::make_unique<application::setup_destination_host>(*this);
 			Window->set_setup_destination_dispatch([this](application::setup_destination_intent aIntent) {
@@ -12180,15 +12186,20 @@ namespace bpr::app {
 		decltype(github_profile_runtime::PublicPreviewProjectionFanOut)& PublicPreviewProjectionFanOut = Profile->PublicPreviewProjectionFanOut;
 		decltype(github_profile_runtime::DecisionLane)&                  DecisionLane                  = Profile->DecisionLane;
 		std::unique_ptr<qt::workbench_window>                            Window;
-		std::unique_ptr<review_submission_workflow>                      ReviewSubmission;
-		decltype(github_profile_runtime::CredentialBindings)&            CredentialBindings  = Profile->CredentialBindings;
-		decltype(github_profile_runtime::GitCaches)&                     GitCaches           = Profile->GitCaches;
-		decltype(github_profile_runtime::EpochCatalogs)&                 EpochCatalogs       = Profile->EpochCatalogs;
-		decltype(github_profile_runtime::ApplicationDataRoot)&           ApplicationDataRoot = Profile->ApplicationDataRoot;
-		std::unique_ptr<application::review_ledger_store_port>           ReviewLedger;
-		std::unique_ptr<application::review_ledger_application_host>     ReviewLedgerHost;
-		mutable std::mutex                                               ReviewLedgerStateMutex;
-		std::optional<application::workbench_pull_request_authority>     ReviewLedgerAuthority;
+#if defined(_WIN32)
+		// [[BPR-0653]]. Declared after the window so it lets go of the window
+		// first.
+		std::unique_ptr<windows_title_row_host> TitleRow;
+#endif
+		std::unique_ptr<review_submission_workflow>                  ReviewSubmission;
+		decltype(github_profile_runtime::CredentialBindings)&        CredentialBindings  = Profile->CredentialBindings;
+		decltype(github_profile_runtime::GitCaches)&                 GitCaches           = Profile->GitCaches;
+		decltype(github_profile_runtime::EpochCatalogs)&             EpochCatalogs       = Profile->EpochCatalogs;
+		decltype(github_profile_runtime::ApplicationDataRoot)&       ApplicationDataRoot = Profile->ApplicationDataRoot;
+		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
+		std::unique_ptr<application::review_ledger_application_host> ReviewLedgerHost;
+		mutable std::mutex                                           ReviewLedgerStateMutex;
+		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
 		// [[BPR-0654]]. The overview's changed-since-review set: asked of the
 		// epoch host once per (last-reviewed head, accepted head, file list)
 		// and kept until one of them moves. `Changed` is empty while the host

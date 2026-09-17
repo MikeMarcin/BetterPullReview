@@ -2567,6 +2567,22 @@ if(WIN32)
         TIMEOUT 60
         PASS_REGULAR_EXPRESSION "windows-profile-storage-startup-contract:pass")
     set_property(TEST application_windows_profile_storage_startup_contract APPEND PROPERTY LABELS "BPR-0806;target-native-windows")
+
+    # [[BPR-0653]]. The strip as the Windows title row, on the real windows
+    # platform: the host's hit test, the removed title bar, maximise and restore
+    # by double-click and by the caption buttons, minimise and close. The
+    # offscreen window courses cannot see a frame or a non-client message.
+    bpr_add_executable(test_better_pull_review_windows_title_row_host_tests windows_title_row_host_tests.cpp)
+    target_link_libraries(test_better_pull_review_windows_title_row_host_tests PRIVATE BetterPullReview::Composition)
+    target_compile_features(test_better_pull_review_windows_title_row_host_tests PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_better_pull_review_windows_title_row_host_tests)
+    bpr_enable_warnings(test_better_pull_review_windows_title_row_host_tests)
+    bpr_add_network_isolated_test(NAME application_windows_title_row COMMAND test_better_pull_review_windows_title_row_host_tests)
+    set_tests_properties(application_windows_title_row PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=windows"
+        TIMEOUT 60
+        PASS_REGULAR_EXPRESSION "windows-title-row-host-tests:pass")
+    set_property(TEST application_windows_title_row APPEND PROPERTY LABELS "BPR-0653;target-native-windows")
 endif()
 
 if(APPLE)

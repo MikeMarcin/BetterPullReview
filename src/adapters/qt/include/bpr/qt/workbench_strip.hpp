@@ -107,6 +107,13 @@ namespace bpr::qt {
 		/// \brief Gives a button the strip's style and focus policy.
 		void               adopt_button(QToolButton* aButton);
 		[[nodiscard]] auto button_style() const noexcept -> strip_style*;
+		/// \brief Whether a point in the strip is bare surface, no control.
+		///
+		/// \details The spacers, the inset, the dividers and the labels are the
+		/// strip's title-bar surface; a button or any focusable control is not.
+		/// The tracked drag uses it, and on Windows the host's hit test does
+		/// ([[BPR-0653]]).
+		[[nodiscard]] auto empty_surface_at(QPoint aPoint) const -> bool;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -167,6 +174,12 @@ namespace bpr::qt {
 		/// \brief Drops the shortcut beside each name when width is short.
 		void               set_compact(bool aCompact);
 		[[nodiscard]] auto compact() const noexcept -> bool;
+		/// \brief Shows each name as its three-character prefix, the strip's last yield.
+		///
+		/// \details [[BPR-0653]]. Only the visible text shortens: Ove, Rea, Rev and
+		/// Dis. The accessible names and tooltips keep the full words.
+		void               set_abbreviated(bool aAbbreviated);
+		[[nodiscard]] auto abbreviated() const noexcept -> bool;
 		[[nodiscard]] auto current() const noexcept -> review_modality;
 		[[nodiscard]] auto action(review_modality aModality) const noexcept
 			-> QAction*;
@@ -178,10 +191,12 @@ namespace bpr::qt {
 
 	private:
 		void choose(review_modality aModality);
+		void relabel();
 
 		review_modality_dispatch                        Dispatch;
-		review_modality                                 Current = review_modality::review;
-		bool                                            Compact = false;
+		review_modality                                 Current     = review_modality::review;
+		bool                                            Compact     = false;
+		bool                                            Abbreviated = false;
 		std::array<QAction*, review_modality_count>     Actions{ };
 		std::array<QToolButton*, review_modality_count> Buttons{ };
 	};

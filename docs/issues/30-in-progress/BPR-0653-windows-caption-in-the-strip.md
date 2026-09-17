@@ -276,3 +276,180 @@ The owner answered:
 The station measured that the three-character step never triggers on macOS
 at or above its floor, so the macOS question does not arise. macOS keeps 900.
 Criterion 4's attended capture is still an owner task for later.
+
+## Windows station, 2026-09-17 (task-20260917-win-0653-implement): criteria 1-3 done
+
+The base is `20d9991412df1fb63dd0ad593ca801a4b87b415d`. The owner's answer above
+is implemented. Only criterion 4, the attended capture, is owed.
+
+### The width floor and the last yield
+
+- The Windows minimum width is 902 logical pixels (`workbench_window.cpp`,
+  `#if defined(_WIN32)`); macOS and Linux keep 900.
+- `modality_control::set_abbreviated` shows `Ove`, `Rea`, `Rev` and `Dis`. It
+  lives in the **portable** strip, and `apply_strip_width` takes it **only when
+  the toolbar still asks for more width than the window after every existing
+  yield** (the identity's title, its owner, the positions, the compact
+  segments). A strip that fits never shortens, so macOS and Linux never take
+  the step at or above their floor, which the portable window course now pins
+  ("where the strip fits at every width the modality labels never shorten").
+- The step is measured after the identity has been elided to its budget.
+  Measured before it, the text the identity was about to give up counted as
+  overflow and the labels shortened a step early.
+- Only the visible text shortens. The segment's accessible name
+  (`Overview modality`), its tooltip and its action text keep the whole word,
+  which the course checks at the floor.
+- At 1280 on Windows the identity now elides to a repository fragment beside
+  its number, one step further along its own yield order than a strip without
+  the Windows controls: the menu control and the caption buttons are about 180
+  pixels the identity does not have. The width-sweep course states this per
+  platform.
+
+### The title row
+
+- `windows_caption_buttons` (Windows only, `src/adapters/qt`) draws minimise,
+  maximise-or-restore and close, 46 pixels each, in the strip's ink, with the
+  platform's glyphs, Windows 11's washes and the close red, accessible names
+  and descriptions, and strong focus.
+  - Windows draws its caption buttons the row's full height and into the
+    window's corner, so the top-right pixel is close. A toolbar item sits
+    inside the toolbar's 4-pixel item margin instead, so the buttons are laid
+    **over** the row's right end and a reserve (`reserve()`) takes their place
+    among the toolbar's items: the strip's width accounting and its action
+    order are unchanged. The buttons follow that reserve, and hide with it, so
+    a window forced below its floor (a zoomed window on a small offscreen
+    screen) never has them covering the items the row did lay out.
+- The compact menu control opens the menu bar's File, Profiles and View menus,
+  read from the bar each time; the bar is hidden and keeps the Quit shortcut
+  live on the window.
+- On Home the strip keeps both: the title row is the window's, not a pull
+  request's.
+- Focus order: the menu control first, then BPR-0646's order unchanged, and the
+  three caption buttons as the strip's last three stops after Settings.
+
+### The host (`src/app/src/windows_title_row_host.{hpp,cpp}`)
+
+The core decides, the host performs, Qt presents. Presentation answers which
+part of the row a point is on (`workbench_window::title_row_part_at`); the host
+turns that into a platform code and performs what the part asks.
+
+- **Frame.** `QNativeInterface::Private::QWindowsWindow::setCustomMargins` with
+  `top = -(SM_CYCAPTION + SM_CYSIZEFRAME + SM_CXPADDEDBORDER)` at the window's
+  DPI, and `-SM_CYCAPTION` while zoomed. **This is private Qt API**, pinned to
+  the Qt the build provides (6.10.3) and to be rechecked on every Qt upgrade.
+  `src/app` takes the two versioned private include directories from
+  `Qt6Gui_DIR`, as the macOS native menu course does; nothing links a private
+  module, and no `find_package` is added, which a product CMake file may not
+  have.
+  - Qt keeps the client's size when the margins change and moves the frame
+    instead, so every maximise and restore took the frame's difference off the
+    window's height. The host puts the window back where the platform placed
+    it. The course pins the restored rectangle.
+- **Hit test.** `WM_NCHITTEST`: bare strip surface `HTCAPTION`, the buttons
+  `HTMINBUTTON`, `HTMAXBUTTON` and `HTCLOSE` (which is what offers the Windows
+  11 snap layouts), every control `HTCLIENT`, the strip's top edge one logical
+  pixel of `HTTOP`, and anything outside the client left to the platform, so
+  the side and bottom resize borders, the shadow and the rounded corners
+  remain.
+- **Non-client hover and press.** `WM_NCMOUSEMOVE`, `WM_NCMOUSELEAVE`,
+  `WM_NCLBUTTONDOWN`, `WM_NCLBUTTONUP` and `WM_NCLBUTTONDBLCLK` over the
+  buttons are taken from the platform and reported to the presenter
+  (`set_native_state`), so the platform draws no caption buttons of its own. A
+  press released away from the button it started on does nothing.
+- **Performing.** `WM_SYSCOMMAND` with `SC_MINIMIZE`, `SC_MAXIMIZE`,
+  `SC_RESTORE` or `SC_CLOSE`, posted, so a keyboard activation of the same
+  button does exactly what the system menu does. Dragging, double-click, Aero
+  shake and edge snapping are the platform's own responses to `HTCAPTION`.
+- Only the `windows` platform has a title bar to replace; on any other plugin,
+  the offscreen courses included, the host is inert.
+
+### Verification (Windows, bpr-win)
+
+Windows 11 Home 10.0.26200, Visual Studio 18, Qt 6.10.3 `msvc2022_64`,
+`windows-dev` Debug, display scale 150%.
+
+- **New course `application_windows_title_row`**
+  (`tests/end_to_end/windows_title_row_host_tests.cpp`), on the real `windows`
+  platform: passes, 1.32 s. It checks the removed title bar, the strip as the
+  first row, every hit code above, close in the corner at the row's full
+  height, the left resize border, non-client hover and its clearing,
+  double-click maximise with the strip's top row at the work area's top and the
+  whole client inside it, `Restore` naming, double-click restore to the same
+  rectangle, press-and-release on maximise, keyboard activation, minimise, a
+  press released elsewhere doing nothing, and close.
+  - It **passes contained**, so the registration needs no `WINDOWS_UNCONTAINED`
+    pin. `SetCursorPos` is denied in the container, so the course hands the
+    non-client move to the native event filters exactly as Qt's event
+    dispatcher hands a queued one (`filterNativeEvent`); Qt does not run those
+    filters for input sent straight to a window procedure (QTBUG-67095).
+- `qt_workbench_window_scale_100`, `_125`, `_200`: pass (83.6 s, 86.2 s,
+  88.5 s), including the pixel-by-pixel width sweep to the 902 floor with no
+  control folded into an overflow menu.
+- `test_network_isolation_manifest` and
+  `test_network_isolation_structure_contract`: pass. `architecture_boundaries`,
+  `architecture_boundary_contract`, `core_dependency_boundary`: pass.
+- `application_diff_workbench_public_path`, `qt_home_list_scale_100`,
+  `qt_review_queue`: pass.
+- The repository's `format_check.py` (clang-format 22.1.8) is clean on every
+  file this change adds, and on the three it changes that were clean before it.
+  `workbench_window.hpp` and `composed_github_tests.cpp` were already outside
+  the formatter's verdict; the lines added there follow the alignment around
+  them and add nothing to the gap.
+
+### The round-trip pins moved (not resealed)
+
+`src/app/src/github_application.cpp` gained the host's construction, and the
+application source tree gained two files, so two of the three pins in
+`tests/end_to_end/application_review_round_trip_composition_contract.cmake` are
+red. The station does not reseal; main reseals with review.
+
+- `full_application`: `7735e76795c32275d91e1e04994b7f3efce1285db3fad86e68744e4abff31ce7`
+- `production_app_manifest`: `cc4e8d9962f06e360a63cc7cf963325968fd686f26c1a96a0883b6b6cd158fbc`
+- `production_mutation_branch`: `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`
+  (unchanged)
+
+The reviewed range is `20d9991412df1fb63dd0ad593ca801a4b87b415d..` this card's
+commit. What changed inside a pinned scope: the `#if defined(_WIN32)`
+construction of `windows_title_row_host` beside the window, its member
+declaration, one include, and the two new `src/app/src/windows_title_row_host.*`
+files. The source-tree and manifest inventories in the contract name those two
+files; no digest was changed.
+
+### For macOS at merge
+
+The portable changes are in `src/adapters/qt`: `modality_control`'s
+`set_abbreviated` and `relabel`, `workbench_strip::empty_surface_at`,
+`apply_strip_width`'s last yield, and the Home kept-action names. Run
+`qt_workbench_window_scale_100`, `qt_workbench_window_scale_125`,
+`qt_workbench_window_scale_200` and `qt_composed_github_scale_100` on macOS.
+Expected there: the floor stays 900, the labels never shorten, and the identity
+keeps the repository at 1280.
+
+### New defects found alongside, reported uncarded
+
+All four are pre-existing at `20d99914` on this station and are not this
+card's:
+
+1. `qt_composed_github_scale_100/125/200` fail at "the code is in a fixed-pitch
+   font at 1.6 times the row's size" (the device sign-in's code field). The
+   same failure is in this station's `task-20260917-win-hardening` log, before
+   any of this work.
+2. `application_workbench_composition_contract` fails
+   `WORKBENCH_DRAWER_WIDTH_WIRE_FAILED`, so the run expires its 40-second
+   budget with `presentation=0`. Measured at `20d99914` with every change here
+   reverted: it fails identically. It passed on this station in August.
+   `application_composition_contract` fails only on the round-trip pins above.
+3. `dependency_modernization_contract` fails because `find_package(` is in
+   `tests/end_to_end/CMakeLists.txt:2199` (`find_package(Python3 ...)`), which
+   its own rule forbids in a product CMake file. Pre-existing, and nothing this
+   change added.
+4. `qt_syntax_pane_composition` fails at "the line that opened the block
+   comment has scrolled off the top". It uses the diff workbench, not the
+   strip, and passed on this station in August.
+
+### Criterion 4 is still owed
+
+The attended capture steps are the ones recorded above under "Attended capture
+(criterion 4), prepared for when the card resumes". They are ready and have not
+been performed: they need the owner's signed-in session on JaegAW at 100% and
+150% display scale.

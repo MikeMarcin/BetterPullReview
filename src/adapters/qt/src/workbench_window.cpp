@@ -458,7 +458,15 @@ namespace bpr::qt {
 		// fit with nothing folded into an overflow menu. The identity and the
 		// two position labels are the only strip items that yield width, and
 		// they do so before the floor (see apply_strip_width).
+#if defined(_WIN32)
+		// [[BPR-0653]]. On Windows the strip also carries the menu control and
+		// the three 46-pixel caption buttons. With the modality segments at their
+		// three-character prefixes every control is top level from 902 pixels,
+		// and the owner chose that floor on 2026-09-17.
+		setMinimumSize(902, 360);
+#else
 		setMinimumSize(900, 360);
+#endif
 		resize(1'280, 820);
 
 		build_menu_bar();
@@ -507,6 +515,36 @@ namespace bpr::qt {
 		unmount_settings();
 	}
 
+#if defined(_WIN32)
+	auto workbench_window::title_row_part_at(const QPoint aWindowPoint) const -> title_row_part
+	{
+		if (Strip == nullptr || !Strip->isVisible()) {
+			return title_row_part::client;
+		}
+		const auto local = Strip->mapFrom(this, aWindowPoint);
+		if (!Strip->rect().contains(local)) {
+			return title_row_part::client;
+		}
+		if (CaptionButtons != nullptr && CaptionButtons->isVisible()) {
+			const auto inButtons = CaptionButtons->mapFrom(Strip, local);
+			if (CaptionButtons->rect().contains(inButtons)) {
+				return CaptionButtons->part_at(inButtons);
+			}
+		}
+		return Strip->empty_surface_at(local) ? title_row_part::caption : title_row_part::client;
+	}
+
+	auto workbench_window::caption_buttons() const noexcept -> windows_caption_buttons*
+	{
+		return CaptionButtons;
+	}
+
+	auto workbench_window::strip_menu_button() const noexcept -> QToolButton*
+	{
+		return StripMenuButton;
+	}
+
+#endif
 	void workbench_window::build_primary_toolbar()
 	{
 		// [[BPR-0646]]. RFC-BPR-0028's strip: one 30-pixel row in full ink
@@ -776,6 +814,33 @@ namespace bpr::qt {
 		StripInset->setFixedWidth(0);
 #endif
 		stripWidget(StripInset, QStringLiteral("workbenchStripInsetAction"));
+#if defined(_WIN32)
+		// [[BPR-0653]]. The Windows form of the title row, after Visual Studio
+		// Code: no menu bar row, but one compact menu control first in the
+		// strip that opens the same File, Profiles and View menus the window
+		// builds, read from the menu bar each time so a menu added later is
+		// there too.
+		StripMenuButton = new QToolButton{ PrimaryToolbar };
+		StripMenuButton->setObjectName(QStringLiteral("workbenchStripMenuButton"));
+		StripMenuButton->setAccessibleName(QStringLiteral("Application menu"));
+		StripMenuButton->setAccessibleDescription(
+			QStringLiteral("The File, Profiles and View menus"));
+		StripMenuButton->setToolTip(QStringLiteral("Menu"));
+		StripMenuButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		StripMenuButton->setFocusPolicy(Qt::StrongFocus);
+		StripMenuButton->setIcon(windows_menu_icon(palette()));
+		connect(StripMenuButton, &QToolButton::clicked, this, [this] {
+			auto menu = QMenu{ this };
+			menu.setObjectName(QStringLiteral("workbenchStripMenu"));
+			for (auto* const action : PrimaryMenuBar->actions()) {
+				if (action->isVisible()) {
+					menu.addAction(action);
+				}
+			}
+			menu.exec(StripMenuButton->mapToGlobal(QPoint{ 0, StripMenuButton->height() }));
+		});
+		stripWidget(StripMenuButton, QStringLiteral("workbenchStripMenuAction"));
+#endif
 		// [[BPR-0650]]. Home first: the way back to the landing and the queue
 		// from any review, checked while Home shows.
 		HomeAction = new QAction{ QStringLiteral("&Home"), this };
@@ -861,6 +926,17 @@ namespace bpr::qt {
 			QStringLiteral("workbenchStripRightDividerAction"));
 		PrimaryToolbar->addAction(AccountAction);
 		PrimaryToolbar->addAction(SettingsAction);
+#if defined(_WIN32)
+		// [[BPR-0653]]. The caption buttons end the row, after settings. The
+		// host dispatches their presses and reports the window's state.
+		CaptionButtons = new windows_caption_buttons{ PrimaryToolbar };
+		stripWidget(CaptionButtons->reserve(), QStringLiteral("workbenchCaptionButtonsAction"));
+		// The menu bar's row is the strip's menu control on Windows. The bar
+		// stays the menus' owner, hidden, so the Quit shortcut it carried is
+		// the window's to keep live.
+		PrimaryMenuBar->setVisible(false);
+		addAction(QuitProfilesAction);
+#endif
 		update_strip_positions();
 		update_strip_identity();
 		apply_strip_width();
@@ -5086,6 +5162,10 @@ namespace bpr::qt {
 					|| name == QLatin1String{ "workbenchStripInsetAction" }
 					|| name == QLatin1String{ "workbenchNavigationSpacerAction" }
 					|| name == QLatin1String{ "workbenchModalitySpacerAction" }
+					// [[BPR-0653]]. On Windows the strip is the title row on
+					// Home too: its menu control and caption buttons stay.
+					|| name == QLatin1String{ "workbenchStripMenuAction" }
+					|| name == QLatin1String{ "workbenchCaptionButtonsAction" }
 					// With a review open behind Home, the modalities are the
 					// way back to it.
 					|| (HasGithubPullRequest
@@ -7042,6 +7122,10 @@ namespace bpr::qt {
 			return qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(aAction));
 		};
+#if defined(_WIN32)
+		// [[BPR-0653]]. The compact menu control reads first, as it sits.
+		append(StripMenuButton);
+#endif
 		append(presenter(HomeAction));
 		append(presenter(Drawers[2].Toggle));
 		append(presenter(Drawers[0].Toggle));
@@ -7065,6 +7149,14 @@ namespace bpr::qt {
 		append(presenter(Drawers[1].Toggle));
 		append(presenter(AccountAction));
 		append(presenter(SettingsAction));
+#if defined(_WIN32)
+		// [[BPR-0653]]. The caption buttons are the strip's last three stops.
+		if (CaptionButtons != nullptr) {
+			for (auto* const button : CaptionButtons->buttons()) {
+				append(button);
+			}
+		}
+#endif
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
 		// The session chrome and the device sign-in are the Accounts and
@@ -7330,6 +7422,7 @@ namespace bpr::qt {
 					layout->invalidate();
 				}
 			};
+			Modality->set_abbreviated(false);
 			Modality->set_compact(available < 1'100);
 			remeasure();
 			if (identityShort()) {
@@ -7347,6 +7440,28 @@ namespace bpr::qt {
 			showPositions();
 		}
 		update_strip_identity();
+		// [[BPR-0653]]. The last yield, the owner's: when the strip still asks
+		// for more than the window after every step above, the modality
+		// segments show three-character prefixes. It is taken only then, so a
+		// strip that already fits -- macOS and Linux at or above their floor --
+		// never shortens. On Windows the menu control and caption buttons make
+		// it the step that keeps every control top level down to the floor.
+		// Measured after the identity has been elided to its budget, or the
+		// text it is about to give up would be counted as overflow.
+		if (Modality != nullptr && PrimaryToolbar != nullptr) {
+			const auto remeasure = [this] {
+				if (auto* const layout = PrimaryToolbar->layout(); layout != nullptr) {
+					layout->invalidate();
+				}
+			};
+			remeasure();
+			if (PrimaryToolbar->sizeHint().width() > available) {
+				Modality->set_abbreviated(true);
+				remeasure();
+				// The room the prefixes free is the identity's to use.
+				update_strip_identity();
+			}
+		}
 	}
 
 	void workbench_window::changeEvent(QEvent* const aEvent)

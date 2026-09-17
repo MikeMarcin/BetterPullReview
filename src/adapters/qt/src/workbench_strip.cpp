@@ -449,14 +449,19 @@ namespace bpr::qt {
 
 	auto workbench_strip::over_empty_space(const QMouseEvent& aEvent) const -> bool
 	{
+		return aEvent.button() == Qt::LeftButton && empty_surface_at(aEvent.position().toPoint());
+	}
+
+	auto workbench_strip::empty_surface_at(const QPoint aPoint) const -> bool
+	{
 		// Empty means no control: the spacers, the inset, the dividers and
 		// the labels are the strip's title-bar surface, so a press on any of
 		// them counts, while a press inside a button or another focusable
 		// control belongs to that control.
-		if (aEvent.button() != Qt::LeftButton) {
+		if (!rect().contains(aPoint)) {
 			return false;
 		}
-		for (auto* child = childAt(aEvent.position().toPoint());
+		for (auto* child = childAt(aPoint);
 			 child != nullptr && child != this;
 			 child = child->parentWidget()) {
 			if (qobject_cast<QAbstractButton*>(child) != nullptr
@@ -641,21 +646,40 @@ namespace bpr::qt {
 	void modality_control::set_compact(const bool aCompact)
 	{
 		Compact = aCompact;
-		for (std::size_t index = 0U; index < review_modality_count; ++index) {
-			const auto title = review_modality_title(static_cast<review_modality>(index));
-			Buttons[index]->setText(
-				aCompact ? title
-						 : QStringLiteral("%1  %2").arg(
-							   title,
-							   Actions[index]->shortcut().toString(
-								   QKeySequence::NativeText)));
-		}
-		updateGeometry();
+		relabel();
 	}
 
 	auto modality_control::compact() const noexcept -> bool
 	{
 		return Compact;
+	}
+
+	void modality_control::set_abbreviated(const bool aAbbreviated)
+	{
+		Abbreviated = aAbbreviated;
+		relabel();
+	}
+
+	auto modality_control::abbreviated() const noexcept -> bool
+	{
+		return Abbreviated;
+	}
+
+	void modality_control::relabel()
+	{
+		for (std::size_t index = 0U; index < review_modality_count; ++index) {
+			const auto title = review_modality_title(static_cast<review_modality>(index));
+			// [[BPR-0653]]. The three-character prefixes are distinct, and the
+			// button's accessible name and tooltip still carry the whole word.
+			Buttons[index]->setText(
+				Abbreviated   ? title.left(3)
+					: Compact ? title
+							  : QStringLiteral("%1  %2").arg(
+									title,
+									Actions[index]->shortcut().toString(
+										QKeySequence::NativeText)));
+		}
+		updateGeometry();
 	}
 
 	void modality_control::set_dispatch(review_modality_dispatch aDispatch)

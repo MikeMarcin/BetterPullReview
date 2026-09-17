@@ -89,6 +89,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/profile_desktop.cpp"
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
+		"src/windows_title_row_host.cpp"
+		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
     )
     set(bpr_production_app_manifest "")
@@ -146,6 +148,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/review_submission_workflow.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
+		"src/windows_title_row_host.cpp"
+		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
     )
     file(GLOB_RECURSE bpr_actual_app_sources

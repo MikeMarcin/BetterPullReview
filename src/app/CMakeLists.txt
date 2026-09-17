@@ -56,6 +56,29 @@ if(BPR_BUILD_QT)
         # windows-dev Debug graph (C1128).
         target_compile_options(better_pull_review_composition PRIVATE /bigobj)
     endif()
+    if(WIN32)
+        # [[BPR-0653]]. The strip is the Windows title row. Removing the system
+        # title bar goes through Qt's Windows native interface, which Qt reaches
+        # through private headers: pinned to the Qt the build provides and
+        # rechecked on every Qt upgrade. Only the headers are taken, the one
+        # versioned directory each module installs, as the macOS native menu
+        # course takes QtGui's.
+        target_sources(better_pull_review_composition PRIVATE src/windows_title_row_host.cpp)
+        set(bpr_qt_private_include_dirs "")
+        foreach(bpr_qt_private_module IN ITEMS QtCore QtGui)
+            file(GLOB bpr_qt_private_headers LIST_DIRECTORIES true
+                "${Qt6Gui_DIR}/../../../include/${bpr_qt_private_module}/[0-9]*.[0-9]*.[0-9]*")
+            list(LENGTH bpr_qt_private_headers bpr_qt_private_header_count)
+            if(NOT bpr_qt_private_header_count EQUAL 1)
+                message(FATAL_ERROR
+                    "Expected one versioned ${bpr_qt_private_module} private header directory, found: "
+                    "${bpr_qt_private_headers}")
+            endif()
+            list(APPEND bpr_qt_private_include_dirs
+                "${bpr_qt_private_headers}" "${bpr_qt_private_headers}/${bpr_qt_private_module}")
+        endforeach()
+        target_include_directories(better_pull_review_composition SYSTEM PRIVATE ${bpr_qt_private_include_dirs})
+    endif()
     if(BUILD_TESTING)
         target_compile_definitions(
             better_pull_review_composition

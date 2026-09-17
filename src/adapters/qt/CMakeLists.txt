@@ -77,6 +77,11 @@ target_compile_features(better_pull_review_adapter_qt PUBLIC cxx_std_23)
 bpr_enable_hardening(better_pull_review_adapter_qt)
 bpr_enable_warnings(better_pull_review_adapter_qt)
 
+# [[BPR-0653]]. The Windows title row's caption buttons: a Windows-only
+# presenter; the host that answers the platform's hit test is in src/app.
+if(WIN32)
+    target_sources(better_pull_review_adapter_qt PRIVATE src/windows_caption_buttons.cpp)
+endif()
 if(APPLE)
     enable_language(OBJCXX)
     target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm)
