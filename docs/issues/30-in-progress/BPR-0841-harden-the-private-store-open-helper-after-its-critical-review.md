@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0841"
 title: "Harden the private store open helper after BPR-0813's critical review"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
