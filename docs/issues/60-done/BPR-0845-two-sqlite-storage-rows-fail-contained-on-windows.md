@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0845"
 title: "Two SQLite storage rows fail contained on Windows"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-creation-descriptor new defect","found_at":"6c633c3dc34e4e0622338e193ebfe6b692ed5ffe","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 both rows pass on the Windows station as registered, or are pinned with a measured reason, and the manifest reports no finding","outcome":"pass","revision":"b52fea2fbe976b759711b91928067c7e4a85e44b","evidence":{"kind":"command","detail":"bpr-win: both rows also failed uncontained (no Windows owner-private root); tests now narrow with make_storage_root_owner_private and pass uncontained; contained they stop at validate_ancestor_chain error 5 and are pinned dos-volume-name with that measurement; pass as registered; TEST_NETWORK_ISOLATION_OK:configured=357 with no finding."}},{"criterion":"AC2 they still pass on macOS","outcome":"pass","revision":"3bd658618abc15628cd634d52bbc5bbf5833cbb3","evidence":{"kind":"command","detail":"Both rows pass on macOS at 3bd65861 (build/r2-logs/dsp3-int10-ctest.log)."}}]
 ---
 
 # BPR-0845: Two SQLite storage rows fail contained on Windows
