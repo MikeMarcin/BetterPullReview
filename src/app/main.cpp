@@ -1260,6 +1260,41 @@ namespace {
 		return aValue ? "true" : "false";
 	}
 
+	/// \brief Names a typed startup refusal for a developer build's cause line.
+	///
+	/// \details [[BPR-0843]]. A refusal from the composition printed only
+	/// `STARTUP_FAILED`, so a non-canonical fixture root on macOS and a
+	/// contained course on Windows ([[BPR-0834]]) each needed a throwaway
+	/// diagnostic to read which one it was. The switch has no default, so a
+	/// new failure fails the build here instead of printing a guess.
+	[[nodiscard]] auto startup_failure_name(
+		const bpr::app::github_application_startup_failure aFailure) noexcept
+		-> const char*
+	{
+		using enum bpr::app::github_application_startup_failure;
+		switch (aFailure) {
+		case owner_busy:
+			return "owner_busy";
+		case activation_queued:
+			return "activation_queued";
+		case activation_refused:
+			return "activation_refused";
+		case activation_indeterminate:
+			return "activation_indeterminate";
+		case invalid_profile:
+			return "invalid_profile";
+		case registry:
+			return "registry";
+		case root:
+			return "root";
+		case unavailable:
+			return "unavailable";
+		case cancelled:
+			return "cancelled";
+		}
+		return "unknown";
+	}
+
 	[[nodiscard]] auto native_selected_diff_reason_name(
 		const bpr::app::detail::native_appearance_selected_diff_reason aReason) noexcept -> const char*
 	{
@@ -8519,6 +8554,15 @@ auto main(int argc, char** argv) -> int
 					desktop->quit(EXIT_FAILURE);
 					return;
 				}
+#if defined(BPR_BUILD_TESTING)
+				// [[BPR-0843]]. As for the exception below ([[BPR-0435]]): the
+				// verdict on stdout stays the one word every reader matches, and
+				// a developer build names the refusal on stderr. A tests-disabled
+				// build compiles this away and says no more than before.
+				if (aResult.error() != bpr::app::github_application_startup_failure::owner_busy) {
+					QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: startup_failure=" << startup_failure_name(aResult.error()) << '\n';
+				}
+#endif
 				QTextStream{ stdout } << (aResult.error() == bpr::app::github_application_startup_failure::owner_busy ? "PROFILE_ALREADY_OPEN\n" : "STARTUP_FAILED\n");
 				desktop->quit(EXIT_FAILURE);
 				return;
