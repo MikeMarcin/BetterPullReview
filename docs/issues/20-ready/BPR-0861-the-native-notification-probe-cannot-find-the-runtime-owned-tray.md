@@ -46,3 +46,34 @@ failure "pre-existing, the WSLg limit" misattributes it.
 
 - The row passes on macOS and Linux, and on Windows if it is registered there.
 - The card names whether any product notification behaviour had regressed.
+
+## Scout findings (dsp-004, read-only)
+
+**No product regression, by the code.** The runtime-owned
+`system_tray_notification_sink(nullptr)` (`github_application.cpp`
+~4784-4787) still does three things:
+
+- creates, names and shows its tray (`system_tray_notification_sink.cpp`
+  ~82-94);
+- delivers through `showMessage`;
+- is kept alive by the runtime's `unique_ptr`.
+
+Only the probe's `window().findChild` lookup broke, at `main.cpp` ~7293 and
+again at ~7479. One inferred, untested change: the tray now outlives a
+closed window.
+
+**BPR-0442's fallback is not bypassed.** Its display-boundary sink also
+creates and names an icon, so the same lookup fix covers it.
+
+**Recommended fix.** Add
+`github_application_fixture_access::notification_tray(github_application&)`,
+returning `SystemNotificationSink ? SystemNotificationSink->tray_icon() : nullptr`
+(the accessor exists at `system_tray_notification_sink.hpp:94`). Use it at
+both probe sites. This moves the pins of `main.cpp`, `github_application.cpp`
+and `github_application_fixture_access.hpp`, so reseal with a recorded review.
+Do not parent the sink to a window again: that would undo BPR-0705's runtime
+ownership.
+
+**Registration.** The row is registered on every platform
+(`WINDOWS_UNCONTAINED`), and it is the only user of
+`--native-notification-probe`.

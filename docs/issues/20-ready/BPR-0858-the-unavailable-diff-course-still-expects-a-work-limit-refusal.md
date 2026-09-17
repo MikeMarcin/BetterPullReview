@@ -49,3 +49,35 @@ the product shows for that.
 - The row passes on macOS and Linux, asserting the unavailable state for a
   segment overflow.
 - The approximate-alignment public path is covered and named here.
+
+## Scout findings (dsp-004, read-only)
+
+**Why the course fails.** The course's `--unavailable` branch sets only
+`DiffComputeLimits.MaximumPrimaryIndexWork = 0U`
+(`large_review_benchmark.cpp` ~848-852). Since BPR-0719 that gives an
+approximate alignment.
+
+**When `compute_limit` still applies.** `compute_file_diff` returns
+`unavailable`/`compute_limit` only when the primary segments are absent or
+exceed `MaximumSegments` (`diff_compute.cpp` ~1428-1431). The workbench still
+shows the same status text for it (`diff_workbench.cpp` ~689).
+
+**Why the stored fixture cannot be enlarged instead.** `large/comparison.cpp`
+is 20,000 lines with about 20 single-line replacements. A file that exceeds
+the default `MaximumSegments` (1,000,000) would first hit
+`MaximumLinesPerSide` (200,000), and so `materialization_limit`.
+
+**Smallest faithful change.** Set `DiffComputeLimits.MaximumSegments = 1U` in
+the course's fixture options; the host accepts 1 up to the default. The
+existing assertions at ~892-894 stay unchanged, and no fixture file or pin
+moves.
+
+**Approximate alignment has no public-path coverage.** It is covered only by
+core, application-host and Qt tests: `901a9c06` added no end-to-end course.
+The acceptance's second item therefore needs a new course, for example an
+`--approximate` argument that asserts `AlignmentApproximate` and its status
+line.
+
+**Registration.** The row is registered on every platform, `RUN_SERIAL`, and
+shares its executable with `application_large_review_benchmark`, which the
+`--unavailable` branch does not affect.
