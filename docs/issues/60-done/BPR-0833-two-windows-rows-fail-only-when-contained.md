@@ -390,7 +390,7 @@ The card is left In Progress for the integrator.
 
 ## Merged; finished (dsp-003)
 
-Main merged `windows-lane` at `f91321e3` as `b85d1dbc`. The first contained
+Main merged `windows-lane` at `f91321e3` as `1c4b7be6`. The first contained
 refusal on the code that is actually merged is
 `make_storage_root_owner_private`'s `WRITE_DAC` open of the `QTemporaryDir`
 (error 5): Qt's owner-only DACL excludes the container. The ancestor-walk
