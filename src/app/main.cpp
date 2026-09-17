@@ -858,6 +858,18 @@ namespace {
 			std::optional<bpr::qt::epoch_line_stop> RewrittenBaseRight;
 			bool                                    HistoricalGestureSent = false;
 			bool                                    HistoricalHandleMoved = false;
+			// [[BPR-0829]]. Whether the plain enabled course saw every force-push
+			// occurrence on the line retained before it offered the writes.
+			bool HistoricalRetained = false;
+			// Only the plain enabled course waits for that. The historical course
+			// waits for a retained head before its gesture; an empty timeline and
+			// a rewritten base leave occurrences unretained by design, and the
+			// enterprise course is refused before any lease.
+			[[nodiscard]] auto awaits_historical_retention() const noexcept -> bool
+			{
+				return Course && !HistoricalCourse && !EmptyTimeline && !RewrittenBase
+					&& !Enterprise;
+			}
 			std::size_t                             HistoricalNode        = 0U;
 			// The same override activated on an enterprise profile, where the
 			// core policy refuses rather than the composition.
@@ -4141,7 +4153,9 @@ namespace {
 					&& status.PublicPreviewPublications > 0U
 					&& aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::ready
 					&& aRun.PublicPreview.SettledOccurrenceCount >= (aRun.PublicPreview.EmptyTimeline ? 1U : 3U)
-					&& aRun.PublicPreview.SettledHistoryIncomplete;
+					&& aRun.PublicPreview.SettledHistoryIncomplete
+					&& (!aRun.PublicPreview.awaits_historical_retention()
+						|| aRun.PublicPreview.HistoricalRetained);
 				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
 					   << static_cast<unsigned long long>(
 							  status.PublicPreviewReviewCommentGroups)
@@ -4162,6 +4176,12 @@ namespace {
 					   << '\n'
 					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
 								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
+				// [[BPR-0829]]. Named when the run ended still waiting, so an expired
+				// budget reads as the retention it waited on.
+				if (aRun.PublicPreview.awaits_historical_retention()
+					&& !aRun.PublicPreview.HistoricalRetained) {
+					stream << "PUBLIC_PREVIEW_WAITING_FOR:retained force-push occurrences\n";
+				}
 				if (aRun.PublicPreview.MissingHistoricalBase) {
 					stream << (aRun.PublicPreview.MissingHistoricalBaseShown ? "PUBLIC_PREVIEW_MISSING_BASE_OK\n" : "PUBLIC_PREVIEW_MISSING_BASE_FAILED\n");
 				}
@@ -5482,6 +5502,13 @@ namespace {
 								&& line->right_stop() == aRun->PublicPreview.RewrittenBaseRight;
 							aRun->PublicPreview.RewrittenBaseGate = QStringLiteral("event 91702 click leaves live handles unchanged");
 						}
+						// A retained, selectable historical head: its own base is unknown and
+						// its comparison is derived against the live base.
+						const auto retainedHistorical = [](const QString& aTooltip) {
+							return aTooltip.contains(QStringLiteral("Historical base unknown"))
+								&& aTooltip.contains(QStringLiteral("Derived comparison base "))
+								&& !aTooltip.contains(QStringLiteral("Comparison unavailable"));
+						};
 						if (aRun->PublicPreview.HistoricalCourse) {
 							auto* const                line = window.epoch_selectors()->line();
 							std::optional<std::size_t> historicalNode;
@@ -5489,9 +5516,7 @@ namespace {
 								const auto tooltip = line->node_tooltip(index);
 								// The first displayed occurrence can itself be a retained,
 								// selectable historical head.
-								if (tooltip.contains(QStringLiteral("Historical base unknown"))
-									&& tooltip.contains(QStringLiteral("Derived comparison base "))
-									&& !tooltip.contains(QStringLiteral("Comparison unavailable"))) {
+								if (retainedHistorical(tooltip)) {
 									historicalNode = index;
 									break;
 								}
@@ -5512,6 +5537,29 @@ namespace {
 								break;
 							}
 							aRun->PublicPreview.HistoricalHandleMoved = true;
+						}
+						// [[BPR-0829]]. The live epoch's commit starts background retention of
+						// the timeline's force-push after-heads: one import at a time, each on
+						// its own smart-Git lease, the next submitted as the last completes.
+						// The writes below end the run and shutdown cancels the import in
+						// flight, so offering them on the tick the epoch settled let the lease
+						// count read 1, 2 or 3 by how far the chain had got. Waiting until
+						// every occurrence is retained makes the count a fact.
+						if (aRun->PublicPreview.awaits_historical_retention()) {
+							const auto* const line     = window.epoch_selectors()->line();
+							auto              events   = std::size_t{ 0U };
+							auto              retained = std::size_t{ 0U };
+							for (std::size_t index = 0U; index < line->update_count(); ++index) {
+								const auto tooltip = line->node_tooltip(index);
+								if (tooltip.contains(QStringLiteral("Event time "))) {
+									++events;
+									retained += retainedHistorical(tooltip) ? 1U : 0U;
+								}
+							}
+							aRun->PublicPreview.HistoricalRetained = events > 0U && retained == events;
+							if (!aRun->PublicPreview.HistoricalRetained) {
+								break;
+							}
 						}
 						// Offered once the read is in, so the refusals are
 						// answered by a live signed-out session rather than by

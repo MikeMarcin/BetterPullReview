@@ -2163,7 +2163,7 @@ bpr_add_network_isolated_test(
         --github-fixture
         github-com
         --automated-run-budget-ms
-        ${bpr_fixture_run_budget_ms}
+        ${bpr_epoch_phase_budget_ms}
 )
 set_tests_properties(
     application_anonymous_public_preview_public_path
@@ -2175,13 +2175,18 @@ set_tests_properties(
         # two refusals are the write and triage intents the mode was offered
         # while the session was live, and they sit beside a request count of
         # one, which is where "refused before a request" is legible.
+        # [[BPR-0829]]. Four smart-Git leases: the live epoch's pack, then one
+        # background retention import per force-push occurrence on the
+        # fixture timeline (events 91701, 91702 and 91703). The run waits for
+        # all three to be retained before it offers the writes; shutdown
+        # cancels an import in flight, so reporting earlier read 1 to 3.
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:1[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:1[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:2[\r\n]+PUBLIC_PREVIEW_EPOCH_STATUS:6[\r\n]+PUBLIC_PREVIEW_OCCURRENCES:[34][\r\n]+PUBLIC_PREVIEW_HISTORY_INCOMPLETE:true[\r\n]+PUBLIC_PREVIEW_EPOCH_LINE_HISTORY:[^\r\n]*[\r\n]+PUBLIC_PREVIEW_SMART_ACQUISITIONS:1[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:1[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:1[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:2[\r\n]+PUBLIC_PREVIEW_EPOCH_STATUS:6[\r\n]+PUBLIC_PREVIEW_OCCURRENCES:[34][\r\n]+PUBLIC_PREVIEW_HISTORY_INCOMPLETE:true[\r\n]+PUBLIC_PREVIEW_EPOCH_LINE_HISTORY:[^\r\n]*[\r\n]+PUBLIC_PREVIEW_SMART_ACQUISITIONS:4[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_public_path
-    TIMEOUT 60
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 170
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 1
     RESERVE_MS 2000
 )
