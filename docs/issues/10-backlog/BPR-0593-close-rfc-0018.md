@@ -12,64 +12,175 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-006, mandate r5): in flight
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-006, mandate r5): three P1s answered, one of them by being overturned
 
-**This section is written mid-dispatch on purpose**, so an interruption cannot
-lose which writers are live. It is superseded by whatever dsp-006 writes at its
-boundary.
+**Base.** All three refs began at `026d610f`. The `project-integrator` lease is
+**held** while this is written; see the boundary note at the end of this section
+for its state at handoff.
 
-**Base.** All three refs began at `026d610f`. Main is at `d9901619`, pushed.
-The `project-integrator` lease is **held**.
+### What landed on main
 
-**Landed so far on main:** [[BPR-0881]] (`68f8152e`, with its pin reseal), the
-Windows containment answer and two card corrections (`3601b835`), and five new
-cards — [[BPR-0894]], [[BPR-0895]], [[BPR-0896]], [[BPR-0897]], [[BPR-0898]].
-`ctest --preset core-only` is **145/145** at `68f8152e`
-(`build/r2-logs/dsp6-int-core-ctest.log`).
+| Card | Result |
+|---|---|
+| [[BPR-0879]] **P1** | **Done.** Thread resolution is bound to the designated pull request, and refuses *before* the write. |
+| [[BPR-0881]] **P1** | macOS complete and landed; **In Progress for Linux only**. |
+| [[BPR-0867]] | **Done.** The contained temporary helper works at the declared 3.10 floor. |
+| [[BPR-0868]] | Landed; **In Progress** for the one criterion only Windows can close. |
+| [[BPR-0875]] **P1** | Diagnosis merged from `bpr-win`, and it **overturns the card's premise**. Fix in flight on the station. |
+| [[BPR-0890]] | Claimed, in flight on the Mac. |
 
-**Live writers, all four dispatched against `026d610f`:**
+Six new cards: [[BPR-0894]], [[BPR-0895]], [[BPR-0896]], [[BPR-0897]],
+[[BPR-0898]], [[BPR-0899]].
 
-| Owner | Card | Exclusive scope |
-|---|---|---|
-| `bpr-win`, `task-20260917-win-0875-name-cleanup` | [[BPR-0875]] | `windows-lane`; `src/app/src/github_application.cpp` ~11762-11812, `profile_desktop.cpp` |
-| `bpr-linux`, `task-20260917-lnx-0880-fsck-policy` | [[BPR-0880]] | `linux-lane`; `src/adapters/git/**`, `tests/git_contract/**` |
-| Mac worker | [[BPR-0879]] | `src/adapters/github/**`, `src/application/**`, `tests/github_contract/**`; build dir `build/r2-dev` |
-| Mac worker | [[BPR-0881]] | `src/adapters/sqlite/**`, `tests/sqlite_contract/**`, the `make_profile_activation_server` hunk only of `github_application.cpp`; build dir `build/core-only` |
+### The three decisions dsp-006 made rather than parked
 
-Both stations confirmed identity and fast-forwarded their local lanes to
-`026d610f` before starting. Both Mac workers hit the 56-turn limit once and
-were resumed with their edits intact.
+Each of these was a real fork, and each is recorded where the work is so a
+successor does not re-litigate it.
 
-**The one decision dsp-006 made rather than parked.** [[BPR-0880]] offered two
-defensible policies and the card asked for a deliberate choice. Main chose to
-**accept what Git accepts**: a closed, explicit `--strict=<msgid>=ignore` list
-covering exactly the default WARN/INFO-severity msgids, error-class findings
-still fatal, and an error-class refusal that names the object class instead of
-the bare `process_failure`. `=ignore` rather than `=warn` because `=warn` still
-writes to stderr and `installed_git_process.cpp:2464-2476` turns any stderr on
-an accepted exit into `malformed_output` — with `=ignore` stderr stays empty
-and [[BPR-0846]]'s exact-output rule is untouched. The station was told to
-encode for the **oldest** Git across the three platforms, not its own 2.53.0.
+**1. [[BPR-0880]]: accept what Git accepts.** The card offered two defensible
+policies and asked for a deliberate choice. Main chose a closed, explicit
+`--strict=<msgid>=ignore` list covering exactly the default WARN/INFO-severity
+msgids, with error-class findings still fatal and an error-class refusal that
+names the object class instead of the bare `process_failure`. `=ignore` rather
+than `=warn` because `=warn` still writes to stderr and
+`installed_git_process.cpp:2464-2476` turns any stderr on an accepted exit into
+`malformed_output`; with `=ignore` stderr stays empty and [[BPR-0846]]'s
+exact-output rule is untouched. The station encodes for the **oldest** Git
+across the three platforms, not its own 2.53.0.
 
-**Reseal owed at merge, once, covering both.** `src/app/src/github_application.cpp`
-and `src/profile_desktop.cpp` are both in `bpr_production_app_sources`, so the
-whole-file and manifest pins in
-`tests/end_to_end/application_review_round_trip_composition_contract.cmake`
-go red as soon as either edit lands. The pins last matched at `2b2e5549` and
-**nothing has touched the pinned scope since**, so the reviewed range is
-`2b2e5549..<merge>`. Print values without building:
+**2. [[BPR-0875]]: fix the harness, not the rule.** The station asked whether
+the Windows parent-trust clause should be relaxed to match the POSIX one. It
+should not, and the framing hides why. The POSIX clause's entire content is
+"nobody but me can write here"; on Windows the *only* way to say that sentence
+is the DACL walk. So "match POSIX" cannot be honoured literally — what it would
+actually mean is carving out an exception for an inherited
+`Authenticated Users:(M)` entry, which is precisely what makes a directory
+foreign-writable. The two directories genuinely differ: the Windows build tree
+is writable by any authenticated user and the POSIX one at 0755 is not. The rule
+is reporting a true difference, so the harness is what is wrong.
+
+**3. [[BPR-0881]]: move Linux's socket too.** The card only required macOS. The
+real macOS root is 94 bytes and `94 + /activate.sock` is exactly 108, which is
+Linux's own `sun_path` limit and which the code refuses with `>=`. Leaving the
+rendezvous in the data root would have left Linux one long user name from the
+identical defect.
+
+### [[BPR-0875]] is not what the card said, and this run caused it
+
+`bpr-win` instrumented all three named sources before attempting a fix, as the
+card demanded, and **none of the three fires**. All thirteen rows name one
+source, 48 times:
+`agent-workspace-recovery:<data-root>\agent-workspace-ownership-v1:repair-required`.
+`AgentWorkspaceCleanupFailed` is set at **startup** and only reported at the
+quit, which is why a whole sweep read it as a shutdown fault.
+
+The clause: `workspace_parent_trusted` refuses the rows' parent,
+`build/windows-dev/tests/end_to_end`, whose ACL carries an inherited
+`Authenticated Users:(M)`.
+
+**This run introduced it.** [[BPR-0622]]'s `c94e02b1`, dated 2026-09-17, added
+`Q_OS_WIN` to the guard around the recovery post in `start_services`; before
+that Windows never called recovery at all, and the station's 2026-08-27 matrix
+run has `application_workbench_composition_contract` passing in 6.90 s.
+
+Two things a person cares about, both now measured rather than argued:
+
+- **The reviewer's window layout is not lost.** The durable layout write never
+  refused in any run.
+- **A real installation is unaffected.** The station ran a real row against a
+  root under the real `%LOCALAPPDATA%` parent and got
+  `WORKBENCH_COMPOSITION_CONTRACT_OK` with zero cleanup-source lines, while the
+  same row against its build-tree root fails with the recovery term. One
+  variable, both directions. So the card's "user-visible" framing is **test
+  environment only**.
+
+### The Windows containment question, answered once
+
+Recorded in full on [[BPR-0872]], which [[BPR-0873]], [[BPR-0874]],
+[[BPR-0876]] and [[BPR-0877]] now point at instead of re-asking. The rule:
+
+> A row runs contained unless it needs a kernel object an AppContainer token
+> cannot reach. A row whose subject is the repository's own files, tooling or
+> build metadata, and which reaches no network, buys nothing from the container
+> and should be pinned `WINDOWS_UNCONTAINED` with its measured cause.
+
+It settles [[BPR-0872]] and [[BPR-0873]] outright and half of [[BPR-0876]]. It
+does **not** settle [[BPR-0874]], [[BPR-0877]] or [[BPR-0875]] — all three fail
+uncontained too. **[[BPR-0877]]'s four rows were already uncontained**, so that
+card's framing was a dead end; one `ctest -N -V -R application_device_authorization_`
+settles what is actually wrong with them.
+
+**The operational constraint that shapes every Windows envelope from here:** the
+isolation gate is exact in both directions, the `WINDOWS_UNCONTAINED` keywords
+live in `tests/**` which a station owns, and the pin dict lives in `scripts/**`
+which no station may edit. A station cannot land a containment decision alone.
+
+### Pins
+
+Resealed **twice**, each with its own recorded review, because two independent
+changes touched `bpr_production_app_sources`:
+
+- `68f8152e` for [[BPR-0881]]'s six-line diagnostic; the review is on that card.
+- the `c1723a3f` merge for `bpr-win`'s naming; the review is in that commit
+  message.
+
+Current values: whole file `506705a4…`, manifest `21fed605…`, mutation branch
+`a7e2081e…` **unchanged, as it has been since it was first pinned**.
+
+**A station's printed pin values stop being true the moment you merge.**
+`bpr-win` correctly reported `158d5adc…`/`1808976917…` for its lane; after the
+merge, with [[BPR-0881]]'s hunk in the same file, the real values were different.
+Always reprint at the merged tree:
 
     cmake -DBPR_PRINT_PINNED_DIGESTS=ON -DBPR_SOURCE_ROOT=<checkout> \
         -P tests/end_to_end/application_review_round_trip_composition_contract.cmake
 
-**Envelope correction to carry forward.** dsp-006 wrote the `checkout` field
-from memory and got it wrong for both stations — the same fabrication class as
-dsp-005's hand-expanded SHAs. The real paths are `/home/mmarcin/bpr-linux`
-and `C:/code/git/bpr-windows`. `checkout` is informative, so both stations
-warned and continued; every binding field would have been a refusal. Also,
-"nothing to merge" must be stated as "origin/<lane> equals base_commit;
-fast-forward your local lane to it" — both stations were behind their origin.
+### Open owner asks
 
+Unchanged from dsp-005: [[BPR-0653]]'s private Qt API in a product target
+(integrator recommends accepting, recheck obliged on every Qt upgrade);
+[[BPR-0825]] item 3 (recommend (c)); [[BPR-0644]]; [[BPR-0817]]; [[BPR-0824]];
+[[BPR-0803]]; [[BPR-0800]]; [[BPR-0801]]; [[BPR-0604]]; the
+[[BPR-0794]]/[[BPR-0795]] attended packet, intact; and [[BPR-0653]]'s criterion
+4 capture, seven steps.
+
+**New in dsp-006: [[BPR-0897]].** Establishing that no real pull request was ever
+mutated across [[BPR-0879]]'s gap turned up the boundary that answer rests on.
+The attended lane is gated field by field against compile-time constants, but
+`select_observed_review_mutation` composes the live provider for **whatever pull
+request is open** in a non-attended release build. That is presumably the
+product; the card asks the owner to say so before anyone outside this repository
+runs it, and offers three answers that lead to different work. Same boundary as
+the parked [[BPR-0641]], seen from the other side.
+
+### Hazards learned in dsp-006
+
+- **Backticks inside `git commit -m "…"` are command substitution.** Two
+  phrases were silently deleted from a commit message and had to be amended
+  back. Write commit messages to a file and use `-F`.
+- **Never write an envelope field from memory.** dsp-006 invented the
+  `checkout` path for *both* stations. Both caught it, because `checkout` is
+  informative; every other identity field would have been a refusal. The real
+  paths are `/home/mmarcin/bpr-linux` and `C:/code/git/bpr-windows`.
+- **Resolve row names against `ctest -N`, never against a card's prose.** Five
+  of the thirteen names in the first Windows envelope lacked their `_contract`
+  suffix, so the station's first run silently matched 8 of 13. A regex that
+  quietly matches a subset is the worst kind of wrong.
+- **"Nothing to merge" is a claim about `origin/<lane>`, not about the station.**
+  Both stations were behind their own origin and had to fast-forward. Say
+  "origin/<lane> equals base_commit; fast-forward your local lane to it".
+- **A `grep | head` guard reports the pipe's exit status.** A conflict-marker
+  check written that way said "markers found" when there were none. Redirect to
+  a file and test `$?`.
+- **Do not add a `std::string` field to a by-value seam-crossing status
+  record.** `bpr-win` did, and every seeding process died with `0xC0000409`;
+  `github_application_status`'s layout is load-bearing and its header says so.
+  An accessor is the answer.
+- **A build directory cannot be copied to a new path**, and there is no ccache
+  here, so concurrent Mac workers need genuinely separate build directories.
+  `build/core-only` carries `sqlite_contract` but **not** `git_contract` or
+  `github_contract`, which is what made two concurrent Mac slices possible at
+  all this dispatch.
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-005, mandate r5): handoff after three sweeps and five critical reviews
 
 Dispatch dsp-005 ends here. The dsp-004 protocol and hazards below still hold.
