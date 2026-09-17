@@ -190,3 +190,26 @@ should pass its manifest and structure contract. Both go with the next station
 envelopes. The `application_composition_capabilities_*` rows stop at
 `PROFILE_ALREADY_OPEN` while a person's app holds the default profile:
 [[BPR-0820]].
+
+## Windows and Linux confirmation; finished (dsp-003)
+
+- **Windows** (`bpr-win`, `task-20260917-win-hardening` step 1, merged in
+  main `902cda35`; [the Windows confirmation](../../verification/BPR-0802-windows-confirmation.md)).
+  The manifest reports 24 findings, the previous 25 minus the raw `add_test`
+  ownership finding, as predicted; one finding's wording now names its command.
+  The structure contract passes (58 tests, 10 skipped).
+  `ENVIRONMENT_MODIFICATION` is identical before and after for all 354 rows,
+  and `application_device_authorization_browser_handoff` passes.
+  `application_poller_liveness` stops at startup on Windows before its boundary
+  line, on an owner-private refusal of its data root. That is [[BPR-0832]],
+  not this card's reader. `application_composition_capabilities_inside_boundary`
+  fails only contained there: [[BPR-0833]].
+- **Linux** (`bpr-linux`, `task-20260917-lnx-confirm`, merged in main
+  `48b6422b`; "BPR-0802" in
+  [the dsp-002 Linux confirmation](../../verification/dsp2-linux-confirmation.md)).
+  5/5 pass. `test_network_isolation_manifest` prints `OK:configured=362` with
+  the raw `add_test` finding gone, and `application_poller_liveness` prints
+  `github-application-boundary-tests:pass` before its tick subtest passes.
+- **macOS at main `8a03a5be`** after both merges: `test_network_isolation_manifest`,
+  `architecture_boundaries` and the round-trip contract pass
+  (`build/r2-logs/dsp3-int1-ctest.log`).
