@@ -12,6 +12,26 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r3): in progress
+
+Dispatch dsp-004 took over from dsp-003's handoff below, which still holds
+for protocol, hazards and owner asks. It holds the `project-integrator`
+lease (`bpr-main-mac`).
+
+- **Heads.** Main is `014489e3`, pushed. `windows-lane` and `linux-lane` are
+  fast-forwarded to it.
+- **Done so far:** [[BPR-0848]]. The round-trip manifest pin was resealed at
+  `08c1aa30` after a whitespace-only review.
+- **Promoted to Ready:** [[BPR-0653]] for `bpr-win`, and [[BPR-0848]].
+- **Active station envelopes (writers active):**
+  - `bpr-linux` `task-20260917-lnx-0847-drain`: [[BPR-0847]]. macOS passes
+    that course 3/3 (`build/r2-logs/dsp4-0847-mac-a1e276b7-run{1,2,3}.log`).
+  - `bpr-win` `task-20260917-win-0843-compile-0653`: (1) the Windows dev build
+    of BPR-0843's `main.cpp`, confirming the noncanonical-root course is
+    UNIX-only; then (2) [[BPR-0653]], criteria 1-3, with the attended capture
+    left pending.
+- **Mac:** [[BPR-0846]] is claimed on main, for its offline reproduction.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): handoff at an integrated boundary
 
 Dispatch dsp-003 ends here, and a fresh integrator takes over. The station
