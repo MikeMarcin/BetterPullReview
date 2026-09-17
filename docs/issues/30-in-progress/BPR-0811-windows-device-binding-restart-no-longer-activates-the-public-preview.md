@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0811"
 title: "Windows: device-binding restart no longer activates the public preview"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0016", "RFC-BPR-0017"]
 depends_on: []
 priority: "P1"
