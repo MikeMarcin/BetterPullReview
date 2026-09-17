@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0851"
 title: "A fetched pack with a missing object leaves the Git cache repair_required"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
