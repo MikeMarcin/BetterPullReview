@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0804"
 title: "A tests-disabled non-Apple build fails on an unused CLI confirmation parameter"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
