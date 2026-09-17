@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0848"
 title: "src/app/main.cpp is not clang-format clean"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-epoch-and-startup new defect 3; also seen by dsp-003 workers","found_at":"e3047a116ea68ad7d5591edb7a8f1b9dc713c8b5","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 clang-format --dry-run --Werror src/app/main.cpp is clean","outcome":"pass","revision":"08c1aa30d348bf42e6448d1a71de811574d25055","evidence":{"kind":"command","detail":"clang-format 22.1.8 and 23.1.0 --dry-run --Werror pass; _coding-standard/scripts/format_check.py src/app/main.cpp passes. The diff is whitespace-only: removing all spaces, tabs and newlines leaves identical bytes."}},{"criterion":"AC2 the round-trip contract passes after the reseal","outcome":"pass","revision":"08c1aa30d348bf42e6448d1a71de811574d25055","evidence":{"kind":"command","detail":"application_review_round_trip_composition_contract 1/1 after rebuilding build/r2-dev (build/r2-logs/dsp4-0848-roundtrip.log). Only the production app manifest pin moved (827fe58a to d0d6c631); reviewed range 0c58092e..08c1aa30 contains only this formatting diff in the pinned scope."}}]
 ---
 
 # BPR-0848: src/app/main.cpp is not clang-format clean
