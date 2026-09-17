@@ -12,6 +12,53 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2, mandate r2): station evidence dispatched
+
+The owner made the `bpr-win` and `bpr-linux` stations available, and this
+integrator now owns all authorized work (mandate r2). The r3 amendment keeps
+`.mask.json` on the SSH tap. This record is the run's live frontier; other
+cards link here.
+
+- **Stations verified.** Both `.remote-station.json` files, toplevels,
+  branches and `HEAD` `eeb16d13` were checked, and each writer lease is held by
+  its live launcher supervisor. Reply sender IDs match `claude.session_id`.
+- **`task-20260917-win-evidence`** on `bpr-win` covers [[BPR-0798]] and
+  [[BPR-0730]]. Building the packaged proofs surfaced three main defects,
+  carded on main:
+  - [[BPR-0804]]: an unused parameter breaks non-Apple tests-disabled builds.
+    It is fixed by station commit `f2b8e682`, merged as `bd7096fd`.
+  - [[BPR-0805]]: windows-dev needs `/bigobj`. The station holds commit
+    `76f6e3a4`.
+  - [[BPR-0806]]: the tests-disabled Windows image cannot start its profile
+    desktop.
+  `task-20260917-win-storage` dispatches BPR-0806/0805 to `bpr-win`, after
+  which BPR-0798 and BPR-0730 resume. The station's handoff notes say
+  BPR-0730/0798 stay untouched in Backlog until then.
+- **`task-20260917-lnx-evidence`** on `bpr-linux` covers the Linux half of
+  [[BPR-0622]] (evidence file only), [[BPR-0799]] and [[BPR-0731]]. It passed
+  the station's identity guard but is **blocked on station-side MASK readiness**
+  (`integration.approval_required`, store drift), which is the owner's action on
+  JaegAW. `origin/linux-lane` was fast-forwarded to `bd7096fd` so the station
+  syncs the BPR-0804 fix when it resumes.
+- **Mac readiness.** `workflow_preflight.py` is `incomplete`
+  (`source.identity_mismatch`: this Mac's MASK approval is HTTPS, the committed
+  tap is SSH). This is owner setup. Already-loaded roles continue; no fresh role
+  deployment is attempted.
+- **Takeover.** The stopped DIF session's worktree held a superseded,
+  uncommitted BPR-0767 draft. It is preserved as `8ee34d1f` on
+  `claude/bpr-dif-integration-v1-d932e2` and moved to
+  `/Users/jaeger/Documents/GitHub/BetterPullReview.superseded-worktrees/bpr-dif-integration-rfc-3c2904`,
+  which removes the nested checkout from the gates. [[BPR-0750]] stays In
+  Progress by its own recorded decision (it waits on RFC-BPR-0008 order).
+  [[BPR-0794]] and [[BPR-0795]] wait on one attended native read.
+- **Mac milestone in progress.** Ordinary fixes that need no person, in index
+  order: [[BPR-0747]] is Done (`c061cfc1`, `353e2ec3`); [[BPR-0692]] and
+  [[BPR-0666]] are claimed with slice owners active.
+
+This RFC's AC-11 row stays pending until BPR-0730 and BPR-0731 return
+target-native inventories. The next step on this card is to integrate those
+station results into the AC-11 row below. Nothing here is a closeout claim.
+
 ## Current frontier, 2026-09-12 (d31, mandate r20): attended-preparation milestone complete
 
 Run `attended-prep-2026-09-10`, dispatch d31, producer
