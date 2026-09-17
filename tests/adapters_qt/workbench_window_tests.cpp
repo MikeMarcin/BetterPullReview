@@ -3630,11 +3630,12 @@ namespace {
 		observed.Selection->Cursor = core::workbench_navigation_cursor{ .ActionableCount = 1U, .PreviousAvailable = true, .NextAvailable = true };
 		window.publish(observed);
 		process_events();
-		expect(window.conversation_panel()->anchor_file() == std::optional{ file }
-				   && window.conversation_panel()->cards()->thread_count() == 2U
-				   && window.conversation_panel()->cards()->measurements() == measurements
+		// [[BPR-0818]]. Nothing selects the file again after the terminal, so
+		// the drawer shows the whole pull request the reviewer now has open.
+		expect(!window.conversation_panel()->anchor_file().has_value()
+				   && window.conversation_panel()->cards()->thread_count() == 1000U
 				   && !window.files_drawer()->contents_view()->currentIndex().isValid(),
-			   "successful file observation keeps visual scope through its unselected terminal until the following local selection");
+			   "successful file observation ends the visual scope at its unselected terminal");
 		selected.Context.Generation = core::request_generation{ 2U };
 		selected.Context.Request    = core::request_id{ 0U };
 		window.publish(selected);
@@ -3669,6 +3670,7 @@ namespace {
 			.Context   = { .Request = core::request_id{ 11U }, .Session = gap.Context.Session, .Generation = gap.Context.Generation },
 			.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ } },
 		});
+		process_events();
 		expect(!window.conversation_panel()->anchor_file().has_value() && window.conversation_panel()->cards()->thread_count() == 1000U,
 			   "successful empty observation's engaged empty cursor releases visual scope even without a changed Files domain");
 		selected.Context.Generation = core::request_generation{ 6U };
@@ -3678,8 +3680,55 @@ namespace {
 		observed.Context.Generation = gap.Context.Generation;
 		observed.Files              = std::vector{ application::workbench_file_projection{ .File = core::file_identity_of("src/other.cpp"), .Path = "src/other.cpp" } };
 		window.publish(observed);
+		process_events();
 		expect(!window.conversation_panel()->anchor_file().has_value() && window.conversation_panel()->cards()->thread_count() == 1000U,
-			   "observation removing the prior file releases its visual anchor immediately");
+			   "observation removing the prior file releases its visual anchor on the next event-loop turn");
+	}
+
+	/// \brief [[BPR-0818]]. A refresh that leaves no file selected shows the
+	/// review summary and the issue comment again once its observation lands.
+	///
+	/// \details The held scope hid both roots for good: the observation's
+	/// terminal kept it, and no later publication selected the file again.
+	void test_refresh_without_a_selection_shows_review_wide_roots()
+	{
+		const auto           file = core::file_identity_of("src/a.cpp");
+		qt::workbench_window window;
+		auto                 pr = application::github_pull_request_projection{ };
+		pr.Conversations        = {
+			application::github_conversation_projection{ .Id = "review", .Kind = application::github_conversation_kind::review },
+			application::github_conversation_projection{ .Id = "thread", .Kind = application::github_conversation_kind::review_thread, .Path = "src/a.cpp" },
+			application::github_conversation_projection{ .Id = "issue-comment", .Kind = application::github_conversation_kind::issue_comment },
+		};
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		const auto files   = std::vector{ application::workbench_file_projection{ .File = file, .Path = "src/a.cpp" } };
+		const auto session = core::application_session_id{ 1U };
+		window.publish(application::workbench_projection{
+			.Context   = { .Session = session, .Generation = core::request_generation{ 1U } },
+			.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 1U } },
+			.Files     = files,
+		});
+		const auto shows = [&window](const std::string& aId) {
+			return window.conversation_model()->index_for_id(aId).isValid();
+		};
+		expect(window.conversation_model()->rowCount() == 1 && shows("thread") && !shows("review") && !shows("issue-comment"),
+			   "a selected file scopes the drawer to its own thread");
+		window.publish(application::workbench_projection{
+			.Context   = { .Session = session, .Generation = core::request_generation{ 2U } },
+			.Selection = core::workbench_selection_delta{ },
+			.Files     = std::vector<application::workbench_file_projection>{ },
+		});
+		expect(window.conversation_panel()->anchor_file() == std::optional{ file } && window.conversation_model()->rowCount() == 1,
+			   "the refresh gap keeps the file's scope while the observation is outstanding");
+		window.publish(application::workbench_projection{
+			.Context   = { .Request = core::request_id{ 4U }, .Session = session, .Generation = core::request_generation{ 2U } },
+			.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .ActionableCount = 1U, .PreviousAvailable = true, .NextAvailable = true } },
+			.Files     = files,
+		});
+		process_events();
+		expect(!window.conversation_panel()->anchor_file().has_value() && window.conversation_model()->rowCount() == 3
+				   && shows("review") && shows("thread") && shows("issue-comment"),
+			   "the observation's unselected terminal shows the review summary and the issue comment again");
 	}
 
 	void test_failed_replacement_keeps_conversations_on_the_requested_file()
@@ -7785,6 +7834,7 @@ auto main(int argc, char** argv) -> int
 	test_conversation_line_outside_selected_comparison_is_explicit();
 	test_failed_replacement_keeps_conversations_on_the_requested_file();
 	test_refresh_gap_retains_only_visual_conversation_scope();
+	test_refresh_without_a_selection_shows_review_wide_roots();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
 	test_the_lower_detail_pane_is_full_width_line_over_line();
 	test_composed_epoch_selectors_show_exact_retained_epochs();

@@ -66,6 +66,7 @@ class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
 class QStackedWidget;
+class QTimer;
 class QToolBar;
 class QToolButton;
 class QVBoxLayout;
@@ -924,6 +925,10 @@ namespace bpr::qt {
 		void apply_modality_surface();
 		/// \brief [[BPR-0648]]. Re-aligns the comment cards and the gutter marks.
 		void refresh_cards();
+		/// \brief Scopes the comments drawer to the window's conversation anchor.
+		void apply_conversation_anchor();
+		/// \brief [[BPR-0818]]. Applies the anchor on its own event-loop turn.
+		void schedule_conversation_anchor();
 		void apply_thread_marks();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
@@ -1318,6 +1323,7 @@ namespace bpr::qt {
 		/// Visual scope during a same-session observation gap; never a selection.
 		std::optional<core::file_identity>                         RefreshConversationAnchor;
 		std::optional<application::workbench_request_context>      RefreshConversationContext;
+		QTimer*                                                    ConversationAnchorTimer = nullptr;
 		std::optional<application::workbench_host_failure>         Failure;
 		std::optional<application::file_receipt_action_projection> Receipt;
 		std::optional<application::receipt_failure_publication>    ReceiptFailure;

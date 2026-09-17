@@ -68,6 +68,7 @@
 #include <QStyle>
 #include <QTextBlock>
 #include <QTextDocument>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
@@ -3627,6 +3628,7 @@ namespace bpr::qt {
 		const application::workbench_projection& aProjection)
 	{
 		const auto previousAnchor = conversation_anchor_file();
+		const auto heldRefresh    = RefreshConversationAnchor.has_value();
 		const auto refreshGap     = HasGithubPullRequest && previousAnchor.has_value()
 			&& LastWorkbenchContext.has_value() && aProjection.Context.Session.value() != 0U
 			&& aProjection.Context.Session == LastWorkbenchContext->Session
@@ -3634,23 +3636,18 @@ namespace bpr::qt {
 			&& aProjection.Context.Request.value() == 0U
 			&& aProjection.Files.has_value() && aProjection.Files->empty()
 			&& aProjection.Selection.has_value() && !aProjection.Selection->Cursor.has_value();
-		// Observation first publishes the new file set with an engaged but
-		// unselected cursor. Composition restores the exact file in its next
-		// local publication. Keep visual scope only when that file still exists.
-		const auto restoringObservedFile = RefreshConversationAnchor.has_value()
-			&& RefreshConversationContext.has_value()
-			&& aProjection.Context.Session == RefreshConversationContext->Session
-			&& aProjection.Context.Generation == RefreshConversationContext->Generation
-			&& aProjection.Context.Request.value() != 0U
-			&& aProjection.Selection.has_value() && aProjection.Selection->Cursor.has_value()
-			&& !aProjection.Selection->Cursor->File.has_value() && aProjection.Files.has_value()
-			&& std::ranges::any_of(*aProjection.Files, [this](const application::workbench_file_projection& aFile) {
-											   return aFile.File == *RefreshConversationAnchor;
-										   });
+		// [[BPR-0818]]. The hold ends with the gap. The observation's terminal
+		// publishes the new file set and cursor, and nothing restores the file
+		// selection after it, so holding past it scoped the drawer to a file
+		// nobody had selected and hid every review summary and issue comment.
+		// The widening that ends the hold runs on its own event-loop turn:
+		// re-projecting a thousand-thread pull request takes tens of
+		// milliseconds, and sharing a turn with the rest of the refresh held
+		// input for longer than one frame budget allows.
 		if (refreshGap) {
 			RefreshConversationAnchor  = previousAnchor;
 			RefreshConversationContext = aProjection.Context;
-		} else if (!restoringObservedFile && (aProjection.Selection.has_value() || aProjection.Files.has_value() || (RefreshConversationContext.has_value() && aProjection.Context.Session != RefreshConversationContext->Session))) {
+		} else if (aProjection.Selection.has_value() || aProjection.Files.has_value() || (RefreshConversationContext.has_value() && aProjection.Context.Session != RefreshConversationContext->Session)) {
 			RefreshConversationAnchor.reset();
 			RefreshConversationContext.reset();
 		}
@@ -3669,11 +3666,11 @@ namespace bpr::qt {
 			apply_file_selection();
 		}
 		if (ConversationPanel != nullptr && previousAnchor != conversation_anchor_file()) {
-			ApplyingConversationAnchor = true;
-			ConversationPanel->set_anchor_file(conversation_anchor_file());
-			ConversationPanel->set_anchor_line(std::nullopt);
-			ApplyingConversationAnchor = false;
-			refresh_cards();
+			if (heldRefresh && !RefreshConversationAnchor.has_value() && !conversation_anchor_file().has_value()) {
+				schedule_conversation_anchor();
+			} else {
+				apply_conversation_anchor();
+			}
 		}
 		if (aProjection.Drawers) {
 			DrawerStates = *aProjection.Drawers;
@@ -3844,11 +3841,7 @@ namespace bpr::qt {
 			&& aFailure.Context.Generation == RefreshConversationContext->Generation) {
 			RefreshConversationAnchor.reset();
 			RefreshConversationContext.reset();
-			ApplyingConversationAnchor = true;
-			ConversationPanel->set_anchor_file(conversation_anchor_file());
-			ConversationPanel->set_anchor_line(std::nullopt);
-			ApplyingConversationAnchor = false;
-			refresh_cards();
+			apply_conversation_anchor();
 		}
 		Failure = aFailure.Failure;
 		++Statistics.Failures;
@@ -4448,6 +4441,40 @@ namespace bpr::qt {
 	auto workbench_window::showing_overview() const -> bool
 	{
 		return CentreStack != nullptr && CentreStack->currentWidget() == OverviewPage;
+	}
+
+	void workbench_window::apply_conversation_anchor()
+	{
+		if (ConversationAnchorTimer != nullptr) {
+			ConversationAnchorTimer->stop();
+		}
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		ApplyingConversationAnchor = true;
+		ConversationPanel->set_anchor_file(conversation_anchor_file());
+		ConversationPanel->set_anchor_line(std::nullopt);
+		ApplyingConversationAnchor = false;
+		refresh_cards();
+	}
+
+	void workbench_window::schedule_conversation_anchor()
+	{
+		// A zero-interval timer rather than a posted call: an overdue timer
+		// fires before one registered after it, so input already waiting is
+		// served before the drawer re-projects. A later publication that moves
+		// the anchor applies it at once, which leaves this turn nothing to do.
+		if (ConversationAnchorTimer == nullptr) {
+			ConversationAnchorTimer = new QTimer{ this };
+			ConversationAnchorTimer->setSingleShot(true);
+			ConversationAnchorTimer->setInterval(0);
+			connect(ConversationAnchorTimer, &QTimer::timeout, this, [this] {
+				if (ConversationPanel != nullptr && ConversationPanel->anchor_file() != conversation_anchor_file()) {
+					apply_conversation_anchor();
+				}
+			});
+		}
+		ConversationAnchorTimer->start();
 	}
 
 	void workbench_window::refresh_cards()
