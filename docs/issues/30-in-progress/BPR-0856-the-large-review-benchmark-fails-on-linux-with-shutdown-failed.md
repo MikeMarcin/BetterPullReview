@@ -165,6 +165,33 @@ destroyed before the temporary folder is removed, and that no check is
 weakened. It also ran the fixed binary three times through the sandbox
 wrapper: all passed, and `/tmp` did not change. It could not run macOS.
 
+## Confirmation at the merged head (dsp-005, bpr-linux/int-12)
+
+`main` moved under this card, so the row was rerun at the merged head,
+`754d05387286b201d2afb13757cd894bccfddcbd`, on branch `linux-lane` with a
+clean tree, after a stock `cmake --preset dev --fresh` configure and a
+`--clean-first` build that was warning-clean under GCC 15.2.0. Its own serial
+run, `ctest --test-dir build/dev -j1 -V -R '^application_large_review_benchmark$'`,
+from 18:52:12Z. The Secret Service `login` collection read `(<false>,)` before
+the group.
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `application_large_review_benchmark` | Pass | 5.40 s | `LARGE_REVIEW_COMPOSED_BENCHMARK_OK` |
+
+5.40 s sits inside the 5.26-5.59 s band of the six earlier Linux runs, so the
+merge changed nothing here either. The defect this card opened on is directly
+visible as fixed in the emitted measurement: the `shutdown` phase completes in
+13.88 ms and the record carries `"ShutdownComplete":true`, where the card's
+original failure was `shutdown failed`. `"Style":"windows"` in the same record
+confirms the row took the Linux `QT_STYLE_OVERRIDE=Windows` path, and
+`"Platform":"Ubuntu 26.04 LTS"`, `"QtVersion":"6.10.3"`,
+`"LogicalProcessors":20`.
+
+This row shares its executable with [[BPR-0858]]'s two courses, which also
+pass at this head, so the `--unavailable` and `--approximate` branches and the
+benchmark branch agree on the same binary.
+
 ## For macOS
 
 - **Still needed:** `application_large_review_benchmark` passes on macOS with

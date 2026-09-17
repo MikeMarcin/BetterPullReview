@@ -130,6 +130,87 @@ prints it only when the process fails
 That is why the table above quotes the contract's marker and the stall line is
 quoted only where it would have fired.
 
+## Results: this station's own three cards at the merged head (step 3, dsp-005)
+
+`main` moved under [[BPR-0854]], [[BPR-0855]] and [[BPR-0856]] after this
+station pushed them, so their rows were rerun at the merged head. Group
+started 18:52:41Z, `login` collection `(<false>,)`, 1-minute load average 5.00
+falling to 0.89.
+
+| Row | Card | Result | Time | Marker |
+|---|---|---|---|---|
+| `contained_temporary_usage_contract` | [[BPR-0854]] | Pass, 6 of 6 cases | 2.53 s | `Ran 6 tests`, `OK` |
+| `msvc_secure_crt_contract` | [[BPR-0854]] | Pass, 3 of 3 cases | 0.32 s | `Ran 3 tests`, `OK` |
+| `dependency_modernization_contract` | [[BPR-0854]] | Pass, 26 cases | 63.73 s | `Ran 26 tests`, `OK (skipped=1)` |
+| `application_epoch_host` | [[BPR-0855]] | Pass | 0.25 s | No `FAILED:` line |
+| `application_large_review_benchmark` | [[BPR-0856]] | Pass | 5.40 s | `LARGE_REVIEW_COMPOSED_BENCHMARK_OK` |
+| `application_device_binding_relaunch` | [[BPR-0854]] item 1 | Pass | 7.57 s | `DEVICE_BINDING_RELAUNCH_OK` |
+| `application_profile_activation_public_path` | [[BPR-0854]] item 1 | Pass | 2.81 s | `PROFILE_ACTIVATION_OK` |
+| `application_profile_owner_admission_public_path` | [[BPR-0854]] item 1 | Pass | 1.34 s | `PROFILE_OWNER_ADMISSION_OK` |
+| `application_profile_window_restart_public_path` | [[BPR-0854]] item 1 | Pass | 5.77 s | `PROFILE_WINDOW_RESTART_OK` |
+| `application_profile_window_layout_public_path` | [[BPR-0854]] item 1 | Pass | 23.84 s | `PROFILE_WINDOW_LAYOUT_OK` |
+| `application_profile_window_review_restoration_public_path` | [[BPR-0854]] item 1 | Pass | 98.96 s | `PROFILE_WINDOW_REVIEW_RESTORATION_OK` |
+
+`contained_temporary_usage_contract` is one row serving both [[BPR-0854]]'s
+source-scan set and its item-1 course set; it is listed once and counted once.
+
+Every time is within about a second of this station's pre-merge run of the
+same row, so the merge disturbed nothing. [[BPR-0856]]'s original failure is
+visible as fixed in the emitted measurement rather than only in the verdict:
+the `shutdown` phase completes in 13.88 ms with `"ShutdownComplete":true`,
+against the `shutdown failed` the card opened on. The same record reports
+`"Style":"windows"`, `"Platform":"Ubuntu 26.04 LTS"`, `"QtVersion":"6.10.3"`
+and `"LogicalProcessors":20`.
+
+## Results: the conditional-branch gate (step 4, dsp-005)
+
+Group started 18:56:14Z, `login` collection `(<false>,)`, 1-minute load
+average 0.89.
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `conditional_branch_identifiers` | Pass | 4.04 s | `CONDITIONAL_BRANCH_IDENTIFIERS_OK:695` |
+
+**695 is the expected number**, and it is now the third independent
+measurement of it: this station measured `OK:695` in a throwaway detached
+worktree at `e967236e` before the patches could be applied, main measured
+`OK:695` on macOS after applying them, and Linux measures `OK:695` at the
+merged head. Two platforms, two toolchains, one number. This row was the last
+red of [[BPR-0854]], failing at the lane tip with
+`CONDITIONAL_BRANCH_IDENTIFIERS_FAILED:11`; all four of that card's rows are
+now green on Linux.
+
+This row alone ran with the working tree at
+`73cbdcf6b7eeb07108378c08aa7fd55a713b7c72`, this task's step 1-2 evidence
+commit, rather than at `754d0538`. That range changes five files, all under
+`docs/`, and nothing under `src/`, `scripts/`, `tests/`, `cmake/` or
+`CMakeLists.txt`, so the source the gate scans is byte-identical at both heads.
+
+## Tool versions on this station (step 5, dsp-005)
+
+Recorded for [[BPR-0865]] and [[BPR-0867]]. The station has two installations
+of each tool, and `PATH` decides which answers — which is the point in both
+cases.
+
+| Tool | Resolution | Version |
+|---|---|---|
+| `clang-format` | `PATH` → `/home/mmarcin/.local/bin/clang-format` | `Ubuntu clang-format version 21.1.8 (6ubuntu1)` |
+| `clang-format` | `/usr/bin/clang-format` | `Ubuntu clang-format version 22.1.8 (++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17)` |
+| `python3` | `PATH` → `/home/mmarcin/.local/bin/python3` | `Python 3.13.15` |
+| `python3` | `/usr/bin/python3` → `python3.14` | `Python 3.14.4` |
+
+For [[BPR-0865]]: the gate's minimum is `(22,)`, so a ctest row gating on
+`clang-format` 22 through `PATH` **would go red on this station today**, for a
+toolchain reason and not for formatting rot. The integrator has settled that
+card against adding the row on these numbers; if one is ever added it must
+resolve the tool explicitly rather than trusting `PATH`, and skip rather than
+fail when no supported tool is found. `bpr-win` is the last unknown input.
+
+For [[BPR-0867]]: both interpreters exceed the helper's real 3.12 requirement,
+so this station is green today and cannot exercise the 3.10 floor. The two
+resolutions differ by a full minor version, which shows the interpreter a
+course runs on is a `PATH` accident rather than a property of the machine.
+
 ## Binding of the BPR-0851/sweep runs (int-10)
 
 - **Binding.** Run `run-20260916-stations`, dispatch `dsp-004` (station

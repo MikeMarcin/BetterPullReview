@@ -64,3 +64,40 @@ cleanup-error semantics.
   reason, or the helper is shown to work at the floor version.
 - A check exists that fails if the helper's requirement drifts above the
   declared floor again.
+
+## `bpr-linux`'s interpreters (dsp-005, bpr-linux/int-12)
+
+Collected on station `bpr-linux` (JaegAW, WSL2, Ubuntu 26.04 LTS). As with
+`clang-format` on [[BPR-0865]], this station has two interpreters and `PATH`
+decides which one answers:
+
+| Resolution | Version | Has `shutil.rmtree(onexc=)` (3.12+) |
+|---|---|---|
+| `python3` (PATH) → `/home/mmarcin/.local/bin/python3` | `Python 3.13.15` | Yes |
+| `/usr/bin/python3` → `python3.14` | `Python 3.14.4` | Yes |
+
+`python3` does **not** resolve to `/usr/bin/python3` here; it resolves to
+`/home/mmarcin/.local/bin/python3`. Both satisfy the helper's real 3.12
+requirement, so this station is green today and cannot exercise the gap — it
+has no interpreter at or near the declared 3.10 floor in either location.
+
+**Why the difference matters to the floor question.** The two resolutions
+differ by a full minor version (3.13 against 3.14), which shows that the
+interpreter a course actually runs on this station is a `PATH` accident rather
+than a property of the machine. A floor stated in
+`cmake/BprDependencies.cmake` is checked against whichever interpreter central
+discovery happens to select, so "every machine in this run has 3.12 or newer"
+is a statement about today's `PATH` on three machines, not a guarantee the
+declared floor is honest. That is the silent drift this card names, observed
+concretely: nothing on this station would report the discrepancy, because
+nothing here is old enough to fail.
+
+The cheap option — raising the declared floor — is unobstructed by this
+station: both of its interpreters already exceed 3.12, so neither would be
+refused.
+
+**Not run here.** No interpreter was installed, no floor was changed and the
+helper's cleanup path was not exercised at 3.10; this task is runs, not fixes.
+`contained_temporary_usage_contract`, which covers the helper, passes at the
+merged head (6 tests OK, 2.53 s) — on 3.13.15, so that pass says nothing about
+3.10.

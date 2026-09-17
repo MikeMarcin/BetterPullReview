@@ -408,3 +408,72 @@ Three are confirmed on macOS at this head: `contained_temporary_usage_contract`
 `--cpm-source-cache` and `--sqlite-source`, so it is not a pure script row and
 runs in the integrator's combined build pass with the changed courses. That
 run, and the Windows runs, are what this card still owes.
+
+## Linux at the merged head (dsp-005, bpr-linux/int-12)
+
+`main` moved under this card — item 3's gate patches landed there — so all
+four source-scan rows and item 1's seven changed courses were rerun on Linux
+at the merged head, `754d05387286b201d2afb13757cd894bccfddcbd`, on branch
+`linux-lane` with a clean tree. Stock `dev` preset: a `--fresh` configure
+(exit 0, 6.96 s) and a `--clean-first` build (exit 0, 1253 of 1253 steps,
+2 m 15.70 s) that was **warning-clean** under GCC 15.2.0 — 0 lines matching
+`warning:`, 0 matching `error:`. Each row was its own serial run,
+`ctest --test-dir build/dev -j1 -V -R '^<name>$'`, and the Secret Service
+`login` collection read `(<false>,)` before each group.
+
+### Item 3: the fourth row is green on Linux
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `contained_temporary_usage_contract` | Pass, 6 of 6 cases | 2.53 s | `Ran 6 tests`, `OK` |
+| `msvc_secure_crt_contract` | Pass, 3 of 3 cases | 0.32 s | `Ran 3 tests`, `OK` |
+| `dependency_modernization_contract` | Pass, 26 cases | 63.73 s | `Ran 26 tests`, `OK (skipped=1)` |
+| `conditional_branch_identifiers` | **Pass** | 4.04 s | `CONDITIONAL_BRANCH_IDENTIFIERS_OK:695` |
+
+**All four rows of the card's title are now green on Linux.** The fourth was
+red at the lane tip with `CONDITIONAL_BRANCH_IDENTIFIERS_FAILED:11`, and this
+station could not fix it because the cause was in `scripts/`. With main's two
+patches applied, the Linux run reports
+`CONDITIONAL_BRANCH_IDENTIFIERS_OK:695` — **the same 695 the station measured
+in its throwaway worktree at `e967236e`, and the same 695 main gets on
+macOS.** Three independent measurements of the same number, on two platforms
+and two toolchains, so the init-capture and call-position rules behave
+identically here. The row took 4.04 s against its 60 s timeout.
+
+This is the Linux half of item 3. The eleven findings really were gate false
+positives, as the station argued and main confirmed.
+
+### Item 1: the seven changed courses still pass
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `contained_temporary_usage_contract` | Pass, 6 of 6 cases | 2.53 s | `Ran 6 tests`, `OK` |
+| `application_device_binding_relaunch` | Pass | 7.57 s | `DEVICE_BINDING_RELAUNCH_OK` |
+| `application_profile_activation_public_path` | Pass | 2.81 s | `PROFILE_ACTIVATION_OK` |
+| `application_profile_owner_admission_public_path` | Pass | 1.34 s | `PROFILE_OWNER_ADMISSION_OK` |
+| `application_profile_window_restart_public_path` | Pass | 5.77 s | `PROFILE_WINDOW_RESTART_OK` |
+| `application_profile_window_layout_public_path` | Pass | 23.84 s | `PROFILE_WINDOW_LAYOUT_OK` |
+| `application_profile_window_review_restoration_public_path` | Pass | 98.96 s | `PROFILE_WINDOW_REVIEW_RESTORATION_OK` |
+
+Every time is within a second of the pre-merge Linux run recorded above
+(2.65, 7.54, 2.75, 1.40, 5.79, 23.82 and 98.61 s), so the merge disturbed
+neither the `contained_temporary_support` migration nor the courses that use
+it. The stderr-sink and held-object cases in particular still behave as item 1
+described.
+
+### A note on the head these ran at
+
+The four source-scan rows and the seven courses ran with the working tree at
+`754d0538`, except `conditional_branch_identifiers`, which ran at
+`73cbdcf6b7eeb07108378c08aa7fd55a713b7c72` — this task's own step 1-2 evidence
+commit, made between groups. That range changes five files, **all under
+`docs/`**, and nothing under `src/`, `scripts/`, `tests/`, `cmake/` or
+`CMakeLists.txt`, so the source this row scans is byte-identical at both
+heads and the `OK:695` is a reading of the merged head's source.
+
+### Still owed
+
+Windows: the five contained courses, `msvc_secure_crt_contract` and
+`contained_temporary_usage_contract` where registered. macOS still owes
+`dependency_modernization_contract`. The run record is in
+`docs/verification/dsp4-linux-confirmation.md`.

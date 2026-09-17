@@ -63,3 +63,41 @@ left unrecorded.
   is shown to do both; or the card records, with the actual station versions,
   why the row cannot exist and where the gate runs instead.
 - Both stations' `clang-format` versions are recorded here either way.
+
+## `bpr-linux`'s two `clang-format` versions (dsp-005, bpr-linux/int-12)
+
+Collected on station `bpr-linux` (JaegAW, WSL2, Ubuntu 26.04 LTS). This
+station has **two** `clang-format` installations, and which one answers
+depends entirely on `PATH`:
+
+| Resolution | Version string | Meets the `(22,)` minimum |
+|---|---|---|
+| `clang-format` (PATH) | `Ubuntu clang-format version 21.1.8 (6ubuntu1)` | **No** |
+| `/usr/bin/clang-format` | `Ubuntu clang-format version 22.1.8 (++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17)` | Yes |
+
+`which -a clang-format` resolves first to `/home/mmarcin/.local/bin/clang-format`,
+so the 21.1.8 is what a plain `clang-format` invocation gets here; the
+supported 22.1.8 is reachable only by absolute path. This is the station's
+default `PATH`, not a contrived one — [[BPR-0855]]'s and [[BPR-0856]]'s gate
+runs on this station already had to say `/usr/bin/clang-format` explicitly for
+that reason.
+
+**So a sweep row that gated on `clang-format` 22 through `PATH` would go red
+on this station today**, for a toolchain reason and not for formatting rot —
+precisely the outcome this card was opened to avoid. That is a concrete
+instance of the risk the card describes, on a real station, rather than a
+hypothetical one.
+
+**Integrator's decision on these numbers (dsp-005).** The two versions settle
+this card against adding the row. If such a row is ever added it must resolve
+the tool explicitly rather than trusting `PATH`, and must **skip** rather than
+fail when no supported tool is found. Windows's `clang-format` version is the
+last unknown input.
+
+macOS was already recorded on this card (Homebrew 22.1.8 and 23.1.0, both
+reporting the tree clean), so `bpr-win` is the only station whose version is
+still missing.
+
+**Not run here.** This task is runs, not fixes: the repo-wide
+`coding-format-check` gate was not executed and no registration was added or
+changed. Only the versions above were collected.
