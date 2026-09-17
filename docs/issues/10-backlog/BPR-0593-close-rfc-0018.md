@@ -16,7 +16,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 This is the run's live frontier; other cards link here. Mandate r2: this
 integrator owns all authorized work and supersedes the earlier sessions.
-Amendment r3: keep `.mask.json` on the SSH tap. Main is `20a72bf7`, pushed.
+Amendment r3: keep `.mask.json` on the SSH tap. Main is `743c59d7`, pushed.
 Mac preflight is ready again, and both JaegAW stations report ready.
 
 **Station protocol, as learned in this run.** Replies reach the integrator only
@@ -34,13 +34,13 @@ through the coordinator's relay.
 
 **Active station envelopes (writers active):**
 
-- `bpr-win` `task-20260917-win-regressions`, base `53a0a7477264c71423b11fa3bc85d2e668b389b4`.
-  [[BPR-0811]] (P1, Windows device-binding restart regression against
-  RFC-BPR-0016's closed claim; known-good `0d19c990`), then [[BPR-0810]]. The
-  station owns the full board on the lane for both. Planned next Windows
-  envelopes: [[BPR-0622]]'s Windows implementation (see that card's
-  "Available-platform handoff"), then [[BPR-0653]], then [[BPR-0812]] and
-  [[BPR-0813]].
+- `bpr-win` `task-20260917-win-workspace-recovery`, base
+  `743c59d79b09f18d4178f0702a0f377f53082ccd`: [[BPR-0622]]'s Windows
+  implementation (journal identity/ACL, job lifetime measured before design,
+  Git job assignment, startup recovery wiring). Evidence goes to
+  `docs/verification/BPR-0622-windows-native-evidence.md`. The card is
+  integrator-owned, and the envelope says stop on a design decision. Planned
+  next Windows envelopes: [[BPR-0653]], then [[BPR-0812]] and [[BPR-0813]].
 - `bpr-linux` `task-20260917-lnx-build`, base `20a72bf7`, in this order:
   1. [[BPR-0816]] (GCC 15.2 `-Werror`, portable sources; verify on the Mac at merge).
   2. Stock-build reruns for [[BPR-0622]] and the [[BPR-0806]] Linux storage
@@ -49,7 +49,7 @@ through the coordinator's relay.
   4. [[BPR-0799]] criterion 1 rerun under umask `0002`.
 
 **Done in this run:** [[BPR-0747]], [[BPR-0692]], [[BPR-0666]], [[BPR-0804]],
-[[BPR-0805]], [[BPR-0807]], [[BPR-0808]], [[BPR-0798]] (Windows),
+[[BPR-0805]], [[BPR-0807]], [[BPR-0808]], [[BPR-0810]], [[BPR-0811]], [[BPR-0798]] (Windows),
 [[BPR-0730]] (Windows) and [[BPR-0731]] (Linux).
 
 - The AC-11 row below now links the Windows and Linux inventories. Both match
@@ -79,7 +79,10 @@ through the coordinator's relay.
 **Next Mac objectives, needing no person, in suggested order:**
 
 1. [[BPR-0815]] (P1, `application_device_authorization_panel_course` fails at a
-   clean `53a0a747`).
+   clean `53a0a747`) and [[BPR-0818]] (P1, `application_review_behaviour_contract`
+   loses review and issue-comment roots, red at a clean `8b2bea5b`). Then
+   [[BPR-0819]] (stale round-trip composition digest, reseal only with review
+   reconciliation).
 2. [[BPR-0802]]'s Mac half. On the Mac the manifest gate now reports only its
    findings.
 3. [[BPR-0644]]'s fixture criteria (P1).
