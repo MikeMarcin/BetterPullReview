@@ -20,23 +20,42 @@ function(bpr_require_literal_count source_variable token expected description)
     endif()
 endfunction()
 
+# Resealing the pinned digests ([[BPR-0383]], [[BPR-0819]])
+#
+# The three digests below are review tripwires, not build products. A pin that
+# goes red asks for a review of what changed inside its scope; it does not ask
+# for a new number. Reseal only in the commit that records that review, on the
+# card that owns the change, listing every commit the new values cover:
+#
+#   1. List the changes since the pins last matched:
+#        git log <last-matching-commit>..HEAD -- src/app/src/github_application.cpp \
+#            <each file in bpr_production_app_sources>
+#   2. Confirm each change inside a pinned scope has a recorded review, and
+#      record one for any that does not.
+#   3. Print the current values, which verifies nothing:
+#        cmake -DBPR_PRINT_PINNED_DIGESTS=ON -DBPR_SOURCE_ROOT=<checkout> \
+#            -P tests/end_to_end/application_review_round_trip_composition_contract.cmake
+#   4. Paste the printed values into the pins, and name the reviewed range in the
+#      commit.
+#
+# Every value is the SHA-256 of LF-normalized bytes. The functions below compute
+# them, and both the checks and step 3 use those same functions.
+function(bpr_lf_normalized_sha256 content out_variable)
+    string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
+    string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
+    string(SHA256 bpr_normalized_digest "${bpr_normalized}")
+    set(${out_variable} "${bpr_normalized_digest}" PARENT_SCOPE)
+endfunction()
+
+function(bpr_compute_full_application_digest source_variable out_variable)
+    bpr_lf_normalized_sha256("${${source_variable}}" bpr_full_digest)
+    set(${out_variable} "${bpr_full_digest}" PARENT_SCOPE)
+endfunction()
+
 function(bpr_verify_full_application_digest source_variable)
-    set(bpr_full_application_source "${${source_variable}}")
-    string(REPLACE
-        "\r\n"
-        "\n"
-        bpr_full_application_source
-        "${bpr_full_application_source}"
-    )
-    string(REPLACE
-        "\r"
-        "\n"
-        bpr_full_application_source
-        "${bpr_full_application_source}"
-    )
-    string(SHA256
+    bpr_compute_full_application_digest(
+        ${source_variable}
         bpr_full_application_digest
-        "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
 		"5df1138b95f54a780a4dbf2aa7312695b9164001f407928b7b08ff1965c15f82"
@@ -52,6 +71,45 @@ function(bpr_verify_full_application_digest source_variable)
     endif()
 endfunction()
 
+function(bpr_compute_production_app_manifest_digest app_source_root out_variable)
+    set(bpr_production_app_sources
+        "include/bpr/app/foundation_application.hpp"
+        "include/bpr/app/github_application.hpp"
+        "include/bpr/app/native_filesystem_path.hpp"
+        "include/bpr/app/profile_desktop.hpp"
+        "include/bpr/app/worker_executor.hpp"
+		"main.cpp"
+		"src/designated_live_macos_supervisor.cpp"
+		"src/designated_live_macos_supervisor_identity.cpp"
+		"src/designated_live_macos_supervisor_identity.hpp"
+		"src/designated_live_macos_supervisor_launch.cpp"
+		"src/designated_live_macos_supervisor_launch.hpp"
+        "src/foundation_application.cpp"
+        "src/github_application.cpp"
+        "src/profile_desktop.cpp"
+        "src/review_submission_workflow.cpp"
+        "src/review_submission_workflow.hpp"
+		"src/worker_executor.cpp"
+    )
+    set(bpr_production_app_manifest "")
+    foreach(relative_source IN LISTS bpr_production_app_sources)
+        file(READ
+            "${app_source_root}/${relative_source}"
+            bpr_app_source_contents
+        )
+        bpr_lf_normalized_sha256("${bpr_app_source_contents}" bpr_app_source_digest)
+        string(APPEND
+            bpr_production_app_manifest
+            "${relative_source}\n${bpr_app_source_digest}\n"
+        )
+    endforeach()
+    string(SHA256
+        bpr_manifest_digest
+        "${bpr_production_app_manifest}"
+    )
+    set(${out_variable} "${bpr_manifest_digest}" PARENT_SCOPE)
+endfunction()
+
 function(bpr_verify_app_source_tree app_source_root)
     if(NOT IS_DIRECTORY "${app_source_root}")
         message(FATAL_ERROR
@@ -62,6 +120,7 @@ function(bpr_verify_app_source_tree app_source_root)
     set(bpr_expected_app_sources
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
+        "include/bpr/app/native_filesystem_path.hpp"
         "include/bpr/app/profile_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
@@ -107,54 +166,9 @@ function(bpr_verify_app_source_tree app_source_root)
         )
     endif()
 
-    set(bpr_production_app_sources
-        "include/bpr/app/foundation_application.hpp"
-        "include/bpr/app/github_application.hpp"
-        "include/bpr/app/profile_desktop.hpp"
-        "include/bpr/app/worker_executor.hpp"
-		"main.cpp"
-		"src/designated_live_macos_supervisor.cpp"
-		"src/designated_live_macos_supervisor_identity.cpp"
-		"src/designated_live_macos_supervisor_identity.hpp"
-		"src/designated_live_macos_supervisor_launch.cpp"
-		"src/designated_live_macos_supervisor_launch.hpp"
-        "src/foundation_application.cpp"
-        "src/github_application.cpp"
-        "src/profile_desktop.cpp"
-        "src/review_submission_workflow.cpp"
-        "src/review_submission_workflow.hpp"
-		"src/worker_executor.cpp"
-    )
-    set(bpr_production_app_manifest "")
-    foreach(relative_source IN LISTS bpr_production_app_sources)
-        file(READ
-            "${app_source_root}/${relative_source}"
-            bpr_app_source_contents
-        )
-        string(REPLACE
-            "\r\n"
-            "\n"
-            bpr_app_source_contents
-            "${bpr_app_source_contents}"
-        )
-        string(REPLACE
-            "\r"
-            "\n"
-            bpr_app_source_contents
-            "${bpr_app_source_contents}"
-        )
-        string(SHA256
-            bpr_app_source_digest
-            "${bpr_app_source_contents}"
-        )
-        string(APPEND
-            bpr_production_app_manifest
-            "${relative_source}\n${bpr_app_source_digest}\n"
-        )
-    endforeach()
-    string(SHA256
+    bpr_compute_production_app_manifest_digest(
+        "${app_source_root}"
         bpr_production_app_manifest_digest
-        "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
         "fa0f0e4cb3ff9f8e04d4885b891a0ab1e1a1bcad5bccfe61d7be2bcccd62343c"
@@ -401,7 +415,7 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
     endforeach()
 endfunction()
 
-function(bpr_verify_production_mutation_host_digest source_variable)
+function(bpr_compute_production_mutation_host_digest source_variable out_variable)
     set(bpr_mutation_branch_source "${${source_variable}}")
     string(FIND
         "${bpr_mutation_branch_source}"
@@ -463,24 +477,20 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         ${bpr_mutation_production_length}
         bpr_mutation_production_source
     )
-    string(REPLACE
-        "\r\n"
-        "\n"
-        bpr_mutation_production_source
-        "${bpr_mutation_production_source}"
-    )
-    string(REPLACE
-        "\r"
-        "\n"
-        bpr_mutation_production_source
-        "${bpr_mutation_production_source}"
-    )
-    string(SHA256
-        bpr_mutation_production_digest
-        "${bpr_mutation_production_source}"
-    )
     # SHA-256 of the exact LF-normalized bytes after the branch's #else and
     # before its #endif. Tokens and horizontal whitespace remain unmodified.
+    bpr_lf_normalized_sha256(
+        "${bpr_mutation_production_source}"
+        bpr_mutation_digest
+    )
+    set(${out_variable} "${bpr_mutation_digest}" PARENT_SCOPE)
+endfunction()
+
+function(bpr_verify_production_mutation_host_digest source_variable)
+    bpr_compute_production_mutation_host_digest(
+        ${source_variable}
+        bpr_mutation_production_digest
+    )
     set(bpr_expected_mutation_production_digest
         "a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a"
     )
@@ -495,6 +505,34 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         )
     endif()
 endfunction()
+
+# Step 3 of the reseal procedure at the top of this file. It prints and
+# verifies nothing, so no registered test passes this variable.
+if(BPR_PRINT_PINNED_DIGESTS)
+    if(NOT DEFINED BPR_SOURCE_ROOT OR BPR_SOURCE_ROOT STREQUAL "")
+        message(FATAL_ERROR "BPR_PRINT_PINNED_DIGESTS requires BPR_SOURCE_ROOT")
+    endif()
+    file(READ
+        "${BPR_SOURCE_ROOT}/src/app/src/github_application.cpp"
+        bpr_print_application_source
+    )
+    bpr_compute_full_application_digest(
+        bpr_print_application_source
+        bpr_print_full_digest
+    )
+    bpr_compute_production_app_manifest_digest(
+        "${BPR_SOURCE_ROOT}/src/app"
+        bpr_print_manifest_digest
+    )
+    bpr_compute_production_mutation_host_digest(
+        bpr_print_application_source
+        bpr_print_mutation_digest
+    )
+    message("PINNED_DIGEST full_application ${bpr_print_full_digest}")
+    message("PINNED_DIGEST production_app_manifest ${bpr_print_manifest_digest}")
+    message("PINNED_DIGEST production_mutation_branch ${bpr_print_mutation_digest}")
+    return()
+endif()
 
 if(DEFINED BPR_PROVIDER_INVENTORY_SOURCE_FILE)
     if(NOT EXISTS "${BPR_PROVIDER_INVENTORY_SOURCE_FILE}")
