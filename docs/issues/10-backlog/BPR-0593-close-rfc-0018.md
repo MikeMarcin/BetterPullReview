@@ -12,6 +12,31 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-002, mandate r3): Mac regressions in flight
+
+Integrator dsp-002 holds the `project-integrator` lease as `bpr-main-mac`.
+The station protocol, the active station envelopes and the hazards in the
+dsp-001 section below still hold. The BPR-0810/BPR-0811 reply from `bpr-win`
+was already consumed: `f33a10c9` merged it, and `windows-lane` sits at
+`743c59d7`. No station reply has arrived for dsp-002 yet.
+
+**Active Mac slices (writers active, uncommitted, each in its own scratch
+worktree at `a445866d` outside the checkout):**
+
+- [[BPR-0815]], claimed: an `rfc-worker` finds the first bad revision and
+  repairs the device-flow panel course. Logs: `build/r2-logs/dsp2-0815-*`.
+- [[BPR-0818]], claimed: an `rfc-worker` finds why epoch refresh drops two
+  conversation roots, and what fills stage 4's budget. Logs:
+  `build/r2-logs/dsp2-0818-*`.
+- [[BPR-0819]], not claimed: a read-only scout inventories the three pinned
+  digests and the reviews of each change since they last matched. The
+  production manifest pin also covers `main.cpp`, so the reseal waits until
+  the two fixes above land.
+
+**Next, in order:** integrate BPR-0815 and BPR-0818 on main with an
+integration pass; reseal or narrow BPR-0819; then [[BPR-0802]]'s Mac half and
+[[BPR-0644]]'s fixture criteria.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2, mandate r2/r3): handoff at an integrated boundary
 
 This is the run's live frontier; other cards link here. Mandate r2: this
