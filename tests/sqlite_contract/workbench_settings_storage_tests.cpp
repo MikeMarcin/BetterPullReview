@@ -1,4 +1,5 @@
 #include "../../src/adapters/sqlite/src/workbench_settings_database.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 
 #include <sqlite3.h>
@@ -1394,6 +1395,11 @@ namespace {
 		const auto root    = scratch.file("private-root");
 		std::filesystem::create_directory(root);
 		std::filesystem::permissions(root, std::filesystem::perms::owner_all);
+#if defined(_WIN32)
+		// [[BPR-0845]]. Mode bits do not make a Windows directory owner-private;
+		// the stores' own rule does.
+		expect(adapters::sqlite::make_storage_root_owner_private(root), "the explicit defaults root is owner-private");
+#endif
 		auto defaults = adapters::sqlite::make_workbench_defaults_store({ root, { } });
 		expect(defaults.has_value(), "explicit defaults factory creates private storage");
 		expect(!adapters::sqlite::make_workbench_settings_store({ root, { } }), "bound factory refuses absent window identity");

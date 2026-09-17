@@ -240,3 +240,64 @@ parent. The integrator chooses **(i)**:
   and POSIX behaviour is unchanged apart from where the directory is created.
 
 (ii) is rejected, for the containment reason recorded under option (a).
+
+## Windows station: option (i), 2026-09-17 (task-20260917-win-private-parent). Blocked, not committed
+
+The base is `2699a47e1ccd8e9a820429fc3279899597120292`.
+
+**Built as decided.**
+
+- A new adapter entry point, `create_new_storage_root_owner_private`
+  (`storage_root.hpp`), returns `created`, `already_exists` or `failed`.
+  - On Windows it refuses a name that `CreateDirectoryW` reports as existing.
+  - On POSIX the chain reports whether it created the root.
+  - `create_storage_root_owner_private` shares the same implementation.
+- The seam in `src/app/main.cpp`:
+  - It creates `bpr-automated-profile-<random hex>` directly under the
+    canonical `QDir::tempPath()`, with up to 16 fresh names.
+  - A scope guard, declared where the `QTemporaryDir` was (before `desktop`),
+    removes only the directory this run created.
+  - The gate and both markers are unchanged.
+
+It builds, and it works uncontained.
+
+**Contained, it still fails.** Both capability rows print
+`AUTOMATED_PROFILE_PRIVATE_FAILED`. Measured with reverted diagnostics:
+
+1. `CreateDirectoryW` now **succeeds** inside the container. The root's
+   descriptor, read inside the container, is exactly the private shape:
+   `O:<user>D:P(A;OICI;FA;;;<user>)(A;OICI;FA;;;S-1-15-2-...)`.
+2. `validate_private_storage_root` then refuses it. `validate_ancestor_chain`
+   returns `failure=1` with Windows error 5.
+
+Inside the AppContainer the adapter's walk of the root's ancestors, from the
+volume down through `C:\Users\mikem\AppData\Local\Packages\...\AC\Temp`, is
+denied. This is the retained-ancestor-chain step the manifest documents
+under `dos-volume-name` for every application root. [[BPR-0845]]'s two
+storage rows stop at exactly the same call.
+
+So no choice of parent directory lets a contained run pass while the stores
+require the ancestor chain to be walkable. The two capability rows can pass
+contained only if the ancestor-chain rule changes for a contained process,
+which is a product security decision.
+
+**The decision needed.** Either:
+
+- **(1)** change the storage-root rule for contained processes, for example
+  accepting ancestors the container cannot open, or starting the walk below
+  the first ancestor it can; or
+- **(2)** pin both capability rows `WINDOWS_UNCONTAINED` with this measured
+  cause, which is the choice (ii) option (a) was meant to avoid.
+
+**Nothing from step 1 is committed.** The complete change is kept as
+`build/logs/task-20260917-win-private-parent/bpr0833-option-i-seam-and-exclusive-creation.patch`
+(259 lines; `main.cpp`, `storage_root.hpp`, `catalog_database.cpp`), and the
+working tree was reverted. The contained runs left
+`bpr-automated-profile-*` directories under the container temp: the
+created-but-refused roots, plus earlier `QTemporaryDir` roots the container
+could not delete. They were removed by hand.
+
+One more fix is needed whatever is decided: a root the call created but
+validation then refused is currently returned as `failed`, so the guard never
+records it and it leaks. If (1) is chosen, `created` should also be reported
+for a root created but refused, or the adapter should remove what it created.
