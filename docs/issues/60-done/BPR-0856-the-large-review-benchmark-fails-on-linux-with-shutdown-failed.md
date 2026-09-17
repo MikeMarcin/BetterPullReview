@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0856"
 title: "application_large_review_benchmark fails on Linux with shutdown failed"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"The row passes on Linux 3 runs in a row, still passes on macOS, and the cause is named here","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"bpr-linux ran application_large_review_benchmark 3x at b841dfb5 (5.53, 5.44, 5.26 s), 3x again at its lane tip (5.59, 5.49, 5.52 s) and once in the full Linux sweep at 2b2e5549 (5.44 s). macOS passes at 21.69 s in the full macOS sweep at the same commit. The cause is named on the card with discriminating evidence: the benchmark's bare QTemporaryDir data root is shared /tmp under the Linux sandbox, so the agent workspace neighbourhood beside it was refused and shutdown reported cleanup failure; the same row with a private 0700 TMPDIR passed against the unchanged binary. macOS never saw it because run_network_isolated_test.py already sets a private TMPDIR. The integrator decided to keep the Windows branch on the bare QTemporaryDir, because %TEMP% is per-user so the cause cannot arise and an AppContainer cannot walk the stores' ancestor chain; that decision and its reasoning are recorded."}}]
 ---
 
 # BPR-0856: application_large_review_benchmark fails on Linux with shutdown failed
@@ -198,3 +199,10 @@ benchmark branch agree on the same binary.
   this change. The Apple-only rows of the same binary
   (`application_large_review_cache_bytes` and the others under `if(APPLE)`)
   take the same data-root path, so running them is the direct check.
+
+## macOS confirmation (dsp-005, integrator)
+
+`application_large_review_benchmark` passes on macOS in the full macOS sweep at 2b2e5549 (build/r2-logs/dsp5-mac-full-sweep.log, 378 of 381, serial), at 21.69 s. Combined with the Linux
+runs recorded above, this card's platform obligations are met and it is
+finished. Its evidence is the station's Linux runs plus this sweep; nothing
+was re-derived.
