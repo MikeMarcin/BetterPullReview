@@ -1551,15 +1551,35 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "",
             ),
         )
-        # The gate looks for `Kernel32` anywhere in the target file, and since
-        # [[BPR-0622]] the Windows supervisor links it on a line of its own.
-        # Removing only the adapter's entry leaves the pattern satisfied, so
-        # the mutation removes every entry.
-        without_kernel32 = AGENT_TARGET.replace("Kernel32", "")
-        self.assertNotEqual(without_kernel32, AGENT_TARGET)
+        # [[BPR-0842]] Only the adapter's link goes. The Windows supervisor
+        # keeps its own `Kernel32`, which an unscoped pattern accepted.
+        adapter_private = "        better_pull_review_adapter_agent\n        PRIVATE\n"
+        adapter_link = adapter_private + "            Kernel32\n"
+        self.assertEqual(AGENT_TARGET.count(adapter_link), 1)
         self.assert_failure(
             "Agent process adapter target contract is incomplete",
-            agent_target=without_kernel32,
+            agent_target=AGENT_TARGET.replace(adapter_link, adapter_private),
+        )
+
+    def test_windows_agent_supervisor_owns_process_and_job_apis(self) -> None:
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        # The same source under another name is refused for each API family,
+        # so the permission is the designated file's and it is exercised.
+        other = "src/adapters/agent/src/other_agent_supervisor.cpp"
+        self.assert_failure(
+            "native Windows process creation API ownership violation",
+            {other: AGENT_WINDOWS_SUPERVISOR_SOURCE},
+        )
+        self.assert_failure(
+            "native Windows agent containment API ownership violation",
+            {
+                other: AGENT_WINDOWS_SUPERVISOR_SOURCE.replace(
+                    "CreateProcessW",
+                    "RemovedProcessCreation",
+                )
+            },
         )
 
     def test_agent_backends_select_one_shared_protocol_loop(self) -> None:
@@ -3999,6 +4019,25 @@ auto finish_background_reap(
             "Agent process adapter target contract is incomplete",
             agent_target=AGENT_TARGET.replace("tool_better_pull_review_agent_supervisor", "other_helper"),
         )
+
+    def test_windows_agent_supervisor_target_is_required(self) -> None:
+        for removed, remaining in (
+            (
+                "    bpr_add_executable(tool_better_pull_review_agent_supervisor"
+                " src/windows_agent_supervisor.cpp)\n",
+                "",
+            ),
+            (
+                "tool_better_pull_review_agent_supervisor PRIVATE Kernel32 ",
+                "tool_better_pull_review_agent_supervisor PRIVATE ",
+            ),
+        ):
+            with self.subTest(removed=removed):
+                self.assertEqual(AGENT_TARGET.count(removed), 1)
+                self.assert_failure(
+                    "Windows agent supervisor target contract is incomplete",
+                    agent_target=AGENT_TARGET.replace(removed, remaining),
+                )
 
     def test_unix_agent_supervisor_process_authority_is_exact(self) -> None:
         result = self.run_check()
