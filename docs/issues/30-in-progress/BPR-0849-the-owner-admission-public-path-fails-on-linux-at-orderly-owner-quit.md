@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0849"
 title: "The owner admission public path fails on Linux at the orderly owner quit"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
