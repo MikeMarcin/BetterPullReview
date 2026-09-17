@@ -184,6 +184,100 @@ def read(relative_path: str) -> str:
     return (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def strip_cxx_comments(source: str) -> str:
+    """Blank out C++ comments, keeping string and character literals intact.
+
+    A rule about what a translation unit compiles must not trip on prose that
+    names the thing it forbids ([[BPR-0821]]). Newlines survive so a caller's
+    line numbers and multi-line patterns keep their shape.
+    """
+    result: list[str] = []
+    index = 0
+    length = len(source)
+    while index < length:
+        character = source[index]
+        following = source[index + 1] if index + 1 < length else ""
+        if character == "/" and following == "/":
+            end = source.find("\n", index)
+            end = length if end == -1 else end
+            result.append(" " * (end - index))
+            index = end
+        elif character == "/" and following == "*":
+            end = source.find("*/", index + 2)
+            end = length if end == -1 else end + 2
+            result.append(re.sub(r"[^\n]", " ", source[index:end]))
+            index = end
+        elif character == '"' or (
+            # A quote after a digit is a C++14 digit separator (`1'024U`),
+            # not the start of a character literal.
+            character == "'" and not (index > 0 and source[index - 1].isalnum())
+        ):
+            end = index + 1
+            while end < length and source[end] != character:
+                end += 2 if source[end] == "\\" else 1
+            end = min(end + 1, length)
+            result.append(source[index:end])
+            index = end
+        else:
+            result.append(character)
+            index += 1
+    return "".join(result)
+
+
+# [[BPR-0797]] moved both GitHub CLI consent gates from the preprocessor to
+# one run-time question. What the contract protects did not move: a macOS
+# graph that can reach the configured `gh` shows the reader's trust warning and
+# the per-publication confirmation, and a run inside the automated test
+# boundary cannot reach either ([[BPR-0821]]).
+CLI_READ_OFFERED_DEFINITION = re.compile(
+    r"auto\s+cli_read_offered\(\s*\[\[maybe_unused\]\]\s*const\s+bool\s+"
+    r"aInsideAutomatedTestBoundary\s*\)\s*noexcept\s*->\s*bool\s*\{\s*"
+    r"#\s*if\s+defined\(__APPLE__\)\s*"
+    r"#\s*if\s+defined\(BPR_BUILD_TESTING\)\s*return\s+!aInsideAutomatedTestBoundary\s*;\s*"
+    r"#\s*else\s*return\s+true\s*;\s*#\s*endif\s*"
+    r"#\s*else\s*return\s+false\s*;\s*#\s*endif\s*\}"
+)
+CLI_READ_OFFERED_HERE_DEFINITION = re.compile(
+    r"auto\s+cli_read_offered_here\(\s*\)\s*const\s+noexcept\s*->\s*bool\s*\{\s*"
+    r"#\s*if\s+defined\(BPR_BUILD_TESTING\)\s*"
+    r"return\s+cli_read_offered\(\s*InsideAutomatedTestBoundary\s*\)\s*;\s*"
+    r"#\s*else\s*return\s+cli_read_offered\(\s*false\s*\)\s*;\s*#\s*endif\s*\}"
+)
+CLI_CONSENT_TITLES = (
+    "Confirm GitHub CLI publication",
+    "Use configured GitHub CLI",
+)
+
+
+def cli_consent_gate_findings(composition_source: str) -> list[str]:
+    """Name every way the composition source loses a GitHub CLI consent gate."""
+    code = strip_cxx_comments(composition_source)
+    findings: list[str] = []
+    if len(CLI_READ_OFFERED_DEFINITION.findall(code)) != 1:
+        findings.append(
+            "cli_read_offered must answer !inside-boundary in the tests-enabled "
+            "macOS graph, true in the shipped macOS graph and false elsewhere"
+        )
+    if len(CLI_READ_OFFERED_HERE_DEFINITION.findall(code)) != 1:
+        findings.append(
+            "cli_read_offered_here must pass the run's boundary answer in the "
+            "tests-enabled graph and false in the shipped graph"
+        )
+    for title in CLI_CONSENT_TITLES:
+        gate = re.compile(
+            r"#\s*if\s+defined\(__APPLE__\)\s*"
+            r"if\s*\(\s*Profile->cli_read_offered_here\(\s*\)\s*\)\s*\{\s*"
+            r"const\s+auto\s+consent\s*=\s*QMessageBox::warning\(\s*"
+            r"Window\.get\(\)\s*,\s*QStringLiteral\(\s*\"" + re.escape(title) + r"\"\s*\)"
+        )
+        if code.count(f'"{title}"') != 1 or len(gate.findall(code)) != 1:
+            findings.append(
+                f"the {title!r} consent must appear once, compiled for macOS "
+                "and asked whenever the run-time CLI offer is open"
+            )
+    return findings
+
+
 def source_files(relative_root: str) -> list[Path]:
     root = REPOSITORY_ROOT / relative_root
     # A named root that does not exist yields nothing from `rglob` without
@@ -560,7 +654,36 @@ class CompositionContractTests(unittest.TestCase):
         self.assertRegex(composition_source, r"worker_executor\s+ProviderEffects;")
         self.assertRegex(composition_source, r"worker_executor\s+VaultEffects;")
         self.assertIn("make_github_cli_process_runner", composition_source)
-        self.assertIn("#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)", composition_source)
+        self.assertEqual(cli_consent_gate_findings(composition_source), [])
+        publication_gate = (
+            "#if defined(__APPLE__)\n\t\t\tif (Profile->cli_read_offered_here()) {"
+        )
+        self.assertIn(publication_gate, composition_source)
+        hostile_consent_sources = {
+            # The pre-BPR-0797 compile-time gate: a person's tests-enabled
+            # build composes the CLI transport with this confirmation absent.
+            "publication-consent-compiled-out-of-tests-enabled-graphs": composition_source.replace(
+                publication_gate,
+                "#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)\n\t\t\tif (true) {",
+                1,
+            ),
+            # A suite run whose CLI offer stays open can spend somebody's gh sign-in.
+            "offer-open-inside-the-boundary": composition_source.replace(
+                "return !aInsideAutomatedTestBoundary;", "return true;", 1
+            ),
+            "boundary-answer-dropped": composition_source.replace(
+                "return cli_read_offered(InsideAutomatedTestBoundary);",
+                "return cli_read_offered(false);",
+                1,
+            ),
+            "read-warning-removed": composition_source.replace(
+                '"Use configured GitHub CLI"', '"Use GitHub CLI"', 1
+            ),
+        }
+        for name, hostile_source in hostile_consent_sources.items():
+            with self.subTest(hostile_consent=name):
+                self.assertNotEqual(hostile_source, composition_source)
+                self.assertNotEqual(cli_consent_gate_findings(hostile_source), [])
 
         provider_source = read(
             "src/adapters/github/src/live_review_mutation_provider.cpp"
@@ -837,7 +960,17 @@ class CompositionContractTests(unittest.TestCase):
 
     def test_tests_off_release_graph_omits_public_path_fixture(self) -> None:
         public_header = read("src/app/include/bpr/app/github_application.hpp")
-        self.assertNotIn("BPR_BUILD_TESTING", public_header)
+        # [[BPR-0821]]. The header's layout must not depend on the
+        # tests-enabled define; prose that names the define is not a use.
+        self.assertNotIn("BPR_BUILD_TESTING", strip_cxx_comments(public_header))
+        self.assertIn(
+            "BPR_BUILD_TESTING",
+            strip_cxx_comments(public_header + "\n#if defined(BPR_BUILD_TESTING)\n#endif\n"),
+        )
+        self.assertIn(
+            "BPR_BUILD_TESTING",
+            strip_cxx_comments(public_header + '\nconstexpr auto Name = "BPR_BUILD_TESTING";\n'),
+        )
 
         with contained_temporary_directory() as temporary_directory:
             build_directory = Path(temporary_directory) / "release"
