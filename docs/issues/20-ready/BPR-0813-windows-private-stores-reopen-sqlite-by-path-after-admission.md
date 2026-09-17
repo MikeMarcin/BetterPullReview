@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0813"
 title: "Windows private stores reopen SQLite by path after admission"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P2"

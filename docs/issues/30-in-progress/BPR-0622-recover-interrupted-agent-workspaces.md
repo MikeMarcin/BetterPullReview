@@ -409,3 +409,59 @@ Mac run of the slice's portable sources at `a3ee3c72845016b1df7c0384a178cd0d911f
 round-trip composition contract. The isolation manifest again reports only
 [[BPR-0802]]'s five findings. Linux coverage of the POSIX branches goes with
 the next `bpr-linux` envelope.
+
+## Windows slices (c) and (d) integrated; critical review (dsp-002)
+
+`c94e02b1` on `windows-lane` completes the Windows implementation, and main
+merged it `--no-ff` as `2ba02ddb`.
+
+- **(c)** Guarded Git runs inside the supervisor through a QProcess
+  create-process modifier. The supervisor assigns Git to its job before any
+  write or stdin byte. The launch specification is now v2 and carries the
+  working directory.
+- **(d)** The app enables the ownership registry, the persistent
+  `<root>-agent-workspaces-v1` neighbourhood and startup recovery for
+  `Q_OS_UNIX || Q_OS_WIN`. The parent rule now also accepts OWNER RIGHTS.
+
+The station's native run is in "Slices (c) and (d)" of
+[the Windows evidence file](../../verification/BPR-0622-windows-native-evidence.md):
+both crash courses, the seven invocation courses, the canary, parent death,
+ownership, the Git contracts and `architecture_boundaries` pass. Its reverted
+trials show that the supervisor, the recovery path and the Windows conditions
+are each load-bearing.
+
+**Mac run at `2ba02ddb`** (`build/r2-logs/dsp2-int4-ctest.log`): these pass:
+
+- `git_process_contract`, `git_cache_contract`, `git_anonymous_public_read`;
+- `agent_workspace_ownership`, `agent_parent_death`, `qt_agent_launch_canary`;
+- both crash-recovery courses;
+- `application_agent_invocation_host` and the six other
+  `application_agent_invocation_*` courses;
+- `architecture_boundaries`.
+
+`application_agent_invocation_composition_contract` fails on macOS exactly as
+the station reported for Windows (`application_session 2`, expected 1). That
+failure predates the Windows slices: [[BPR-0826]].
+
+**Independent critical review** of `743c59d7..c94e02b1`, by source reading
+plus the recorded native evidence, found **no blocking finding** across the
+five named risks:
+
+1. lifetime exclusion through confirmed job-empty;
+2. destructive recovery through reparse points, hard links and substitution,
+   and the OWNER RIGHTS parent rule;
+3. handle leakage to the agent and Git child, and Git starting before job
+   assignment;
+4. strict, bounded v2 launch-spec parsing;
+5. behaviour-preserving POSIX branches.
+
+Its non-blocking hardening items (supervisor error branches, parent-rule ACE
+types, descriptor coupling with the SQLite root, a junction-inside-quarantine
+course) are [[BPR-0825]]. The limits it recorded stay recorded: exit
+accounting versus handle rundown, the inheritable-pipe creation window, the
+post-hoc bypass refusal, no elevated run, and the double-kill window.
+
+**Remaining before this card is Done:** Linux coverage of the POSIX branches
+that slices (a)–(d) changed, at a head that contains `c94e02b1`. Slices (a)
+and (b) are in `task-20260917-lnx-verify`; (c) and (d) go with the next Linux
+envelope. The Windows criteria are otherwise implemented and verified.
