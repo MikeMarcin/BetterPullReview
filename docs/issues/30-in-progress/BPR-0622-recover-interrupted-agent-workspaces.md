@@ -465,3 +465,21 @@ post-hoc bypass refusal, no elevated run, and the double-kill window.
 that slices (a)–(d) changed, at a head that contains `c94e02b1`. Slices (a)
 and (b) are in `task-20260917-lnx-verify`; (c) and (d) go with the next Linux
 envelope. The Windows criteria are otherwise implemented and verified.
+
+## Linux coverage of slices (c) and (d); finished (dsp-003)
+
+`bpr-linux` ran `task-20260917-lnx-confirm` at `780d0a1c`, which contains
+`c94e02b1`, and main merged it as `48b6422b`. All 15 rows pass: both POSIX
+Git contracts, `agent_workspace_ownership`, `agent_parent_death`, both
+crash-recovery courses, `application_agent_invocation_host` and all eight
+`application_agent_invocation_*` rows ("BPR-0622, slices (c) and (d)" in
+[the dsp-002 Linux confirmation](../../verification/dsp2-linux-confirmation.md)).
+Slices (a) and (b) were already covered on Linux and macOS.
+
+Every platform now has its evidence: Windows native (the Windows evidence
+file, slices (a) to (d), with the critical review), macOS
+(`build/r2-logs/dsp2-int4-ctest.log`, `dsp2-int7-ctest.log`), and Linux. The
+hardening follow-ups are [[BPR-0825]]; they are not criteria of this card.
+At main `8a03a5be` after the windows-lane merge (BPR-0825's supervisor and
+ACE changes), `agent_workspace_ownership` and `git_process_contract` still
+pass on macOS (`build/r2-logs/dsp3-int1-ctest.log`).
