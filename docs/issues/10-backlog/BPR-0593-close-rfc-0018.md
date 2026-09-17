@@ -12,102 +12,149 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-005, mandate r4): in progress
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-005, mandate r4): three sweeps running
 
 Dispatch dsp-005 took over from dsp-004 at main `85f47bde`. The dsp-004
-protocol and hazards below still hold, and its next-objective list is this
-dispatch's order of work. The `project-integrator` lease is **held** by
-dsp-005 (a wrapped `sleep` process; release it at handoff).
+protocol and hazards below still hold. The `project-integrator` lease is
+**held** by dsp-005 (a wrapped `sleep`; release it at handoff).
 
-**Heads.** Main `754d0538`, pushed; `origin/linux-lane` fast-forwarded to it.
-`origin/windows-lane` `c6cac3f0`, **not yet merged** — see below. No
-BetterPullReview process is running; the owner's app is not open. Logs are
-`build/r2-logs/dsp5-*`.
+**Heads.** Main `2b2e5549`, pushed. `origin/linux-lane` and
+`origin/windows-lane` are both fast-forwarded to exactly that, so all three
+refs agree. No BetterPullReview process is running and the owner's app is not
+open. Logs are `build/r2-logs/dsp5-*`.
+
+**Round-trip pins.** Last resealed in the `2b2e5549` merge, on two recorded
+`rfc-reviewer` reviews, covering `2e71061d..2b2e5549`. Exactly three commits in
+that range touched a pinned app source: `c6cac3f0` ([[BPR-0653]]),
+`e8e08a57` ([[BPR-0859]]) and the merge itself. The mutation-branch pin still
+has never moved.
 
 **Done on main in dsp-005.**
 
-- [[BPR-0860]]'s macOS half. The course never left Overview, where
-  [[BPR-0727]] collapses every drawer and [[BPR-0674]]'s hidden controls give
-  a collapsed drawer zero width, so the drag reported nothing and the uncapped
-  wait ate the 40 s budget. A stale probe, not a product defect. It now enters
-  **Review** — the only modality whose files drawer is expanded — and both
-  width phases are capped and name their stall. Reviewed, pins resealed at
-  `70a52630`. **Linux and Windows runs owed.**
-- [[BPR-0862]], Done. The repo-wide `coding-format-check` was red on main for
-  seventeen files, and *no ctest row observes it*: the gate is a build target,
-  and `coding_standard_format_gate_contract` pins the gate script's behaviour
+- [[BPR-0862]], **Done**. `coding-format-check` was red on main for seventeen
+  files and *no ctest row observed it*: the gate is a build target, and
+  `coding_standard_format_gate_contract` pins the gate script's behaviour
   instead. clang-format 22.1.8 and 23.1.0 flag the identical set, so it was
-  debt, not toolchain drift. Fixed and resealed; two of the seventeen were
+  debt, not toolchain drift. Fifteen files were whitespace-only; two were
   include re-sorts, so every target was built to prove those headers
-  self-contained.
+  self-contained, and GCC 15.2 and MSVC are re-checking independently.
+- [[BPR-0860]]: macOS and **Linux** both green. The course never left
+  Overview, where [[BPR-0727]] collapses every drawer and [[BPR-0674]]'s
+  hidden controls give a collapsed drawer zero width. A stale probe. It now
+  enters **Review**, the only modality whose files drawer is expanded, and
+  both width phases are capped and name their stall. Windows owed.
+- [[BPR-0859]]: macOS green, 3/3. The role check was never *reached* —
+  `reveal_intraline_pair` refused silently because Overview composes no
+  comparison. Candidate (c) positively ruled out. Linux and Windows owed.
 - [[BPR-0854]] item 3, on main: `bpr-linux`'s two gate patches, applied
-  byte-identically to what it verified (its digests matched, so its
-  verification transferred). `OK:695` on macOS, 11/11 gate tests, plus an
-  independent falsification on the real `main.cpp`.
-- `bpr-linux`'s `task-20260917-lnx-sweep-fixes` merged at `97b296bd`:
-  [[BPR-0856]], [[BPR-0855]] and [[BPR-0854]] items 1, 2 and 4. Test-side
-  only, no pin moved. Three of its four source-scan rows are confirmed on
-  macOS; `dependency_modernization_contract` needs `--build-dir` and runs in
-  the combined pass.
+  byte-identically (its digests matched, so its verification transferred).
+  `OK:700` now. Its other three items came over with the lane.
+- Merged `bpr-linux`'s `task-20260917-lnx-sweep-fixes` (`97b296bd`) and its
+  18-of-18 Linux run record (`2353552e`), and `bpr-win`'s [[BPR-0653]]
+  (`2b2e5549`).
 
-**Cards filed in dsp-005 (8).** [[BPR-0862]] (done), [[BPR-0863]] (three
-courses now stranded on Overview — give a course a way to state its modality),
-[[BPR-0864]] (the composition probe's still-uncapped phases), [[BPR-0865]]
-(the formatting gate needs a sweep-visible row, deferred until the stations'
-clang-format versions are known), [[BPR-0866]] (the conditional-branch gate
-polices `BPR_BUILD_TESTING` regions as dead code — the misclassification
-behind all eleven findings), [[BPR-0867]] (the contained temporary helper
-needs Python 3.12 against a declared floor of 3.10), [[BPR-0868]] (that helper
-swallows a removal error), [[BPR-0869]] and [[BPR-0870]] (two Windows-only
-rows `bpr-win` found red at `20d99914`).
+**Two of `bpr-win`'s four named macOS selectors were red, and the repairs are
+the most load-bearing thing in this dispatch.** Both were expectations
+generalised from the one platform that station can run:
 
-**Two station "new defects" were stale views, not defects.** `bpr-linux`
-reported `application_unavailable_diff_public_path` as uncarded; it is
-[[BPR-0858]], created after that station's synced base. `bpr-win` reported
-`application_workbench_composition_contract` and
-`dependency_modernization_contract`; those are [[BPR-0860]] and [[BPR-0854]]
-item 4, both fixed today. Both stations were told. Check a station's synced
-base before carding what it reports as new.
+1. It tied the identity's owner to its title (`Repository && Title`), but the
+   ladder drops the **title first and the owner second**, so at 1280 off
+   Windows the title has gone while the owner remains. The owner is now its
+   own `width_case` field; the Windows expectation is unchanged.
+2. At 200% the zoom/unzoom double-click failed — and this exposed a **latent
+   bug the lane's change legitimately revealed**. `empty_surface_at` gained a
+   `rect().contains` guard, which the Windows hit test needs and which is
+   plainly right, and that showed the row had been passing by **double-clicking
+   outside the strip entirely** (measured `point 483,15` against a `398x30`
+   toolbar whose spacer sat at `x=426`). The offscreen screen is 400x300
+   logical at 200%, so maximising gives a window narrower than the strip's own
+   floor: the strip overflows and offers no bare surface. The row now proves
+   the point is inside the strip and, where the zoom is sub-floor, asserts
+   that explicitly instead of skipping.
 
-**In flight.** One `rfc-worker` owns [[BPR-0859]] with `build/r2-dev` and
-`src/app/src/github_application.cpp` exclusive. `bpr-linux` has
-`task-20260917-lnx-merged-head-runs` at `754d0538`.
+**A reviewer also caught a cross-lane break neither station could see.**
+BPR-0859's exact 27-action strip row would have been false on Windows once
+BPR-0653 landed, because that card inserts a menu action at index 1 and ends
+the row with the caption buttons — 29 on Windows. The expectation is now
+platform-aware through a lead and trailing offset, still exact and whole on
+every platform. This is the class of defect only integration finds.
 
-**`bpr-win`'s [[BPR-0653]] is waiting on me, not on it.** Criteria 1-3 pass on
-Windows at `c6cac3f0`; criterion 4's attended capture stays an owner task. The
-merge is blocked only because the lane touches
-`src/app/src/github_application.cpp`, which the BPR-0859 worker holds. At
-merge it needs:
+**Cards filed in dsp-005 (9).** [[BPR-0862]] (Done), [[BPR-0863]] (courses
+stranded on Overview — now four; let a course state the modality it needs),
+[[BPR-0864]] (the composition probe's still-uncapped phases),
+[[BPR-0865]] (the formatting gate needs a sweep-visible row),
+[[BPR-0866]] (the conditional-branch gate polices `BPR_BUILD_TESTING` regions
+as dead code — the misclassification behind all eleven findings),
+[[BPR-0867]] (the contained temporary helper needs Python 3.12 against a
+declared floor of 3.10), [[BPR-0868]] (that helper swallows a removal error),
+[[BPR-0869]] and [[BPR-0870]] (two Windows-only rows `bpr-win` found red).
 
-- the macOS selectors it names — `qt_workbench_window_scale_{100,125,200}` and
-  `qt_composed_github_scale_100`; it expects the floor to stay 900 on macOS,
-  the labels never to shorten, and the identity to keep the repository at 1280;
-- a **reseal**: it moved the full-application and production-manifest pins and
-  deliberately did not reseal. Reviewed range `20d99914..c6cac3f0`. Print the
-  digests rather than trusting the ones in its reply.
+**In flight: three full sweeps at the same commit `2b2e5549`.** macOS is mine
+(`build/r2-logs/dsp5-mac-full-sweep.log`, serial, 381 rows);
+`bpr-linux` has `task-20260917-lnx-full-sweep`; `bpr-win` has
+`task-20260917-win-merged-head-runs`, which is its focused Windows runs plus a
+full Windows sweep. They are deliberately on one commit so the three are
+comparable. **This is what the r4 stable point waits on.**
+
+**`bpr-win` also owes** the Windows runs of BPR-0857, 0858, 0859, 0860, 0861,
+BPR-0856's benchmark, BPR-0854 item 1's five contained courses, and the last
+unknown input to BPR-0865 (its `clang-format` version and *how* it resolves —
+`bpr-linux` has 21.1.8 on `PATH` and 22.1.8 only at an absolute path).
 
 **Open owner ask added in dsp-005 — private Qt API in a product target.**
-BPR-0653's Windows frame removal goes through
+BPR-0653's frame removal goes through
 `QNativeInterface::Private::QWindowsWindow::setCustomMargins`, so
 `src/app/CMakeLists.txt` now takes QtCore's and QtGui's versioned private
-header directories for `better_pull_review_composition` under `WIN32`. The
-station cited the macOS native-menu course as precedent, and that precedent is
-real but **test-only** (`tests/end_to_end/CMakeLists.txt` ~2602): this is the
-first time a *shipped* target depends on private Qt headers. The change itself
-is careful — headers only, no private module linked, `WIN32`-only, `PRIVATE`,
-with the same exactly-one-versioned-directory guard as the test. The
-integrator **recommends accepting it**, because there is no public Qt API for
-removing the title bar while keeping the frame, and the alternative
-(`WM_NCCALCSIZE` plus `DwmExtendFrameIntoClientArea` by hand) fights Qt's own
-frame computation and is no less version-coupled. But it pins the shipped app
-to the Qt the build provides and obliges a recheck on every Qt upgrade, which
-is the owner's call, not an integrator's. It does not block the merge: the
-private API is confined to `src/app/src/windows_title_row_host.*`, that
-CMake block and the `_WIN32` construction, so a refusal would be surgical and
-the portable strip work would stand.
+header directories under `WIN32`. The precedent the station cited is real but
+**test-only** (`tests/end_to_end/CMakeLists.txt` ~2602); this is the first
+*shipped* target to depend on private Qt headers. The change is careful —
+headers only, no private module linked, `WIN32`-only, `PRIVATE`, same
+one-versioned-directory guard as the test. **The integrator recommends
+accepting it**: there is no public Qt API for removing the title bar while
+keeping the frame, and doing it by hand with `WM_NCCALCSIZE` plus
+`DwmExtendFrameIntoClientArea` fights Qt's own frame computation and is no less
+version-coupled. But it pins the shipped app to the Qt the build provides and
+obliges a recheck on every Qt upgrade, which is the owner's call. It does not
+block: the private API is confined to `src/app/src/windows_title_row_host.*`,
+that CMake block and the `_WIN32` construction, so a refusal is surgical and
+the portable strip work stands.
 
-**r4 stable point: not reached.** BPR-0859 is in flight, the Windows lane is
-unmerged, and neither full sweep has been run at a head that has everything.
+**Owner asks otherwise unchanged** from dsp-004: [[BPR-0825]] item 3 (the
+integrator recommends (c)), [[BPR-0644]], [[BPR-0817]], [[BPR-0824]],
+[[BPR-0803]], [[BPR-0800]], [[BPR-0801]], [[BPR-0604]], the
+[[BPR-0794]]/[[BPR-0795]] attended packet (intact), and [[BPR-0653]]'s
+criterion 4 capture on the Windows station — now with a seventh step, from the
+reviewer: maximise, minimise from the taskbar, restore from the taskbar,
+confirm it returns maximised with the strip at the work area's top, then
+restore and confirm the original rectangle.
+
+**Hazards learned in dsp-005.**
+
+- **Never hand-expand a short SHA.** This dispatch fabricated plausible
+  40-hex values twice, in commit messages that were otherwise correct.
+  Substitute `$(git rev-parse <short>)` into the text, and before pushing run
+  every 40-hex string in the message through `git rev-parse --verify` — the
+  audit takes one command and catches it.
+- **`issue_board.py finish --paths` takes one multi-value list.** Repeated
+  `--paths A --paths B` collapse to the last one, silently: the commit carried
+  only the card while its message described the whole change. Pass
+  `--paths A B C`, and check `git show --stat` against what you meant.
+- **Four courses in this run were stranded on Overview** (BPR-0823, 0858,
+  0860, 0859). Before diagnosing a fixture course that fails after a clean
+  startup, check which modality it is in and whether that modality composes
+  the surface it reads. [[BPR-0863]] tracks the shared fix.
+- **A station's "uncarded defect" may be a stale view.** Both stations
+  reported rows that were already carded and fixed after their synced base.
+  Check the card's presence at the station's base before minting.
+- **Ask a reviewer about assertion *changes* specifically.** The two reviews
+  that earned their cost were told to falsify named claims ("stronger, not
+  looser"), and one of them found the cross-lane strip-row break.
+- **A guard that newly refuses an invalid input can expose a test that relied
+  on the old silence.** Do not assume the guard is wrong; measure what the
+  test was actually pointing at.
+- **Workers still burn their 56 turns fast.** Both Mac workers hit the limit
+  mid-diagnosis and needed a resume with explicit chaining instructions.
+  Tell them to chain build-and-test into one command per turn from the start.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r4): handoff at an integrated boundary
 
