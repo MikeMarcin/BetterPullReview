@@ -92,3 +92,17 @@ expression, now [[BPR-0828]].
 contracts, including the gesture contract's `EPOCH_FIXTURE_SEED_FAILED`, go
 with the next `bpr-linux` envelope. The card stays In Progress until they
 are recorded.
+
+## Linux reruns; finished (dsp-003)
+
+`bpr-linux` reran all three appearance contracts three times at `780d0a1c`,
+which contains `10f30f04`, and main merged it as `48b6422b`. All 9 runs pass:
+theme customization, gesture and store fallback, each printing its `_OK`
+marker and never `DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED` ("BPR-0823" in
+[the dsp-002 Linux confirmation](../../verification/dsp2-linux-confirmation.md)).
+
+The gesture contract's earlier Linux `EPOCH_FIXTURE_SEED_FAILED` /
+`RUN_BUDGET_EXPIRED … stage=4` does not reproduce (3 of 3 pass). It was seen
+only at `ef3f782b` on a probe tree built with `-Wno-error`. Its cause was not
+bisected, so it is not named; it was not a separate Linux defect at a stock
+build, and no card is opened for it.
