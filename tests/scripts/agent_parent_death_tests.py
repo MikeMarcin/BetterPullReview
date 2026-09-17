@@ -77,8 +77,15 @@ def run_course(executable: Path, root: Path, *, kill_process_group: bool) -> Non
                 raise RuntimeError("agent or descendant survived forced application death")
             time.sleep(0.02)
         terminated = True
-        if not guard_available():
-            raise RuntimeError("finished supervisor retained its workspace guard")
+        # The agent's PID disappears when the supervisor reaps it; the guard is
+        # released afterwards, when the supervisor's own exit closes the last
+        # descriptor holding the shared lock. On macOS that lands about a
+        # millisecond later (BPR-0666), so the release gets a bounded wait too.
+        deadline = time.monotonic() + 5
+        while not guard_available():
+            if time.monotonic() >= deadline:
+                raise RuntimeError("finished supervisor retained its workspace guard")
+            time.sleep(0.02)
         size = marker.stat().st_size
         time.sleep(0.15)
         if marker.stat().st_size != size:

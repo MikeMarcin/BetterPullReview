@@ -1567,7 +1567,7 @@ namespace bpr::adapters::git {
 				struct stat original{ }, named{ };
 				if (Guard < 0 || ::fstat(Guard, &original) != 0
 					|| !S_ISREG(original.st_mode) || original.st_uid != ::geteuid()
-					|| (original.st_mode & (S_IRWXG | S_IRWXO)) != 0 || original.st_nlink != 1
+					|| (original.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0 || original.st_nlink != 1
 					|| aGuard.FileIdentity != std::array<std::uint64_t, 4U>{ 1U, static_cast<std::uint64_t>(original.st_dev), 0U, static_cast<std::uint64_t>(original.st_ino) }
 					|| ::flock(Guard, LOCK_SH | LOCK_NB) != 0
 					|| ::lstat(path.c_str(), &named) != 0 || named.st_dev != original.st_dev || named.st_ino != original.st_ino
@@ -2713,12 +2713,12 @@ namespace bpr::adapters::git {
 			auto                                          operator<=>(const workspace_record&) const = default;
 			struct glaze
 			{
-				using T                     = workspace_record;
+				using self                  = workspace_record;
 				static constexpr auto value = glz::object(
-					"Version", &T::Version, "Phase", &T::Phase, "Token", &T::Token,
-					"Registry", &T::Registry, "Neighbourhood", &T::Neighbourhood,
-					"File", &T::File, "Parent", &T::Parent, "Child", &T::Child,
-					"Scope", &T::Scope, "AuthorityFingerprints", &T::AuthorityFingerprints, "Head", &T::Head);
+					"Version", &self::Version, "Phase", &self::Phase, "Token", &self::Token,
+					"Registry", &self::Registry, "Neighbourhood", &self::Neighbourhood,
+					"File", &self::File, "Parent", &self::Parent, "Child", &self::Child,
+					"Scope", &self::Scope, "AuthorityFingerprints", &self::AuthorityFingerprints, "Head", &self::Head);
 			};
 		};
 
@@ -2949,6 +2949,8 @@ namespace bpr::adapters::git {
 
 		struct workspace_json_options : glz::opts
 		{
+			// Glaze discovers this option override by its exact library-defined name.
+			// NOLINTNEXTLINE(readability-identifier-naming)
 			bool validate_trailing_whitespace = true;
 			constexpr workspace_json_options() { error_on_missing_keys = true; }
 		};
@@ -2956,7 +2958,7 @@ namespace bpr::adapters::git {
 		{
 			struct stat info{ };
 			if (::fstat(aFd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != ::geteuid() || info.st_nlink != 1
-				|| (info.st_mode & (S_IRWXG | S_IRWXO)) != 0 || info.st_size <= 0 || static_cast<std::uint64_t>(info.st_size) > maximum_workspace_journal_bytes) {
+				|| (info.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0 || info.st_size <= 0 || static_cast<std::uint64_t>(info.st_size) > maximum_workspace_journal_bytes) {
 				return std::nullopt;
 			}
 			std::string bytes(static_cast<std::size_t>(info.st_size), '\0');
@@ -2984,9 +2986,9 @@ namespace bpr::adapters::git {
 					|| record.Neighbourhood != ownership_id(aNeighbourhood, exact_artifact_kind::directory)
 					|| record.File != ownership_identity{ 1U, static_cast<std::uint64_t>(info.st_dev), 0U, static_cast<std::uint64_t>(info.st_ino) }
 					|| (record.Head.size() != 40U && record.Head.size() != 64U)
-					|| !std::ranges::all_of(record.Head, [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })
-					|| std::ranges::any_of(record.Scope, [](auto id) { return id == 0U; })
-					|| std::ranges::any_of(record.AuthorityFingerprints, [](const auto& fingerprint) { return std::ranges::all_of(fingerprint, [](auto byte) { return byte == 0U; }); })
+					|| !std::ranges::all_of(record.Head, [](char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f'); })
+					|| std::ranges::any_of(record.Scope, [](auto aId) { return aId == 0U; })
+					|| std::ranges::any_of(record.AuthorityFingerprints, [](const auto& aFingerprint) { return std::ranges::all_of(aFingerprint, [](auto aByte) { return aByte == 0U; }); })
 					|| (previous ? !record_transition(*previous, record) : record.Phase != 0U || record.Parent != ownership_identity{ } || record.Child != ownership_identity{ })) {
 					return std::nullopt;
 				}
@@ -3007,7 +3009,7 @@ namespace bpr::adapters::git {
 			struct stat info{ };
 			if (canonical_existing(parent) != parent || ::lstat(parent.c_str(), &info) != 0
 				|| !S_ISDIR(info.st_mode) || info.st_uid != ::geteuid()
-				|| (info.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+				|| (info.st_mode & static_cast<mode_t>(S_IWGRP | S_IWOTH)) != 0) {
 				return false;
 			}
 			if (::mkdir(aPath.c_str(), S_IRWXU) != 0 && errno != EEXIST) {
@@ -3046,7 +3048,7 @@ namespace bpr::adapters::git {
 					return std::unexpected{ workspace_ownership_failure::capacity };
 				}
 				const auto name = entry.path().filename().string();
-				if (name.size() != 38U || !name.ends_with(".jsonl") || !std::ranges::all_of(std::string_view{ name }.substr(0U, 32U), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })) {
+				if (name.size() != 38U || !name.ends_with(".jsonl") || !std::ranges::all_of(std::string_view{ name }.substr(0U, 32U), [](char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f'); })) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
 				records.push_back(entry.path());
@@ -3070,7 +3072,7 @@ namespace bpr::adapters::git {
 				} else {
 					continue;
 				}
-				if (!std::ranges::any_of(records, [&](const auto& path) { return path.stem().string() == token; })) {
+				if (!std::ranges::any_of(records, [&](const auto& aPath) { return aPath.stem().string() == token; })) {
 					return std::unexpected{ workspace_ownership_failure::repair_required };
 				}
 			}
