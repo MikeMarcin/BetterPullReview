@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0875"
 title: "Windows: an unnamed shutdown cleanup failure fails thirteen rows that had already passed everything they measure"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
