@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0849"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-004: bpr-linux's owner admission course defect (same shared /tmp cause as BPR-0847)",
+  "created": "2026-09-17T15:53:50.016246+00:00",
+  "base": "56e4637162f9b887553e0d0213fda7d17edd4bd0"
+}
