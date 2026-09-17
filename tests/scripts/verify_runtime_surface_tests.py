@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import os
 import platform
@@ -14,6 +15,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import scripts.verify_runtime_surface as runtime_surface  # noqa: E402
+from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 from scripts.verify_runtime_surface import (  # noqa: E402
     DARWIN_CHILD_PID_LIMIT,
     DARWIN_PID_MAX,
@@ -205,10 +207,13 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
 
     def test_application_command_names_a_root_only_when_one_is_owned(self) -> None:
         executable = Path("/bin/app")
+        data_root = Path("/private/root/data")
         self.assertEqual(application_command(executable, None), [str(executable)])
+        # [[BPR-0844]]. The command carries the path's own spelling, which is
+        # backslashed on Windows, so it is compared as a path, not a POSIX literal.
         self.assertEqual(
-            application_command(executable, Path("/private/root/data")),
-            [str(executable), "--test-application-data-root", "/private/root/data"],
+            application_command(executable, data_root),
+            [str(executable), "--test-application-data-root", str(data_root)],
         )
 
     def private_root_run(self, outcome):
@@ -225,11 +230,33 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
                 seen["mode"] = parent.stat().st_mode & 0o777
             return outcome(data_root)
 
-        with mock.patch.object(runtime_surface, "inspect_application", inspect):
+        with contextlib.ExitStack() as patches:
+            patches.enter_context(mock.patch.object(runtime_surface, "inspect_application", inspect))
+            if os.name == "nt":
+                # [[BPR-0844]]. Inside the Windows AppContainer this row runs in,
+                # a `mkdtemp` directory is unusable (BPR-0350) and CPython's
+                # `realpath` cannot resolve a DOS path. Neither belongs to the
+                # script under test, so the case substitutes a contained
+                # temporary root and records the resolution the script asks for
+                # rather than performing it. POSIX keeps the real calls.
+                patches.enter_context(mock.patch.object(
+                    runtime_surface.tempfile, "mkdtemp",
+                    lambda prefix="": str(make_contained_temporary_directory(prefix=prefix))))
+                resolved: list[tuple[Path, bool]] = []
+
+                def resolve(path: Path, strict: bool = False) -> Path:
+                    resolved.append((Path(path), strict))
+                    return Path(os.path.abspath(path))
+
+                patches.enter_context(mock.patch.object(Path, "resolve", resolve))
+                seen["resolutions"] = resolved
             try:
                 result = inspect_with_private_data_root(Path("/bin/app"))
             except RuntimeError:
                 result = None
+        if os.name == "nt":
+            # The script still asked for a strict resolution of the parent it made.
+            self.assertIn((Path(seen["parent"]), True), seen["resolutions"])
         return result, seen
 
     def test_private_root_is_owner_private_uncreated_and_removed_after_a_pass(self) -> None:
