@@ -64,3 +64,9 @@ The macOS and Linux builds belong to the integrator.
 Main merged `windows-lane` at `aedf471f` as `013d2036`. On macOS the benchmark
 object rebuilt, and the build succeeds (`build/r2-logs/dsp3-int5-build.log`).
 The Linux build goes with the next `bpr-linux` envelope.
+
+## Linux build; finished (dsp-003)
+
+`bpr-linux`'s stock full build at `84ac5e0c` compiled and linked
+`bench_better_pull_review_large_review` with no diagnostic (-Werror on), and
+main merged the run as `f4758aa9` ([the dsp-003 Linux confirmation](../../verification/dsp3-linux-confirmation.md), step 1).
