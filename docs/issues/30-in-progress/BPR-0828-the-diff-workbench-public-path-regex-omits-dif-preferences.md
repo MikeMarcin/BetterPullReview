@@ -51,3 +51,13 @@ The same run failed before this line was added (`dsp2-int8-ctest.log`).
 
 **Status.** The macOS criterion is met. The Linux rerun goes with the next
 `bpr-linux` envelope.
+
+## Linux rerun; finished (dsp-003)
+
+`bpr-linux` reran `application_diff_workbench_public_path` at `780d0a1c`,
+which contains `10f30f04` and this card's expression, and main merged it as
+`48b6422b`. It passes (2.63 s); the contiguous block matched, including
+`DIF_PREFERENCES:shown:system:reduced` ("BPR-0828" in
+[the dsp-002 Linux confirmation](../../verification/dsp2-linux-confirmation.md)).
+BPR-0830's candidate then passed it 10 of 10 on Linux. On macOS it passes
+again at main `8a03a5be` (12.61 s, `build/r2-logs/dsp3-int1-ctest.log`).
