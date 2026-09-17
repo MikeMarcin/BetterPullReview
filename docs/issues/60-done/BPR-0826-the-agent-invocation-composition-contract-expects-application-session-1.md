@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0826"
 title: "The agent invocation composition contract expects application session 1 and sees 2"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0012"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win"]
 metadata: {"found_by":"bpr-win under BPR-0622 (pre-existing), confirmed on macOS by the dsp-002 integration run","found_at":"2ba02ddbe59bf6e07302cbb7460f61cc9cad2627","run":"run-20260916-stations","dispatch":"dsp-002"}
+acceptance: [{"criterion":"AC1 the contract passes on macOS and the cause is named","outcome":"pass","revision":"d9ea1cbcec2dc8a3109fae91405f8d0c2b311198","evidence":{"kind":"command","detail":"First bad 826fb871 (BPR-0705: each window owns its application session, so the compatibility window carries session 2); the course now derives the expected session from the invoking window. Passes at 6a58b6f8 across dsp2-int7/int8/int9 and again at 8a03a5be (build/r2-logs/dsp3-int1-ctest.log); derivation and negative controls in dsp2-0826-*."}},{"criterion":"AC2 the Windows station reruns it and records the result","outcome":"pass","revision":"559377700d52f37d6c094cd646200c67ab20eeb5","evidence":{"kind":"artifact","detail":"docs/verification/BPR-0826-windows-rerun.md: passes on windows-native in 26.85 s with AGENT_INVOCATION_COMPOSITION_CONTRACT_OK; Linux also passes (docs/verification/dsp2-linux-confirmation.md)."}}]
 ---
 
 # BPR-0826: The agent invocation composition contract expects application session 1 and sees 2
