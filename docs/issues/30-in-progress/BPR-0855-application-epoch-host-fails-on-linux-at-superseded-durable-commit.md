@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0855"
 title: "application_epoch_host fails on Linux at the superseded durable commit"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
