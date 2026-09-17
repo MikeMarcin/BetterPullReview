@@ -570,6 +570,10 @@ namespace bpr::application {
 
 		void invalidate_device_grant_now(const github_credential_authority_key& aAuthority, const core::github_identity_generation aGeneration)
 		{
+			if (owns_launch_renewal(aAuthority, aGeneration)) {
+				end_launch_renewal();
+				return;
+			}
 			if (!Closing && AcceptedSession && CredentialAuthority == aAuthority && CredentialSessionContext
 				&& CredentialSessionContext->IdentityGeneration == aGeneration
 				&& CredentialProvenance == github_credential_provenance::device_grant) {
@@ -1464,17 +1468,28 @@ namespace bpr::application {
 						NextEnrollmentProfile.reset();
 						SessionResumeProfile = NextResumeProfile;
 						if (PendingDeviceRestore && SessionResumeProfile == PendingDeviceRestore->Authority.Profile) {
-							DeviceLifetime        = PendingDeviceRestore->Lifetime;
-							DeviceRefreshSettled  = true;
-							DeviceBindingDurable  = true;
-							RestoredDeviceBinding = true;
+							if (PendingDeviceRestoreRenews) {
+								// [[BPR-0644]]. The stored access token is past its
+								// lifetime, so this session waits for the renewal
+								// rather than presenting it to `/user`.
+								LaunchRenewal = device_launch_renewal{ .Authority = PendingDeviceRestore->Authority, .IdentityGeneration = aTypedRequest.Context.IdentityGeneration, .Lifetime = PendingDeviceRestore->Lifetime };
+							} else {
+								DeviceLifetime        = PendingDeviceRestore->Lifetime;
+								DeviceRefreshSettled  = true;
+								DeviceBindingDurable  = true;
+								RestoredDeviceBinding = true;
+							}
 						}
 						PendingDeviceRestore.reset();
+						PendingDeviceRestoreRenews = false;
 						NextResumeProfile.reset();
 						SessionPublicPreview = NextPublicPreview;
 						NextPublicPreview    = false;
 						if (ActiveVaultOperation == vault_operation::none) {
 							start_deferred_session();
+						}
+						if (LaunchRenewal) {
+							begin_launch_renewal();
 						}
 					} else {
 						static_cast<void>(aTypedRequest);
@@ -1487,6 +1502,21 @@ namespace bpr::application {
 		{
 			if (BindingLoadPending) {
 				PendingRestoreCleanup = aRequest;
+			}
+			// [[BPR-0644]]. The renewed grant's own enrollment settles a launch
+			// renewal. Anything else that replaces the held session -- Sign out,
+			// another enrollment, a preview -- abandons it, and the device host
+			// is told so that no rotated token is enrolled over that choice.
+			if (LaunchRenewal) {
+				const auto own = NextEnrollment.has_value() && NextEnrollmentProvenance == github_credential_provenance::device_grant
+					&& NextEnrollmentProfile == LaunchRenewal->Authority.Profile;
+				LaunchRenewal.reset();
+				if (!own) {
+					try {
+						LaunchRenewalSink(std::nullopt);
+					} catch (...) {
+					}
+				}
 			}
 			++BindingGeneration;
 			DeviceBindingDurable  = false;
@@ -1631,7 +1661,7 @@ namespace bpr::application {
 		void start_deferred_session()
 		{
 			if (Closing || !DeferredSession.has_value()
-				|| ActiveVaultOperation != vault_operation::none || BindingErasePending || BindingLoadPending || StartupCleanupOperation) {
+				|| ActiveVaultOperation != vault_operation::none || BindingErasePending || BindingLoadPending || StartupCleanupOperation || LaunchRenewal) {
 				return;
 			}
 
@@ -2431,7 +2461,8 @@ namespace bpr::application {
 					auto* const retrieved = std::get_if<
 						github_credential_retrieve_success>(&aCompletion);
 					const auto present = retrieved != nullptr && valid(aCompletion) && completion_context(aCompletion) == probe;
-					if (retrieved == nullptr && !reportAbsent) {
+					const auto* error   = std::get_if<github_credential_retrieve_error>(&aCompletion);
+					if (retrieved == nullptr && (!reportAbsent || (error != nullptr && keeps_restored_binding(error->Failure)))) {
 						return;
 					}
 					if (retrieved != nullptr) {
@@ -3075,6 +3106,12 @@ namespace bpr::application {
 				return;
 			}
 			if (RestoredDeviceBinding) {
+				if (const auto* error = std::get_if<github_credential_retrieve_error>(&aCompletion);
+					error != nullptr && keeps_restored_binding(error->Failure)) {
+					RestoredDeviceBinding = false;
+					fail_session(context, core::github_failure::vault);
+					return;
+				}
 				// A stored selector cannot leave orphan refresh material resumable
 				// after its access slot failed validation or disappeared.
 				fail_session(context, core::github_failure::vault, true);
@@ -3554,7 +3591,7 @@ namespace bpr::application {
 				&& !AcceptedSession.has_value()
 				&& ActiveVaultOperation == vault_operation::none
 				&& (CredentialLifecycle == credential_lifecycle::provisional
-					|| aDeletePersistentCredential || RestoredDeviceBinding)) {
+					|| aDeletePersistentCredential || (RestoredDeviceBinding && !keeps_restored_binding(aFailure)))) {
 				start_delete(aContext.IdentityGeneration,
 							 deferred_session_terminal{
 								 .Context    = aContext,
@@ -3736,6 +3773,7 @@ namespace bpr::application {
 			if (Persistence != nullptr && !(BindingLoadPending && PendingRestoreCleanup)) {
 				Persistence->cancel_pending();
 			}
+			LaunchRenewal.reset();
 
 			// Wipe raw host-owned material before an external cancellation can
 			// block or re-enter. PendingProvider remains intact until its exact
@@ -3848,10 +3886,64 @@ namespace bpr::application {
 			};
 		}
 
+		// [[BPR-0644]]. Answers that say nothing about whether a restored grant
+		// is still good: a keychain that will not answer without a prompt this
+		// launch, or a network that is not there. They fail the session
+		// visibly and leave the binding and both slots for the next launch.
+		// An absent or corrupt slot, an authentication refusal, or any other
+		// failure still tombstones and erases, as before.
+		[[nodiscard]] static constexpr auto keeps_restored_binding(const github_credential_vault_failure aFailure) noexcept -> bool
+		{
+			return aFailure == github_credential_vault_failure::locked || aFailure == github_credential_vault_failure::access_denied
+				|| aFailure == github_credential_vault_failure::unavailable;
+		}
+		[[nodiscard]] static constexpr auto keeps_restored_binding(const core::github_failure aFailure) noexcept -> bool
+		{
+			return aFailure == core::github_failure::network || aFailure == core::github_failure::timeout || aFailure == core::github_failure::rate_limit;
+		}
+
 		void binding_failure()
 		{
 			DeviceBindingDurable = false;
 			publish_diagnostic(github_host_diagnostic{ .Reason = core::github_reason_code::vault_unavailable, .RetryAfterSeconds = std::nullopt, .RateLimits = { }, .RateLimitCause = std::nullopt });
+		}
+
+		// [[BPR-0644]]. The renewal itself is the device host's existing
+		// rotation: it asks `prepare_device_rotation` to tombstone the binding
+		// before any refresh material is spent, and ends by enrolling the
+		// rotated access token or by invalidating this exact grant.
+		void begin_launch_renewal()
+		{
+			const auto renewal = *LaunchRenewal;
+			try {
+				LaunchRenewalSink(renewal);
+			} catch (...) {
+				// Ended on its own turn: this runs inside the transition that
+				// admitted the held session.
+				DeferredIngress.emplace_back(deferred_grant_invalidation{ renewal.Authority, renewal.IdentityGeneration });
+				schedule_deferred_ingress();
+			}
+		}
+
+		// A renewal that cannot finish leaves the binding tombstoned and fails
+		// the held session as an authentication failure, which every startup
+		// observer already treats as a terminal; the device sign-in is offered.
+		void end_launch_renewal()
+		{
+			LaunchRenewal.reset();
+			DeviceBindingDurable = false;
+			if (!DeferredSession) {
+				dispatch_now(core::deactivate_github_identity_intent{ });
+				return;
+			}
+			const auto context = *DeferredSession;
+			DeferredSession.reset();
+			fail_session_direct(context, core::github_failure::authentication);
+		}
+
+		[[nodiscard]] auto owns_launch_renewal(const github_credential_authority_key& aAuthority, const core::github_identity_generation aGeneration) const noexcept -> bool
+		{
+			return !Closing && LaunchRenewal.has_value() && LaunchRenewal->Authority == aAuthority && LaunchRenewal->IdentityGeneration == aGeneration;
 		}
 
 		void persist_settled_device_binding()
@@ -3930,6 +4022,9 @@ namespace bpr::application {
 		device_binding_persistence*                             Persistence = nullptr;
 		std::function<std::int64_t()>                           WallClock;
 		std::optional<device_binding_record>                    PendingDeviceRestore;
+		bool                                                    PendingDeviceRestoreRenews = false;
+		device_launch_renewal_sink                              LaunchRenewalSink;
+		std::optional<device_launch_renewal>                    LaunchRenewal;
 		std::optional<device_binding_lifetime>                  NextDeviceLifetime;
 		std::optional<device_binding_lifetime>                  DeviceLifetime;
 		bool                                                    NextRefreshSettled    = false;
@@ -4137,10 +4232,11 @@ namespace bpr::application {
 		Implementation->resume_profile(aProfile);
 	}
 
-	void github_application_host::configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock)
+	void github_application_host::configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock, device_launch_renewal_sink aLaunchRenewal)
 	{
-		Implementation->Persistence = &aPersistence;
-		Implementation->WallClock   = std::move(aWallClock);
+		Implementation->Persistence       = &aPersistence;
+		Implementation->WallClock         = std::move(aWallClock);
+		Implementation->LaunchRenewalSink = std::move(aLaunchRenewal);
 	}
 
 	auto github_application_host::restore_device_profile(const github_profile_authority                     aCompiledProfile,
@@ -4251,19 +4347,32 @@ namespace bpr::application {
 					return;
 				}
 				if (selected->Tombstone) {
+					host.start_deferred_session();
 					return;
 				}
-				if (remaining_access_lifetime(selected->Lifetime, host.WallClock()) == 0U) {
+				// [[BPR-0644]]. An access lifetime that elapsed while the
+				// application was closed is not the end of the grant: while the
+				// refresh lifetime remains, the restore renews it before the
+				// session starts. Only an elapsed refresh lifetime, or a
+				// composition with nothing to renew through, tombstones here.
+				const auto now    = host.WallClock();
+				const auto renews = remaining_access_lifetime(selected->Lifetime, now) == 0U;
+				if (renews && (!host.LaunchRenewalSink || remaining_refresh_lifetime(selected->Lifetime, now) == 0U)) {
 					host.binding_failure();
 					++host.OutstandingBindings;
 					host.Persistence->erase(authority, host.binding_callback([&host](device_binding_result) { --host.OutstandingBindings; }));
+					host.start_deferred_session();
 					return;
 				}
-				if (!host.CredentialBindings.remember(authority, github_credential_provenance::device_grant)) {
+				// A renewing restore remembers nothing yet: the rotated grant's own
+				// enrollment names the authority after `/user`, and a remembered
+				// binding would make that enrollment delete the pair it rotated.
+				if (!renews && !host.CredentialBindings.remember(authority, github_credential_provenance::device_grant)) {
 					fail();
 					return;
 				}
-				host.PendingDeviceRestore = selected;
+				host.PendingDeviceRestore       = selected;
+				host.PendingDeviceRestoreRenews = renews;
 				host.resume_profile(aCompiledProfile.Profile);
 				terminal.Status = device_profile_restore_status::ready_for_session;
 			}));
@@ -4302,8 +4411,12 @@ namespace bpr::application {
 
 	void github_application_host::prepare_device_rotation(github_credential_authority_key aAuthority, const core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion)
 	{
-		auto&      host    = *Implementation;
-		const auto matches = !host.Closing && host.AcceptedSession && host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration && host.CredentialProvenance == github_credential_provenance::device_grant;
+		auto& host = *Implementation;
+		// [[BPR-0644]]. A launch renewal has no accepted session yet, and takes
+		// the same barrier: the binding is tombstoned before its refresh
+		// material can be spent.
+		const auto launch  = host.owns_launch_renewal(aAuthority, aGeneration);
+		const auto matches = launch || (!host.Closing && host.AcceptedSession && host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration && host.CredentialProvenance == github_credential_provenance::device_grant);
 		if (!matches || host.Persistence == nullptr) {
 			aCompletion(matches);
 			return;
@@ -4311,9 +4424,10 @@ namespace bpr::application {
 		host.DeviceBindingDurable = false;
 		const auto generation     = ++host.BindingGeneration;
 		++host.OutstandingBindings;
-		host.Persistence->erase(aAuthority, host.binding_callback([&host, aAuthority, aGeneration, generation, completion = std::move(aCompletion)](device_binding_result aResult) {
+		host.Persistence->erase(aAuthority, host.binding_callback([&host, aAuthority, aGeneration, generation, launch, completion = std::move(aCompletion)](device_binding_result aResult) {
 			--host.OutstandingBindings;
-			const auto current = !host.Closing && host.BindingGeneration == generation && host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration;
+			const auto current = !host.Closing && host.BindingGeneration == generation
+				&& (launch ? host.owns_launch_renewal(aAuthority, aGeneration) : host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration);
 			if (!aResult && current) {
 				host.binding_failure();
 			}

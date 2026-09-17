@@ -26,6 +26,13 @@ namespace bpr::application {
 		}
 		return static_cast<std::uint32_t>(std::min(aLifetime.AccessExpiresAt, aLifetime.RefreshExpiresAt) - aNow);
 	}
+	auto remaining_refresh_lifetime(const device_binding_lifetime& aLifetime, const std::int64_t aNow) noexcept -> std::uint32_t
+	{
+		if (!valid(aLifetime) || aNow < aLifetime.IssuedAt || aNow >= aLifetime.RefreshExpiresAt) {
+			return 0U;
+		}
+		return static_cast<std::uint32_t>(aLifetime.RefreshExpiresAt - aNow);
+	}
 
 	struct device_binding_persistence::implementation : std::enable_shared_from_this<implementation>
 	{

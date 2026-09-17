@@ -5248,7 +5248,14 @@ namespace bpr::app {
 			if (RememberDeviceSignIn) {
 				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot, aConfig.Profile);
 				DevicePersistence  = std::make_unique<application::device_binding_persistence>(*DeviceBindingStore, DeviceBindingEffects, DecisionLane);
-				Host->configure_device_persistence(*DevicePersistence, [this] { return DeviceClock->observe_wall_seconds(); });
+				// [[BPR-0644]]. A remembered grant restored after its access token
+				// expired renews through the device host that owns the rotation.
+				Host->configure_device_persistence(*DevicePersistence, [this] { return DeviceClock->observe_wall_seconds(); }, [this](const std::optional<application::device_launch_renewal>& aRenewal) {
+					if (!aRenewal) {
+						DeviceHost->release_refresh_authority();
+						return;
+					}
+					DeviceHost->renew_restored_grant(aRenewal->Authority, aRenewal->IdentityGeneration, aRenewal->Lifetime); });
 			}
 		}
 		[[nodiscard]] auto credential_vault() noexcept

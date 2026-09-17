@@ -34,6 +34,21 @@ namespace bpr::application {
 											   unavailable,
 											   cancelled };
 
+	/// \brief [[BPR-0644]]. A restored device grant whose access lifetime elapsed
+	/// while the application was closed and whose refresh lifetime remains.
+	/// \details Names the exact authority, the identity generation of the
+	/// restore activation that is held until the renewal settles, and the
+	/// stored lifetime. It carries no credential material.
+	struct device_launch_renewal
+	{
+		github_credential_authority_key  Authority;
+		core::github_identity_generation IdentityGeneration;
+		device_binding_lifetime          Lifetime;
+		auto                             operator<=>(const device_launch_renewal&) const = default;
+	};
+	/// \brief Begins a launch renewal, or with no value abandons the one begun.
+	using device_launch_renewal_sink = std::function<void(const std::optional<device_launch_renewal>&)>;
+
 	enum class github_credential_shutdown_policy {
 		retain,
 		delete_retained_on_shutdown,
@@ -202,7 +217,12 @@ namespace bpr::application {
 		// entries.
 		void resume_profile(core::host_profile_id aProfile);
 		/// \brief Configures metadata persistence before any enrollment or startup restore.
-		void configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock);
+		/// [[BPR-0644]]. With a renewal sink, a restored binding whose access
+		/// lifetime elapsed but whose refresh lifetime remains is renewed before
+		/// its session starts instead of being tombstoned. The sink runs on the
+		/// decision lane; the renewal ends through `prepare_device_rotation`,
+		/// the renewed grant's enrollment, or `invalidate_device_grant`.
+		void configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock, device_launch_renewal_sink aLaunchRenewal = { });
 		/// \brief Loads the trusted device binding for a compiled native profile, then resumes normally.
 		/// \details An admitted observer receives one terminal on the decision lane
 		/// after the current turn. Ready means a trusted binding selected normal

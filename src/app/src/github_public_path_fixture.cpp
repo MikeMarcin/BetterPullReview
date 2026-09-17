@@ -1899,10 +1899,12 @@ namespace bpr::app::detail {
 			recorded_device_authorization_transport(
 				std::filesystem::path aFixtureRoot,
 				std::filesystem::path aDocumentedRoot,
-				const bool            aRefreshCourse)
+				const bool            aRefreshCourse,
+				const bool            aRejectRefresh)
 				: FixtureRoot{ std::move(aFixtureRoot) }
 				, DocumentedRoot{ std::move(aDocumentedRoot) }
 				, RefreshCourse{ aRefreshCourse }
+				, RejectRefresh{ aRejectRefresh }
 			{
 			}
 
@@ -2014,6 +2016,16 @@ namespace bpr::app::detail {
 					return;
 				}
 				++Renewals;
+				if (RejectRefresh) {
+					// [[BPR-0644]]. The token endpoint's refusal of spent or
+					// revoked refresh material, which is a terminal answer and
+					// never a reason to try the same material again.
+					aCompletion(application::device_token_refused{
+						.Context = aExchange.Context,
+						.Reason  = application::device_token_refusal_reason::expired_token,
+					});
+					return;
+				}
 				// The documented answer parses with the grant's parser
 				// because it is the same answer: BPR-0450 recorded that the
 				// renewal response *is* the user-access-token response. Using
@@ -2178,6 +2190,7 @@ namespace bpr::app::detail {
 			std::filesystem::path FixtureRoot;
 			std::filesystem::path DocumentedRoot;
 			bool                  RefreshCourse = false;
+			bool                  RejectRefresh = false;
 			std::size_t           Submissions   = 0U;
 			std::size_t           Renewals      = 0U;
 			std::string           AccessToken;
@@ -2475,12 +2488,13 @@ namespace bpr::app::detail {
 				application::effect_executor&               aEffects,
 				std::shared_ptr<github_fixture_vault_state> aState,
 				const bool                                  aRefreshSlot,
-				const bool aAuthorityKeyed, core::bpr_profile_id aProfile)
+				const bool aAuthorityKeyed, core::bpr_profile_id aProfile, const bool aLocked)
 				: Effects{ aEffects }
 				, State{ std::move(aState) }
 				, RefreshSlot{ aRefreshSlot }
 				, AuthorityKeyed{ aAuthorityKeyed }
 				, Profile{ aProfile }
+				, Locked{ aLocked }
 			{
 			}
 
@@ -2530,11 +2544,19 @@ namespace bpr::app::detail {
 					return;
 				}
 				Effects.post(
-					[state = State,
-					 keyed = AuthorityKeyed,
+					[state  = State,
+					 keyed  = AuthorityKeyed,
+					 locked = Locked,
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
 						release_pending(state, aContext);
+						if (locked) {
+							completion(application::github_credential_retrieve_error{
+								.Context = aContext,
+								.Failure = application::github_credential_vault_failure::locked,
+							});
+							return;
+						}
 						auto material = std::optional<
 							application::github_credential_material>{ };
 						{
@@ -2884,6 +2906,7 @@ namespace bpr::app::detail {
 			bool                                        RefreshSlot    = false;
 			bool                                        AuthorityKeyed = false;
 			core::bpr_profile_id                        Profile;
+			bool                                        Locked = false;
 		};
 
 		[[nodiscard]] auto make_fixture_credential()
@@ -3114,7 +3137,7 @@ namespace bpr::app::detail {
 				aVaultEffects,
 				VaultState,
 				true,
-				aOptions.RegisteredDeviceCourse, aOptions.Profile);
+				aOptions.RegisteredDeviceCourse, aOptions.Profile, aOptions.LockedDeviceVault);
 			if (aOptions.SeedOrphanedRefreshMaterial) {
 				// The shape a grant leaves behind: the documented refresh
 				// token this fixture's own recorded exchange answers with.
@@ -3138,7 +3161,8 @@ namespace bpr::app::detail {
 						BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT },
 					std::filesystem::path{
 						BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT },
-					aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings);
+					aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings,
+					aOptions.RejectDeviceRefresh);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
 				aOptions.LoseFirstReviewMutationResult, Recording, aOptions.ResolvesThreads);
 

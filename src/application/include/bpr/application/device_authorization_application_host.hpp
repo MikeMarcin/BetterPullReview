@@ -458,6 +458,17 @@ namespace bpr::application {
 			github_credential_authority_key        aAuthority,
 			core::github_identity_generation       aIdentityGeneration,
 			std::optional<device_binding_lifetime> aLifetime = std::nullopt);
+		/// \brief [[BPR-0644]]. Renews a restored grant whose access lifetime
+		/// elapsed while the application was closed.
+		/// \details The existing rotation, begun at once rather than from a
+		/// timer and bounded by the stored refresh lifetime instead of the
+		/// elapsed access lifetime. It still tombstones the binding through
+		/// `prepare_refresh` before spending anything, and ends by enrolling the
+		/// rotated access token or by invalidating this exact grant.
+		void renew_restored_grant(
+			github_credential_authority_key  aAuthority,
+			core::github_identity_generation aIdentityGeneration,
+			device_binding_lifetime          aLifetime);
 		/// \brief Cancels renewal when the selected accepted session is signed out or replaced manually.
 		void release_refresh_authority();
 		// The browser handoff, and the only thing in this host that changes no

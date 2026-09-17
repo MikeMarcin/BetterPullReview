@@ -39,6 +39,8 @@ namespace bpr::application {
 	[[nodiscard]] auto valid(const device_binding_record& aRecord) noexcept -> bool;
 	/// \brief Returns conservative remaining seconds; backward or expired clocks yield zero.
 	[[nodiscard]] auto remaining_access_lifetime(const device_binding_lifetime& aLifetime, std::int64_t aNow) noexcept -> std::uint32_t;
+	/// \brief Returns conservative remaining refresh seconds; backward or expired clocks yield zero.
+	[[nodiscard]] auto remaining_refresh_lifetime(const device_binding_lifetime& aLifetime, std::int64_t aNow) noexcept -> std::uint32_t;
 
 	enum class device_binding_failure { unavailable,
 										corrupt,

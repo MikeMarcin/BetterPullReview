@@ -127,6 +127,13 @@ namespace bpr::app::detail {
 		// transport. Only meaningful with a fixture.
 		bool DeviceRefreshCourse   = false;
 		bool PersistDeviceBindings = false;
+		/// [[BPR-0644]]. The renewal answer becomes the server's refusal of the
+		/// refresh material, so a course can drive a launch whose stored grant
+		/// the server no longer honours. Only meaningful beside a renewal course.
+		bool RejectDeviceRefresh = false;
+		/// [[BPR-0644]]. The access slot answers `locked`, as a platform keychain
+		/// does when it will not answer without a prompt this launch.
+		bool LockedDeviceVault = false;
 		/// [[BPR-0657]]. Lets a course refresh the pull request: the recorded
 		/// read script is replayed for each session the product establishes,
 		/// with the fixture's replies and resolutions overlaid.

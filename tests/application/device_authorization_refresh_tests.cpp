@@ -1,6 +1,7 @@
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -315,8 +316,15 @@ namespace {
 			enroll(aProfile, std::move(aCredential));
 		}
 
-		std::vector<bool>                                 RefreshSettled;
-		std::vector<application::device_binding_lifetime> Lifetimes;
+		void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override
+		{
+			Order->emplace_back("invalidate-grant");
+			Invalidations.emplace_back(std::move(aAuthority), aGeneration);
+		}
+
+		std::vector<std::pair<application::github_credential_authority_key, core::github_identity_generation>> Invalidations;
+		std::vector<bool>                                                                                      RefreshSettled;
+		std::vector<application::device_binding_lifetime>                                                      Lifetimes;
 		order_log*                                        Order;
 		std::vector<core::host_profile_id>                Profiles;
 		std::vector<std::string>                          Credentials;
@@ -1651,10 +1659,61 @@ namespace {
 		}
 	}
 
+	// [[BPR-0644]]. A grant restored after its access token expired is renewed
+	// at once, bounded by what is left of its refresh lifetime rather than by
+	// the access lifetime that has already gone; one whose refresh lifetime
+	// has gone spends nothing.
+	void test_launch_renewal_spends_refresh_only_inside_its_lifetime()
+	{
+		{
+			harness world;
+			world.Vault.Stored = "retained-refresh";
+			world.Host.renew_restored_grant(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1, .AccessExpiresAt = 500, .RefreshExpiresAt = 900 });
+			world.Lane.drain();
+			expect(world.Vault.RetrieveContexts.empty() && world.Transport.RefreshMaterial.empty(), "a refresh-expired restore never reads or spends refresh material");
+			expect(world.Host.refresh_observation().State == application::device_authorization_refresh_state::reenrollment_required, "a refresh-expired restore requires sign-in");
+			expect(world.Enrollment.Invalidations.size() == 1U && world.Enrollment.Invalidations.front().first == authority() && world.Enrollment.Invalidations.front().second == accepted_generation(),
+				   "and ends exactly the restored grant");
+		}
+		{
+			harness world;
+			world.Vault.Stored = "retained-refresh";
+			world.Host.renew_restored_grant(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1, .AccessExpiresAt = 900, .RefreshExpiresAt = 5000 });
+			expect(world.Transport.RefreshMaterial.empty(), "the renewal is begun on its own turn, not inside the caller's");
+			world.Lane.drain();
+			expect(world.Transport.RefreshMaterial == std::vector<std::string>{ "retained-refresh" } && world.Vault.RetrieveContexts.back().Authority == authority()
+					   && world.Vault.RetrieveContexts.back().IdentityGeneration == accepted_generation(),
+				   "an access-expired restore spends the stored refresh material under the restored slot");
+			world.Transport.answer_refresh(application::device_token_issued{
+				.Context = world.Transport.last_refresh_context(),
+				.Grant   = application::device_token_material{ .AccessToken = material("rotated-access"), .RefreshToken = material("rotated-refresh"), .ExpiresInSeconds = 28'800U, .RefreshTokenExpiresInSeconds = 15'897'600U },
+			});
+			world.Lane.drain();
+			expect(world.Vault.Stored == "rotated-refresh" && world.Enrollment.Credentials == std::vector<std::string>{ "rotated-access" } && world.Enrollment.RefreshSettled == std::vector<bool>{ true },
+				   "the rotated refresh material is stored and the rotated access token enrolled as settled");
+			const auto stored   = std::ranges::find(world.Order, std::string{ "store-refresh" });
+			const auto enrolled = std::ranges::find(world.Order, std::string{ "enroll" });
+			expect(stored != world.Order.end() && enrolled != world.Order.end() && stored < enrolled, "the refresh slot is written before the access token is enrolled");
+			expect(world.Enrollment.Invalidations.empty() && world.Host.refresh_observation().Rotations == 1U, "a renewed restore is one rotation and invalidates nothing");
+		}
+		{
+			harness world;
+			world.Vault.Stored = "retained-refresh";
+			world.Host.renew_restored_grant(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1, .AccessExpiresAt = 900, .RefreshExpiresAt = 5000 });
+			world.Lane.drain();
+			world.Transport.answer_refresh(application::device_token_refused{ .Context = world.Transport.last_refresh_context(), .Reason = application::device_token_refusal_reason::expired_token });
+			world.Lane.drain();
+			expect(world.Transport.RefreshMaterial.size() == 1U && world.Enrollment.Credentials.empty(), "a refused renewal is not retried and enrolls nothing");
+			expect(world.Host.refresh_observation().Failure == application::device_authorization_refresh_failure::refresh_rejected && world.Enrollment.Invalidations.size() == 1U,
+				   "a refused renewal ends the restored grant as rejected");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_launch_renewal_spends_refresh_only_inside_its_lifetime();
 	test_startup_restore_during_device_flow_does_not_bind_the_new_grant();
 	test_restart_expiry_and_transient_retry();
 	test_the_refresh_entry_is_written_before_the_access_token_is_enrolled();

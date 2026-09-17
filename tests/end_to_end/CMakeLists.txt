@@ -2415,6 +2415,31 @@ bpr_enable_warnings(test_device_binding_restart)
 bpr_add_network_isolated_test(NAME application_device_binding_restart WINDOWS_UNCONTAINED COMMAND test_device_binding_restart)
 set_tests_properties(application_device_binding_restart PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60 PASS_REGULAR_EXPRESSION "device-binding-restart-tests:pass")
 
+# BPR-0644. A launch after the access token expired renews the stored grant
+# with its refresh material instead of forgetting it, and only a
+# refresh-expired or server-refused grant is tombstoned, with the device
+# sign-in offered in its place.
+bpr_add_executable(test_device_binding_launch_renewal device_binding_launch_renewal_tests.cpp)
+target_link_libraries(test_device_binding_launch_renewal PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_device_binding_launch_renewal PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_device_binding_launch_renewal)
+bpr_enable_warnings(test_device_binding_launch_renewal)
+bpr_add_network_isolated_test(NAME application_device_binding_launch_renewal COMMAND test_device_binding_launch_renewal)
+set_tests_properties(application_device_binding_launch_renewal PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "device-binding-launch-renewal-tests:pass")
+
+# BPR-0644. A restored grant with hours of access left survives an orderly
+# quit and a termination signal, each followed by a real relaunch; the
+# driver reads the metadata row from the store after every process exits.
+bpr_add_executable(test_device_binding_relaunch device_binding_relaunch_tests.cpp)
+target_link_libraries(test_device_binding_relaunch PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_device_binding_relaunch PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_device_binding_relaunch)
+bpr_enable_warnings(test_device_binding_relaunch)
+bpr_add_network_isolated_test(NAME application_device_binding_relaunch
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/device_binding_relaunch_contract.py"
+    --application $<TARGET_FILE:test_device_binding_relaunch>)
+set_tests_properties(application_device_binding_relaunch PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "DEVICE_BINDING_RELAUNCH_OK")
+
 if(UNIX)
 bpr_add_executable(test_application_logging application_logging_tests.cpp)
 target_link_libraries(test_application_logging PRIVATE BetterPullReview::Composition)
