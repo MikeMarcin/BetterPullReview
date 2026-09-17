@@ -73,3 +73,9 @@ This is the same rule the agent chat and finding courses use since
 `tests/end_to_end/github_application_liveness_tests.cpp`. On POSIX the
 narrowing is `chmod 0700` on two directories the course creates, and the root
 becomes `<temporary directory>/data`. The macOS run is the integrator's.
+
+## macOS run; finished (dsp-003)
+
+Main merged `windows-lane` at `aedf471f` as `013d2036`. **macOS at main `013d2036`** after the merge (`build/r2-logs/dsp3-int5-ctest.log`):
+`application_poller_liveness` passes (1.50 s), along with
+`test_network_isolation_manifest` and `architecture_boundaries`.
