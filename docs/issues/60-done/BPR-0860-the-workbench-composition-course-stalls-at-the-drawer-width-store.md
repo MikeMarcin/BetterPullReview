@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0860"
 title: "The workbench composition course stalls at the drawer width store until its run budget expires"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep; reproduced on macOS by dsp-004; scouted","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"The row passes on macOS and Linux","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"application_workbench_composition_contract passes on macOS 6/6 at 21.4, 21.3, 21.3, 21.7, 21.8 and 21.9 s at load averages 2.2-4.5, and at 21.27 s in the full macOS sweep at 2b2e5549; and on Linux at 2.80 s in bpr-linux's merged-head runs and 4.07 s in its full sweep at the same commit."}},{"criterion":"A stalled width store fails with a named term, not by running out the budget","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"observation","detail":"Both width phases are capped at 512 ticks (about 5.3 s at the run's 10 ms tick) and name their stall. Three deliberately broken builds, each reverted, showed each term firing: a forced-zero drag delta gives WORKBENCH_DRAWER_WIDTH_DISPATCH_STALLED, an early return before the host resize gives WORKBENCH_DRAWER_WIDTH_STORE_STALLED with dispatches=1, and triggering overview instead of review gives WORKBENCH_FILES_DRAWER_EXPAND_STALLED -- all three exiting at about 16.6 s against 40.38 s and a bare RUN_BUDGET_EXPIRED before. Each line prints the dispatch and store counters with their expectations, outstanding requests, splitter sizes, both drawer states, modality, drawer controls and profile scoping, which is what let the Linux run confirm the structural assumption in one pass. An independent rfc-reviewer confirmed the cap is bounded well inside the budget and that no original assertion was loosened."}}]
 ---
 
 # BPR-0860: The workbench composition course stalls at the drawer width store until its run budget expires
@@ -259,3 +260,19 @@ The contract marker above is what a green row emits.
 Criterion 1 named macOS **and Linux**; both now pass. Windows
 (`WINDOWS_UNCONTAINED`) is the only run this card still owes. The run record
 is in `docs/verification/dsp4-linux-confirmation.md`.
+
+## Linux confirmation, and the card closes (dsp-005, integrator)
+
+`bpr-linux` passes this row at the merged head and again in its full sweep at
+`2b2e5549` (2.80 s and 4.07 s), and it confirms the one structural assumption
+the fix rests on. The pass **measures** it rather than merely being consistent
+with it: `awaiting_files_drawer` refuses to take baselines or drag until the
+splitter reports four widgets with a non-zero files size and both the window
+and the host call the drawer expanded, so a hidden drawer does still occupy a
+slot at size 0 under `QT_STYLE_OVERRIDE=Windows`. Every original width
+assertion then held, including the strict `== base + 1` counts. No stall term
+fired and the run budget was not touched.
+
+macOS passes at 21.27 s in the full macOS sweep at the same commit. Both
+acceptance criteria are met on both named platforms, so the card is Done. The
+Windows run is dispatched with `bpr-win` but is not part of this acceptance.
