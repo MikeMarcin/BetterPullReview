@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0846"
 title: "A fetch that sends haves gets a pack the cache import refuses"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-epoch-and-startup new defect 1 (BPR-0839 investigation)","found_at":"4762d716b2048fc74eadc85d3425528696daa625","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 the live-path update of a pull request whose earlier head is resident loads over a transport that honours haves, in a composed course on macOS, and on Linux and Windows through the stations","outcome":"pass","revision":"bbdf8cc0e9d5db0ebd66b05b8f3d1fcd76a62a42","evidence":{"kind":"command","detail":"git_haves_trimmed_pack_update (real epoch host, protocol v2, pack sink, InstalledGitCache and SQLite catalog over a local upload-pack --stateless-rpc that honours haves): served pack index-pack exit 1, epoch ready, latest live head is the update. macOS 3/3 (build/r2-logs/dsp4-0846-courses-x3.log) and again at the integrated head 4dbb00fd (dsp4-int1-ctest.log); Linux Git 2.53.0 3/3 (docs/verification/dsp4-linux-confirmation.md); Windows Git for Windows 2.55.0 3/3, uncontained reason measured (docs/verification/dsp4-windows-confirmation.md). Negative control: with AllowExitOne false the course fails with the reproduction's signature (dsp4-0846-negative-control.log). Critical review: no blocking finding (card section)."}},{"criterion":"AC2 a pack with a missing object, or one not connected to resident history, is still refused, and a course shows it","outcome":"pass","revision":"15eb1540d302795961f9f913af9942ff40a4bf2f","evidence":{"kind":"command","detail":"git_haves_trimmed_pack_missing-object: index-pack 128, refused, earlier head stays latest; since BPR-0851 it asserts the process_failure reason (27, no 26) and a usable cache. git_haves_trimmed_pack_unconnected: exit-1 pack over sparse unconnected history refused before the witness and rolled back, imports once connected; since BPR-0852 the refusal names its findings. Both pass on macOS at 4dbb00fd (dsp4-int1-ctest.log), on Linux and Windows at e6b7193e (verification files)."}},{"criterion":"AC3 if it does not reproduce, record why","outcome":"pass","revision":"bbdf8cc0e9d5db0ebd66b05b8f3d1fcd76a62a42","evidence":{"kind":"observation","detail":"Not applicable: it reproduced offline (dsp4-0846-phase1-courses.log lines 38-43), so the card records the reproduction, cause and fix instead."}}]
 ---
 
 # BPR-0846: A fetch that sends haves gets a pack the cache import refuses
