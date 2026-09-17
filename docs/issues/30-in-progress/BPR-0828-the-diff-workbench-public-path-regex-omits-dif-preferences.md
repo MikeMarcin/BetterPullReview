@@ -40,3 +40,14 @@ markers. Match by shape, not by value: other courses own the values.
 - `application_diff_workbench_public_path` passes on macOS.
 - The Linux station reruns it once `linux-lane` contains this fix and
   [[BPR-0823]]'s.
+
+## Fix (dsp-002)
+
+The pass expression now names `DIF_PREFERENCES:[a-z]+:[a-z]+:[a-z]+` between
+`APPEARANCE_SETTINGS` and `NOTIFICATION_DELIVERY_COMPOSED_OK`, matched by shape.
+`application_diff_workbench_public_path` passes on macOS (12.11 s,
+`build/r2-logs/dsp2-int9-courses.log`) with [[BPR-0823]]'s `10f30f04` in the tree.
+The same run failed before this line was added (`dsp2-int8-ctest.log`).
+
+**Status.** The macOS criterion is met. The Linux rerun goes with the next
+`bpr-linux` envelope.

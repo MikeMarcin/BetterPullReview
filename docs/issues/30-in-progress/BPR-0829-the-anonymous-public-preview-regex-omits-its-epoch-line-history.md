@@ -40,3 +40,21 @@ depends on timing.
 - The course passes on macOS, repeated.
 - The Linux station either passes it with `SMART_ACQUISITIONS:1` or names
   the cause of the second acquisition.
+
+## Progress (dsp-002): history line named; the acquisition count is 2 on macOS too
+
+The pass expression now names `PUBLIC_PREVIEW_EPOCH_LINE_HISTORY:[^\r\n]*`.
+With that, the one mismatch left on macOS is the count: two runs at the
+integrated head print `PUBLIC_PREVIEW_SMART_ACQUISITIONS:2` and
+`PUBLIC_PREVIEW_ENABLED_OK`, against the expression's `:1`
+(`build/r2-logs/dsp2-int9-courses.log`, `dsp2-int9-repeat.log`).
+The Linux station saw 1 and 2.
+
+So the second acquisition is not Linux-specific. Whether it is a duplicate
+acquisition in the product or a timing-dependent count in the course is the
+open question. The expression keeps `:1`.
+
+**Next.** Find which operations perform the smart acquisitions in this course
+on macOS, by instrumentation or a bisect from `26fd7f7c`. Fix a duplicate in
+the product, or state why two is correct and pin the course to a
+deterministic count.
