@@ -97,6 +97,33 @@ if os.name != "posix":
     def exited(handle: int) -> bool:
         return kernel32.WaitForSingleObject(handle, 0) == WAIT_OBJECT_0
 
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+                                                    ctypes.POINTER(wintypes.DWORD)]
+
+    def open_fixture_process(pid: int, image: str) -> int:
+        """A handle to a fixture-reported process, opened while it is alive.
+
+        The image's file name must match, so a reused PID cannot stand in for
+        the reported process; every later liveness question uses the handle.
+        """
+        handle = open_process(pid, SYNCHRONIZE | PROCESS_SUSPEND_RESUME | PROCESS_TERMINATE
+                              | PROCESS_QUERY_LIMITED_INFORMATION)
+        buffer = ctypes.create_unicode_buffer(32768)
+        size = wintypes.DWORD(len(buffer))
+        if not kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)) \
+                or Path(buffer.value).name.lower() != image.lower() or exited(handle):
+            kernel32.CloseHandle(handle)
+            raise RuntimeError(f"fixture process {pid} is not a live {image}")
+        return handle
+
+    def suspend_process(handle: int) -> None:
+        if ntdll.NtSuspendProcess(handle) != 0:
+            raise RuntimeError("could not suspend a fixture process")
+
+    def resume_process(handle: int) -> None:
+        ntdll.NtResumeProcess(handle)
+
 
 def run_course(executable: Path, root: Path, *, kill_process_group: bool, pause: bool = True) -> None:
     agent = None

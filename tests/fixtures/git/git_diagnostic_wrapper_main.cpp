@@ -12,6 +12,11 @@
 	#include <io.h>
 	#include <process.h>
 	#include <windows.h>
+
+	#include <tlhelp32.h>
+
+	#include <chrono>
+	#include <thread>
 #else
 	#include <csignal>
 	#include <unistd.h>
@@ -90,6 +95,74 @@ auto main(int argc, char** argv) -> int
 		std::cerr << raw_git_diagnostic;
 		return 128;
 	}
+
+#if defined(_WIN32)
+	// [[BPR-0622]]. The same materialization checkpoint. Windows has no SIGSTOP,
+	// so the paused writer blocks here, alive inside its supervisor's job. It
+	// reports its own and its parent's process IDs, then waits until the course
+	// has opened handles to both; the course reads liveness from those handles,
+	// never from PID existence. Only then does it publish the workspace the
+	// application's checkpoint waits for.
+	const auto checkpoint = executable.parent_path() / ".bpr-pause-workspace";
+	if (std::filesystem::is_regular_file(checkpoint)) {
+		auto        input = std::ifstream{ checkpoint };
+		std::string command;
+		std::getline(input, command);
+		if ((command == "init" || command == "checkout-index") && hasArgument(command)) {
+			const auto root      = executable.parent_path().parent_path();
+			auto       workspace = std::filesystem::path{ argv[argc - 1] };
+			if (command == "checkout-index") {
+				for (int index = 1; index + 1 < argc; ++index) {
+					if (std::string_view{ argv[index] } == "-C") {
+						workspace = argv[index + 1];
+					}
+				}
+			}
+			if (!workspace.is_absolute() || !std::filesystem::is_directory(workspace)) {
+				return 126;
+			}
+			auto       parent   = DWORD{ 0U };
+			const auto self     = GetCurrentProcessId();
+			const auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0U);
+			if (snapshot != INVALID_HANDLE_VALUE) {
+				auto entry   = PROCESSENTRY32W{ };
+				entry.dwSize = sizeof(entry);
+				for (auto found = Process32FirstW(snapshot, &entry); found != FALSE; found = Process32NextW(snapshot, &entry)) {
+					if (entry.th32ProcessID == self) {
+						parent = entry.th32ParentProcessID;
+						break;
+					}
+				}
+				static_cast<void>(CloseHandle(snapshot));
+			}
+			if (parent == 0U) {
+				return 126;
+			}
+			const auto publish = [&root](const std::string& aName, const std::string& aValue) {
+				auto output = std::ofstream{ root / aName, std::ios::binary };
+				output << aValue;
+				output.close();
+				return static_cast<bool>(output);
+			};
+			if (!publish("git.pid", std::to_string(self)) || !publish("supervisor.pid", std::to_string(parent))) {
+				return 126;
+			}
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 60 };
+			while (!std::filesystem::exists(root / "handles-captured")) {
+				if (std::chrono::steady_clock::now() >= deadline) {
+					return 126;
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+			}
+			if (!publish("workspace-parent", workspace.parent_path().string())) {
+				return 126;
+			}
+			for (;;) {
+				Sleep(1'000U);
+			}
+		}
+	}
+#endif
 
 #if !defined(_WIN32)
 	// The containing composed fixture arms exactly one materialization stage.

@@ -41,7 +41,9 @@ if(BPR_BUILD_QT)
         # Windows guard and private-object rules as the agent supervisor.
         target_link_libraries(better_pull_review_adapter_git PRIVATE BetterPullReview::AdapterAgent Advapi32)
     endif()
-    if(UNIX)
+    # [[BPR-0622]]. A guarded Git launch runs inside the bundled supervisor on
+    # Windows too.
+    if(UNIX OR WIN32)
         add_dependencies(better_pull_review_adapter_git tool_better_pull_review_agent_supervisor)
         if(BUILD_TESTING)
             target_compile_definitions(better_pull_review_adapter_git PRIVATE

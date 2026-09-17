@@ -29,6 +29,7 @@
 #include <optional>
 #include <random>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -1520,6 +1521,12 @@ namespace bpr::adapters::git {
 		// close inherited descriptors or leave descendants behind when it exits.
 		struct git_workspace_lifetime
 		{
+			enum class start_state : std::uint8_t {
+				pending,
+				started,
+				failed,
+			};
+
 			bool Supervised = false;
 #if defined(Q_OS_UNIX)
 			std::array<int, 2> Channel{ -1, -1 };
@@ -1531,11 +1538,133 @@ namespace bpr::adapters::git {
 					aDescriptor = -1;
 				}
 			}
+#elif defined(Q_OS_WIN)
+			// [[BPR-0622]]. A LockFileEx lock belongs to the process that took it,
+			// so the bundled supervisor takes its own before it creates Git; this
+			// process keeps a shared lock only for this execution. The supervisor
+			// creates Git suspended inside its own kill-on-close job and reports
+			// before Git runs, so no Git write precedes job assignment.
+			static constexpr DWORD                  lifetime_pipe_bytes = 256U * 1024U;
+			adapters::agent::detail::windows_handle Guard;
+			adapters::agent::detail::windows_handle LifetimeOwner;
+			adapters::agent::detail::windows_handle LifetimeChild;
+			adapters::agent::detail::windows_handle ReportOwner;
+			adapters::agent::detail::windows_handle ReportChild;
+			std::wstring                            GuardPath;
+			std::array<std::uint64_t, 4U>           GuardIdentity{ };
+			std::wstring                            SupervisorPath;
+			std::wstring                            SupervisorCommand;
+			std::wstring                            GitExecutable;
+			std::wstring                            GitCommand;
+			std::wstring                            GitWorkingDirectory;
+			std::wstring                            SupervisorDirectory;
+			std::vector<BYTE>                       AttributeBuffer;
+			LPPROC_THREAD_ATTRIBUTE_LIST            Attributes = nullptr;
+			std::vector<HANDLE>                     Inherited;
+			STARTUPINFOEXW                          Startup{ };
+			bool                                    Redirected           = false;
+			bool                                    SpecificationWritten = false;
+			start_state                             Start                = start_state::pending;
+
+			[[nodiscard]] static auto make_pipe(
+				adapters::agent::detail::windows_handle& aOwner,
+				adapters::agent::detail::windows_handle& aChild,
+				const bool                               aOwnerWrites,
+				const DWORD                              aBytes) noexcept -> bool
+			{
+				auto attributes           = SECURITY_ATTRIBUTES{ };
+				attributes.nLength        = sizeof(attributes);
+				attributes.bInheritHandle = TRUE;
+				auto read                 = HANDLE{ nullptr };
+				auto write                = HANDLE{ nullptr };
+				if (::CreatePipe(&read, &write, &attributes, aBytes) == FALSE) {
+					return false;
+				}
+				aOwner.reset(aOwnerWrites ? write : read);
+				aChild.reset(aOwnerWrites ? read : write);
+				return ::SetHandleInformation(aOwner.get(), HANDLE_FLAG_INHERIT, 0U) != FALSE;
+			}
+
+			[[nodiscard]] auto write_value(const void* const aData, const DWORD aBytes) const noexcept -> bool
+			{
+				auto written = DWORD{ 0U };
+				while (written < aBytes) {
+					auto count = DWORD{ 0U };
+					if (::WriteFile(LifetimeOwner.get(), static_cast<const char*>(aData) + written, aBytes - written, &count, nullptr) == FALSE || count == 0U) {
+						return false;
+					}
+					written += count;
+				}
+				return true;
+			}
+
+			[[nodiscard]] auto write_string(const std::wstring& aValue) const noexcept -> bool
+			{
+				const auto length = static_cast<DWORD>(aValue.size());
+				return !aValue.empty() && aValue.size() <= 32'767U
+					&& write_value(&length, sizeof(length))
+					&& write_value(aValue.data(), length * static_cast<DWORD>(sizeof(wchar_t)));
+			}
+
+			/// Replaces the Git launch Qt prepared with the supervisor's, keeping
+			/// Git's exact command line for the specification. A failure still
+			/// starts the supervisor, with arguments it refuses, so Git never runs
+			/// outside it.
+			void redirect(QProcess::CreateProcessArguments* const aArguments) noexcept
+			{
+				try {
+					Supervised           = true;
+					GitCommand           = aArguments->arguments != nullptr ? std::wstring{ aArguments->arguments } : std::wstring{ };
+					GitWorkingDirectory  = aArguments->currentDirectory != nullptr ? std::wstring{ aArguments->currentDirectory } : std::wstring{ };
+					const auto& original = *aArguments->startupInfo;
+					Inherited.clear();
+					for (const auto handle : { original.hStdInput, original.hStdOutput, original.hStdError, LifetimeChild.get(), ReportChild.get() }) {
+						if (handle == nullptr || handle == INVALID_HANDLE_VALUE) {
+							throw std::runtime_error{ "supervisor handle" };
+						}
+						if (std::ranges::find(Inherited, handle) == Inherited.end()) {
+							Inherited.push_back(handle);
+						}
+					}
+					auto size = SIZE_T{ 0U };
+					static_cast<void>(::InitializeProcThreadAttributeList(nullptr, 1U, 0U, &size));
+					AttributeBuffer.assign(size, BYTE{ 0U });
+					const auto list = static_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(static_cast<void*>(AttributeBuffer.data()));
+					if (size == 0U || ::InitializeProcThreadAttributeList(list, 1U, 0U, &size) == FALSE) {
+						throw std::runtime_error{ "supervisor attributes" };
+					}
+					Attributes = list;
+					if (GitCommand.empty() || GitWorkingDirectory.empty()
+						|| ::UpdateProcThreadAttribute(Attributes, 0U, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, Inherited.data(), Inherited.size() * sizeof(HANDLE), nullptr, nullptr) == FALSE) {
+						throw std::runtime_error{ "supervisor handle list" };
+					}
+					Startup                 = STARTUPINFOEXW{ };
+					Startup.StartupInfo     = original;
+					Startup.StartupInfo.cb  = sizeof(Startup);
+					Startup.lpAttributeList = Attributes;
+					aArguments->startupInfo = &Startup.StartupInfo;
+					aArguments->flags |= EXTENDED_STARTUPINFO_PRESENT;
+					aArguments->inheritHandles   = true;
+					aArguments->applicationName  = SupervisorPath.c_str();
+					aArguments->arguments        = SupervisorCommand.data();
+					aArguments->currentDirectory = SupervisorDirectory.c_str();
+					Redirected                   = true;
+				} catch (...) {
+					// The supervisor with no owner arguments exits at once.
+					SupervisorCommand           = L"\"" + SupervisorPath + L"\"";
+					aArguments->applicationName = SupervisorPath.c_str();
+					aArguments->arguments       = SupervisorCommand.data();
+					aArguments->inheritHandles  = false;
+					Redirected                  = false;
+				}
+			}
 #endif
 			void close_owner() noexcept
 			{
 #if defined(Q_OS_UNIX)
 				close_descriptor(Channel[0]);
+#elif defined(Q_OS_WIN)
+				LifetimeOwner.reset();
 #endif
 			}
 			void close_child() noexcept
@@ -1543,12 +1672,67 @@ namespace bpr::adapters::git {
 #if defined(Q_OS_UNIX)
 				close_descriptor(Channel[1]);
 				close_descriptor(Guard);
+#elif defined(Q_OS_WIN)
+				LifetimeChild.reset();
+				ReportChild.reset();
 #endif
 			}
 			~git_workspace_lifetime()
 			{
 				close_owner();
 				close_child();
+#if defined(Q_OS_WIN)
+				if (Attributes != nullptr) {
+					::DeleteProcThreadAttributeList(Attributes);
+				}
+#endif
+			}
+
+			/// Unix learns of a failed start as the supervisor's exit. Windows
+			/// sends the launch specification and waits for the supervisor's
+			/// report that Git is assigned to its job and resumed.
+			[[nodiscard]] auto poll_start() noexcept -> start_state
+			{
+#if defined(Q_OS_WIN)
+				if (Start != start_state::pending) {
+					return Start;
+				}
+				if (!Redirected) {
+					return Start = start_state::failed;
+				}
+				if (!SpecificationWritten) {
+					SpecificationWritten       = true;
+					const auto magic           = DWORD{ 0x53525042U };
+					const auto version         = DWORD{ 2U };
+					const auto flags           = DWORD{ 1U };
+					const auto specificationOk = write_value(&magic, sizeof(magic))
+						&& write_value(&version, sizeof(version))
+						&& write_value(&flags, sizeof(flags))
+						&& write_string(GitExecutable)
+						&& write_string(GitCommand)
+						&& write_string(GitWorkingDirectory)
+						&& write_string(GuardPath)
+						&& write_value(GuardIdentity.data(), static_cast<DWORD>(sizeof(GuardIdentity)));
+					if (!specificationOk) {
+						return Start = start_state::failed;
+					}
+				}
+				auto available = DWORD{ 0U };
+				if (::PeekNamedPipe(ReportOwner.get(), nullptr, 0U, nullptr, &available, nullptr) == FALSE) {
+					return Start = start_state::failed;
+				}
+				if (available < sizeof(std::int32_t)) {
+					return start_state::pending;
+				}
+				auto report = std::int32_t{ -1 };
+				auto count  = DWORD{ 0U };
+				if (::ReadFile(ReportOwner.get(), &report, sizeof(report), &count, nullptr) == FALSE || count != sizeof(report)) {
+					return Start = start_state::failed;
+				}
+				return Start = report == 0 ? start_state::started : start_state::failed;
+#else
+				return start_state::started;
+#endif
 			}
 			[[nodiscard]] auto prepare(QProcess&                                          aProcess,
 									   const application::agent_workspace_lifetime_guard& aGuard) -> bool
@@ -1604,6 +1788,40 @@ namespace bpr::adapters::git {
 	#endif
 				aProcess.setArguments(arguments);
 				Supervised = true;
+				return true;
+#elif defined(Q_OS_WIN)
+				const auto path = std::filesystem::path{ std::u8string{ aGuard.Path.begin(), aGuard.Path.end() } };
+				if (aGuard.Path.empty() || aGuard.Path.size() > 4096U
+					|| aGuard.Path.find('\0') != std::string::npos || !path.is_absolute()) {
+					return false;
+				}
+				// The guard opens without following a reparse point and binds the
+				// recorded identity and the private descriptor on the handle.
+				GuardPath     = path.wstring();
+				GuardIdentity = aGuard.FileIdentity;
+				Guard         = adapters::agent::detail::open_windows_workspace_guard(GuardPath, GuardIdentity, adapters::agent::detail::windows_guard_lock::shared);
+				if (!Guard || !make_pipe(LifetimeOwner, LifetimeChild, true, lifetime_pipe_bytes)
+					|| !make_pipe(ReportOwner, ReportChild, false, 0U)) {
+					return false;
+				}
+	#ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
+				SupervisorPath = std::filesystem::path{ BPR_AGENT_SUPERVISOR_EXECUTABLE }.make_preferred().wstring();
+	#else
+				SupervisorPath = std::filesystem::path{ (QCoreApplication::applicationDirPath() + "/better_pull_review_agent_supervisor.exe").toStdWString() }.make_preferred().wstring();
+	#endif
+				SupervisorDirectory = std::filesystem::path{ SupervisorPath }.parent_path().wstring();
+				GitExecutable       = std::filesystem::path{ aProcess.program().toStdWString() }.make_preferred().wstring();
+				SupervisorCommand   = L"\"" + SupervisorPath + L"\" --workspace-owner "
+					+ std::to_wstring(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(LifetimeChild.get()))) + L" "
+					+ std::to_wstring(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(ReportChild.get())));
+				if (GitExecutable.empty() || SupervisorDirectory.empty() || GitExecutable.find(L'"') != std::wstring::npos || SupervisorPath.find(L'"') != std::wstring::npos) {
+					return false;
+				}
+				// Supervised is set only once the launch is redirected, so a start
+				// that bypassed the modifier is refused rather than run unguarded.
+				aProcess.setCreateProcessArgumentsModifier([this](QProcess::CreateProcessArguments* const aArguments) {
+					redirect(aArguments);
+				});
 				return true;
 #else
 				static_cast<void>(aProcess);
@@ -2038,7 +2256,26 @@ namespace bpr::adapters::git {
 					}
 				}
 				processGroupId = resolve_process_group(*process, 0);
-				if (
+				if (aRequest.WorkspaceGuard) {
+					// The supervisor owns Git's lifetime; attaching it to this
+					// process's kill-on-close job would end it with this process.
+					if (!lifetime.Supervised) {
+						return failed(git_process_failure::process_start);
+					}
+					for (;;) {
+						const auto start = lifetime.poll_start();
+						if (start == git_workspace_lifetime::start_state::started) {
+							break;
+						}
+						if (start == git_workspace_lifetime::start_state::failed || clock::now() >= startDeadline) {
+							return failed(git_process_failure::process_start);
+						}
+						if (const auto failure = terminalFailure(); failure.has_value()) {
+							return failed(*failure);
+						}
+						std::this_thread::sleep_for(wait_slice);
+					}
+				} else if (
 					process->state() != QProcess::NotRunning
 					&& !job.attach(process->processId())) {
 					return failed(git_process_failure::process_start);
@@ -3037,12 +3274,17 @@ namespace bpr::adapters::git {
 			if (owner == nullptr || EqualSid(owner, principals->user()) == FALSE || dacl == nullptr) {
 				return false;
 			}
+			// OWNER RIGHTS grants only to the object's owner, which is this user;
+			// CPython's private mkdir writes exactly SYSTEM, Administrators and it.
 			std::array<BYTE, SECURITY_MAX_SID_SIZE> system{ };
 			std::array<BYTE, SECURITY_MAX_SID_SIZE> administrators{ };
+			std::array<BYTE, SECURITY_MAX_SID_SIZE> ownerRights{ };
 			auto                                    systemSize         = static_cast<DWORD>(system.size());
 			auto                                    administratorsSize = static_cast<DWORD>(administrators.size());
+			auto                                    ownerRightsSize    = static_cast<DWORD>(ownerRights.size());
 			if (CreateWellKnownSid(WinLocalSystemSid, nullptr, system.data(), &systemSize) == FALSE
-				|| CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, administrators.data(), &administratorsSize) == FALSE) {
+				|| CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, administrators.data(), &administratorsSize) == FALSE
+				|| CreateWellKnownSid(WinCreatorOwnerRightsSid, nullptr, ownerRights.data(), &ownerRightsSize) == FALSE) {
 				return false;
 			}
 			constexpr auto write_rights = static_cast<ACCESS_MASK>(
@@ -3061,7 +3303,8 @@ namespace bpr::adapters::git {
 				const auto        sid     = static_cast<PSID>(static_cast<void*>(const_cast<DWORD*>(&allowed->SidStart)));
 				if ((allowed->Mask & write_rights) == 0U || EqualSid(sid, principals->user()) != FALSE
 					|| (principals->container() != nullptr && EqualSid(sid, principals->container()) != FALSE)
-					|| EqualSid(sid, system.data()) != FALSE || EqualSid(sid, administrators.data()) != FALSE) {
+					|| EqualSid(sid, system.data()) != FALSE || EqualSid(sid, administrators.data()) != FALSE
+					|| EqualSid(sid, ownerRights.data()) != FALSE) {
 					continue;
 				}
 				return false;

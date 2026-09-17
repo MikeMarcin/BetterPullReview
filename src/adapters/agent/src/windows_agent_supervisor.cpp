@@ -12,6 +12,11 @@
 // Command line: --workspace-owner <lifetime-pipe> <report-pipe>
 //   <lifetime-pipe> read end: the launch specification, then end-of-file when
 //                   the owner closes it or dies.
+//
+// The supervisor's own current directory is neutral. A process's current
+// directory handle does not share delete, so a supervisor started in the
+// workspace would keep that workspace from being renamed for as long as it
+// lives; the specification carries the child's working directory instead.
 //   <report-pipe>   write end: one int32 start result.
 // Standard handles belong to the selected agent protocol and pass straight to
 // the child. No Qt, repository, credential, settings or network capability is
@@ -34,7 +39,7 @@ namespace {
 	constexpr int   Failure                = 125;
 	constexpr DWORD MaximumSpecCharacters  = 32'767U;
 	constexpr DWORD SpecificationMagic     = 0x53525042U; // "BPRS"
-	constexpr DWORD SpecificationVersion   = 1U;
+	constexpr DWORD SpecificationVersion   = 2U;
 	constexpr DWORD WorkspaceLeaseFlag     = 1U;
 	constexpr DWORD EmptyConfirmationSlice = 50U;
 
@@ -84,6 +89,7 @@ namespace {
 	{
 		std::wstring                  Executable;
 		std::wstring                  CommandLine;
+		std::wstring                  WorkingDirectory;
 		std::wstring                  GuardPath;
 		std::array<std::uint64_t, 4U> GuardIdentity{ };
 		bool                          WorkspaceLease = false;
@@ -97,7 +103,8 @@ namespace {
 			return false;
 		}
 		aSpecification.WorkspaceLease = (header[2] & WorkspaceLeaseFlag) != 0U;
-		if (!read_string(aLifetime, aSpecification.Executable) || !read_string(aLifetime, aSpecification.CommandLine)) {
+		if (!read_string(aLifetime, aSpecification.Executable) || !read_string(aLifetime, aSpecification.CommandLine)
+			|| !read_string(aLifetime, aSpecification.WorkingDirectory)) {
 			return false;
 		}
 		if (aSpecification.WorkspaceLease) {
@@ -225,11 +232,11 @@ auto wmain(const int argc, wchar_t** const argv) -> int
 	}
 	auto processInformation = PROCESS_INFORMATION{ };
 	auto commandLine        = specification.CommandLine;
-	// The environment block and working directory are this supervisor's own,
-	// which the owner created exactly for the child.
+	// The environment block is this supervisor's own, which the owner created
+	// exactly for the child; the working directory comes from the specification.
 	const auto created = ::CreateProcessW(
 		specification.Executable.c_str(), commandLine.data(), nullptr, nullptr, TRUE,
-		CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, &startup.StartupInfo, &processInformation);
+		CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT, nullptr, specification.WorkingDirectory.c_str(), &startup.StartupInfo, &processInformation);
 	const auto createError = ::GetLastError();
 	::DeleteProcThreadAttributeList(startup.lpAttributeList);
 	if (created == FALSE) {

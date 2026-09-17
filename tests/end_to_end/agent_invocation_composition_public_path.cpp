@@ -1583,7 +1583,7 @@ auto main(int argc, char** argv) -> int
 		&& evidence.Statistics.WorkspaceCleanups == 1U
 		&& cwd.has_value() && !std::filesystem::exists(*cwd)
 		&& !evidence.WorkspaceRoot.empty()
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 		&& !std::filesystem::exists(evidence.WorkspaceRoot)
 #else
 		&& std::filesystem::exists(evidence.WorkspaceRoot)

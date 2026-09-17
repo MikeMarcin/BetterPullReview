@@ -17,7 +17,12 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 from process_kill_support import kill_at_checkpoint  # noqa: E402
+from agent_workspace_ownership_tests import make_private  # noqa: E402
 from agent_parent_death_tests import running  # noqa: E402
+import agent_parent_death_tests as processes  # noqa: E402
+
+WINDOWS = os.name != "posix"
+FIXTURE_PROCESSES = ("supervisor", "agent", "descendant")
 
 
 def inspect_state(git: Path, root: Path, session_count: int) -> tuple:
@@ -55,8 +60,11 @@ def inspect_state(git: Path, root: Path, session_count: int) -> tuple:
     environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                        GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0")
+    # [[BPR-0622]]. A cache ref under a contained temporary root is longer than
+    # MAX_PATH; without core.longpaths Git for Windows silently lists no refs.
+    long_paths = ("-c", "core.longpaths=true") if os.name == "nt" else ()
     def inspect(*arguments: str) -> str:
-        return subprocess.run([str(git), f"--git-dir={repositories[0]}", *arguments],
+        return subprocess.run([str(git), *long_paths, f"--git-dir={repositories[0]}", *arguments],
                               env=environment, check=True, capture_output=True,
                               text=True, timeout=15).stdout
     inspect("fsck", "--full", "--strict", "--no-reflogs")
@@ -65,6 +73,40 @@ def inspect_state(git: Path, root: Path, session_count: int) -> tuple:
     if sorted(row.split()[1] for row in refs.splitlines()) != expected:
         raise RuntimeError("Git cache did not retain the exact base/head ref pair")
     return sessions, sequences, epochs, refs
+
+
+def read_journal(path: Path) -> bytes:
+    """The journal's exact bytes, readable while its owner holds it open.
+
+    [[BPR-0622]]. On Windows a live owner's handle includes DELETE access, so a
+    reader must share delete; CPython's open() does not.
+    """
+    if os.name != "nt":
+        return path.read_bytes()
+    import ctypes
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                     wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel32.ReadFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
+                                  ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.CreateFileW(str(path), 0x80000000, 0x1 | 0x2 | 0x4, None, 3, 0x00200000, None)
+    if handle in (None, wintypes.HANDLE(-1).value):
+        raise OSError(f"cannot open journal {path} ({ctypes.get_last_error()})")
+    try:
+        chunks = []
+        buffer = ctypes.create_string_buffer(65536)
+        while True:
+            count = wintypes.DWORD(0)
+            if not kernel32.ReadFile(handle, buffer, len(buffer), ctypes.byref(count), None):
+                raise OSError(f"cannot read journal {path} ({ctypes.get_last_error()})")
+            if count.value == 0:
+                return b"".join(chunks)
+            chunks.append(buffer.raw[:count.value])
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def workspace_snapshot(root: Path) -> tuple:
@@ -86,11 +128,23 @@ def main() -> int:
     args = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-agent-composition-kill-") as raw:
         parent = Path(raw).resolve()
+        # The workspace neighbourhood is created only under a parent no other
+        # principal can write; a contained root inherits %TEMP%'s entries.
+        make_private(parent)
         root = parent / "data"
         root.mkdir()
         pids = []
         stopped = False
         paused_supervisor = None
+        # [[BPR-0622]]. Windows reads liveness from handles opened while the
+        # fixture processes were alive, with their images checked, never from
+        # PID existence; NtSuspendProcess stands in for SIGSTOP (test code only).
+        handles: dict[str, int] = {}
+
+        def fixture_running(name: str) -> bool:
+            if WINDOWS:
+                return not processes.exited(handles[name])
+            return running(int(root.joinpath(f"{name}.pid").read_text()))
         try:
             def invoke(course: str, marker: str) -> None:
                 result = subprocess.run([str(args.executable), course, str(args.canary), str(root)],
@@ -105,17 +159,20 @@ def main() -> int:
                 if len(records) != 1:
                     raise RuntimeError("running application lacks exact workspace journal")
                 identity = live_workspace.stat().st_ino
-                receipt = records[0].read_bytes()
+                receipt = read_journal(records[0])
                 invoke(course, f"agent-invocation-{course}:pass")
-                if not live_workspace.exists() or live_workspace.stat().st_ino != identity or records[0].read_bytes() != receipt:
+                if not live_workspace.exists() or live_workspace.stat().st_ino != identity or read_journal(records[0]) != receipt:
                     raise RuntimeError("another ordinary application reclaimed live workspace ownership")
             def resume_supervisor() -> None:
                 nonlocal paused_supervisor
                 if paused_supervisor is not None:
-                    try:
-                        os.kill(paused_supervisor, signal.SIGCONT)
-                    except ProcessLookupError:
-                        pass
+                    if WINDOWS:
+                        processes.resume_process(handles["supervisor"])
+                    else:
+                        try:
+                            os.kill(paused_supervisor, signal.SIGCONT)
+                        except ProcessLookupError:
+                            pass
                     paused_supervisor = None
             def pause_supervisor() -> None:
                 nonlocal paused_supervisor
@@ -126,10 +183,21 @@ def main() -> int:
                 paused_supervisor = int(root.joinpath("supervisor.pid").read_text())
                 if paused_supervisor <= 1:
                     raise RuntimeError("invalid fixture supervisor identity")
-                os.kill(paused_supervisor, signal.SIGSTOP)
+                if WINDOWS:
+                    # The course runs a per-mode copy of the canary, and the
+                    # descendant re-spawns that same image.
+                    canary = f"{args.canary.stem}-crash-descendant-wait{args.canary.suffix}"
+                    images = {"supervisor": "better_pull_review_agent_supervisor.exe",
+                              "agent": canary, "descendant": canary}
+                    for name in FIXTURE_PROCESSES:
+                        handles[name] = processes.open_fixture_process(
+                            int(root.joinpath(f"{name}.pid").read_text()), images[name])
+                    processes.suspend_process(handles["supervisor"])
+                else:
+                    os.kill(paused_supervisor, signal.SIGSTOP)
             def recover_before_supervisor_teardown() -> None:
                 try:
-                    if not all(running(int(root.joinpath(name).read_text())) for name in ("supervisor.pid", "agent.pid", "descendant.pid")):
+                    if not all(fixture_running(name) for name in FIXTURE_PROCESSES):
                         raise RuntimeError("supervisor lifetime course lost its live fixture processes")
                     # Owner death released the lease; the paused supervisor
                     # still holds the workspace, so startup must not reclaim it.
@@ -145,7 +213,7 @@ def main() -> int:
             if not heartbeat.is_relative_to(parent) or heartbeat.stat().st_size == 0:
                 raise RuntimeError("descendant never worked in the contained workspace")
             deadline = time.monotonic() + 5
-            while any(running(pid) for pid in pids):
+            while any(fixture_running(name) for name in ("agent", "descendant")):
                 if time.monotonic() >= deadline:
                     raise RuntimeError("composed agent survived application SIGKILL")
                 time.sleep(0.02)
@@ -159,6 +227,9 @@ def main() -> int:
             substitute = parent / "preserved-substitute"
             workspace.rename(displaced)
             workspace.mkdir(mode=0o700)
+            # Private as the product would create it, so the refusal below is
+            # about identity, not a widened descriptor.
+            make_private(workspace)
             workspace.joinpath("user-canary").write_text("preserve this substitute")
             substitute_identity = workspace.stat().st_ino
             invoke("startup-repair", "agent-invocation-startup-repair:pass")
@@ -195,7 +266,16 @@ def main() -> int:
         finally:
             if paused_supervisor is not None:
                 resume_supervisor()
-            if not stopped:
+            if not stopped and WINDOWS:
+                for name in ("agent", "descendant"):
+                    if name in handles and not processes.exited(handles[name]):
+                        processes.kernel32.TerminateProcess(handles[name], 1)
+                deadline = time.monotonic() + 5
+                while any(name in handles and not processes.exited(handles[name]) for name in ("agent", "descendant")):
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError("fixture child cleanup failed")
+                    time.sleep(0.02)
+            elif not stopped:
                 if not pids:
                     pids = [int(path.read_text()) for name in ("agent.pid", "descendant.pid")
                             if (path := root / name).exists()]
@@ -210,6 +290,8 @@ def main() -> int:
                     if time.monotonic() >= deadline:
                         raise RuntimeError("fixture child cleanup failed")
                     time.sleep(0.02)
+            for handle in handles.values():
+                processes.kernel32.CloseHandle(handle)
     return 0
 
 

@@ -4625,7 +4625,7 @@ namespace bpr::app {
 				.GitExecutable     = gitExecutable,
 				.StorageRoot       = applicationDataRoot,
 				.WindowsSystemRoot = windows_system_root(),
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 				.WorkspaceOwnershipRegistry = applicationDataRoot / "agent-workspace-ownership-v1",
 #endif
 			});
@@ -4792,11 +4792,14 @@ namespace bpr::app {
 				FixtureNotificationSink->set_activation_sink(activation);
 			}
 #endif
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 			// Persistent private neighbourhood on the cache filesystem, outside
 			// its isolation root. Only effect workers create or recover children.
-			const auto agentWorkspacePath = ApplicationDataRoot.parent_path()
-				/ (ApplicationDataRoot.filename().string() + "-agent-workspaces-v1");
+			// [[BPR-0622]]. The leaf is appended natively: a narrow string() of a
+			// non-ASCII Windows profile name would throw.
+			auto agentWorkspaceLeaf = ApplicationDataRoot.filename();
+			agentWorkspaceLeaf += "-agent-workspaces-v1";
+			const auto agentWorkspacePath = ApplicationDataRoot.parent_path() / agentWorkspaceLeaf;
 #else
 			// git pack-objects creates its temporary pack inside the --git-dir's
 			// own object store and renames it onto the requested output base.
@@ -4863,7 +4866,7 @@ namespace bpr::app {
 		void start_services()
 		{
 			QueueHost->restore();
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 			AgentWorkspaceRecoveryPending.store(true, std::memory_order_release);
 			try {
 				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
