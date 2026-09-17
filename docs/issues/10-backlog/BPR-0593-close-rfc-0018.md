@@ -12,71 +12,117 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): in progress
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): handoff at an integrated boundary
 
-Dispatch dsp-003 took over at `2ee49a16` and holds the `project-integrator`
-lease (holder `bpr-main-mac`). Main is `e7389518`, pushed. `linux-lane` is at
-the same commit; `windows-lane` is at `83349437`. The round-trip pins were last
-resealed at `417ef7b0`. The dsp-002 section below is superseded wherever this
-section covers the same cards.
+Dispatch dsp-003 ends here, and a fresh integrator takes over. The station
+protocol from dsp-001 and dsp-002 still holds. The state at handoff:
 
-**Done in dsp-003:**
+- **Heads.** Main is `0a3eff37`, pushed. `windows-lane` and `linux-lane` are
+  fast-forwarded to it.
+- **Stations.** Both are idle: every envelope sent in dsp-003 was answered
+  and merged.
+- **Mac.** No worker, reviewer, scratch worktree or test process remains.
+  The owner's app (PID 88792, started Wed Sep 16 19:31:44) was never touched.
+  The `project-integrator` lease is released.
+- **Round-trip pins.** Last resealed at `0c58092e`, for BPR-0843.
+
+**Done in dsp-003 (31 cards):**
 
 - [[BPR-0814]], [[BPR-0622]], [[BPR-0802]], [[BPR-0823]], [[BPR-0828]], [[BPR-0830]];
 - [[BPR-0837]], [[BPR-0820]], [[BPR-0826]], [[BPR-0812]], [[BPR-0832]], [[BPR-0834]];
 - [[BPR-0841]], [[BPR-0829]], [[BPR-0813]], [[BPR-0831]], [[BPR-0809]], [[BPR-0844]];
-- [[BPR-0838]], [[BPR-0842]], [[BPR-0835]], [[BPR-0845]].
+- [[BPR-0838]], [[BPR-0842]], [[BPR-0835]], [[BPR-0845]], [[BPR-0833]], [[BPR-0843]];
+- [[BPR-0839]] (refetch kept), [[BPR-0673]].
 
-Each station merge had a Mac run of its portable sources (`build/r2-logs/dsp3-int*`).
+Their evidence is on each card. Mac integration logs are
+`build/r2-logs/dsp3-int{1..12}-*`.
 
-**Attended preparation is ready.** See
+**Usable behaviour gained, in brief:**
+
+- Every tests-enabled automated run gets a private owner-private profile, and
+  no dev-preset course reaches the owner's default profile.
+- The Unix agent supervisor no longer races its child's process group.
+- Private stores bind SQLite's held handle to the admitted name on Windows.
+- The Windows manifest gate reports zero findings.
+- The large-review refresh pulse fell from 93.5 ms to about 65 ms.
+- Several stale courses now name their failed terms.
+
+**Attended preparation, ready (human part open).** See
 [the rfc-bpr-0013-attended-v001 packet](../../verification/reviews/rfc-bpr-0013-attended-v001/operator-packet.md).
+It uses the tests-disabled bundle in `build/app-release-dsp3`, built from
+`94f6f885` and signed with the Developer ID identity; its executable SHA-256
+is `96fa16fe…`. Three questions are ready and protected in the checkout
+session `cbd48b91…`:
 
-- The bundle is `build/app-release-dsp3`, built from `94f6f885` and signed with
-  the Developer ID identity; its executable SHA-256 is `96fa16fe…`.
-- The packet has three ready, protected questions in the checkout session
-  `cbd48b91…`: [[BPR-0794]], [[BPR-0795]] and [[BPR-0644]]'s relaunch.
+- `BPR-0794-cli-selected-diff`;
+- `BPR-0795-loading-visible`;
+- `BPR-0644-device-relaunch-8h`.
 
-**Integrator decisions:**
+The owner must quit their own BetterPullReview first.
 
-- [[BPR-0833]]: pin both capability rows. Option (i) was measured, and the
-  stores' ancestor walk is refused inside the AppContainer, so only a product
-  security change could pass contained.
+**Integrator decisions made in dsp-003:**
+
+- [[BPR-0820]]: `--test-application-data-root` is now refused only with a
+  fixture.
+- [[BPR-0833]]: the capability rows are pinned rather than changing the
+  storage ancestor rule.
 - [[BPR-0841]] item 3: declined.
-- [[BPR-0820]]: `--test-application-data-root` is refused only with a fixture.
+- [[BPR-0839]]: the refetch is kept.
+- [[BPR-0829]]: the course waits for retention and counts 4 leases.
 
-**Owner asks:** [[BPR-0825]] item 3, plus the dsp-002 list below.
+**Owner asks (exact).**
 
-**Open, with the next step:**
+- [[BPR-0825]] item 3: where should the one Windows owner-private descriptor
+  definition live? (a) AdapterGit calls a new SQLite validator; (b) the
+  SQLite adapter includes the agent header; (c) a new neutral header-only
+  target with a new architecture-boundaries owner. The integrator recommends
+  (c).
+- [[BPR-0644]]: should a remembered device grant survive a launch whose
+  Keychain answers locked or denied, or whose network is down (including an
+  offline launch after the access token expired), instead of being erased
+  under BPR-0541's fail-closed rule?
+- [[BPR-0817]]: (1) under a group-writable data parent, should closing the
+  last window exit 1, or exit 0 with the refusal only in the app? (2) Is the
+  agent-panel refusal enough, or must it also show at Home?
+- [[BPR-0824]]: the seam option (a) was chosen provisionally by dsp-002; the
+  owner may override.
+- Unchanged: [[BPR-0803]], [[BPR-0800]], [[BPR-0801]], [[BPR-0604]].
+- The attended packet above.
 
-- [[BPR-0833]], In Progress: `bpr-win` `task-20260917-win-pin-capability-rows`
-  (base `83349437`) pins the two rows. The Mac then runs both isolation gates
-  and finishes the card.
-- [[BPR-0673]], In Progress: an rfc-worker in `<scratchpad>/wt-0673` at
-  `e7389518` is measuring and breaking up the drawer re-projection. **Keep the
-  Mac quiet while it measures.**
-- [[BPR-0839]] and [[BPR-0843]]: `bpr-linux`
-  `task-20260917-lnx-epoch-and-startup` (base `e7389518`). BPR-0843 moves the
-  round-trip pins, so main reseals after the station's review, and Mac and
-  Windows runs of any course whose `STARTUP_FAILED` match changes follow.
-- P3 Backlog: [[BPR-0840]] (agent composition rows under load on macOS) and
-  [[BPR-0836]] (the capsule production image leak).
+**Next objectives, in suggested order:**
+
+1. [[BPR-0846]] (P1, suspected): a fetch that sends haves may get a pack the
+   cache import refuses (`index-pack --check-self-contained-and-connected`
+   exits 1). Reproduce it offline with a local `upload-pack` that honours
+   haves before changing anything, and give any import-rule change a
+   critical review.
+2. [[BPR-0847]] (Linux): `application_profile_activation_public_path` fails
+   at "owner orderly drain". This goes to `bpr-linux`.
+3. The next `bpr-win` envelope: check that BPR-0843's `main.cpp` compiles in
+   the Windows developer build, and run
+   `application_epoch_fixture_noncanonical_root_cause` if it is registered
+   there (it is registered on macOS and Linux only).
+4. P3 Backlog: [[BPR-0840]] (agent composition rows under load on macOS),
+   [[BPR-0836]] (the capsule production image leak) and [[BPR-0848]]
+   (`main.cpp` format; reseal).
+5. [[BPR-0750]] still waits on RFC-BPR-0008's order.
 
 **Hazards learned in dsp-003.**
 
-- Commit card-only changes with `git commit -- <paths>`: a staged candidate
-  would otherwise be swept in.
-- After `issue_board.py move`, stage every file the move repaired links in,
-  not only the rename. `7dd5e9f9` briefly pushed a broken BPR-0677 link;
-  `e7389518` repaired it.
+- Commit card-only changes with `git commit -- <paths>` while a candidate is
+  staged.
+- After `issue_board.py move`, stage every file whose links the move
+  repaired.
 - Do not rebuild `build/r2-dev` while another agent runs its binaries.
-- On macOS, the agent composition rows fail under a load average above about
-  15.
-- The Linux public-preview and ledger courses run 10 to 20 times faster than
-  on macOS.
-
-If this dispatch ends without a later section, account for `wt-0673`, the
-worker in it and both station envelopes before any new writer starts.
+- Keep the Mac quiet during pulse measurements.
+- On macOS, agent composition rows fail under a load average above about 15.
+- On Windows, a contained process cannot use a `QTemporaryDir`: its DACL is
+  owner-only, without the container SID.
+- A Windows AppContainer cannot walk the stores' ancestor chain. Rows that
+  need it are pinned `dos-volume-name`.
+- `application_review_round_trip_composition_contract.cmake` run with `-P`
+  needs `BPR_APPLICATION`. Use `-DBPR_PRINT_PINNED_DIGESTS=ON` only to print
+  the pins.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-002, mandate r3): handoff at an integrated boundary
 
