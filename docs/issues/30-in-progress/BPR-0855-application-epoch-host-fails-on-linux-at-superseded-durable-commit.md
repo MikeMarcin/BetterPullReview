@@ -42,8 +42,10 @@ dsp-003's bundle-focused set.
   (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`, authority `lane-commit`.
   RFC-BPR-0029 base `5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d`.
 - **Outcome.** The cause is a standard-library difference in the test's fake
-  catalog, not ordering, timing or the product. The fix is in the test only.
-  The card stays In Progress until main runs the row on macOS.
+  catalog, not ordering, timing or the product. The fix is in the test only:
+  `346e64fc72377189ff0bd8feb8eaa344f92a2b61` on `linux-lane`. The row passes 8
+  runs in a row on Linux at that pushed commit (see "Verification at the
+  commit"). The card stays In Progress until main runs the row on macOS.
 - **Changed path.** `tests/application/epoch_application_host_tests.cpp`. No
   product source, contract or pinned digest changed.
 - **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-sweep-fixes/`
@@ -120,6 +122,42 @@ Stock `dev` preset; only the test target rebuilt, with no warning.
 
 Gates: `/usr/bin/clang-format` 22 and `clang-tidy` (`0855-tidy.log`) report
 the whole file clean, and `git diff --check` is clean.
+
+## Verification at the commit (Linux, bpr-linux, WSL2)
+
+At `346e64fc72377189ff0bd8feb8eaa344f92a2b61`, pushed and equal to
+`origin/linux-lane`, a clean tree; `ninja -n` had no work to do. The Secret
+Service `login` collection read `(<false>,)` before the group. Each run was a
+serial `ctest --test-dir build/dev -j1 -V -R '^application_epoch_host$'`, from
+17:42:29Z to 17:42:31Z, with a 1-minute load average of 0.72
+(`0855-at-commit.summary`, `0855-at-commit-run<n>.log`). Three runs are the
+card's requirement; five more were added because a timing cause was still open
+when they started.
+
+| Runs | Result | Time |
+|---|---|---|
+| 1 to 8 | Pass, no `FAILED:` line | 0.25 s each |
+
+## Independent review
+
+An `rfc-reviewer` reviewed the commit and found no blocking finding. It
+confirmed that:
+
+- the re-armed hook installs the same observation, which the product would
+  refuse if it named the wrong operation
+  (`physical->Operation != request->Operation`) or a non-staging topology, so
+  the second import cannot pass with a wrong observation;
+- a second occurrence cannot obtain a local epoch without a second
+  `recover_append`, which is what these cases assert;
+- of the other hook users, none could fire a hook twice, on either standard
+  library: the condition-variable hooks capture four references and exceed
+  libc++'s small buffer, and the remaining cases perform one commit or throw;
+- failing closed on `invalid_request` is the product's correct behaviour, and
+  the empty queue came only from the fake;
+- the cases are not vacuous: the two occurrences carry different heads, so a
+  product that stopped rebasing the latest selection fails the same check.
+
+It could not run macOS or libc++ either.
 
 ## For macOS
 
