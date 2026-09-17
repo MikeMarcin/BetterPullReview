@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0811"
 title: "Windows: device-binding restart no longer activates the public preview"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0016", "RFC-BPR-0017"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win under BPR-0806","found_at":"d587b5f1","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"application_device_binding_restart passes through ctest --preset windows-dev on the Windows station, and the cause and first bad revision are named","outcome":"pass","revision":"3ca3e12c","evidence":{"kind":"observation","detail":"bpr-win 38.62/38.91/38.82 s pass; cause: course added by 141250a6 after the Windows closeout depended on Apple-only shipped public preview; precondition now stated via recorded-fixture override"}},{"criterion":"The macOS course still passes","outcome":"pass","revision":"f33a10c9","evidence":{"kind":"command","detail":"application_device_binding_restart 29.15 s pass at merge; build/r2-logs/int3-ctest.log"}}]
 ---
 
 # BPR-0811: Windows: device-binding restart no longer activates the public preview
@@ -106,3 +107,20 @@ platform.
 The macOS course is not run on this station. The integrator runs it at merge;
 it is expected to be unchanged because the forced selection equals the shipped
 one there.
+
+## Integration and macOS evidence, 2026-09-17 (integrator, run-20260916-stations, dsp-001-r2)
+
+Merged on main as `f33a10c9`. The station's diagnosis corrects this card's
+original framing. This was not a regression against RFC-BPR-0016's Windows
+closeout: `application_device_binding_restart` was added by `141250a6`
+(BPR-0541) after `0d19c990` and had never run on Windows. Its preview-regression
+lifetime depended on shipped public preview, which is available only under
+`__APPLE__` (BPR-0316). The station's fix states that precondition through the
+recorded-fixture override. On macOS the forced selection is the shipped one,
+and the assertions are unchanged. Enabling shipped public preview on Windows is
+not claimed here.
+
+| Criterion | Result | Revision |
+|---|---|---|
+| Passes through `ctest --preset windows-dev`, with the cause and first bad revision named | pass: 38.62 s, 38.91 s, 38.82 s on bpr-win; cause and first bad revision `141250a6` recorded above | `1fc460e2`, `3ca3e12c` |
+| The macOS course still passes | pass: `application_device_binding_restart` 29.15 s at the merge (`build/r2-logs/int3-ctest.log`) | `f33a10c9` |
