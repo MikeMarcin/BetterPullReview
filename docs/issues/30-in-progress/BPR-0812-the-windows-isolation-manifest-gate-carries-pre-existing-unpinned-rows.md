@@ -134,3 +134,13 @@ failure was measured as `startup_failure::registry`, and they are pinned
 passes with **zero findings**:
 `TEST_NETWORK_ISOLATION_OK:configured=357:registrations=344:backend=windows-appcontainer`.
 The card is left in place for the integrator.
+
+## Finished (dsp-003)
+
+[[BPR-0834]] is Done. On the Windows station at `aedf471f` (merged into main
+as `013d2036`), `test_network_isolation_manifest` passes with zero findings
+(`TEST_NETWORK_ISOLATION_OK:configured=357:registrations=344:backend=windows-appcontainer`),
+and the structure contract passes. BPR-0802's own finding had already been
+removed. On macOS at `013d2036`, `test_network_isolation_manifest` and
+`test_network_isolation_structure_contract` (`verify_test_network_isolation_tests.py`)
+pass (`build/r2-logs/dsp3-int5-ctest.log`).
