@@ -51,3 +51,16 @@ first thing to find out.
 - `application_large_review_history` passes on macOS, alone and under a
   parallel matrix.
 - The card names what was holding the loop and what changed.
+
+## Note, 2026-09-17 (dsp-002): the margin after BPR-0818
+
+[[BPR-0818]] ended [[BPR-0751]]'s refresh hold, which had hidden review-wide
+conversation roots, and moved the drawer's widening onto its own
+event-loop turn. `application_large_review_history` passes on macOS at
+`9eed16c1` and later, but only just. On a quiet run (load 1.07), refresh 32's
+longest pulse was 93.3 ms against the 100 ms limit, and refreshes 20–31 reached
+88–89 ms (`build/r2-logs/dsp2-int2-history.log`). Before BPR-0818 they held
+at 65–71 ms. Re-projecting the 1000-thread drawer costs about 51 ms: card
+adoption about 30 ms, thread-map adoption about 13.5 ms, model apply about
+7 ms. If this card is picked up, that re-projection is the first measured
+candidate to break up.
