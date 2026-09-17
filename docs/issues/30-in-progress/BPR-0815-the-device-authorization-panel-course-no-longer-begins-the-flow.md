@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0815"
 title: "The device authorization panel course no longer begins the flow"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0016", "RFC-BPR-0032"]
 depends_on: []
 priority: "P1"
