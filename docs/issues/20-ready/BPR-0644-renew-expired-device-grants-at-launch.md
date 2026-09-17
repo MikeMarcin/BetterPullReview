@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0644"
 title: "Renew expired device grants at launch instead of forgetting them"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P1"
