@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0673"
 title: "The large-review benchmark exceeds two of its Mac budgets"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"

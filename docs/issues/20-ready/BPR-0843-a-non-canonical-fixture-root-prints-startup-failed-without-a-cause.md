@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0843"
 title: "A non-canonical epoch fixture root prints STARTUP_FAILED without a cause"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
