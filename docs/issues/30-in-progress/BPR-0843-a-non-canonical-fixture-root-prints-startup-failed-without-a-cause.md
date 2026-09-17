@@ -217,3 +217,23 @@ tidy findings to be recorded.
 - **Windows:** no course changed or was added. The `main.cpp` change still
   has to compile in the Windows developer build. A contained run's refusal
   will now carry `STARTUP_FAILED_CAUSE: startup_failure=registry` on stderr.
+
+## macOS run and reseal; finished (dsp-003)
+
+Main merged `linux-lane` at `4762d716` as `15eb1993`. It resealed the
+production manifest pin in `0c58092e`, citing the station's independent
+review of `0c66037f`. A syntax compile of `main.cpp` with the tests-disabled
+Release flags and `-Werror` passes (`build/r2-logs/dsp3-release-main-syntax.log`):
+the new name function sits inside the `BPR_BUILD_TESTING` block.
+
+On macOS at `0c58092e` (`build/r2-logs/dsp3-int11-*`):
+
+- `application_epoch_fixture_noncanonical_root_cause` passes 3 of 3;
+- `application_epoch_persistence_github-com`,
+  `application_review_round_trip_composition_contract`,
+  `application_composition_contract` (7 of 7), `architecture_boundaries` and
+  both isolation gates pass.
+
+No course or regex matches `STARTUP_FAILED` exactly, so nothing else needed a
+rerun. The Windows developer build's compile of `main.cpp` has not been
+checked yet; it goes with the next `bpr-win` envelope.
