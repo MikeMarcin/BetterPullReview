@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0821"
 title: "The composition contract still expects BPR-0797's retired compile-time gates"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015", "RFC-BPR-0008"]
 depends_on: []
 priority: "P2"
