@@ -108,3 +108,8 @@ integrator committed it unchanged.
   supervisor or shows that it links `Kernel32` on Windows. Neither criterion
   asks for that. As before, the Unix supervisor's pattern reports under the
   adapter message.
+
+**Integrator confirmation (dsp-003).** Main merged `linux-lane` at `e70b9112`
+as `0c111e34`. On macOS at `0c111e34`, `architecture_boundaries` and
+`architecture_boundary_contract` pass (`build/r2-logs/dsp3-int9-ctest.log`),
+and the station's Done is confirmed.
