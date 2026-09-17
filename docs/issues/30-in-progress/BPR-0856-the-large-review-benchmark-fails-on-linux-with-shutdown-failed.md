@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0856"
 title: "application_large_review_benchmark fails on Linux with shutdown failed"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
