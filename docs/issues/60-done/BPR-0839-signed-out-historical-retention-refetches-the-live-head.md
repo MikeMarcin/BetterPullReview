@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0839"
 title: "Signed-out historical retention refetches the live head with no haves"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-003 BPR-0829 slice","found_at":"c1a795c3ed724eb0086aa4661082793f9643a679","run":"run-20260916-stations","dispatch":"dsp-003"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1 the card records whether the refetch is needed; if not, the import no longer refetches, the course count is updated with its reason, and the epoch courses still pass","outcome":"pass","revision":"4762d716b2048fc74eadc85d3425528696daa625","evidence":{"kind":"artifact","detail":"bpr-linux traced the preview course 3x: two imports refetch the live head, receive a byte-identical 1584-byte pack and install nothing; the refetch is needed because the only journaled import path requires that fetch's receipt, inventory and authorization tokens and re-checks advertisement; ~1 ms of a ~225 ms import. Integrator kept the refetch (option 1); no source change, SMART_ACQUISITIONS:4 stays; the live-path haves exposure is carded as BPR-0846."}}]
 ---
 
 # BPR-0839: Signed-out historical retention refetches the live head with no haves
