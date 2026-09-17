@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0653"
 title: "Windows: the strip as the title row"
-status: "Parked"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
-parked_on: "human-review"
 ---
 
 # Windows: the strip as the title row
@@ -175,3 +174,35 @@ On JaegAW, signed in to the station account, at 100% and at 150% display scale:
    snapped window.
 5. Double-click empty strip space (maximised), then again (restored).
 6. Maximise and capture the strip at 1920x1080: its top row not cut off.
+
+## Owner answers, 2026-09-17 (relayed verbatim by the coordinator, dsp-004)
+
+The coordinator put the parked question to the owner: raise the Windows
+minimum width to 1,080 pixels, or have one strip control give way below that.
+
+The owner's first answer:
+
+> What would we lose? If it's just the title that's fine so long as the controls stay.
+
+The owner's proposal:
+
+> What about reducing the modality labels to 3 characters prefix each if the window shrinks below that threshold?
+
+**Reading, as sent to the station.**
+
+- Letting text give way is acceptable, whether the pull request identity or
+  title, or the modality labels shortened to 3-character prefixes (`Ove`,
+  `Rea`, `Rev`, `Dis`, all distinct).
+- Every strip control stays top level. No control goes into an overflow menu.
+- The accessible names and tooltips should keep the full words.
+
+**Measurement required before implementing.** Measure whether the 3-character
+labels, together with the identity's existing yield, keep every strip control
+top level at the 900-pixel floor on Windows, at 100% and at 125%.
+
+- **If it fits:** that is the owner's chosen answer.
+- **If it does not fit:** return the remaining shortfall in pixels as an exact
+  ask. Do not choose another yield.
+
+**Open, only if it matters.** Should the 3-character step also apply on macOS,
+or only on Windows? The owner did not say.
