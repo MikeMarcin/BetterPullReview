@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0814"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Concurrent capsule suite leaves a write-once device attached (found under BPR-0692)",
+  "created": "2026-09-17T05:50:58.277729+00:00",
+  "base": "327c9a05067facb8d663bf2b0b4b616af551d75c"
+}
