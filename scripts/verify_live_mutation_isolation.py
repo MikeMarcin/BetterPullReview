@@ -42,6 +42,13 @@ PORT_IMPLEMENTATION_ALLOWLIST = frozenset(
     {
         "tests/application/review_mutation_tests.cpp",
 		"tests/application/review_mutation_application_host_tests.cpp",
+        # [[BPR-0879]]. A double that forwards to review_mutation_session, so the
+        # coordinator's statistics can be observed across a real contract session.
+        # Deliberately not make_live_review_mutation_provider: that drags
+        # FORBIDDEN_SYMBOL into a test binary, and this guard caught exactly that
+        # on the first attempt. The symbol check below is unchanged and still
+        # covers this binary.
+        "tests/github_contract/live_review_mutation_provider_tests.cpp",
         # Test-build-only provider owned by the recorded public-path fixture.
         # It has no transport, endpoint, credential, or production build path.
         "src/app/src/github_public_path_fixture.cpp",

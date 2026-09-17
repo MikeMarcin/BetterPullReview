@@ -111,6 +111,19 @@ namespace bpr::application {
 			++Statistics.RefusedBeforeSubmit;
 			return std::unexpected(review_mutation_failure::undesignated_target);
 		}
+		// [[BPR-0879]]. Resolution is a write, so it answers to the rule
+		// publication answers to: the server must still be describing the pull
+		// request this coordinator was designated for. One observation, not
+		// two: publication observes again immediately before submitting
+		// because a proposal is prepared against a revision, and this is not —
+		// a thread belongs to a pull request, not to a commit. For the same
+		// reason a moved head is acknowledged here rather than refused; it
+		// cannot change which pull request a thread is in, and refusing would
+		// make an ordinary push block resolving a thread.
+		if (auto confirmed = confirm_target(true, aStop); !confirmed) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(confirmed.error());
+		}
 		auto request = review_thread_resolution_request{
 			.Target         = Designated,
 			.ActingIdentity = ActingIdentity,
@@ -123,6 +136,10 @@ namespace bpr::application {
 				.ActingIdentity = *ActingIdentityBinding,
 			};
 		}
+		// A resolution POST is a submission. Counting only the attempt let
+		// diagnostics report zero submissions after a real write, which is
+		// exactly the wrong property for reconstructing an accidental one.
+		++Statistics.Submissions;
 		return Provider->resolve_thread(request, aStop);
 	}
 

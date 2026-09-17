@@ -38,6 +38,9 @@ namespace bpr::adapters::github::detail {
 		reply_review_thread,
 		resolve_review_thread,
 		unresolve_review_thread,
+		/// [[BPR-0879]]. GraphQL: which pull request a thread belongs to,
+		/// asked before anything is written through that thread.
+		observe_review_thread,
 	};
 
 	enum class review_mutation_contract_failure : std::uint8_t {
@@ -147,6 +150,20 @@ namespace bpr::adapters::github::detail {
 		auto operator<=>(const review_thread_resolution_observation&) const = default;
 	};
 
+	/// \brief [[BPR-0879]]. The thread the server agrees is in this pull request.
+	///
+	/// \details Only produced when the observed thread's pull request is the
+	/// designated one; any other answer is an identity mismatch, so a caller
+	/// holding this value knows the write it is about to make lands in the
+	/// pull request the reviewer is looking at.
+	struct review_thread_target_observation
+	{
+		std::string Thread;
+		bool        Resolved = false;
+
+		auto operator<=>(const review_thread_target_observation&) const = default;
+	};
+
 	struct review_mutation_server_reconciliation
 	{
 		std::vector<application::review_comment_projection> Projection;
@@ -189,6 +206,21 @@ namespace bpr::adapters::github::detail {
 		application::github_server_contract                  aServer
 		= application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	/// \brief [[BPR-0879]]. Compiles the read that names a thread's pull request.
+	///
+	/// \details Shares every guard the mutation has — it is the mutation's own
+	/// compiled request with a read document in place of the write — so a
+	/// request the contract would refuse to write is also refused to observe.
+	[[nodiscard]] auto compile_thread_target_observation_request(
+		const application::review_thread_resolution_request& aRequest,
+		application::github_server_contract                  aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-0879]]. Accepts only a thread inside the designated pull request.
+	[[nodiscard]] auto parse_thread_target_observation(
+		const review_mutation_wire_response&                 aResponse,
+		const application::review_thread_resolution_request& aExpected)
+		-> review_mutation_parse_result<review_thread_target_observation>;
 	/// \brief [[BPR-0657]]. Accepts only the exact thread in the state asked for.
 	[[nodiscard]] auto parse_thread_resolution_response(
 		const review_mutation_wire_response&                 aResponse,
@@ -339,6 +371,14 @@ namespace bpr::adapters::github::detail {
 	private:
 		[[nodiscard]] auto observe_exact(std::stop_token aStop)
 			-> std::expected<void, application::review_mutation_failure>;
+		/// \brief [[BPR-0879]]. Refuses a thread outside the designated pull
+		/// request before anything is written through it.
+		[[nodiscard]] auto observe_thread_target(
+			const application::review_thread_resolution_request& aRequest,
+			std::stop_token                                      aStop)
+			-> std::expected<
+				review_thread_target_observation,
+				application::review_mutation_failure>;
 		[[nodiscard]] auto reconcile(
 			const application::review_mutation_request& aRequest,
 			std::stop_token                             aStop)

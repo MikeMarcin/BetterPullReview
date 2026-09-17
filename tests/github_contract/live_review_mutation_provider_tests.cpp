@@ -246,6 +246,70 @@ namespace {
 		};
 	}
 
+	// [[BPR-0879]]. The pull request the server says a thread belongs to: the
+	// designated one, and one that is not.
+	[[nodiscard]] auto designated_pull_request_json() -> std::string
+	{
+		return { "\"pullRequest\":{\"id\":\"PR_kwDOTyvof879G6NV\","
+				 "\"databaseId\":4246446933,\"number\":1,"
+				 "\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,"
+				 "\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}" };
+	}
+
+	[[nodiscard]] auto foreign_pull_request_json() -> std::string
+	{
+		return { "\"pullRequest\":{\"id\":\"PR_kwDOTyvof879Gzzz\","
+				 "\"databaseId\":4246446999,\"number\":7,"
+				 "\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,"
+				 "\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}" };
+	}
+
+	[[nodiscard]] auto thread_observation_response(
+		const bool aDesignated,
+		const bool aResolved = false) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = "{\"data\":{\"node\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":"
+					+ std::string{ aResolved ? "true" : "false" } + ","
+					+ (aDesignated ? designated_pull_request_json() : foreign_pull_request_json())
+					+ "}}}",
+			},
+		};
+	}
+
+	[[nodiscard]] auto thread_resolution_response(
+		const bool         aResolve,
+		const std::string& aPullRequest = designated_pull_request_json())
+		-> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = std::string{ "{\"data\":{\"" }
+					+ (aResolve ? "resolveReviewThread" : "unresolveReviewThread")
+					+ "\":{\"thread\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":"
+					+ (aResolve ? "true" : "false") + "," + aPullRequest + "}}}}",
+			},
+		};
+	}
+
+	[[nodiscard]] auto resolution_request(const bool aResolve)
+		-> application::review_thread_resolution_request
+	{
+		return {
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Thread         = "PRRT_fixture_1",
+			.Resolve        = aResolve,
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target(),
+				.ActingIdentity = identity(),
+			},
+		};
+	}
+
 	struct fake_recovery_state
 	{
 		std::map<std::string, application::review_mutation_recovery_record> Records;
@@ -1045,6 +1109,221 @@ namespace {
 			   "a retained revoked lease refuses the provider factory gate");
 	}
 
+	// [[BPR-0879]]. A thread node identity is the one free identifier the
+	// product hands to a write. The server is asked which pull request it
+	// belongs to before the write, so a foreign thread is refused rather than
+	// resolved and reported afterwards.
+	void test_thread_resolution_is_bound_to_the_designated_pull_request()
+	{
+		for (const auto resolve : { true, false }) {
+			auto transport = fake_transport{ };
+			transport.Completions.push_back(thread_observation_response(true, !resolve));
+			transport.Completions.push_back(thread_resolution_response(resolve));
+			auto session = review_mutation_session{
+				transport, configuration(), mutation_lease(), make_recovery()
+			};
+			const auto receipt = session.resolve_thread(resolution_request(resolve));
+			expect(receipt.has_value() && receipt->Thread == "PRRT_fixture_1"
+					   && receipt->Resolved == resolve && transport.Requests.size() == 2U
+					   && transport.Requests[0].Wire.Operation
+						   == review_mutation_operation::observe_review_thread
+					   && transport.Requests[1].Wire.Operation
+						   == (resolve ? review_mutation_operation::resolve_review_thread
+									   : review_mutation_operation::unresolve_review_thread),
+				   "a thread inside the designated pull request is observed, then resolved or unresolved");
+		}
+
+		for (const auto resolve : { true, false }) {
+			auto foreign = fake_transport{ };
+			foreign.Completions.push_back(thread_observation_response(false));
+			foreign.Completions.push_back(thread_resolution_response(resolve));
+			auto session = review_mutation_session{
+				foreign, configuration(), mutation_lease(), make_recovery()
+			};
+			const auto refused = session.resolve_thread(resolution_request(resolve));
+			expect(!refused.has_value()
+					   && refused.error()
+						   == application::review_mutation_failure::undesignated_target
+					   && foreign.Requests.size() == 1U
+					   && foreign.Requests.front().Wire.Operation
+						   == review_mutation_operation::observe_review_thread,
+				   "a thread outside the designated pull request is refused before any write");
+		}
+
+		auto answered = fake_transport{ };
+		answered.Completions.push_back(thread_observation_response(true));
+		answered.Completions.push_back(
+			thread_resolution_response(true, foreign_pull_request_json()));
+		auto answeredSession = review_mutation_session{
+			answered, configuration(), mutation_lease(), make_recovery()
+		};
+		const auto mismatched = answeredSession.resolve_thread(resolution_request(true));
+		expect(!mismatched.has_value()
+				   && mismatched.error()
+					   == application::review_mutation_failure::undesignated_target,
+			   "a resolution answer naming another pull request is an undesignated target");
+	}
+
+	// [[BPR-0879]]. A reply is addressed by the same free thread identity.
+	void test_a_reply_observes_its_thread_before_it_writes()
+	{
+		auto reply                   = request();
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		auto transport               = fake_transport{ };
+		transport.Completions.push_back(thread_observation_response(false));
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), make_recovery()
+		};
+		const auto refused = session.submit(reply);
+		expect(!refused.has_value()
+				   && refused.error()
+					   == application::review_mutation_failure::undesignated_target
+				   && transport.Requests.size() == 1U
+				   && transport.Requests.front().Wire.Operation
+					   == review_mutation_operation::observe_review_thread,
+			   "a reply into a thread outside the designated pull request never reaches a write");
+	}
+
+	// [[BPR-0879]]. The coordinator needs a port. The session is the exact
+	// production protocol without the concrete provider, which a test binary
+	// must not link (live_mutation_isolation), so the port forwards to the
+	// session rather than to make_live_review_mutation_provider.
+	class session_port final : public application::review_mutation_port
+	{
+	public:
+		explicit session_port(review_mutation_session& aSession) noexcept
+			: Session{ &aSession }
+		{
+		}
+
+		auto observe_target() -> std::expected<
+			core::review_mutation_target,
+			application::review_mutation_failure> override
+		{
+			return Session->observe_target();
+		}
+
+		auto observe_target(const std::stop_token aStop) -> std::expected<
+			core::review_mutation_target,
+			application::review_mutation_failure> override
+		{
+			return Session->observe_target(aStop);
+		}
+
+		auto submit(const application::review_mutation_request& aRequest)
+			-> std::expected<
+				application::review_mutation_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->submit(aRequest);
+		}
+
+		auto submit(
+			const application::review_mutation_request& aRequest,
+			const std::stop_token                       aStop)
+			-> std::expected<
+				application::review_mutation_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->submit(aRequest, aStop);
+		}
+
+		auto submit_and_reconcile(
+			const application::review_mutation_request& aRequest,
+			const std::stop_token                       aStop)
+			-> application::review_mutation_submission override
+		{
+			return Session->submit_and_reconcile(aRequest, aStop);
+		}
+
+		auto resolve_thread(
+			const application::review_thread_resolution_request& aRequest,
+			const std::stop_token                                aStop)
+			-> std::expected<
+				application::review_thread_resolution_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->resolve_thread(aRequest, aStop);
+		}
+
+		[[nodiscard]] auto capabilities() const
+			-> application::review_provider_capabilities override
+		{
+			return { };
+		}
+
+	private:
+		review_mutation_session* Session = nullptr;
+	};
+
+	// [[BPR-0879]]. The coordinator applies one rule to every write it makes,
+	// and a resolution POST is counted as the submission it is. Counting only
+	// the attempt let diagnostics report zero submissions after a real write.
+	void test_the_coordinator_confirms_the_target_and_counts_a_resolution()
+	{
+		auto transport = fake_transport{ };
+		transport.Completions.push_back(target_response());
+		transport.Completions.push_back(viewer_response());
+		transport.Completions.push_back(thread_observation_response(true));
+		transport.Completions.push_back(thread_resolution_response(true));
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), make_recovery()
+		};
+		auto port        = session_port{ session };
+		auto coordinator = application::review_mutation_coordinator{
+			port, target(), identity()
+		};
+		const auto receipt = coordinator.resolve_thread("PRRT_fixture_1", true);
+		const auto counted = coordinator.statistics();
+		expect(receipt.has_value() && receipt->Resolved && counted.Attempts == 1U
+				   && counted.TargetObservations == 1U && counted.Submissions == 1U
+				   && counted.RefusedBeforeSubmit == 0U,
+			   "the coordinator observes the target, resolves, and counts the write as a submission");
+
+		auto foreign = fake_transport{ };
+		foreign.Completions.push_back(target_response());
+		foreign.Completions.push_back(viewer_response());
+		foreign.Completions.push_back(thread_observation_response(false));
+		auto foreignSession = review_mutation_session{
+			foreign, configuration(), mutation_lease(), make_recovery()
+		};
+		auto foreignPort        = session_port{ foreignSession };
+		auto foreignCoordinator = application::review_mutation_coordinator{
+			foreignPort, target(), identity()
+		};
+		const auto refused = foreignCoordinator.resolve_thread("PRRT_fixture_1", true);
+		expect(!refused.has_value()
+				   && refused.error()
+					   == application::review_mutation_failure::undesignated_target
+				   && foreign.Requests.size() == 3U
+				   && std::ranges::none_of(foreign.Requests, [](const auto& aWire) {
+						  return aWire.Wire.Operation
+							  == review_mutation_operation::resolve_review_thread
+							  || aWire.Wire.Operation
+							  == review_mutation_operation::unresolve_review_thread;
+					  }),
+			   "a foreign thread is named undesignated_target at the coordinator and never written");
+
+		auto drifted = fake_transport{ };
+		drifted.Completions.push_back(target_response(1'328'277'632U));
+		auto driftedSession = review_mutation_session{
+			drifted, configuration(), mutation_lease(), make_recovery()
+		};
+		auto driftedPort        = session_port{ driftedSession };
+		auto driftedCoordinator = application::review_mutation_coordinator{
+			driftedPort, target(), identity()
+		};
+		const auto undesignated = driftedCoordinator.resolve_thread("PRRT_fixture_1", true);
+		const auto refusedCount = driftedCoordinator.statistics();
+		expect(!undesignated.has_value()
+				   && undesignated.error()
+					   == application::review_mutation_failure::undesignated_target
+				   && drifted.Requests.size() == 1U && refusedCount.Submissions == 0U
+				   && refusedCount.RefusedBeforeSubmit == 1U,
+			   "a pull request the server no longer describes refuses the resolution before the provider");
+	}
+
 	void write_unresolved_restart_fixture(const std::filesystem::path& aRoot)
 	{
 		auto transport = fake_transport{ };
@@ -1172,6 +1451,9 @@ auto main(const int aCount, char** aValues) -> int
 	test_stop_token_cancels_every_session_phase_before_the_next_wire_call();
 	test_retained_revoked_lease_refuses_every_provider_use();
 	test_retained_revoked_lease_refuses_provider_admission();
+	test_thread_resolution_is_bound_to_the_designated_pull_request();
+	test_a_reply_observes_its_thread_before_it_writes();
+	test_the_coordinator_confirms_the_target_and_counts_a_resolution();
 	std::cout << "live-review-mutation-provider-tests:pass\n";
 	return EXIT_SUCCESS;
 }
