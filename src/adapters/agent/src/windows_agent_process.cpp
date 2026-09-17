@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <limits>
 #include <optional>
 #include <ranges>
@@ -678,9 +679,12 @@ namespace bpr::adapters::agent::detail {
 				return result;
 			}
 			const auto supervisor = supervisor_executable();
-			auto       lifetime   = make_pipe(true);
-			auto       report     = make_pipe(false);
-			if (supervisor.empty() || !lifetime || !report) {
+			// Not the workspace: the supervisor's current directory handle would
+			// keep the workspace from being renamed while the supervisor lives.
+			const auto supervisorDirectory = std::filesystem::path{ supervisor }.parent_path().wstring();
+			auto       lifetime            = make_pipe(true);
+			auto       report              = make_pipe(false);
+			if (supervisor.empty() || supervisorDirectory.empty() || !lifetime || !report) {
 				result.StandardError = "agent supervisor channel creation failed";
 				return result;
 			}
@@ -711,7 +715,7 @@ namespace bpr::adapters::agent::detail {
 												 TRUE,
 												 CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
 												 aEnvironment.data(),
-												 aWorkingDirectory.c_str(),
+												 supervisorDirectory.c_str(),
 												 &startup.StartupInfo,
 												 &processInformation)
 				!= FALSE;
@@ -737,13 +741,14 @@ namespace bpr::adapters::agent::detail {
 				commandText.pop_back();
 			}
 			const auto magic       = DWORD{ 0x53525042U };
-			const auto version     = DWORD{ 1U };
+			const auto version     = DWORD{ 2U };
 			const auto flags       = DWORD{ 1U };
 			const auto specWritten = write_value(lifetime->Parent.get(), &magic, sizeof(magic))
 				&& write_value(lifetime->Parent.get(), &version, sizeof(version))
 				&& write_value(lifetime->Parent.get(), &flags, sizeof(flags))
 				&& write_string(lifetime->Parent.get(), aExecutable)
 				&& write_string(lifetime->Parent.get(), commandText)
+				&& write_string(lifetime->Parent.get(), aWorkingDirectory)
 				&& write_string(lifetime->Parent.get(), *guardPath)
 				&& write_value(lifetime->Parent.get(), requested.FileIdentity.data(), sizeof(requested.FileIdentity));
 

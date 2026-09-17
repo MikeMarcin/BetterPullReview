@@ -91,6 +91,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # in CPython realpath (Path.resolve(strict=True)) of its fixture executable with
     # "[WinError 5] Access is denied" before any course step; it passes uncontained.
     "agent_workspace_ownership": "dos-volume-name",
+    # BPR-0622: measured on JaegAW 2026-09-17. Contained, the composed
+    # application exits `application-startup-failed:failure=registry` before
+    # the first checkpoint (its data-root canonicalisation); both pass uncontained.
+    "application_agent_crash_recovery": "dos-volume-name",
+    "application_agent_materialization_crash_recovery": "dos-volume-name",
     "application_device_binding_restart": "dos-volume-name",
     "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
     "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",

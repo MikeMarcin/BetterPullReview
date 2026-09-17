@@ -336,3 +336,186 @@ The Mac and Linux courses should cover these at merge:
   course holds its locks through `hold_shared`, which uses the same `flock` on
   POSIX.
 - `scripts/verify_test_network_isolation.py`: pin only.
+
+## Slices (c) and (d): supervised Git materialization and application recovery
+
+The two slices share one verification. The only Windows course that launches
+guarded Git is the composed materialization course, and it needs the
+application wiring, so both slices were built and verified together.
+
+### Source
+
+- **`src/adapters/git/src/installed_git_process.cpp`: Git under the supervisor.**
+  A request carrying a workspace guard now runs through the bundled
+  supervisor on Windows, as it already did on Unix.
+  - **Before start.** `git_workspace_lifetime::prepare` opens the guard
+    through the shared header and takes this process's own shared lock. The
+    header checks identity, reparse points and the private descriptor on the
+    handle. It then creates the lifetime and report pipes and installs a
+    `QProcess` create-process modifier.
+  - **The redirect.** The modifier keeps Qt's exact Git command line and
+    working directory for the specification. It replaces the launch with the
+    supervisor, with a `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` limited to Qt's
+    three standard handles and the two pipe ends. If building that list fails,
+    it still starts the supervisor, with arguments the supervisor refuses, so
+    Git never runs outside it.
+  - **Fail-safe.** `Supervised` is set only inside the modifier. A guarded
+    start that did not pass through it is refused and killed.
+  - **Start.** After start, the owner writes the specification and waits for
+    the supervisor's report within the start deadline. The report comes only
+    after Git was created suspended, assigned to the supervisor's kill-on-close
+    job and resumed. No Git write, and no standard-input byte, precedes job
+    assignment.
+  - **No app job.** A guarded start is never attached to this process's job,
+    which would end the supervisor with this process.
+  - **Failure paths.** These close the lifetime pipe and wait for the
+    supervisor, which terminates the job and confirms it empty before it
+    releases its lock.
+- **`src/adapters/git/src/installed_git_process.cpp`: the parent rule.** The
+  neighbourhood parent rule now also accepts OWNER RIGHTS (S-1-3-4) write
+  grants. That SID grants rights only to the object's owner, which the rule
+  already requires to be the current user. CPython's private `mkdir` on
+  Windows writes exactly SYSTEM, Administrators and OWNER RIGHTS.
+- **Launch specification version 2**
+  (`windows_agent_supervisor.cpp`, `windows_agent_process.cpp`). The
+  specification now carries the child's working directory, and the supervisor
+  starts in its own image directory rather than the workspace.
+  - **Measured.** A process's current-directory handle does not share delete.
+    With the supervisor started in the workspace, the
+    `application_agent_invocation_cleanup_retry_contract` course could not
+    rename the live workspace aside for 30 s and failed at
+    `cleanup-retry-substitute`. With the neutral directory it passes.
+- **`src/app/src/github_application.cpp`.** Three conditions widen from
+  `Q_OS_UNIX` to `Q_OS_UNIX || Q_OS_WIN`:
+  - the ownership registry passed to the Git cache;
+  - the persistent `<data-root>-agent-workspaces-v1` neighbourhood, which
+    replaces the per-run temporary root;
+  - startup recovery posted to the epoch effect lane, whose refusal presents
+    the existing repair message.
+
+  The neighbourhood leaf is appended as a path rather than through a narrow
+  `string()`. The SQLite session catalog is not touched.
+- **CMake.** `src/adapters/git/CMakeLists.txt` now adds the supervisor
+  dependency, and its tests-build path, on `UNIX OR WIN32`.
+
+### Tests
+
+- **`application_agent_materialization_crash_recovery` runs on Windows.** The
+  stages are `init`, `checkout` and `cancel`.
+  - **The paused writer.** The Git diagnostic wrapper's Windows checkpoint
+    reports its own and its parent's process IDs. It waits until the course has
+    opened handles to both, then publishes the workspace the application's
+    checkpoint waits for and blocks inside the supervisor's job.
+  - **Liveness.** The course checks each handle's image name and reads
+    liveness only from handles, never from PIDs. `NtSuspendProcess` stands in
+    for SIGSTOP (test code only).
+  - **While the supervisor is suspended.** After the application is killed,
+    two ordinary startups must leave the workspace snapshot, the journal bytes
+    and the SQLite and Git state unchanged.
+  - **After resume.** The resumed supervisor must end Git itself. Two startups
+    must then reclaim exactly the workspace and journal and leave the state
+    equal to the baseline.
+- **`application_agent_crash_recovery` runs on Windows.** It covers:
+  - the live-owner refusal (`startup-owner-busy`);
+  - recovery while the supervisor is suspended, which must not reclaim the
+    workspace;
+  - the agent and descendant ending after resume;
+  - the substitution refusal, where the substitute is preserved and repair
+    shown;
+  - exact reclamation, two reopens, and a fresh invocation with monotonic
+    session identities.
+
+  The substitute directory is made private first, so the refusal is about
+  identity, not a widened descriptor.
+- **Test support.**
+  - `agent_parent_death_tests.py` gains `open_fixture_process`,
+    `suspend_process` and `resume_process`.
+  - `agent_composition_kill_recovery_tests.py` gains `read_journal`, because a
+    live owner's handle includes DELETE access and CPython's `open()` does not
+    share delete. It also passes `core.longpaths=true` to its inspecting Git:
+    a cache ref under a contained root is longer than MAX_PATH, and without the
+    setting Git for Windows lists no refs, with exit 0 and no diagnostic.
+  - Both scripts narrow their temporary parent with `make_private`. On this
+    host `%TEMP%` grants `CodexSandboxUsers` and another SID Modify, and the
+    rule correctly refuses a neighbourhood under it. `%LOCALAPPDATA%`, the
+    product's parent, grants that group read only.
+- **`application_agent_invocation_composition_contract`.** It now places its
+  data root in a parent narrowed with `bpr_narrow_owner_private`. The build
+  tree grants Authenticated Users Modify, and the seed failed with
+  `workspace_unavailable` until the parent was narrowed.
+- **Registration.** Both crash courses are registered on `UNIX OR WIN32` and
+  pinned `WINDOWS_UNCONTAINED` with cause `dos-volume-name`. Contained, the
+  composed application exits `application-startup-failed:failure=registry`
+  before the first checkpoint.
+
+### Results
+
+These ran on the final source tree after a rebuild, from a `vcvars64` shell
+with Git's `usr/bin` appended, as one `ctest --preset windows-dev -V` run of 19
+tests.
+
+| Check | Result |
+|---|---|
+| `application_agent_materialization_crash_recovery` | Passed, 61.25 s: `init`, `checkout` and `cancel` each pass, then `agent-materialization-kill:pass` |
+| `application_agent_crash_recovery` | Passed, 57.85 s: `owned-workspace-reclaimed entries=18`, then `agent-composition-kill:pass` |
+| `application_agent_invocation_*`: construction-cut, launcher-construction-cut, gesture-cut, cancellation, staleness, cleanup-retry, workspace-diagnostic, host | All passed (3.86–22.35 s) |
+| `application_agent_invocation_composition_contract` | **Fails, and not because of this change.** The seed's context evidence is exact (`1:1:1:1:1:1:1:1:163:163`), but the expected context's `ApplicationSession` is 2 where the course requires 1. The course fails identically with this slice's three application conditions reverted to `Q_OS_UNIX`, so the failure is on Windows before this work. No card tracks it; reported to the integrator, not fixed here. |
+| `qt_agent_launch_canary` | Passed, 104.56 s (launch specification version 2) |
+| `agent_parent_death` | Passed, 48.31 s |
+| `agent_workspace_ownership` | Passed, 10.68 s |
+| `git_process_contract`, `git_cache_contract`, `git_anonymous_public_read` | Passed: 44.18 s, 89.42 s and 10.59 s |
+| `architecture_boundaries` | Passed, 15.40 s |
+| `test_network_isolation_manifest` | The same 25 findings as slices (a) and (b), compared line by line; zero delta, and none names this slice's tests |
+| **Trial, reverted:** guarded Git starts directly, without the supervisor | `application_agent_materialization_crash_recovery` **fails**. The writer's parent is not the supervisor image, so no handles are captured and the checkpoint is never reached. |
+| **Trial, reverted:** startup recovery runs but reclaims nothing | Both courses **fail**: materialization with `ordinary startup failed exact materialization recovery`, crash recovery with `startup-repair-visible failed=repair-visible` |
+| **Trial, reverted:** the three application conditions stay `Q_OS_UNIX` | Both crash courses **fail** before their checkpoint. Without the registry no guarded workspace exists. |
+| `cmake --build --preset windows-app-release` | Builds. The built and bundled supervisors both hash `16732b6aa615577e7daea1466aee00f55ee2b287a22c6d514a2bfa6222661745`. |
+
+### Limits recorded
+
+- **The double kill.** The owner-plus-supervisor double kill is still the
+  unguarded window recorded in the measurement section; nothing here changes
+  it.
+- **Handle inheritance.** Both pipe ends passed to the supervisor are
+  inheritable until they are closed right after `CreateProcess`, which is the
+  same window Qt's own standard-stream pipes have. A process another thread
+  starts inside that window without a handle list could inherit the lifetime
+  pipe and delay the supervisor's end-of-file on owner death until that
+  process exits. The application's own unguarded children sit in its
+  kill-on-close jobs, so the delay ends with the application.
+- **The elevated shell.** Not run, as in slices (a) and (b).
+- **The POSIX branches.** Not built on this host.
+
+### Portable sources touched in slices (c) and (d)
+
+The Mac and Linux courses should cover these at merge:
+
+- `src/adapters/git/src/installed_git_process.cpp`:
+  - a guarded start now waits on `git_workspace_lifetime::poll_start`, which
+    returns `started` at once on Unix;
+  - a guarded start is refused if not `Supervised`, which Unix's `prepare`
+    always sets;
+  - the job attach is skipped for guarded starts (it was a no-op on Unix);
+  - one `<stdexcept>` include.
+- `src/adapters/git/CMakeLists.txt`: the supervisor-dependency condition
+  becomes `UNIX OR WIN32`.
+- `src/app/src/github_application.cpp`: three conditions widen, and the
+  neighbourhood leaf is appended as a path, which gives the same result on
+  POSIX.
+- `tests/end_to_end/CMakeLists.txt`: the registration condition becomes
+  `UNIX OR WIN32`, plus two `WINDOWS_UNCONTAINED` markers.
+- `tests/end_to_end/application_agent_invocation_composition_contract.cmake`:
+  the data root moves to `<BPR_ROOT>/data` under a narrowed (0700 on POSIX)
+  `BPR_ROOT`.
+- `tests/end_to_end/agent_invocation_composition_public_path.cpp`: the removed
+  workspace-root expectation now also applies on Windows.
+- `tests/fixtures/git/git_diagnostic_wrapper_main.cpp`: a Windows-only
+  checkpoint block and includes.
+- `tests/scripts/agent_materialization_kill_recovery_tests.py` and
+  `tests/scripts/agent_composition_kill_recovery_tests.py`:
+  - the POSIX flow is unchanged, with liveness and pause behind small helpers;
+  - `make_private` on the temporary parent is `chmod 0700` on POSIX;
+  - journal reads go through `read_journal`, which is `read_bytes` on POSIX;
+  - the substitute is made private, `chmod 0700` after `mkdir(0o700)`.
+- `tests/scripts/agent_parent_death_tests.py`: Windows-only helpers.
+- `scripts/verify_test_network_isolation.py`: pins only.

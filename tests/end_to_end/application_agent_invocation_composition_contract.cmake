@@ -33,13 +33,20 @@ endforeach()
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+# [[BPR-0622]]. The application creates its agent workspace neighbourhood
+# beside its data root only under a parent no other principal can write. A
+# build tree inherits whatever its checkout grants (on Windows, commonly
+# Authenticated Users modify), so the data root sits in a narrowed parent.
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_narrow_owner_private("${BPR_ROOT}")
+set(application_data_root "${BPR_ROOT}/data")
 
 execute_process(
     COMMAND
         "${BPR_APPLICATION}"
         positive-seed
         "${BPR_CANARY}"
-        "${BPR_ROOT}"
+        "${application_data_root}"
     RESULT_VARIABLE seed_result
     OUTPUT_VARIABLE seed_output
     ERROR_VARIABLE seed_error
@@ -59,7 +66,7 @@ execute_process(
         "${BPR_APPLICATION}"
         positive-reopen
         "${BPR_CANARY}"
-        "${BPR_ROOT}"
+        "${application_data_root}"
     RESULT_VARIABLE reopen_result
     OUTPUT_VARIABLE reopen_output
     ERROR_VARIABLE reopen_error
