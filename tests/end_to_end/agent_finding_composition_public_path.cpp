@@ -169,7 +169,7 @@ auto main(int argc, char** argv) -> int
 	// Windows a QTemporaryDir is not: its descriptor is inherited. The agent
 	// workspace neighbourhood is created beside the root, so the root sits in
 	// the narrowed temporary directory rather than being it.
-	const auto dataRoot = std::filesystem::path{ data.path().toStdString() } / "data";
+	const auto dataRoot  = std::filesystem::path{ data.path().toStdString() } / "data";
 	auto       dataError = std::error_code{ };
 	if (!adapters::sqlite::make_storage_root_owner_private(dataRoot.parent_path())
 		|| !std::filesystem::create_directory(dataRoot, dataError) || dataError
