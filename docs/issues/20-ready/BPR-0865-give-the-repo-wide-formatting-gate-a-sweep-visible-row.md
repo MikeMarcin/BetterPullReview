@@ -63,3 +63,32 @@ left unrecorded.
   is shown to do both; or the card records, with the actual station versions,
   why the row cannot exist and where the gate runs instead.
 - Both stations' `clang-format` versions are recorded here either way.
+
+## Station versions, collected 2026-09-17 (dsp-005)
+
+Two of the three are known, and they settle the question against a naive row.
+
+| Station | `clang-format` | Python |
+|---|---|---|
+| `bpr-main-mac` (integrator, macOS) | 23.1.0, and 22.1.8 also installed; both report the tree clean at `754d0538` | 3.14 |
+| `bpr-linux` (WSL2) | **21.1.8 on the default `PATH`**; 22.1.8 only at the absolute `/usr/bin/clang-format` | 3.13.15 (`python3` resolves to `~/.local/bin/python3`) |
+| `bpr-win` | not yet collected | not yet collected |
+
+**This is the answer the deferral was waiting for.** A ctest row that resolved
+`clang-format` from `PATH` and gated on version 22 would have gone red on
+`bpr-linux` — for a shadowed toolchain, not for formatting rot. That station's
+own gates have used the absolute `/usr/bin/clang-format` since the shadowing
+was found, which is why its formatting verdicts have been trustworthy while a
+row would not have been.
+
+So the row, if it is added, has two hard requirements rather than one:
+
+- **Resolve the tool explicitly**, the way that station's gates do and the way
+  CMake's own discovery would, rather than trusting `PATH`. A row that picks up
+  whichever `clang-format` is first on `PATH` is not reproducible across these
+  three machines.
+- **Skip, not fail**, when no supported tool is found, so a missing or old
+  tool never reads as unformatted source.
+
+Windows's version is the last input. It is asked for in the next `bpr-win`
+envelope.

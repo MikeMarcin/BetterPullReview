@@ -19,22 +19,95 @@ protocol and hazards below still hold, and its next-objective list is this
 dispatch's order of work. The `project-integrator` lease is **held** by
 dsp-005 (a wrapped `sleep` process; release it at handoff).
 
-**Opening state, verified live.** Main `85f47bde`, clean and equal to
-`origin/main`. `origin/windows-lane` `20d99914`, an ancestor of main:
-`bpr-win` has not yet pushed [[BPR-0653]]. `origin/linux-lane` `d091ac3d`,
-three commits ahead of main (`c64e745c` claim, `b841dfb5` and `648e2140` for
-[[BPR-0856]], then `d091ac3d` claiming [[BPR-0855]]) — `bpr-linux` is still
-inside `task-20260917-lnx-sweep-fixes`. No BetterPullReview process is
-running; the owner's app is not open.
+**Heads.** Main `754d0538`, pushed; `origin/linux-lane` fast-forwarded to it.
+`origin/windows-lane` `c6cac3f0`, **not yet merged** — see below. No
+BetterPullReview process is running; the owner's app is not open. Logs are
+`build/r2-logs/dsp5-*`.
 
-**In flight on the Mac.** [[BPR-0860]] is claimed at `84f79470` and owned by
-one `rfc-worker`, which holds `build/r2-dev` and
-`src/app/src/github_application.cpp` exclusively. [[BPR-0859]] follows it
-serially, because both cards' probes live in that same file and both need the
-same build directory. Logs: `build/r2-logs/dsp5-*`.
+**Done on main in dsp-005.**
 
-**r4 stable point: not reached.** Both stations are working and the full
-suite is not green on either platform.
+- [[BPR-0860]]'s macOS half. The course never left Overview, where
+  [[BPR-0727]] collapses every drawer and [[BPR-0674]]'s hidden controls give
+  a collapsed drawer zero width, so the drag reported nothing and the uncapped
+  wait ate the 40 s budget. A stale probe, not a product defect. It now enters
+  **Review** — the only modality whose files drawer is expanded — and both
+  width phases are capped and name their stall. Reviewed, pins resealed at
+  `70a52630`. **Linux and Windows runs owed.**
+- [[BPR-0862]], Done. The repo-wide `coding-format-check` was red on main for
+  seventeen files, and *no ctest row observes it*: the gate is a build target,
+  and `coding_standard_format_gate_contract` pins the gate script's behaviour
+  instead. clang-format 22.1.8 and 23.1.0 flag the identical set, so it was
+  debt, not toolchain drift. Fixed and resealed; two of the seventeen were
+  include re-sorts, so every target was built to prove those headers
+  self-contained.
+- [[BPR-0854]] item 3, on main: `bpr-linux`'s two gate patches, applied
+  byte-identically to what it verified (its digests matched, so its
+  verification transferred). `OK:695` on macOS, 11/11 gate tests, plus an
+  independent falsification on the real `main.cpp`.
+- `bpr-linux`'s `task-20260917-lnx-sweep-fixes` merged at `97b296bd`:
+  [[BPR-0856]], [[BPR-0855]] and [[BPR-0854]] items 1, 2 and 4. Test-side
+  only, no pin moved. Three of its four source-scan rows are confirmed on
+  macOS; `dependency_modernization_contract` needs `--build-dir` and runs in
+  the combined pass.
+
+**Cards filed in dsp-005 (8).** [[BPR-0862]] (done), [[BPR-0863]] (three
+courses now stranded on Overview — give a course a way to state its modality),
+[[BPR-0864]] (the composition probe's still-uncapped phases), [[BPR-0865]]
+(the formatting gate needs a sweep-visible row, deferred until the stations'
+clang-format versions are known), [[BPR-0866]] (the conditional-branch gate
+polices `BPR_BUILD_TESTING` regions as dead code — the misclassification
+behind all eleven findings), [[BPR-0867]] (the contained temporary helper
+needs Python 3.12 against a declared floor of 3.10), [[BPR-0868]] (that helper
+swallows a removal error), [[BPR-0869]] and [[BPR-0870]] (two Windows-only
+rows `bpr-win` found red at `20d99914`).
+
+**Two station "new defects" were stale views, not defects.** `bpr-linux`
+reported `application_unavailable_diff_public_path` as uncarded; it is
+[[BPR-0858]], created after that station's synced base. `bpr-win` reported
+`application_workbench_composition_contract` and
+`dependency_modernization_contract`; those are [[BPR-0860]] and [[BPR-0854]]
+item 4, both fixed today. Both stations were told. Check a station's synced
+base before carding what it reports as new.
+
+**In flight.** One `rfc-worker` owns [[BPR-0859]] with `build/r2-dev` and
+`src/app/src/github_application.cpp` exclusive. `bpr-linux` has
+`task-20260917-lnx-merged-head-runs` at `754d0538`.
+
+**`bpr-win`'s [[BPR-0653]] is waiting on me, not on it.** Criteria 1-3 pass on
+Windows at `c6cac3f0`; criterion 4's attended capture stays an owner task. The
+merge is blocked only because the lane touches
+`src/app/src/github_application.cpp`, which the BPR-0859 worker holds. At
+merge it needs:
+
+- the macOS selectors it names — `qt_workbench_window_scale_{100,125,200}` and
+  `qt_composed_github_scale_100`; it expects the floor to stay 900 on macOS,
+  the labels never to shorten, and the identity to keep the repository at 1280;
+- a **reseal**: it moved the full-application and production-manifest pins and
+  deliberately did not reseal. Reviewed range `20d99914..c6cac3f0`. Print the
+  digests rather than trusting the ones in its reply.
+
+**Open owner ask added in dsp-005 — private Qt API in a product target.**
+BPR-0653's Windows frame removal goes through
+`QNativeInterface::Private::QWindowsWindow::setCustomMargins`, so
+`src/app/CMakeLists.txt` now takes QtCore's and QtGui's versioned private
+header directories for `better_pull_review_composition` under `WIN32`. The
+station cited the macOS native-menu course as precedent, and that precedent is
+real but **test-only** (`tests/end_to_end/CMakeLists.txt` ~2602): this is the
+first time a *shipped* target depends on private Qt headers. The change itself
+is careful — headers only, no private module linked, `WIN32`-only, `PRIVATE`,
+with the same exactly-one-versioned-directory guard as the test. The
+integrator **recommends accepting it**, because there is no public Qt API for
+removing the title bar while keeping the frame, and the alternative
+(`WM_NCCALCSIZE` plus `DwmExtendFrameIntoClientArea` by hand) fights Qt's own
+frame computation and is no less version-coupled. But it pins the shipped app
+to the Qt the build provides and obliges a recheck on every Qt upgrade, which
+is the owner's call, not an integrator's. It does not block the merge: the
+private API is confined to `src/app/src/windows_title_row_host.*`, that
+CMake block and the `_WIN32` construction, so a refusal would be surgical and
+the portable strip work would stand.
+
+**r4 stable point: not reached.** BPR-0859 is in flight, the Windows lane is
+unmerged, and neither full sweep has been run at a head that has everything.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r4): handoff at an integrated boundary
 
