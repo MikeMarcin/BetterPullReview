@@ -519,3 +519,36 @@ The Mac and Linux courses should cover these at merge:
   - the substitute is made private, `chmod 0700` after `mkdir(0o700)`.
 - `tests/scripts/agent_parent_death_tests.py`: Windows-only helpers.
 - `scripts/verify_test_network_isolation.py`: pins only.
+
+## Limits recorded under BPR-0825 item 5
+
+These come from the critical review of `743c59d7..c94e02b1`. They are
+recorded here, not fixed.
+
+- **Exit accounting is not handle rundown.** The supervisor confirms
+  emptiness from `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO` or
+  `ActiveProcesses == 0`. That is job accounting: a terminated process can
+  still hold handles for a short time while the kernel runs them down. If a
+  handle to a workspace file lingers past that point, the next rename or
+  removal fails, and recovery refuses with `repair_required` instead of
+  reclaiming. The outcome is a repair message, not data loss.
+- **The inheritable-pipe window.** The lifetime and report pipe ends passed to
+  the supervisor are inheritable between their creation and their close right
+  after `CreateProcess`, the same window Qt's own standard-stream pipes have.
+  A process another thread starts inside that window, without a handle list,
+  could inherit the lifetime pipe. That would delay the supervisor's
+  end-of-file on owner death until that process exits. The application's own
+  unguarded children run in its kill-on-close jobs, so the delay ends with the
+  application.
+- **A modifier-bypassing Git start is refused only after start.** A guarded
+  Git start is marked supervised only inside the `QProcess` create-process
+  modifier. If a start ever bypassed the modifier, the refusal would come
+  after `CreateProcess`: the directly started Git is then killed and reaped
+  through the unguarded path, and its first instructions could already have
+  run. Qt always invokes an installed modifier, so this is a defensive
+  refusal, not an observed path.
+- **Supervisor retry (BPR-0825 item 1).** A supervisor that can never confirm
+  its job empty now keeps its guard indefinitely instead of exiting.
+  Recovery refuses its workspace as live until that supervisor ends, and the
+  launcher's teardown still terminates it after its 5 s wait. That
+  termination is the recorded double-kill window.
