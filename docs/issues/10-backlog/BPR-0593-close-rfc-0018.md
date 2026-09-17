@@ -15,77 +15,69 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): in progress
 
 Dispatch dsp-003 took over at `2ee49a16` and holds the `project-integrator`
-lease (holder `bpr-main-mac`). Pushed main is `55937770`. Local main is ahead,
-with [[BPR-0829]] and [[BPR-0820]] committed. Neither is pushed, because both
-move the round-trip manifest pin, and the reseal waits on an independent review.
-The dsp-002 section below still lists the older open items. It is superseded
-only where this section says so.
+lease (holder `bpr-main-mac`). Main is `94f6f885` and pushed. Both lanes were
+fast-forwarded to it when their envelopes were sent. The round-trip pins were
+last resealed at `df235fa1`. The dsp-002 section below is superseded wherever
+this section covers the same cards.
 
-**Integrated.** Both station replies were merged with `--no-ff`:
+**Done in dsp-003:**
 
-- `linux-lane` `4b677d8b` as `48b6422b`;
-- `windows-lane` `711d3ddc` as `902cda35`.
+- [[BPR-0814]], [[BPR-0622]], [[BPR-0802]], [[BPR-0823]], [[BPR-0828]];
+- [[BPR-0830]], [[BPR-0837]], [[BPR-0820]], [[BPR-0826]], [[BPR-0812]];
+- [[BPR-0832]], [[BPR-0834]], [[BPR-0841]], [[BPR-0829]], [[BPR-0813]], [[BPR-0831]].
 
-Then:
+**Merged station work:**
 
-- The round-trip pins were resealed for BPR-0830 at `8a03a5be`.
-- The Mac run at `8a03a5be` passed 35 of 39 (`build/r2-logs/dsp3-int1-ctest.log`).
-  The four failures are all pre-existing or load-only: [[BPR-0837]], two
-  [[BPR-0835]] rows (they fail the same way at `2ee49a16`) and [[BPR-0840]]
-  (passes alone).
-- `windows-lane` was fast-forwarded to `55937770`. `linux-lane` is still at
-  `4b677d8b`.
+- `linux-lane` `4b677d8b` (`48b6422b`) and `69df53b1` (`f4758aa9`);
+- `windows-lane` `711d3ddc` (`902cda35`), `aedf471f` (`013d2036`) and
+  `2f3a6720` (`d514e76e`).
 
-**Done:** [[BPR-0814]], [[BPR-0622]], [[BPR-0802]], [[BPR-0823]] and [[BPR-0828]].
+Each merge had a Mac run of its portable sources (`build/r2-logs/dsp3-int{1,5,7}-*`).
 
-**Carded:** [[BPR-0831]] to [[BPR-0835]] (Windows station defects; BPR-0835 is
-Mac too), [[BPR-0836]], and [[BPR-0837]] to [[BPR-0840]].
+**Carded:** [[BPR-0831]] to [[BPR-0844]].
 
-**Moved:**
+**Parked:** [[BPR-0825]], on the owner's item 3 choice.
 
-- [[BPR-0812]] is Blocked on [[BPR-0834]].
-- [[BPR-0825]] is Parked on the owner's item 3 architecture choice.
+**Integrator decisions:**
 
-**In flight.**
+- [[BPR-0833]]: (a), a creation-time owner-private descriptor for the
+  automated profile.
+- [[BPR-0841]] item 3: declined, with the threat-model reason on the card.
+- [[BPR-0820]]: `--test-application-data-root` is now refused only with a
+  fixture.
 
-- BPR-0829 is fixed. The course waits for retention imports and expects 4
-  leases (`2842f484`). Mac 3/3 plus epoch regressions pass. Open: the Linux
-  rerun and the reseal.
-- BPR-0820 has its seam, gate and runtime-surface root (`866c5b90`). At the
-  integrated head, 20/20 plus `runtime_process_surface` 3/3 pass with the
-  owner's app alive. Open: review, reseal and finish.
-- [[BPR-0813]]: Mac store courses pass, and a critical review found no blocker
-  (non-blocking hardening is recorded on the card). Open: the Linux store
-  courses.
-- [[BPR-0826]]: the Windows rerun is step 1 of `task-20260917-win-startup-roots`.
-- [[BPR-0830]]: an rfc-worker is running the macOS half (repeats plus negative
-  control) against `build/r2-dev`.
-- Mac worker slices in scratch worktrees at `866c5b90` (`<scratchpad>/wt-0837`,
-  `wt-0835`, `wt-0809`): [[BPR-0837]], [[BPR-0835]] (bisect) and [[BPR-0809]].
-  All three are claimed.
-- An rfc-reviewer is reviewing `2842f484` and BPR-0820's patch. Its result is
-  the review record for the reseal.
+**Open, with the next step:**
 
-**Stations.**
+- [[BPR-0835]], In Progress. The course fix is in main (`3cc2ac48`).
+  Remaining: a quiet Mac rerun of both contracts, plus the Windows
+  (`win-creation-descriptor` step 3) and Linux (`lnx-portable-p3` step 1)
+  confirmations.
+- [[BPR-0833]], In Progress on `bpr-win` (`task-20260917-win-creation-descriptor`
+  step 1). Its `main.cpp` change needs a Mac run, a review and a reseal.
+- [[BPR-0844]], on `bpr-win` step 2. Then a Mac run of `runtime_audit_contract`.
+- [[BPR-0842]] and [[BPR-0838]], on `bpr-linux` (`task-20260917-lnx-portable-p3`).
+  BPR-0838 moves `github_application.cpp`'s pin, so a reseal follows its review.
+- [[BPR-0809]], In Progress: an rfc-worker in `<scratchpad>/wt-0809` at `866c5b90`.
+- Attended preparation: an rfc-worker in `<scratchpad>/wt-bundle` at `94f6f885`.
+  It is rerunning BPR-0794/0795's focused set, building the tests-disabled
+  bundle into `build/app-release-dsp3`, and preparing a new attended-review
+  packet for BPR-0794, BPR-0795 and BPR-0644's relaunch. The human part stays
+  open.
+- [[BPR-0673]] needs a quiet machine. Start it after the workers above finish.
+- [[BPR-0840]] (agent composition rows under load), [[BPR-0843]],
+  [[BPR-0836]], [[BPR-0839]]: P3 Backlog.
 
-- `bpr-win` `task-20260917-win-startup-roots` (base `55937770`) is active:
-  BPR-0826's rerun, then BPR-0831, BPR-0832 and BPR-0834, with BPR-0812's rows.
-- `bpr-linux` is idle. Its next envelope: BPR-0829's rerun, BPR-0813's store
-  courses, BPR-0820's seam rows plus `runtime_process_surface`, and both
-  finding contracts for BPR-0835. Send it after the reseal is pushed and
-  `linux-lane` is fast-forwarded.
-- The Windows envelope after the current one: BPR-0820's seam rows and
-  [[BPR-0833]].
+**Hazards learned in dsp-003.**
 
-**Hazards learned.**
+- A card-only `git commit` with a staged candidate sweeps the candidate in.
+  Commit with `git commit -- <paths>`.
+- Do not rebuild `build/r2-dev` while another agent runs its binaries.
+- `test_network_isolation_manifest` needs `gh_cli_git_smart_transport` built.
+- On macOS, the agent composition rows fail under a load average above about
+  15 (BPR-0840).
 
-- `git commit` with a staged candidate sweeps it into a card commit. Commit
-  card-only changes with an empty index.
-- `test_network_isolation_manifest` fails in a worktree that has not built
-  `gh_cli_git_smart_transport`.
-
-If this dispatch ends without a later section, account for the three worktrees
-and the background agents above before any new writer starts.
+If this dispatch ends without a later section, account for the worktrees and
+background agents above before any new writer starts.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-002, mandate r3): handoff at an integrated boundary
 
