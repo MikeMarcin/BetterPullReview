@@ -167,16 +167,18 @@ namespace bpr::e2e::large_review {
 		}
 		resource_sample sample;
 		sample.Phase = aPhase;
-#if defined(__APPLE__)
+#if !defined(__APPLE__)
+		// [[BPR-0831]]. Nothing follows the refusal on this path, so no statement
+		// after it is unreachable under MSVC's C4702.
+		static_cast<void>(aApplication);
+		throw std::runtime_error{ "the native memory resource course is currently Mac-only" };
+#else
 		task_vm_info_data_t    information{ };
 		mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
 		require(task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&information), &count) == KERN_SUCCESS,
 				"native process memory sample failed");
 		sample.ResidentBytes          = information.resident_size;
 		sample.PhysicalFootprintBytes = information.phys_footprint;
-#else
-		throw std::runtime_error{ "the native memory resource course is currently Mac-only" };
-#endif
 		if (aApplication) {
 			const auto work         = access::diff_work_evidence(*aApplication);
 			sample.DiffCacheBytes   = work.CacheBytes;
@@ -208,6 +210,7 @@ namespace bpr::e2e::large_review {
 			}
 		}
 		aReport.Resources.push_back(sample);
+#endif
 	}
 
 	void confirm_fixture_maintenance(QAction& aAction, const QString& aDialogName)

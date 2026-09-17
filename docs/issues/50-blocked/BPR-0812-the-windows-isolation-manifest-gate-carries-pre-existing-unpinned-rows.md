@@ -126,3 +126,12 @@ Six of the eight rows are resolved. The remaining six findings belong to
 startup on Windows even uncontained, so they cannot be measured or pinned
 until [[BPR-0834]] fixes that. This card is blocked on BPR-0834 and returns
 to the Windows station with it.
+
+## Windows station, 2026-09-17: the last six findings (task-20260917-win-startup-roots)
+
+[[BPR-0834]] fixed both epoch courses. They pass uncontained, their contained
+failure was measured as `startup_failure::registry`, and they are pinned
+`dos-volume-name`. `test_network_isolation_manifest` on the Windows station now
+passes with **zero findings**:
+`TEST_NETWORK_ISOLATION_OK:configured=357:registrations=344:backend=windows-appcontainer`.
+The card is left in place for the integrator.
