@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0822",
+    "BPR-0823",
+    "BPR-0824"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-002: bpr-linux task-20260917-lnx-build new defects 1-3",
+  "created": "2026-09-17T08:38:48.109852+00:00",
+  "base": "99712ec3ada8e8482f3a855d3873d20690283f95"
+}
