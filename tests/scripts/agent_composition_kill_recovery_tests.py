@@ -99,14 +99,14 @@ def main() -> int:
                     raise RuntimeError(f"{course} failed ({result.returncode}):\n{result.stdout[-4000:]}\n{result.stderr[-4000:]}")
                 if marker not in result.stdout:
                     raise RuntimeError(f"{course} did not prove its public-path result")
-            def live_recovery() -> None:
+            def live_recovery(course: str) -> None:
                 live_workspace = Path(root.joinpath("workspace-parent").read_text())
                 records = list((root / "agent-workspace-ownership-v1").glob("*.jsonl"))
                 if len(records) != 1:
                     raise RuntimeError("running application lacks exact workspace journal")
                 identity = live_workspace.stat().st_ino
                 receipt = records[0].read_bytes()
-                invoke("startup-recover", "agent-invocation-startup-recover:pass")
+                invoke(course, f"agent-invocation-{course}:pass")
                 if not live_workspace.exists() or live_workspace.stat().st_ino != identity or records[0].read_bytes() != receipt:
                     raise RuntimeError("another ordinary application reclaimed live workspace ownership")
             def resume_supervisor() -> None:
@@ -119,7 +119,10 @@ def main() -> int:
                     paused_supervisor = None
             def pause_supervisor() -> None:
                 nonlocal paused_supervisor
-                live_recovery()
+                # The live application holds the profile's exclusive runtime
+                # lease, so a second ordinary launch on its root is refused
+                # before it composes anything (BPR-0808).
+                live_recovery("startup-owner-busy")
                 paused_supervisor = int(root.joinpath("supervisor.pid").read_text())
                 if paused_supervisor <= 1:
                     raise RuntimeError("invalid fixture supervisor identity")
@@ -128,7 +131,9 @@ def main() -> int:
                 try:
                     if not all(running(int(root.joinpath(name).read_text())) for name in ("supervisor.pid", "agent.pid", "descendant.pid")):
                         raise RuntimeError("supervisor lifetime course lost its live fixture processes")
-                    live_recovery()
+                    # Owner death released the lease; the paused supervisor
+                    # still holds the workspace, so startup must not reclaim it.
+                    live_recovery("startup-recover")
                 finally:
                     resume_supervisor()
             kill_at_checkpoint(args.executable, "crash-running", root,

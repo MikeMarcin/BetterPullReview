@@ -106,6 +106,38 @@ namespace {
 		return EXIT_FAILURE;
 	}
 
+	/// \brief Names a typed startup refusal for the failure report.
+	///
+	/// \details [[BPR-0808]]. The startup wait settles on any terminal, so a
+	/// refusal left its report empty and `application-startup-failed:` named
+	/// nothing. The switch has no default, so a new failure fails the build here
+	/// instead of printing an empty reason again.
+	[[nodiscard]] auto startup_failure_name(const app::github_application_startup_failure aFailure) noexcept -> std::string_view
+	{
+		using enum app::github_application_startup_failure;
+		switch (aFailure) {
+		case owner_busy:
+			return "owner_busy";
+		case activation_queued:
+			return "activation_queued";
+		case activation_refused:
+			return "activation_refused";
+		case activation_indeterminate:
+			return "activation_indeterminate";
+		case invalid_profile:
+			return "invalid_profile";
+		case registry:
+			return "registry";
+		case root:
+			return "root";
+		case unavailable:
+			return "unavailable";
+		case cancelled:
+			return "cancelled";
+		}
+		return "unnamed";
+	}
+
 	[[nodiscard]] auto line_value(
 		const std::string_view aText,
 		const std::string_view aPrefix) -> std::optional<std::string>
@@ -506,7 +538,7 @@ auto main(int argc, char** argv) -> int
 	if (course != "positive" && course != "positive-seed"
 		&& course != "crash-running" && course != "crash-reinvoke"
 		&& course != "startup-recover" && course != "startup-repair"
-		&& course != "positive-reopen" && course != "construction-cut"
+		&& course != "startup-owner-busy" && course != "positive-reopen" && course != "construction-cut"
 		&& course != "launcher-construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
 		&& course != "staleness" && course != "cleanup-retry"
@@ -613,6 +645,7 @@ auto main(int argc, char** argv) -> int
 		}
 	}
 	std::unique_ptr<app::github_application> application;
+	auto                                     startupFailure  = std::optional<app::github_application_startup_failure>{ };
 	auto                                     startupTerminal = false;
 	auto                                     startup         = app::detail::github_application_fixture_access::start(
 		app::detail::github_public_path_fixture::github_com,
@@ -630,13 +663,32 @@ auto main(int argc, char** argv) -> int
 			startupTerminal = true;
 			if (aResult) {
 				application = std::move(*aResult);
+			} else {
+				startupFailure = aResult.error();
 			}
 		});
-	auto startupTerms = wait_terms{ };
-	if (!wait_until_reporting(startupTerms, [&](wait_terms& aTerms) {
-			return aTerms.require("startup-terminal", startupTerminal && startup && startup->is_quiescent());
-		})
-		|| !application) {
+	auto       startupTerms   = wait_terms{ };
+	const auto startupSettled = wait_until_reporting(startupTerms, [&](wait_terms& aTerms) {
+		return aTerms.require("startup-terminal", startupTerminal && startup && startup->is_quiescent());
+	});
+	// [[BPR-0808]]. A second ordinary application on a live owner's root is
+	// refused at profile admission, before any service or window exists, so it
+	// can neither launch nor reclaim what the owner holds.
+	if (course == "startup-owner-busy") {
+		if (!startupSettled || application || startupFailure != app::github_application_startup_failure::owner_busy) {
+			startupTerms.note_name("failure", startupFailure ? startup_failure_name(*startupFailure) : "none");
+			startupTerms.note("application", application != nullptr);
+			std::cerr << "application-startup-not-refused:" << startupTerms.render() << '\n';
+			if (application) {
+				static_cast<void>(shutdown(*application));
+			}
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-" << course << ":pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (!startupSettled || !application) {
+		startupTerms.note_name("failure", startupFailure ? startup_failure_name(*startupFailure) : "none");
 		std::cerr << "application-startup-failed:" << startupTerms.render() << '\n';
 		return EXIT_FAILURE;
 	}

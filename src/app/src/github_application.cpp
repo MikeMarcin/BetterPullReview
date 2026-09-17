@@ -3856,6 +3856,7 @@ namespace bpr::app {
 			std::function<void(const QString&)>                                                       RestoreNotice;
 			std::function<void()>                                                                     RecentChanged;
 			std::function<void(const application::workbench_pull_request_authority&, ledger_changes)> Ledger;
+			std::function<void()>                                                                     AgentWorkspaceRepair;
 		};
 		// [[BPR-0733]]. The recently viewed list is profile state; every window
 		// projects its own view of it for the session it has.
@@ -4870,7 +4871,13 @@ namespace bpr::app {
 					try {
 						DecisionLane.post([this, result = std::move(recovered)] {
 							AgentWorkspaceCleanupFailed = !result.has_value();
-
+							// [[BPR-0808]]. Recovery is profile work, but its refusal is
+							// presented by every window: those open now, and any opened
+							// later, which replay the recorded refusal in `open_window`.
+							if (!result && !Closing) {
+								AgentWorkspaceRecoveryRefused = true;
+								for_each_window([](const window_observer& aObserver) { if (aObserver.AgentWorkspaceRepair) { aObserver.AgentWorkspaceRepair(); } });
+							}
 							AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
 						});
 					} catch (...) {
@@ -5493,6 +5500,7 @@ namespace bpr::app {
 			 AgentWorkspaceParent;
 		bool AgentWorkspaceCleanupAttempted = false;
 		bool AgentWorkspaceCleanupFailed    = false;
+		bool AgentWorkspaceRecoveryRefused  = false;
 		// Dependents are destroyed before their retained ports and execution lanes.
 		std::unique_ptr<application::github_application_host> Host;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -5804,6 +5812,13 @@ namespace bpr::app {
 			// overwritten by it.
 			Window->present_home_restoration_notice(aText);
 		}
+		void present_agent_workspace_repair()
+		{
+			if (Closing || !Window || Window->agent_panel() == nullptr) {
+				return;
+			}
+			Window->agent_panel()->refuse("Disposable workspace recovery needs repair or has reached its limit.");
+		}
 		void cancel_restoration(bool aStartup, bool aReadingGesture = false)
 		{
 			if (!Profile->ReviewRestoration) {
@@ -5925,7 +5940,7 @@ namespace bpr::app {
 } }, .SignIn = [this, weak](core::host_profile_id aProfile) { if (!weak.expired() && !Closing){ begin_public_preview_sign_in(aProfile);
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
-} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } } });
+} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } }, .AgentWorkspaceRepair = [this, weak] { if (!weak.expired()) { present_agent_workspace_repair(); } } });
 			// Home may already be checked while a restored read is pending. Its
 			// toggle then emits false, but the gesture still supersedes restoration.
 			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
@@ -12679,6 +12694,9 @@ namespace bpr::app {
 				}
 			};
 			session->start();
+			if (Profile->AgentWorkspaceRecoveryRefused) {
+				session->present_agent_workspace_repair();
+			}
 			if (Profile->ReviewRestoration) {
 				static_cast<void>(Profile->ReviewRestoration->attach(aContext));
 				if (Profile->RestorationGlobalNotice) {
