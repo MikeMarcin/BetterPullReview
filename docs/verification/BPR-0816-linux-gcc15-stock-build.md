@@ -15,8 +15,9 @@
   which this Linux station cannot run. The card therefore stays In Progress
   with its Linux evidence recorded. Main finishes it after the macOS dev build
   and focused tests pass on the merge.
-- **Next on this task.** BPR-0622 and BPR-0806 Linux courses on the stock
-  `dev` tree at `4883dbd9`.
+- **Task outcome.** The stock trees at `4883dbd9` then carried BPR-0622's and
+  BPR-0806's Linux courses, BPR-0817's fix (`1c6eaf21`) and BPR-0799's native
+  rerun, all without a flag override.
 
 ## Station, revisions and host
 
@@ -225,6 +226,8 @@ blocking finding**.
   checkout under `/home/mmarcin/bpr-station-logs/task-20260917-lnx-build/`
   (`stock.summary`, `*.build-*.log`, `probe-*.build.log`,
   `clang-proxy-candidate.log`, `tidy-0816.log`, `focused-0816.ctest.log`,
-  `baseline-0816.ctest.log`, `tools/tu.py`). None is committed.
+  `baseline-0816.ctest.log`, `tools/tu.py`, and the double-free reproducer
+  `repro/asan.cpp`). None is committed. The discovery trees `build/probe-*`
+  were deleted after use.
 - **Boundaries.** No GitHub or GHES request, credential read, live agent or
   GitHub Actions run was used.

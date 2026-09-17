@@ -107,7 +107,7 @@ pass, and `architecture_boundaries` passes."
   courses.
 - **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-build/`
   (`run-0806.ctest.log`, `run-0622.ctest.log`, `run-0622-0806.summary`,
-  `baseline-0806-multiwindow.ctest.log`). The scout's `lldb` scripts and output
-  are in `/tmp/scout-mw/`. None is committed.
+  `baseline-0806-multiwindow.ctest.log`). The scout's `lldb` script and output
+  are in `scout-mw/` there. None is committed.
 - **Boundaries.** No GitHub or GHES request, credential read or live agent was
   used.

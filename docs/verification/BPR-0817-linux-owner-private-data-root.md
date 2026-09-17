@@ -15,8 +15,12 @@
   - **Criterion 2 waits on the owner.** It has two questions, listed at the end:
     the exit code for a refused workspace recovery, and where the refusal should
     be visible.
-- **Next on this task.** BPR-0799's three criteria at `1c6eaf21`, recorded in
-  [BPR-0799's Linux evidence](BPR-0799-linux-native-empty-desktop-quit.md).
+- **Follow-on.** BPR-0799's three criteria pass at `1c6eaf21`, and that card
+  is Done ([BPR-0799's Linux evidence](BPR-0799-linux-native-empty-desktop-quit.md)).
+- **Next, for the owner.** Answer the two questions at the end of this file.
+  Then implement the recorded exit-code and visibility decision and rerun the
+  pre-existing-0775-parent course. The macOS half of criterion 3 belongs to
+  main.
 
 ## Revisions and host
 
