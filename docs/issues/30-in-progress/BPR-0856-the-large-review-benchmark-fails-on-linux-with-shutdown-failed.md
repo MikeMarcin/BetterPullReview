@@ -146,6 +146,14 @@ from 17:35:26Z, with a 1-minute load average of 0.15 to 0.35
 
 `/tmp` listed the same entries before and after the three runs.
 
+## Confirmation at the lane tip
+
+At `fecf04d2ebc6a3a0773c8cdbf1f24c5c2dd87f5e`, the lane tip this station
+pushed, after [[BPR-0855]]'s and [[BPR-0854]]'s changes and a reconfigure, the
+row was run three more times from 18:31Z: pass in 5.59 s, 5.49 s and 5.52 s,
+each printing `LARGE_REVIEW_COMPOSED_BENCHMARK_OK` (`final-0855-0856.summary`,
+`final-0856-run<n>.log`). `/tmp` listed the same entries before and after.
+
 ## Independent review
 
 An `rfc-reviewer` reviewed the diff (`0856-candidate.diff`, sha256

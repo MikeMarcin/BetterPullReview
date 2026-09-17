@@ -278,6 +278,25 @@ the exact patch text is in this station's return to main.
 - **Still open for main:** `conditional_branch_identifiers` stays red until the
   gate patch lands on a checkout that owns `scripts/`.
 
+## The four rows at the lane tip
+
+At `fecf04d2ebc6a3a0773c8cdbf1f24c5c2dd87f5e`, the lane tip this station
+pushed, a clean tree with `ninja -n` reporting no work, each row ran as its own
+serial `ctest --test-dir build/dev -j1 -V -R '^<name>$'` from 18:27:56Z. The
+Secret Service `login` collection read `(<false>,)` first
+(`final-source-scan.summary`, `final-<row>.log`).
+
+| Row | Result | Time |
+|---|---|---|
+| `contained_temporary_usage_contract` | Pass | 2.61 s |
+| `msvc_secure_crt_contract` | Pass | 0.32 s |
+| `dependency_modernization_contract` | Pass | 64.48 s |
+| `conditional_branch_identifiers` | Fail, `CONDITIONAL_BRANCH_IDENTIFIERS_FAILED:11`, the same eleven false positives | 3.89 s |
+
+Three of the four rows are green on Linux. The fourth stays red for the reason
+in "Item 3": its fix is in `scripts/`, which this station may not edit for this
+task.
+
 ## Independent review
 
 An `rfc-reviewer` reviewed the whole candidate (`0854-candidate-code.diff`,

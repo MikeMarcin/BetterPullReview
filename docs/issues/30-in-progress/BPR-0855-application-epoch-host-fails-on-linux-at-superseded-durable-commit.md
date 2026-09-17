@@ -138,6 +138,13 @@ when they started.
 |---|---|---|
 | 1 to 8 | Pass, no `FAILED:` line | 0.25 s each |
 
+## Confirmation at the lane tip
+
+At `fecf04d2ebc6a3a0773c8cdbf1f24c5c2dd87f5e`, the lane tip this station
+pushed, after [[BPR-0854]]'s changes and a reconfigure, the row was run three
+more times from 18:31Z: pass in 0.25 s each, with no `FAILED:` line
+(`final-0855-0856.summary`, `final-0855-run<n>.log`).
+
 ## Independent review
 
 An `rfc-reviewer` reviewed the commit and found no blocking finding. It
