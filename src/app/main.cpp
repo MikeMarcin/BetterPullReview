@@ -6132,6 +6132,21 @@ namespace {
 							fail_automated_run(aApplication, *aRun);
 						}
 					} else if (aRun->DiffProbe) {
+						// [[BPR-0823]]. Since [[BPR-0771]] the course names its
+						// pull request in the Home bar, and a pull request opened
+						// that way lands on Overview, as RFC-BPR-0028 and
+						// [[BPR-0661]]'s default opening modality say it does.
+						// The centre then shows the overview page, so the
+						// comparison this probe loads, measures and captures is
+						// hidden. A reviewer reaches it by leaving Overview, so
+						// the course does that first: Review, the modality the
+						// window showed on this path before the Home bar
+						// carried it.
+						if (window.current_modality()
+							== bpr::qt::review_modality::overview) {
+							window.choose_modality(bpr::qt::review_modality::review);
+							break;
+						}
 						if (!aRun->DiffRequested) {
 							aRun->DiffRequested = bpr::app::detail::
 								github_application_fixture_access::request_fixture_diff(
@@ -6201,14 +6216,17 @@ namespace {
 						// it was a `qobject_cast` in an `if`, so a shell whose
 						// structure had changed simply skipped the call.
 						//
-						// Fails the run rather than breaking the tick, because
-						// breaking only sends it round again and a structural
-						// fault does not resolve by retrying.
+						// Fails the run rather than waiting, because a structural
+						// fault does not resolve by retrying. The failure moves
+						// the run to shutdown, so the tick must still be rearmed
+						// for shutdown to finish: returning here left the process
+						// running until the harness timeout, which reported this
+						// failure as a timeout ([[BPR-0823]]).
 						if (!comparison_is_wholly_visible(window, *workbench)) {
 							QTextStream{ stdout }
 								<< "DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED\n";
 							fail_automated_run(aApplication, *aRun);
-							return;
+							break;
 						}
 						// Selected before the rasters are written, not after.
 						// BPR-0201: the appearance-gesture assertion changes
