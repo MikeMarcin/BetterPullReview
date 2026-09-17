@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0820"
 title: "The GHES refusal course opens the interactive default profile"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P2"
