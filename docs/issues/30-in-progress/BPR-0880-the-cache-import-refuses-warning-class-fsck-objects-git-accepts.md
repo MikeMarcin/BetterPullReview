@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0880"
 title: "The Git cache import refuses any pack carrying a warning-class fsck object that Git and GitHub accept"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
