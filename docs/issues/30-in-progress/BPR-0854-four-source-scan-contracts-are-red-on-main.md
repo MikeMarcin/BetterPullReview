@@ -85,3 +85,68 @@ rows stayed red.
   registered there.
 - The courses whose files changed still pass on the platforms where they are
   registered.
+
+## Current frontier (dsp-004, bpr-linux, task-20260917-lnx-sweep-fixes)
+
+- **Binding.** Run `run-20260916-stations`, dispatch `dsp-004` (station
+  dispatch `bpr-linux/int-11`), mandate r2. Station `bpr-linux`
+  (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`, authority `lane-commit`.
+- **Outcome so far.** Items 2 (`msvc_secure_crt_contract`) and 4
+  (`dependency_modernization_contract`) are fixed and their rows pass. Item 1
+  (the 13 `tempfile` sites) and item 3 (`conditional_branch_identifiers`) are
+  recorded below as they land.
+- **Changed paths so far.** `tests/sqlite_contract/profile_activation_tests.cpp`
+  and `tests/end_to_end/CMakeLists.txt`. No product source and no pinned
+  digest changed.
+- **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-sweep-fixes/`
+  (`0854-*`). None is committed.
+- **Still open.** Items 1 and 3, the independent review of the whole diff, and
+  the macOS and Windows runs under "For macOS and Windows".
+
+## Item 2: the MSVC spelling
+
+`tests/sqlite_contract/profile_activation_tests.cpp`'s scratch directory is
+inside `#if !defined(_WIN32)`, so MSVC never compiles that read. The gate
+reads text rather than branches (`tests/scripts/msvc_secure_crt_tests.py`), so
+the read now carries the scoped suppression the tree spells everywhere else
+(`tests/application/mcp_context_helper_tests.cpp` ~66), with a comment saying
+why a POSIX-only class carries it. Nothing else in the file changed;
+`clang-format` moved the `pattern` line out of its alignment group.
+
+## Item 4: central Python discovery
+
+`tests/end_to_end/CMakeLists.txt` no longer calls
+`find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)`. That call was
+also the only thing that defined `Python3_EXECUTABLE` in this directory: two
+rows read `"${Python3_EXECUTABLE}"`, and with the call removed both configured
+with an empty program (`CMake Warning (uninitialized)` at each). Both now name
+the central `Python3::Interpreter` target, as the other 13 Python rows in this
+file already do:
+
+- `application_epoch_portable_occurrence_two_catalogues` (the row at the
+  reported line);
+- `application_epoch_ordinary_update_recreated`.
+
+`ctest -N -V` shows both commands resolving to
+`/home/mmarcin/.local/bin/python3`, the interpreter the central discovery
+found. The configure has 124 `CMake Warning (uninitialized)` blocks, the same
+count as before the change, all inside Qt's and KSyntaxHighlighting's own
+package files.
+
+## Verification of items 2 and 4 (Linux, bpr-linux, WSL2)
+
+Stock `dev` preset, reconfigured and fully rebuilt with no warning. The Secret
+Service `login` collection read `(<false>,)` before the group. Each run was a
+serial `ctest --test-dir build/dev -j1 -V -R '^<name>$'` from 17:45:25Z
+(`0854-bc.summary`, `0854-bc-<row>.log`).
+
+| Row | Result | Time |
+|---|---|---|
+| `msvc_secure_crt_contract` | Pass | 0.32 s |
+| `sqlite_profile_activation` | Pass | 4.14 s |
+| `dependency_modernization_contract` | Pass | 65.53 s |
+| `application_epoch_portable_occurrence_two_catalogues` | Pass | 11.92 s |
+| `application_epoch_ordinary_update_recreated` | Pass | 4.40 s |
+
+Gates: `/usr/bin/clang-format` 22 reports the changed C++ file clean, and
+`git diff --check` is clean.
