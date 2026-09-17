@@ -28,6 +28,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -4714,9 +4715,26 @@ namespace bpr::adapters::sqlite::detail {
 			// UTF-8 on every platform: SQLite's Windows VFS converts it to UTF-16,
 			// while a narrow `path.string()` is the ANSI code page there and cannot
 			// name a root outside it.
-			const auto encoded  = path.u8string();
-			const auto native   = std::string{ reinterpret_cast<const char*>(encoded.data()), encoded.size() };
-			auto*      database = static_cast<::sqlite3*>(nullptr);
+			const auto encoded = path.u8string();
+			const auto native  = std::string{ reinterpret_cast<const char*>(encoded.data()), encoded.size() };
+			// [[BPR-0841]]. The connection is owned from the moment SQLite hands
+			// it back, so every failure path closes it, an exception included; on
+			// Windows an unclosed connection keeps the store file held.
+			struct connection_owner final
+			{
+				::sqlite3* Value                                     = nullptr;
+				connection_owner()                                   = default;
+				connection_owner(const connection_owner&)            = delete;
+				connection_owner& operator=(const connection_owner&) = delete;
+				~connection_owner()
+				{
+					if (Value != nullptr) {
+						(void)::sqlite3_close_v2(Value);
+					}
+				}
+			};
+			auto       owned    = connection_owner{ };
+			auto&      database = owned.Value;
 			const auto close    = [&database] {
 				if (database != nullptr) {
 					(void)::sqlite3_close_v2(database);
@@ -4769,9 +4787,14 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(current ? state_directory_failure::invalid_path : as_state_directory_failure(current.error()));
 			}
 #endif
-			return database;
+			return std::exchange(database, nullptr);
 		} catch (const std::bad_alloc&) {
 			return std::unexpected(state_directory_failure::unavailable);
+		} catch (const std::system_error&) {
+			// [[BPR-0841]]. `path::u8string()` throws for a Windows name that is
+			// not valid UTF-16, such as a lone surrogate. Such a root cannot be
+			// named to SQLite, which is an ordinary refusal, not a crash.
+			return std::unexpected(state_directory_failure::invalid_path);
 		}
 	}
 } // namespace bpr::adapters::sqlite::detail

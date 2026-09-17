@@ -212,6 +212,12 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
 				Directory.emplace(std::move(*directory));
+				// [[BPR-0841]]. Refusing to admit the file is not corruption: the
+				// next call retries, as it did before the shared open helper. Only a
+				// failure once the file was admitted latches the store.
+				if (!detail::admit_private_store_file(*Directory, "device-bindings.sqlite3")) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
 				auto opened = detail::open_private_store_database(*Directory, "device-bindings.sqlite3", SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW);
 				if (!opened) {
 					Failed = true;
