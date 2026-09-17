@@ -13,12 +13,20 @@
 - **Scope.** Evidence only: the Linux runs of the [[BPR-0851]] and
   [[BPR-0852]] fix, and one read-only run of the whole suite. Both cards
   belong to main. No card, RFC or product file is edited or moved here.
-- **State.** Step 1 is complete: all 7 rows pass, and no `tmp_*` file is
-  left in any cache pack directory. Step 2, the full-suite sweep, is next.
-- **Commands.** None is active. No child agent ran.
+- **State.** Both steps are complete. Step 1: all 7 rows pass, and no
+  `tmp_*` file is left in any cache pack directory. Step 2: 355 of 366 rows
+  pass, and each of the 11 failures also fails alone. Nothing was diagnosed
+  or fixed.
+- **Commands.** None is active. No child agent ran. The temporary entries
+  the runs left in `/tmp` were listed in the logs and removed.
+- **Next.** Nothing more on this station for this task. The results return
+  to `bpr-main-mac`.
 - **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-0851-sweep/`
   (`step0.summary`, `configure-dev.log`, `build-dev*.log`,
-  `step1.summary`, `step1-<row>.log`, `observe/`). None is committed.
+  `step1.summary`, `step1-<row>.log`, `observe/`, `step2.summary`,
+  `step2-sweep.log`, `step2-junit.xml`, `step2-failures/`,
+  `step2-alone.summary`, `step2-alone-<row>.log`, `tmp-residue-*.txt`).
+  None is committed.
 - **Earlier dispatch.** The BPR-0846 runs of `bpr-linux/int-9` keep their
   binding in the next section, and their results follow it.
 
@@ -277,3 +285,80 @@ six runs exited 0 with the same pass markers as the ctest runs.
 
 None. No row failed, timed out or printed a `FAIL:` line, so no pack
 listing was needed.
+
+## Full-suite sweep at bcc7148d (int-10)
+
+### How the sweep ran
+
+The sweep ran at `bcc7148dc08a60ce22ef09f34e3d7f6fad6dc302`, which differs
+from `a1864fa2` only in this file, with the step 1 build unchanged:
+`ninja -n` reported no work. The tree was clean. The Secret Service `login`
+collection read `(<false>,)` at 16:49:53Z, and the 1-minute load average was
+0.48.
+
+```sh
+ctest --preset dev -j10 --output-junit <log dir>/step2-junit.xml
+```
+
+- **Parallelism.** `-j10` on 20 logical processors. CTest ran the two
+  `RUN_SERIAL` rows, `application_large_review_benchmark` and
+  `application_unavailable_diff_public_path`, alone at the end. Nine rows
+  hold a resource lock: 6 `native_https_loopback` and 3
+  `linux_secret_service_integration_item`.
+- **Time.** 16:49:53Z to 16:59:37Z: 584 s wall, 583.49 s by CTest. CTest
+  exited with rc 8.
+
+### Totals
+
+| Total | Pass | Fail | Timed out | Not run | Disabled | Skipped |
+|---|---|---|---|---|---|---|
+| 366 | 355 | 11 | 0 | 0 | 0 | 0 |
+
+The counts are from the JUnit file and agree with CTest's `97% tests passed,
+11 tests failed out of 366`. A skip inside a passing or failing Python row,
+such as the one in `dependency_modernization_contract`, is not a CTest skip.
+
+### Failing rows
+
+The 11 failing rows were rerun from 17:00:09Z to 17:02:12Z. Each rerun was
+its own `ctest --preset dev -j1 -V -R '^<name>$'` invocation, after the
+`login` collection read `(<false>,)` again. Every one failed alone, with the
+same first failure line, so parallel interference explains none of them.
+"Card" names an open card only where one plainly matches. The board was
+searched for each row name and failure text, and nothing was diagnosed.
+
+| Row | First failure line | Sweep | Alone | Likely card or limit |
+|---|---|---|---|---|
+| `conditional_branch_identifiers` | `CONDITIONAL_BRANCH_IDENTIFIERS_FAILED:11`: 11 names in branches Linux does not compile, `src/app/main.cpp:8621` and `src/app/src/github_application.cpp:13375` to `13905` | 5.76 s | Fails, 3.74 s | Source scan, not host-specific; no open card found |
+| `contained_temporary_usage_contract` | `FAIL: test_no_test_creates_a_temporary_through_tempfile`: 13 `tempfile` call sites, 12 in `tests/end_to_end/*.py` and 1 in `tests/github_contract/probe_gh_clone_git_bridge.py` | 4.11 s | Fails, 2.46 s | Source scan; no open card found |
+| `dependency_modernization_contract` | `FAIL: test_dependency_discovery_is_centralized_and_package_based`: `find_package(` in `tests/end_to_end/CMakeLists.txt` (line 2199, `find_package(Python3 3.10 ...)`) | 80.16 s | Fails, 63.96 s | Source scan; no open card found |
+| `msvc_secure_crt_contract` | `FAIL: test_every_getenv_read_is_spelled_for_msvc`: `tests/sqlite_contract/profile_activation_tests.cpp:39` | 0.41 s | Fails, 0.30 s | Source scan; no open card found |
+| `application_epoch_host` | `FAILED: superseded durable commit rebases the latest selection and keeps core/catalog synchronized` | 0.26 s | Fails, 0.23 s | No open card found |
+| `sqlite_anonymous_epoch_authority` | `FAIL: a v1 catalog opens through the migration` | 0.04 s | Fails, 0.03 s | No open card found |
+| `application_large_review_benchmark` | `large-review-benchmark-failed: shutdown failed` | 5.59 s | Fails, 5.56 s | No open card found |
+| `application_unavailable_diff_public_path` | `large-review-benchmark-failed: real host result must exceed the retained comparison limit` | 3.54 s | Fails, 3.53 s | No open card found |
+| `application_native_notification_attended_contract` | `native notification positive failed: NATIVE_NOTIFICATION_REFUSED:platform_tray_not_composed` | 0.51 s | Fails, 0.42 s | Likely the tray limit: the row is registered offscreen, and the refusal says no platform tray was composed. [[BPR-0593]] records the same refusal on macOS, unattributed and without a card |
+| `application_uiforetw_selected_diff_contract` | `UIforETW light capture failed (1)`, then `PUBLIC_PATH_FAILED` at stage 2 with `presentation=0`; the first course marker is `UIFORETW_RESOURCE_ROLE_FAILED` | 1.85 s | Fails, 1.41 s | No open card found |
+| `application_workbench_composition_contract` | `workbench composition process failed (1)`, with `RUN_BUDGET_EXPIRED:elapsed_ms=40028 budget_ms=40000` at stage 2 and `presentation=0`; the first course marker is `WORKBENCH_DRAWER_WIDTH_WIRE_FAILED` | 40.53 s | Fails, 40.42 s, budget expired again at 40027 ms | No open card found; [[BPR-0718]] (Done) fixed an earlier red state of this row |
+
+- **Not host-specific.** The first four rows scan source text, so the same
+  failures should appear on every platform at this head. That was not
+  checked here.
+- **Earlier Linux results.** No committed verification file has an earlier
+  Linux full-suite result to compare against. The only earlier Linux record
+  of one of these rows is in `RFC-BPR-0003.md`. There, the native
+  notification row, "the WSLg tray row", failed under BPR-0156 and later
+  passed.
+
+### Temporary entries left behind
+
+After the sweep and the reruns, `/tmp` held 15 new entries owned by the
+station user. They were 8 empty `QuillBackendLock<pid>` files,
+2 `bpr-ledger-preflight-*`, 1 `bpr-mcp-canary-*`, 1 `bpr-public-path-*`,
+2 `bpr-sqlite-anon-migrate-<pid>-0` and 1 `bpr4at0ogio`. One
+`bpr-sqlite-anon-migrate` directory dates from the sweep and the other from
+the rerun of `sqlite_anonymous_epoch_authority` alone (17:01:20Z). The
+others were not attributed to rows. Their names, owners, modes, times and
+sizes are in `tmp-residue-stat.txt`, and they were then removed. Older
+entries of the same kinds from earlier tasks were left alone. No
+`/tmp/bpr-haves-*` directory and no test, app or CTest process remained.
