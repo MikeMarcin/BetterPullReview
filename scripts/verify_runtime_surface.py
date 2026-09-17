@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -17,6 +18,8 @@ CANARY = "BPR_CANARY_SECRET_7B1E6D9A"
 SOCKET_PATTERN = re.compile(r"socket:\[(\d+)\]")
 DARWIN_PID_MAX = (1 << 31) - 1
 DARWIN_CHILD_PID_LIMIT = 1024
+PRIVATE_DATA_ROOT_SWITCH = "--private-data-root"
+USAGE = f"usage: verify_runtime_surface.py [{PRIVATE_DATA_ROOT_SWITCH}] <executable>"
 
 DarwinChildPidQuery = Callable[[int, ctypes.Array, int], int]
 
@@ -210,22 +213,32 @@ def network_sockets(pid: int) -> list[str]:
     raise RuntimeError(f"unsupported runtime-audit platform: {system}")
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: verify_runtime_surface.py <executable>", file=sys.stderr)
-        return 2
+def parse_arguments(arguments: list[str]) -> tuple[Path, bool] | None:
+    """Return the executable and whether the launch gets a private data root."""
+    if len(arguments) == 1 and arguments[0] != PRIVATE_DATA_ROOT_SWITCH:
+        return Path(arguments[0]), False
+    if len(arguments) == 2 and arguments[0] == PRIVATE_DATA_ROOT_SWITCH:
+        return Path(arguments[1]), True
+    return None
 
-    executable = Path(sys.argv[1]).resolve()
-    if not executable.is_file():
-        print(f"missing executable: {executable}", file=sys.stderr)
-        return 2
 
+def application_command(executable: Path, data_root: Path | None) -> list[str]:
+    # BPR-0820. The inspected launch is idle and interactive-shaped, so nothing
+    # else gives it a root of its own. `--test-application-data-root` exists
+    # only in a tests-enabled build; a tests-disabled artifact is inspected
+    # without the switch, exactly as before it existed.
+    if data_root is None:
+        return [str(executable)]
+    return [str(executable), "--test-application-data-root", str(data_root)]
+
+
+def inspect_application(command: list[str]) -> int:
     environment = os.environ.copy()
     environment["QT_QPA_PLATFORM"] = "offscreen"
     environment["BPR_TEST_CANARY"] = CANARY
 
     process = subprocess.Popen(
-        [str(executable)],
+        command,
         env=environment,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -265,7 +278,49 @@ def main() -> int:
     if CANARY in combined_output:
         print("canary secret appeared in application output", file=sys.stderr)
         return 1
+    return 0
 
+
+def inspect_with_private_data_root(executable: Path) -> int:
+    # `mkdtemp` creates the parent owner-only. It is resolved because the
+    # application refuses a root whose existing ancestor is not spelled
+    # canonically, and macOS reaches the temporary directory through links.
+    # The `data` leaf is left for the application to create under its own
+    # storage-root rule, as it creates a default root.
+    parent = Path(tempfile.mkdtemp(prefix="bpr-runtime-surface-")).resolve(strict=True)
+    data_root = parent / "data"
+    try:
+        result = inspect_application(application_command(executable, data_root))
+        if result == 0 and not data_root.is_dir():
+            print(f"private data root was not composed: {data_root}", file=sys.stderr)
+            result = 1
+    finally:
+        shutil.rmtree(parent, ignore_errors=True)
+    if parent.exists():
+        print(f"private data root was not removed: {parent}", file=sys.stderr)
+        return 1
+    return result
+
+
+def main(arguments: list[str] | None = None) -> int:
+    parsed = parse_arguments(sys.argv[1:] if arguments is None else arguments)
+    if parsed is None:
+        print(USAGE, file=sys.stderr)
+        return 2
+
+    executable, private_data_root = parsed
+    executable = executable.resolve()
+    if not executable.is_file():
+        print(f"missing executable: {executable}", file=sys.stderr)
+        return 2
+
+    result = (
+        inspect_with_private_data_root(executable)
+        if private_data_root
+        else inspect_application(application_command(executable, None))
+    )
+    if result != 0:
+        return result
     print("RUNTIME_SURFACE_OK")
     return 0
 

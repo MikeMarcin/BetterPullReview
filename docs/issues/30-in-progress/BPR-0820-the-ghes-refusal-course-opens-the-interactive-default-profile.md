@@ -70,3 +70,98 @@ Rerun with a private `--test-application-data-root`, the first printed
 - No automated course in the dev preset opens the default application data
   root. Show this with the list of courses checked, or with a structural gate.
 - No GitHub or GHES network access, credential or live device authorization.
+
+## Fix (dsp-003)
+
+**The seam is in the application, beside the tests-disabled one.**
+`automated_run_uses_private_profile` in `src/app/main.cpp` gives every
+`--self-test` or `--render-evidence` run a private temporary profile, in every
+build. The exceptions are a tests-enabled run with a fixture or an explicit
+`--test-application-data-root`, and a tests-disabled attended designated-live
+approval, which keeps the default root as before.
+
+- The run owns a `QTemporaryDir` (`bpr-automated-profile-XXXXXX`) that
+  outlives the desktop. Its parent is narrowed with the stores' own rule,
+  `make_storage_root_owner_private`, so the seam adds no platform refusal:
+  `mkdtemp` is already private on POSIX, but a Windows temporary directory
+  inherits its parent's ACL. The `data` leaf is created by the product's
+  ordinary rule.
+- `AUTOMATED_PROFILE_PRIVATE_OK` now prints in both builds.
+- **The gate.** An automated run that reaches composition with no fixture and
+  no root prints `AUTOMATED_PROFILE_PRIVATE_FAILED` and exits before any lease
+  or store. A future start path that skips the seam then fails on every host,
+  not only where a person's app is open.
+- The `BPR_AUTOMATED_TEST_BOUNDARY` variable was not used: [[BPR-0802]] allows
+  one reader of it.
+- The profile owner lease is unchanged.
+
+**`runtime_process_surface`** launches the idle app with no arguments, which
+is an interactive launch on the default root. With a person's app open, that
+launch would hand the person's app an activation. Code reading found no route
+from a different root to another instance:
+
+- the lease is `flock` on the root itself (`<root>/profile-runtime.lock` on
+  Windows);
+- the activation socket is `<profile root>/activate.sock`;
+- `send_profile_activation` runs only when that root's lease is busy.
+
+So:
+
+- `scripts/verify_runtime_surface.py` has an opt-in `--private-data-root`. It
+  creates an owner-private `mkdtemp` parent, passes
+  `--test-application-data-root <parent>/data`, checks that the app created
+  `data`, and removes the parent on every path. Without the switch the launch
+  is byte-identical, so the RFC-BPR-0016 platform course and manual use
+  against a tests-disabled artifact are unchanged.
+- The dev-preset registration passes the switch.
+- `--test-application-data-root` is now refused only with a fixture. It exists
+  only in tests-enabled builds and is explicit, and restart contracts still
+  pass it with `--self-test`.
+
+**Courses checked:**
+[the dev-preset data-root list](../../verification/BPR-0820-dev-preset-data-root-courses.md).
+All 55 rows avoid the default root, and the control flags
+`runtime_process_surface` when its switch is removed.
+
+**The four rows.** All pass while the owner's app (PID 88792, started
+Wed Sep 16 19:31:44) holds the default profile, with no remaining failure:
+
+- `application_device_authorization_ghes_refusal` prints
+  `DEVICE_FLOW_GHES_REFUSAL_OK`;
+- `_composition_capabilities_inside_boundary` prints
+  `inside/recording/unavailable`;
+- `_composition_capabilities_product_run` prints `outside/system/available`;
+- `_device_authorization_public_path` prints `DEVICE_FLOW_HOST_COMPOSED`.
+
+The dsp-002 `cleanup_failed=1` did not reproduce under the seam, and that
+run did not record how its root was made, so its cause is not named.
+
+**Evidence** (`build/r2-logs/`).
+
+- **Slice worktree** (`dsp3-0820-four.log`, `dsp3-0820-final.log`,
+  `dsp3-0820-option-a.log`):
+  - the 13 seam rows pass;
+  - the private root is seen at mode 700 during a run and is gone after;
+  - with the seam forced off, a direct run prints only
+    `AUTOMATED_PROFILE_PRIVATE_FAILED` and `ghes_refusal` fails
+    (`dsp3-0820-control-seam-removed.log`);
+  - `runtime_process_surface` passes 5 of 5;
+  - `runtime_audit_contract` passes, with 5 new script cases;
+  - a fixture run given `--test-application-data-root` is still refused.
+- **Main `2842f484` with the change** (`dsp3-0820-int-batch.log`,
+  `dsp3-0820-int-surface-{1,2,3}.log`, `dsp3-0820-int-owner.log`): 20 of 20
+  pass. Those rows are:
+  - the 13 seam rows;
+  - `architecture_boundaries`, `test_network_isolation_manifest` and
+    `documentation_structure`;
+  - `runtime_audit_contract`;
+  - both appearance restart contracts;
+  - `application_anonymous_public_preview_public_path`.
+
+  `runtime_process_surface` passes 3 of 3. The owner's PID and start time
+  are unchanged before and after. `application_composition_contract` passes
+  6 of 7; its one failure is the round-trip manifest pin, which this
+  `main.cpp` change moves (`dsp3-0820-int-composition.log`).
+
+**Still open:** the independent review of this change, and the round-trip
+reseal that follows it.

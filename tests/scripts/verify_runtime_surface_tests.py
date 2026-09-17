@@ -17,10 +17,14 @@ import scripts.verify_runtime_surface as runtime_surface  # noqa: E402
 from scripts.verify_runtime_surface import (  # noqa: E402
     DARWIN_CHILD_PID_LIMIT,
     DARWIN_PID_MAX,
+    PRIVATE_DATA_ROOT_SWITCH,
+    application_command,
     child_processes,
     darwin_child_processes,
     load_darwin_child_pid_query,
+    inspect_with_private_data_root,
     output_lines,
+    parse_arguments,
     windows_child_process_query,
     windows_network_query,
 )
@@ -182,6 +186,78 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
         finally:
             child.terminate()
             child.wait(timeout=5)
+
+
+    def test_arguments_accept_the_executable_alone_or_after_the_private_root_switch(self) -> None:
+        self.assertEqual(parse_arguments(["app"]), (Path("app"), False))
+        self.assertEqual(
+            parse_arguments([PRIVATE_DATA_ROOT_SWITCH, "app"]), (Path("app"), True)
+        )
+        for arguments in (
+            [],
+            [PRIVATE_DATA_ROOT_SWITCH],
+            ["app", PRIVATE_DATA_ROOT_SWITCH],
+            [PRIVATE_DATA_ROOT_SWITCH, PRIVATE_DATA_ROOT_SWITCH, "app"],
+            ["app", "other"],
+        ):
+            with self.subTest(arguments=arguments):
+                self.assertIsNone(parse_arguments(arguments))
+
+    def test_application_command_names_a_root_only_when_one_is_owned(self) -> None:
+        executable = Path("/bin/app")
+        self.assertEqual(application_command(executable, None), [str(executable)])
+        self.assertEqual(
+            application_command(executable, Path("/private/root/data")),
+            [str(executable), "--test-application-data-root", "/private/root/data"],
+        )
+
+    def private_root_run(self, outcome):
+        seen: dict[str, object] = {}
+
+        def inspect(command: list[str]) -> int:
+            self.assertEqual(command[1], "--test-application-data-root")
+            data_root = Path(command[2])
+            parent = data_root.parent
+            seen["parent"] = parent
+            seen["leaf_existed"] = data_root.exists()
+            seen["resolved"] = parent == parent.resolve(strict=True)
+            if os.name == "posix":
+                seen["mode"] = parent.stat().st_mode & 0o777
+            return outcome(data_root)
+
+        with mock.patch.object(runtime_surface, "inspect_application", inspect):
+            try:
+                result = inspect_with_private_data_root(Path("/bin/app"))
+            except RuntimeError:
+                result = None
+        return result, seen
+
+    def test_private_root_is_owner_private_uncreated_and_removed_after_a_pass(self) -> None:
+        def composed(data_root: Path) -> int:
+            data_root.mkdir()
+            return 0
+
+        result, seen = self.private_root_run(composed)
+        self.assertEqual(result, 0)
+        self.assertFalse(seen["leaf_existed"])
+        self.assertTrue(seen["resolved"])
+        if os.name == "posix":
+            self.assertEqual(seen["mode"], 0o700)
+        self.assertFalse(Path(seen["parent"]).exists())
+
+    def test_private_root_that_was_never_composed_fails_and_is_removed(self) -> None:
+        result, seen = self.private_root_run(lambda data_root: 0)
+        self.assertEqual(result, 1)
+        self.assertFalse(Path(seen["parent"]).exists())
+
+    def test_private_root_is_removed_when_inspection_raises(self) -> None:
+        def raises(data_root: Path) -> int:
+            data_root.mkdir()
+            raise RuntimeError("inspection failed")
+
+        result, seen = self.private_root_run(raises)
+        self.assertIsNone(result)
+        self.assertFalse(Path(seen["parent"]).exists())
 
 
 if __name__ == "__main__":

@@ -1579,7 +1579,12 @@ final RFC-BPR-0002 Auto-Verified closeout.
 `verify_runtime_surface.py` supports macOS, Linux, and Windows. It launches the
 idle offscreen application, waits approximately 0.5 seconds, samples its
 network sockets and direct children once, checks captured output for a canary,
-and terminates it. A pass is a point-in-time idle observation, not continuous
+and terminates it. With `--private-data-root`, which the dev-preset
+`runtime_process_surface` row passes, that launch gets an owner-private
+temporary `--test-application-data-root` that the script removes afterwards, so
+the idle application never composes the default profile (BPR-0820); a
+tests-disabled artifact is inspected without it. A pass is a point-in-time idle
+observation, not continuous
 monitoring or evidence for active native-HTTPS mode, indirect descendants, or
 listener absence on a platform where the script was not run. The Windows run
 remains BPR-0036 work. The binary-dependency script also supports all three

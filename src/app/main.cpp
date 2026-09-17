@@ -1,3 +1,4 @@
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -138,9 +139,7 @@ namespace {
 		}
 		return result;
 	}
-#if !defined(BPR_BUILD_TESTING)
 	using bpr::app::native_filesystem_path;
-#endif
 
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 	constexpr auto designated_live_child_channel = 3;
@@ -330,6 +329,38 @@ namespace {
 			}
 		}
 		return std::nullopt;
+	}
+
+	/// \brief Whether this launch is an automated run that composes its own
+	/// private temporary profile rather than the default application data root.
+	///
+	/// \details [[BPR-0820]]. An automated run (`--self-test` or
+	/// `--render-evidence`) is never a person's session, so it must not compete
+	/// for the interactive owner's profile lease or read and write that
+	/// profile's stores. This used to hold only for a tests-disabled build; a
+	/// tests-enabled self-test with no fixture composed the default root,
+	/// printed `PROFILE_ALREADY_OPEN` while a person's application was open,
+	/// and otherwise opened that person's profile.
+	///
+	/// The exceptions each name their root some other way. A tests-enabled
+	/// fixture composes its own (a temporary one, or `--epoch-fixture-root`),
+	/// and `--test-application-data-root` is the persistent root a restart
+	/// contract chooses. A tests-disabled attended approval deliberately uses
+	/// the default root, which is where its replay state lives.
+	[[nodiscard]] auto automated_run_uses_private_profile(
+		const int          aArgc,
+		char* const* const aArgv) -> bool
+	{
+		if (!has_argument(aArgc, aArgv, "--self-test")
+			&& !has_argument(aArgc, aArgv, "--render-evidence")) {
+			return false;
+		}
+#if defined(BPR_BUILD_TESTING)
+		return !has_argument(aArgc, aArgv, "--github-fixture")
+			&& !has_argument(aArgc, aArgv, "--test-application-data-root");
+#else
+		return !has_argument(aArgc, aArgv, "--attended-designated-live-approval");
+#endif
 	}
 
 #if defined(BPR_BUILD_TESTING)
@@ -7558,26 +7589,36 @@ auto main(int argc, char** argv) -> int
 		auto config = bpr::app::github_application_config{
 			.EnterpriseHostname = std::nullopt,
 		};
-#if !defined(BPR_BUILD_TESTING)
-		// Packaged automated evidence runs exercise the real host with a private
-		// temporary profile, so they never compete for the interactive owner's lease.
+		// Automated evidence runs exercise the real host with a private temporary
+		// profile, so they never compete for the interactive owner's lease. In
+		// every build ([[BPR-0820]]); `automated_run_uses_private_profile` names
+		// the runs that choose their root some other way. The directory is owned
+		// by this scope and outlives `desktop`, which is declared after it.
 		auto automatedData        = std::unique_ptr<QTemporaryDir>{ };
 		auto automatedProfileRoot = std::optional<std::filesystem::path>{ };
-		if ((has_argument(argc, argv, "--self-test")
-			 || has_argument(argc, argv, "--render-evidence"))
-			&& !has_argument(argc, argv, "--attended-designated-live-approval")) {
+		if (automated_run_uses_private_profile(argc, argv)) {
 			automatedData = std::make_unique<QTemporaryDir>(
-				QDir::temp().filePath(QStringLiteral("bpr-release-self-test-XXXXXX")));
+				QDir::temp().filePath(QStringLiteral("bpr-automated-profile-XXXXXX")));
 			if (!automatedData->isValid()) {
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
 				return EXIT_FAILURE;
 			}
-			automatedProfileRoot = native_filesystem_path(
-									   QFileInfo{ automatedData->path() }.canonicalFilePath())
-				/ "data";
+			const auto automatedParent = native_filesystem_path(
+				QFileInfo{ automatedData->path() }.canonicalFilePath());
+			// Narrowed with the stores' own definition of owner-private, so the
+			// seam adds no platform refusal of its own: `mkdtemp`'s `0700`
+			// already is that on POSIX, but a Windows temporary directory
+			// inherits its parent's access-control list. The `data` leaf does
+			// not exist yet, and the composition creates it under the same
+			// rule, as it creates any default root.
+			if (!bpr::adapters::sqlite::make_storage_root_owner_private(
+					automatedParent)) {
+				QTextStream{ stdout } << "AUTOMATED_PROFILE_PRIVATE_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			automatedProfileRoot       = automatedParent / "data";
 			config.ApplicationDataRoot = automatedProfileRoot;
 		}
-#endif
 		config.Profile             = profileLaunch->Profile;
 		config.ProfileLaunchIntent = profileLaunch->Intent;
 		auto attendedApprovalCount = std::size_t{ 0U };
@@ -8069,11 +8110,15 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--render-evidence-collapse-files");
 
 #if defined(BPR_BUILD_TESTING)
-		// A persistent root without a fixture exists only for restart contracts.
-		// Keep the seam out of production and refuse it on interactive or fixture
-		// runs, where it could silently redirect real local state.
-		if (testApplicationDataRoot.has_value()
-			&& (!selfTest || selectedFixture.has_value())) {
+		// An explicit root without a fixture. Restart contracts pass it with
+		// `--self-test` so a second process reuses the first one's stores, and
+		// `runtime_process_surface` passes it to an interactive-shaped launch so
+		// the idle application it inspects never reaches the default profile
+		// ([[BPR-0820]]). It is accepted without `--self-test` because the flag
+		// exists only in a tests-enabled build and is explicit rather than
+		// silent: a launch is redirected only when its command line names the
+		// root. A fixture still refuses it, because a fixture owns its root.
+		if (testApplicationDataRoot.has_value() && selectedFixture.has_value()) {
 			QTextStream{ stdout }
 				<< "TEST_APPLICATION_DATA_ROOT_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
@@ -8475,7 +8520,6 @@ auto main(int argc, char** argv) -> int
 				return;
 			}
 			application = *aResult;
-#if !defined(BPR_BUILD_TESTING)
 			if (automatedProfileRoot) {
 				std::error_code error;
 				const auto      rooted = std::filesystem::is_directory(*automatedProfileRoot, error) && !error;
@@ -8485,7 +8529,6 @@ auto main(int argc, char** argv) -> int
 					return;
 				}
 			}
-#endif
 			try {
 				application->show();
 
@@ -8617,6 +8660,22 @@ auto main(int argc, char** argv) -> int
 				desktop->quit(EXIT_FAILURE);
 			}
 		};
+		// [[BPR-0820]]. The gate behind the private-profile seam above. Every
+		// composition below that is not a fixture resolves an absent root to
+		// the default application data root, which is a person's profile, so
+		// an automated run reaching one without a root is refused here, before
+		// a lease is taken or a store opened. A future flag or start path that
+		// skipped the seam fails its course on every host rather than only on
+		// one where a person's application happens to be open.
+		if ((selfTest || renderPath.has_value())
+			&& !config.ApplicationDataRoot.has_value()
+#if defined(BPR_BUILD_TESTING)
+			&& !selectedFixture.has_value()
+#endif
+		) {
+			QTextStream{ stdout } << "AUTOMATED_PROFILE_PRIVATE_FAILED\n";
+			return EXIT_FAILURE;
+		}
 		desktop =
 #if defined(BPR_BUILD_TESTING)
 			selectedFixture                ? bpr::app::detail::github_application_fixture_access::start_desktop(*selectedFixture, fixtureOptions, completed)

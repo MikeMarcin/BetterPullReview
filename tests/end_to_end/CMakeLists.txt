@@ -2364,6 +2364,10 @@ bpr_add_network_isolated_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_runtime_surface.py"
+        # BPR-0820. The inspected launch has no automated-run flag, so without
+        # its own root it would compose the default profile and, while a
+        # person's application holds that profile, hand it an activation.
+        --private-data-root
         $<TARGET_FILE:app_better_pull_review>
 )
 set_tests_properties(
