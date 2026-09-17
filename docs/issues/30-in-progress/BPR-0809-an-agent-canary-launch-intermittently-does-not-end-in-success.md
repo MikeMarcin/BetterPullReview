@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0809"
 title: "An agent canary launch intermittently does not end in success"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
