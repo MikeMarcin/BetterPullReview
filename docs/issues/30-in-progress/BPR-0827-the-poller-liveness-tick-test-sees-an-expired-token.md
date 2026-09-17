@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0827"
 title: "The poller liveness tick test finds the liveness token already expired"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
