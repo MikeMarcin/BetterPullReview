@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0825"
 title: "Harden the Windows workspace supervisor and recovery after BPR-0622's critical review"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: "P2"
