@@ -983,8 +983,10 @@ namespace bpr::adapters::github::detail {
 				|| aResponse.User.Login != binding.ActingIdentity.Login) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
+			// [[BPR-0816]]. Name the nested type: GCC 15 destroys a braced
+			// aggregate member twice when a later member initializer throws.
 			return review_mutation_comment_observation{
-				.Receipt    = { .ServerCommentId = aResponse.NodeId, .Duplicate = false },
+				.Receipt    = application::review_mutation_receipt{ .ServerCommentId = aResponse.NodeId, .Duplicate = false },
 				.DatabaseId = aResponse.Id,
 				.NodeId     = aResponse.NodeId,
 				.Anchor     = binding.Anchor,
@@ -1013,8 +1015,9 @@ namespace bpr::adapters::github::detail {
 				|| aComment.Author.Login != binding.ActingIdentity.Login) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
+			// [[BPR-0816]]. Name the nested type, as in comment_observation.
 			return review_mutation_comment_observation{
-				.Receipt    = { .ServerCommentId = aComment.Id, .Duplicate = false },
+				.Receipt    = application::review_mutation_receipt{ .ServerCommentId = aComment.Id, .Duplicate = false },
 				.DatabaseId = aComment.DatabaseId,
 				.NodeId     = aComment.Id,
 				.Anchor     = binding.Anchor,

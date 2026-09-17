@@ -663,19 +663,34 @@ namespace bpr::application {
 			auto* const lane    = &DecisionLane;
 			try {
 				Effects.post([gate, lane, port, context, path = std::move(aPath), palette = aPalette, stop] {
-					auto result = theme_document_result<void>{ std::unexpected{ theme_document_error{ } } };
-					try {
-						if (!stop.stop_requested()) {
-							result = port->write(path, core::export_theme(palette), stop);
-						}
-					} catch (...) { }
-					lane->post([gate, staged = staged_theme_export{ context, result }]() mutable {
-						deliver_terminal(gate, std::move(staged));
+					auto staged = staged_theme_export{
+						.Context = context,
+						.Result  = perform_theme_export(*port, path, palette, stop),
+					};
+					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(stagedTerminal));
 					});
 				});
 			} catch (...) {
 				abandon(context.Request);
 				publish_failure(context, appearance_host_failure::theme_export_unavailable);
+			}
+		}
+
+		/// \brief Writes one theme document; a stop or any throw yields the default `unavailable` error.
+		[[nodiscard]] static auto perform_theme_export(
+			theme_document_port&            aPort,
+			const std::string&              aPath,
+			const core::appearance_palette& aPalette,
+			std::stop_token                 aStop) -> theme_document_result<void>
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected{ theme_document_error{ } };
+			}
+			try {
+				return aPort.write(aPath, core::export_theme(aPalette), std::move(aStop));
+			} catch (...) {
+				return std::unexpected{ theme_document_error{ } };
 			}
 		}
 

@@ -310,11 +310,13 @@ namespace bpr::application {
 			if (Outstanding.size() >= Limits.OutstandingRequests) {
 				return nullptr;
 			}
-			Outstanding.push_back(outstanding_request{
-				.Context = next_context(),
-				.Domain  = aDomain,
-			});
-			return &Outstanding.back();
+			// Identity is taken before the slot is allocated, as it was when the
+			// record travelled through a temporary; the record is built in place.
+			const auto context = next_context();
+			auto&      record  = Outstanding.emplace_back();
+			record.Context     = context;
+			record.Domain      = aDomain;
+			return &record;
 		}
 
 		void abandon(const core::request_id aRequest) noexcept

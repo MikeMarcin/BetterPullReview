@@ -13,6 +13,7 @@
 #include <random>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 
 namespace {
 	using namespace bpr;
@@ -193,7 +194,14 @@ namespace {
 					}
 					return response;
 				}
-			case review_mutation_operation::observe_reviews: return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = Incomplete ? std::vector<http_header>{ { .Name = "lInK", .Value = "next" } } : std::vector<http_header>{ }, .Body = list(Reviews) } };
+			case review_mutation_operation::observe_reviews: {
+				// Built by statement: GCC 15.2 misreads a header list temporary in a ?: arm as dangling (BPR-0816).
+				auto headers = std::vector<http_header>{ };
+				if (Incomplete) {
+					headers.push_back(http_header{ .Name = "lInK", .Value = "next" });
+				}
+				return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = std::move(headers), .Body = list(Reviews) } };
+			}
 			case review_mutation_operation::create_review:
 				++Posts;
 				if (DefinitelyUnsent) {

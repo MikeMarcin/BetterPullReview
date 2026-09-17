@@ -389,10 +389,12 @@ namespace {
 			input.Disposition   = entry.Disposition;
 			const auto compiled = compile_review_submission_request(input);
 			expect(compiled.has_value(), "each whole-review disposition compiles");
+			// Named: GCC 15.2 misreads a header list temporary inside a && chain as dangling (BPR-0816).
+			const auto reviewHeaders = std::vector<http_header>{ { .Name = "Accept", .Value = "application/vnd.github+json" }, { .Name = "User-Agent", .Value = "BetterPullReview/0.1" }, { .Name = "X-GitHub-Api-Version", .Value = "2022-11-28" }, { .Name = "Content-Type", .Value = "application/json" } };
 			expect(compiled->Method == http_method::post
 					   && compiled->Operation == review_mutation_operation::create_review
 					   && compiled->Path == "/repos/MikeMarcin/BPR-Test/pulls/1/reviews"
-					   && compiled->Headers == std::vector<http_header>{ { .Name = "Accept", .Value = "application/vnd.github+json" }, { .Name = "User-Agent", .Value = "BetterPullReview/0.1" }, { .Name = "X-GitHub-Api-Version", .Value = "2022-11-28" }, { .Name = "Content-Type", .Value = "application/json" } }
+					   && compiled->Headers == reviewHeaders
 					   && compiled->Body == std::string{ R"({"body":"Review summary.","commit_id":"1111111111111111111111111111111111111111","event":")" } + std::string{ entry.Event } + "\"}",
 				   "ordinary review wire contains only summary, exact head and explicit event");
 			expect(validate_outbound_review_mutation_request(*compiled).has_value(), "review wire revalidates");
