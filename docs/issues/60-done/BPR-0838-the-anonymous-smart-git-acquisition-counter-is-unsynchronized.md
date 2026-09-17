@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0838"
 title: "The anonymous smart-Git acquisition counter is read across threads without synchronization"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-003 BPR-0829 slice","found_at":"c1a795c3ed724eb0086aa4661082793f9643a679","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 the counter is synchronized, the public preview course still passes on macOS, and the round-trip contract passes after a reviewed reseal","outcome":"pass","revision":"a621ce27c35e7eb6ca6a5e513366d404ce93e2e7; reseal 417ef7b0","evidence":{"kind":"command","detail":"Acquisitions is std::atomic_size_t with fetch_add/load (a621ce27, independent rfc-reviewer no blocker); Linux course 5/5 with SMART_ACQUISITIONS:4; macOS course 2/2, round-trip and composition contracts pass after the reseal (build/r2-logs/dsp3-int9-*)."}}]
 ---
 
 # BPR-0838: The anonymous smart-Git acquisition counter is read across threads without synchronization
