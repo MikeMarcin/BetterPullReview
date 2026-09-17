@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0802"
 title: "Bring the two compositions the test-boundary audit cannot cover inside the seam"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015", "RFC-BPR-0016"]
 depends_on: []
 platforms: ["mac", "win", "linux"]
