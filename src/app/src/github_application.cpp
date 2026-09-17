@@ -7777,8 +7777,10 @@ namespace bpr::app {
 				return consent == QMessageBox::Yes && exact_current();
 			}
 #endif
-#if defined(BPR_BUILD_TESTING)
+			// Only the macOS prompt above reads the operation; every other graph
+			// must still name it, or MSVC's /W4 /WX refuses a tests-disabled build.
 			static_cast<void>(aOperation);
+#if defined(BPR_BUILD_TESTING)
 			return true;
 #else
 			return false;
