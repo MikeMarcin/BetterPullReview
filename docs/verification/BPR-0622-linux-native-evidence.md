@@ -3,20 +3,18 @@
 ## Current frontier
 
 - **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2` (station
-  `bpr-linux/int-2`), mandate r2, task `task-20260917-lnx-build`. Station
+  `bpr-linux/int-3`), mandate r2, task `task-20260917-lnx-verify`. Station
   `bpr-linux` (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`, authority
-  `lane-commit`.
-- **State.** BPR-0816 is fixed at `4883dbd9` and pushed at `3bb60d90`. Its
-  Linux criterion is met, and its macOS criterion is open for main.
-  - The Unix recovery set was rerun on the **stock** `dev` tree at `4883dbd9`.
-    Seven of eight pass. `test_network_isolation_manifest` reports only
-    BPR-0802's known raw `add_test` finding.
-  - The results are recorded at the end of this file, under "Rerun on the stock
-    build, `task-20260917-lnx-build`".
+  `lane-commit`. Base `c19fa196`.
+- **State.** Step 1 is recorded at the end of this file, under "Rerun after
+  the Windows slices, `task-20260917-lnx-verify`". All eight Unix recovery
+  courses pass on the stock `dev` tree at `c19fa196`;
+  `test_network_isolation_manifest` reports only BPR-0802's known finding.
+- **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-verify/`.
 - **BPR-0622** stays In Progress and unedited. This file is its only Linux
   record.
-- **Earlier task.** `task-20260917-lnx-evidence` recorded the sections after
-  this one, at `9bbe3604` with demoted diagnostics. They stand as recorded.
+- **Earlier tasks.** `task-20260917-lnx-evidence` and `task-20260917-lnx-build`
+  recorded the sections after this one. They stand as recorded.
 
 ## Station, task and revisions
 
@@ -281,3 +279,74 @@ in BPR-0622's path.
   canary and both crash courses; no Windows evidence.
 - **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-build/run-0622.ctest.log`
   and `run-0622-0806.summary`. They are not committed.
+
+## Rerun after the Windows slices, `task-20260917-lnx-verify`
+
+Station `bpr-linux` reran the Unix recovery set on 2026-09-17 for task
+`task-20260917-lnx-verify` (dispatch `dsp-001-r2`, station dispatch
+`bpr-linux/int-3`). The question was whether bpr-win's two BPR-0622 slices
+changed Linux behaviour:
+
+- `e11f19eb` (merged in `9767145d`) supervises guarded Windows launches. It
+  touched one `#if` in `agent_process_launcher.cpp`, the canary and the POSIX
+  runner `agent_parent_death_tests.py`.
+- `dd88b9c9` (merged in `a3ee3c72`) puts `installed_git_process.cpp`'s ownership
+  journal behind a platform layer and adds Windows branches to
+  `tests/scripts/agent_workspace_ownership_tests.py`. Main resolved the merge
+  conflict by running BPR-0817's `check_neighbourhood_parent_rule` only when
+  `os.name == "posix"`.
+
+**Revision and build.** HEAD `c19fa19690bff0689f6aa81f57a75a7169a283b5`, clean.
+`cmake --preset dev --fresh` (empty `CMAKE_CXX_FLAGS`), then `cmake --build
+--preset dev --clean-first`: rc 0, 1241 of 1241 steps, no `warning:` or
+`error:` line, 146 s (09:12:11Z to 09:14:37Z). `ninja -n` reported no pending
+work before the run. Host and toolchain are as in the table above. The Secret
+Service `login` collection read `(<false>,)` immediately before the run.
+
+**Names.** `ctest --preset dev -N` lists each of the nine names exactly once
+(360 tests in total).
+
+```sh
+ctest --preset dev -j1 -V -R '^(agent_workspace_ownership|git_process_contract|agent_parent_death|qt_agent_launch_canary|application_agent_crash_recovery|application_agent_materialization_crash_recovery|application_agent_invocation_host|architecture_boundaries|test_network_isolation_manifest)$'
+```
+
+It started at 09:15:31Z, took 127 s and exited with ctest rc 8.
+
+| Test | Result | Duration | Markers observed |
+|---|---|---|---|
+| `architecture_boundaries` | Pass | 8.91 s | `Application, provider, and Qt architecture boundaries verified` |
+| `test_network_isolation_manifest` | Fail, **expected** | 1.20 s | Only `TEST_NETWORK_ISOLATION_FAILED:raw add_test ownership is ['cmake/BprTestIsolation.cmake', 'tests/github_contract/CMakeLists.txt'], expected only cmake/BprTestIsolation.cmake` (BPR-0802). No other finding. |
+| `application_agent_invocation_host` | Pass | 0.01 s | `agent-invocation-host-tests:pass` |
+| `qt_agent_launch_canary` | Pass | 63.89 s | `agent-launch-canary-tests:pass` |
+| `agent_parent_death` | Pass | 20.62 s | `agent-parent-death:owner-pid:pass`, `agent-parent-death:owner-group:pass` |
+| `git_process_contract` | Pass | 5.33 s | `Git process contract passed` |
+| `agent_workspace_ownership` | Pass | 0.72 s | `AGENT_WORKSPACE_OWNERSHIP_OK` |
+| `application_agent_crash_recovery` | Pass | 18.74 s | `agent-composition-kill:reopen-1:pass`, `:reopen-2:pass`, `owned-workspace-reclaimed entries=18`, `agent-composition-kill:pass` |
+| `application_agent_materialization_crash_recovery` | Pass | 7.21 s | `agent-materialization-kill:init:pass`, `:checkout:pass`, `:cancel:pass`, `agent-materialization-kill:pass` |
+
+**The POSIX branch of the merged ownership script runs.** The course prints
+only its final marker, so a pass alone would not show that the merge kept
+BPR-0817's parent rule on Linux. The script was therefore run once more, outside
+ctest but inside the same network sandbox and with the same executable, under
+`python3 -B -m trace --listfuncs`. It exited 0 with `AGENT_WORKSPACE_OWNERSHIP_OK`
+in 1.66 s. The functions called include `check_neighbourhood_parent_rule` and
+the POSIX lock helper `hold_shared`.
+
+**Result.** All eight Unix recovery courses pass. The ninth,
+`test_network_isolation_manifest`, reports only BPR-0802's known source-scan
+finding, as it did at `4883dbd9`. The Windows slices changed no observed Linux
+behaviour: every marker matches the `task-20260917-lnx-build` run above. Nothing
+was diagnosed or changed in BPR-0622's path.
+
+- **This run adds** `application_agent_invocation_host`, which the earlier run
+  did not include.
+- **Offscreen by registration.** `qt_agent_launch_canary`,
+  `application_agent_crash_recovery` and
+  `application_agent_materialization_crash_recovery` set
+  `QT_QPA_PLATFORM=offscreen` in their ctest registration. They are not native
+  UI evidence. The other six run no Qt platform.
+- **Limitations unchanged.** WSL2's kernel; no Windows evidence.
+- **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-verify/`:
+  `step1-0622.ctest.log`, `step1-ownership-trace.log`, `courses.summary`,
+  `stock.summary`, `dev.build-verify-base.log` and `ctest-N.txt`. They are not
+  committed.
