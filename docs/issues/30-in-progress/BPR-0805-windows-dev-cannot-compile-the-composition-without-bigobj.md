@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0805"
 title: "windows-dev cannot compile the application composition without /bigobj"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
