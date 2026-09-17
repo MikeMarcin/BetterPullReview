@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0804"
 title: "A tests-disabled non-Apple build fails on an unused CLI confirmation parameter"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
 platforms: ["win", "linux"]
 metadata: {"found_by":"bpr-win during task-20260917-win-evidence (BPR-0798/BPR-0730 build)","found_at":"eeb16d1310e555d9b36f8e9d7516211d74aa2856","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"windows-app-release compiles github_application.cpp with /W4 /WX on the Windows station","outcome":"pass","revision":"f2b8e682","evidence":{"kind":"observation","detail":"bpr-win cmake --build --preset windows-app-release 21/21, exe linked"}},{"criterion":"Linux app-release compiles it with -Werror on the Linux station","outcome":"pass","revision":"17f495fe","evidence":{"kind":"observation","detail":"bpr-linux GCC 15.2: github_application.cpp compiles with no diagnostics; unrelated TUs fail stock -Werror first (BPR-0816)"}},{"criterion":"macOS dev build compiles it unchanged and per-graph confirmation decision is identical","outcome":"pass","revision":"a5667197","evidence":{"kind":"command","detail":"build/r2-dev composition builds at c0f2fa31 and a5667197; diff only moves the void discard ahead of the testing branch"}}]
 ---
 
 # BPR-0804: A tests-disabled non-Apple build fails on an unused CLI confirmation parameter
@@ -56,3 +57,17 @@ Not run at card creation. The Windows station is making the one-line fix
 (hoist `static_cast<void>(aOperation);` above the `BPR_BUILD_TESTING`
 branch) as its own `windows-lane` commit; the integrator finishes this card
 on `main` after merging that commit and collecting the compile results.
+
+## Evidence, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2)
+
+bpr-win made the fix as station commit `f2b8e682`, which moves
+`static_cast<void>(aOperation);` ahead of the `BPR_BUILD_TESTING` branch with a
+comment. It merged on main as `bd7096fd`. Every graph decides exactly as it did
+at `eeb16d13`: macOS asks, a tests-enabled graph answers `true`, and a
+tests-disabled non-Apple graph answers `false`.
+
+| Criterion | Check | Result | Revision |
+|---|---|---|---|
+| `windows-app-release` compiles it under `/W4 /WX` | bpr-win `cmake --build --preset windows-app-release`, 21/21, `better_pull_review.exe` linked | pass | `f2b8e682` |
+| Linux `app-release` compiles it under `-Werror` | bpr-linux, GCC 15.2: `github_application.cpp` compiles with no diagnostics (file unchanged since `17f495fe`). Other translation units fail stock `-Werror` first, which is [[BPR-0816]]; they were demoted only to reach this file ([BPR-0622 Linux evidence](../../verification/BPR-0622-linux-native-evidence.md)). | pass | `17f495fe` |
+| macOS dev compiles it unchanged; per-graph decision identical | `build/r2-dev` builds the composition at `c0f2fa31` and `a5667197`; by inspection only the discard moved | pass | `a5667197` |
