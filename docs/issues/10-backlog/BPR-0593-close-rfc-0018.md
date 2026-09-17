@@ -12,52 +12,95 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2, mandate r2): station evidence dispatched
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2, mandate r2/r3): handoff at an integrated boundary
 
-The owner made the `bpr-win` and `bpr-linux` stations available, and this
-integrator now owns all authorized work (mandate r2). The r3 amendment keeps
-`.mask.json` on the SSH tap. This record is the run's live frontier; other
-cards link here.
+This is the run's live frontier; other cards link here. Mandate r2: this
+integrator owns all authorized work and supersedes the earlier sessions.
+Amendment r3: keep `.mask.json` on the SSH tap. Main is `20a72bf7`, pushed.
+Mac preflight is ready again, and both JaegAW stations report ready.
 
-- **Stations verified.** Both `.remote-station.json` files, toplevels,
-  branches and `HEAD` `eeb16d13` were checked, and each writer lease is held by
-  its live launcher supervisor. Reply sender IDs match `claude.session_id`.
-- **`task-20260917-win-evidence`** on `bpr-win` covers [[BPR-0798]] and
-  [[BPR-0730]]. Building the packaged proofs surfaced three main defects,
-  carded on main:
-  - [[BPR-0804]]: an unused parameter breaks non-Apple tests-disabled builds.
-    It is fixed by station commit `f2b8e682`, merged as `bd7096fd`.
-  - [[BPR-0805]]: windows-dev needs `/bigobj`. The station holds commit
-    `76f6e3a4`.
-  - [[BPR-0806]]: the tests-disabled Windows image cannot start its profile
-    desktop.
-  `task-20260917-win-storage` dispatches BPR-0806/0805 to `bpr-win`, after
-  which BPR-0798 and BPR-0730 resume. The station's handoff notes say
-  BPR-0730/0798 stay untouched in Backlog until then.
-- **`task-20260917-lnx-evidence`** on `bpr-linux` covers the Linux half of
-  [[BPR-0622]] (evidence file only), [[BPR-0799]] and [[BPR-0731]]. It passed
-  the station's identity guard but is **blocked on station-side MASK readiness**
-  (`integration.approval_required`, store drift), which is the owner's action on
-  JaegAW. `origin/linux-lane` was fast-forwarded to `bd7096fd` so the station
-  syncs the BPR-0804 fix when it resumes.
-- **Mac readiness.** `workflow_preflight.py` is `incomplete`
-  (`source.identity_mismatch`: this Mac's MASK approval is HTTPS, the committed
-  tap is SSH). This is owner setup. Already-loaded roles continue; no fresh role
-  deployment is attempted.
-- **Takeover.** The stopped DIF session's worktree held a superseded,
-  uncommitted BPR-0767 draft. It is preserved as `8ee34d1f` on
-  `claude/bpr-dif-integration-v1-d932e2` and moved to
-  `/Users/jaeger/Documents/GitHub/BetterPullReview.superseded-worktrees/bpr-dif-integration-rfc-3c2904`,
-  which removes the nested checkout from the gates. [[BPR-0750]] stays In
-  Progress by its own recorded decision (it waits on RFC-BPR-0008 order).
-  [[BPR-0794]] and [[BPR-0795]] wait on one attended native read.
-- **Mac milestone in progress.** Ordinary fixes that need no person, in index
-  order: [[BPR-0747]] is Done (`c061cfc1`, `353e2ec3`); [[BPR-0692]] and
-  [[BPR-0666]] are claimed with slice owners active.
+**Station protocol, as learned in this run.** Replies reach the integrator only
+through the coordinator's relay.
 
-This RFC's AC-11 row stays pending until BPR-0730 and BPR-0731 return
-target-native inventories. The next step on this card is to integrate those
-station results into the AC-11 row below. Nothing here is a closeout claim.
+- Stations fetch only their own branch.
+- The integrator merges a lane with `--no-ff`, which keeps the station SHAs its
+  evidence cites. Portable changes get a Mac run before `main` is pushed.
+- The integrator then fast-forwards `origin/<lane>` to `main`, and the station
+  runs `git merge --ff-only origin/<lane>`.
+- Always resolve full SHAs with `git rev-parse`. One envelope was refused for a
+  hand-expanded SHA.
+- A lane that fetches a newer `main` counter makes `issue_board.py` refuse. The
+  fix is the fast-forward above, never a ref deletion or a rewind override.
+
+**Active station envelopes (writers active):**
+
+- `bpr-win` `task-20260917-win-regressions`, base `53a0a7477264c71423b11fa3bc85d2e668b389b4`.
+  [[BPR-0811]] (P1, Windows device-binding restart regression against
+  RFC-BPR-0016's closed claim; known-good `0d19c990`), then [[BPR-0810]]. The
+  station owns the full board on the lane for both. Planned next Windows
+  envelopes: [[BPR-0622]]'s Windows implementation (see that card's
+  "Available-platform handoff"), then [[BPR-0653]], then [[BPR-0812]] and
+  [[BPR-0813]].
+- `bpr-linux` `task-20260917-lnx-build`, base `20a72bf7`, in this order:
+  1. [[BPR-0816]] (GCC 15.2 `-Werror`, portable sources; verify on the Mac at merge).
+  2. Stock-build reruns for [[BPR-0622]] and the [[BPR-0806]] Linux storage
+     courses. These are evidence files only; both cards are integrator-owned.
+  3. [[BPR-0817]] (owner-only data folders). An exit-code question may park.
+  4. [[BPR-0799]] criterion 1 rerun under umask `0002`.
+
+**Done in this run:** [[BPR-0747]], [[BPR-0692]], [[BPR-0666]], [[BPR-0804]],
+[[BPR-0805]], [[BPR-0807]], [[BPR-0808]], [[BPR-0798]] (Windows),
+[[BPR-0730]] (Windows) and [[BPR-0731]] (Linux).
+
+- The AC-11 row below now links the Windows and Linux inventories. Both match
+  their dev builds with identical node counts.
+- Comparing them against the attended macOS inventory remains a closeout step.
+
+**Integrated evidence.**
+
+- `build/r2-logs/int2-ctest.log` at `a5667197`: 39 of 40 pass. The only failure,
+  `test_network_isolation_manifest`, reports [[BPR-0802]]'s findings.
+- Critical reviews of BPR-0806 and BPR-0807 found no blockers. Their
+  follow-ups are carded or fixed.
+
+**Integrator-owned open cards:**
+
+- [[BPR-0806]], In Progress: waits only on the Linux storage courses.
+- [[BPR-0622]], In Progress: Linux evidence recorded; Windows implementation
+  not started.
+- [[BPR-0750]], In Progress by its own recorded decision: waits on RFC-BPR-0008
+  order.
+- [[BPR-0794]] and [[BPR-0795]], In Progress: the attended native read of
+  `EpicGames/UnrealEngine#1773` through the GitHub CLI profile. First rerun
+  their focused set and rebuild the tests-disabled bundle, because main has
+  moved.
+- [[BPR-0799]], Blocked: on [[BPR-0817]].
+
+**Next Mac objectives, needing no person, in suggested order:**
+
+1. [[BPR-0815]] (P1, `application_device_authorization_panel_course` fails at a
+   clean `53a0a747`).
+2. [[BPR-0802]]'s Mac half. On the Mac the manifest gate now reports only its
+   findings.
+3. [[BPR-0644]]'s fixture criteria (P1).
+4. [[BPR-0809]], [[BPR-0814]] and [[BPR-0673]].
+
+**Owner asks not yet recorded on cards:**
+
+- [[BPR-0803]]: CLI way-in inside the device flow.
+- [[BPR-0800]]: Dif corner versus the AI tools slot.
+- [[BPR-0801]]: whole-queue refresh.
+- [[BPR-0604]]: selection, and live point-cost measurement.
+- [[BPR-0644]]: attended relaunch more than 8 hours after sign-in.
+
+**Hazards.**
+
+- A user BetterPullReview app runs from `build/dev` (PID 88792). Use
+  `build/r2-dev`, never rebuild `build/dev`.
+- The rule amendments in BPR-0807 are security-relevant for [[BPR-0788]].
+- The stopped DIF session's superseded draft is preserved as `8ee34d1f` on
+  `claude/bpr-dif-integration-v1-d932e2`, in the worktree moved to
+  `/Users/jaeger/Documents/GitHub/BetterPullReview.superseded-worktrees/bpr-dif-integration-rfc-3c2904`.
 
 ## Current frontier, 2026-09-12 (d31, mandate r20): attended-preparation milestone complete
 
