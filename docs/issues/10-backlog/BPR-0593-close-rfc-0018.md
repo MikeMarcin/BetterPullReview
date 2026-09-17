@@ -12,6 +12,28 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): in progress
+
+Dispatch dsp-003 took over from dsp-002 at `2ee49a16` and holds the
+`project-integrator` lease (holder `bpr-main-mac`). The dsp-002 section below
+is still the full open list; this section records only what dsp-003 has
+started.
+
+- Claimed on main: [[BPR-0820]] and [[BPR-0814]] (promoted to Ready).
+- Mac worker slices, each in its own detached scratch worktree at
+  `c1a795c3` with its own `build/dev` inside the worktree
+  (`<session scratchpad>/wt-0829`, `wt-0820`, `wt-0814`), nothing committed
+  there: [[BPR-0829]]'s acquisition-count diagnosis, [[BPR-0820]]'s private
+  data root, [[BPR-0814]]'s capsule leftover. Logs go to
+  `build/r2-logs/dsp3-*`.
+- Stations: `task-20260917-win-hardening` and `task-20260917-lnx-confirm`
+  are still active. `origin/windows-lane` is at `3c1e5ab3` (BPR-0802
+  confirmation, BPR-0812, BPR-0825 commits) with no reply yet; do not
+  fast-forward either lane while its envelope runs.
+- If this dispatch ends without a later section, remove the three scratch
+  worktrees after inspecting any uncommitted diff there, and treat those
+  three cards as claimed but unintegrated.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-002, mandate r3): handoff at an integrated boundary
 
 Dispatch dsp-002 ends here, and a fresh integrator takes over. The station
