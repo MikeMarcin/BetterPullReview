@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0836"
 title: "The designated-live capsule image build can leave a write-once device attached"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P3"
 platforms: ["mac"]
 metadata: {"found_by":"dsp-003 BPR-0814 slice","found_at":"c1a795c3ed724eb0086aa4661082793f9643a679","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 after a production image build, hdiutil info lists no attachment of that image, including when concurrent creates run","outcome":"pass","revision":"8ad33698","evidence":{"kind":"command","detail":"Concurrent production image action through the CMake digest-checking preloader: unfixed control leaked (2/24 with 3 workers, 13/30 with 6, each printing a digest while attached); fixed 24/24, 30/30, 36/36 traced (7 real leaks detached without force), none attached at return (build/r2-logs/dsp4-0836-unfixed-concurrent.log, dsp4-0836-fixed-concurrent*.log). The corrections at a6b9d390/8ad33698 do not change the detach loop; critical review and narrow recheck found no blocker."}},{"criterion":"AC2 the capsule suite and the structural gates pass","outcome":"pass","revision":"8ad33698","evidence":{"kind":"command","detail":"On main at 8ad33698: architecture_boundaries, architecture_boundary_contract, test_network_isolation_structure_contract, designated_live_macos_capsule_contract and test_network_isolation_manifest 5/5 (build/r2-logs/dsp4-int2-ctest.log); serial capsule suite 49/49 (dsp4-0836-fix2-serial.log); documentation gate OK; hdiutil info afterwards lists only the two system simulator images."}}]
 ---
 
 # BPR-0836: The designated-live capsule image build can leave a write-once device attached
