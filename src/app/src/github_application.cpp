@@ -2194,6 +2194,35 @@ namespace bpr::app {
 #endif
 		}
 
+		// [[BPR-0797]]. Whether this run offers the GitHub CLI way in, rather
+		// than a profile row labelled `(unavailable)` with nothing behind it.
+		//
+		// macOS is the platform whose CLI read is enabled (RFC-BPR-0015), and
+		// the offer used to be withheld from every tests-enabled build. That is
+		// every build made with the CMake default, so a developer running their
+		// own application was shown a dead row and told nothing about why. It is
+		// withheld now only from a run inside the automated test boundary, where
+		// an unattended suite must not be able to spend somebody's `gh` sign-in.
+		//
+		// Nothing this decides starts `gh`. `opted_in_cli_transport_factory`
+		// holds a native factory and answers `supports_cli()`; the process is
+		// reached only through `make_cli`, which the host calls after the
+		// account row's explicit opt-in.
+		[[nodiscard]] auto cli_read_offered(
+			[[maybe_unused]] const bool aInsideAutomatedTestBoundary) noexcept
+			-> bool
+		{
+#if defined(__APPLE__)
+	#if defined(BPR_BUILD_TESTING)
+			return !aInsideAutomatedTestBoundary;
+	#else
+			return true;
+	#endif
+#else
+			return false;
+#endif
+		}
+
 		[[nodiscard]] auto initial_device_authorization_state()
 			-> core::device_authorization_state
 		{
@@ -4267,7 +4296,17 @@ namespace bpr::app {
 			// [[BPR-0515]]. Adopted outside the fixture branch below, because
 			// the gate this exists for selects no fixture: it drives the
 			// shipped composition and only wants the connect denied.
-			NetworkDenied     = aConfig.NetworkDenied;
+			NetworkDenied = aConfig.NetworkDenied;
+			// [[BPR-0797]]. Adopted here for the same reason: the marker
+			// answers a question that has nothing to do with which fixture
+			// this run selected. A selected fixture answers it too, on its
+			// own: a fixture run is by definition not a person's session, and
+			// a fixture course started by hand, outside CTest and so without
+			// the marker, would otherwise hand a recorded verification
+			// address to the real opener. It is read only in this graph, so a
+			// tests-disabled build has no code that would notice either.
+			InsideAutomatedTestBoundary = aConfig.InsideAutomatedTestBoundary
+				|| aFixture.has_value();
 			DiffComputeLimits = aFixture.has_value()
 				? aFixtureOptions.DiffComputeLimits
 				: core::diff_compute_limits{ };
@@ -4380,11 +4419,9 @@ namespace bpr::app {
 						application::github_authentication_transport::github_cli,
 						"github.com",
 						github_profile_provenance::builtin),
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-					"GitHub.com — GitHub CLI (uses your gh sign-in)");
-#else
-					"GitHub.com — GitHub CLI (unavailable)");
-#endif
+					cli_read_offered_here()
+						? "GitHub.com — GitHub CLI (uses your gh sign-in)"
+						: "GitHub.com — GitHub CLI (unavailable)");
 				if (aConfig.EnterpriseHostname.has_value()) {
 					append_profile(
 						Profiles,
@@ -4413,11 +4450,9 @@ namespace bpr::app {
 								github_cli,
 							*aConfig.EnterpriseHostname,
 							github_profile_provenance::explicit_user),
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-						"GHES 3.18 — GitHub CLI (uses your gh sign-in)");
-#else
-						"GHES 3.18 — GitHub CLI (unavailable)");
-#endif
+						cli_read_offered_here()
+							? "GHES 3.18 — GitHub CLI (uses your gh sign-in)"
+							: "GHES 3.18 — GitHub CLI (unavailable)");
 				}
 			}
 
@@ -4427,8 +4462,17 @@ namespace bpr::app {
 			} else
 #endif
 			{
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-				TransportFactory = std::make_shared<opted_in_cli_transport_factory>();
+				// [[BPR-0797]]. The label above and this factory answer the
+				// same question and must answer it the same way: a row that
+				// offers the CLI sign-in over a factory whose `supports_cli()`
+				// is false is the `(unavailable)` defect wearing the other
+				// label.
+#if defined(__APPLE__)
+				if (cli_read_offered_here()) {
+					TransportFactory = std::make_shared<opted_in_cli_transport_factory>();
+				} else {
+					TransportFactory = std::make_shared<native_github_wire_transport_factory>();
+				}
 #else
 				TransportFactory = std::make_shared<native_github_wire_transport_factory>();
 #endif
@@ -5082,28 +5126,49 @@ namespace bpr::app {
 			}
 #endif
 			DeviceCapabilityRegistered = deviceCapability.Registered;
-			// The browser handoff, under the same seam as the transport above
-			// and for the same reason: the shipped graph gets the real
-			// capability, a tests-enabled graph gets a recording one. The
-			// seam is total here rather than fixture-conditional, because a
-			// fixture transport that is reached by mistake writes a line to a
-			// log and a browser that is opened by mistake opens a browser.
+			// The browser handoff. Both graphs bind the real opener; a
+			// tests-enabled graph binds the recording one instead when this
+			// run is inside the automated test boundary, and none at all
+			// under the construction cut.
+			//
+			// The rule this protects has not changed: a fixture transport
+			// reached by mistake writes a line to a log, and a browser opened
+			// by mistake opens a browser on whoever's machine is running the
+			// suite. What changed is which question decides ([[BPR-0797]]).
+			// The seam used to be `BPR_BUILD_TESTING`, which answers "was this
+			// build configured with tests"; `BUILD_TESTING` is on by default,
+			// so the answer was yes in every build a developer makes, and the
+			// application in their hands pressed "Open browser" into a recorder
+			// that returns `true` without opening anything -- while the account
+			// row said "Opened in your browser." The boundary marker answers
+			// the question that was meant, and it is injected by the single
+			// registration seam every isolated test on every platform goes
+			// through, so a suite cannot lose it by forgetting a flag.
 			//
 			// `SystemBrowser` is constructed either way. Its constructor is
 			// the anchor `verify_composed_hosts.py` requires in both
 			// profiles, so a build that stopped composing the opener fails
 			// the audit rather than silently going back to answering
 			// `unavailable` forever, which is the defect [[BPR-0516]] found.
+			auto browserIdentity = composed_device_browser::system;
 #if defined(BPR_BUILD_TESTING)
-			auto* deviceBrowser = SuppressDeviceBrowser
-				? nullptr
-				: static_cast<application::device_authorization_browser_port*>(
-					  &RecordingBrowser);
-#else
-			auto* deviceBrowser
-				= static_cast<application::device_authorization_browser_port*>(
-					&SystemBrowser);
+			if (SuppressDeviceBrowser) {
+				browserIdentity = composed_device_browser::none;
+			} else if (InsideAutomatedTestBoundary) {
+				browserIdentity = composed_device_browser::recording;
+			}
 #endif
+			application::device_authorization_browser_port* deviceBrowser
+				= nullptr;
+			if (browserIdentity == composed_device_browser::system) {
+				deviceBrowser = &SystemBrowser;
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (browserIdentity == composed_device_browser::recording) {
+				deviceBrowser = &RecordingBrowser;
+			}
+#endif
+			ComposedDeviceBrowser = browserIdentity;
 			DeviceBrowserComposed = deviceBrowser != nullptr;
 			// One port, two readers. The recording sink keeps its place at the
 			// front of the fan-out, so every existing device contract still
@@ -5305,6 +5370,27 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		bool NetworkDenied = false;
 #endif
+#if defined(BPR_BUILD_TESTING)
+		// [[BPR-0797]]. Whether this run is standing inside the automated test
+		// boundary. A tests-disabled graph has no member, because it has no
+		// question: it holds one browser capability and one CLI answer, and
+		// both are the real ones.
+		bool InsideAutomatedTestBoundary = false;
+#endif
+		// [[BPR-0797]]. Which browser capability this run bound, reported so a
+		// course can assert the identity rather than the mere presence.
+		composed_device_browser ComposedDeviceBrowser
+			= composed_device_browser::none;
+		// [[BPR-0797]]. The run-time form of the question the two GitHub CLI
+		// gates used to put to the preprocessor.
+		[[nodiscard]] auto cli_read_offered_here() const noexcept -> bool
+		{
+#if defined(BPR_BUILD_TESTING)
+			return cli_read_offered(InsideAutomatedTestBoundary);
+#else
+			return cli_read_offered(false);
+#endif
+		}
 #if defined(BPR_BUILD_TESTING)
 		bool PublicPreviewEnabledCourse = false;
 #endif
@@ -6735,9 +6821,11 @@ namespace bpr::app {
 			return false;
 		}
 
-		// Only the recording opener counts. The shipped opener's evidence is a
-		// browser window a person sees on a station, which this process has no
-		// way to observe and must not claim to.
+		// Only the recording opener counts, and only a run inside the
+		// automated test boundary binds one ([[BPR-0797]]). The real opener's
+		// evidence is a browser window a person sees on a station, which this
+		// process has no way to observe and must not claim to -- which is also
+		// why a zero here is not a claim that nothing opened.
 		[[nodiscard]] auto device_browser_opens() const noexcept -> std::size_t
 		{
 #if defined(BPR_BUILD_TESTING)
@@ -11644,6 +11732,9 @@ namespace bpr::app {
 		// it did not, and the fixture course's override in a tests-enabled
 		// build.
 		decltype(github_profile_runtime::DeviceCapabilityRegistered)& DeviceCapabilityRegistered = Profile->DeviceCapabilityRegistered;
+		// [[BPR-0797]]. Which browser capability the run bound, as opposed to
+		// whether it bound one.
+		decltype(github_profile_runtime::ComposedDeviceBrowser)& ComposedDeviceBrowser = Profile->ComposedDeviceBrowser;
 #if defined(BPR_BUILD_TESTING)
 		decltype(github_profile_runtime::RegisteredDeviceCourse)&                     RegisteredDeviceCourse                     = Profile->RegisteredDeviceCourse;
 		decltype(github_profile_runtime::DeviceRefreshCourse)&                        DeviceRefreshCourse                        = Profile->DeviceRefreshCourse;
@@ -12827,6 +12918,12 @@ namespace bpr::app {
 			= this->DeviceProjections.published(),
 			.DeviceAuthorizationBrowserComposed
 			= this->DeviceBrowserComposed,
+			.DeviceAuthorizationBrowser = this->ComposedDeviceBrowser,
+			// [[BPR-0797]]. Asked of the factory this run holds, so a fixture
+			// run reports the fixture's answer and a shipped-selection run
+			// reports the one the account row is offering.
+			.ComposedCliReadAvailable = this->TransportFactory != nullptr
+				&& this->TransportFactory->supports_cli(),
 			.DeviceAuthorizationHandoff
 			= this->DeviceProjections.last_attempt(),
 			.DeviceAuthorizationBrowserOpens

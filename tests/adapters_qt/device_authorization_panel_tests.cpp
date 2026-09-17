@@ -326,6 +326,46 @@ namespace {
 		QApplication::processEvents();
 	}
 
+	// [[BPR-0797]]. An accepted handoff is a launch the desktop took, not a
+	// browser a person saw. The panel used to say "Opened in your browser."
+	// and the owner read it while nothing had opened. What the sentence may
+	// claim is what the host verified; what it must offer is the same way out
+	// the failure states offer, because the reviewer who is reading it has an
+	// empty screen and a code.
+	void test_an_accepted_handoff_does_not_claim_a_browser_opened(const double aScale)
+	{
+		static_cast<void>(aScale);
+		recorded_gestures record;
+		auto              observed = core::host_profile_id{ };
+		auto* const       panel    = make_panel(record, observed);
+		panel->show();
+		QApplication::processEvents();
+
+		panel->apply(awaiting(device_authorization_handoff::opened));
+		const auto text = panel->handoff_label()->text();
+		expect(!text.isEmpty(), "an accepted handoff is stated");
+		expect(
+			!text.contains(QStringLiteral("Opened in your browser")),
+			"but not as an outcome the process could not observe");
+		expect(
+			text.contains(QStringLiteral("asked to open")),
+			"it says what happened: the browser was asked");
+		expect(
+			text.contains(QStringLiteral("any device")),
+			"and it offers the way forward if nothing appeared");
+		expect(
+			panel->open_button()->isEnabled(),
+			"and the reviewer may ask again");
+		expect(
+			panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT")
+				&& panel->address_field()->text()
+					== QString::fromStdString(verification_address()),
+			"with the code and the address still on screen");
+
+		panel->deleteLater();
+		QApplication::processEvents();
+	}
+
 	void test_a_failing_opener_is_not_an_authorization_failure(const double aScale)
 	{
 		static_cast<void>(aScale);
@@ -802,6 +842,7 @@ auto main(int argc, char** argv) -> int
 	test_the_panel_applies_incrementally(scale);
 	test_focus_order_follows_reading_order(scale);
 	test_one_polite_combined_status_is_announced(scale);
+	test_an_accepted_handoff_does_not_claim_a_browser_opened(scale);
 	test_a_failing_opener_is_not_an_authorization_failure(scale);
 	test_an_off_authority_refusal_is_distinct_from_a_failure(scale);
 	test_the_code_can_be_copied_and_the_address_cannot_be_copied_implicitly(scale);

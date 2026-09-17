@@ -38,9 +38,7 @@
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-	#include <QMessageBox>
-#endif
+#include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
 #include <QSize>
@@ -762,6 +760,13 @@ namespace {
 			std::size_t                DiagnosticUpdatesBeforeConnect = 0U;
 			std::string                ExpectedActiveHostText;
 			bool                       ConsentWarningObserved = false;
+			// [[BPR-0797]]. Whether the composition this run holds offers the
+			// GitHub CLI read. It used to be `__APPLE__ && !BPR_BUILD_TESTING`
+			// in three places; it is one run-time fact now, read off the
+			// composed factory, because that is what decides which of the two
+			// labels the account row is showing and which behaviour the fail-
+			// closed course must expect.
+			bool ReadOffered = false;
 		};
 
 		// [[BPR-0540]]. Ticks the orphan course keeps running after the host's
@@ -920,9 +925,17 @@ namespace {
 		// [[BPR-0654]]. The head I have marked reviewed, the head moved to the
 		// fixture's second head, and the overview naming exactly the files
 		// that differ between the two; asked for by `OverviewSinceReviewRequested`.
-		bool                                      OverviewSinceReviewPassed = false;
-		bool                                      RenderSaved               = true;
-		bool                                      VerifyNativePlatformVault = false;
+		bool OverviewSinceReviewPassed = false;
+		bool RenderSaved               = true;
+		bool VerifyNativePlatformVault = false;
+		// [[BPR-0797]]. Report the identity of the two capabilities this run
+		// composed. Off by default and named by its own flag, so no existing
+		// row's output changes and no row can pass this by accident.
+		bool CapabilityProbe = false;
+		// What the composition was told about the automated test boundary,
+		// carried here rather than re-read, so the report describes the input
+		// the composition actually had.
+		bool                                      InsideAutomatedTestBoundary = false;
 		QString                                   LastEpochStatus;
 		QString                                   LastEpochComparison;
 		QString                                   LastEpochLeft;
@@ -3040,29 +3053,82 @@ namespace {
 		return false;
 	}
 
-	[[nodiscard]] auto cli_fail_closed_presentation_passed(
+	// [[BPR-0771]], [[BPR-0772]]. The CLI host profile is a way in to its
+	// server's card, chosen by that card's GitHub CLI offer. The card the run
+	// activated, or nothing.
+	// [[BPR-0797]]. The three answers, in the words a course pins.
+	[[nodiscard]] auto composed_device_browser_text(
+		const bpr::app::composed_device_browser aBrowser) -> const char*
+	{
+		switch (aBrowser) {
+		case bpr::app::composed_device_browser::none:
+			return "absent";
+		case bpr::app::composed_device_browser::system:
+			return "system";
+		case bpr::app::composed_device_browser::recording:
+			return "recording";
+		}
+		return "absent";
+	}
+
+	[[nodiscard]] auto activated_cli_card(
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bpr::qt::server_card*
+	{
+		const auto  cards = aWindow.server_cards();
+		const auto& cli   = aRun.Cli;
+		return cli.ActiveRow >= 0
+				&& static_cast<std::size_t>(cli.ActiveRow) < cards.size()
+			? cards[static_cast<std::size_t>(cli.ActiveRow)]
+			: nullptr;
+	}
+
+	// What every composition owes here, whichever way the CLI read went: the
+	// selection landed on the offered profile, nothing signed in, and no reset
+	// happened.
+	[[nodiscard]] auto cli_presentation_invariants_passed(
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
+	{
+		const auto* const card    = activated_cli_card(aWindow, aRun);
+		const auto* const offered = card != nullptr ? card->cli_option() : nullptr;
+		return offered != nullptr
+			&& aWindow.session_panel()->selected_profile() == offered->Profile
+			&& aWindow.active_account_text() == "Not authenticated"
+			&& !aWindow.public_preview_signed_out()
+			&& !aWindow.github_open_action()->isEnabled()
+			&& aWindow.statistics().GithubFullResets == 0U;
+	}
+
+	// A composition that offers the GitHub CLI read stops at the opt-in. The
+	// warning is shown, nothing is connected, and no identity or diagnostic
+	// update follows, because the guard refuses before a transport is built.
+	[[nodiscard]] auto cli_opt_in_presentation_passed(
 		const bpr::qt::workbench_window& aWindow,
 		const automated_run&             aRun) -> bool
 	{
 		const auto  statistics = aWindow.statistics();
 		const auto& cli        = aRun.Cli;
-		// [[BPR-0771]], [[BPR-0772]]. The CLI host profile is a way in to its
-		// server's card, chosen by that card's GitHub CLI offer.
-		const auto  cards = aWindow.server_cards();
-		const auto* card  = cli.ActiveRow >= 0 && static_cast<std::size_t>(cli.ActiveRow) < cards.size()
-			 ? cards[static_cast<std::size_t>(cli.ActiveRow)]
-			 : nullptr;
-		const auto* const offered = card != nullptr ? card->cli_option() : nullptr;
-		return offered != nullptr
-			&& aWindow.session_panel()->selected_profile() == offered->Profile
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+		return cli_presentation_invariants_passed(aWindow, aRun)
 			&& cli.ConsentWarningObserved
 			&& statistics.GithubIdentityUpdates
 			== cli.IdentityUpdatesBeforeConnect
 			&& statistics.GithubDiagnosticUpdates
 			== cli.DiagnosticUpdatesBeforeConnect
-			&& aWindow.github_status_text() == "No GitHub host is connected."
-#else
+			&& aWindow.github_status_text() == "No GitHub host is connected.";
+	}
+
+	// A composition that does not offer it still presents the row, over a
+	// factory that cannot serve it. The connect is attempted and fails, and the
+	// diagnostic says which connection was unavailable.
+	[[nodiscard]] auto cli_unavailable_presentation_passed(
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
+	{
+		const auto        statistics = aWindow.statistics();
+		const auto&       cli        = aRun.Cli;
+		const auto* const card       = activated_cli_card(aWindow, aRun);
+		return cli_presentation_invariants_passed(aWindow, aRun)
 			&& aWindow.active_host_text() == cli.ExpectedActiveHostText
 			&& statistics.GithubIdentityUpdates
 			== cli.IdentityUpdatesBeforeConnect + 1U
@@ -3071,12 +3137,21 @@ namespace {
 			&& aWindow.github_status_text() == "The GitHub connection failed."
 			&& card->state_label()->text() == QStringLiteral("Could not connect")
 			&& aWindow.github_diagnostic_text()
-			== "Account identity observation: The selected GitHub CLI connection is unavailable."
-#endif
-			&& aWindow.active_account_text() == "Not authenticated"
-			&& !aWindow.public_preview_signed_out()
-			&& !aWindow.github_open_action()->isEnabled()
-			&& statistics.GithubFullResets == 0U;
+			== "Account identity observation: The selected GitHub CLI connection is unavailable.";
+	}
+
+	[[nodiscard]] auto cli_fail_closed_presentation_passed(
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
+	{
+		// [[BPR-0797]]. Two different correct behaviours, told apart by what
+		// this run composed rather than by what produced the build. Until this
+		// card the choice was `__APPLE__ && !BPR_BUILD_TESTING`, which meant a
+		// developer's own application was held to the second one while a
+		// released image was held to the first.
+		return aRun.Cli.ReadOffered
+			? cli_opt_in_presentation_passed(aWindow, aRun)
+			: cli_unavailable_presentation_passed(aWindow, aRun);
 	}
 
 	// [[BPR-0771]], [[BPR-0772]]. The picker that listed these rows is retired:
@@ -3084,26 +3159,29 @@ namespace {
 	// server's GitHub CLI profile carries the label the picker once showed.
 	[[nodiscard]] auto is_cli_unavailable_profile(
 		const std::vector<bpr::qt::server_card*>& aCards,
-		const int                                 aRow) -> bool
+		const int                                 aRow,
+		const bool                                aReadOffered) -> bool
 	{
 		const auto* const option = aCards[static_cast<std::size_t>(aRow)]->cli_option();
 		if (option == nullptr) {
 			return false;
 		}
 		const auto label = QString::fromStdString(option->Label);
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-		return label.endsWith(QStringLiteral("GitHub CLI (uses your gh sign-in)"));
-#else
-		return label.endsWith(QStringLiteral("GitHub CLI (unavailable)"));
-#endif
+		// [[BPR-0797]]. Which words the row is wearing follows from what the
+		// composition offers, not from which build produced it. Pinned in both
+		// directions so a row that showed the other one would not be counted.
+		return aReadOffered
+			? label.endsWith(QStringLiteral("GitHub CLI (uses your gh sign-in)"))
+			: label.endsWith(QStringLiteral("GitHub CLI (unavailable)"));
 	}
 
 	[[nodiscard]] auto cli_unavailable_profile_count(
-		const std::vector<bpr::qt::server_card*>& aCards) -> std::size_t
+		const std::vector<bpr::qt::server_card*>& aCards,
+		const bool                                aReadOffered) -> std::size_t
 	{
 		auto count = std::size_t{ 0U };
 		for (auto row = 0; static_cast<std::size_t>(row) < aCards.size(); ++row) {
-			if (is_cli_unavailable_profile(aCards, row)) {
+			if (is_cli_unavailable_profile(aCards, row, aReadOffered)) {
 				++count;
 			}
 		}
@@ -3112,10 +3190,11 @@ namespace {
 
 	[[nodiscard]] auto next_cli_unavailable_profile(
 		const std::vector<bpr::qt::server_card*>& aCards,
-		const int                                 aAfterRow) -> int
+		const int                                 aAfterRow,
+		const bool                                aReadOffered) -> int
 	{
 		for (auto row = aAfterRow + 1; static_cast<std::size_t>(row) < aCards.size(); ++row) {
-			if (is_cli_unavailable_profile(aCards, row)) {
+			if (is_cli_unavailable_profile(aCards, row, aReadOffered)) {
 				return row;
 			}
 		}
@@ -3125,7 +3204,8 @@ namespace {
 	[[nodiscard]] auto expected_cli_active_host_text(
 		const std::vector<bpr::qt::server_card*>& aCards,
 		const int                                 aRow,
-		const std::optional<std::string>&         aEnterpriseHostname)
+		const std::optional<std::string>&         aEnterpriseHostname,
+		const bool                                aReadOffered)
 		-> std::optional<std::string>
 	{
 		const auto* const offered = aCards[static_cast<std::size_t>(aRow)]->cli_option();
@@ -3133,13 +3213,15 @@ namespace {
 			return std::nullopt;
 		}
 		const auto label = QString::fromStdString(offered->Label);
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-		const auto githubLabel     = QStringLiteral("GitHub.com — GitHub CLI (uses your gh sign-in)");
-		const auto enterpriseLabel = QStringLiteral("GHES 3.18 — GitHub CLI (uses your gh sign-in)");
-#else
-		const auto githubLabel     = QStringLiteral("GitHub.com — GitHub CLI (unavailable)");
-		const auto enterpriseLabel = QStringLiteral("GHES 3.18 — GitHub CLI (unavailable)");
-#endif
+		// [[BPR-0797]]. Which words the composed rows are wearing is a fact
+		// about the run, so the course looks for the pair this run composed
+		// rather than the pair this build was compiled for.
+		const auto githubLabel     = aReadOffered
+			? QStringLiteral("GitHub.com — GitHub CLI (uses your gh sign-in)")
+			: QStringLiteral("GitHub.com — GitHub CLI (unavailable)");
+		const auto enterpriseLabel = aReadOffered
+			? QStringLiteral("GHES 3.18 — GitHub CLI (uses your gh sign-in)")
+			: QStringLiteral("GHES 3.18 — GitHub CLI (unavailable)");
 		if (label == githubLabel) {
 			return std::string{ "github.com" };
 		}
@@ -3159,7 +3241,7 @@ namespace {
 		auto& cli          = aRun.Cli;
 		const auto cards        = aWindow.server_cards();
 		auto       expectedHost = expected_cli_active_host_text(
-			cards, aRow, cli.EnterpriseHostname);
+			cards, aRow, cli.EnterpriseHostname, cli.ReadOffered);
 		if (!expectedHost.has_value()) {
 			return false;
 		}
@@ -3178,26 +3260,34 @@ namespace {
 		cli.IdentityUpdatesBeforeConnect   = statistics.GithubIdentityUpdates;
 		cli.DiagnosticUpdatesBeforeConnect = statistics.GithubDiagnosticUpdates;
 		cli.ExpectedActiveHostText         = std::move(*expectedHost);
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-		// Both Connect and the signed-out preview gesture reach the CLI opt-in
-		// warning. Decline it before either legacy release probe proceeds.
-		auto attempts = std::make_shared<std::size_t>(0U);
-		auto poll     = std::make_shared<std::function<void()>>();
-		*poll         = [&aRun, attempts, poll] {
-			if (auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
-				dialog != nullptr) {
-				aRun.Cli.ConsentWarningObserved = dialog->icon() == QMessageBox::Warning
-					&& dialog->text().contains(QStringLiteral("installed gh"))
-					&& dialog->text().contains(QStringLiteral("does not authorize publishing"));
-				dialog->reject();
-				return;
-			}
-			if (++*attempts <= 100U) {
-				QTimer::singleShot(1, qApp, *poll);
-			}
-		};
-		QTimer::singleShot(0, qApp, *poll);
-#endif
+		// [[BPR-0797]]. Both Connect and the signed-out preview gesture reach
+		// the CLI opt-in warning, and only a composition that offers the read
+		// puts one up. Decline it before the probe proceeds -- declining is the
+		// claim: the guard must refuse without building a transport, so nothing
+		// here starts `gh`. This used to be `__APPLE__ && !BPR_BUILD_TESTING`,
+		// which left a tests-enabled run with no way to answer a dialog it
+		// could now raise.
+		if (cli.ReadOffered) {
+			auto attempts = std::make_shared<std::size_t>(0U);
+			auto poll     = std::make_shared<std::function<void()>>();
+			*poll         = [&aRun, attempts, poll] {
+				if (auto* dialog = qobject_cast<QMessageBox*>(
+						QApplication::activeModalWidget());
+					dialog != nullptr) {
+					aRun.Cli.ConsentWarningObserved
+						= dialog->icon() == QMessageBox::Warning
+						&& dialog->text().contains(QStringLiteral("installed gh"))
+						&& dialog->text().contains(
+							QStringLiteral("does not authorize publishing"));
+					dialog->reject();
+					return;
+				}
+				if (++*attempts <= 100U) {
+					QTimer::singleShot(1, qApp, *poll);
+				}
+			};
+			QTimer::singleShot(0, qApp, *poll);
+		}
 		// The retired "Read without signing in" button reached the same CLI
 		// opt-in as Connect did; both courses now begin at the server card's
 		// GitHub CLI offer.
@@ -3536,18 +3626,53 @@ namespace {
 				   << (status.NativePlatformVaultSelected ? "true" : "false")
 				   << '\n';
 		}
+		if (aRun.CapabilityProbe) {
+			// [[BPR-0797]]. Which two capabilities this run composed, named
+			// rather than counted. Every other course here either injects its
+			// own opener or asserts widgets and sentences, so every one of them
+			// passed while the button a person presses reached a recorder that
+			// answers `true` without opening anything -- and the account row
+			// said "Opened in your browser." about it.
+			//
+			// This starts nothing. The browser is named, not called; the CLI
+			// factory is asked whether it can serve a read, not asked to serve
+			// one. The address that would be opened does not exist in a run
+			// that never reaches `awaiting_authorization`.
+			auto cliLabel = std::string{ };
+			for (const auto* const card :
+				 aApplication.window().server_cards()) {
+				if (const auto* const option = card->cli_option();
+					option != nullptr) {
+					cliLabel = option->Label;
+					break;
+				}
+			}
+			stream << "COMPOSITION_TEST_BOUNDARY:"
+				   << (aRun.InsideAutomatedTestBoundary ? "inside" : "outside")
+				   << "\nCOMPOSITION_BROWSER:"
+				   << composed_device_browser_text(
+						  status.DeviceAuthorizationBrowser)
+				   << "\nCOMPOSITION_CLI_READ:"
+				   << (status.ComposedCliReadAvailable ? "available"
+													   : "unavailable")
+				   << "\nCOMPOSITION_CLI_LABEL:"
+				   << QString::fromStdString(cliLabel) << '\n';
+		}
 		if (aRun.Cli.Enabled) {
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-			stream << (passed ? "CLI_OPT_IN_REQUIRED_OK\n"
-							  : "CLI_OPT_IN_REQUIRED_FAILED\n")
-				   << "CLI_OPT_IN_GUARD_COUNT:"
-#else
-			stream << (passed ? "CLI_UNAVAILABLE_OK\n"
-							  : "CLI_UNAVAILABLE_FAILED\n")
-				   << "CLI_UNAVAILABLE_COUNT:"
-#endif
-				   << static_cast<unsigned long long>(
-						  aRun.Cli.Observed)
+			// [[BPR-0797]]. The marker names the behaviour this run's
+			// composition owes. That is a fact about the run, not about the
+			// build that produced it, and it used to be decided by
+			// `__APPLE__ && !BPR_BUILD_TESTING`.
+			if (aRun.Cli.ReadOffered) {
+				stream << (passed ? "CLI_OPT_IN_REQUIRED_OK\n"
+								  : "CLI_OPT_IN_REQUIRED_FAILED\n")
+					   << "CLI_OPT_IN_GUARD_COUNT:";
+			} else {
+				stream << (passed ? "CLI_UNAVAILABLE_OK\n"
+								  : "CLI_UNAVAILABLE_FAILED\n")
+					   << "CLI_UNAVAILABLE_COUNT:";
+			}
+			stream << static_cast<unsigned long long>(aRun.Cli.Observed)
 				   << '\n';
 		}
 		if (aRun.Device.Enabled) {
@@ -5063,6 +5188,27 @@ namespace {
 
 			switch (aRun->Stage) {
 			case automated_run::stage::start:
+				// [[BPR-0797]]. Read once, here, because the composition
+				// exists by now and this is the one stage every path passes
+				// through. Which of the two GitHub CLI behaviours this run owes
+				// follows from the factory it is actually holding.
+				aRun->Cli.ReadOffered
+					= aApplication.status().ComposedCliReadAvailable;
+				if (aRun->CapabilityProbe) {
+					// [[BPR-0797]]. The probe's whole question is answered by
+					// the composition that now exists: which browser it bound
+					// and whether the factory it holds can serve a CLI read.
+					// It ends here, before any course connects, because every
+					// stage past this one needs the platform vault or begins
+					// a flow, and the probe is meant to run wherever the
+					// composition can be built -- including a station whose
+					// keychain is locked, where the CLI course cannot finish.
+					// The report prints the identity either way; the verdict
+					// here is that the composition stood up and shut down.
+					aRun->PresentationPassed = true;
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
 					// RFC-BPR-0017. The signed-out courses take the fixture
@@ -5145,7 +5291,7 @@ namespace {
 					// [[BPR-0772]]. One card per server, each offering its
 					// GitHub CLI profile.
 					const auto visibleCliProfiles = cli_unavailable_profile_count(
-						window.server_cards());
+						window.server_cards(), aRun->Cli.ReadOffered);
 					const auto expectedCliProfiles = aRun->Cli.EnterpriseHostname.has_value() ? 2U : 1U;
 					if (
 						aRun->Cli.Enabled
@@ -5159,7 +5305,7 @@ namespace {
 						? expectedCliProfiles
 						: 1U;
 					const auto firstCliProfile = next_cli_unavailable_profile(
-						window.server_cards(), -1);
+						window.server_cards(), -1, aRun->Cli.ReadOffered);
 					if (
 						firstCliProfile < 0
 						|| !activate_cli_unavailable_profile(
@@ -5581,7 +5727,8 @@ namespace {
 					const auto nextCliProfile = aRun->Cli.Enabled
 						? next_cli_unavailable_profile(
 							  window.server_cards(),
-							  aRun->Cli.ActiveRow)
+							  aRun->Cli.ActiveRow,
+							  aRun->Cli.ReadOffered)
 						: -1;
 					if (nextCliProfile >= 0) {
 						if (!activate_cli_unavailable_profile(
@@ -7499,7 +7646,27 @@ auto main(int argc, char** argv) -> int
 		// github.com. With this the denial is the application's own, on every
 		// platform, and the expectation is the local `failed` macOS and Linux
 		// already recorded.
-		config.NetworkDenied               = has_argument(argc, argv, "--network-denied");
+		config.NetworkDenied = has_argument(argc, argv, "--network-denied");
+		// [[BPR-0797]]. Tests-enabled only, like the flag above it, and read
+		// from the environment rather than from a flag on purpose: a flag is
+		// something a course can forget, and the thing it would forget is the
+		// one that keeps an unattended suite from opening a browser on the
+		// reviewer's machine. `bpr_add_network_isolated_test` injects this into
+		// every registered test, on all three platforms, from the single
+		// registration seam they all go through, and a child the course starts
+		// inherits it.
+		//
+		// Any non-empty value means inside. The failure mode has to be the safe
+		// one: an unrecognised value that meant "outside" would be a suite
+		// allowed to start a program, while an unrecognised value that means
+		// "inside" is at worst a person's own run composing a recorder, which
+		// they would see immediately.
+		//
+		// The name exists nowhere in a tests-disabled binary, so the
+		// RFC-BPR-0017 fixture-seam scan can prove its absence from a Release by
+		// looking for it, exactly as it does for `--network-denied`.
+		config.InsideAutomatedTestBoundary
+			= !qEnvironmentVariable("BPR_AUTOMATED_TEST_BOUNDARY").isEmpty();
 		const auto testApplicationDataRoot = argument_value(
 			argc, argv, "--test-application-data-root");
 		if (testApplicationDataRoot.has_value()) {
@@ -7728,6 +7895,17 @@ auto main(int argc, char** argv) -> int
 		const auto deviceBrowserProbe =
 #if defined(BPR_BUILD_TESTING)
 			has_argument(argc, argv, "--device-authorization-browser-probe");
+#else
+			false;
+#endif
+		// [[BPR-0797]]. Tests-enabled only, like every other probe here, and
+		// for a plainer reason than most: it exists to be run with the
+		// automated test boundary taken away, which is the configuration a
+		// person's own application runs in, and a released image has no
+		// boundary to take away.
+		const auto capabilityProbe =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--composition-capability-probe");
 #else
 			false;
 #endif
@@ -8273,6 +8451,10 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 				verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
 				verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
+				// [[BPR-0797]]. The capability probe ends its run at the start
+				// stage, so it never reaches the CLI fail-closed course and
+				// must not print that course's verdict as if it had.
+				verifyCliUnavailable = verifyCliUnavailable && !capabilityProbe;
 #endif
 				// The person is the run. Everything else about the composition is
 				// unchanged - same fixture-backed application, same window - so what
@@ -8320,7 +8502,10 @@ auto main(int argc, char** argv) -> int
 								.PresentationPassed        = false,
 								.RenderSaved               = true,
 								.VerifyNativePlatformVault = verifyNativePlatformVault,
-								.Cli                       = automated_run::cli_unavailable_probe_state{
+								.CapabilityProbe           = capabilityProbe,
+								.InsideAutomatedTestBoundary
+								= config.InsideAutomatedTestBoundary,
+								.Cli = automated_run::cli_unavailable_probe_state{
 									.Enabled            = verifyCliUnavailable,
 									.EnterpriseHostname = std::move(enterpriseHostname),
 								},

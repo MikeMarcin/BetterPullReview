@@ -1097,12 +1097,20 @@ literal scheme anywhere under `src/adapters/qt/`, so the presentation adapter
 cannot hold an address and cannot acquire an opener. `bpr::app::system_browser_opener`
 is the one place in the shipped graph that hands an address to the platform's
 own launch service: no embedded web view, no browser engine, no network of its
-own, no listener, and no supervised child. A shipped graph binds it; a
-tests-enabled graph binds a recording opener instead, so no suite in this
-repository can start a browser. Composing none at all is the construction cut,
-and only then does the action answer `unavailable` ([[BPR-0516]],
+own, no listener, and no supervised child. Both graphs bind it for a person's
+run. A run inside the automated test boundary binds a recording opener
+instead, so no suite in this repository can start a browser; that boundary is
+a run-time fact, not a build-time one ([[BPR-0797]]): the marker
+`BPR_AUTOMATED_TEST_BOUNDARY` that `bpr_add_network_isolated_test` injects
+into every registered row, or a selected fixture. `BUILD_TESTING` is on by
+default, so a build-time gate had put the recorder into the application a
+developer runs and let it report a handoff nothing had opened. Composing none
+at all is the construction cut, and only then does the action answer
+`unavailable` ([[BPR-0516]],
 `application_device_authorization_browser_handoff`,
-`application_device_authorization_browser_absent`, `composed_application_hosts`).
+`application_device_authorization_browser_absent`,
+`application_composition_capabilities_inside_boundary`,
+`application_composition_capabilities_product_run`, `composed_application_hosts`).
 
 **Composition selects the identity and the platform.** The device path is
 composed on every platform, registered or not, because the visible choice and

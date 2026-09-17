@@ -264,6 +264,34 @@ LIVE_CREDENTIAL_VARIABLES = (
     "GH_ENTERPRISE_TOKEN",
     "GITHUB_ENTERPRISE_TOKEN",
 )
+# BPR-0797. The run-time answer to "am I inside the automated test boundary?".
+# The composition in `src/app` reads it before it may bind the real system
+# browser opener and the real GitHub CLI transport, so a row whose child does
+# not see it is a row allowed to open a browser on whoever runs the suite.
+# `bpr_add_network_isolated_test` sets it for every row it registers; this
+# reads it back out of CTest's own manifest rather than out of the CMake
+# source, because the source says what was asked for and the manifest says
+# what the row will actually run with.
+#
+# The marker lives in ENVIRONMENT_MODIFICATION, not ENVIRONMENT, and the check
+# follows it there. `set_tests_properties(<row> PROPERTIES ENVIRONMENT ...)`
+# replaces ENVIRONMENT outright after the seam returns, which on this tree
+# would strip an ENVIRONMENT marker from the hundred-odd rows that go on to
+# set their own `QT_QPA_PLATFORM=offscreen` - among them every
+# `application_device_authorization_*` course. CTest applies
+# ENVIRONMENT_MODIFICATION after ENVIRONMENT, so no row-level write reaches it.
+AUTOMATED_TEST_BOUNDARY_VARIABLE = "BPR_AUTOMATED_TEST_BOUNDARY"
+AUTOMATED_TEST_BOUNDARY_MODIFICATION = f"{AUTOMATED_TEST_BOUNDARY_VARIABLE}=set:1"
+# The one row that stands outside the boundary on purpose. It composes the
+# application the way a person's own build does - real opener, real GitHub CLI
+# offer - and asserts that identity without beginning a flow, against a closed
+# loopback port. It carries the seam's `set:1` like every other row and then
+# erases it with its own `unset:`, in that order, so the manifest shows both
+# the rule and the one named exception rather than a row the seam missed.
+AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST = (
+    "application_composition_capabilities_product_run"
+)
+AUTOMATED_TEST_BOUNDARY_ERASURE = f"{AUTOMATED_TEST_BOUNDARY_VARIABLE}=unset:"
 
 STAGE_ZERO_PRELOADER_SOURCE = """import hashlib
 import os
@@ -418,6 +446,66 @@ def environment_injection_failures(test: dict[str, Any], name: str) -> list[str]
         variable = entry.split("=", 1)[0]
         if variable in dangerous and entry not in expected:
             failures.append(f"{name} modifies pre-boundary variable: {entry}")
+    return failures
+
+
+def boundary_marker_failures(test: dict[str, Any], name: str) -> list[str]:
+    """Check that a row tells its child process it is inside the boundary."""
+    failures: list[str] = []
+    environment = property_value(test, "ENVIRONMENT")
+    if isinstance(environment, list):
+        for entry in environment:
+            variable = entry.split("=", 1)[0] if isinstance(entry, str) else ""
+            if variable == AUTOMATED_TEST_BOUNDARY_VARIABLE:
+                failures.append(
+                    f"{name} carries the boundary marker in ENVIRONMENT, where "
+                    "a row-level write erases it"
+                )
+
+    modifications = property_value(test, "ENVIRONMENT_MODIFICATION")
+    ordered = [
+        entry for entry in modifications if isinstance(entry, str)
+    ] if isinstance(modifications, list) else []
+    actual = set(ordered)
+    if AUTOMATED_TEST_BOUNDARY_MODIFICATION not in actual:
+        failures.append(
+            f"{name} lacks the automated-test boundary marker "
+            f"{AUTOMATED_TEST_BOUNDARY_MODIFICATION}"
+        )
+    # The product-run row is the one row allowed a second entry, and only the
+    # erasure, and only after the seam's own marker: CTest applies the list in
+    # order, so `unset:` before `set:1` would leave the row inside after all.
+    erasure_allowed = name == AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST
+    if erasure_allowed:
+        marker_at = (
+            ordered.index(AUTOMATED_TEST_BOUNDARY_MODIFICATION)
+            if AUTOMATED_TEST_BOUNDARY_MODIFICATION in actual
+            else -1
+        )
+        erasure_at = (
+            ordered.index(AUTOMATED_TEST_BOUNDARY_ERASURE)
+            if AUTOMATED_TEST_BOUNDARY_ERASURE in actual
+            else -1
+        )
+        if erasure_at < 0:
+            failures.append(
+                f"{name} is the product-run row and must erase the boundary "
+                f"marker with {AUTOMATED_TEST_BOUNDARY_ERASURE}"
+            )
+        elif marker_at >= 0 and erasure_at < marker_at:
+            failures.append(
+                f"{name} erases the boundary marker before the seam sets it, "
+                "so the row would run inside the boundary after all"
+            )
+    for entry in sorted(actual):
+        variable = entry.split("=", 1)[0]
+        if variable != AUTOMATED_TEST_BOUNDARY_VARIABLE:
+            continue
+        if entry == AUTOMATED_TEST_BOUNDARY_MODIFICATION:
+            continue
+        if erasure_allowed and entry == AUTOMATED_TEST_BOUNDARY_ERASURE:
+            continue
+        failures.append(f"{name} modifies the boundary marker: {entry}")
     return failures
 
 
@@ -592,6 +680,12 @@ def configured_failures(
                 failures.append(f"{name} must retain its exact 1800-second timeout")
             failures.extend(live_credential_failures(test, name))
             continue
+        # Every row past this point runs inside the automated boundary and has
+        # to say so. The live lane above is the one row that must not: it drives
+        # the shipped application against real GitHub on purpose, from an image
+        # this file already requires to be built with BUILD_TESTING=OFF, and a
+        # marker there would hand it the recording stand-ins it exists to avoid.
+        failures.extend(boundary_marker_failures(test, name))
         if isinstance(labels, list) and LIVE_TEST_LABEL in labels:
             failures.append(
                 f"{name} uses {LIVE_TEST_LABEL}; only {LIVE_TEST_NAME} may be live"

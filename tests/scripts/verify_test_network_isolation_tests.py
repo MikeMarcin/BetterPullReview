@@ -18,6 +18,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 from scripts.verify_test_network_isolation import (  # noqa: E402
+    AUTOMATED_TEST_BOUNDARY_ERASURE,
+    AUTOMATED_TEST_BOUNDARY_MODIFICATION,
+    AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST,
+    AUTOMATED_TEST_BOUNDARY_VARIABLE,
     EXIT_VERDICT_TESTS,
     FORBIDDEN_EXIT_VERDICT_PROPERTIES,
     LIVE_CREDENTIAL_VARIABLES,
@@ -30,6 +34,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     STAGE_ZERO_PRELOADER_SOURCE,
     WINDOWS_UNCONTAINED_LABEL,
     WINDOWS_UNCONTAINED_TESTS,
+    boundary_marker_failures,
     configured_failures,
     environment_injection_failures,
     exit_verdict_failures,
@@ -49,10 +54,14 @@ def write(root: pathlib.Path, relative: str, text: str) -> None:
 
 
 def scrub_property() -> dict[str, object]:
+    # The exact ENVIRONMENT_MODIFICATION the registration seam writes: the
+    # pre-boundary scrubs, and the BPR-0797 marker that tells the composed
+    # process it is inside the automated test boundary.
     return {
         "name": "ENVIRONMENT_MODIFICATION",
         "value": [
-            f"{name}=unset:" for name in PRE_BOUNDARY_INJECTION_VARIABLES
+            *(f"{name}=unset:" for name in PRE_BOUNDARY_INJECTION_VARIABLES),
+            AUTOMATED_TEST_BOUNDARY_MODIFICATION,
         ],
     }
 
@@ -609,6 +618,257 @@ class ConfiguredManifestTests(unittest.TestCase):
         }
         failures = environment_injection_failures(test, "injected")
         self.assertEqual(len(failures), 2)
+
+    # BPR-0797. The marker is how a composed process learns it is inside the
+    # automated boundary and may not bind the real system browser opener or
+    # the real GitHub CLI transport. A row that reaches CTest without it has
+    # to fail here, because the next place it shows up is a browser window on
+    # whoever is running the suite.
+    def test_seam_registered_row_carries_the_boundary_marker(self) -> None:
+        self.assertIn(
+            AUTOMATED_TEST_BOUNDARY_MODIFICATION,
+            scrub_property()["value"],
+        )
+        self.assertEqual(
+            configured_failures(
+                {
+                    "tests": [
+                        {
+                            "name": "safe",
+                            "command": ["/sandbox", "/test"],
+                            "properties": [
+                                {
+                                    "name": "LABELS",
+                                    "value": ["bpr_network_isolated"],
+                                },
+                                scrub_property(),
+                            ],
+                        }
+                    ]
+                },
+                ["/sandbox"],
+            ),
+            [],
+        )
+
+    def test_row_without_the_boundary_marker_is_rejected(self) -> None:
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": "unmarked",
+                        "command": ["/sandbox", "/test"],
+                        "properties": [
+                            {"name": "LABELS", "value": ["bpr_network_isolated"]},
+                            {
+                                "name": "ENVIRONMENT_MODIFICATION",
+                                "value": [
+                                    f"{name}=unset:"
+                                    for name in PRE_BOUNDARY_INJECTION_VARIABLES
+                                ],
+                            },
+                        ],
+                    }
+                ]
+            },
+            ["/sandbox"],
+        )
+        self.assertEqual(
+            failures,
+            [
+                "unmarked lacks the automated-test boundary marker "
+                f"{AUTOMATED_TEST_BOUNDARY_MODIFICATION}"
+            ],
+        )
+
+    # The property the marker lives in is the check. Measured on CMake 4.4.3:
+    # a marker appended to ENVIRONMENT is erased outright by the next
+    # `set_tests_properties(<row> PROPERTIES ENVIRONMENT ...)`, and over a
+    # hundred rows write one. A marker there is not a marker.
+    def test_boundary_marker_in_environment_is_not_accepted(self) -> None:
+        failures = boundary_marker_failures(
+            {
+                "properties": [
+                    {
+                        "name": "ENVIRONMENT",
+                        "value": [f"{AUTOMATED_TEST_BOUNDARY_VARIABLE}=1"],
+                    },
+                    {
+                        "name": "ENVIRONMENT_MODIFICATION",
+                        "value": [
+                            f"{name}=unset:"
+                            for name in PRE_BOUNDARY_INJECTION_VARIABLES
+                        ],
+                    },
+                ]
+            },
+            "erasable",
+        )
+        self.assertEqual(
+            failures,
+            [
+                "erasable carries the boundary marker in ENVIRONMENT, where a "
+                "row-level write erases it",
+                "erasable lacks the automated-test boundary marker "
+                f"{AUTOMATED_TEST_BOUNDARY_MODIFICATION}",
+            ],
+        )
+
+    def test_altered_boundary_marker_value_is_rejected(self) -> None:
+        for entry in (
+            f"{AUTOMATED_TEST_BOUNDARY_VARIABLE}=unset:",
+            f"{AUTOMATED_TEST_BOUNDARY_VARIABLE}=set:0",
+            f"{AUTOMATED_TEST_BOUNDARY_VARIABLE}=string_append:1",
+        ):
+            with self.subTest(entry=entry):
+                failures = boundary_marker_failures(
+                    {
+                        "properties": [
+                            {
+                                "name": "ENVIRONMENT_MODIFICATION",
+                                "value": [
+                                    *(
+                                        f"{name}=unset:"
+                                        for name in PRE_BOUNDARY_INJECTION_VARIABLES
+                                    ),
+                                    entry,
+                                ],
+                            }
+                        ]
+                    },
+                    "altered",
+                )
+                self.assertEqual(
+                    failures,
+                    [
+                        "altered lacks the automated-test boundary marker "
+                        f"{AUTOMATED_TEST_BOUNDARY_MODIFICATION}",
+                        f"altered modifies the boundary marker: {entry}",
+                    ],
+                )
+
+    # The product-run row is the one row allowed to stand outside the boundary,
+    # and it does so by erasing the seam's marker after the seam wrote it. It
+    # is named, so a second row that copied the erasure would still be
+    # rejected, and ordered, so an erasure the seam's own `set:1` then undid
+    # would be rejected too.
+    def test_product_run_row_erases_the_marker_after_the_seam(self) -> None:
+        def row(entries: list[str]) -> dict[str, object]:
+            return {
+                "properties": [
+                    {"name": "ENVIRONMENT_MODIFICATION", "value": entries},
+                ]
+            }
+
+        scrubs = [f"{name}=unset:" for name in PRE_BOUNDARY_INJECTION_VARIABLES]
+        self.assertEqual(
+            boundary_marker_failures(
+                row(
+                    [
+                        *scrubs,
+                        AUTOMATED_TEST_BOUNDARY_MODIFICATION,
+                        AUTOMATED_TEST_BOUNDARY_ERASURE,
+                    ]
+                ),
+                AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST,
+            ),
+            [],
+        )
+        self.assertEqual(
+            boundary_marker_failures(
+                row([*scrubs, AUTOMATED_TEST_BOUNDARY_MODIFICATION]),
+                AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST,
+            ),
+            [
+                f"{AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST} is the product-run "
+                "row and must erase the boundary marker with "
+                f"{AUTOMATED_TEST_BOUNDARY_ERASURE}"
+            ],
+        )
+        self.assertEqual(
+            boundary_marker_failures(
+                row(
+                    [
+                        *scrubs,
+                        AUTOMATED_TEST_BOUNDARY_ERASURE,
+                        AUTOMATED_TEST_BOUNDARY_MODIFICATION,
+                    ]
+                ),
+                AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST,
+            ),
+            [
+                f"{AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST} erases the boundary "
+                "marker before the seam sets it, so the row would run inside "
+                "the boundary after all"
+            ],
+        )
+        self.assertEqual(
+            boundary_marker_failures(
+                row(
+                    [
+                        *scrubs,
+                        AUTOMATED_TEST_BOUNDARY_MODIFICATION,
+                        AUTOMATED_TEST_BOUNDARY_ERASURE,
+                    ]
+                ),
+                "copied",
+            ),
+            [
+                "copied modifies the boundary marker: "
+                f"{AUTOMATED_TEST_BOUNDARY_ERASURE}"
+            ],
+        )
+
+    # The live lane is the one row that must not carry the marker. It drives
+    # the shipped application against real GitHub on purpose, from an image
+    # this gate already requires to be built with BUILD_TESTING=OFF, so a
+    # marker there would hand it the recording stand-ins it exists to avoid.
+    def test_live_lane_is_not_asked_for_the_boundary_marker(self) -> None:
+        expected_live_command = live_command()
+        self.assertNotIn(
+            AUTOMATED_TEST_BOUNDARY_MODIFICATION,
+            live_scrub_property()["value"],
+        )
+        self.assertEqual(
+            configured_failures(
+                {
+                    "tests": [
+                        {
+                            "name": LIVE_TEST_NAME,
+                            "command": expected_live_command,
+                            "properties": [
+                                {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
+                                {"name": "TIMEOUT", "value": 1800.0},
+                                live_scrub_property(),
+                            ],
+                        }
+                    ]
+                },
+                ["/sandbox"],
+                live_command=expected_live_command,
+            ),
+            [],
+        )
+
+    # Verifier and seam have to name the same entry, in the same property, or
+    # the gate checks a string nothing writes. One literal, one place, both
+    # files. Whitespace is folded so reflowing the registration cannot break
+    # this, though folding the marker into the pre-boundary scrub list would:
+    # it is registered and commented on its own because it is not a scrub.
+    def test_registration_seam_writes_the_exact_demanded_marker(self) -> None:
+        module = (
+            pathlib.Path(__file__).resolve().parents[2]
+            / "cmake"
+            / "BprTestIsolation.cmake"
+        )
+        source = " ".join(module.read_text(encoding="utf-8").split())
+        self.assertEqual(
+            source.count(
+                "PROPERTY ENVIRONMENT_MODIFICATION "
+                f'"{AUTOMATED_TEST_BOUNDARY_MODIFICATION}"'
+            ),
+            1,
+        )
 
 
 @unittest.skipUnless(

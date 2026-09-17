@@ -74,9 +74,36 @@ namespace bpr::app {
 		/// included by a target that links the composition without defining
 		/// the guard, and a conditionally-sized record passed by value across
 		/// that seam would disagree about its own layout.
-		bool                        NetworkDenied       = false;
-		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
-		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
+		bool NetworkDenied = false;
+		/// [[BPR-0797]]. Whether this process is running inside the automated
+		/// test boundary.
+		///
+		/// \details The composition needs to know whether it is standing in a
+		/// suite or in somebody's hands, and it used to ask `BPR_BUILD_TESTING`.
+		/// That define answers a different question -- whether this build was
+		/// configured with tests -- and `BUILD_TESTING` is on by default, so
+		/// every build a developer makes answered yes to a question nobody was
+		/// asking. The application they then ran bound a recording browser that
+		/// reports success without opening anything, and offered the GitHub CLI
+		/// profile as `(unavailable)`. Both are correct for a suite and wrong
+		/// for a person.
+		///
+		/// Set from the marker `bpr_add_network_isolated_test` puts into every
+		/// registered test's environment. That function is the one registration
+		/// seam for every isolated test on all three platforms, and
+		/// `scripts/verify_test_network_isolation.py` audits that no row escapes
+		/// it, so this cannot be lost by forgetting a flag -- which matters,
+		/// because the row that lost it would be the row allowed to open a
+		/// browser on whoever's machine is running the suite.
+		///
+		/// Only a tests-enabled build reads the environment or acts on this
+		/// field. It stays outside the build guard for the reason `NetworkDenied`
+		/// does: this header is included by a target that links the composition
+		/// without defining the guard, and a conditionally-sized record passed
+		/// by value across that seam would disagree about its own layout.
+		bool                        InsideAutomatedTestBoundary = false;
+		core::bpr_profile_id        Profile                     = core::default_bpr_profile_id;
+		core::profile_launch_intent ProfileLaunchIntent         = core::profile_launch_intent::activate;
 		/// One explicit process-owned native observation shared by profile windows.
 		std::shared_ptr<qt::motion_observer> MotionObserver;
 		/// One lazily decoded production catalog shared by every profile and window.
@@ -91,6 +118,26 @@ namespace bpr::app {
 	/// escape through the command line or diagnostics.
 	[[nodiscard]] auto initialize_or_reset_designated_live_replay_state(
 		const std::filesystem::path& aApplicationDataRoot) noexcept -> bool;
+
+	/// \brief Names the device-authorization browser capability a run bound.
+	///
+	/// \details `DeviceAuthorizationBrowserComposed` answers whether anything
+	/// was bound at all. That was true of the run the owner reported, and it
+	/// told them nothing: what was bound was a recorder. This answers which
+	/// one, and it is reported by the composition rather than inferred from the
+	/// build's defines, because [[BPR-0797]] is the discovery that the defines
+	/// were the wrong witness.
+	enum class composed_device_browser : std::uint8_t {
+		// Nothing bound. The construction cut, and the only state in which the
+		// handoff may answer `unavailable`.
+		none,
+		// `bpr::app::system_browser_opener`, which hands the address to the
+		// desktop. What a person running this application gets, in either graph.
+		system,
+		// The recording stand-in, which keeps the address, counts the call and
+		// starts no program. Only a run inside the automated test boundary.
+		recording,
+	};
 
 	/// \brief Describes the github application status record.
 	struct github_application_status
@@ -262,6 +309,16 @@ namespace bpr::app {
 		// browser; the construction cut binds none, and only then may the
 		// action answer `unavailable`.
 		bool DeviceAuthorizationBrowserComposed = false;
+		// [[BPR-0797]]. Which one of them, which is the question the line above
+		// cannot answer and the owner's report turned on.
+		composed_device_browser DeviceAuthorizationBrowser
+			= composed_device_browser::none;
+		// [[BPR-0797]]. Whether the composed wire-transport factory can make a
+		// GitHub CLI read at all. Read off the factory this run actually holds,
+		// not off the platform or the build: a factory that answers false is a
+		// GitHub CLI profile with nothing behind it, which is what the account
+		// row was calling `(unavailable)`.
+		bool ComposedCliReadAvailable = false;
 		// The fate of the last handoff attempt in this run, kept across the
 		// stage change that clears it from the live presentation. Reported
 		// rather than the current value, because a run that finished

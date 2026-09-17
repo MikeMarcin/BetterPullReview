@@ -100,7 +100,18 @@ namespace bpr::qt {
 			case device_authorization_handoff::not_attempted:
 				return { };
 			case device_authorization_handoff::opened:
-				return QObject::tr("Opened in your browser.");
+				// [[BPR-0797]]. What this knows is that the launch was handed
+				// to the desktop and accepted. It does not know that a browser
+				// drew anything: `QDesktopServices::openUrl` returns when the
+				// request is dispatched, and the window it asks for is a window
+				// on somebody's screen, which this process cannot see. The
+				// sentence used to say "Opened in your browser." and the owner
+				// read it while nothing opened, so it now says what happened
+				// and leaves the same way out the other three leave -- the code
+				// and the address are already on the screen above it.
+				return QObject::tr(
+					"Your browser was asked to open the page. If it did not, "
+					"enter the code at the address above on any device.");
 			case device_authorization_handoff::refused:
 				return QObject::tr(
 					"That address is not this profile's sign-in address, so it "

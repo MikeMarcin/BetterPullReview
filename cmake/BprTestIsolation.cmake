@@ -639,6 +639,43 @@ function(bpr_add_network_isolated_test)
         PROPERTY LABELS "${bpr_isolation_label}"
     )
 
+    # BPR-0797. The one thing a composed process cannot work out for itself:
+    # whether it is running inside the automated test boundary. `src/app`
+    # reads this to decide whether it may bind the real system browser opener
+    # and the real GitHub CLI transport, or must install the recording
+    # stand-ins instead. That decision used to be made at build time by
+    # `BPR_BUILD_TESTING`, so the application a person actually ran carried
+    # the stand-ins and reported "Opened in your browser" without opening one.
+    #
+    # Set here because this function is the single registration seam for every
+    # isolated test on all three platforms: a row added later inherits the
+    # marker and the answer cannot drift, and no test author has to remember
+    # to answer it. The asymmetry is the one the boundary itself is built on -
+    # a fixture transport reached by mistake writes a line to a log, and a
+    # browser opened by mistake opens a browser on whoever is running the
+    # suite. A row that escaped this seam is a row allowed to do the second.
+    #
+    # ENVIRONMENT_MODIFICATION rather than ENVIRONMENT, and that is not a
+    # style choice. `set_tests_properties(<row> PROPERTIES ENVIRONMENT ...)`
+    # runs after this function returns and replaces the property outright, so
+    # an APPEND to ENVIRONMENT here is erased by each of the hundred-odd rows
+    # in tests/adapters_qt and tests/end_to_end that go on to set their own
+    # `QT_QPA_PLATFORM=offscreen` - among them every
+    # `application_device_authorization_*` course, which are exactly the rows
+    # that press "Open browser". Measured on CMake 4.4.3: with the marker in
+    # ENVIRONMENT the child saw nothing at all once its row wrote an
+    # ENVIRONMENT of its own; with it here the child saw the marker and the
+    # row's own variable together, because CTest applies
+    # ENVIRONMENT_MODIFICATION after ENVIRONMENT and nothing a row writes can
+    # reach it. `scripts/verify_test_network_isolation.py` reads this exact
+    # entry back out of CTest's own manifest for every configured row, so a
+    # row that loses it fails the manifest gate instead of opening a browser.
+    set_property(
+        TEST "${bpr_test_NAME}"
+        APPEND
+        PROPERTY ENVIRONMENT_MODIFICATION "BPR_AUTOMATED_TEST_BOUNDARY=set:1"
+    )
+
     # BPR-0552. Every row registered here fails on the run's own verdict,
     # whatever else it pins.
     #

@@ -521,6 +521,98 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# BPR-0797. Which capabilities the runnable application composes, asserted by
+# identity, in the two configurations it is run in.
+#
+# Every other row here either injects its own opener or asserts widgets and
+# sentences, so every one of them passed while the button a person presses
+# reached `recording_device_authorization_browser` -- whose `open()` is
+# `++Opens; return true;` -- and the account row said "Opened in your browser."
+# about a browser nothing had asked to open. The owner reported exactly that.
+# `device_browser_opens()` had no reader in tests/ at all.
+#
+# The pair differs in one thing: whether the automated test boundary marker
+# that `bpr_add_network_isolated_test` injects is present. The first row is an
+# ordinary run and must compose the recorder, which is the guarantee that no
+# suite can start a browser. The second takes the marker away, which is the
+# configuration a person's own build runs in, and must compose
+# `system_browser_opener` and offer the real GitHub CLI read.
+#
+# Neither opens anything. The probe composes, reports and shuts down at the
+# start stage: it selects no device path, so no verification address exists to
+# hand anywhere, and it runs no CLI course, so it needs no platform vault and
+# passes on a station whose keychain is locked (the limitation BPR-0775
+# recorded for every fixture-less self-test row). `--network-denied` composes
+# the device wire against a closed loopback port besides, and on macOS the
+# sandbox denies egress. Independent reasons, because the row that gets this
+# wrong opens a browser on whoever is running the suite.
+if(APPLE)
+    set(bpr_product_run_cli_read "available")
+    set(bpr_product_run_cli_label "GitHub CLI \\(uses your gh sign-in\\)")
+else()
+    # RFC-BPR-0015 enables the CLI read on macOS only, so off macOS the product
+    # run composes the same answer as a suite does, for a different reason.
+    set(bpr_product_run_cli_read "unavailable")
+    set(bpr_product_run_cli_label "GitHub CLI \\(unavailable\\)")
+endif()
+bpr_add_network_isolated_test(
+    NAME application_composition_capabilities_inside_boundary
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --composition-capability-probe
+        --network-denied
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_composition_capabilities_inside_boundary
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "COMPOSITION_TEST_BOUNDARY:inside[\r\n]+COMPOSITION_BROWSER:recording[\r\n]+COMPOSITION_CLI_READ:unavailable[\r\n]+COMPOSITION_CLI_LABEL:GitHub\\.com .+ GitHub CLI \\(unavailable\\)"
+)
+bpr_bound_automated_run(
+    application_composition_capabilities_inside_boundary
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+bpr_add_network_isolated_test(
+    NAME application_composition_capabilities_product_run
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --composition-capability-probe
+        --network-denied
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_composition_capabilities_product_run
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "COMPOSITION_TEST_BOUNDARY:outside[\r\n]+COMPOSITION_BROWSER:system[\r\n]+COMPOSITION_CLI_READ:${bpr_product_run_cli_read}[\r\n]+COMPOSITION_CLI_LABEL:GitHub\\.com .+ ${bpr_product_run_cli_label}"
+)
+# The one row in the tree that stands outside the boundary on purpose. Appended
+# after the seam's own `set:1`, and `ENVIRONMENT_MODIFICATION` is applied in
+# list order, so this erases it for this row and no other.
+set_property(
+    TEST application_composition_capabilities_product_run
+    APPEND
+    PROPERTY ENVIRONMENT_MODIFICATION "BPR_AUTOMATED_TEST_BOUNDARY=unset:"
+)
+bpr_bound_automated_run(
+    application_composition_capabilities_product_run
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 # [[BPR-0526]]'s mount, and its construction cut, on the same terms as the
 # browser pair above: one course, one difference. The first starts the flow by
 # pressing the begin control on the panel the shipped window mounts, found by
