@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0824"
 title: "Linux: the workbench position rule and the review ledger reopen fail only on Linux"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0007", "RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux under BPR-0816 (pre-existing)","found_at":"4883dbd9","run":"run-20260916-stations","dispatch":"dsp-002"}
-parked_on: "human-review"
+acceptance: [{"criterion":"All four pass on the Linux station, and the causes are named here","outcome":"pass","revision":"de528ce3","evidence":{"kind":"artifact","detail":"bpr-linux: qt_workbench_window_scale_100/125/200 pass (20.85/21.49/22.62 s) and application_review_ledger_composition_contract passes 10/10 on repeat at de528ce3; causes named (ledger probe race on ReceiptLoadHits; strip width depended on previous resize and a lagging toolbar size hint; forced basic style never sets WA_Hover); docs/verification/BPR-0824-linux-workbench-and-ledger.md. Seam course scoped by integrator decision (a)."}},{"criterion":"They still pass on macOS","outcome":"pass","revision":"5899f1d6bee34b4987bc9ebdfa1643aacc5c6e58","evidence":{"kind":"command","detail":"After merging linux-lane 3b968fcc (fe629c90): qt_workbench_window_scale_100/125/200 and application_review_ledger_composition_contract pass, the ledger contract 3/3 on repeat; application_review_ledger_host passes (build/r2-logs/dsp2-int9-*.log)."}}]
 ---
 
 # BPR-0824: Linux: the workbench position rule and the review ledger reopen fail only on Linux
@@ -119,3 +119,34 @@ cannot finish.
 **Follow-up candidate, not changed.** `review_ledger_round_trip` still takes
 "present on entry" from `ReceiptLoadHits > 0U`, which the same re-read can
 satisfy.
+
+## Integrator decision and macOS run (dsp-002)
+
+**The seam-course question is answered by the integrator: option (a).** It is
+a test-scoping question, not product policy, and the answer keeps both
+claims honest.
+
+- The premise "the style sets `Qt::WA_Hover`" is a claim about the
+  application's own styles. It stays asserted where they run: macOS, the
+  platform the test comment names, and Windows through its native style.
+- The headless Linux lane forces a basic Windows style that no Linux user
+  gets. Granting the attribute there, as `3eff1b10` does, still checks what
+  the course is for: hover repaints and `underMouse()` over a resting handle.
+- Option (b) would make the Linux lane assert a Fusion instance the product
+  does not install either.
+
+Whether gtk or Breeze themes set the attribute is a native Linux desktop
+question, outside a headless offscreen course. It is not claimed here. The
+owner can still override this decision.
+
+**macOS after the merge of `linux-lane` `3b968fcc` into main (`fe629c90`).**
+`build/r2-logs/dsp2-int9-courses.log` and `dsp2-int9-repeat.log`:
+
+- `qt_workbench_window_scale_100`, `_125` and `_200` pass (18.46, 18.16 and
+  18.54 s), and so does `application_review_ledger_composition_contract`
+  (35.31 s);
+- the ledger contract passes 3 of 3 on repeat;
+- `application_review_ledger_host` passes (`dsp2-int9-units.log`).
+
+The follow-up this card named, "present on entry" in the round trip, is
+[[BPR-0830]].
