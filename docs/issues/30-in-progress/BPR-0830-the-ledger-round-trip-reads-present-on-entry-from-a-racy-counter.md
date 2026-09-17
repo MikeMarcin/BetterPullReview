@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0830"
 title: "The ledger round trip still reads \"present on entry\" from a counter the window's re-read can satisfy"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0007"]
 depends_on: []
 priority: "P3"
