@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0823"
 title: "Two appearance contracts never see the diff evidence comparison"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
