@@ -5,14 +5,29 @@
 - **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2` (station
   `bpr-linux/int-1`), mandate r2 with integrator amendments 1 and 2, task
   `task-20260917-lnx-evidence`. Station `bpr-linux` (`stn-3f7fcc92`, `wsl2`),
-  branch `linux-lane`, authority `lane-commit`. Cards in order: BPR-0622
-  (evidence only; its card stays In Progress and unedited), BPR-0799, BPR-0731.
-- **BPR-0622 state.** The Linux run of the Unix recovery set is recorded below.
-  Five of eight pass. The three failures match known platform-independent
-  defects; none of them is Linux-specific. The card stays In Progress: the
-  non-Unix implementation and Windows native evidence remain open.
-- **Next step.** BPR-0799, then BPR-0731, from the same `app-release` and `dev`
-  trees. Their evidence lives in their own files.
+  branch `linux-lane`, authority `lane-commit`.
+- **Task state: all three cards recorded and pushed.** No card was moved.
+- **BPR-0622** stays In Progress, unedited.
+  - This file holds its Linux run: five of eight pass, including the `flock`
+    and `waitid` courses.
+  - The three failures are platform-independent known defects (BPR-0808,
+    BPR-0807, BPR-0802).
+- **BPR-0799** stays in Backlog and is not Done.
+  - [Its evidence](BPR-0799-linux-native-empty-desktop-quit.md) meets
+    criteria 2 and 3 natively.
+  - Criterion 1 holds at umask `0022` and fails at `0002`: exit 1 from the
+    agent workspace neighbourhood refusal. That is reported for a design
+    decision.
+  - Moving the card would rewrite `docs/rfcs/README.md`.
+- **BPR-0731** stays in Backlog with its acceptance met on Linux:
+  [packaged and developer inventories identical](BPR-0731-linux-settings-inventory.md).
+  Main still has to add the BPR-0593 AC-11 ledger link and move the card,
+  because a move rewrites BPR-0593 and BPR-0683.
+- **Open for the integrator.**
+  - The GCC 15.2 `-Werror` failures outside BPR-0622's path, listed below.
+  - The umask `0002` / group-writable data-root parent exit 1, which also fails
+    `application_profile_management_public_path` under the stock `/tmp`.
+  - The BPR-0808 hypothesis below.
 
 ## Station, task and revisions
 
