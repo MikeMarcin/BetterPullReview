@@ -18937,8 +18937,9 @@ namespace bpr::app {
 		}
 
 		const auto statistics = implementation->ReviewLedgerHost->statistics();
+		// [[BPR-0830]]. Not `ReceiptLoadHits`: a queued refresh_shared_ledger re-read of a receipt committed in this process counts there too.
 		implementation->ReviewLedgerWasPresentOnEntry
-			= statistics.ReceiptLoadHits > 0U;
+			= statistics.MaterialReceiptHits > 0U;
 		const auto& selected = *implementation->LastSelectedDiff;
 		const auto  material = core::comparison_digest(selected.Key);
 		const auto  before   = implementation->ReviewLedgerHost->retained();

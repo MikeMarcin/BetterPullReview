@@ -1285,8 +1285,9 @@ typed targets, and orderly shutdown. Its fixed markers include
 fixture root and no GitHub or developer worktree mutation occurs. The epoch
 catalog and review-ledger database persist under that same root, but this
 maintenance course does not use `REVIEW_LEDGER_PRESENT_ON_ENTRY` as existence
-proof: the marker counts a receipt hit after a selected-material load, which
-the prune branch does not execute before maintenance. The dedicated
+proof: the marker reports a receipt hit by the selected-material observation
+itself (`MaterialReceiptHits`, [[BPR-0830]]), which the prune branch does not
+execute before maintenance. The dedicated
 `application_review_ledger_composition_contract` owns exact seed/reopen receipt
 load evidence.
 
