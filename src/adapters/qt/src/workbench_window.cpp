@@ -3400,7 +3400,7 @@ namespace bpr::qt {
 			.Account  = EnterpriseServerAccount->text().trimmed().toStdString(),
 		};
 		if (!application::valid(server)) {
-			EnterpriseServerRefusal->setText(QStringLiteral("Enter a hostname such as github.example.com, without https:// or a path."));
+			EnterpriseServerRefusal->setText(QStringLiteral("Enter a hostname such as github.example.com, without a scheme or a path."));
 			EnterpriseServerRefusal->show();
 			return;
 		}
@@ -6340,8 +6340,8 @@ namespace bpr::qt {
 			shown.ConnectDescription = admitted
 				? QStringLiteral("Chooses %1 and connects it.").arg(QString::fromStdString(card->hostname()))
 				: SessionPanel->connect_description();
-			shown.PublicPreview    = SessionPanel->public_preview();
-			shown.PublicPreviewNow = SessionPanel->public_preview_now();
+			shown.PublicPreview      = SessionPanel->public_preview();
+			shown.PublicPreviewNow   = SessionPanel->public_preview_now();
 			if (shown.Current) {
 				switch (status) {
 				case core::github_status::no_profile:
@@ -6388,10 +6388,10 @@ namespace bpr::qt {
 			shown.DeviceSignIn  = holdsSignIn && deviceFlow && flowHere;
 			// Sign in is shown only while its way in is admitted: the device
 			// flow's begin for a host with one, otherwise Connect.
-			shown.SignInAdmitted   = card->offers_device_sign_in()
+			shown.SignInAdmitted = card->offers_device_sign_in()
 				? DevicePanel != nullptr && DevicePanel->begin_button()->isEnabled()
 				: admitted;
-			const auto signedIn    = shown.State == server_card_state::connected && shown.Session.has_value();
+			const auto signedIn  = shown.State == server_card_state::connected && shown.Session.has_value();
 			if (holdsSignIn && deviceSigning && !signedIn) {
 				shown.State = server_card_state::signing_in;
 			}

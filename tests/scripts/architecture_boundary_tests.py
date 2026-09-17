@@ -344,6 +344,9 @@ public:
 
 auto make_github_cli_process_runner()
     -> std::unique_ptr<github_cli_process_port>;
+auto make_github_cli_git_acquisition_process_runner(
+    github_cli_process_file_limits aFileLimits)
+    -> std::unique_ptr<github_cli_process_port>;
 auto make_github_cli_process_runner_for_test(
     std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
     -> std::unique_ptr<github_cli_process_port>;
@@ -915,6 +918,7 @@ public:
 
 private:
     std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
+    github_cli_process_file_limits FileLimits;
     std::mutex WorkerMutex;
     std::unique_ptr<process_worker> Worker;
 };
@@ -929,6 +933,22 @@ make_qprocess_github_cli_process_runner(
 auto make_github_cli_process_runner()
     -> std::unique_ptr<github_cli_process_port> {
     return make_qprocess_github_cli_process_runner(nullptr);
+}
+
+auto make_github_cli_git_acquisition_process_runner(
+    github_cli_process_file_limits aFileLimits)
+    -> std::unique_ptr<github_cli_process_port> {
+    if (!aFileLimits.StandardOutputFile.empty()
+        && (aFileLimits.StandardOutputFile.parent_path() != aFileLimits.Directory
+            || std::filesystem::exists(aFileLimits.StandardOutputFile))) {
+        return nullptr;
+    }
+    if (aFileLimits.MaximumFileBytes == 0U || aFileLimits.MaximumFileBytes > 32U * 1024U * 1024U
+        || !aFileLimits.Directory.is_absolute() || aFileLimits.MaximumDirectoryBytes == 0U
+        || aFileLimits.MaximumDirectoryEntries == 0U || aFileLimits.MaximumDirectoryEntries > 256U) {
+        return nullptr;
+    }
+    return make_qprocess_github_cli_process_runner(nullptr, std::move(aFileLimits));
 }
 
 auto
@@ -2783,6 +2803,142 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     )
             },
         )
+        # BPR-0807: file limits reach a runner through the Git-acquisition
+        # factory, which takes nothing else and never passes a seam.
+        for path, fixture, hostile in (
+            (
+                "github_cli_process_runner.hpp",
+                GITHUB_CLI_PROCESS_RUNNER_INTERFACE,
+                (
+                    "github_cli_process_file_limits aFileLimits)",
+                    "github_cli_process_file_limits aFileLimits, "
+                    "std::shared_ptr<github_cli_process_runner_test_seam> "
+                    "seam)",
+                ),
+            ),
+            (
+                "github_cli_process_runner.hpp",
+                GITHUB_CLI_PROCESS_RUNNER_INTERFACE,
+                (
+                    "auto make_github_cli_process_runner()",
+                    "auto make_github_cli_process_runner("
+                    "github_cli_process_file_limits aFileLimits = { })",
+                ),
+            ),
+            (
+                "github_cli_process_runner.cpp",
+                GITHUB_CLI_PROCESS_RUNNER_SOURCE,
+                (
+                    "(nullptr, std::move(aFileLimits))",
+                    "(GlobalSeam, std::move(aFileLimits))",
+                ),
+            ),
+            (
+                "github_cli_process_runner.cpp",
+                GITHUB_CLI_PROCESS_RUNNER_SOURCE,
+                (
+                    "    return make_qprocess_github_cli_process_runner("
+                    "nullptr, std::move(aFileLimits));\n",
+                    "    return make_qprocess_github_cli_process_runner"
+                    " (GlobalSeam);\n"
+                    "    return make_qprocess_github_cli_process_runner("
+                    "nullptr, std::move(aFileLimits));\n",
+                ),
+            ),
+        ):
+            with self.subTest(path=path, hostile=hostile[1]):
+                self.assertIn(hostile[0], fixture)
+                self.assert_failure(
+                    "production factory must remain nullary",
+                    {
+                        "src/adapters/github/src/" + path:
+                            fixture.replace(*hostile)
+                    },
+                )
+
+    def test_cli_git_acquisition_factory_refusals_are_code_in_its_body(
+        self,
+    ) -> None:
+        # BPR-0807: the Git-acquisition factory's refusals count only as
+        # compiled code in its own body. A comment, a dead preprocessor
+        # branch, an uncalled function or a deleted guard is refused.
+        runner = "src/adapters/github/src/github_cli_process_runner.cpp"
+        spool_guard = (
+            "    if (!aFileLimits.StandardOutputFile.empty()\n"
+            "        && (aFileLimits.StandardOutputFile.parent_path()"
+            " != aFileLimits.Directory\n"
+            "            || std::filesystem::exists("
+            "aFileLimits.StandardOutputFile))) {\n"
+            "        return nullptr;\n"
+            "    }\n"
+        )
+        limit_guard = (
+            "    if (aFileLimits.MaximumFileBytes == 0U"
+            " || aFileLimits.MaximumFileBytes > 32U * 1024U * 1024U\n"
+            "        || !aFileLimits.Directory.is_absolute()"
+            " || aFileLimits.MaximumDirectoryBytes == 0U\n"
+            "        || aFileLimits.MaximumDirectoryEntries == 0U"
+            " || aFileLimits.MaximumDirectoryEntries > 256U) {\n"
+            "        return nullptr;\n"
+            "    }\n"
+        )
+        guards = spool_guard + limit_guard
+        source = GITHUB_CLI_PROCESS_RUNNER_SOURCE
+        self.assertIn(guards, source)
+        commented = "".join(
+            "    // " + line.strip() + "\n" for line in guards.splitlines()
+        )
+        uncalled = (
+            "auto unused_guards(github_cli_process_file_limits aFileLimits)\n"
+            "    -> std::unique_ptr<github_cli_process_port> {\n"
+            + guards
+            + "    return nullptr;\n"
+            "}\n"
+        )
+        for name, hostile, fragment in (
+            ("guards in line comments", source.replace(guards, commented), guards),
+            (
+                "guards in a block comment",
+                source.replace(guards, "    /*\n" + guards + "    */\n"),
+                guards,
+            ),
+            (
+                "guards under #if 0",
+                source.replace(guards, "#if 0\n" + guards + "#endif\n"),
+                guards,
+            ),
+            (
+                "guards in an uncalled function",
+                source.replace(guards, "") + uncalled,
+                guards,
+            ),
+            (
+                "zero-limit refusal deleted",
+                source.replace("aFileLimits.MaximumFileBytes == 0U || ", ""),
+                "aFileLimits.MaximumFileBytes == 0U || ",
+            ),
+            (
+                "relative-store refusal deleted",
+                source.replace("|| !aFileLimits.Directory.is_absolute() ", ""),
+                "|| !aFileLimits.Directory.is_absolute() ",
+            ),
+            (
+                "existing-spool refusal deleted",
+                source.replace(
+                    "\n            || std::filesystem::exists("
+                    "aFileLimits.StandardOutputFile)",
+                    "",
+                ),
+                "std::filesystem::exists(aFileLimits.StandardOutputFile)",
+            ),
+        ):
+            with self.subTest(factory=name):
+                self.assertIn(fragment, source)
+                self.assertNotEqual(hostile, source)
+                self.assert_failure(
+                    "Git-acquisition factory must refuse",
+                    {runner: hostile},
+                )
 
     def test_cli_runner_requires_explicit_bounded_process_lifecycle(
         self,
@@ -3643,6 +3799,84 @@ auto finish_background_reap(
                             + hostile_surface
                     },
                 )
+
+        # BPR-0807: RFC-BPR-0015 admits one guarded stdout spool, and only
+        # where the same compiled span gives the child RLIMIT_FSIZE.
+        spool = (
+            "void configure_channels(std::unique_ptr<QProcess>& process,\n"
+            "    const github_cli_process_file_limits& aFileLimits) {\n"
+            "    if (!aFileLimits.StandardOutputFile.empty()) {\n"
+            "        process->setStandardOutputFile("
+            "QString::fromStdString(aFileLimits.StandardOutputFile.string()), "
+            "QIODevice::Truncate);\n"
+            "    }\n"
+            "#if defined(Q_OS_UNIX)\n"
+            "    if (aFileLimits.MaximumFileBytes != 0U) {\n"
+            "        process->setChildProcessModifier("
+            "[limit = aFileLimits.MaximumFileBytes, child = process.get()] {\n"
+            "            const rlimit fileLimit{ static_cast<rlim_t>(limit), "
+            "static_cast<rlim_t>(limit) };\n"
+            "            if (::setrlimit(RLIMIT_FSIZE, &fileLimit) != 0) {\n"
+            "                child->failChildProcessModifier("
+            "\"file size limit\", errno);\n"
+            "            }\n"
+            "        });\n"
+            "    }\n"
+            "#endif\n"
+            "}\n"
+        )
+        limit = (
+            "            if (::setrlimit(RLIMIT_FSIZE, &fileLimit) != 0) {\n"
+            "                child->failChildProcessModifier("
+            "\"file size limit\", errno);\n"
+            "            }\n"
+        )
+        self.assertIn(limit, spool)
+        runner = "src/adapters/github/src/github_cli_process_runner.cpp"
+        result = self.run_check(
+            {runner: GITHUB_CLI_PROCESS_RUNNER_SOURCE + spool}
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        commented_limit = "".join(
+            "            // " + line.strip() + "\n"
+            for line in limit.splitlines()
+        )
+        for name, source in (
+            ("limit in line comments", spool.replace(limit, commented_limit)),
+            (
+                "limit in a block comment",
+                spool.replace(limit, "/*\n" + limit + "*/\n"),
+            ),
+            (
+                "limit under #if 0",
+                spool.replace("#if defined(Q_OS_UNIX)", "#if 0"),
+            ),
+            (
+                "limit in an uncalled function",
+                spool.replace(limit, "")
+                + "void unused_limit(const rlimit& fileLimit) {\n"
+                + limit
+                + "}\n",
+            ),
+            ("second guarded spool", spool + spool),
+            (
+                "second unguarded spool",
+                spool + 'process.setStandardOutputFile("output.log");\n',
+            ),
+        ):
+            with self.subTest(spool=name):
+                self.assert_failure(
+                    "may spool standard output only once",
+                    {runner: GITHUB_CLI_PROCESS_RUNNER_SOURCE + source},
+                )
+        self.assert_failure(
+            "Forbidden forwarded, merged, or file-redirected",
+            {
+                runner: GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                + spool
+                + 'process->setStandardErrorFile("error.log");\n'
+            },
+        )
 
         for hostile_surface in (
             "process.readAll();\n",

@@ -1074,18 +1074,26 @@ namespace bpr::adapters::github::detail {
 		}
 	}
 
-	auto make_github_cli_process_runner(github_cli_process_file_limits aFileLimits)
+	auto make_github_cli_process_runner()
+		-> std::unique_ptr<github_cli_process_port>
+	{
+		return make_qprocess_github_cli_process_runner(nullptr);
+	}
+
+	// [[BPR-0807]]. RFC-BPR-0015's Git acquisition has its own factory so the
+	// production factory above stays nullary, as the boundary gate requires,
+	// and every file-bounded runner is visible at its call site.
+	auto make_github_cli_git_acquisition_process_runner(github_cli_process_file_limits aFileLimits)
 		-> std::unique_ptr<github_cli_process_port>
 	{
 		if (!aFileLimits.StandardOutputFile.empty()
-			&& (aFileLimits.MaximumFileBytes == 0U || aFileLimits.StandardOutputFile.parent_path() != aFileLimits.Directory
+			&& (aFileLimits.StandardOutputFile.parent_path() != aFileLimits.Directory
 				|| std::filesystem::exists(aFileLimits.StandardOutputFile))) {
 			return nullptr;
 		}
-		if (aFileLimits.MaximumFileBytes != 0U
-			&& (aFileLimits.MaximumFileBytes > 32U * 1024U * 1024U || !aFileLimits.Directory.is_absolute()
-				|| aFileLimits.MaximumDirectoryBytes == 0U || aFileLimits.MaximumDirectoryEntries == 0U
-				|| aFileLimits.MaximumDirectoryEntries > 256U)) {
+		if (aFileLimits.MaximumFileBytes == 0U || aFileLimits.MaximumFileBytes > 32U * 1024U * 1024U
+			|| !aFileLimits.Directory.is_absolute() || aFileLimits.MaximumDirectoryBytes == 0U
+			|| aFileLimits.MaximumDirectoryEntries == 0U || aFileLimits.MaximumDirectoryEntries > 256U) {
 			return nullptr;
 		}
 		return make_qprocess_github_cli_process_runner(nullptr, std::move(aFileLimits));

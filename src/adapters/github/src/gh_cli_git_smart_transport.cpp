@@ -330,9 +330,7 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto local_request(const std::filesystem::path& aRoot, std::vector<std::string> aArguments,
 											 std::string aInput = { }) const -> github_cli_process_request
 			{
-				// No network, lazy object fetch, ambient Git config, or repository
-				// executable configuration participates in local pack construction.
-				return { .Executable = Git.string(), .Arguments = std::move(aArguments), .Environment = { { "GIT_CONFIG_NOSYSTEM", "1" }, { "GIT_CONFIG_GLOBAL", "/dev/null" }, { "GIT_ALLOW_PROTOCOL", "" }, { "GIT_NO_LAZY_FETCH", "1" }, { "GIT_TERMINAL_PROMPT", "0" }, { "GIT_ATTR_NOSYSTEM", "1" }, { "PATH", Git.parent_path().string() } }, .WorkingDirectory = aRoot.string(), .StandardInput = std::move(aInput), .StandardInputLimit = maximum_git_smart_request_bytes, .StandardOutputLimit = pack_limit, .StandardErrorLimit = 64U * 1024U, .Timeout = std::chrono::minutes{ 2 }, .ReapTimeout = std::chrono::seconds{ 2 } };
+				return compile_gh_cli_local_git_request(Git, aRoot, std::move(aArguments), std::move(aInput), pack_limit);
 			}
 
 			[[nodiscard]] auto viewer(gh_cli_transport& aTransport, std::stop_token aStop) -> git_smart_transport_result<github_viewer_record>
@@ -383,7 +381,7 @@ namespace bpr::adapters::github::detail {
 				const std::filesystem::path root{ directory.path().toStdString() };
 				std::filesystem::create_directory(root / "empty");
 				// Destruction reaps the worker before QTemporaryDir removes its store.
-				auto process = make_github_cli_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
+				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
 				if (!process) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
@@ -406,7 +404,7 @@ namespace bpr::adapters::github::detail {
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
-					auto cloneProcess = make_github_cli_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true });
+					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true });
 					if (!cloneProcess) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
@@ -418,7 +416,7 @@ namespace bpr::adapters::github::detail {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
 					if (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees) {
-						const auto scope  = "--git-dir=" + (root / ("clone-" + std::to_string(index) + ".git")).string();
+						const auto scope  = "--git-dir=" + gh_cli_git_clone_store(root, index).string();
 						const auto oid    = std::string{ core::canonical_hex(aWants[index]).view() };
 						const auto commit = process->run(local_request(root, { scope, "cat-file", "-t", oid }), aStop);
 						const auto tree   = process->run(local_request(root, { scope, "cat-file", "-t", oid + "^{tree}" }), aStop);
@@ -454,7 +452,7 @@ namespace bpr::adapters::github::detail {
 				std::string alternates;
 				std::string revisions;
 				for (std::size_t index = 0U; index < aWants.size(); ++index) {
-					alternates += (root / ("clone-" + std::to_string(index) + ".git") / "objects").string() + "\n";
+					alternates += (gh_cli_git_clone_store(root, index) / "objects").string() + "\n";
 					revisions += std::string{ core::canonical_hex(aWants[index]).view() } + "\n";
 				}
 				write(store / "objects/info/alternates", alternates);
@@ -464,7 +462,7 @@ namespace bpr::adapters::github::detail {
 					write(store / "shallow", revisions);
 				}
 				const auto spool       = root / "wire.pack";
-				auto       packProcess = make_github_cli_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false });
+				auto       packProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false });
 				if (!packProcess) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}

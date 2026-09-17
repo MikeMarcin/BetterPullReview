@@ -12,6 +12,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -735,6 +736,46 @@ namespace {
 		expectRejected(request, "reap timeout N+1 is rejected");
 	}
 
+	// [[BPR-0807]]. The Git-acquisition factory is the only way a runner gets
+	// file limits, so it refuses a store it cannot bound before any runner
+	// exists.
+	auto test_git_acquisition_factory_refuses_unbounded_stores() -> void
+	{
+		QTemporaryDir store;
+		QTemporaryDir elsewhere;
+		expect(store.isValid() && elsewhere.isValid(), "acquisition stores are created");
+		const auto directory = std::filesystem::path{ QDir{ store.path() }.absolutePath().toStdWString() };
+		const auto other     = std::filesystem::path{ QDir{ elsewhere.path() }.absolutePath().toStdWString() };
+		const auto valid     = github_cli_process_file_limits{
+			.MaximumFileBytes        = 1024U * 1024U,
+			.Directory               = directory,
+			.MaximumDirectoryBytes   = 96U * 1024U * 1024U,
+			.MaximumDirectoryEntries = 128U,
+		};
+		const auto refused = [&valid](const auto& aChange) {
+			auto limits = valid;
+			aChange(limits);
+			return make_github_cli_git_acquisition_process_runner(std::move(limits)) == nullptr;
+		};
+		expect(make_github_cli_git_acquisition_process_runner(valid) != nullptr,
+			   "a bounded absolute store makes a runner");
+		expect(!refused([&directory](github_cli_process_file_limits& aLimits) { aLimits.StandardOutputFile = directory / "wire.pack"; }),
+			   "a fresh spool inside the store makes a runner");
+		expect(refused([](github_cli_process_file_limits& aLimits) { aLimits.MaximumFileBytes = 0U; }),
+			   "a zero per-file limit is refused");
+		expect(refused([&directory](github_cli_process_file_limits& aLimits) { aLimits.StandardOutputFile = directory / ".." / "x" / "wire.pack"; }),
+			   "a spool that climbs out of the store is refused");
+		expect(refused([&other](github_cli_process_file_limits& aLimits) { aLimits.StandardOutputFile = other / "wire.pack"; }),
+			   "a spool in another absolute directory is refused");
+		QFile existing{ QDir{ store.path() }.filePath(QStringLiteral("existing.pack")) };
+		expect(existing.open(QIODevice::WriteOnly), "a spool file exists before the runner");
+		existing.close();
+		expect(refused([&directory](github_cli_process_file_limits& aLimits) { aLimits.StandardOutputFile = directory / "existing.pack"; }),
+			   "a spool over an existing file is refused");
+		expect(refused([](github_cli_process_file_limits& aLimits) { aLimits.Directory = "relative-store"; }),
+			   "a relative store is refused");
+	}
+
 	auto test_stream_limits_and_redaction() -> void
 	{
 		QTemporaryDir directory;
@@ -1384,6 +1425,7 @@ auto main(int argc, char* argv[]) -> int
 	test_exact_process_boundary();
 	test_bare_repository_working_directory_is_rejected();
 	test_shape_limits_reject_without_launch();
+	test_git_acquisition_factory_refuses_unbounded_stores();
 	test_stream_limits_and_redaction();
 	test_completed_output_opt_in();
 #if defined(Q_OS_UNIX)

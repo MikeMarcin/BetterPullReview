@@ -3455,6 +3455,44 @@ string(
     "${github_process_runner_contents}"
 )
 list(LENGTH github_process_worker_threads github_process_worker_thread_count)
+# [[BPR-0807]] RFC-BPR-0015's Git acquisition gives a runner file limits. They
+# arrive through a second production factory, not a parameter on the nullary
+# one. That factory takes only the limits and passes no seam, and the
+# construction helper is declared once and called only by the three factories.
+# Factory and spool guards are matched over code alone: comments are removed
+# first, so a guard or call that exists only in a comment counts for nothing.
+string(
+    REGEX REPLACE
+    "/\\*([^*]|\\*+[^*/])*\\*+/"
+    " "
+    github_process_runner_code
+    "${github_process_runner_contents}"
+)
+string(
+    REGEX REPLACE
+    "//[^\r\n]*"
+    " "
+    github_process_runner_code
+    "${github_process_runner_code}"
+)
+string(
+    REGEX REPLACE
+    "[ \t\r\n]+"
+    " "
+    github_process_runner_code_compact
+    "${github_process_runner_code}"
+)
+string(
+    REGEX MATCHALL
+    "make_qprocess_github_cli_process_runner ?\\("
+    github_process_runner_constructions
+    "${github_process_runner_code_compact}"
+)
+list(
+    LENGTH
+    github_process_runner_constructions
+    github_process_runner_construction_count
+)
 if(
     github_process_runner_contents
         MATCHES
@@ -3474,11 +3512,22 @@ if(
     OR NOT github_process_runner_compact
         MATCHES
             "auto make_github_cli_process_runner_for_test\\( std::shared_ptr<github_cli_process_runner_test_seam> (test_seam|aTestSeam)\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\( std::move\\((test_seam|aTestSeam)\\)\\); \\}"
+    OR NOT github_process_runner_interface_contents
+        MATCHES
+            "make_github_cli_git_acquisition_process_runner[ \t\r\n]*\\([ \t\r\n]*github_cli_process_file_limits[ \t\r\n]+aFileLimits[ \t\r\n]*\\)[ \t\r\n]*->[ \t\r\n]*std::unique_ptr<github_cli_process_port>"
+    OR NOT github_process_runner_compact
+        MATCHES
+            "auto make_github_cli_git_acquisition_process_runner\\( ?github_cli_process_file_limits aFileLimits\\) -> std::unique_ptr<github_cli_process_port> \\{"
+    OR NOT github_process_runner_compact
+        MATCHES
+            "return make_qprocess_github_cli_process_runner\\( ?nullptr, std::move\\(aFileLimits\\)\\); \\}"
+    OR NOT github_process_runner_construction_count EQUAL 4
 )
     message(
         FATAL_ERROR
         "GitHub CLI production factory must remain nullary while the explicit "
-        "test factory and asynchronous worker retain shared seam ownership"
+        "test factory and asynchronous worker retain shared seam ownership, "
+        "and the Git-acquisition factory must take only file limits and no seam"
     )
 endif()
 
@@ -3486,9 +3535,11 @@ if(
     NOT github_process_worker_owner_count EQUAL 1
     OR NOT github_process_worker_construction_count EQUAL 1
     OR NOT github_process_worker_thread_count EQUAL 1
+    # [[BPR-0807]] RFC-BPR-0015's file limits are a value the runner hands its
+    # worker. They own no worker, so the runner stays the only owner.
     OR NOT github_process_runner_compact
         MATCHES
-            "private: std::shared_ptr<github_cli_process_runner_test_seam> TestSeam; std::mutex WorkerMutex; std::unique_ptr<process_worker> Worker; \\};"
+            "private: std::shared_ptr<github_cli_process_runner_test_seam> TestSeam; github_cli_process_file_limits FileLimits; std::mutex WorkerMutex; std::unique_ptr<process_worker> Worker; \\};"
 )
     message(
         FATAL_ERROR
@@ -3648,9 +3699,97 @@ reject_github_process_runner_surface(
     "(startCommand|splitCommand|setNativeArguments|startDetached|QProcess::execute|setCreateProcessArgumentsModifier)"
     "shell/raw-command"
 )
+# [[BPR-0807]] The Git-acquisition factory is the only source of file limits,
+# so its refusals must be code in its own body: a spool outside the store or
+# over an existing file, a zero or oversized per-file limit, a relative store,
+# and missing store thresholds. The body is matched as one span over code with
+# comments removed, so a guard in a comment, a dead preprocessor branch or an
+# uncalled function does not satisfy it. Exactly one definition may exist.
+string(
+    REGEX MATCHALL
+    "make_github_cli_git_acquisition_process_runner"
+    github_process_runner_acquisition_factories
+    "${github_process_runner_code_compact}"
+)
+list(
+    LENGTH
+    github_process_runner_acquisition_factories
+    github_process_runner_acquisition_factory_count
+)
+if(
+    NOT github_process_runner_acquisition_factory_count EQUAL 1
+    OR NOT github_process_runner_code_compact
+        MATCHES
+            "auto make_github_cli_git_acquisition_process_runner\\( ?github_cli_process_file_limits aFileLimits\\) -> std::unique_ptr<github_cli_process_port> \\{ if \\(!aFileLimits\\.StandardOutputFile\\.empty\\(\\) && \\(aFileLimits\\.StandardOutputFile\\.parent_path\\(\\) != aFileLimits\\.Directory \\|\\| std::filesystem::exists\\(aFileLimits\\.StandardOutputFile\\)\\)\\) \\{ return nullptr; \\} if \\(aFileLimits\\.MaximumFileBytes == 0U \\|\\| aFileLimits\\.MaximumFileBytes > 32U \\* 1024U \\* 1024U \\|\\| !aFileLimits\\.Directory\\.is_absolute\\(\\) \\|\\| aFileLimits\\.MaximumDirectoryBytes == 0U \\|\\| aFileLimits\\.MaximumDirectoryEntries == 0U \\|\\| aFileLimits\\.MaximumDirectoryEntries > 256U\\) \\{ return nullptr; \\} return make_qprocess_github_cli_process_runner\\( ?nullptr, std::move\\(aFileLimits\\)\\); \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI Git-acquisition factory must refuse, in its own body, a "
+        "spool outside its store or over an existing file, a zero or oversized "
+        "per-file limit, a relative store, and missing store thresholds"
+    )
+endif()
+
+# [[BPR-0807]] RFC-BPR-0015's local pack construction spools one child's
+# standard output into a new file inside the store the Git-acquisition factory
+# admitted. Admit that one guarded call only when the code that follows it
+# gives the same Unix child RLIMIT_FSIZE at the store's per-file limit. The
+# span is matched over code with comments removed, so a limit in a comment,
+# a dead preprocessor branch or an uncalled function does not admit it. Every
+# other redirect is still refused.
+set(
+    github_process_runner_spool_pattern
+    "if[ \t\r\n]*\\([ \t\r\n]*!aFileLimits\\.StandardOutputFile\\.empty\\(\\)[ \t\r\n]*\\)[ \t\r\n]*\\{[ \t\r\n]*process->setStandardOutputFile\\([ \t\r\n]*QString::fromStdString\\(aFileLimits\\.StandardOutputFile\\.string\\(\\)\\),[ \t\r\n]*QIODevice::Truncate\\);[ \t\r\n]*\\}"
+)
+set(
+    github_process_runner_spool_code
+    "if \\(!aFileLimits\\.StandardOutputFile\\.empty\\(\\)\\) \\{ process->setStandardOutputFile\\(QString::fromStdString\\(aFileLimits\\.StandardOutputFile\\.string\\(\\)\\), QIODevice::Truncate\\); \\}"
+)
+# Count the call token: the guarded text holds `;`, which a CMake list splits.
+string(
+    REGEX MATCHALL
+    "setStandardOutputFile"
+    github_process_runner_output_files
+    "${github_process_runner_code_compact}"
+)
+list(
+    LENGTH
+    github_process_runner_output_files
+    github_process_runner_output_file_count
+)
+set(
+    github_process_runner_contents_with_spool
+    "${github_process_runner_contents}"
+)
+if(github_process_runner_code_compact MATCHES "${github_process_runner_spool_code}")
+    if(
+        NOT github_process_runner_output_file_count EQUAL 1
+        OR NOT github_process_runner_code_compact
+            MATCHES
+                "${github_process_runner_spool_code} #if defined\\(Q_OS_UNIX\\) if \\(aFileLimits\\.MaximumFileBytes != 0U\\) \\{ process->setChildProcessModifier\\(\\[limit = aFileLimits\\.MaximumFileBytes, child = process\\.get\\(\\)\\] \\{ const rlimit fileLimit\\{ static_cast<rlim_t>\\(limit\\), static_cast<rlim_t>\\(limit\\) \\}; if \\(::setrlimit\\(RLIMIT_FSIZE, &fileLimit\\) != 0\\) \\{ child->failChildProcessModifier\\(\"file size limit\", errno\\); \\} \\}\\); \\}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner may spool standard output only once, "
+            "into a new file inside its admitted store, and only where the same "
+            "child sets RLIMIT_FSIZE"
+        )
+    endif()
+    string(
+        REGEX REPLACE
+        "${github_process_runner_spool_pattern}"
+        ""
+        github_process_runner_contents
+        "${github_process_runner_contents}"
+    )
+endif()
 reject_github_process_runner_surface(
     "(QProcess::(ForwardedChannels|ForwardedOutputChannel|ForwardedErrorChannel|MergedChannels)|setProcessChannelMode[ \t\r\n]*\\([ \t\r\n]*QProcess::(Forwarded|Merged)|setStandardOutputProcess|setStandard(Input|Output|Error)File)"
     "forwarded, merged, or file-redirected process channel"
+)
+set(
+    github_process_runner_contents
+    "${github_process_runner_contents_with_spool}"
 )
 
 set(

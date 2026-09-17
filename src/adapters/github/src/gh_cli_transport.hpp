@@ -185,6 +185,19 @@ namespace bpr::adapters::github::detail {
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
 		std::size_t aIndex) -> std::optional<github_cli_process_request>;
 
+	/// \brief Names the bare store that clone \p aIndex writes under \p aRoot.
+	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)
+		-> std::filesystem::path;
+
+	/// \brief Compiles one credential-free local Git request over an owned store.
+	/// \details The environment is built from nothing. No network, lazy object
+	/// fetch, ambient Git configuration, or repository executable configuration
+	/// participates, and `PATH` holds only the directory of \p aGit.
+	[[nodiscard]] auto compile_gh_cli_local_git_request(
+		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
+		std::vector<std::string> aArguments, std::string aInput,
+		std::size_t aStandardOutputLimit) -> github_cli_process_request;
+
 	enum class gh_cli_availability_reason : std::uint8_t {
 		opt_in_product_scope_in_progress,
 		executable_identity_unverifiable,

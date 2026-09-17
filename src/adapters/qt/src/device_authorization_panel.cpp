@@ -102,7 +102,7 @@ namespace bpr::qt {
 			case device_authorization_handoff::opened:
 				// [[BPR-0797]]. What this knows is that the launch was handed
 				// to the desktop and accepted. It does not know that a browser
-				// drew anything: `QDesktopServices::openUrl` returns when the
+				// drew anything: the host's desktop open call returns when the
 				// request is dispatched, and the window it asks for is a window
 				// on somebody's screen, which this process cannot see. The
 				// sentence used to say "Opened in your browser." and the owner

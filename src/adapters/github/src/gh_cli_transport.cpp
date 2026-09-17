@@ -1212,7 +1212,7 @@ namespace bpr::adapters::github::detail {
 			return std::nullopt;
 		}
 		std::vector<std::string> arguments = { "repo", "clone", "https://" + std::string{ aProfile.hostname() } + "/" + aContext.Repository.Owner + "/" + aContext.Repository.Name + ".git",
-											   path_bytes(root / ("clone-" + std::to_string(aIndex) + ".git")), "--no-upstream", "--",
+											   path_bytes(gh_cli_git_clone_store(root, aIndex)), "--no-upstream", "--",
 											   "--bare", "--quiet", "--revision=" + std::string{ core::canonical_hex(aCommit).view() },
 											   "--template=" + path_bytes(root / "empty"), "--config", "transfer.unpackLimit=0",
 											   "--config", "fetch.unpackLimit=0", "--config", "core.hooksPath=/dev/null",
@@ -1236,6 +1236,39 @@ namespace bpr::adapters::github::detail {
 								   },
 								   path_bytes(root));
 #endif
+	}
+
+	auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, const std::size_t aIndex)
+		-> std::filesystem::path
+	{
+		return aRoot / ("clone-" + std::to_string(aIndex) + ".git");
+	}
+
+	auto compile_gh_cli_local_git_request(
+		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
+		std::vector<std::string> aArguments, std::string aInput,
+		const std::size_t aStandardOutputLimit) -> github_cli_process_request
+	{
+		auto environment = std::vector<github_cli_process_environment_entry>{ };
+		append_fixed_environment(environment, "GIT_CONFIG_NOSYSTEM=1");
+		append_fixed_environment(environment, "GIT_CONFIG_GLOBAL=/dev/null");
+		append_fixed_environment(environment, "GIT_ALLOW_PROTOCOL=");
+		append_fixed_environment(environment, "GIT_NO_LAZY_FETCH=1");
+		append_fixed_environment(environment, "GIT_TERMINAL_PROMPT=0");
+		append_fixed_environment(environment, "GIT_ATTR_NOSYSTEM=1");
+		append_environment(environment, "PATH", path_bytes(aGit.parent_path()));
+		return github_cli_process_request{
+			.Executable          = path_bytes(aGit),
+			.Arguments           = std::move(aArguments),
+			.Environment         = std::move(environment),
+			.WorkingDirectory    = path_bytes(aRoot),
+			.StandardInput       = std::move(aInput),
+			.StandardInputLimit  = application::maximum_git_smart_request_bytes,
+			.StandardOutputLimit = aStandardOutputLimit,
+			.StandardErrorLimit  = 64U * 1024U,
+			.Timeout             = std::chrono::minutes{ 2 },
+			.ReapTimeout         = std::chrono::seconds{ 2 },
+		};
 	}
 
 	gh_cli_transport::gh_cli_transport(

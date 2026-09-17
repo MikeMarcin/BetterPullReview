@@ -34,7 +34,15 @@ namespace bpr::adapters::github::detail {
 		virtual auto before_execute() -> void = 0;
 	};
 
-	[[nodiscard]] auto make_github_cli_process_runner(github_cli_process_file_limits aFileLimits = { })
+	[[nodiscard]] auto make_github_cli_process_runner()
+		-> std::unique_ptr<github_cli_process_port>;
+
+	/// \brief Makes a production runner whose child files stay in one owned store.
+	/// \details Returns null unless \p aFileLimits names an absolute store with
+	/// a per-file ceiling and an abort threshold. Like the nullary factory, it
+	/// never takes a test seam.
+	[[nodiscard]] auto make_github_cli_git_acquisition_process_runner(
+		github_cli_process_file_limits aFileLimits)
 		-> std::unique_ptr<github_cli_process_port>;
 
 	[[nodiscard]] auto make_github_cli_process_runner_for_test(
