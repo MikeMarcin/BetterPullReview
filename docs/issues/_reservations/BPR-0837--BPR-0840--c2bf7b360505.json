@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0837",
+    "BPR-0838",
+    "BPR-0839",
+    "BPR-0840"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-003: integration findings (architecture contract fixture, acquisition counter race, redundant historical import, chat stale under parallel load)",
+  "created": "2026-09-17T11:53:04.839782+00:00",
+  "base": "5a2e264aa0e23f2497665185f4390265e3c4e765"
+}
