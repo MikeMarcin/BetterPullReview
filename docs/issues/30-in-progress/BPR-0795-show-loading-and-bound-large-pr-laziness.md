@@ -97,3 +97,24 @@ accessibility clicks left Native HTTPS selected, pointer actions returned
 was quit and confirmed absent. No target Open or new loading/diff observation
 occurred, so the native product exit and both cards remain open; the prior
 focused and integration checks still apply to unchanged code.
+
+## Attended preparation at main `94f6f885` (dsp-003)
+
+A tests-disabled bundle was built from `94f6f885`, signed with the stable
+Developer ID identity, and passed `codesign --verify --deep --strict`
+(`BUILD_TESTING=OFF`). It is at
+`/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app`,
+with executable SHA-256
+`96fa16fea8983347303c6ce18095f147871b7d45ef51537d48097ac6004e1bfa`. A
+`--self-test` run printed `AUTOMATED_PROFILE_PRIVATE_OK` and did not touch
+the Default profile.
+
+The BPR-0794/0795 focused set was rerun at that source and passed 13 of 13
+(`build/r2-logs/dsp3-bundle-focused-ctest.log`).
+`application_epoch_portable_occurrence_two_catalogues` also passed
+(`dsp3-bundle-portable-ctest.log`).
+
+[the rfc-bpr-0013-attended-v001 packet](../../verification/reviews/rfc-bpr-0013-attended-v001/operator-packet.md) holds three ready, protected questions in the checkout's attended-review
+session: `BPR-0794-cli-selected-diff`, `BPR-0795-loading-visible` and
+`BPR-0644-device-relaunch-8h`. The human part is open. The owner must quit
+their own running BetterPullReview before launching the bundle.

@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0794-cli-selected-diff",
+      "title": "BPR-0794: a readable selected diff of EpicGames/UnrealEngine#1773 through the GitHub CLI profile",
+      "revision": "app-release-dsp3-96fa16fe-2026-09-17.1",
+      "criteria": [
+        "Through the already opted-in GitHub.com GitHub CLI profile, the tests-disabled app shows the correct file list and a readable selected diff for EpicGames/UnrealEngine#1773, and that diff's source and review-thread anchors belong to the accepted epoch pair the app shows (its Right OID is the pull request's current head commit)"
+      ],
+      "content": "1. Quit your own running BetterPullReview first. It holds the Default profile; while it runs, opening this bundle only hands it an activation and you would be judging the wrong build. In Terminal, /usr/bin/pgrep -il 'betterpullreview|better_pull_review' must print nothing.\n2. Launch the exact tests-disabled bundle with the command below: /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app. Its executable is /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview with SHA-256 96fa16fea8983347303c6ce18095f147871b7d45ef51537d48097ac6004e1bfa.\n3. Open Settings (Command-comma), then Accounts & hosts. On the GitHub.com card choose GitHub CLI (uses your gh sign-in). If the Use configured GitHub CLI warning appears, it is the read opt-in you already gave; choose Yes only if you still accept reads through your installed gh. Connecting for reads does not publish anything.\n4. On Home, paste the pull request link below into the bar and press Return. Wait for the pull request to be ready.\n5. Compare the file count with the Files changed count GitHub shows for the same pull request (1,523 at the last observation; GitHub's current number is the reference).\n6. Select a file you can also open on GitHub. Wait for Loading selected file comparison... to become Diff ready.\n7. In the epoch comparison control, read Left OID, Right OID and the line that should say Left available; right available. Ready for diff. The Right OID must equal the pull request's current head commit: the latest commit on GitHub's Commits tab, or the read-only command below. The selected file's changed lines must match GitHub's Files changed view of that file, and a review thread on that file, if it has one, must sit on the same line as on GitHub.\n8. Accept only if the file list, the readable diff and that identity all hold. Otherwise reject and say which step failed, or quote the app's refusal wording (for example No exact pair is resolved., or a selected_file_stale refusal). Do not type file paths, code, commit IDs, thread text, tokens or any other private content into the note.\nKeep the app open for the BPR-0795 item, which watches this same read, and do BPR-0644 afterwards. Nothing in this item writes to GitHub.",
+      "paths": [
+        "src/adapters/git/src/installed_git_cache.cpp",
+        "src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+        "src/adapters/github/src/gh_cli_transport.cpp",
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/epoch_comparison_control.cpp",
+        "src/app/src/github_application.cpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/core/include/bpr/core/epoch_model.hpp",
+        "src/core/src/epoch_transition.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app": "96fa16fea8983347303c6ce18095f147871b7d45ef51537d48097ac6004e1bfa"
+      },
+      "launch": {
+        "label": "Open the stable-signed, tests-disabled dsp3 bundle (only after your own BetterPullReview has quit)",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app"
+      },
+      "copy": [
+        {
+          "label": "Confirm no BetterPullReview is running (prints nothing)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Pull request link for Home",
+          "value": "https://github.com/EpicGames/UnrealEngine/pull/1773"
+        },
+        {
+          "label": "Optional read-only head commit check with your own gh (compare locally; do not paste the result here)",
+          "value": "gh pr view 1773 --repo EpicGames/UnrealEngine --json headRefOid,changedFiles"
+        }
+      ],
+      "metadata": {
+        "source_commit": "94f6f8859993be4fea63c52855bab4f0144b185e",
+        "run": "run-20260916-stations",
+        "dispatch": "dsp-003",
+        "mandate": "r3",
+        "slice": "dsp3-bundle",
+        "card": "docs/issues/30-in-progress/BPR-0794-resolve-selected-diff-epoch-pair.md",
+        "acceptance": "bullet 4"
+      }
+    },
+    {
+      "id": "BPR-0795-loading-visible",
+      "title": "BPR-0795: the loading state a person sees on that same large read",
+      "revision": "app-release-dsp3-96fa16fe-2026-09-17.1",
+      "criteria": [
+        "On the EpicGames/UnrealEngine#1773 read, pressing Return on the link and then selecting a file each shows a visible loading state promptly, and the window stays responsive until the pull request and the selected diff are ready"
+      ],
+      "content": "Watch the BPR-0794 read as it happens; do not start a second one. Its steps 1 to 3 apply unchanged: quit your own running BetterPullReview first (it holds the Default profile), confirm /usr/bin/pgrep -il 'betterpullreview|better_pull_review' prints nothing, launch /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app and select the GitHub.com GitHub CLI profile.\n1. Press Return on the link. With no noticeable pause, the workbench should say Loading pull request... (BetterPullReview is reading the selected GitHub snapshot.) instead of staying on the previous view or freezing.\n2. Select a file. The diff area should promptly say Loading selected file comparison... before Diff ready.\n3. While each loads, move or resize the window and click elsewhere in it; it should respond.\nAccept if both loading states appeared promptly and the window stayed responsive. Otherwise reject and say which state was late or missing and roughly how many seconds it took; no file names, code or other private content in the note.\nWhat is not asked: the card's four acceptance bullets are automated checks. Which Git objects a large review fetches, and that an older update's objects wait until that update is selected, cannot be seen by eye; application_epoch_host, qt_composed_github_scale_100 and the portable two-catalogue course carry that evidence. Nothing in this item writes to GitHub.",
+      "paths": [
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/app/src/github_application.cpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/core/src/epoch_transition.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app": "96fa16fea8983347303c6ce18095f147871b7d45ef51537d48097ac6004e1bfa"
+      },
+      "launch": {
+        "label": "Open the stable-signed, tests-disabled dsp3 bundle (only after your own BetterPullReview has quit)",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app"
+      },
+      "copy": [
+        {
+          "label": "Confirm no BetterPullReview is running (prints nothing)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Pull request link for Home",
+          "value": "https://github.com/EpicGames/UnrealEngine/pull/1773"
+        }
+      ],
+      "metadata": {
+        "source_commit": "94f6f8859993be4fea63c52855bab4f0144b185e",
+        "run": "run-20260916-stations",
+        "dispatch": "dsp-003",
+        "mandate": "r3",
+        "slice": "dsp3-bundle",
+        "card": "docs/issues/30-in-progress/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+        "acceptance": "milestone selected-diff-exact-epoch-pair exit 5, person-observable part only"
+      }
+    },
+    {
+      "id": "BPR-0644-device-relaunch-8h",
+      "title": "BPR-0644: relaunch more than eight hours after a device sign-in",
+      "revision": "app-release-dsp3-96fa16fe-2026-09-17.1",
+      "criteria": [
+        "The tests-disabled Mac app relaunched more than eight hours after a device sign-in resumes the session with no credential prompt"
+      ],
+      "content": "Do this after the BPR-0794 and BPR-0795 read, so the device sign-in is the last account change before you quit. It takes two sittings more than eight hours apart.\nBefore the first launch: quit your own running BetterPullReview (it holds the Default profile) and confirm /usr/bin/pgrep -il 'betterpullreview|better_pull_review' prints nothing. If a device grant was made by a differently signed build, this bundle may be refused by the Keychain and, under today's fail-closed rule, forget that grant; step 1 then simply signs in again.\n1. In /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app, open Settings (Command-comma), then Accounts & hosts. On the GitHub.com card choose Sign in, not the GitHub CLI button. If the card already says Signed in with a device grant, choose Sign out and then Sign in, so the eight hours start from a sign-in on this bundle. Enter the device code only on GitHub's own page in your browser. Never paste a code, token or anything private anywhere else, including this review.\n2. When the card says Signed in with a device grant, write down the local time yourself. Quit the app with Command-Q within a few minutes and confirm the pgrep command prints nothing.\n3. For more than eight hours, open no BetterPullReview build, including your own /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app. Every build shares the Default profile; a differently signed one may be refused by the Keychain and erase the grant, which is a different outcome from this question.\n4. More than eight hours after step 2, confirm the pgrep command prints nothing and that /usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview still prints 96fa16fea8983347303c6ce18095f147871b7d45ef51537d48097ac6004e1bfa. If it does not, the bundle was rebuilt; stop and do not judge. Otherwise launch the same bundle with the command below.\n5. Open Settings, then Accounts & hosts, and look at the GitHub.com card.\nAccept if the session resumes (Signed in with a device grant, no Not authenticated) with no token, pasted credential, device code or Keychain password prompt. Otherwise reject and name the prompt or state you saw and the elapsed hours; nothing else. This item does not write to GitHub.",
+      "paths": [
+        "src/app/src/github_application.cpp",
+        "src/application/src/device_authorization_application_host.cpp",
+        "src/application/src/github_application_host.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app": "96fa16fea8983347303c6ce18095f147871b7d45ef51537d48097ac6004e1bfa"
+      },
+      "launch": {
+        "label": "Open the same stable-signed, tests-disabled dsp3 bundle (only after your own BetterPullReview has quit)",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app"
+      },
+      "copy": [
+        {
+          "label": "Confirm no BetterPullReview is running (prints nothing)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Confirm the bundle was not rebuilt before the relaunch",
+          "value": "/usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-dsp3/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+        }
+      ],
+      "metadata": {
+        "source_commit": "94f6f8859993be4fea63c52855bab4f0144b185e",
+        "run": "run-20260916-stations",
+        "dispatch": "dsp-003",
+        "mandate": "r3",
+        "slice": "dsp3-bundle",
+        "card": "docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md",
+        "acceptance": "criterion 4 (attended)",
+        "contains": "3ad87ee4b93b59ab324727f3ce3890b2859ac164"
+      }
+    }
+  ]
+}
