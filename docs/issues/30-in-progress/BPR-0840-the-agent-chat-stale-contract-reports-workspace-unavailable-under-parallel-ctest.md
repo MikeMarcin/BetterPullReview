@@ -56,3 +56,74 @@ machine. In each batch one row failed, and the other batch passed it
 These are the same kind of observation as the chat stale row: a composed
 agent turn that has not settled by the course's bound under heavy load. The
 scope extends to these rows.
+
+## Cause and fix (dsp-004)
+
+**The cause is [[BPR-0809]]'s supervisor race.** It is not a shared
+resource, a product timeout or the course budget.
+
+At `8a03a5be` and `6c44b6ea` the Unix agent supervisor and its forked child
+both called `setpgid`, and Darwin sometimes refused the child's call with
+EPERM. The same supervisor runs the agent and, with `--workspace-lease`, every
+Git step of workspace materialization. So one race produced two failures:
+
+- **A refused Git step.** It exits 127. That becomes `nonzero_exit`, then the
+  cache's `process_failure` (`installed_git_cache.cpp` ~4586), then
+  `agent_workspace_failure::unavailable` (`epoch_application_host.cpp:4479`),
+  then `workspace_unavailable` (`agent_invocation_host.cpp` 46-50). No process
+  starts. This is the chat stale row and, by the same shape, workshop press
+  turn 3.
+- **A refused agent launch.** It becomes `failed_to_start` "Operation not
+  permitted" (`agent_process_launcher.cpp` ~446-450). This is the full-agent
+  row, which failed in 12.7 s.
+
+Load changed only how often the race hit; each turn makes about 8 supervised
+launches. The 45-second waits ran out because a terminal failure can never
+satisfy them.
+
+**Evidence.**
+
+- **The fix predates both failures.** Both failing revisions predate BPR-0809's
+  fix at `6a596d91`.
+- **Both lines reproduce exactly** when the pre-fix EPERM start report is
+  injected:
+  - chat stale, in 55.9 s:
+    `chat-turn failed=run-quiescent process=0 replies=0 panel=Finished: workspace_unavailable run-quiescent=false`
+  - full-agent, in 11.8 s:
+    `agent-finding-positive-evidence:0:0:1:1:0:0:0:1:0:0 … panel-status:Finished: failed_to_start`
+  (`build/r2-logs/dsp4-0840-inject-*.log`)
+- **No shared resource.** Each course has its own private TMPDIR, socket root,
+  data root, workspace area, registry and Git cache root.
+- **No failures at HEAD under load.** Six instrumented batches under loads up
+  to 64 had no failures and no lock waits, including fsync and spawn load and
+  a run alongside the Git cache contracts (`dsp4-0840-repro*.log`).
+- **Negative control.** With the fix reversed, 4 batches passed 60/60, so the
+  race did not recur. That is consistent with its rate of about 0.5% per
+  launch, so the cause rests on the injected reproduction, not on this
+  control.
+
+**Fix.** No product change is needed. The only change is a test-only failure
+report: both run waits in `agent_finding_composition_public_path.cpp` now report
+the agent panel's status. A turn that ends without launching now names how it
+ended, as an injected run showed:
+`agent-run failed=run-quiescent process=0 panel=Finished: workspace_unavailable`.
+
+**Acceptance run.** It ran at `7a37d89c` with the course change; the build dir
+held no diagnostics. All 15 `application_agent_(chat|finding)_` rows passed
+together under `ctest -j 4` for 5 consecutive batches. Load averages at the
+start and end of each batch:
+
+| Batch | Start | End |
+|---|---|---|
+| 1 | 8.10 | 6.60 |
+| 2 | 6.60 | 6.07 |
+| 3 | 6.07 | 5.74 |
+| 4 | 5.74 | 5.35 |
+| 5 | 5.35 | 5.23 |
+
+The other 15 `application_agent_*` rows passed once
+(`dsp4-0840-final.log`, `dsp4-0840-accept-{1..5}.log`).
+
+**Note.** During the acceptance run the integrator edited `src/app` sources for
+[[BPR-0861]], without building. The measured binaries were built at 10:23:10,
+before those edits.

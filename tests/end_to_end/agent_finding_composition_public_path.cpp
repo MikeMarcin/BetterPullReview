@@ -508,6 +508,13 @@ auto main(int argc, char** argv) -> int
 					"process",
 					static_cast<std::uint64_t>(
 						invocation.Statistics.ProcessStarts));
+				// [[BPR-0840]]. A turn that ended without launching never
+				// satisfies this wait, so the report names how it ended.
+				aTerms.note_identifier(
+					"panel",
+					app::detail::github_application_fixture_access::
+						agent_finding_evidence(*application)
+							.AgentPanelStatusText);
 				return aTerms.require(
 						   "run-quiescent",
 						   invocation.Quiescent
@@ -539,6 +546,11 @@ auto main(int argc, char** argv) -> int
 					"process",
 					static_cast<std::uint64_t>(
 						invocation.Statistics.ProcessStarts));
+				aTerms.note_identifier(
+					"panel",
+					app::detail::github_application_fixture_access::
+						agent_finding_evidence(*application)
+							.AgentPanelStatusText);
 				return aTerms.require(
 						   "run-quiescent",
 						   invocation.Quiescent
