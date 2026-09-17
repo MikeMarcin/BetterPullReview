@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0890"
 title: "A crash after the marker is printed passes every row that has a PASS_REGULAR_EXPRESSION"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
