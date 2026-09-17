@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0853"
 title: "epoch_maintenance_integration fails on Windows reopening a copied catalog"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
