@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0841",
+    "BPR-0842",
+    "BPR-0843"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-003: BPR-0813 review hardening, agent Kernel32 gate precision, non-canonical fixture root refusal without cause",
+  "created": "2026-09-17T12:27:48.065875+00:00",
+  "base": "84ac5e0c75c37132454224adb13c2b8e6d974655"
+}
