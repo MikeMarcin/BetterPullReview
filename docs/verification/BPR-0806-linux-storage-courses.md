@@ -2,15 +2,18 @@
 
 ## Current frontier
 
-- **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2` (station
-  `bpr-linux/int-2`), mandate r2, task `task-20260917-lnx-build`. Station
-  `bpr-linux` (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`.
+- **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2`, mandate r2.
+  Station `bpr-linux` (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`. Task
+  `task-20260917-lnx-build` (station dispatch `bpr-linux/int-2`) recorded the
+  courses; task `task-20260917-lnx-verify` (`bpr-linux/int-3`) recorded the
+  BPR-0810 confirmation.
 - **State.** The Linux half of BPR-0806's fourth criterion is recorded below.
-  - Six of the seven Linux storage and profile courses pass on the stock build.
-  - `architecture_boundaries` passes.
-  - `application_profile_multi_window_public_path` aborts on a disengaged
-    `std::optional` in the course's own assertion. The failure is identical on
-    the pre-change tree and unrelated to BPR-0806's sources.
+  - Six of the seven Linux storage and profile courses passed on the stock build
+    at `4883dbd9`. `architecture_boundaries` passed.
+  - `application_profile_multi_window_public_path` aborted there on a
+    disengaged `std::optional`. [BPR-0810](../issues/60-done/BPR-0810-windows-multi-window-public-path-reaches-an-empty-optional.md)
+    fixed the cause on main. **It now passes on Linux at `c19fa196`**; see "BPR-0810
+    Linux confirmation" at the end of this file.
 - **BPR-0806** is integrator-owned and stays In Progress; this station did not
   edit it. The Windows half is
   [the Windows evidence](BPR-0806-windows-profile-storage-startup.md).
@@ -111,3 +114,53 @@ pass, and `architecture_boundaries` passes."
   are in `scout-mw/` there. None is committed.
 - **Boundaries.** No GitHub or GHES request, credential read or live agent was
   used.
+
+## BPR-0810 Linux confirmation, `task-20260917-lnx-verify`
+
+[BPR-0810](../issues/60-done/BPR-0810-windows-multi-window-public-path-reaches-an-empty-optional.md)
+found the abort above on Windows as an MSVC checked-`optional` assertion. It
+fixed it on main in `f33a10c9`: after a line selection clears the review editor,
+`adopt_review_selection` presents the selected file's accepted receipt again.
+The course also now asserts the diagnostics sink per platform. That fix is
+portable, and its Linux run had not been recorded. Station `bpr-linux` ran it for task
+`task-20260917-lnx-verify` (dispatch `dsp-001-r2`, station dispatch
+`bpr-linux/int-3`).
+
+- **Revision.** HEAD `c19fa19690bff0689f6aa81f57a75a7169a283b5`, clean. It
+  contains `f33a10c9`.
+- **Build.** Stock `dev`: `cmake --preset dev --fresh` (empty
+  `CMAKE_CXX_FLAGS`), then `cmake --build --preset dev --clean-first`. The
+  build exited 0 with 1241 of 1241 steps and no diagnostic, under GCC 15.2
+  `-Werror`. Ubuntu's GCC defines `_GLIBCXX_ASSERTIONS` for this unoptimized
+  build, as it did when the course aborted. `ninja -n` reported no pending
+  work.
+- **Host.** As above. The Secret Service `login` collection read `(<false>,)`
+  immediately before the run.
+
+```sh
+ctest --preset dev -j1 -V -R '^application_profile_multi_window_public_path$'
+```
+
+It started at 09:17:38Z and exited with ctest rc 0.
+
+| Test | Result | Duration | Marker |
+|---|---|---|---|
+| `application_profile_multi_window_public_path` | **Pass** (was: aborted at `profile_multi_window_public_path_tests.cpp:573`) | 9.59 s | `conversation unread B=2 C=2 cards B=2 C=2`, then `profile-multi-window-public-path:pass` |
+
+- **The dereference.** The course now reads `shown_receipt()` at lines 574–576
+  after the line selections. libstdc++'s `_M_is_engaged()` assertion did not
+  fire, so both windows held an engaged receipt there.
+- **The diagnostics claim.** On Linux the course takes the non-Windows branch
+  (`#if defined(_WIN32)` at line 733). It requires
+  `diagnostic_log_status::available` and keeps the exact one-startup and
+  one-shutdown assertions against `logs/diagnostics.log`, and it passed.
+- **BPR-0806's fourth criterion, Linux half.** With this course passing, all
+  seven Linux storage and profile courses and `architecture_boundaries` pass.
+  The six others and `architecture_boundaries` were not rerun at `c19fa196`;
+  their passes above are from `4883dbd9`.
+- **Limitations.** The course registers `QT_QPA_PLATFORM=offscreen` and
+  `QT_STYLE_OVERRIDE=Windows`, so it is not native UI evidence. No stack was
+  needed because the course did not abort.
+- **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-verify/`
+  (`step2-0810.ctest.log`, `courses.summary`, `stock.summary`). They are not
+  committed.
