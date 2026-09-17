@@ -38,3 +38,21 @@ observation only.
 - The cause is named here, and the agent chat and finding composition
   courses pass together under `ctest -j 4` for 5 consecutive batches on
   macOS.
+
+## More rows under load (dsp-003)
+
+At main `6c44b6ea` with [[BPR-0835]]'s named failure terms, two `ctest -j 2`
+batches of the agent-finding rows ran at load averages of 13 to 31. A
+concurrent `until-fail:40` stress run and worker builds were loading the
+machine. In each batch one row failed, and the other batch passed it
+(`build/r2-logs/dsp3-int6-ctest-{1,2}.log`):
+
+- `application_agent_finding_full_agent_contract`:
+  `positive-evidence failed=queued-findings-is-one workshop-proposals-is-one draft-body-is-suggestion deliveries-is-one …`.
+  No delivery had arrived when the course sampled.
+- `application_agent_finding_workshop_press_contract`:
+  `agent-finding-workshop-press-turn:3:failed=run-quiescent process=2 run-quiescent=false`.
+
+These are the same kind of observation as the chat stale row: a composed
+agent turn that has not settled by the course's bound under heavy load. The
+scope extends to these rows.

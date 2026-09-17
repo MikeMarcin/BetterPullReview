@@ -36,9 +36,11 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -72,11 +74,71 @@ namespace {
 		return e2e::wait_until(aTerms, aPredicate, aBudget);
 	}
 
+	/// \brief Every term of a contract read once, after the run, by name.
+	///
+	/// \details [[BPR-0835]]. `wait_terms` stops at the first false term, which
+	/// suits a wait that is evaluated again until it holds. The evidence a
+	/// course reads at its end is read once, so stopping there would hide every
+	/// false term after the first; and a course that printed only its counters
+	/// ended with none named, because the term that failed was not one of them.
+	/// Every name is a literal of this file, so nothing from the run is printed
+	/// through it.
+	class contract_terms final
+	{
+	public:
+		/// \brief Records one term and returns its value.
+		auto require(const std::string_view aName, const bool aValue) -> bool
+		{
+			if (!aValue) {
+				Failed += Failed.empty() ? "" : " ";
+				Failed += aName;
+			}
+			return aValue;
+		}
+
+		/// \brief Whether every recorded term held.
+		[[nodiscard]] auto held() const noexcept -> bool
+		{
+			return Failed.empty();
+		}
+
+		/// \brief The space-separated names of the terms that did not hold.
+		[[nodiscard]] auto failed() const noexcept -> std::string_view
+		{
+			return Failed;
+		}
+
+	private:
+		std::string Failed;
+	};
+
+	/// \brief Names the step a course stopped at, and why, on one line.
+	void report_failure(const std::string_view aStep, const std::string_view aState = { })
+	{
+		std::cerr << "agent-finding-composition-failure:" << aStep;
+		if (!aState.empty()) {
+			std::cerr << ' ' << aState;
+		}
+		std::cerr << '\n';
+	}
+
+	/// \brief Names a contract's false terms under its step, if there are any.
+	///
+	/// \returns Whether the contract held.
+	auto report_contract(const std::string_view aStep, const contract_terms& aTerms)
+		-> bool
+	{
+		if (!aTerms.held()) {
+			report_failure(aStep, "failed=" + std::string{ aTerms.failed() });
+		}
+		return aTerms.held();
+	}
+
 	[[nodiscard]] auto shutdown(app::github_application& aApplication) -> bool
 	{
 		aApplication.begin_shutdown();
-		auto terms = wait_terms{ };
-		return wait_until_reporting(
+		auto       terms    = wait_terms{ };
+		const auto complete = wait_until_reporting(
 			terms,
 			[&aApplication](wait_terms& aTerms) {
 				QApplication::processEvents();
@@ -84,6 +146,10 @@ namespace {
 					"shutdown-complete", aApplication.status().ShutdownComplete);
 			},
 			extended_agent_budget);
+		if (!complete) {
+			report_failure("shutdown", terms.render());
+		}
+		return complete;
 	}
 
 	[[nodiscard]] auto fail(
@@ -91,11 +157,7 @@ namespace {
 		const std::string_view   aReason,
 		const std::string_view   aState = { }) -> int
 	{
-		std::cerr << "agent-finding-composition-failure:" << aReason;
-		if (!aState.empty()) {
-			std::cerr << ' ' << aState;
-		}
-		std::cerr << '\n';
+		report_failure(aReason, aState);
 		static_cast<void>(shutdown(aApplication));
 		return EXIT_FAILURE;
 	}
@@ -107,39 +169,80 @@ namespace {
 	/// order, and a working directory that is the pinned snapshot root and
 	/// names no host. A supervisor that could add a fourth thing to this list
 	/// could add `--listen`.
-	[[nodiscard]] auto exact_helper_launch(
+	auto exact_helper_launch(
 		const app::detail::agent_finding_composition_evidence& aEvidence,
-		const std::filesystem::path&                           aSnapshotRoot)
-		-> bool
+		const std::filesystem::path&                           aSnapshotRoot,
+		contract_terms&                                        aTerms) -> bool
 	{
-		if (!aEvidence.McpLaunch.has_value()) {
+		if (!aTerms.require("helper-launch-described", aEvidence.McpLaunch.has_value())) {
 			return false;
 		}
 		const auto& launch = *aEvidence.McpLaunch;
 		const auto  names
 			= application::mcp_context_helper_supervisor::environment_names();
-		if (
-			launch.Environment.size() != adapters::mcp::mcp_environment_allowlist.size()
-			|| names.size() != adapters::mcp::mcp_environment_allowlist.size()) {
+		if (!aTerms.require(
+				"helper-environment-is-allowlist-sized",
+				launch.Environment.size() == adapters::mcp::mcp_environment_allowlist.size()
+					&& names.size() == adapters::mcp::mcp_environment_allowlist.size())) {
 			return false;
 		}
+		auto namesInOrder = true;
 		for (auto index = std::size_t{ 0U }; index < names.size(); ++index) {
-			if (
-				names[index] != adapters::mcp::mcp_environment_allowlist[index]
-				|| launch.Environment[index].first != names[index]) {
-				return false;
-			}
+			namesInOrder = namesInOrder
+				&& names[index] == adapters::mcp::mcp_environment_allowlist[index]
+				&& launch.Environment[index].first == names[index];
 		}
-		return launch.WorkingDirectory == aSnapshotRoot.string()
-			&& !launch.Executable.empty()
-			&& !adapters::mcp::names_uri_scheme(launch.WorkingDirectory)
-			&& !adapters::mcp::names_network_authority(launch.WorkingDirectory)
-			&& !application::mcp_context_helper_supervisor::names_network_location(
-				   launch.WorkingDirectory)
-			&& launch.Environment[1].second
-			== adapters::mcp::encode_revision_binding(
-				   *adapters::mcp::decode_revision_binding(
-					   launch.Environment[1].second));
+		const auto binding
+			= adapters::mcp::decode_revision_binding(launch.Environment[1].second);
+		const auto terms = std::array{
+			aTerms.require("helper-environment-names-in-order", namesInOrder),
+			aTerms.require(
+				"helper-directory-is-snapshot-root",
+				launch.WorkingDirectory == aSnapshotRoot.string()),
+			aTerms.require("helper-executable-named", !launch.Executable.empty()),
+			aTerms.require(
+				"helper-directory-names-no-host",
+				!adapters::mcp::names_uri_scheme(launch.WorkingDirectory)
+					&& !adapters::mcp::names_network_authority(launch.WorkingDirectory)
+					&& !application::mcp_context_helper_supervisor::
+						   names_network_location(launch.WorkingDirectory)),
+			aTerms.require(
+				"helper-binding-is-canonical",
+				binding.has_value()
+					&& launch.Environment[1].second
+						== adapters::mcp::encode_revision_binding(*binding)),
+		};
+		return std::ranges::all_of(terms, std::identity{ });
+	}
+
+	/// \brief The marker every construction cut must turn false.
+	///
+	/// \details The five composed surfaces, the one finding, the one proposal
+	/// accepted into the draft, a presented side chat, and the exact helper
+	/// launch. Recorded term by term so the positive courses can name which of
+	/// them failed; a cut reads only whether all of them held.
+	auto record_positive_marker(
+		const app::detail::agent_finding_composition_evidence& aEvidence,
+		const std::filesystem::path&                           aSnapshotRoot,
+		contract_terms&                                        aTerms) -> bool
+	{
+		const auto terms = std::array{
+			aTerms.require("finding-host-composed", aEvidence.FindingHostComposed),
+			aTerms.require(
+				"comment-workshop-composed", aEvidence.CommentWorkshopComposed),
+			aTerms.require("mcp-helper-composed", aEvidence.McpHelperComposed),
+			aTerms.require("side-chat-panel-composed", aEvidence.SideChatPanelComposed),
+			aTerms.require("finding-queue-composed", aEvidence.FindingQueueComposed),
+			aTerms.require("queued-findings-is-one", aEvidence.QueuedFindings == 1U),
+			aTerms.require(
+				"workshop-proposals-is-one", aEvidence.WorkshopProposals == 1U),
+			aTerms.require(
+				"draft-body-is-suggestion", aEvidence.LocalDraftBody == agent_suggested),
+			aTerms.require(
+				"side-chat-presented", aEvidence.SideChatPresentations != 0U),
+			exact_helper_launch(aEvidence, aSnapshotRoot, aTerms),
+		};
+		return std::ranges::all_of(terms, std::identity{ });
 	}
 } // namespace
 
@@ -148,6 +251,7 @@ auto main(int argc, char** argv) -> int
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	if (argc != 3) {
+		report_failure("arguments", "expected=<course> <canary>");
 		return EXIT_FAILURE;
 	}
 	const auto course = std::string_view{ argv[1] };
@@ -159,10 +263,12 @@ auto main(int argc, char** argv) -> int
 		&& course != "chat-panel-construction-cut"
 		&& course != "queue-construction-cut"
 		&& course != "workshop-press" && course != "dif-context") {
+		report_failure("unknown-course");
 		return EXIT_FAILURE;
 	}
 	auto data = QTemporaryDir{ };
 	if (!data.isValid()) {
+		report_failure("temporary-root");
 		return EXIT_FAILURE;
 	}
 	// [[BPR-0812]]. The stores refuse a root that is not owner-private, and on
@@ -174,7 +280,7 @@ auto main(int argc, char** argv) -> int
 	if (!adapters::sqlite::make_storage_root_owner_private(dataRoot.parent_path())
 		|| !std::filesystem::create_directory(dataRoot, dataError) || dataError
 		|| !adapters::sqlite::make_storage_root_owner_private(dataRoot)) {
-		std::cerr << "agent-finding-composition-failure:private-test-root\n";
+		report_failure("private-test-root");
 		return EXIT_FAILURE;
 	}
 	std::unique_ptr<app::github_application> application;
@@ -445,7 +551,22 @@ auto main(int argc, char** argv) -> int
 		return settled;
 	};
 
-	const auto snapshotRoot = dataRoot / "mcp-snapshot";
+	// [[BPR-0705]]. A snapshot belongs to the window session that froze it:
+	// the helper's root is `window-<id>-generation-<generation>` under the
+	// profile's `mcp-snapshot` directory, derived from the typed identity of
+	// that window, and cleanup removes only it. The course derives the path
+	// from the one live window it drove rather than reading it back from the
+	// helper it is checking. [[BPR-0835]]: until it did, it expected the
+	// directory itself and failed without naming a term.
+	const auto snapshotParent = dataRoot / "mcp-snapshot";
+	const auto liveWindows    = application->windows();
+	const auto drivenWindow
+		= liveWindows.size() == 1U && application->window(liveWindows.front()) == &window;
+	const auto snapshotRoot = drivenWindow
+		? snapshotParent
+			/ ("window-" + std::to_string(liveWindows.front().Window.value())
+			   + "-generation-" + std::to_string(liveWindows.front().Generation.value()))
+		: std::filesystem::path{ };
 
 	// Detailing the delivered finding is a Qt-local navigation and emits
 	// nothing; it is what makes the seven disclosed facts readable.
@@ -642,21 +763,27 @@ auto main(int argc, char** argv) -> int
 	const auto noGithubMutation = mutation.Submissions == 0U
 		&& mutation.TargetObservations == 0U && mutation.StoredComments == 0U;
 
-	const auto positiveMarker = evidence.FindingHostComposed
-		&& evidence.CommentWorkshopComposed && evidence.McpHelperComposed
-		&& evidence.SideChatPanelComposed && evidence.FindingQueueComposed
-		&& evidence.QueuedFindings == 1U && evidence.WorkshopProposals == 1U
-		&& evidence.LocalDraftBody == agent_suggested
-		&& evidence.SideChatPresentations != 0U
-		&& exact_helper_launch(evidence, snapshotRoot);
+	auto       positiveTerms  = contract_terms{ };
+	const auto positiveMarker = record_positive_marker(evidence, snapshotRoot, positiveTerms);
 
 	if (course == "dif-context") {
-		const auto passed = difComparison && difSawConsider && difAttention
-			&& difCommentReady && difAcknowledge
-			&& afterDelivery.QueuedFindings == 1U
-			&& afterDelivery.QueuedClaim.find(agent_claim) != std::string::npos
-			&& afterConversion.WorkshopProposalText == agent_suggested
-			&& evidence.LocalDraftBody == agent_suggested && noGithubMutation;
+		auto contract = contract_terms{ };
+		contract.require("dif-showed-comparison", difComparison);
+		contract.require("dif-saw-consider", difSawConsider);
+		contract.require("dif-attention-after-delivery", difAttention);
+		contract.require("dif-comment-ready-after-conversion", difCommentReady);
+		contract.require("dif-acknowledge-after-acceptance", difAcknowledge);
+		contract.require("delivery-queued-is-one", afterDelivery.QueuedFindings == 1U);
+		contract.require(
+			"queued-claim-is-agent-claim",
+			afterDelivery.QueuedClaim.find(agent_claim) != std::string::npos);
+		contract.require(
+			"workshop-proposal-is-suggestion",
+			afterConversion.WorkshopProposalText == agent_suggested);
+		contract.require(
+			"draft-body-is-suggestion", evidence.LocalDraftBody == agent_suggested);
+		contract.require("no-github-mutation", noGithubMutation);
+		const auto passed = report_contract("dif-context-evidence", contract);
 		if (!passed) {
 			std::cerr << "agent-finding-dif-context-evidence:"
 					  << difComparison << ':' << difSawConsider << ':'
@@ -682,39 +809,69 @@ auto main(int argc, char** argv) -> int
 		// and bound to its turn once the run is quiescent, still unspent while
 		// the delivery sits in the queue, and spent — named on the proposal
 		// and gone from the record — only by that turn's own outcome.
-		const auto pressed = evidence.FindingHostComposed
-			&& evidence.CommentWorkshopComposed && noGithubMutation
-			&& afterDelivery.FindingStatistics.Deliveries == 1U
-			&& afterDelivery.QueuedFindings == 1U
-			&& afterDelivery.WorkshopProposals == 0U
-			&& afterDelivery.WorkshopPendingOperation == "clarify"
-			&& afterDelivery.WorkshopPendingSessionBound
-			// Never queued silently. While the turn was unanswered the six
-			// controls were shut and said why, so there was no press to queue.
-			&& pressedRefusal.find("already running") != std::string::npos
-			&& reofferedAfterProposal
-			&& afterConversion.WorkshopProposals == 1U
-			&& afterConversion.WorkshopStatistics.Proposals == 1U
-			&& afterConversion.WorkshopOriginalText == reviewer_original
-			&& afterConversion.WorkshopProposalText == agent_suggested
-			// The before/after says which of the six produced it, and the
-			// question it answered is no longer outstanding.
-			&& afterConversion.WorkshopOperationText == "Proposed by: Clarify"
-			&& afterConversion.WorkshopPendingOperation.empty()
-			&& acceptedDraftBody == agent_suggested
-			&& evidence.LocalDraftBody == reviewer_original
-			// BPR-0538. The turn that ended without a revision took its press
-			// with it: nothing is pending, the six are open, and the reason is
-			// stated where the proposal would have been.
-			&& silentPending.empty()
-			&& silentReason == "No revision: the turn proposed no revision"
-			&& silentReoffered
-			// And the press that is waiting on its own turn survives a second,
-			// unrelated turn — its ending and its converted outcome both. The
-			// revision nobody workshopped is proposed with no operation named.
-			&& boundPending == "clarify" && boundSession
-			&& unrelatedPending == "clarify" && unrelatedSession
-			&& unrelatedOperation.empty() && unrelatedProposals == 2U;
+		auto contract = contract_terms{ };
+		contract.require("finding-host-composed", evidence.FindingHostComposed);
+		contract.require(
+			"comment-workshop-composed", evidence.CommentWorkshopComposed);
+		contract.require("no-github-mutation", noGithubMutation);
+		contract.require(
+			"deliveries-is-one", afterDelivery.FindingStatistics.Deliveries == 1U);
+		contract.require("delivery-queued-is-one", afterDelivery.QueuedFindings == 1U);
+		contract.require(
+			"delivery-proposed-nothing", afterDelivery.WorkshopProposals == 0U);
+		contract.require(
+			"press-pending-after-delivery",
+			afterDelivery.WorkshopPendingOperation == "clarify");
+		contract.require(
+			"press-bound-after-delivery", afterDelivery.WorkshopPendingSessionBound);
+		// Never queued silently. While the turn was unanswered the six controls
+		// were shut and said why, so there was no press to queue.
+		contract.require(
+			"second-press-refused-as-running",
+			pressedRefusal.find("already running") != std::string::npos);
+		contract.require("reoffered-after-proposal", reofferedAfterProposal);
+		contract.require(
+			"conversion-proposals-is-one", afterConversion.WorkshopProposals == 1U);
+		contract.require(
+			"workshop-statistics-proposals-is-one",
+			afterConversion.WorkshopStatistics.Proposals == 1U);
+		contract.require(
+			"workshop-original-is-reviewer-text",
+			afterConversion.WorkshopOriginalText == reviewer_original);
+		contract.require(
+			"workshop-proposal-is-suggestion",
+			afterConversion.WorkshopProposalText == agent_suggested);
+		// The before/after says which of the six produced it, and the question
+		// it answered is no longer outstanding.
+		contract.require(
+			"proposal-names-clarify",
+			afterConversion.WorkshopOperationText == "Proposed by: Clarify");
+		contract.require(
+			"press-spent-by-its-turn",
+			afterConversion.WorkshopPendingOperation.empty());
+		contract.require(
+			"accepted-draft-is-suggestion", acceptedDraftBody == agent_suggested);
+		contract.require(
+			"final-draft-is-reviewer-text", evidence.LocalDraftBody == reviewer_original);
+		// BPR-0538. The turn that ended without a revision took its press with
+		// it: nothing is pending, the six are open, and the reason is stated
+		// where the proposal would have been.
+		contract.require("silent-turn-spent-press", silentPending.empty());
+		contract.require(
+			"silent-turn-says-why",
+			silentReason == "No revision: the turn proposed no revision");
+		contract.require("silent-turn-reoffered", silentReoffered);
+		// And the press that is waiting on its own turn survives a second,
+		// unrelated turn — its ending and its converted outcome both. The
+		// revision nobody workshopped is proposed with no operation named.
+		contract.require(
+			"bound-press-pending", boundPending == "clarify" && boundSession);
+		contract.require(
+			"unrelated-turn-left-press-pending",
+			unrelatedPending == "clarify" && unrelatedSession);
+		contract.require("unrelated-proposal-names-nothing", unrelatedOperation.empty());
+		contract.require("unrelated-proposals-is-two", unrelatedProposals == 2U);
+		const auto pressed = report_contract("workshop-press-evidence", contract);
 		if (!pressed) {
 			std::cerr << "agent-finding-workshop-press-evidence:"
 					  << afterDelivery.FindingStatistics.Deliveries << ':'
@@ -755,39 +912,75 @@ auto main(int argc, char** argv) -> int
 	}
 
 	if (course == "positive" || course == "full-agent") {
-		const auto exact = positiveMarker && noGithubMutation
-			&& afterDelivery.FindingStatistics.Deliveries == 1U
-			&& afterDelivery.FindingStatistics.DeliveredFindings == 1U
-			&& afterDelivery.QueuedFindings == 1U
-			&& afterDelivery.FrozenFileCount == 1U
-			&& afterDelivery.FrozenSnapshotWrites == 1U
-			&& afterDelivery.QueuedClaim.find(agent_claim) != std::string::npos
-			// A start gesture is not a chat turn, so the frame this run was
-			// handed carried no question. The fixture counts what it received
-			// and says so: zero here is the other half of the chat course's
-			// exactly-one.
-			&& afterDelivery.QueuedClaim.find("BPR_CHAT_ECHO_0517 count=0 text=")
-				!= std::string::npos
-			&& afterDelivery.QueuedAnchorState == "anchored (none)"
-			&& afterDelivery.WorkshopProposals == 0U
-			&& afterConversion.FindingStatistics.Actions == 1U
-			&& afterConversion.FindingStatistics.DraftCommands == 1U
-			&& afterConversion.FindingStatistics.StoredNotes == 0U
-			&& afterConversion.WorkshopStatistics.Proposals == 1U
-			&& afterConversion.WorkshopOriginalText == reviewer_original
-			&& afterConversion.WorkshopProposalText == agent_suggested
-			// The conversion alone changes no draft. The reviewer's bytes are
-			// still theirs until they accept.
-			&& afterConversion.LocalDraftBody == reviewer_original
-			&& evidence.LocalDraftBody == agent_suggested
-			&& helperRefusal == application::mcp_helper_refusal::none
-			&& evidence.McpStatistics.Starts == 1U
-			&& evidence.McpStatistics.Refusals == 0U
-			&& evidence.McpStatistics.Completions == 1U
-			&& evidence.McpAnswer.find("snapshot_binding") != std::string::npos
-			&& evidence.McpAnswer.find("read_snapshot_file") != std::string::npos
-			&& std::filesystem::exists(snapshotRoot / "binding")
-			&& std::filesystem::exists(snapshotRoot / "alignment");
+		auto& contract = positiveTerms;
+		contract.require("one-driven-window", drivenWindow);
+		contract.require("no-github-submission", mutation.Submissions == 0U);
+		contract.require("no-github-target-observation", mutation.TargetObservations == 0U);
+		contract.require("no-github-stored-comment", mutation.StoredComments == 0U);
+		contract.require("deliveries-is-one", afterDelivery.FindingStatistics.Deliveries == 1U);
+		contract.require(
+			"delivered-findings-is-one",
+			afterDelivery.FindingStatistics.DeliveredFindings == 1U);
+		contract.require("delivery-queued-is-one", afterDelivery.QueuedFindings == 1U);
+		contract.require("frozen-files-is-one", afterDelivery.FrozenFileCount == 1U);
+		contract.require(
+			"frozen-snapshot-writes-is-one", afterDelivery.FrozenSnapshotWrites == 1U);
+		contract.require(
+			"queued-claim-is-agent-claim",
+			afterDelivery.QueuedClaim.find(agent_claim) != std::string::npos);
+		// A start gesture is not a chat turn, so the frame this run was handed
+		// carried no question. The fixture counts what it received and says so:
+		// zero here is the other half of the chat course's exactly-one.
+		contract.require(
+			"queued-claim-carried-no-question",
+			afterDelivery.QueuedClaim.find("BPR_CHAT_ECHO_0517 count=0 text=")
+				!= std::string::npos);
+		contract.require(
+			"queued-anchor-is-none",
+			afterDelivery.QueuedAnchorState == "anchored (none)");
+		contract.require(
+			"delivery-proposed-nothing", afterDelivery.WorkshopProposals == 0U);
+		contract.require(
+			"conversion-actions-is-one",
+			afterConversion.FindingStatistics.Actions == 1U);
+		contract.require(
+			"conversion-draft-commands-is-one",
+			afterConversion.FindingStatistics.DraftCommands == 1U);
+		contract.require(
+			"conversion-stored-no-note",
+			afterConversion.FindingStatistics.StoredNotes == 0U);
+		contract.require(
+			"conversion-proposals-is-one",
+			afterConversion.WorkshopStatistics.Proposals == 1U);
+		contract.require(
+			"workshop-original-is-reviewer-text",
+			afterConversion.WorkshopOriginalText == reviewer_original);
+		contract.require(
+			"workshop-proposal-is-suggestion",
+			afterConversion.WorkshopProposalText == agent_suggested);
+		// The conversion alone changes no draft. The reviewer's bytes are still
+		// theirs until they accept.
+		contract.require(
+			"conversion-left-draft-alone",
+			afterConversion.LocalDraftBody == reviewer_original);
+		contract.require(
+			"helper-not-refused",
+			helperRefusal == application::mcp_helper_refusal::none);
+		contract.require("helper-starts-is-one", evidence.McpStatistics.Starts == 1U);
+		contract.require("helper-refusals-is-zero", evidence.McpStatistics.Refusals == 0U);
+		contract.require(
+			"helper-completions-is-one", evidence.McpStatistics.Completions == 1U);
+		contract.require(
+			"helper-answer-lists-tools",
+			evidence.McpAnswer.find("snapshot_binding") != std::string::npos
+				&& evidence.McpAnswer.find("read_snapshot_file") != std::string::npos);
+		contract.require(
+			"snapshot-binding-written",
+			std::filesystem::exists(snapshotRoot / "binding"));
+		contract.require(
+			"snapshot-alignment-written",
+			std::filesystem::exists(snapshotRoot / "alignment"));
+		const auto exact = report_contract("positive-evidence", contract);
 		if (!exact) {
 			std::cerr << "agent-finding-positive-evidence:"
 					  << afterDelivery.FindingStatistics.Deliveries << ':'
@@ -847,20 +1040,50 @@ auto main(int argc, char** argv) -> int
 			}
 			return count;
 		};
-		const auto noSecondEdge = !source.empty()
-			&& occurrences("review_mutation_coordinator") == 0U
-			&& occurrences("ReviewMutationHost->publish(") == 1U
-			&& occurrences("->submit(") == 1U && occurrences(".submit(") == 0U
-			&& occurrences("->observe_target(") == 0U
-			&& occurrences(".observe_target(") == 0U
-			// The finding host, the workshop host, and the helper supervisor
-			// each reach exactly the ports they were given. None of them is
-			// handed the mutation host, and no call site here hands it over.
-			&& occurrences("FindingHost = std::make_unique<") == 1U
-			&& occurrences("WorkshopHost = std::make_unique<") == 1U
-			&& occurrences("McpHelper = std::make_unique<") == 1U
-			&& source.find("FindingHost->deliver(") != std::string::npos
-			&& source.find("ReviewMutationHost") != std::string::npos;
+		auto edge = contract_terms{ };
+		edge.require("composition-source-read", !source.empty());
+		edge.require(
+			"no-coordinator-named", occurrences("review_mutation_coordinator") == 0U);
+		edge.require(
+			"one-publish-call-site", occurrences("ReviewMutationHost->publish(") == 1U);
+		// One ledger submission, and no submit call site on any other receiver
+		// but the setup destination. [[BPR-0689]] composed that host, whose
+		// `submit` takes a pull request locator and reaches only its own
+		// setup port - configure, authenticate, preview, open, present - and
+		// [[BPR-0733]] gave it a second call site, Home's recent list. Neither
+		// is an edge to a mutation. Counting every `->submit(` as one read
+		// them as backchannels; a submit on any receiver not named here still
+		// fails this term.
+		edge.require(
+			"one-ledger-submit-call-site", occurrences("ReviewLedgerHost->submit(") == 1U);
+		edge.require(
+			"submit-call-sites-are-ledger-or-setup",
+			occurrences("->submit(")
+				== occurrences("ReviewLedgerHost->submit(")
+					+ occurrences("SetupDestination->submit("));
+		edge.require("no-value-submit-call-site", occurrences(".submit(") == 0U);
+		edge.require(
+			"no-observe-target-call-site",
+			occurrences("->observe_target(") == 0U
+				&& occurrences(".observe_target(") == 0U);
+		// The finding host, the workshop host, and the helper supervisor each
+		// reach exactly the ports they were given. None of them is handed the
+		// mutation host, and no call site here hands it over.
+		edge.require(
+			"one-finding-host-construction",
+			occurrences("FindingHost = std::make_unique<") == 1U);
+		edge.require(
+			"one-workshop-host-construction",
+			occurrences("WorkshopHost = std::make_unique<") == 1U);
+		edge.require(
+			"one-helper-construction", occurrences("McpHelper = std::make_unique<") == 1U);
+		edge.require(
+			"finding-host-delivers",
+			source.find("FindingHost->deliver(") != std::string::npos);
+		edge.require(
+			"mutation-host-named",
+			source.find("ReviewMutationHost") != std::string::npos);
+		const auto noSecondEdge = report_contract("full-agent-second-edge", edge);
 		if (!shutdown(*application) || !exact || !noSecondEdge) {
 			std::cerr << "agent-finding-full-agent:" << exact << ':'
 					  << noSecondEdge << ':' << source.size() << ':'
@@ -908,14 +1131,18 @@ auto main(int argc, char** argv) -> int
 				== application::mcp_helper_supervisor_statistics{ }
 			&& evidence.FrozenSnapshotWrites == 0U
 			&& helperRefusal == application::mcp_helper_refusal::no_helper
-			&& !std::filesystem::exists(snapshotRoot);
+			&& !std::filesystem::exists(snapshotParent);
 	} else {
 		effectsZero = !evidence.SideChatPanelComposed
 			&& evidence.SideChatPresentations == 0U
 			&& evidence.SideChatIntents == 0U;
 	}
-	const auto passed = gestureObserved && effectsZero && !positiveMarker
-		&& noGithubMutation;
+	auto contract = contract_terms{ };
+	contract.require("gesture-observed", gestureObserved);
+	contract.require("cut-effects-zero", effectsZero);
+	contract.require("positive-marker-false", !positiveMarker);
+	contract.require("no-github-mutation", noGithubMutation);
+	const auto passed = report_contract("cut-evidence", contract);
 	if (!passed) {
 		std::cerr << "agent-finding-cut-evidence:" << gestureObserved << ':'
 				  << effectsZero << ':' << positiveMarker << ':'
