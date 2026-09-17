@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0829"
 title: "The anonymous public preview course's pass expression omits its epoch line history"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-verify new defect 1","found_at":"3b968fcc0027c774187c11489f4020c2463bcd2f","run":"run-20260916-stations","dispatch":"dsp-002"}
+acceptance: [{"criterion":"AC1 the course passes on macOS, repeated","outcome":"pass","revision":"7555cba450bafb42c479d2b2da001172ff19d0bb","evidence":{"kind":"command","detail":"macOS 5/5 in the slice (dsp3-0829-final2.log), 3/3 at 5a2e264a plus the change (dsp3-0829-int-course-*.log) and 3/3 after the review's predicate change (dsp3-int4-0829-course-*.log), all with SMART_ACQUISITIONS:4."}},{"criterion":"AC2 the Linux station passes it with SMART_ACQUISITIONS:1 or names the cause of the second acquisition","outcome":"pass","revision":"84ac5e0c75c37132454224adb13c2b8e6d974655","evidence":{"kind":"command","detail":"Cause named on this card: the later acquisitions are the timeline's background retention imports, cut off by shutdown at a random point. With the course waiting for retention, bpr-linux passes 5/5 with SMART_ACQUISITIONS:4 every run (docs/verification/dsp3-linux-confirmation.md, step 2)."}}]
 ---
 
 # BPR-0829: The anonymous public preview course's pass expression omits its epoch line history
