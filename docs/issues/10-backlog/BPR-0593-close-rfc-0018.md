@@ -1845,7 +1845,7 @@ fingerprints match the prepared candidates; no stale verdict):
   [BPR-0728](../60-done/BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md),
   [BPR-0729](../60-done/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md).
 - Platform split of AC-11: [BPR-0730](../60-done/BPR-0730-windows-packaged-settings-inventory.md),
-  [BPR-0731](../20-ready/BPR-0731-linux-packaged-settings-inventory.md); this closeout
+  [BPR-0731](../30-in-progress/BPR-0731-linux-packaged-settings-inventory.md); this closeout
   depends on both.
 
 Root causes were scouted, not fixed: on a cache hit the core prepares

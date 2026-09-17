@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0731"
 title: "Linux packaged Settings inventory (RFC-BPR-0018 AC-11)"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: []
 priority: "P2"
