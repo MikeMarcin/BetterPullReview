@@ -84,3 +84,42 @@ fixed, because the card is integrator-owned.
   the AppContainer, CPython's `realpath` cannot resolve a DOS path
   (`dos-volume-name`), and a `tempfile` root is also unusable there
   ([[BPR-0350]]).
+
+## Rerun after BPR-0844 and BPR-0833's storage-root creation (task-20260917-win-creation-descriptor)
+
+The base is `31fff50675a71bc2c5ce55857c72e57dc36933df`, plus:
+
+- [[BPR-0844]] `59df97a151ef13ae206a1af3c6a72eb4073cc649`, the runtime surface
+  script contract;
+- [[BPR-0833]] `aa3c6ef18cc4046fab9d4960dc861cbffe9e91b2`, Windows storage-root
+  creation with the private descriptor. BPR-0833's `main.cpp` seam change is
+  **not** included: it is blocked, see the card.
+
+The windows-dev tree was fully rebuilt. Log:
+`build/logs/task-20260917-win-creation-descriptor/ctest-bpr0820-rerun.log`.
+
+**13 of 15 pass.**
+
+| Row | Result | First marker |
+|---|---|---|
+| `application_public_path` | Passed, 1.68 s | |
+| `application_public_path_ghes_cli_unavailable` | Passed, 1.75 s | |
+| `application_device_authorization_public_path` | Passed, 2.03 s | |
+| `application_device_authorization_unavailable` | Passed, 5.88 s | |
+| `application_composition_capabilities_inside_boundary` | **Failed**, contained | `AUTOMATED_PROFILE_PRIVATE_FAILED` |
+| `application_composition_capabilities_product_run` | **Failed**, contained | `AUTOMATED_PROFILE_PRIVATE_FAILED` |
+| `application_device_authorization_ghes_refusal` | Passed, 1.78 s | |
+| `application_device_authorization_release_contract` | Passed, 5.81 s | |
+| `application_anonymous_public_preview_unavailable` | Passed, 1.75 s | |
+| `application_anonymous_public_preview_release_contract` | Passed, 1.68 s | |
+| `application_anonymous_public_preview_enabled_probe` | Passed, 1.67 s | |
+| `application_anonymous_public_preview_live_candidate_wiring` | Passed, 1.65 s | |
+| `application_render` | Passed, 2.02 s | |
+| `runtime_process_surface` | Passed, 1.68 s | `RUNTIME_SURFACE_OK` |
+| `runtime_audit_contract` | **Passed**, 0.32 s (was failed) | `OK (skipped=1)` |
+
+The two capability rows still fail contained. The cause is now measured
+further and recorded on [[BPR-0833]]: Qt 6 creates the `QTemporaryDir` the seam
+uses with a protected owner-only DACL that names no AppContainer SID, so inside
+the container no child of it can be created. Removing that obstacle needs a
+decision on which object owns the private directory's removal.

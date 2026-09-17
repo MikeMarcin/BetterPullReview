@@ -67,8 +67,8 @@ diagnoses the failure.
 
 The base is `31fff50675a71bc2c5ce55857c72e57dc36933df`, which contains
 `3cc2ac48`. The windows-dev tree was fully rebuilt; the only other change on
-top is [[BPR-0833]]'s Windows storage-root creation (`aa3c6ef1`), which the
-course does not reach through a different path. Each row ran twice. Logs:
+top is [[BPR-0833]]'s Windows-only change to storage-root creation (`aa3c6ef1`).
+Each row ran twice. Logs:
 `build/logs/task-20260917-win-creation-descriptor/ctest-bpr0835-1.log` and
 `-2.log`.
 
