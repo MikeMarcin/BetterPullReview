@@ -143,3 +143,11 @@ holds only this change:
 - whole file `fed42059189f4c5efae78c4191cf5298253b87425fbc278b9ec7c0038b47c91b`;
 - manifest `b44257151eacac413c88212d988e21288f685b98423c979f779f59a0a6dd0108`;
 - mutation branch unchanged.
+
+## macOS half of criterion 3 (dsp-002)
+
+`application_profile_management_public_path` passes on macOS at `99712ec3`
+(3.59 s, `build/r2-logs/dsp2-int2-courses.log`), and so do
+`application_profile_startup_public_path` and `agent_workspace_ownership`.
+Criterion 3 is therefore met on both platforms. The card stays Parked on the
+owner's answers to criterion 2's two questions.
