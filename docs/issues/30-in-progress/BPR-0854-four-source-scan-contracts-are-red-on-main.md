@@ -331,3 +331,80 @@ unchanged in the code: the contained helper swallows a removal error where
 every `_OK` marker prints before the directory is removed, so on POSIX this
 cannot turn a failure into a pass; on Windows it would leak a directory rather
 than fail the row, which the Windows run above should watch for.
+
+## Item 3 landed on main (dsp-005, integrator)
+
+`bpr-linux` diagnosed item 3 and proposed two patches it could not apply,
+because `scripts/` is outside a lane's authority. Both are now applied here.
+
+**The patches are the ones the station verified, byte for byte.** Each was
+transcribed and checked against the station's digest before applying:
+`scripts/verify_conditional_branches.py` is
+`d3a672f58ff683fafc76140abdacfdc65f59ba159918d153fd4304b724aa368f` and
+`tests/scripts/conditional_branch_identifier_tests.py` is
+`e2139ad321e89f7bae909196d09180facb4fbd81504690552fa45057915a933a`, both
+matching. The pre-image blobs matched too (`7829ae5a`, `a047cfd1`), and both
+applied with `git apply` without fuzz. So the station's verification
+transfers rather than being re-derived.
+
+**Confirmed on macOS.** The gate reports `CONDITIONAL_BRANCH_IDENTIFIERS_OK:695`
+over the whole tree, exit 0, and the gate's own suite runs 11 tests OK
+(`build/r2-logs/dsp5-0854-gate.log`). That suite includes the station's three
+"still caught" cases: a stale spelling in an init-capture's initializer and in
+the lambda body, a call to a name nothing defines, and a call whose only
+same-spelling declaration is a variable.
+
+**Independent falsification, in the file that motivated the exemption.** The
+station's cases are synthetic, so the exemption was also attacked on the real
+`src/app/main.cpp` in a pristine `git archive HEAD` export: renaming the
+**definition** at `:7289` while leaving the call at `:8623` brings the finding
+straight back —
+`src/app/main.cpp:8623: schedule_native_notification_run is used where the
+declared name is scheduleNativeNotificationRun`, `FAILED:1`. So the exemption
+really does need both halves, and it is not silently excusing the call.
+
+**A scope clarification found while attacking it, pre-existing and by design.**
+Renaming only the *call* to a freshly invented spelling
+(`schedule_native_notifcation_run`) is **not** reported, patched or unpatched.
+This gate is a rename detector, not a spell checker: it reports a name whose
+folded spelling collides with a declared name. A typo that collides with
+nothing is outside its remit. Worth knowing before anyone reads `OK:695` as
+"no misspellings exist".
+
+### Answers to the station's design questions
+
+**1(a) Keep the call-position exemption as implemented: require a
+definition, not merely a prototype.** This is not only the strictest reading,
+it is the only sound one for a text scanner. `void foo(bar);` as a prototype
+and `int foo(bar);` as a variable with a parenthesized initializer are the
+most vexing parse — a regular expression cannot tell them apart, so accepting
+prototypes would trade a precise rule for one that can silently excuse a
+genuine rename. The cost is a false positive on a call to a function only
+*prototyped* in the file being scanned, from a region the gate treats as
+skipped. That case does not occur in the tree today, and when it does the
+honest repair is the deeper one in question 2 below, which removes the whole
+class rather than widening an exemption.
+
+**1(b) Yes — the test patch lands with the script patch, in one commit.** A
+gate rule without its test is unguarded, and the test asserts nothing without
+the rule. Both paths are main's, so there is no ownership reason to split
+them.
+
+**2 Carded as [[BPR-0866]].** The station is right that the gate's blindness
+to `BPR_BUILD_TESTING` is a standing false-positive generator independent of
+these two rules: all eleven findings sat under
+`#if defined(BPR_BUILD_TESTING)` in translation units this build compiles with
+`-DBPR_BUILD_TESTING=1`, and `host_macros()` returns platform macros only.
+The two rules here are still correct on their own terms — an init-capture
+really does declare a name, and a call really is not a rename — so they stay
+whichever way question 2 is decided.
+
+### macOS status of the four rows
+
+Three are confirmed on macOS at this head: `contained_temporary_usage_contract`
+(6 tests OK), `msvc_secure_crt_contract` (3 tests OK) and
+`conditional_branch_identifiers` (`OK:695`).
+`dependency_modernization_contract` takes `--build-dir`, `--cmake`,
+`--cpm-source-cache` and `--sqlite-source`, so it is not a pure script row and
+runs in the integrator's combined build pass with the changed courses. That
+run, and the Windows runs, are what this card still owes.

@@ -61,6 +61,31 @@ DECLARATION = re.compile(
     r"(?:auto|[A-Za-z_]\w*(?:::\w+)*(?:\s*<[^;{}\n]*?>)?"
     r"(?:\s*(?:const\s*)?[*&]+)?)\s+(?:const\s+)?([a-z_][A-Za-z0-9_]*)\s*[=({;]")
 
+# A lambda's init-capture declares a name with no type in front of it, so
+# `DECLARATION` cannot see it. `[options = std::move(aOptions)]` then reads as a
+# use of `options` that nothing declares, and because `spelling_key` folds case
+# that collides with the very `aOptions` it was initialized from -- a rename
+# reported against the capture's own initializer.
+# Strict in both directions, because only the name to the left of `=` is taken:
+# the initializer is ordinary code, so `[value = expectedBytes]` beside an
+# `aExpectedBytes` is still a finding, as is a stale spelling in the body the
+# lambda goes on to write. A capture list whose initializer carries a bracket or
+# a brace is not recognized at all, which reports rather than excuses.
+CAPTURE_LIST = re.compile(r"\[([^\[\]{};]*=[^\[\]{};]*)\]\s*[({]")
+
+INIT_CAPTURE = re.compile(
+    r"(?:^|,)\s*(?:&\s*)?(?:\.\.\.\s*)?([a-z_][A-Za-z0-9_]*)\s*=(?!=)")
+
+# The braced body of a declarator: what tells a definition from everything else
+# that ends in `)`.
+BODY_BRACE = re.compile(r"\)\s*(?:const\s+)?(?:noexcept\s*)?(?:->[^{;()]+)?\{")
+
+# The name immediately left of a declarator's `(`. A lambda's `](` has none, so
+# an introducer is never read as a function name.
+DECLARATOR = re.compile(r"([A-Za-z_]\w*)\s*$")
+
+CALL = re.compile(r"\s*\(")
+
 IDENTIFIER = re.compile(r"(?<![\w:.>])([a-z_][A-Za-z0-9_]*)\b(?!\s*::)")
 
 # Names that read like identifiers and are not.
@@ -239,22 +264,48 @@ def blank_comments_and_literals(aText: str) -> str:
     return "".join(out)
 
 
+def declarator_parentheses(aText: str, aEnd: int) -> tuple[int, int] | None:
+    """The `(` and `)` of the declarator whose body brace ends at `aEnd`."""
+    closing = aText.rindex(")", 0, aEnd)
+    depth = 0
+    for index in range(closing, -1, -1):
+        if aText[index] == ")":
+            depth += 1
+        elif aText[index] == "(":
+            depth -= 1
+            if depth == 0:
+                return index, closing
+    return None
+
+
+def defined_functions(aText: str) -> set[str]:
+    """The names this file defines as functions.
+
+    Defines, not merely declares: the declarator's own closing parenthesis has
+    to reach a body brace. That is what separates `void run(int aValue) { ... }`
+    from `auto run(compute());`, a variable whose parenthesized initializer
+    reads the same to a regular expression, and it is the same bracket walk
+    `function_bodies` uses, so a lambda introducer cannot pass for a name.
+    """
+    names: set[str] = set()
+    for match in BODY_BRACE.finditer(aText):
+        parentheses = declarator_parentheses(aText, match.end())
+        if parentheses is None:
+            continue
+        opening = parentheses[0]
+        declarator = DECLARATOR.search(aText[max(0, opening - 200):opening])
+        if declarator is not None and declarator.group(1) not in KEYWORDS:
+            names.add(declarator.group(1))
+    return names
+
+
 def function_bodies(aText: str):
     """Yield (parameters, body_start, body_end) for every braced body."""
-    for match in re.finditer(r"\)\s*(?:const\s+)?(?:noexcept\s*)?(?:->[^{;()]+)?\{", aText):
-        closing = aText.rindex(")", 0, match.end())
-        depth = 0
-        opening = -1
-        for index in range(closing, -1, -1):
-            if aText[index] == ")":
-                depth += 1
-            elif aText[index] == "(":
-                depth -= 1
-                if depth == 0:
-                    opening = index
-                    break
-        if opening < 0:
+    for match in BODY_BRACE.finditer(aText):
+        parentheses = declarator_parentheses(aText, match.end())
+        if parentheses is None:
             continue
+        opening, closing = parentheses
         parameters = {m.group(1) for m in PARAMETER.finditer(aText[opening:closing])}
         if not parameters:
             continue
@@ -280,6 +331,15 @@ def declared_in(aRegion: str, aName: str) -> bool:
         rf"\(\s*[^)]*\b{name}\b\s*\)\s*(?:mutable\s*)?(?:->[^{{]+)?\{{",
     )
     return any(re.search(pattern, aRegion) for pattern in patterns)
+
+
+def init_captures(aRegion: str) -> set[str]:
+    """The names lambda init-captures introduce in `aRegion`."""
+    return {
+        capture.group(1)
+        for introducer in CAPTURE_LIST.finditer(aRegion)
+        for capture in INIT_CAPTURE.finditer(introducer.group(1))
+    }
 
 
 def conditional_chains(aText: str):
@@ -345,6 +405,16 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
         return []
     text = blank_comments_and_literals(raw)
     lines = raw.split("\n")
+    # `schedule_native_notification_run(...)` beside a local
+    # `scheduleNativeNotificationRun` is a call to a file-scope function, not a
+    # stale spelling of the local: C++ tells the two apart by exactly the
+    # underscores and the case `spelling_key` folds away, and both are supposed
+    # to exist. The exemption below needs both halves -- the name is in call
+    # position, and this file defines a function of exactly that spelling -- so
+    # a call to a name nothing here declares is still a finding, and so is a
+    # call-position name whose only same-spelling declaration is a variable.
+    # Neither of those would compile in the branch that holds it.
+    functions = defined_functions(text)
     found: set[tuple[int, str, str, str]] = set()
     for parameters, start, end in function_bodies(text):
         body = text[start:end]
@@ -361,6 +431,9 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
             declaration.group(1)
             for declaration in DECLARATION.finditer(body)
             if declaration.group(1) not in KEYWORDS
+        }
+        declared |= {
+            name for name in init_captures(body) if name not in KEYWORDS
         }
         by_spelling: dict[str, set[str]] = {}
         for name in declared:
@@ -391,6 +464,8 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
                 line = text.count("\n", 0, offset) + 1
                 if line not in skipped:
                     continue
+                if bare in functions and CALL.match(body, match.end()):
+                    continue
                 found.add((line, bare, f"a{parameter}", lines[line - 1].strip()))
 
         # The same name under a different spelling. A rename that reached the
@@ -402,6 +477,8 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
                 continue
             line = text.count("\n", 0, start + match.start()) + 1
             if line not in skipped:
+                continue
+            if name in functions and CALL.match(body, match.end()):
                 continue
             siblings = by_spelling.get(spelling_key(name))
             if siblings:

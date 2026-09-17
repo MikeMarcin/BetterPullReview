@@ -152,6 +152,137 @@ class ConditionalBranchIdentifierTests(unittest.TestCase):
         """
         self.assertEqual(self.findings(body, POSIX), [])
 
+    def test_an_init_capture_declares_the_name_it_introduces(self) -> None:
+        """`[moves = std::move(aMoves)]` declares `moves`; it is not a rename.
+
+        BPR-0854: an init-capture names a new variable with no type in front of
+        it, so the declaration pattern cannot see it, and `spelling_key` folds
+        the capture onto the `aMoves` it came from. The gate reported four such
+        captures in `src/app/src/github_application.cpp` -- including the lines
+        that introduce them -- against declarations that are the captures
+        themselves.
+        """
+        body = """
+        void pick_colour(std::vector<QColor> aMoves, const QColor& aAccepted)
+        {
+        #if defined(_WIN32)
+            set_picker([moves = std::move(aMoves), accepted = aAccepted]() {
+                for (const auto& moved : moves) {
+                    changed(moved);
+                }
+                return accepted;
+            });
+        #else
+            set_picker([aAccepted]() { return aAccepted; });
+        #endif
+        }
+        """
+        self.assertEqual(self.findings(body, POSIX), [])
+
+    def test_a_stale_spelling_a_lambda_reaches_is_still_caught(self) -> None:
+        """Only the captured name is declared, and only inside its own lambda.
+
+        The initializer is ordinary code, so `[bytes = expectedBytes]` beside
+        an `aExpectedBytes` is still the rename this gate exists for, and so is
+        a bare `limit` in the body the lambda goes on to write. Teaching the
+        gate init-captures must not buy silence for either.
+        """
+        body = """
+        int measure(int aExpectedBytes, int aLimit)
+        {
+        #if defined(_WIN32)
+            return run([bytes = expectedBytes](int aValue) {
+                return aValue + bytes + limit;
+            });
+        #else
+            return run([bytes = aExpectedBytes](int aValue) {
+                return aValue + bytes + aLimit;
+            });
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, POSIX)}
+        self.assertIn("expectedBytes", caught)
+        self.assertIn("limit", caught)
+
+    def test_a_call_of_a_function_this_file_defines_is_not_a_rename(
+        self,
+    ) -> None:
+        """A snake_case helper is not a stale spelling of a camelCase local.
+
+        BPR-0854: `src/app/main.cpp:8621` calls the file's own
+        `schedule_native_notification_run` from the branch guarded by the flag
+        `scheduleNativeNotificationRun`. `spelling_key` folds away the very
+        underscores C++ uses to tell them apart, so the call read as a rename
+        of the flag. Both names are correct and both are required.
+        """
+        body = """
+        void schedule_native_notification_run(int aBudget)
+        {
+            (void)aBudget;
+        }
+
+        void start(bool aCourse)
+        {
+            const auto scheduleNativeNotificationRun = aCourse;
+        #if defined(_WIN32)
+            if (scheduleNativeNotificationRun) {
+                schedule_native_notification_run(1);
+            }
+        #else
+            (void)scheduleNativeNotificationRun;
+        #endif
+        }
+        """
+        self.assertEqual(self.findings(body, POSIX), [])
+
+    def test_a_call_of_a_name_this_file_never_defines_is_still_caught(
+        self,
+    ) -> None:
+        """Call position alone excuses nothing.
+
+        A renamed helper is called exactly like a correct one. The exemption
+        needs a definition of that spelling in the same file, so a branch
+        calling a name that is nowhere defined is still the rename this gate
+        exists for.
+        """
+        body = """
+        int start(int aDispatchRun)
+        {
+        #if defined(_WIN32)
+            return dispatch_run(aDispatchRun);
+        #else
+            return aDispatchRun;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, POSIX)}
+        self.assertIn("dispatch_run", caught)
+
+    def test_a_call_of_a_same_spelled_variable_is_still_caught(self) -> None:
+        """A variable of that spelling is not a function of that spelling.
+
+        `int dispatch_run(0);` is a variable whose parenthesized initializer
+        reads like a declarator to a regular expression. The exemption asks
+        instead for a definition -- a parameter list whose closing parenthesis
+        reaches a body brace -- which this never has, so the call stays a
+        finding.
+        """
+        body = """
+        int dispatch_run(0);
+
+        int start(int aDispatchRun)
+        {
+        #if defined(_WIN32)
+            return dispatch_run(aDispatchRun);
+        #else
+            return aDispatchRun;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, POSIX)}
+        self.assertIn("dispatch_run", caught)
+
 
 if __name__ == "__main__":
     unittest.main()
