@@ -8,13 +8,16 @@ import shutil
 import sys
 from pathlib import Path
 import subprocess
-import tempfile
 import unittest
 from unittest.mock import patch
 from contextlib import redirect_stderr
 import io
 
-import rfc0015_cli_read_fixture as fixture
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+
+import rfc0015_cli_read_fixture as fixture  # noqa: E402
 
 
 class cli_read_fixture_tests(unittest.TestCase):
@@ -25,7 +28,7 @@ class cli_read_fixture_tests(unittest.TestCase):
         self.assertEqual(output.getvalue(), "")
 
     def test_closed_local_clone_and_canary(self):
-        with tempfile.TemporaryDirectory(prefix="bpr-cli-fixture-") as temporary:
+        with contained_temporary_directory(prefix="bpr-cli-fixture-") as temporary:
             directory = Path(temporary).resolve() / "positive"
             fixture.prepare(directory, "positive")
             state = json.loads((directory / "fixture.json").read_text())
@@ -73,7 +76,7 @@ class cli_read_fixture_tests(unittest.TestCase):
             self.assertNotIn(needle, Path(fixture.__file__).read_bytes())
 
     def test_courses_and_exact_objects(self):
-        with tempfile.TemporaryDirectory(prefix="bpr-cli-fixture-") as temporary:
+        with contained_temporary_directory(prefix="bpr-cli-fixture-") as temporary:
             for course in ("positive", "missing-process", "process-failure", "malformed-response"):
                 directory = Path(temporary) / course
                 fixture.prepare(directory, course)

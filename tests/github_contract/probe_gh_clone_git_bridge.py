@@ -16,8 +16,12 @@ import secrets
 import shutil
 import socketserver
 import subprocess
-import tempfile
+import sys
 import threading
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def packet(data: bytes) -> bytes:
@@ -25,7 +29,9 @@ def packet(data: bytes) -> bytes:
 
 
 def run_probe(gh: Path, git: Path, current_schema: bool, operation: str, sandbox: bool, symlink_hosts: bool) -> dict:
-    with tempfile.TemporaryDirectory(prefix="bpr-gh-", dir="/tmp") as name:
+    # On POSIX the contained support delegates to `tempfile.mkdtemp`, so this
+    # root is still created mode 0700 and stays owner-private.
+    with contained_temporary_directory(prefix="bpr-gh-", parent="/tmp") as name:
         root = Path(name)
         copied_gh = root / "gh"
         shutil.copy2(gh, copied_gh)

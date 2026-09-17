@@ -3,14 +3,18 @@ import argparse
 import os
 from pathlib import Path
 import subprocess
-import tempfile
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
     arguments = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="bpr-0707-restart-") as temporary:
+    with contained_temporary_directory(prefix="bpr-0707-restart-") as temporary:
         root = Path(temporary).resolve()
         os.chmod(root, 0o700)
         for phase in ("seed", "restore", "close", "verify"):

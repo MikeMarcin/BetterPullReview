@@ -6,8 +6,12 @@ from pathlib import Path
 import sqlite3
 import stat
 import subprocess
-import tempfile
+import sys
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 @contextlib.contextmanager
@@ -19,13 +23,14 @@ def private_fixture_parent():
     workspace recovery refuses, and the orderly drain exits 1. The macOS runner's
     `BPR_TEST_SOCKET_ROOT` is such a directory. Linux's network sandbox sets
     none, and shared `/tmp` is not one, so the course makes its own there. `/tmp`
-    keeps the socket path short.
+    keeps the socket path short. On POSIX the contained support delegates to
+    `tempfile.mkdtemp`, so the directory is still created mode 0700.
     """
     configured = os.environ.get("BPR_TEST_SOCKET_ROOT")
     if configured is not None:
         yield configured
         return
-    with tempfile.TemporaryDirectory(prefix="bpr-activation-course-", dir="/tmp") as private:
+    with contained_temporary_directory(prefix="bpr-activation-course-", parent="/tmp") as private:
         yield private
 
 
@@ -60,7 +65,7 @@ def main():
                                  "--new-window", "--application-icon-probe"],
                                 capture_output=True, text=True, timeout=15)
         assert result.returncode == 0 and "APPLICATION_ICON_OK" in result.stdout, result
-    with private_fixture_parent() as parent, tempfile.TemporaryDirectory(prefix="act-", dir=parent) as temporary:
+    with private_fixture_parent() as parent, contained_temporary_directory(prefix="act-", parent=parent) as temporary:
         root = Path(temporary).resolve()
         os.chmod(root, 0o700)
         # The product's own test of the parent, so a shared one fails here by name.
