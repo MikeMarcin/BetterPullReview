@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0833"
 title: "Two Windows rows fail only when contained"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
