@@ -78,3 +78,9 @@ The base is `31fff50675a71bc2c5ce55857c72e57dc36933df`. Logs are under
 Its POSIX path is unchanged apart from the command case now comparing with
 `str(Path(...))`, which on POSIX is the same string. The macOS run is the
 integrator's.
+
+## macOS run; finished (dsp-003)
+
+Main merged `windows-lane` at `6c633c3d` as `eade8828`. On macOS at that head,
+`runtime_audit_contract` and `runtime_process_surface` pass
+(`build/r2-logs/dsp3-int8-ctest.log`).
