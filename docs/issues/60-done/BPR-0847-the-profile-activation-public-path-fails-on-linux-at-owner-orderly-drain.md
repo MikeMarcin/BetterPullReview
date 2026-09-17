@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0847"
 title: "The profile activation public path fails on Linux at the owner's orderly drain"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-epoch-and-startup new defect 2","found_at":"98262aee0ac0897985e97784ebfc74a7c6225a3a","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 the course passes on Linux 3 runs in a row, still passes on macOS, and the cause is named","outcome":"pass","revision":"bbdf8cc0e9d5db0ebd66b05b8f3d1fcd76a62a42","evidence":{"kind":"command","detail":"Cause (named on the card): the course put profile 1's data root straight into shared /tmp on Linux (BPR_TEST_SOCKET_ROOT unset), so owner workspace recovery refused a non-owner-only parent and the orderly drain exited 1. Test-only fix f987cc7f. Linux 3/3 at f987cc7f and 3/3 at the pushed tip dae5d905 (bpr-linux task-20260917-lnx-0847-drain; rfc-reviewer no blocking findings). macOS 3/3 with the fixed driver after the merge 56e46371, at bbdf8cc0 (build/r2-logs/dsp4-0847-mac-merged-runs.log); before the fix macOS was 3/3 at a1e276b7."}}]
 ---
 
 # BPR-0847: The profile activation public path fails on Linux at the owner's orderly drain
