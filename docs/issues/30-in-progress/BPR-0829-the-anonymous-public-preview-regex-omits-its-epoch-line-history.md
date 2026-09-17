@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0829"
 title: "The anonymous public preview course's pass expression omits its epoch line history"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
