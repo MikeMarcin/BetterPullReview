@@ -209,3 +209,10 @@ Its non-blocking findings:
 These are follow-up hardening, not criteria of this card.
 
 **Still open:** the Linux store courses.
+
+## Linux store courses; finished (dsp-003)
+
+`bpr-linux` ran the 11 store courses at `84ac5e0c` from a stock full build
+(1249/1249, no warnings), and main merged the run as `f4758aa9`. All 11 pass
+([the dsp-003 Linux confirmation](../../verification/dsp3-linux-confirmation.md), step 3). The critical review's hardening items were done in
+[[BPR-0841]].
