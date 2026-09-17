@@ -115,3 +115,19 @@ with no haves; if that changes, this course's `:4` changes with it).
 
 **Still open:** the Linux rerun of the new course, and the round-trip
 contract's reseal after an independent review of this `main.cpp` change.
+
+**Review (dsp-003).** An independent `rfc-reviewer` read `2842f484` and found
+no blocker. It had two non-blocking findings on the wait, and both are applied:
+
+- The "retained" count required `Historical base unknown` and
+  `Derived comparison base`. The second string is printed for every
+  occurrence, so it tested nothing, and the first would stall the wait if a
+  retained head's base ever became known. The count now uses only the
+  product's own signal: the line appends `Comparison unavailable` exactly
+  when an occurrence has no local epoch (`src/adapters/qt/src/epoch_line.cpp`
+  ~155).
+- A missing-historical-base run now skips the wait, like the other variants
+  that leave occurrences unretained.
+
+After both changes the course passes 3 of 3 on macOS (34.0 to 35.6 s, load
+about 5; `build/r2-logs/dsp3-int4-0829-course-{1,2,3}.log`).

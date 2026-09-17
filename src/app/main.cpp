@@ -893,13 +893,14 @@ namespace {
 			// occurrence on the line retained before it offered the writes.
 			bool HistoricalRetained = false;
 			// Only the plain enabled course waits for that. The historical course
-			// waits for a retained head before its gesture; an empty timeline and
-			// a rewritten base leave occurrences unretained by design, and the
-			// enterprise course is refused before any lease.
+			// waits for a retained head before its gesture; an empty timeline, a
+			// missing historical base and a rewritten base leave occurrences
+			// unretained by design, and the enterprise course is refused before
+			// any lease.
 			[[nodiscard]] auto awaits_historical_retention() const noexcept -> bool
 			{
-				return Course && !HistoricalCourse && !EmptyTimeline && !RewrittenBase
-					&& !Enterprise;
+				return Course && !HistoricalCourse && !EmptyTimeline
+					&& !MissingHistoricalBase && !RewrittenBase && !Enterprise;
 			}
 			std::size_t                             HistoricalNode        = 0U;
 			// The same override activated on an enterprise profile, where the
@@ -5582,9 +5583,12 @@ namespace {
 							auto              retained = std::size_t{ 0U };
 							for (std::size_t index = 0U; index < line->update_count(); ++index) {
 								const auto tooltip = line->node_tooltip(index);
+								// Retained means the occurrence has a local epoch, which is
+								// exactly when the line omits "Comparison unavailable"; its
+								// historical base may be known or unknown either way.
 								if (tooltip.contains(QStringLiteral("Event time "))) {
 									++events;
-									retained += retainedHistorical(tooltip) ? 1U : 0U;
+									retained += tooltip.contains(QStringLiteral("Comparison unavailable")) ? 0U : 1U;
 								}
 							}
 							aRun->PublicPreview.HistoricalRetained = events > 0U && retained == events;
