@@ -2442,6 +2442,7 @@ bpr_enable_hardening(test_setup_destination_public_path)
 bpr_enable_warnings(test_setup_destination_public_path)
 bpr_add_network_isolated_test(
     NAME application_setup_destination_public_path
+    WINDOWS_UNCONTAINED
     COMMAND test_setup_destination_public_path
 )
 set_tests_properties(
@@ -2535,7 +2536,7 @@ target_compile_definitions(test_profile_multi_window_public_path PRIVATE BPR_BUI
 target_compile_features(test_profile_multi_window_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_multi_window_public_path)
 bpr_enable_warnings(test_profile_multi_window_public_path)
-bpr_add_network_isolated_test(NAME application_profile_multi_window_public_path COMMAND test_profile_multi_window_public_path)
+bpr_add_network_isolated_test(NAME application_profile_multi_window_public_path WINDOWS_UNCONTAINED COMMAND test_profile_multi_window_public_path)
 set_tests_properties(application_profile_multi_window_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "profile-multi-window-public-path:pass")

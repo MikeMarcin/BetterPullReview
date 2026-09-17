@@ -189,6 +189,12 @@ int main(int aArgc, char** aArgv)
 		shutdown(*seed);
 	}
 	options.DeviceWallOffsetSeconds = 28790;
+	// [[BPR-0811]]. This lifetime needs the signed-out mode to exist. The
+	// shipped selection offers it only on macOS ([[BPR-0316]]); Windows and
+	// Linux keep it unavailable until their own acceptance slices, so the
+	// recorded fixture's forced selection states the precondition here rather
+	// than inheriting it from the host platform. On macOS it changes nothing.
+	options.PublicPreviewEnabledCourse = true;
 	{
 		std::unique_ptr<bpr::app::github_application> preview;
 		auto                                          startupTerminal = false;
