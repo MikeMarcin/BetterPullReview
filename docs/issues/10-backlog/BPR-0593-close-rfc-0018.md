@@ -19,36 +19,52 @@ hazards and owner asks still hold. It holds the `project-integrator` lease
 (`bpr-main-mac`).
 
 **Mandate r4.** At a good stable point the coordinator starts two read-only
-whole-project critical reviews: Fable and Codex. The integrator only reports
+whole-project critical reviews, Fable and Codex. The integrator only reports
 the stable point and its main SHA.
 
-- **Heads.** Main is `bc0bff29`, pushed through `915c6867`. The lanes are at
-  `a1864fa2`, and their stations are working from it.
-- **Done in dsp-004 so far:**
-  - [[BPR-0848]]: pin resealed at `08c1aa30`;
+- **Heads.** Main is `92f1e3f1`, pushed.
+  - `windows-lane` is at `20d99914`, where `bpr-win` is working.
+  - `linux-lane` is at `e794da85`, where `bpr-linux` is working.
+- **Done in dsp-004:**
+  - [[BPR-0848]]: round-trip pin resealed at `08c1aa30`;
   - [[BPR-0847]];
   - [[BPR-0850]];
   - [[BPR-0849]];
   - [[BPR-0853]];
-  - [[BPR-0846]]: a trimmed pack is accepted when verifiably connected, on
-    all three platforms;
-  - [[BPR-0836]]: capsule image detach and gate pin.
-- **In progress on main.**
-  - [[BPR-0851]] and [[BPR-0852]]: candidate `15eb1540`, critical review
-    without a blocker. The worker is making courses 7 and 8 independent.
-    Linux and Windows runs are in the envelopes.
-  - [[BPR-0840]]: claimed, for a quiet-machine diagnosis next.
+  - [[BPR-0846]]: haves-trimmed packs, on all three platforms;
+  - [[BPR-0836]];
+  - [[BPR-0851]];
+  - [[BPR-0852]].
+- **Main is not green over the full suite.** `bpr-linux`'s first full sweep at
+  `a1864fa2` passed 355/366. The integrator reproduced 9 of the 11 failures on
+  macOS (`build/r2-logs/dsp4-linux-sweep-mac-classify.log`). Two scouts
+  classified the rest, and every failure is now carded:
+  - [[BPR-0854]]: four source-scan contracts;
+  - [[BPR-0855]]: `application_epoch_host`, Linux only;
+  - [[BPR-0856]]: `application_large_review_benchmark`, Linux only;
+  - [[BPR-0857]]: the v1 downgrade misses `append_residency`;
+  - [[BPR-0858]]: the unavailable-diff course is stale after BPR-0719;
+  - [[BPR-0859]]: UIforETW intraline role paint;
+  - [[BPR-0860]]: a workbench composition stall;
+  - [[BPR-0861]]: the notification probe loses the tray.
+
+  Earlier integration passes ran focused selections, so these rows stayed red,
+  most of them since 2026-09-08 to 09-15.
+- **In progress on the Mac.** [[BPR-0840]]: a worker is diagnosing under load.
+  Its temporary diagnostics are uncommitted in `src/adapters/git`,
+  `src/adapters/agent` and `src/application`, and must be reverted before
+  return.
 - **Active station envelopes (writers active).**
-  - `bpr-win` `task-20260917-win-0653-resume`. The measurement shows the
-    3-character labels are 2 logical pixels short at the 900 floor, at both
-    100% and 125%. The station is parking [[BPR-0653]] with that ask and
-    running the BPR-0851/0852 Windows courses. On macOS the 3-character step
-    would never trigger.
-  - `bpr-linux` `task-20260917-lnx-0851-sweep`: the BPR-0851/0852 Linux runs,
-    then a full read-only ctest sweep.
-- **Owner ask open.** [[BPR-0653]]: with the menu control and caption buttons,
-  3-character labels fall 2 pixels short at 900. The coordinator has relayed
-  this to the owner.
+  - `bpr-win` `task-20260917-win-0653-implement`: [[BPR-0653]], with a 902-pixel
+    Windows floor and three-character labels as the last yield. This is the
+    owner's answer.
+  - `bpr-linux` `task-20260917-lnx-sweep-fixes`: [[BPR-0856]], [[BPR-0855]],
+    [[BPR-0854]]. `scripts/**` changes come back as proposed patches for main.
+- **Next on the Mac.**
+  1. Collect BPR-0840.
+  2. Take BPR-0857 and BPR-0858, then BPR-0861, BPR-0859 and BPR-0860, one
+     at a time in `build/r2-dev`.
+  3. Merge the station replies, with a macOS run and any reseal.
 - **Logs:** `build/r2-logs/dsp4-*`.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): handoff at an integrated boundary
