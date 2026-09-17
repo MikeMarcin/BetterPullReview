@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0820"
 title: "The GHES refusal course opens the interactive default profile"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"found_by":"dsp-002 integration run at the BPR-0622 slice (a) merge","found_at":"9767145d304bb0d20016fcf6b2ba113a1ca9ca9d","run":"run-20260916-stations","dispatch":"dsp-002"}
+acceptance: [{"criterion":"AC1 application_device_authorization_ghes_refusal passes on macOS while an interactive BetterPullReview holds the default profile; any remaining failure named","outcome":"pass","revision":"866c5b906309f7b45cf9ed46b04d07662d8fcb75 (resealed df235fa1)","evidence":{"kind":"command","detail":"With the owner's app PID 88792 alive (start time unchanged before and after), ghes_refusal and the other three default-root rows pass with their own verdicts; 13 seam rows plus structural and restart rows 20/20 at the integrated head (build/r2-logs/dsp3-0820-int-batch.log, dsp3-0820-int-owner.log); no remaining failure; the dsp-002 cleanup_failed=1 did not reproduce and its root setup was unrecorded."}},{"criterion":"AC2 no automated course in the dev preset opens the default application data root, shown by a list or structural gate","outcome":"pass","revision":"866c5b906309f7b45cf9ed46b04d07662d8fcb75","evidence":{"kind":"artifact","detail":"docs/verification/BPR-0820-dev-preset-data-root-courses.md: 55 rows, none reaching the default root, with a control that flags runtime_process_surface without its switch; in-app gate prints AUTOMATED_PROFILE_PRIVATE_FAILED for an automated run without a root (seam-removed control dsp3-0820-control-seam-removed.log); runtime_process_surface passes with --private-data-root 3/3 at the integrated head; independent review found no uncovered path."}},{"criterion":"AC3 no GitHub or GHES network access, credential or live device authorization","outcome":"pass","revision":"866c5b906309f7b45cf9ed46b04d07662d8fcb75","evidence":{"kind":"observation","detail":"All runs were network-isolated ctest rows or fixture/private-root launches; no credential or device authorization was used; the default root was never read."}}]
 ---
 
 # BPR-0820: The GHES refusal course opens the interactive default profile
