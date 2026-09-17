@@ -475,6 +475,13 @@ namespace {
 				return;
 			}
 			release(context);
+			// [[BPR-0644]]. Opt-in, for the courses that stand in for the device
+			// host's rotated refresh store and then watch the slot leave.
+			if (AcceptRefreshStores) {
+				RefreshSlots.insert(context.Authority);
+				aCompletion(application::github_credential_store_success{ .Context = context, .Disposition = application::github_credential_store_disposition::stored });
+				return;
+			}
 			aCompletion(application::github_credential_store_error{
 				.Context = context,
 				.Failure = application::github_credential_vault_failure::unavailable,
@@ -561,6 +568,7 @@ namespace {
 			}
 			release(aContext);
 			if (RefreshDeleteAnswer == refresh_delete_answer::deleted) {
+				RefreshSlots.erase(aContext.Authority);
 				aCompletion(application::github_credential_delete_success{
 					.Context     = aContext,
 					.Disposition = application::
@@ -605,6 +613,8 @@ namespace {
 		std::vector<application::github_credential_operation_context> Cancellations;
 		std::vector<application::github_credential_operation_context> RefreshRetrieves;
 		std::vector<application::github_credential_operation_context> RefreshDeletes;
+		std::set<application::github_credential_authority_key>        RefreshSlots;
+		bool                                                          AcceptRefreshStores = false;
 		application::github_credential_delete_completion_handler      HeldRefreshDelete;
 		application::github_credential_operation_context              HeldRefreshDeleteContext;
 		bool                                                          HoldRefreshDelete = false;
@@ -5602,18 +5612,35 @@ namespace {
 
 	// [[BPR-0644]]. A binding whose access lifetime elapsed while the
 	// application was closed holds its session for a renewal instead of being
-	// tombstoned; the renewal takes the rotation barrier, and its own
-	// enrollment, its failure, or a Sign out each end it exactly once.
+	// tombstoned. The renewal takes the rotation barrier and ends exactly once:
+	// by its rotated grant enrolling under the binding's exact account, or
+	// without enrollment -- another account, a failure, Sign out, a
+	// replacement -- in which case both slots of its exact authority are
+	// erased and nothing the replacing grant owns is named.
 	void test_restore_device_profile_renews_an_access_expired_grant_before_its_session()
 	{
 		using status                                     = application::device_profile_restore_status;
 		const auto                               profile = native_profile(core::host_profile_id{ 11U });
 		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		const auto                               rotated = application::device_binding_lifetime{ .IssuedAt = 5000, .AccessExpiresAt = 33800, .RefreshExpiresAt = 20000 };
 		enum class ending { enrollment,
+							other_account,
 							failure,
-							sign_out,
+							sign_out_after_refresh_stored,
+							replaced_by_token,
 							refresh_expired };
-		for (const auto end : { ending::enrollment, ending::failure, ending::sign_out, ending::refresh_expired }) {
+		const auto names_only_the_renewal = [&record](const host_fixture& aFixture) {
+			return std::ranges::all_of(aFixture.Vault.Deletes, [&record](const auto& aCall) { return aCall.Context.Authority == record.Authority; })
+				&& std::ranges::all_of(aFixture.Vault.RefreshDeletes, [&record](const auto& aContext) { return aContext.Authority == record.Authority; });
+		};
+		const auto complete_deletes = [](host_fixture& aFixture) {
+			for (std::size_t index = 0U; index < aFixture.Vault.Deletes.size(); ++index) {
+				const auto deletion = aFixture.Vault.Deletes.at(index);
+				deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+				aFixture.Lane.drain();
+			}
+		};
+		for (const auto end : { ending::enrollment, ending::other_account, ending::failure, ending::sign_out_after_refresh_stored, ending::replaced_by_token, ending::refresh_expired }) {
 			host_fixture                                                   fixture;
 			binding_store                                                  store;
 			application::manual_executor                                   effects;
@@ -5645,25 +5672,82 @@ namespace {
 			effects.drain();
 			fixture.Lane.drain();
 			expect(barrier == std::optional{ true } && store.Rows.front().Tombstone, "the renewal tombstones the binding before any refresh material is spent");
-			if (end == ending::enrollment) {
-				fixture.Host.enroll_profile(profile.Profile, credential(), application::github_credential_provenance::device_grant, application::device_binding_lifetime{ .IssuedAt = 5000, .AccessExpiresAt = 33800, .RefreshExpiresAt = 20000 }, true);
+
+			if (end == ending::enrollment || end == ending::other_account) {
+				fixture.Host.enroll_profile(profile.Profile, credential(), application::github_credential_provenance::device_grant, rotated, true);
 				fixture.Lane.drain();
-				expect(fixture.Provider.Profiles.size() == 1U && renewals.size() == 1U, "the rotated grant's own enrollment settles the renewal without abandoning it");
+				expect(fixture.Provider.Profiles.size() == 1U && renewals.size() == 1U, "the rotated grant's own enrollment carries the renewal on without abandoning it");
+				const auto profileRequest = fixture.Provider.Profiles.front().Request;
+				fixture.Provider.Profiles.front().Completion(application::github_profile_success{ .Request = profileRequest, .Authority = profile });
+				fixture.Lane.drain();
+				expect(fixture.Provider.Viewers.size() == 1U, "the rotated grant meets its bootstrap /user");
+				const auto bootstrap = fixture.Provider.Viewers.front().Request;
+				// The token endpoint's answer, read back through /user: the
+				// binding's own account, or one it never named.
+				const auto account = end == ending::enrollment ? record.Authority.Account : core::github_account_id{ 52U };
+				fixture.Provider.Viewers.front().Completion(application::github_viewer_success{ .Request = bootstrap, .Viewer = viewer(account), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+				fixture.Lane.drain();
+				effects.drain();
+				fixture.Lane.drain();
+				if (end == ending::enrollment) {
+					expect(fixture.Vault.Stores.size() == 1U && fixture.Vault.Stores.front().Context.Authority == record.Authority && fixture.Vault.Deletes.empty(), "the binding's own account stores the rotated access token under the exact slot");
+				} else {
+					expect(fixture.Vault.Stores.empty(), "another account's token is refused before it reaches the vault");
+					expect(renewals.size() == 2U && !renewals.back().has_value(), "and the device host's renewal is released");
+					expect(fixture.Vault.Deletes.size() == 1U && names_only_the_renewal(fixture) && store.Rows.front().Tombstone, "the renewal's exact slot is erased and the row stays tombstoned");
+					complete_deletes(fixture);
+					expect(fixture.Vault.RefreshDeletes.size() == 1U && names_only_the_renewal(fixture), "both slots of the renewal's authority leave in order");
+					expect(!fixture.Host.accepted_session() && !fixture.Host.state().PendingSession, "the refused grant fails its session");
+				}
 			} else if (end == ending::failure) {
 				fixture.Host.invalidate_device_grant(renewal.Authority, renewal.IdentityGeneration);
 				fixture.Lane.drain();
-				expect(!fixture.Host.state().PendingSession && !fixture.Host.accepted_session() && fixture.Provider.Profiles.empty() && renewals.size() == 1U, "a failed renewal fails the held session and presents nothing");
-			} else {
+				effects.drain();
+				fixture.Lane.drain();
+				expect(fixture.Provider.Profiles.empty() && renewals.size() == 1U, "a failed renewal presents nothing");
+				expect(fixture.Vault.Deletes.size() == 1U && names_only_the_renewal(fixture) && store.Rows.front().Tombstone, "a failed renewal erases its exact slot behind the tombstone");
+				complete_deletes(fixture);
+				expect(fixture.Vault.RefreshDeletes.size() == 1U && names_only_the_renewal(fixture), "including the refresh slot it may already have spent");
+				expect(!fixture.Host.accepted_session() && !fixture.Host.state().PendingSession, "and then fails the held session");
+			} else if (end == ending::sign_out_after_refresh_stored) {
+				// Stands in for the device host's store of the rotated refresh
+				// token, which lands before the rotated access token enrolls.
+				fixture.Vault.AcceptRefreshStores = true;
+				fixture.Vault.store_refresh(application::github_credential_enrollment{ .Context = { .Request = core::request_id{ 900U }, .ApplicationSession = core::application_session_id{ 1U }, .Authority = record.Authority, .IdentityGeneration = renewal.IdentityGeneration }, .Credential = credential() }, [](application::github_credential_store_completion) { });
+				expect(fixture.Vault.RefreshSlots.contains(record.Authority), "the rotated refresh token is in the slot");
 				fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
 				fixture.Lane.drain();
+				effects.drain();
+				fixture.Lane.drain();
 				expect(renewals.size() == 2U && !renewals.back().has_value(), "Sign out abandons the renewal so no rotated token is enrolled over it");
+				expect(fixture.Vault.Deletes.size() == 1U && names_only_the_renewal(fixture), "Sign out erases the renewal's exact slot");
+				complete_deletes(fixture);
+				expect(fixture.Vault.RefreshSlots.empty() && fixture.Vault.RefreshDeletes.size() == 1U && names_only_the_renewal(fixture), "no rotated refresh token stays behind the tombstoned row");
 				std::optional<bool> late;
 				fixture.Host.prepare_device_rotation(renewal.Authority, renewal.IdentityGeneration, [&late](const bool aReady) { late = aReady; });
 				expect(late == std::optional{ false }, "an abandoned renewal is refused its barrier");
+			} else {
+				fixture.Host.enroll_profile(profile.Profile, credential());
+				fixture.Lane.drain();
+				effects.drain();
+				fixture.Lane.drain();
+				expect(renewals.size() == 2U && !renewals.back().has_value(), "a pasted token abandons the renewal");
+				expect(fixture.Vault.Deletes.size() == 1U && names_only_the_renewal(fixture) && fixture.Provider.Profiles.empty(), "the renewal's slot is erased before the replacing session begins");
+				complete_deletes(fixture);
+				expect(fixture.Provider.Profiles.size() == 1U, "the replacing session begins once the erasure answers");
+				const auto profileRequest = fixture.Provider.Profiles.front().Request;
+				fixture.Provider.Profiles.front().Completion(application::github_profile_success{ .Request = profileRequest, .Authority = profile });
+				fixture.Lane.drain();
+				const auto bootstrap = fixture.Provider.Viewers.front().Request;
+				fixture.Provider.Viewers.front().Completion(application::github_viewer_success{ .Request = bootstrap, .Viewer = viewer(core::github_account_id{ 52U }), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+				fixture.Lane.drain();
+				expect(fixture.Vault.Stores.size() == 1U && fixture.Vault.Stores.front().Context.Authority.Account == core::github_account_id{ 52U }, "the replacing token is stored under its own account");
+				expect(names_only_the_renewal(fixture), "and nothing the replacing grant owns is erased");
 			}
 			fixture.Host.shutdown();
 			effects.drain();
 			fixture.Lane.drain();
+			complete_deletes(fixture);
 		}
 	}
 
@@ -5813,10 +5897,11 @@ namespace {
 		}
 	}
 
-	// [[BPR-0644]]. A restored grant is erased only by an answer about the
-	// grant. A locked vault or an unreachable network fails the session and
-	// leaves the binding and both slots for the next launch.
-	void test_restored_binding_survives_transient_launch_failures()
+	// BPR-0541's rule, kept by [[BPR-0644]]: a restored grant whose resume
+	// fails -- a locked or denied vault, the network, an authentication
+	// refusal -- is tombstoned and both slots are erased. Whether any of these
+	// should keep the grant is an owner decision, not this card's.
+	void test_restored_binding_launch_failures_stay_fail_closed()
 	{
 		const auto                               profile = native_profile(core::host_profile_id{ 11U });
 		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
@@ -5858,20 +5943,15 @@ namespace {
 			fixture.Lane.drain();
 			effects.drain();
 			fixture.Lane.drain();
-			const auto keeps = given != answer::authentication;
-			expect(store.Rows.front().Tombstone != keeps && fixture.Vault.Deletes.empty() == keeps,
-				   keeps ? "a locked or denied vault or a network failure keeps the binding and both slots"
-						 : "an authentication refusal still tombstones and erases the restored grant");
-			if (!keeps) {
-				const auto deletion = fixture.Vault.Deletes.front();
-				deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
-				fixture.Lane.drain();
-			}
+			expect(store.Rows.front().Tombstone && fixture.Vault.Deletes.size() == 1U, "every failed restore tombstones and erases the restored grant");
+			const auto deletion = fixture.Vault.Deletes.front();
+			deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			fixture.Lane.drain();
 			expect(!fixture.Host.accepted_session() && !fixture.Host.state().PendingSession, "every failed restore fails the session visibly");
 			fixture.Host.shutdown();
 			effects.drain();
 			fixture.Lane.drain();
-			expect(fixture.Vault.Deletes.size() == (keeps ? 0U : 1U) && fixture.Host.is_quiescent(), "shutdown after a kept binding erases nothing");
+			expect(fixture.Vault.Deletes.size() == 1U && fixture.Host.is_quiescent(), "shutdown erases nothing more");
 		}
 	}
 
@@ -6376,7 +6456,7 @@ auto main() -> int
 	test_restore_device_profile_bounds_pending_and_delivering_terminals();
 	test_restore_device_profile_has_one_terminal_for_missing_invalid_and_ready();
 	test_restore_device_profile_renews_an_access_expired_grant_before_its_session();
-	test_restored_binding_survives_transient_launch_failures();
+	test_restored_binding_launch_failures_stay_fail_closed();
 	test_restore_device_profile_refusal_reentrancy_and_shutdown_terminals();
 	test_restore_device_profile_superseded_load_terminates_without_resuming();
 	test_restored_binding_is_validated_before_resume();

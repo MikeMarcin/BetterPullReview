@@ -195,6 +195,8 @@ int main(int aArgc, char** aArgv)
 		expect(rejected->window().session_panel()->status() == core::github_status::session_failed, "a rejected renewal fails the held session instead of establishing it");
 		expect(rejected->status().DeviceAuthorizationRefreshRotations == 0U, "a rejected renewal rotates nothing");
 		expect_device_sign_in_offered(*rejected, "a rejected launch offers the device sign-in with Begin enabled");
+		wait_for([&rejected] { const auto evidence = github_application_fixture_access::evidence(*rejected); return !evidence.SecretRetained && !evidence.RefreshRetained; },
+				 "a rejected renewal leaves neither slot behind its tombstoned row");
 		shutdown(*rejected);
 	}
 	options.RejectDeviceRefresh = false;

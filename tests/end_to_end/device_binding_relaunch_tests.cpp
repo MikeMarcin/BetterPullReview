@@ -103,13 +103,14 @@ auto main(int aArgc, char** aArgv) -> int
 		application->select_device_authorization();
 		wait_for([&application] { return github_application_fixture_access::device_binding_durable(*application); }, "the seeding lifetime persists a settled grant");
 	} else if (locked) {
-		// A keychain that will not answer this launch fails the session
-		// visibly and says nothing about the grant: nothing is erased.
+		// BPR-0541's rule, unchanged by [[BPR-0644]]: a restored grant whose
+		// vault will not answer fails the session and is erased. Whether it
+		// should be kept is an owner decision this course will follow.
 		wait_for([&application] { return application->window().session_panel()->status() == core::github_status::session_failed; },
 				 "a locked vault fails the restored session visibly");
-		wait_for([&application] { return github_application_fixture_access::device_binding_store_idle(*application); }, "the locked launch completes its metadata work");
+		wait_for([&application] { const auto evidence = github_application_fixture_access::evidence(*application); return evidence.VaultDeleteAttempts == 1U && evidence.RefreshDeleteAttempts == 1U && !evidence.SecretRetained && !evidence.RefreshRetained; },
+				 "a locked vault erases both slots of the restored grant");
 		const auto evidence = github_application_fixture_access::evidence(*application);
-		expect(evidence.VaultDeleteAttempts == 0U && evidence.RefreshDeleteAttempts == 0U, "a locked vault erases neither slot");
 		expect(evidence.DeviceTransportSubmissions == 0U && evidence.LastEnrollmentDigest.empty(), "a locked vault spends and prompts for nothing");
 	} else {
 		wait_for([&application] { return application->window().session_panel()->status() == core::github_status::session_ready; },
@@ -132,6 +133,10 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 
 	shutdown(*application);
+	if (locked) {
+		std::cerr << "device-binding-relaunch:" << Phase << ":pass\n";
+		return EXIT_SUCCESS;
+	}
 	const auto closed = github_application_fixture_access::evidence(*application);
 	expect(closed.SecretRetained && closed.RefreshRetained, "an orderly quit retains the accepted device pair");
 	write_vault(options);

@@ -1,7 +1,9 @@
 """[[BPR-0644]]. A remembered device grant survives an ordinary relaunch.
 
-An orderly quit, a termination signal, and a launch whose vault is locked are
-each followed by a relaunch that must restore the session.
+An orderly quit and a termination signal are each followed by a relaunch that
+must restore the session. These are regression courses: both pass with the
+BPR-0644 product change reverted. A last launch whose vault is locked asserts
+BPR-0541's fail-closed rule, under which the grant is tombstoned and erased.
 
 Real processes over one application data root. The synthetic fixture vault
 slots travel only through the child's standard input and standard output
@@ -27,13 +29,19 @@ def binding_rows(root):
         return connection.execute("SELECT profile,tombstone FROM device_binding").fetchall()
 
 
+def expect_tombstoned_binding(root, after):
+    rows = binding_rows(root)
+    if len(rows) != 1 or rows[0][1] != 1:
+        raise SystemExit(f"after {after}: the binding row is not tombstoned ({rows and rows[0][1]}, {len(rows)} rows)")
+
+
 def expect_live_binding(root, after):
     rows = binding_rows(root)
     if len(rows) != 1 or rows[0][1] != 0:
         raise SystemExit(f"after {after}: the binding row is {'tombstoned' if rows and rows[0][1] else 'missing'} ({len(rows)} rows)")
 
 
-def run(application, phase, root, vault=b""):
+def run(application, phase, root, vault=b"", exports=True):
     result = subprocess.run([application, phase, str(root)], input=vault,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             timeout=TIMEOUT_SECONDS, check=False)
@@ -42,6 +50,10 @@ def run(application, phase, root, vault=b""):
         # stdout carries vault material; never report it, including on failure.
         raise SystemExit(f"{phase} failed ({result.returncode})\n{diagnostic}")
     exported = result.stdout.strip()
+    if not exports:
+        if exported:
+            raise SystemExit(f"{phase} exported a vault it should have erased")
+        return b""
     if not exported or len(exported) > 2048:
         raise SystemExit(f"{phase} exported no bounded vault")
     return exported
@@ -93,12 +105,10 @@ def main():
         expect_live_binding(root, "a terminated restored session")
         vault = run(arguments.application, "verify", root, vault)
         expect_live_binding(root, "the relaunch after termination")
-        # A relaunch whose vault will not answer without a prompt, then one
-        # that answers: the first must not cost the second its session.
-        vault = run(arguments.application, "locked", root, vault)
-        expect_live_binding(root, "a relaunch with a locked vault")
-        run(arguments.application, "verify", root, vault)
-        expect_live_binding(root, "the relaunch after a locked vault")
+        # A relaunch whose vault will not answer without a prompt fails
+        # closed under BPR-0541: the grant is tombstoned and erased.
+        run(arguments.application, "locked", root, vault, exports=False)
+        expect_tombstoned_binding(root, "a relaunch with a locked vault")
     print("DEVICE_BINDING_RELAUNCH_OK")
 
 

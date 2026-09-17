@@ -220,8 +220,11 @@ namespace bpr::application {
 		/// [[BPR-0644]]. With a renewal sink, a restored binding whose access
 		/// lifetime elapsed but whose refresh lifetime remains is renewed before
 		/// its session starts instead of being tombstoned. The sink runs on the
-		/// decision lane; the renewal ends through `prepare_device_rotation`,
-		/// the renewed grant's enrollment, or `invalidate_device_grant`.
+		/// decision lane. The renewal takes its barrier through
+		/// `prepare_device_rotation`, and ends when the rotated grant's
+		/// enrollment names the binding's exact account. A different account,
+		/// `invalidate_device_grant`, or any replacement of the held session
+		/// ends it without enrollment and erases both slots of its authority.
 		void configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock, device_launch_renewal_sink aLaunchRenewal = { });
 		/// \brief Loads the trusted device binding for a compiled native profile, then resumes normally.
 		/// \details An admitted observer receives one terminal on the decision lane
