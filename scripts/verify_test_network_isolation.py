@@ -107,6 +107,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # BPR-0833: measured on JaegAW 2026-09-17. Contained, the scratch root stops at
     # `canonical: Access is denied.` before any course step; it passes uncontained.
     "sqlite_profile_storage_root": "dos-volume-name",
+    # BPR-0845: measured on JaegAW 2026-09-17, both passing uncontained once the
+    # course root is owner-private. Contained, open_state_directory stops at
+    # validate_ancestor_chain with ERROR_ACCESS_DENIED, the retained ancestor
+    # chain step described above.
+    "sqlite_queue_enrollment_storage": "dos-volume-name",
+    "sqlite_workbench_settings_storage": "dos-volume-name",
     # BPR-0834: measured on JaegAW 2026-09-17, both passing uncontained once the
     # course root and its parent are owner-private. Contained, with both narrowed
     # to the user and the container, the composed application still refuses

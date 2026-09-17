@@ -170,6 +170,7 @@ bpr_enable_warnings(test_better_pull_review_queue_enrollment_tests)
 
 bpr_add_network_isolated_test(
     NAME sqlite_queue_enrollment_storage
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_queue_enrollment_tests
 )
 set_tests_properties(
@@ -204,6 +205,7 @@ bpr_enable_warnings(test_better_pull_review_workbench_settings_tests)
 
 bpr_add_network_isolated_test(
     NAME sqlite_workbench_settings_storage
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_workbench_settings_tests
 )
 set_tests_properties(

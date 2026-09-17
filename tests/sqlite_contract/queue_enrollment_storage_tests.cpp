@@ -1,6 +1,7 @@
 #include "../../src/adapters/sqlite/src/queue_enrollment_database.hpp"
 #include "../../src/adapters/sqlite/src/review_ledger_database.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 
 #include <sqlite3.h>
 
@@ -73,7 +74,10 @@ namespace {
 		[[nodiscard]] auto make_private() const -> bool
 		{
 #if defined(_WIN32)
-			return true;
+			// [[BPR-0845]]. The stores' own rule: on Windows a directory under the
+			// temporary directory inherits a list the stores refuse, and changing
+			// mode bits does not change it.
+			return bpr::adapters::sqlite::make_storage_root_owner_private(Path);
 #else
 			std::error_code failed;
 			std::filesystem::permissions(
