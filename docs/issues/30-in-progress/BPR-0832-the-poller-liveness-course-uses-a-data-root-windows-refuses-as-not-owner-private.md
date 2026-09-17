@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0832"
 title: "The poller liveness course uses a data root Windows refuses as not owner-private"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
