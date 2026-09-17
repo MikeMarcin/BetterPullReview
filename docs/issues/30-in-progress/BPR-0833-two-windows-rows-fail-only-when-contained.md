@@ -301,3 +301,27 @@ One more fix is needed whatever is decided: a root the call created but
 validation then refused is currently returned as `failed`, so the guard never
 records it and it leaks. If (1) is chosen, `created` should also be reported
 for a root created but refused, or the adapter should remove what it created.
+
+## Integrator decision (dsp-003): pin the capability rows
+
+Option (i) was built and measured on Windows. The seam's private root was
+created inside the container with exactly the owner-private descriptor,
+including the container SID. The stores' `validate_ancestor_chain` then
+refused it with error 5, because the AppContainer cannot open the ancestors
+above the temporary directory. That is the documented `dos-volume-name`
+application step, the same one [[BPR-0812]], [[BPR-0834]] and [[BPR-0845]]
+pinned. No choice of parent passes contained while the stores require that
+walk.
+
+Relaxing the ancestor-chain rule for contained processes would be a product
+security change, and nothing in this card's scope asks for one. So the
+integrator chooses **(2)**. Both capability rows are pinned
+`WINDOWS_UNCONTAINED` with this measured cause, as the other rows were.
+
+- The adapter half of option (a), `aa3c6ef1`, stays on main: storage roots
+  are created with the private descriptor on Windows. The product data-root
+  courses pass with it.
+- The option (i) seam patch is not applied, and `src/app/main.cpp` is
+  unchanged.
+- The pinned rows remain visible to the manifest gate as enumerated
+  exceptions.
