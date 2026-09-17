@@ -198,6 +198,16 @@ AGENT_WINDOWS_PROCESS_SOURCE = (
     / "src"
     / "windows_agent_process.cpp"
 ).read_text(encoding="utf-8")
+# [[BPR-0622]] made the Windows supervisor a selected agent process source the
+# gate requires; a fixture tree without it stops every case at that refusal.
+AGENT_WINDOWS_SUPERVISOR_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "agent"
+    / "src"
+    / "windows_agent_supervisor.cpp"
+).read_text(encoding="utf-8")
 
 APPLE_KEYCHAIN_TARGET = """\
 if(APPLE)
@@ -1412,6 +1422,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     AGENT_WINDOWS_PROCESS_SOURCE,
                 "src/adapters/agent/src/unix_agent_supervisor.cpp":
                     (REPOSITORY_ROOT / "src/adapters/agent/src/unix_agent_supervisor.cpp").read_text(),
+                "src/adapters/agent/src/windows_agent_supervisor.cpp":
+                    AGENT_WINDOWS_SUPERVISOR_SOURCE,
             }
             if not omit_process_interface:
                 files[
@@ -1539,12 +1551,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "",
             ),
         )
+        # The gate looks for `Kernel32` anywhere in the target file, and since
+        # [[BPR-0622]] the Windows supervisor links it on a line of its own.
+        # Removing only the adapter's entry leaves the pattern satisfied, so
+        # the mutation removes every entry.
+        without_kernel32 = AGENT_TARGET.replace("Kernel32", "")
+        self.assertNotEqual(without_kernel32, AGENT_TARGET)
         self.assert_failure(
             "Agent process adapter target contract is incomplete",
-            agent_target=AGENT_TARGET.replace(
-                "            Kernel32\n",
-                "",
-            ),
+            agent_target=without_kernel32,
         )
 
     def test_agent_backends_select_one_shared_protocol_loop(self) -> None:

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0837"
 title: "The architecture boundary contract's fixture lacks the Windows agent supervisor source"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-003 integration pass at 8a03a5be (red since BPR-0622 slice (a))","found_at":"8a03a5bee813fc285e1c0be91f6a5c070436364f","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 architecture_boundary_contract passes on macOS and each case again fails on its own named refusal","outcome":"pass","revision":"866c5b90 plus tests/scripts/architecture_boundary_tests.py as committed by this finish","evidence":{"kind":"command","detail":"python3 tests/scripts/architecture_boundary_tests.py: Ran 132 tests, OK (build/r2-logs/dsp3-0837-contract-final.log); spot checks show the Kernel32 case failing on 'Agent process adapter target contract is incomplete: Kernel32' and the process-owner case on 'native Windows process creation API ownership violation' (dsp3-0837-spotcheck.log)."}},{"criterion":"AC2 architecture_boundaries still passes","outcome":"pass","revision":"866c5b90","evidence":{"kind":"command","detail":"cmake -DBPR_ROOT=<tree> -P cmake/VerifyArchitectureBoundaries.cmake: 'Application, provider, and Qt architecture boundaries verified', exit 0 (dsp3-0837-gate.log); gate file unchanged."}}]
 ---
 
 # BPR-0837: The architecture boundary contract's fixture lacks the Windows agent supervisor source
