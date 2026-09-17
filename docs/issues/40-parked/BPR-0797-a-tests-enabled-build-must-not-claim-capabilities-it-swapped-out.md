@@ -305,6 +305,41 @@ and its outside run, and its logging fake `gh` was never invoked. The hop from
 code, not executed. The consent-gate defect and its fix are demonstrated; the
 process launch beyond them is not.
 
+### The tests-disabled Release, which the card had claimed and not checked
+
+Run because the correction at `a78eefcf` restructured preprocessor branches, so
+the configuration nobody had compiled was exactly the one whose compilation the
+change could break. `cmake --build --preset app-release`
+(`BUILD_TESTING:BOOL=OFF`): **clean.** No `: error:` line, no `: warning:` line,
+and a follow-up invocation reports `ninja: no work to do`
+(`build/bpr0797-d13-app-release-build.log`). Release binary sha256
+`4d36e20713bc268d7ab715d2a189626d2baeb3f6d1cfdb18a149b37b0ad4db03`.
+
+**The release-absence claim is now checked rather than asserted.**
+`BPR_AUTOMATED_TEST_BOUNDARY` is absent from the Release in UTF-8 and UTF-16,
+as are `composition-capability-probe` and `--network-denied`. `Opened in your
+browser` is absent. Both consent dialogs are present, which is the point of
+`a78eefcf`, and so is `This build cannot open a browser` — the construction
+cut's sentence is untouched. `rfc0017_test_inventory`,
+`rfc0017_release_absence_negative_control`, `rfc0016_test_inventory`,
+`rfc0017_test_inventory_contract` and `rfc0017_public_preview_decision_contract`
+all pass, 5/5 (`build/bpr0797-d13-rfc0017.log`).
+
+**One consequence worth naming, because this card's own diagnosis depended on
+the thing it removes.** Two literals now survive in the Release that the `#if`
+used to delete: `COMPOSITION_BROWSER:` (dead report text — `CapabilityProbe` is
+compile-time `false` there) and `GitHub CLI (unavailable)` (the untaken arm of a
+run-time ternary). Neither is reachable and no gate objects. But **d8 diagnosed
+this very defect by running `strings` on the shipped binary** and reasoning from
+which of the two CLI labels was present. That technique no longer works on
+anything built after `b1f89533`: both labels are in every binary now, because the
+choice moved to run time, and their presence says nothing about which one a row
+shows. A future reader repeating d8's check would be misled. The replacement for
+a tests-enabled build is `application_composition_capabilities_product_run`,
+which reports `COMPOSITION_CLI_LABEL` from the composition itself; for a Release
+there is no probe, and the honest answer is to read `cli_read_offered` or run the
+application.
+
 ### Decisions
 
 1. **Scope stays on this card.** BPR-0797 is a composition-root change and is
@@ -353,10 +388,10 @@ process launch beyond them is not.
   the hop from there to `findExecutable("gh")` is read from code.
 - `coding-format-check` remains red on 16 files this card does not touch. `main.cpp`
   is back to exactly its three pre-existing violations.
-- The tests-disabled `app-release` build and `coding-tidy` were NOT RUN. The
-  name `BPR_AUTOMATED_TEST_BOUNDARY` sits inside `#if defined(BPR_BUILD_TESTING)`
-  in `src/app/main.cpp`, so RFC-BPR-0017's release-absence scan should prove it
-  absent from a Release, but that has not been executed here.
+- The tests-disabled `app-release` build is now RUN and clean, and the
+  release-absence claim is checked; see the section above. `coding-tidy` is still
+  NOT RUN (`BPR_ENABLE_CODING_TARGETS` is `OFF` in the `app-release` cache, and it
+  was not run in `dev` either).
 - `--network-denied` remains on both capability probe rows, and neither selects
   a device path, so no verification address exists in either run to hand
   anywhere.
@@ -408,9 +443,12 @@ process launch beyond them is not.
      application binary, not every composition root.
   4. `test_network_isolation_manifest` and `coding-format-check` are both red, both
      were red at `68aa7ab1`, and both are red on files this card does not touch.
-  5. The tests-disabled `app-release` build and `coding-tidy` were NOT RUN.
-     RFC-BPR-0017's release-absence scan should prove `BPR_AUTOMATED_TEST_BOUNDARY`
-     absent from a Release, and that has not been executed.
+  5. `coding-tidy` was NOT RUN. The tests-disabled `app-release` build is run and
+     clean, and `BPR_AUTOMATED_TEST_BOUNDARY` is confirmed absent from the Release.
+  6. `strings` on a binary can no longer tell which GitHub CLI label a row shows,
+     because both arms of a run-time ternary are present in every build. That is
+     the technique d8 used to diagnose this card. Recorded above; a successor
+     auditing a Release should not reach for it.
 - **Next bounded objective.** Take the attended verdict, then either finish this
   card or open the follow-up its rejection names. The two audit gaps above deserve
   one small card between them; neither is this card's acceptance.
