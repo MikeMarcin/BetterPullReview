@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
+import contextlib
 from pathlib import Path
 import importlib.util
 import os
 import pathlib
+import plistlib
+import re
 import select
 import signal
 import socket
@@ -491,6 +495,91 @@ class CapsuleImageTests(unittest.TestCase):
             )
             time.sleep(0.01)
         self.fail(f"the helper never became ready: {ready}")
+
+    @staticmethod
+    def attached_whole_disks(image: pathlib.Path) -> list[str]:
+        """The whole-disk devices of every attachment of exactly `image`.
+
+        Matching on this case's own image path is the whole safety argument
+        for detaching what comes back: an attachment of any other image,
+        however alike, is never returned.
+        """
+        listing = subprocess.run(
+            ["/usr/bin/hdiutil", "info", "-plist"],
+            check=True,
+            capture_output=True,
+        )
+        target = os.path.realpath(image)
+        return [
+            entity["dev-entry"]
+            for attached in plistlib.loads(listing.stdout).get("images", [])
+            if attached.get("image-path")
+            and os.path.realpath(attached["image-path"]) == target
+            for entity in attached.get("system-entities", [])
+            if re.fullmatch(r"/dev/disk[0-9]+", entity.get("dev-entry", ""))
+        ]
+
+    def detach_image(self, image: pathlib.Path) -> None:
+        """Ordinary-detaches this case's image until nothing of it is attached.
+
+        Never forced: a mount that something still holds is a failure to
+        report, not one to tear out from under its holder. Each attempt
+        re-lists and tries the next whole disk, because detaching the physical
+        store removes the APFS container synthesized on it but the listing
+        does not say which disk is the store.
+        """
+        deadline = time.monotonic() + 60.0
+        attempt = 0
+        while disks := self.attached_whole_disks(image):
+            if time.monotonic() >= deadline:
+                self.fail(f"{image} is still attached as {disks}")
+            subprocess.run(
+                ["/usr/bin/hdiutil", "detach", disks[attempt % len(disks)], "-quiet"],
+                check=False,
+                capture_output=True,
+            )
+            attempt += 1
+            time.sleep(0.1)
+
+    @contextlib.contextmanager
+    def real_image_directory(self) -> Iterator[tuple[pathlib.Path, pathlib.Path]]:
+        """A contained directory whose `capsule.dmg` is never left attached.
+
+        The detach runs before the directory is removed, on every exit path,
+        so a failed case cannot leave a device behind (BPR-0814).
+        """
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            try:
+                yield parent, image
+            finally:
+                self.detach_image(image)
+
+    def build_real_image(
+        self, root: pathlib.Path, inventory: pathlib.Path, image: pathlib.Path
+    ) -> None:
+        """Builds `image` and establishes that none of it is still attached.
+
+        BPR-0814. `hdiutil create` writes this image through a write-once
+        device. While other copies of this suite create images at the same
+        time, it can exit 0 with that device still attached, and the device
+        stays attached. The unified log for one such create shows its helper
+        ejecting the APFS container synthesized on the device rather than the
+        device itself. The image bytes were already final, and an ordinary
+        detach of the device removed it. A stage-zero attach of that image
+        failed, which is not the behavior these cases test, so the
+        precondition is restored here, where it broke.
+        """
+        capsule.build_image(
+            self.image_arguments(
+                capsule=root,
+                inventory=inventory,
+                output=image,
+                image_digest=None,
+            )
+        )
+        self.detach_image(image)
 
     def test_attach_asks_for_a_read_only_unbrowsable_mount(self) -> None:
         recorded: list[list[str]] = []
@@ -1027,20 +1116,11 @@ class CapsuleImageTests(unittest.TestCase):
     def test_real_image_round_trip_is_read_only_and_detaches_without_force(
         self,
     ) -> None:
-        with contained_temporary_directory() as directory:
-            parent = pathlib.Path(directory)
+        with self.real_image_directory() as (parent, image):
             root, inventory = make_capsule(parent)
             approval = parent / "external-approval.txt"
             approval.write_text("must stay outside the image\n", encoding="utf-8")
-            image = parent / "capsule.dmg"
-            capsule.build_image(
-                self.image_arguments(
-                    capsule=root,
-                    inventory=inventory,
-                    output=image,
-                    image_digest=None,
-                )
-            )
+            self.build_real_image(root, inventory, image)
             self.assertTrue(image.is_file())
             digest = capsule.image_sha256(image)
 
@@ -1128,8 +1208,7 @@ class CapsuleImageTests(unittest.TestCase):
     def test_sigterm_reaps_blocked_child_group_and_detaches_real_image(
         self,
     ) -> None:
-        with contained_temporary_directory() as directory:
-            parent = pathlib.Path(directory)
+        with self.real_image_directory() as (parent, image):
             root, inventory = make_capsule(parent)
             helper_ready = parent / "helper-ready"
             helper_pid = parent / "helper-pid"
@@ -1165,15 +1244,7 @@ class CapsuleImageTests(unittest.TestCase):
                 encoding="utf-8",
                 newline="\n",
             )
-            image = parent / "capsule.dmg"
-            capsule.build_image(
-                self.image_arguments(
-                    capsule=root,
-                    inventory=inventory,
-                    output=image,
-                    image_digest=None,
-                )
-            )
+            self.build_real_image(root, inventory, image)
             mount_parent = (parent / "mounts").resolve(strict=False)
             process = subprocess.Popen(
                 [
@@ -1194,54 +1265,74 @@ class CapsuleImageTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            self.assertIsNotNone(process.stdout)
-            mounted_marker = ""
-            deadline = time.monotonic() + 20.0
-            while time.monotonic() < deadline and process.poll() is None:
-                readable, _, _ = select.select([process.stdout], [], [], 0.1)
-                if not readable:
-                    continue
-                line = process.stdout.readline()
-                if "designated-live-macos-capsule:mounted:" in line:
-                    mounted_marker = line
-                    break
-            self.assertIn("designated-live-macos-capsule:mounted:", mounted_marker)
-            while time.monotonic() < deadline and not helper_ready.exists():
-                if process.poll() is not None:
-                    break
-                time.sleep(0.01)
-            self.assertTrue(helper_ready.exists())
-            child_processes = (
-                int(helper_pid.read_text(encoding="utf-8")),
-                int(descendant_pid.read_text(encoding="utf-8")),
-            )
-            process.send_signal(signal.SIGTERM)
-            # BPR-0692. The reap and the detach run on different clocks. Stage
-            # zero bounds the reap by its own term and kill graces, so that is
-            # asserted from the signal. The ordinary detach that follows waits
-            # on DiskArbitration's unmount and eject, which stage zero does not
-            # bound: one eject took 10.7 s under spinning-process load, and a
-            # single 30-second window already spent 10 s of it on the term
-            # grace this SIGTERM-ignoring descendant forces. So the detach gets
-            # a hang bound, not a promptness claim.
-            reap_deadline = (
-                time.monotonic()
-                + capsule.STAGE_ONE_TERM_GRACE_SECONDS
-                + capsule.STAGE_ONE_KILL_GRACE_SECONDS
-                + 10.0
-            )
-            for process_id in child_processes:
-                self.assert_process_gone(process_id, reap_deadline)
-            stdout, stderr = process.communicate(timeout=180)
-            self.assertNotEqual(process.returncode, 0, stdout + stderr)
-            self.assertIn("stage zero interrupted by signal", stderr)
-            listing = subprocess.run(
-                ["/usr/bin/hdiutil", "info"],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertNotIn(str(image.resolve()), listing.stdout)
+            try:
+                self.assertIsNotNone(process.stdout)
+                mounted_marker = ""
+                deadline = time.monotonic() + 20.0
+                while time.monotonic() < deadline and process.poll() is None:
+                    readable, _, _ = select.select([process.stdout], [], [], 0.1)
+                    if not readable:
+                        continue
+                    line = process.stdout.readline()
+                    if "designated-live-macos-capsule:mounted:" in line:
+                        mounted_marker = line
+                        break
+                self.assertIn("designated-live-macos-capsule:mounted:", mounted_marker)
+                while time.monotonic() < deadline and not helper_ready.exists():
+                    if process.poll() is not None:
+                        break
+                    time.sleep(0.01)
+                self.assertTrue(helper_ready.exists())
+                child_processes = (
+                    int(helper_pid.read_text(encoding="utf-8")),
+                    int(descendant_pid.read_text(encoding="utf-8")),
+                )
+                process.send_signal(signal.SIGTERM)
+                # BPR-0692. The reap and the detach run on different clocks. Stage
+                # zero bounds the reap by its own term and kill graces, so that is
+                # asserted from the signal. The ordinary detach that follows waits
+                # on DiskArbitration's unmount and eject, which stage zero does not
+                # bound: one eject took 10.7 s under spinning-process load, and a
+                # single 30-second window already spent 10 s of it on the term
+                # grace this SIGTERM-ignoring descendant forces. So the detach gets
+                # a hang bound, not a promptness claim.
+                reap_deadline = (
+                    time.monotonic()
+                    + capsule.STAGE_ONE_TERM_GRACE_SECONDS
+                    + capsule.STAGE_ONE_KILL_GRACE_SECONDS
+                    + 10.0
+                )
+                for process_id in child_processes:
+                    self.assert_process_gone(process_id, reap_deadline)
+                stdout, stderr = process.communicate(timeout=180)
+                self.assertNotEqual(process.returncode, 0, stdout + stderr)
+                self.assertIn("stage zero interrupted by signal", stderr)
+                listing = subprocess.run(
+                    ["/usr/bin/hdiutil", "info"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotIn(str(image.resolve()), listing.stdout)
+            finally:
+                # BPR-0814. An assertion that fails above leaves stage zero
+                # running over a mounted image that an ordinary detach cannot
+                # remove while the helper holds it. Stage zero's own SIGTERM
+                # path reaps the helper group and detaches, so use that first;
+                # real_image_directory detaches whatever remains.
+                if process.poll() is None:
+                    process.send_signal(signal.SIGTERM)
+                    try:
+                        process.communicate(timeout=180)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.communicate()
+                        # Stage zero starts the helper in a new session, so a
+                        # killed stage zero leaves the helper's group behind.
+                        if helper_pid.exists():
+                            group = int(helper_pid.read_text(encoding="utf-8"))
+                            if capsule.process_group_exists(group):
+                                capsule.signal_process_group(group, signal.SIGKILL)
 
 
 class MachFramingTests(unittest.TestCase):

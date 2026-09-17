@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0814"
 title: "Concurrent capsule suites leave a write-once device attached"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P3"
 platforms: ["mac"]
 metadata: {"found_by":"BPR-0692 concurrency experiment","found_at":"94f4e6dc","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"441f6256 plus tests/scripts/designated_live_macos_capsule_tests.py as committed by this finish","evidence":{"kind":"command","detail":"Three concurrent copies of tests/scripts/designated_live_macos_capsule_tests.py, 5 rounds: 15/15 OK; after every round hdiutil info lists no attachment from those runs, only the two system simulator images (build/r2-logs/dsp3-0814-fixed-concurrent3.log). Serial 44/44 OK and the registered ctest row designated_live_macos_capsule_contract passes (dsp3-0814-fixed-serial-plain.log, dsp3-0814-ctest-registered.log). Unfixed control: round 1 of the same 3x5 run had 2 copies error with attach failed and leave a device (dsp3-0814-unfixed-concurrent3.log)."}}]
 ---
 
 # BPR-0814: Concurrent capsule suites leave a write-once device attached
