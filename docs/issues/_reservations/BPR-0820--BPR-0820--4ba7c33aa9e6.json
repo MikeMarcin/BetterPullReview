@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0820"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-002 discovery: GHES refusal course opens the interactive default profile",
+  "created": "2026-09-17T08:16:40.736189+00:00",
+  "base": "b56ee67305e53456c66892d25bf7c10f9e3aa229"
+}
