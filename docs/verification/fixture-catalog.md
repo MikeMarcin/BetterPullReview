@@ -689,7 +689,15 @@ on transport, parser, limit, cancellation, or sink failure.
 `tests/scripts/git_protocol_boundary_tests.py` proves that the complete
 `acquire_git_protocol_v2_pack` operation is the only public application
 acquisition surface, its raw round helpers have internal linkage, and no other
-production file calls raw smart-transport rounds. The focused
+production file calls raw smart-transport rounds. Two exceptions are named,
+each allowed exactly once within its own definition ([[BPR-0850]]):
+
+- the `observed_git_transport` decorator in `github_provider.cpp`, which
+  forwards the three rounds through its guard;
+- the testing-only refusal probe `verify_history_fetch_refusals` in
+  `github_public_path_fixture.cpp`.
+
+The focused
 `application_git_protocol_v2` and `git_protocol_boundary` cases passed after
 `d903290`. They use a scripted transport and pack sink; they do not prove
 native TLS, filesystem cache behavior, durable catalog state, or public
