@@ -114,7 +114,12 @@ auto main(int argc, char** argv) -> int
 			::execv(argv[1], argv + 1);
 		}
 		const auto error = static_cast<std::int32_t>(errno);
-		static_cast<void>(::write(execution[1], &error, sizeof(error)));
+		// glibc declares write warn_unused_result under _FORTIFY_SOURCE, and GCC
+		// does not accept a void cast of the call as using it, so the Linux
+		// Release graph failed here. A lost report still reaches the owner as
+		// end-of-file followed by this child's exit.
+		const auto written = ::write(execution[1], &error, sizeof(error));
+		static_cast<void>(written);
 		std::_Exit(127);
 	}
 	close_descriptor(execution[1]);
