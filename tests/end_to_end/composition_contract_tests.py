@@ -66,6 +66,11 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"tests\\fixtures\\github\\",
     b"tests/fixtures/github/contracts/v1",
     b"tests/fixtures/github/capabilities/v1",
+    # [[BPR-0797]], [[BPR-0802]]. The automated-test boundary marker. A shipped
+    # build has no boundary to be inside, so it must carry no reader that a
+    # stray environment variable could reach; the composition reads the name
+    # only in the tests-enabled graph.
+    b"BPR_AUTOMATED_TEST_BOUNDARY",
 )
 MAC_CLI_BINARY_MARKERS = (
     b"gh_cli_transport",
@@ -275,6 +280,52 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
                 f"the {title!r} consent must appear once, compiled for macOS "
                 "and asked whenever the run-time CLI offer is open"
             )
+    return findings
+
+
+# [[BPR-0802]]. The automated-test boundary has one reader, and it is the
+# composition, where the browser and the GitHub CLI factory are chosen. While
+# `src/app/main.cpp` read it and passed it in, the seam covered the application
+# binary and no other composition root: a test composing `github_application`
+# in process, with no fixture, was outside the boundary whatever its CTest row
+# said. A second reader would bring that back for whichever root it missed.
+AUTOMATED_TEST_BOUNDARY_LITERAL = '"BPR_AUTOMATED_TEST_BOUNDARY"'
+AUTOMATED_TEST_BOUNDARY_READER_PATH = "src/app/src/github_application.cpp"
+AUTOMATED_TEST_BOUNDARY_READER = re.compile(
+    r"InsideAutomatedTestBoundary\s*=\s*!qEnvironmentVariableIsEmpty\(\s*"
+    + re.escape(AUTOMATED_TEST_BOUNDARY_LITERAL)
+    + r"\s*\)\s*\|\|\s*aFixture\.has_value\(\s*\)\s*;"
+)
+
+
+def automated_test_boundary_reader_findings(sources: dict[str, str]) -> list[str]:
+    """Name every way `src/` stops reading the boundary marker in one place."""
+    counts = {
+        path: strip_cxx_comments(text).count(AUTOMATED_TEST_BOUNDARY_LITERAL)
+        for path, text in sources.items()
+    }
+    findings: list[str] = []
+    elsewhere = sorted(
+        path
+        for path, count in counts.items()
+        if count and path != AUTOMATED_TEST_BOUNDARY_READER_PATH
+    )
+    if elsewhere:
+        findings.append(
+            "the automated-test boundary marker is read outside the "
+            f"composition: {elsewhere!r}"
+        )
+    composition = strip_cxx_comments(
+        sources.get(AUTOMATED_TEST_BOUNDARY_READER_PATH, "")
+    )
+    if (
+        counts.get(AUTOMATED_TEST_BOUNDARY_READER_PATH, 0) != 1
+        or len(AUTOMATED_TEST_BOUNDARY_READER.findall(composition)) != 1
+    ):
+        findings.append(
+            "the composition must read the marker exactly once, where it "
+            "decides InsideAutomatedTestBoundary together with the fixture"
+        )
     return findings
 
 
@@ -697,6 +748,53 @@ class CompositionContractTests(unittest.TestCase):
         factory_body = factory.group("body") if factory is not None else ""
         self.assertIn("detail::admit_review_mutation_provider(", factory_body)
         self.assertNotIn("dynamic_pointer_cast", factory_body)
+
+    def test_the_automated_test_boundary_has_one_reader(self) -> None:
+        sources = {
+            path.relative_to(REPOSITORY_ROOT).as_posix(): path.read_text(
+                encoding="utf-8"
+            )
+            for path in source_files("src")
+        }
+        self.assertEqual(automated_test_boundary_reader_findings(sources), [])
+        composition = sources[AUTOMATED_TEST_BOUNDARY_READER_PATH]
+        reader = AUTOMATED_TEST_BOUNDARY_READER.search(composition)
+        self.assertIsNotNone(reader)
+        reader_text = reader.group(0) if reader is not None else ""
+        hostile_sources = {
+            # The pre-BPR-0802 shape: main reads it and passes it in, so an
+            # in-process composition root never hears the answer.
+            "second-reader-in-main": {
+                **sources,
+                "src/app/main.cpp": sources["src/app/main.cpp"]
+                + "\nconst auto inside = !qEnvironmentVariableIsEmpty("
+                + AUTOMATED_TEST_BOUNDARY_LITERAL
+                + ");\n",
+            },
+            "reader-removed": {
+                **sources,
+                AUTOMATED_TEST_BOUNDARY_READER_PATH: composition.replace(
+                    reader_text,
+                    "InsideAutomatedTestBoundary = aFixture.has_value();",
+                    1,
+                ),
+            },
+            "reader-left-only-in-a-comment": {
+                **sources,
+                AUTOMATED_TEST_BOUNDARY_READER_PATH: composition.replace(
+                    reader_text,
+                    "InsideAutomatedTestBoundary = aFixture.has_value(); // "
+                    + reader_text,
+                    1,
+                ),
+            },
+        }
+        for name, hostile in hostile_sources.items():
+            with self.subTest(hostile_reader=name):
+                self.assertNotEqual(hostile, sources)
+                self.assertNotEqual(
+                    automated_test_boundary_reader_findings(hostile), []
+                )
 
     def test_async_mutation_host_inventory_rejects_every_direct_bypass(self) -> None:
         source = read("src/app/src/github_application.cpp")

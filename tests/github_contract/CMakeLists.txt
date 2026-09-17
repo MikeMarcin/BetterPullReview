@@ -1197,6 +1197,21 @@ if(APPLE)
     # macOS refuses nested sandbox initialization. This closed self fixture
     # has no network implementation and local Git admits no protocols; gh's
     # production sandbox remains active inside the test.
+    #
+    # BPR-0802. So this row cannot go through bpr_add_network_isolated_test,
+    # whose macOS command is the sandbox runner. It is instead the one named
+    # exception in scripts/verify_test_network_isolation.py, which pins this
+    # exact raw add_test, requires the executable to run with no wrapper or
+    # argument, and inspects the built executable on every run for any
+    # bpr::app:: symbol: a row outside the sandbox must not be able to compose
+    # the application, its browser opener or its GitHub CLI factory.
+    #
+    # What the seam does apply here, it applies, from the seam's own function:
+    # the boundary marker and the pre-boundary scrubs, which the gate checks on
+    # this row as on every other. Not the bpr_network_isolated label, which
+    # would claim a sandbox this row does not run in, and not the runner
+    # prefix, which is the nesting itself.
     add_test(NAME gh_cli_git_smart_transport COMMAND test_better_pull_review_gh_cli_git_smart_transport_tests)
     set_tests_properties(gh_cli_git_smart_transport PROPERTIES TIMEOUT 60 LABELS bpr_local_only_fixture)
+    bpr_apply_automated_test_environment(gh_cli_git_smart_transport)
 endif()

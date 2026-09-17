@@ -75,35 +75,8 @@ namespace bpr::app {
 		/// the guard, and a conditionally-sized record passed by value across
 		/// that seam would disagree about its own layout.
 		bool NetworkDenied = false;
-		/// [[BPR-0797]]. Whether this process is running inside the automated
-		/// test boundary.
-		///
-		/// \details The composition needs to know whether it is standing in a
-		/// suite or in somebody's hands, and it used to ask `BPR_BUILD_TESTING`.
-		/// That define answers a different question -- whether this build was
-		/// configured with tests -- and `BUILD_TESTING` is on by default, so
-		/// every build a developer makes answered yes to a question nobody was
-		/// asking. The application they then ran bound a recording browser that
-		/// reports success without opening anything, and offered the GitHub CLI
-		/// profile as `(unavailable)`. Both are correct for a suite and wrong
-		/// for a person.
-		///
-		/// Set from the marker `bpr_add_network_isolated_test` puts into every
-		/// registered test's environment. That function is the one registration
-		/// seam for every isolated test on all three platforms, and
-		/// `scripts/verify_test_network_isolation.py` audits that no row escapes
-		/// it, so this cannot be lost by forgetting a flag -- which matters,
-		/// because the row that lost it would be the row allowed to open a
-		/// browser on whoever's machine is running the suite.
-		///
-		/// Only a tests-enabled build reads the environment or acts on this
-		/// field. It stays outside the build guard for the reason `NetworkDenied`
-		/// does: this header is included by a target that links the composition
-		/// without defining the guard, and a conditionally-sized record passed
-		/// by value across that seam would disagree about its own layout.
-		bool                        InsideAutomatedTestBoundary = false;
-		core::bpr_profile_id        Profile                     = core::default_bpr_profile_id;
-		core::profile_launch_intent ProfileLaunchIntent         = core::profile_launch_intent::activate;
+		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
+		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
 		/// One explicit process-owned native observation shared by profile windows.
 		std::shared_ptr<qt::motion_observer> MotionObserver;
 		/// One lazily decoded production catalog shared by every profile and window.
@@ -319,6 +292,30 @@ namespace bpr::app {
 		// GitHub CLI profile with nothing behind it, which is what the account
 		// row was calling `(unavailable)`.
 		bool ComposedCliReadAvailable = false;
+		/// [[BPR-0797]], [[BPR-0802]]. Whether this run is standing inside the
+		/// automated test boundary, as the composition itself decided it.
+		///
+		/// \details The composition needs to know whether it is in a suite or
+		/// in somebody's hands, and it used to ask `BPR_BUILD_TESTING`. That
+		/// define answers whether the build was configured with tests, and
+		/// `BUILD_TESTING` is on by default, so every build a developer makes
+		/// bound a recording browser that reports success without opening
+		/// anything and offered the GitHub CLI profile as `(unavailable)`.
+		///
+		/// The answer comes from the marker `bpr_add_network_isolated_test`
+		/// injects into every registered row, and it is read in exactly one
+		/// place: the composition, where the browser and the CLI factory are
+		/// chosen. It is reported here rather than passed in, so no composition
+		/// root -- the application's `main` or an in-process test -- can hold a
+		/// different answer from the one the composition acted on.
+		///
+		/// Only a tests-enabled build sets this; a shipped build has no
+		/// boundary and always reports false. It stays outside the build guard
+		/// because this header is included by a target that links the
+		/// composition without defining the guard, and a conditionally-sized
+		/// record passed by value across that seam would disagree about its
+		/// own layout.
+		bool InsideAutomatedTestBoundary = false;
 		// The fate of the last handoff attempt in this run, kept across the
 		// stage change that clears it from the live presentation. Reported
 		// rather than the current value, because a run that finished

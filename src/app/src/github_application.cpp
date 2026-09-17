@@ -4289,15 +4289,41 @@ namespace bpr::app {
 			// the gate this exists for selects no fixture: it drives the
 			// shipped composition and only wants the connect denied.
 			NetworkDenied = aConfig.NetworkDenied;
-			// [[BPR-0797]]. Adopted here for the same reason: the marker
+			// [[BPR-0797]]. Decided here for the same reason: the marker
 			// answers a question that has nothing to do with which fixture
 			// this run selected. A selected fixture answers it too, on its
 			// own: a fixture run is by definition not a person's session, and
 			// a fixture course started by hand, outside CTest and so without
 			// the marker, would otherwise hand a recorded verification
-			// address to the real opener. It is read only in this graph, so a
-			// tests-disabled build has no code that would notice either.
-			InsideAutomatedTestBoundary = aConfig.InsideAutomatedTestBoundary
+			// address to the real opener.
+			//
+			// [[BPR-0802]]. Read from the environment here, where the browser
+			// and the GitHub CLI factory are chosen, and nowhere else. It used
+			// to be read in `src/app/main.cpp` and passed in, so the seam
+			// covered the application binary and nothing that composes this
+			// class without going through `main`: an in-process composition
+			// root with no fixture was outside the boundary whatever its
+			// CTest row said, and bound the real opener. Every composition
+			// root now gets the same answer, because there is only one reader.
+			//
+			// From the environment rather than a flag because a flag is
+			// something a course can forget, and the thing it would forget is
+			// the one that keeps an unattended suite from opening a browser on
+			// the reviewer's machine. `bpr_add_network_isolated_test` injects
+			// it into every registered row on all three platforms, and a
+			// child the course starts inherits it.
+			//
+			// Any non-empty value means inside. The failure mode has to be the
+			// safe one: an unrecognised value that meant "outside" would be a
+			// suite allowed to start a program, while one that means "inside"
+			// is at worst a person's own run composing a recorder, which they
+			// would see immediately.
+			//
+			// Read only in this graph. The name is in no tests-disabled
+			// binary, and the tests-off Release scan in
+			// `tests/end_to_end/composition_contract_tests.py` looks for it.
+			InsideAutomatedTestBoundary
+				= !qEnvironmentVariableIsEmpty("BPR_AUTOMATED_TEST_BOUNDARY")
 				|| aFixture.has_value();
 			DiffComputeLimits = aFixture.has_value()
 				? aFixtureOptions.DiffComputeLimits
@@ -12987,6 +13013,11 @@ namespace bpr::app {
 			// reports the one the account row is offering.
 			.ComposedCliReadAvailable = this->TransportFactory != nullptr
 				&& this->TransportFactory->supports_cli(),
+#if defined(BPR_BUILD_TESTING)
+			// [[BPR-0802]]. The composition's own answer, from its one reader.
+			.InsideAutomatedTestBoundary
+			= this->Profile->InsideAutomatedTestBoundary,
+#endif
 			.DeviceAuthorizationHandoff
 			= this->DeviceProjections.last_attempt(),
 			.DeviceAuthorizationBrowserOpens

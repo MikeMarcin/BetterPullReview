@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 
 RAW_REGISTRATION = re.compile(r"\badd_test\s*\(", re.IGNORECASE)
@@ -29,6 +29,7 @@ ISOLATED_REGISTRATION_ARGUMENTS = re.compile(
     r"\bbpr_add_network_isolated_test\s*\(([^()]*)\)", re.IGNORECASE
 )
 UNCONTAINED_KEYWORD = re.compile(r"\bWINDOWS_UNCONTAINED\b")
+RAW_REGISTRATION_ARGUMENTS = re.compile(r"\badd_test\s*\(([^()]*)\)", re.IGNORECASE)
 RAW_REGISTRATION_OWNER = "cmake/BprTestIsolation.cmake"
 LIVE_TEST_NAME = "live_review_mutation_designated_target"
 LIVE_TEST_LABEL = "bpr_live_mutation"
@@ -212,6 +213,44 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "windows_credential_manager_native_cleanup": "credential-manager",
     "github_cli_process_runner": "qprocess-named-pipe",
 }
+# BPR-0802. The macOS rows that cannot run under the sandbox runner, because
+# they start a sandbox of their own and macOS refuses nested sandbox
+# initialization. Each is registered by the one raw `add_test` its source file
+# is allowed, runs its executable directly with no arguments, and still
+# carries the seam's boundary marker and pre-boundary scrubs.
+#
+# Standing outside the sandbox is safe only while the row cannot reach the
+# application: no `bpr::app::` symbol means no `github_application`, so no
+# system browser opener and no GitHub CLI transport factory. That is asserted
+# against the built executable on every run, not assumed from the link line.
+#
+# The set is exact: a row outside it that skips the runner fails as before, a
+# member found under the runner is a stale pin, and the exception exists on no
+# other backend.
+@dataclass(frozen=True)
+class MacosUnsandboxedTest:
+    source: str
+    target: str
+    executable: str
+    cause: str
+
+
+MACOS_UNSANDBOXED_TESTS: dict[str, MacosUnsandboxedTest] = {
+    # Every `gh` request the adapter compiles runs through /usr/bin/sandbox-exec
+    # (`constrain_gh_writes`), the production write containment this course
+    # exercises against a fake `gh`. Under the runner the first launch fails
+    # and the course stops at "fixture sandbox version launch"; run directly
+    # it passes. Measured on macOS 2026-09-17 (BPR-0802).
+    "gh_cli_git_smart_transport": MacosUnsandboxedTest(
+        source="tests/github_contract/CMakeLists.txt",
+        target="test_better_pull_review_gh_cli_git_smart_transport_tests",
+        executable="better_pull_review_gh_cli_git_smart_transport_tests",
+        cause="nested-sandbox",
+    ),
+}
+MACOS_UNSANDBOXED_LABEL = "bpr_local_only_fixture"
+MACOS_NM = pathlib.Path("/usr/bin/nm")
+COMPOSITION_SYMBOL_NAMESPACE = "bpr::app::"
 EXIT_VERDICT_TESTS = {
     LIVE_TEST_NAME,
     "architecture_boundaries",
@@ -410,6 +449,125 @@ def registration_inventory(root: pathlib.Path) -> tuple[list[str], int, int, int
         live += len(LIVE_REGISTRATION.findall(text))
         exact_live += len(EXACT_LIVE_REGISTRATION.findall(text))
     return raw, isolated, live, exact_live
+
+
+def raw_registration_failures(root: pathlib.Path, raw: list[str]) -> list[str]:
+    """Check that every raw `add_test` is the seam's own or an enumerated row.
+
+    A file named by `MACOS_UNSANDBOXED_TESTS` may hold exactly the raw
+    registrations enumerated for it, each spelled `NAME <test> COMMAND
+    <target>` with nothing else, so a second row or an argument cannot ride
+    in on the exception.
+    """
+    allowed: dict[str, set[str]] = {}
+    for name, exception in MACOS_UNSANDBOXED_TESTS.items():
+        allowed.setdefault(exception.source, set()).add(
+            f"NAME {name} COMMAND {exception.target}"
+        )
+    unowned = [
+        path for path in raw if path != RAW_REGISTRATION_OWNER and path not in allowed
+    ]
+    if RAW_REGISTRATION_OWNER not in raw or unowned:
+        return [
+            f"raw add_test ownership is {raw!r}, expected only "
+            f"{RAW_REGISTRATION_OWNER} and the enumerated macOS exceptions "
+            f"{sorted(allowed)!r}"
+        ]
+    failures: list[str] = []
+    for path in raw:
+        if path not in allowed:
+            continue
+        text = (root / path).read_text(encoding="utf-8", errors="strict")
+        calls = RAW_REGISTRATION.findall(text)
+        registrations = [
+            " ".join(arguments.split())
+            for arguments in RAW_REGISTRATION_ARGUMENTS.findall(text)
+        ]
+        if len(calls) != len(registrations) or sorted(registrations) != sorted(
+            allowed[path]
+        ):
+            failures.append(
+                f"raw add_test registrations in {path} are {registrations!r} "
+                f"across {len(calls)} calls, expected exactly "
+                f"{sorted(allowed[path])!r}"
+            )
+    return failures
+
+
+def composition_symbols(
+    executable: pathlib.Path, nm: pathlib.Path = MACOS_NM
+) -> list[str] | None:
+    """The `bpr::app::` symbols an executable carries, or None if unknowable.
+
+    None when the table cannot be read, and when it holds no `bpr::` symbol at
+    all: every enumerated row links the adapters it tests, so an empty or
+    stripped table would make "no composition symbol" true of anything.
+    """
+    try:
+        listed = subprocess.run(
+            [str(nm), "-C", str(executable)],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
+            timeout=300,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if listed.returncode != 0:
+        return None
+    lines = listed.stdout.splitlines()
+    if not any("bpr::" in line for line in lines):
+        return None
+    return [line for line in lines if COMPOSITION_SYMBOL_NAMESPACE in line]
+
+
+def macos_unsandboxed_failures(
+    name: str,
+    command: Any,
+    labels: Any,
+    prefix: list[str],
+    exception: MacosUnsandboxedTest,
+    symbol_probe: Callable[[pathlib.Path], list[str] | None] | None,
+) -> list[str]:
+    """Check an enumerated macOS row that runs outside the sandbox runner."""
+    failures: list[str] = []
+    if isinstance(command, list) and command[: len(prefix)] == prefix:
+        failures.append(
+            f"{name} is pinned as running outside the macOS sandbox but is "
+            "registered under it; retire it from the pinned set"
+        )
+        return failures
+    if (
+        not isinstance(command, list)
+        or len(command) != 1
+        or not isinstance(command[0], str)
+        or pathlib.PurePosixPath(command[0]).name != exception.executable
+    ):
+        failures.append(
+            f"{name} must run only its own executable {exception.executable} "
+            f"with no wrapper or argument: {command!r}"
+        )
+        return failures
+    if not isinstance(labels, list) or set(labels) != {MACOS_UNSANDBOXED_LABEL}:
+        failures.append(
+            f"{name} labels are {labels!r}, expected only {MACOS_UNSANDBOXED_LABEL}"
+        )
+    symbols = (
+        symbol_probe(pathlib.Path(command[0])) if symbol_probe is not None else None
+    )
+    if symbols is None:
+        failures.append(
+            f"{name} runs outside the macOS sandbox and its executable could not "
+            f"be inspected for {COMPOSITION_SYMBOL_NAMESPACE} symbols"
+        )
+    elif symbols:
+        failures.append(
+            f"{name} runs outside the macOS sandbox but links {len(symbols)} "
+            f"{COMPOSITION_SYMBOL_NAMESPACE} symbols, so it can compose the "
+            f"application: {symbols[0]}"
+        )
+    return failures
 
 
 def uncontained_registration_count(root: pathlib.Path) -> int:
@@ -632,12 +790,18 @@ def configured_failures(
     live_command: list[str] | None = None,
     required_commands: dict[str, list[str]] | None = None,
     windows_uncontained: frozenset[str] = frozenset(),
+    macos_unsandboxed: dict[str, MacosUnsandboxedTest] | None = None,
+    symbol_probe: Callable[[pathlib.Path], list[str] | None] | None = None,
 ) -> list[str]:
     """Check every configured test against the boundary.
 
     `windows_uncontained` is the exact set of test names permitted to run
     without the launcher prefix; it is non-empty only for the Windows backend.
+    `macos_unsandboxed` is the enumerated set permitted to run without the
+    sandbox runner, each checked through `symbol_probe`; it is given only for
+    the macOS backend.
     """
+    macos_unsandboxed = macos_unsandboxed or {}
     failures: list[str] = []
     tests = manifest.get("tests")
     if not isinstance(tests, list) or not tests:
@@ -732,6 +896,18 @@ def configured_failures(
                 failures.append(
                     f"{name} carries bpr_network_isolated while running uncontained"
                 )
+            continue
+        if name in macos_unsandboxed:
+            failures.extend(
+                macos_unsandboxed_failures(
+                    name,
+                    command,
+                    labels,
+                    prefix,
+                    macos_unsandboxed[name],
+                    symbol_probe,
+                )
+            )
             continue
         if uncontained_labelled:
             failures.append(
@@ -1035,11 +1211,7 @@ def main() -> int:
     arguments = parser.parse_args()
 
     raw, isolated, live, exact_live = registration_inventory(arguments.root)
-    failures: list[str] = []
-    if raw != [RAW_REGISTRATION_OWNER]:
-        failures.append(
-            f"raw add_test ownership is {raw!r}, expected only {RAW_REGISTRATION_OWNER}"
-        )
+    failures: list[str] = raw_registration_failures(arguments.root, raw)
     if isolated < 1:
         failures.append("no isolated test registrations were found")
     if live != 1 or exact_live != 1:
@@ -1173,6 +1345,12 @@ def main() -> int:
                     if arguments.backend == WINDOWS_BACKEND
                     else frozenset()
                 ),
+                macos_unsandboxed=(
+                    MACOS_UNSANDBOXED_TESTS
+                    if arguments.backend == "macos-sandbox-exec"
+                    else None
+                ),
+                symbol_probe=composition_symbols,
             )
         )
 

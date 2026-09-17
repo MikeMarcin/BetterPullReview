@@ -1558,8 +1558,11 @@ bpr_enable_hardening(test_better_pull_review_github_application_liveness_tests)
 bpr_enable_warnings(test_better_pull_review_github_application_liveness_tests)
 
 # Constructs the real application, so it needs the same offscreen platform the
-# fixture runs use. Nothing is shown and no fixture is selected: the subject is
-# the destructor, not a course.
+# fixture runs use. Nothing is shown and no fixture is selected: the subjects are
+# the destructor and, since BPR-0802, that an in-process composition root reads
+# the automated-test boundary marker itself: the binary sets the marker before
+# anything composes, and every composition it starts binds the recorder and
+# offers no GitHub CLI read.
 bpr_add_network_isolated_test(
     NAME application_poller_liveness
     WINDOWS_UNCONTAINED

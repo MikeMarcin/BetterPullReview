@@ -521,6 +521,84 @@ else()
     )
 endif()
 
+# BPR-0802. The part of the seam's environment that does not depend on how the
+# row is launched: the automated-test boundary marker and the pre-boundary
+# scrubs, appended to one registered test in that order. Every row
+# `bpr_add_network_isolated_test` registers gets it from there. The only other
+# caller is a row `scripts/verify_test_network_isolation.py` names as a macOS
+# exception because it cannot run under the sandbox runner, so that row carries
+# the same entries without a second copy of the list to drift from this one.
+function(bpr_apply_automated_test_environment bpr_test_name)
+    if(NOT ARGC EQUAL 1)
+        message(
+            FATAL_ERROR
+            "bpr_apply_automated_test_environment takes exactly one test name"
+        )
+    endif()
+    # BPR-0797. The one thing a composed process cannot work out for itself:
+    # whether it is running inside the automated test boundary. `src/app`
+    # reads this to decide whether it may bind the real system browser opener
+    # and the real GitHub CLI transport, or must install the recording
+    # stand-ins instead. That decision used to be made at build time by
+    # `BPR_BUILD_TESTING`, so the application a person actually ran carried
+    # the stand-ins and reported "Opened in your browser" without opening one.
+    #
+    # Applied by `bpr_add_network_isolated_test`, the single registration seam
+    # for every isolated test on all three platforms: a row added later
+    # inherits the marker and the answer cannot drift, and no test author has
+    # to remember to answer it. The asymmetry is the one the boundary itself is
+    # built on - a fixture transport reached by mistake writes a line to a log,
+    # and a browser opened by mistake opens a browser on whoever is running the
+    # suite. A row that escaped this seam is a row allowed to do the second.
+    #
+    # ENVIRONMENT_MODIFICATION rather than ENVIRONMENT, and that is not a
+    # style choice. `set_tests_properties(<row> PROPERTIES ENVIRONMENT ...)`
+    # runs after the seam returns and replaces the property outright, so
+    # an APPEND to ENVIRONMENT here is erased by each of the hundred-odd rows
+    # in tests/adapters_qt and tests/end_to_end that go on to set their own
+    # `QT_QPA_PLATFORM=offscreen` - among them every
+    # `application_device_authorization_*` course, which are exactly the rows
+    # that press "Open browser". Measured on CMake 4.4.3: with the marker in
+    # ENVIRONMENT the child saw nothing at all once its row wrote an
+    # ENVIRONMENT of its own; with it here the child saw the marker and the
+    # row's own variable together, because CTest applies
+    # ENVIRONMENT_MODIFICATION after ENVIRONMENT and nothing a row writes can
+    # reach it. `scripts/verify_test_network_isolation.py` reads this exact
+    # entry back out of CTest's own manifest for every configured row, so a
+    # row that loses it fails the manifest gate instead of opening a browser.
+    set_property(
+        TEST "${bpr_test_name}"
+        APPEND
+        PROPERTY ENVIRONMENT_MODIFICATION "BPR_AUTOMATED_TEST_BOUNDARY=set:1"
+    )
+
+    set_property(
+        TEST "${bpr_test_name}"
+        APPEND
+        PROPERTY ENVIRONMENT_MODIFICATION
+            "PYTHONPATH=unset:"
+            "PYTHONHOME=unset:"
+            "PYTHONUSERBASE=unset:"
+            "PYTHONINSPECT=unset:"
+            "PYTHONSTARTUP=unset:"
+            "DYLD_INSERT_LIBRARIES=unset:"
+            "DYLD_LIBRARY_PATH=unset:"
+            "DYLD_FRAMEWORK_PATH=unset:"
+            "DYLD_VERSIONED_LIBRARY_PATH=unset:"
+            "DYLD_VERSIONED_FRAMEWORK_PATH=unset:"
+            "DYLD_FALLBACK_LIBRARY_PATH=unset:"
+            "DYLD_FALLBACK_FRAMEWORK_PATH=unset:"
+            "DYLD_IMAGE_SUFFIX=unset:"
+            "DYLD_ROOT_PATH=unset:"
+            "DYLD_SHARED_REGION=unset:"
+            "LD_PRELOAD=unset:"
+            "LD_LIBRARY_PATH=unset:"
+            "LD_AUDIT=unset:"
+            "LD_DEBUG=unset:"
+            "LD_PROFILE=unset:"
+    )
+endfunction()
+
 # WINDOWS_UNCONTAINED opts a test out of the Windows AppContainer, and only
 # there. A lowbox token cannot translate a volume device into a drive letter,
 # cannot run a batch file through cmd.exe, and cannot give ninja its named
@@ -639,42 +717,7 @@ function(bpr_add_network_isolated_test)
         PROPERTY LABELS "${bpr_isolation_label}"
     )
 
-    # BPR-0797. The one thing a composed process cannot work out for itself:
-    # whether it is running inside the automated test boundary. `src/app`
-    # reads this to decide whether it may bind the real system browser opener
-    # and the real GitHub CLI transport, or must install the recording
-    # stand-ins instead. That decision used to be made at build time by
-    # `BPR_BUILD_TESTING`, so the application a person actually ran carried
-    # the stand-ins and reported "Opened in your browser" without opening one.
-    #
-    # Set here because this function is the single registration seam for every
-    # isolated test on all three platforms: a row added later inherits the
-    # marker and the answer cannot drift, and no test author has to remember
-    # to answer it. The asymmetry is the one the boundary itself is built on -
-    # a fixture transport reached by mistake writes a line to a log, and a
-    # browser opened by mistake opens a browser on whoever is running the
-    # suite. A row that escaped this seam is a row allowed to do the second.
-    #
-    # ENVIRONMENT_MODIFICATION rather than ENVIRONMENT, and that is not a
-    # style choice. `set_tests_properties(<row> PROPERTIES ENVIRONMENT ...)`
-    # runs after this function returns and replaces the property outright, so
-    # an APPEND to ENVIRONMENT here is erased by each of the hundred-odd rows
-    # in tests/adapters_qt and tests/end_to_end that go on to set their own
-    # `QT_QPA_PLATFORM=offscreen` - among them every
-    # `application_device_authorization_*` course, which are exactly the rows
-    # that press "Open browser". Measured on CMake 4.4.3: with the marker in
-    # ENVIRONMENT the child saw nothing at all once its row wrote an
-    # ENVIRONMENT of its own; with it here the child saw the marker and the
-    # row's own variable together, because CTest applies
-    # ENVIRONMENT_MODIFICATION after ENVIRONMENT and nothing a row writes can
-    # reach it. `scripts/verify_test_network_isolation.py` reads this exact
-    # entry back out of CTest's own manifest for every configured row, so a
-    # row that loses it fails the manifest gate instead of opening a browser.
-    set_property(
-        TEST "${bpr_test_NAME}"
-        APPEND
-        PROPERTY ENVIRONMENT_MODIFICATION "BPR_AUTOMATED_TEST_BOUNDARY=set:1"
-    )
+    bpr_apply_automated_test_environment("${bpr_test_NAME}")
 
     # BPR-0552. Every row registered here fails on the run's own verdict,
     # whatever else it pins.
@@ -729,31 +772,6 @@ function(bpr_add_network_isolated_test)
             PROPERTY FAIL_REGULAR_EXPRESSION "PUBLIC_PATH_FAILED"
         )
     endif()
-    set_property(
-        TEST "${bpr_test_NAME}"
-        APPEND
-        PROPERTY ENVIRONMENT_MODIFICATION
-            "PYTHONPATH=unset:"
-            "PYTHONHOME=unset:"
-            "PYTHONUSERBASE=unset:"
-            "PYTHONINSPECT=unset:"
-            "PYTHONSTARTUP=unset:"
-            "DYLD_INSERT_LIBRARIES=unset:"
-            "DYLD_LIBRARY_PATH=unset:"
-            "DYLD_FRAMEWORK_PATH=unset:"
-            "DYLD_VERSIONED_LIBRARY_PATH=unset:"
-            "DYLD_VERSIONED_FRAMEWORK_PATH=unset:"
-            "DYLD_FALLBACK_LIBRARY_PATH=unset:"
-            "DYLD_FALLBACK_FRAMEWORK_PATH=unset:"
-            "DYLD_IMAGE_SUFFIX=unset:"
-            "DYLD_ROOT_PATH=unset:"
-            "DYLD_SHARED_REGION=unset:"
-            "LD_PRELOAD=unset:"
-            "LD_LIBRARY_PATH=unset:"
-            "LD_AUDIT=unset:"
-            "LD_DEBUG=unset:"
-            "LD_PROFILE=unset:"
-    )
     # A Windows loader finds a shared Qt only on PATH: nothing deploys the
     # DLLs beside the executables, and unlike a Mach-O or ELF link the import
     # libraries carry no runtime path. The provider resolves Qt outside the

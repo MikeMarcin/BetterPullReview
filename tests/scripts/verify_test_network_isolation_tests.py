@@ -28,6 +28,9 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     LIVE_TEST_LABEL,
     LIVE_TEST_NAME,
     LiveImageIdentity,
+    MACOS_NM,
+    MACOS_UNSANDBOXED_LABEL,
+    MACOS_UNSANDBOXED_TESTS,
     PRE_BOUNDARY_INJECTION_VARIABLES,
     RAW_REGISTRATION_OWNER,
     STAGE_ZERO_PRELOADER,
@@ -35,12 +38,14 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     WINDOWS_UNCONTAINED_LABEL,
     WINDOWS_UNCONTAINED_TESTS,
     boundary_marker_failures,
+    composition_symbols,
     configured_failures,
     environment_injection_failures,
     exit_verdict_failures,
     live_image_failures,
     live_stage_zero_command,
     manifest_command,
+    raw_registration_failures,
     registration_inventory,
     uncontained_registration_count,
 )
@@ -144,6 +149,209 @@ class RegistrationInventoryTests(unittest.TestCase):
             )
             _, _, live, exact_live = registration_inventory(root)
             self.assertEqual((live, exact_live), (2, 1))
+
+
+# BPR-0802. The one macOS row that cannot run under the sandbox runner.
+UNSANDBOXED_NAME = "gh_cli_git_smart_transport"
+UNSANDBOXED = MACOS_UNSANDBOXED_TESTS[UNSANDBOXED_NAME]
+UNSANDBOXED_RAW = (
+    f"add_test(NAME {UNSANDBOXED_NAME} COMMAND {UNSANDBOXED.target})\n"
+)
+
+
+def unsandboxed_row(
+    name: str = UNSANDBOXED_NAME,
+    command: list[str] | None = None,
+    labels: list[str] | None = None,
+    modifications: dict[str, object] | None = None,
+) -> dict[str, object]:
+    return {
+        "name": name,
+        "command": (
+            [f"/build/tests/github_contract/{UNSANDBOXED.executable}"]
+            if command is None
+            else command
+        ),
+        "properties": [
+            {
+                "name": "LABELS",
+                "value": [MACOS_UNSANDBOXED_LABEL] if labels is None else labels,
+            },
+            scrub_property() if modifications is None else modifications,
+        ],
+    }
+
+
+def no_composition_symbols(_: pathlib.Path) -> list[str]:
+    return []
+
+
+def composition_linked(_: pathlib.Path) -> list[str]:
+    return ["0000000100001234 T bpr::app::github_application::start()"]
+
+
+def uninspectable(_: pathlib.Path) -> None:
+    return None
+
+
+def unsandboxed_failures(
+    tests: list[dict[str, object]],
+    probe=no_composition_symbols,
+    exceptions=MACOS_UNSANDBOXED_TESTS,
+) -> list[str]:
+    return configured_failures(
+        {"tests": tests},
+        ["/python", "-I", "-S", "/runner.py"],
+        macos_runner=True,
+        macos_unsandboxed=exceptions,
+        symbol_probe=probe,
+    )
+
+
+class MacosUnsandboxedExceptionTests(unittest.TestCase):
+    def test_enumerated_row_passes_with_marker_scrubs_and_no_composition(self) -> None:
+        self.assertEqual(UNSANDBOXED.cause, "nested-sandbox")
+        self.assertEqual(unsandboxed_failures([unsandboxed_row()]), [])
+
+    # The property the exception rests on. A row that links the composition
+    # can build `github_application`, and outside the sandbox that is a row
+    # allowed to open a browser or reach `gh`.
+    def test_enumerated_row_that_links_the_composition_is_reported(self) -> None:
+        failures = unsandboxed_failures([unsandboxed_row()], probe=composition_linked)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("links 1 bpr::app:: symbols", failures[0])
+
+    def test_enumerated_row_that_cannot_be_inspected_is_reported(self) -> None:
+        for probe in (uninspectable, None):
+            with self.subTest(probe=probe):
+                failures = unsandboxed_failures([unsandboxed_row()], probe=probe)
+                self.assertEqual(len(failures), 1)
+                self.assertIn("could not be inspected", failures[0])
+
+    def test_unlisted_row_outside_the_runner_is_still_reported(self) -> None:
+        failures = unsandboxed_failures(
+            [unsandboxed_row(name="gh_cli_git_smart_transport_copy")]
+        )
+        self.assertTrue(any("does not start with" in value for value in failures))
+        self.assertTrue(
+            any("lacks the bpr_network_isolated label" in value for value in failures)
+        )
+
+    def test_exception_exists_on_no_other_backend(self) -> None:
+        failures = configured_failures(
+            {"tests": [unsandboxed_row()]},
+            ["/launcher"],
+            symbol_probe=no_composition_symbols,
+        )
+        self.assertTrue(any("does not start with" in value for value in failures))
+
+    def test_wrapper_argument_or_other_executable_is_reported(self) -> None:
+        executable = f"/build/tests/github_contract/{UNSANDBOXED.executable}"
+        for command in (
+            [executable, "--extra"],
+            ["/usr/bin/env", executable],
+            ["/build/src/app/app_better_pull_review"],
+            None,
+        ):
+            with self.subTest(command=command):
+                row = unsandboxed_row(command=command)
+                if command is None:
+                    row["command"] = None
+                failures = unsandboxed_failures([row])
+                self.assertEqual(len(failures), 1)
+                self.assertIn("must run only its own executable", failures[0])
+
+    def test_isolation_label_marker_and_scrubs_are_still_required(self) -> None:
+        failures = unsandboxed_failures(
+            [
+                unsandboxed_row(
+                    labels=["bpr_network_isolated"],
+                    modifications={"name": "ENVIRONMENT_MODIFICATION", "value": []},
+                )
+            ]
+        )
+        self.assertTrue(any("expected only bpr_local_only_fixture" in value for value in failures))
+        self.assertTrue(any("lacks the automated-test boundary marker" in value for value in failures))
+        self.assertTrue(any("lacks pre-boundary environment scrubs" in value for value in failures))
+
+    def test_enumerated_row_found_under_the_runner_is_a_stale_pin(self) -> None:
+        failures = unsandboxed_failures(
+            [
+                unsandboxed_row(
+                    command=[
+                        "/python", "-I", "-S", "/runner.py",
+                        "--loopback-port-count", "0", "--",
+                        f"/build/{UNSANDBOXED.executable}",
+                    ],
+                )
+            ]
+        )
+        self.assertTrue(any("retire it from the pinned set" in value for value in failures))
+
+    def test_raw_registration_is_exact_to_the_enumerated_row(self) -> None:
+        cases = {
+            "enumerated": (UNSANDBOXED_RAW, True),
+            "reflowed": (
+                f"add_test(\n    NAME {UNSANDBOXED_NAME}\n    COMMAND {UNSANDBOXED.target}\n)\n",
+                True,
+            ),
+            "second-row": (UNSANDBOXED_RAW + "add_test(NAME rogue COMMAND x)\n", False),
+            "argument": (
+                f"add_test(NAME {UNSANDBOXED_NAME} COMMAND {UNSANDBOXED.target} --x)\n",
+                False,
+            ),
+            "other-target": (
+                f"add_test(NAME {UNSANDBOXED_NAME} COMMAND app_better_pull_review)\n",
+                False,
+            ),
+            # A call whose arguments hold parentheses is not parsed as a
+            # registration, and must still be counted as a call.
+            "unparsed-call": (
+                UNSANDBOXED_RAW + 'add_test(NAME rogue COMMAND x "(y)")\n',
+                False,
+            ),
+        }
+        for name, (source, passes) in cases.items():
+            with self.subTest(case=name):
+                with contained_temporary_directory() as directory:
+                    root = pathlib.Path(directory)
+                    write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+                    write(root, UNSANDBOXED.source, source)
+                    raw, _, _, _ = registration_inventory(root)
+                    self.assertEqual(
+                        raw_registration_failures(root, raw) == [], passes
+                    )
+
+    def test_raw_registration_in_an_unlisted_file_is_reported(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+            write(root, UNSANDBOXED.source, UNSANDBOXED_RAW)
+            write(root, "tests/end_to_end/CMakeLists.txt", UNSANDBOXED_RAW)
+            raw, _, _, _ = registration_inventory(root)
+            failures = raw_registration_failures(root, raw)
+            self.assertEqual(len(failures), 1)
+            self.assertIn("raw add_test ownership", failures[0])
+
+    # The tree itself: the registration the exception pins is the one written.
+    def test_repository_raw_registrations_match_the_exception(self) -> None:
+        root = pathlib.Path(__file__).resolve().parents[2]
+        raw, _, _, _ = registration_inventory(root)
+        self.assertIn(UNSANDBOXED.source, raw)
+        self.assertEqual(raw_registration_failures(root, raw), [])
+
+    # The real probe fails closed on a binary that holds no `bpr::` symbol at
+    # all, so a stripped or substituted executable cannot pass as "links no
+    # composition". The interpreter running this test is such a binary.
+    @unittest.skipUnless(
+        sys.platform == "darwin" and MACOS_NM.is_file(),
+        "the composition symbol probe reads Mach-O tables with /usr/bin/nm",
+    )
+    def test_symbol_probe_fails_closed_without_any_bpr_symbol(self) -> None:
+        self.assertIsNone(
+            composition_symbols(pathlib.Path(os.path.realpath(sys.executable)))
+        )
+        self.assertIsNone(composition_symbols(pathlib.Path("/nonexistent/executable")))
 
 
 class ConfiguredManifestTests(unittest.TestCase):

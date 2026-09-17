@@ -926,11 +926,7 @@ namespace {
 		// [[BPR-0797]]. Report the identity of the two capabilities this run
 		// composed. Off by default and named by its own flag, so no existing
 		// row's output changes and no row can pass this by accident.
-		bool CapabilityProbe = false;
-		// What the composition was told about the automated test boundary,
-		// carried here rather than re-read, so the report describes the input
-		// the composition actually had.
-		bool                                      InsideAutomatedTestBoundary = false;
+		bool                                      CapabilityProbe = false;
 		QString                                   LastEpochStatus;
 		QString                                   LastEpochComparison;
 		QString                                   LastEpochLeft;
@@ -3654,7 +3650,7 @@ namespace {
 				}
 			}
 			stream << "COMPOSITION_TEST_BOUNDARY:"
-				   << (aRun.InsideAutomatedTestBoundary ? "inside" : "outside")
+				   << (status.InsideAutomatedTestBoundary ? "inside" : "outside")
 				   << "\nCOMPOSITION_BROWSER:"
 				   << composed_device_browser_text(
 						  status.DeviceAuthorizationBrowser)
@@ -7652,27 +7648,7 @@ auto main(int argc, char** argv) -> int
 		// github.com. With this the denial is the application's own, on every
 		// platform, and the expectation is the local `failed` macOS and Linux
 		// already recorded.
-		config.NetworkDenied = has_argument(argc, argv, "--network-denied");
-		// [[BPR-0797]]. Tests-enabled only, like the flag above it, and read
-		// from the environment rather than from a flag on purpose: a flag is
-		// something a course can forget, and the thing it would forget is the
-		// one that keeps an unattended suite from opening a browser on the
-		// reviewer's machine. `bpr_add_network_isolated_test` injects this into
-		// every registered test, on all three platforms, from the single
-		// registration seam they all go through, and a child the course starts
-		// inherits it.
-		//
-		// Any non-empty value means inside. The failure mode has to be the safe
-		// one: an unrecognised value that meant "outside" would be a suite
-		// allowed to start a program, while an unrecognised value that means
-		// "inside" is at worst a person's own run composing a recorder, which
-		// they would see immediately.
-		//
-		// The name exists nowhere in a tests-disabled binary, so the
-		// RFC-BPR-0017 fixture-seam scan can prove its absence from a Release by
-		// looking for it, exactly as it does for `--network-denied`.
-		config.InsideAutomatedTestBoundary
-			= !qEnvironmentVariable("BPR_AUTOMATED_TEST_BOUNDARY").isEmpty();
+		config.NetworkDenied               = has_argument(argc, argv, "--network-denied");
 		const auto testApplicationDataRoot = argument_value(
 			argc, argv, "--test-application-data-root");
 		if (testApplicationDataRoot.has_value()) {
@@ -8509,9 +8485,7 @@ auto main(int argc, char** argv) -> int
 								.RenderSaved               = true,
 								.VerifyNativePlatformVault = verifyNativePlatformVault,
 								.CapabilityProbe           = capabilityProbe,
-								.InsideAutomatedTestBoundary
-								= config.InsideAutomatedTestBoundary,
-								.Cli = automated_run::cli_unavailable_probe_state{
+								.Cli                       = automated_run::cli_unavailable_probe_state{
 									.Enabled            = verifyCliUnavailable,
 									.EnterpriseHostname = std::move(enterpriseHostname),
 								},
