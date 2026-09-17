@@ -128,3 +128,18 @@ bpr-linux fixed the fresh-install half at `1c6eaf21`. The full record is
     `tests/scripts/agent_workspace_ownership_tests.py`,
     `tests/end_to_end/profile_startup_public_path_tests.cpp`,
     `tests/end_to_end/profile_management_public_path_tests.cpp`.
+
+## Round-trip digest reseal on main (dsp-002)
+
+`1c6eaf21` replaced one call in `src/app/src/github_application.cpp`, and
+that change moved the pinned whole-file and manifest digests of
+`application_review_round_trip_composition_contract`. The review that covers
+it is the `rfc-reviewer-critical` pass recorded in
+[the Linux evidence](../../verification/BPR-0817-linux-owner-private-data-root.md),
+which found no blocking issue. Following the reseal procedure in that
+contract ([[BPR-0819]]), main resealed the range `99d5cbc2..fb84f41c`, which
+holds only this change:
+
+- whole file `fed42059189f4c5efae78c4191cf5298253b87425fbc278b9ec7c0038b47c91b`;
+- manifest `b44257151eacac413c88212d988e21288f685b98423c979f779f59a0a6dd0108`;
+- mutation branch unchanged.
