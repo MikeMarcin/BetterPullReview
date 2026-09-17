@@ -999,10 +999,12 @@ namespace bpr::application {
 				return;
 			}
 			ViewerMode = viewer_mode::public_preview;
+			// [[BPR-0822]]. Name the nested type: GCC 15 destroys a braced
+			// aggregate member twice when a later member initializer throws.
 			accept_session(session_candidate{
 				.Context            = aContext,
 				.ProfileAuthority   = aAuthority,
-				.Viewer             = { },
+				.Viewer             = github_viewer_record{ },
 				.CapabilityEvidence = anonymous_capability_evidence(aAuthority),
 				.AccountTransport   = { },
 				.RateLimits         = RateLimits,

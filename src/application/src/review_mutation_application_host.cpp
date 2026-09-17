@@ -795,10 +795,12 @@ namespace bpr::application {
 								   review_mutation_execution_grant     aRequestGrant)
 			-> review_mutation_request_context
 		{
+			// [[BPR-0822]]. Name the nested type: GCC 15 destroys a braced
+			// aggregate member twice when a later member initializer throws.
 			auto record = std::make_shared<request_record>(request_record{
 				.Context = context(),
 				.Request = std::move(aRequest),
-				.Anchor  = { },
+				.Anchor  = review_mutation_anchor_binding{ },
 				.Stop    = { },
 			});
 			auto grant  = review_mutation_execution_grant{ };

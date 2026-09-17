@@ -26,12 +26,15 @@ namespace bpr::application {
 	};
 
 	/// \brief Complete bounded registry; adoption records no movement of existing domain data.
+	///
+	/// [[BPR-0822]]. `Profiles` names its nested record type: GCC 15 destroys a
+	/// braced aggregate member twice when a later member initializer throws.
 	struct profile_registry_snapshot
 	{
 		std::uint64_t                       Revision       = 1U;
 		std::uint64_t                       LastProfileId  = 1U;
 		bool                                DefaultAdopted = true;
-		std::vector<profile_registry_entry> Profiles{ { { core::default_bpr_profile_id, "Default" }, profile_root_mode::legacy, "legacy" } };
+		std::vector<profile_registry_entry> Profiles{ { core::bpr_profile_record{ core::default_bpr_profile_id, "Default" }, profile_root_mode::legacy, "legacy" } };
 		std::uint64_t                       LastWindowId                                               = 0U;
 		auto                                operator==(const profile_registry_snapshot&) const -> bool = default;
 	};
