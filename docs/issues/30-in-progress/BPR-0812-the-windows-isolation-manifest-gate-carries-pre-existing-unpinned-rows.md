@@ -108,3 +108,20 @@ without a cause, so that is the next step.
 - `tests/sqlite_contract/CMakeLists.txt`: one `WINDOWS_UNCONTAINED` marker
   removed, a no-op elsewhere.
 - `scripts/verify_test_network_isolation.py`: pins only.
+
+## Integrated; blocked on BPR-0834 (dsp-003)
+
+Main merged `windows-lane` at `711d3ddc` as `902cda35`. On macOS at
+`8a03a5be`, `test_network_isolation_manifest`, `architecture_boundaries`,
+`profile_window_restoration_fixture_contract`, `sqlite_profile_runtime_lease`,
+`git_sparse_cache_contract` and the agent chat and finding courses whose
+roots were narrowed pass, except the two finding contracts that also fail at
+`2ee49a16` before this merge ([[BPR-0835]]) (`build/r2-logs/dsp3-int1-ctest.log`,
+`dsp3-agent-ab-*.log`, `dsp3-base-finding-ctest.log`).
+
+Six of the eight rows are resolved. The remaining six findings belong to
+`application_epoch_ordinary_update_recreated` and
+`application_epoch_portable_occurrence_two_catalogues`, which fail at
+startup on Windows even uncontained, so they cannot be measured or pinned
+until [[BPR-0834]] fixes that. This card is blocked on BPR-0834 and returns
+to the Windows station with it.
