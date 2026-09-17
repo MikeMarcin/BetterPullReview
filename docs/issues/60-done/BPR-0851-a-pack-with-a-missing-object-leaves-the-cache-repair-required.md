@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0851"
 title: "A fetched pack with a missing object leaves the Git cache repair_required"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-004 BPR-0846 worker","found_at":"a5168c6d","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"AC1 after a missing-object refusal the cache is usable: the earlier head stays latest and a later valid import succeeds without repair, and a course shows it","outcome":"pass","revision":"791987d9","evidence":{"kind":"command","detail":"git_haves_trimmed_pack_missing-object requires the process_failure reason (27, no 26), no tmp_* residue, Base latest, and after a host restart a normal import of Head2 without repair. macOS 3/3 at 15eb1540 and at the integrated head (build/r2-logs/dsp4-0851-courses-x3.log, dsp4-int1-ctest.log); Linux Git 2.53.0 and Windows Git for Windows 2.55.0 pass with 27 (docs/verification/dsp4-{linux,windows}-confirmation.md). Negative control without the cleanup: 13 (dsp4-0851-negative-control.log). Course 5 of git_cache_contract drops its reset workaround and imports sparsely after the refusal."}},{"criterion":"AC2 an unexpected extra pack, or a pre-existing tmp_pack_*, is still reported as needing repair and the planted file is not deleted","outcome":"pass","revision":"791987d9","evidence":{"kind":"command","detail":"git_cache_contract courses 6-8 (fault injection only on the contract target) plant a pre-existing tmp_pack_*, an extra pack, and hard-linked or non-private tmp files: each gives repair_required and every planted file remains; since 791987d9 each course inspects only its own store and passes alone (dsp4-0851-fix2-trial-after.log); both contracts pass (dsp4-0851-fix2-contracts.log); Linux and Windows contracts pass. Critical review: no blocking finding."}},{"criterion":"AC3 the missing-object course asserts the failure code, and the process contract covers exit 1 with stderr","outcome":"pass","revision":"15eb1540d302795961f9f913af9942ff40a4bf2f","evidence":{"kind":"command","detail":"The missing-object course asserts reason 27 and no 26; git_process_contract's fake index-pack BPR_EXIT_ONE_ERROR row pins accepted exit 1 with stderr as malformed_output (dsp4-0851-verification.log); both pass on all three platforms."}}]
 ---
 
 # BPR-0851: A fetched pack with a missing object leaves the Git cache repair_required
