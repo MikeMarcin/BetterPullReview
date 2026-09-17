@@ -16,7 +16,11 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
-import tempfile
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 TIMEOUT_SECONDS = 120
 
@@ -60,7 +64,11 @@ def run(application, phase, root, vault=b"", exports=True):
 
 
 def terminate(application, root, vault):
-    with tempfile.TemporaryFile() as diagnostics:
+    # The contained support has no temporary-file helper, so the stderr sink is
+    # a real file inside a contained temporary directory. The child still gets
+    # an operating-system file handle, and leaving the directory removes it.
+    with contained_temporary_directory(prefix="bpr-0644-relaunch-stderr-") as scratch, \
+            open(Path(scratch) / "terminate.stderr", "w+b") as diagnostics:
         child = subprocess.Popen([application, "terminate", str(root)], stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=diagnostics)
         try:
@@ -89,7 +97,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
     arguments = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="bpr-0644-relaunch-") as temporary:
+    with contained_temporary_directory(prefix="bpr-0644-relaunch-") as temporary:
         root = Path(temporary).resolve() / "application"
         root.mkdir(mode=0o700)
         os.chmod(root, 0o700)

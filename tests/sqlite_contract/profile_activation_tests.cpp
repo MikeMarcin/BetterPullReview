@@ -36,8 +36,18 @@ namespace {
 	public:
 		scratch_directory()
 		{
+			// This class is POSIX-only, but the MSVC gate reads text rather than
+			// branches, and the suppression is what the tree spells everywhere
+			// `std::getenv` is read (BPR-0519, [[BPR-0854]]).
+	#if defined(_MSC_VER)
+		#pragma warning(push)
+		#pragma warning(disable : 4996)
+	#endif
 			const auto* socketRoot = std::getenv("BPR_TEST_SOCKET_ROOT");
-			auto        pattern    = (std::filesystem::path{ socketRoot ? socketRoot : "/tmp" } / "bpr-act-XXXXXX").string();
+	#if defined(_MSC_VER)
+		#pragma warning(pop)
+	#endif
+			auto pattern = (std::filesystem::path{ socketRoot ? socketRoot : "/tmp" } / "bpr-act-XXXXXX").string();
 			expect(::mkdtemp(pattern.data()) != nullptr, "make private scratch");
 			Path = std::filesystem::canonical(pattern.data());
 		}

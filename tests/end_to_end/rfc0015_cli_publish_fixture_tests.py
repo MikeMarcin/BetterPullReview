@@ -3,16 +3,20 @@
 import json
 from pathlib import Path
 import subprocess
-import tempfile
+import sys
 import time
 import unittest
 
-import rfc0015_cli_publish_fixture as fixture
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
+
+import rfc0015_cli_publish_fixture as fixture  # noqa: E402
 
 
 class PublishFixtureTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="bpr-cli-publish-")
+        self.temporary = ContainedTemporaryDirectory(prefix="bpr-cli-publish-")
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name).resolve() / "fixture"
         fixture.prepare(self.directory, "Synthetic review.")

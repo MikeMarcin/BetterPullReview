@@ -6,8 +6,12 @@ from pathlib import Path
 import sqlite3
 import stat
 import subprocess
-import tempfile
+import sys
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 @contextlib.contextmanager
@@ -20,8 +24,10 @@ def private_fixture_parent():
     workspace recovery refuses, and the orderly quit exits 1. The macOS
     runner's `BPR_TEST_SOCKET_ROOT` is such a directory. Linux's network
     sandbox sets none, and shared `/tmp` is not one, so on POSIX the course
-    makes its own there. `/tmp` keeps the socket path short. Windows keeps
-    `None`, the user's own temporary folder.
+    makes its own there. `/tmp` keeps the socket path short. On POSIX the
+    contained support delegates to `tempfile.mkdtemp`, so the directory is
+    still created mode 0700. Windows keeps `None`, the user's own temporary
+    folder.
     """
     configured = os.environ.get("BPR_TEST_SOCKET_ROOT")
     if configured is not None:
@@ -30,7 +36,7 @@ def private_fixture_parent():
     if os.name != "posix":
         yield None
         return
-    with tempfile.TemporaryDirectory(prefix="bpr-admission-course-", dir="/tmp") as private:
+    with contained_temporary_directory(prefix="bpr-admission-course-", parent="/tmp") as private:
         yield private
 
 
@@ -46,7 +52,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
     args = parser.parse_args()
-    with private_fixture_parent() as parent, tempfile.TemporaryDirectory(prefix="own-", dir=parent) as temporary:
+    with private_fixture_parent() as parent, contained_temporary_directory(prefix="own-", parent=parent) as temporary:
         root = Path(temporary).resolve()
         os.chmod(root, 0o700)
         if os.name == "posix":

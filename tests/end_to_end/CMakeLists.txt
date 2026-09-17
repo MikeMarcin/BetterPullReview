@@ -2208,12 +2208,11 @@ bpr_bound_automated_run(
 # The same A→B→A timeline travels through independent application opens with
 # real SQLite catalogues. Additional opens exercise failed, refused, capped,
 # and disconnected history without treating Qt row counts as identity proof.
-find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
 bpr_add_network_isolated_test(
     NAME application_epoch_portable_occurrence_two_catalogues
     WINDOWS_UNCONTAINED
     COMMAND
-        "${Python3_EXECUTABLE}"
+        Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/epoch_portable_occurrence_public_path.py"
         --application
         $<TARGET_FILE:app_better_pull_review>
@@ -2695,7 +2694,7 @@ set_tests_properties(application_profile_window_review_restoration_public_path P
 bpr_add_network_isolated_test(
     NAME application_epoch_ordinary_update_recreated
     WINDOWS_UNCONTAINED
-    COMMAND "${Python3_EXECUTABLE}"
+    COMMAND Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/epoch_ordinary_update_public_path.py"
         --application $<TARGET_FILE:app_better_pull_review>
         --budget-ms ${bpr_fixture_run_budget_ms}
