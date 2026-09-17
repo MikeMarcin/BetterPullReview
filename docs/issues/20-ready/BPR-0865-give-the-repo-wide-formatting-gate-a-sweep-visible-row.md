@@ -109,3 +109,23 @@ envelope.
 **Not run on the Linux station.** That task was runs, not fixes: the repo-wide
 `coding-format-check` gate was not executed there and no registration was
 added or changed. Only the versions above were collected.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+**The Windows input, which was the last unknown.**
+
+- `clang-format` **22.1.8**, resolved from `PATH` at
+  `C:\Program Files\LLVM\bin\clang-format.exe`. It is the only `clang-format`
+  on `PATH`; no older copy shadows it, so an absolute path is not needed here as
+  it is on `bpr-linux`.
+- `python3` **3.14.7**, resolving to
+  `C:\Users\mikem\AppData\Local\Microsoft\WindowsApps\python3.exe`.
+- A registered row would not run either of those: CMake's `Python3::Interpreter`
+  on this station is `C:/Users/mikem/AppData/Local/Python/pythoncore-3.14-64/python.exe`,
+  reporting **3.14.6**.
+
+So all three stations can satisfy a 22-or-later gate, but only if the row takes
+the tool from `PATH` on Windows and from an absolute path on Linux.

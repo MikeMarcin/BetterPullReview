@@ -176,3 +176,19 @@ review and BPR-0653's.
 **Still open.** Criterion 1 names macOS **and Linux**. The Linux run at the
 fix is owed: the "18 of 18" Linux pass was at `754d0538`, which predates the
 fix. The card stays In Progress for it.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+`application_uiforetw_selected_diff_contract` fails on Windows at
+`UIFORETW_SELECTED_DIFF_EVIDENCE_FAILED` and `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`,
+with `presentation=0` and `cleanup_failed=1`. Every marker before those is OK
+(`UIFORETW_RESOURCE_ROLE_OK`, `..._RC_GESTURE_OK`, `..._RC_BLOBS_OK`,
+`..._RC_INTRALINE_OK`, `..._RC_ROLE_OK`, `..._FOCUSED_REVIEW_LAYOUT_OK`,
+`..._FIXTURE_DIFF_HELPER_UNUSED_OK`, `..._SELECTED_DIFF_TRACE_OK`).
+
+**The platform-aware strip row held:** no
+`UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions=N` was printed, so the lead and
+trailing offsets counted the Windows row's 29 actions correctly.

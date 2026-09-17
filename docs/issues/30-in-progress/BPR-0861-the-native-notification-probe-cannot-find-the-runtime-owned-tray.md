@@ -142,3 +142,17 @@ station where that limit would apply. The row passes here under the offscreen
 platform with no fixture fallback needed, so the cause was the probe's lookup
 and not the environment. Windows remains the one platform still to run it.
 The run record is in `docs/verification/dsp4-linux-confirmation.md`.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+`application_native_notification_attended_contract` gets further on Windows than
+the card's failure and ends on the shutdown cleanup alone:
+`NATIVE_NOTIFICATION_DISPLAY_BOUNDARY_OK`, `..._QT_ACTIVE_WINDOW_OK`,
+`..._TRAY_SIGNAL_OK`, `..._ACTIVATION_OK` and `..._EXACT_LANDING_SELECTION_OK`
+all print, with the payload `octo-org/review-repository #17|The code moved after
+you reviewed it.`, and then `NATIVE_NOTIFICATION_REFUSED:shutdown_cleanup_failed`.
+That is the same single fact twelve other application rows fail on here; see the
+sweep record, group D.
