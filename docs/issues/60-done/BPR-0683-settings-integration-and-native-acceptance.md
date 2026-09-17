@@ -53,6 +53,6 @@ window including the minimum size, and AC-11 the tests-disabled packaged invento
 AC-10 is recorded on the focused effect-boundary fixture, which is the instrumentation the
 verification matrix names; the closeout ledger keeps its "exhaustive OS instrumentation
 unproven" wording. Windows and Linux packaged inventory are platform work split to
-[BPR-0730](../10-backlog/BPR-0730-windows-packaged-settings-inventory.md) and
+[BPR-0730](BPR-0730-windows-packaged-settings-inventory.md) and
 [BPR-0731](../10-backlog/BPR-0731-linux-packaged-settings-inventory.md), which the
 [BPR-0593](../10-backlog/BPR-0593-close-rfc-0018.md) closeout now depends on. Done.

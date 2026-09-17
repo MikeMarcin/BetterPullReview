@@ -213,3 +213,15 @@ pre-existing findings; the integrator is carding them on `main`. They are:
 | `application_profile_management_public_path` passes on `windows-dev`, including `native_empty_desktop_policy() == quit` | Met through ctest, at `d587b5f1` |
 | The focused Windows contract (conversion; strict `/`, UNC and `\\?\` refusals; non-private registry file refused) | Met, at `d587b5f1` |
 | The macOS and Linux storage courses that cover the changed sources still pass, and `architecture_boundaries` passes | Windows storage courses pass. macOS and Linux were not run on this station. `architecture_boundaries` fails at the base too (not introduced). |
+
+## Addendum: the other two fixtures changed in `d0964fdd`
+
+Both results were recorded on `windows-dev` Debug at
+`327c9a05067facb8d663bf2b0b4b616af551d75c`, the integrator's fast-forward of
+`windows-lane`. Their test sources are unchanged since `d0964fdd`. BPR-0806
+does not fix either row.
+
+| Row | Result |
+|---|---|
+| `application_setup_destination_public_path` | Through `ctest --preset windows-dev -R "^application_setup_destination_public_path$" --output-on-failure` it **fails**, because it is still a contained registration: `FAILED: private desktop test root under the canonical storage policy`. That is the same contained cause as the pinned rows above. Run directly (`build\windows-dev\tests\end_to_end\Debug\setup_destination_public_path.exe`, `QT_QPA_PLATFORM=offscreen`, Qt runtime on `PATH`), it **passes** in 4.88 s: `setup-destination-public-path:pass`. |
+| `application_logging` | **Not registered on Windows.** `tests/end_to_end/CMakeLists.txt` defines `test_application_logging` and its row only inside `if(UNIX)`, and `ctest --preset windows-dev -N -R "^application_logging$"` lists no test. Its fixture change compiles only on Unix hosts and has no Windows state to record. |

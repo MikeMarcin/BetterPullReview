@@ -1844,7 +1844,7 @@ fingerprints match the prepared candidates; no stale verdict):
 - Selections: [BPR-0727](../60-done/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md),
   [BPR-0728](../60-done/BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md),
   [BPR-0729](../60-done/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md).
-- Platform split of AC-11: [BPR-0730](BPR-0730-windows-packaged-settings-inventory.md),
+- Platform split of AC-11: [BPR-0730](../60-done/BPR-0730-windows-packaged-settings-inventory.md),
   [BPR-0731](BPR-0731-linux-packaged-settings-inventory.md); this closeout
   depends on both.
 
