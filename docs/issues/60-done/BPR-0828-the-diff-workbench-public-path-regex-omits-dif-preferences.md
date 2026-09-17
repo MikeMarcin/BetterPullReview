@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0828"
 title: "The diff workbench public path's pass expression omits the DIF_PREFERENCES line"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0031"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux"]
 metadata: {"found_by":"dsp-002 BPR-0823 slice, once the comparison-visibility failure was fixed; bpr-linux reported the earlier symptom","found_at":"fe629c90bf37bbeb6fa3e578cf76f81d45155d08","run":"run-20260916-stations","dispatch":"dsp-002"}
+acceptance: [{"criterion":"AC1 application_diff_workbench_public_path passes on macOS","outcome":"pass","revision":"5899f1d6; again at 8a03a5be","evidence":{"kind":"command","detail":"Passes 12.11 s (build/r2-logs/dsp2-int9-courses.log) and 12.61 s at 8a03a5be (dsp3-int1-ctest.log); failed before the DIF_PREFERENCES line was named (dsp2-int8-ctest.log)."}},{"criterion":"AC2 Linux reruns it once linux-lane contains this fix and BPR-0823's","outcome":"pass","revision":"780d0a1c3d2c52932e007601d179657168ba3124","evidence":{"kind":"command","detail":"bpr-linux pass 2.63 s with DIF_PREFERENCES:shown:system:reduced matched (docs/verification/dsp2-linux-confirmation.md, BPR-0828); 10/10 on BPR-0830's candidate."}}]
 ---
 
 # BPR-0828: The diff workbench public path's pass expression omits the DIF_PREFERENCES line
