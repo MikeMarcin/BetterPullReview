@@ -102,3 +102,13 @@ On POSIX the scripts still create roots with `mkdir(mode=0o700)` and narrow
 nothing. They now use `contained_temporary_directory`, which on POSIX is
 `tempfile`, and the catalogue removal's `onexc` handler runs only when a
 removal fails. The macOS run is the integrator's.
+
+## macOS run; finished (dsp-003)
+
+Main merged `windows-lane` at `aedf471f` as `013d2036`. **macOS at main `013d2036`** after the merge (`build/r2-logs/dsp3-int5-ctest.log`):
+`application_epoch_ordinary_update_recreated` (70.19 s) and
+`application_epoch_portable_occurrence_two_catalogues` (231.85 s) both pass,
+with `test_network_isolation_manifest` and
+`test_network_isolation_structure_contract`. On POSIX the scripts still
+create roots with `mkdir(mode=0o700)`, and `contained_temporary_directory`
+is `tempfile`.
