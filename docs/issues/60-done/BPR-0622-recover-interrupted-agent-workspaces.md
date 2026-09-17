@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0622"
 title: "Recover interrupted agent workspaces with durable exact ownership"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 platforms: ["win","linux"]
 depends_on: ["BPR-0621"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
+acceptance: [{"criterion":"R1 durable bounded ownership/recovery path distinct from session metadata, reusing exact quarantine/removal","outcome":"pass","revision":"c94e02b1 (Windows), integrated in main 2ba02ddb; Linux confirmation at 780d0a1c","evidence":{"kind":"artifact","detail":"Unix production integration sections on this card; docs/verification/BPR-0622-windows-native-evidence.md slices (a)-(d); dsp-002 critical review of 743c59d7..c94e02b1 found no blocker."}},{"criterion":"R2 reclaim provably owned abandoned workspaces, preserve live owners, no name sweep or substitute deletion","outcome":"pass","revision":"c94e02b1 / 780d0a1c","evidence":{"kind":"command","detail":"application_agent_crash_recovery, application_agent_materialization_crash_recovery and agent_workspace_ownership pass on Windows (native evidence file), macOS (build/r2-logs/dsp2-int4-ctest.log, dsp3-int1-ctest.log) and Linux (docs/verification/dsp2-linux-confirmation.md, BPR-0622 slices (c) and (d))."}},{"criterion":"R3 crash points, recovery twice, exact refs and session identity, fresh workspace and monotonic session without replay","outcome":"pass","revision":"c94e02b1 / 780d0a1c","evidence":{"kind":"command","detail":"Both crash-recovery courses and the eight application_agent_invocation_* rows pass on all three platforms (same evidence locations)."}},{"criterion":"R4 missing or untrusted ownership is a visible repair/refusal; bounded admission; no authority for unrecorded roots","outcome":"pass","revision":"c94e02b1 / 780d0a1c","evidence":{"kind":"artifact","detail":"agent_workspace_ownership refusal and substitution cases on Windows (reverted trials in the Windows evidence file) and POSIX; pre-ownership window documented in this card's Unix sections and the Windows evidence limits."}},{"criterion":"R5 reclamation assertion replaces orphan preservation where durable ownership exists; substitution and live-owner negatives through the real path","outcome":"pass","revision":"c94e02b1 / 780d0a1c","evidence":{"kind":"command","detail":"Crash-recovery courses assert reclamation; ownership course negatives pass on Windows, macOS and Linux (evidence above)."}}]
 ---
 
 # Recover interrupted agent workspaces with durable exact ownership
