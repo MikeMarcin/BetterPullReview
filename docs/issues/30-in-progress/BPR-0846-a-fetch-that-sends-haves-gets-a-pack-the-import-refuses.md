@@ -80,7 +80,8 @@ and the server trims the pack. `index-pack --strict
 reference resolves, and some resolve to resident objects. The import failed
 with `EPOCH_CACHE_FAILURE:10` (`process_failure`) at `revision-prepare`, and
 the epoch status became `failed`
-(`build/r2-logs/dsp4-0846-phase1-update.log`).
+(`build/r2-logs/dsp4-0846-phase1-courses.log`, lines 38-43; the
+`phase1-update.log` beside it holds only a shell error, not a run).
 
 With the same installed Git:
 
@@ -150,3 +151,48 @@ HTTPS transport against a server that trims.
 **Still open.** A critical review of the import rule, and the Linux
 (Git 2.53) and Windows runs of the three courses, including a measurement of
 the Windows containment reason.
+
+## Critical review (dsp-004)
+
+An `rfc-reviewer-critical` reviewed `bbdf8cc0` against Apple Git 2.50.1
+using scratch experiments, and reran the three courses 3/3. It found **no
+blocking issue**.
+
+- **Exit 1 has one meaning.** With the product's argv, exit 1 happens only
+  when a complete pack references resident objects. Each of these exits 128:
+  - a missing object;
+  - a thin pack with an unresolved delta;
+  - a truncated or corrupt pack, or a bad trailer;
+  - an fsck error, or a warning-class finding;
+  - an unwritable pack directory;
+  - `--max-input-size` exceeded.
+
+  An accepted exit 1 still has to pass the empty-stderr, exact-stdout and pack
+  validation guards.
+- **Closure is checked before anything is kept.** `index_pack` has one caller,
+  `prepare_revision_impl`. On the non-sparse path it runs
+  `fsck --connectivity-only -- base head` over the full closure. That happens
+  before the witness, the staging refs and the spool removal.
+- **Crashes are covered.** Recovery treats an unwitnessed pack as
+  `inventory_only` and verifies closure again.
+- **Sparse haves are refused, not trusted.** Haves are offered only for
+  commits that pass the non-sparse gate, so the server never trims against
+  sparse history. Were such a pack to arrive, it would be refused, as before.
+
+Non-blocking findings and their dispositions:
+
+1. The card cited the wrong reproduction log. Corrected above.
+2. The missing-object course proves the refusal by its outcome, not by its
+   failure code. The product ends in `repair_required`. This moved to
+   [[BPR-0851]], which asserts the code once that is fixed.
+3. No port-level contract row covers "exit 1 with stderr is
+   `malformed_output`". This moved to [[BPR-0851]].
+4. A connectivity refusal carries an empty diagnostic, because `fsck` reports
+   on stdout. This existed before the change. Carded as [[BPR-0852]].
+5. Only the connected half of the unconnected course separates the fix from
+   its absence. This is accepted: the negative control shows that half failing.
+6. The new doc comment on `index_pack` sits under the port's group note. This
+   is cosmetic and moved to [[BPR-0851]], which edits the same header area.
+
+**Still open.** The Linux and Windows runs, in the dsp-004 station envelopes
+`task-20260917-lnx-0846-0849` and `task-20260917-win-0846`.
