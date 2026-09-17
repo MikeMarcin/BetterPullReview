@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0850"
 title: "git_protocol_boundary is red: two production files call raw smart rounds outside complete acquisition"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-004 BPR-0846 worker","found_at":"a5168c6d","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"AC1 git_protocol_boundary passes on macOS, and the decision is recorded","outcome":"pass","revision":"65dfc318eaa5f9c4175870290cf020f53babf094","evidence":{"kind":"command","detail":"ctest -R ^git_protocol_boundary$ passes 1/1 and the script 18/18 at 65dfc318 (build/r2-logs/dsp4-0850-ctest.log, dsp4-0850-integrator-run.log). Decision on the card: both findings are a guard decorator and a testing-only refusal probe, not bypasses; the rule gains exact, counted, scoped allowances with synthetic, negative-control and mutation tests."}}]
 ---
 
 # BPR-0850: git_protocol_boundary is red: two production files call raw smart rounds outside complete acquisition
