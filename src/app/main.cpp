@@ -902,7 +902,7 @@ namespace {
 				return Course && !HistoricalCourse && !EmptyTimeline
 					&& !MissingHistoricalBase && !RewrittenBase && !Enterprise;
 			}
-			std::size_t                             HistoricalNode        = 0U;
+			std::size_t HistoricalNode = 0U;
 			// The same override activated on an enterprise profile, where the
 			// core policy refuses rather than the composition.
 			bool Enterprise = false;
@@ -3319,7 +3319,7 @@ namespace {
 		automated_run&             aRun,
 		const int                  aRow) -> bool
 	{
-		auto& cli          = aRun.Cli;
+		auto&      cli          = aRun.Cli;
 		const auto cards        = aWindow.server_cards();
 		auto       expectedHost = expected_cli_active_host_text(
 			cards, aRow, cli.EnterpriseHostname, cli.ReadOffered);
@@ -5478,7 +5478,7 @@ namespace {
 								}
 								aRun->PublicPreview.Opened = true;
 								// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
-								window.home_open_bar()->setText(QStringLiteral("%1/%2#%3").arg(QString::fromStdString( aRun->Expectations.Owner), QString::fromStdString( aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
+								window.home_open_bar()->setText(QStringLiteral("%1/%2#%3").arg(QString::fromStdString(aRun->Expectations.Owner), QString::fromStdString(aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
 								window.home_open_action()->trigger();
 								break;
 							}
@@ -5506,7 +5506,7 @@ namespace {
 							const auto previewLink = aRun->PublicPreview.Enterprise
 								? QStringLiteral("%1/%2#%3")
 								: QStringLiteral("https://github.com/%1/%2/pull/%3");
-							window.home_open_bar()->setText(previewLink.arg(QString::fromStdString( aRun->Expectations.Owner), QString::fromStdString( aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
+							window.home_open_bar()->setText(previewLink.arg(QString::fromStdString(aRun->Expectations.Owner), QString::fromStdString(aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
 							window.home_open_action()->trigger();
 							break;
 						}

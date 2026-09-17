@@ -29,3 +29,23 @@ should be red on this file.
 
 - `clang-format --dry-run --Werror src/app/main.cpp` is clean, and the
   round-trip contract passes after the reseal.
+
+## Fix and review (dsp-004, Mac)
+
+- **Change.** `clang-format` rewrote the 7 reported places in 4 hunks
+  (lines 905, 3322, 5481 and 5509): two declaration alignments and four
+  spaces after `(`. Homebrew `clang-format` 22.1.8 and 23.1.0 produce
+  byte-identical output for the file, and both now pass
+  `--dry-run --Werror`.
+- **Review of the formatting-only diff.** Deleting every space, tab and
+  newline from the file before and after leaves identical bytes, and no
+  changed whitespace lies inside a string literal. The change cannot alter
+  the program.
+- **Reseal.** Since the last reseal (`0c58092e`), no other commit touches
+  `src/app` or the contract. Only the production app manifest pin moves,
+  from `827fe58a…` to `d0d6c631…`. The full-application and mutation-branch
+  pins are unchanged.
+- **Runs.** `application_review_round_trip_composition_contract` passes 1/1
+  after rebuilding `build/r2-dev`
+  (`build/r2-logs/dsp4-0848-roundtrip.log`). `format_check.py
+  src/app/main.cpp` passes.
