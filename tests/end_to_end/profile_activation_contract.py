@@ -1,11 +1,32 @@
 """Real desktop activation preserves owner identity and durable window routing."""
 import argparse
+import contextlib
 import os
 from pathlib import Path
 import sqlite3
+import stat
 import subprocess
 import tempfile
 import time
+
+
+@contextlib.contextmanager
+def private_fixture_parent():
+    """[[BPR-0847]]. The directory the course's data root is created in.
+
+    An owner creates its agent workspace neighbourhood beside its data root, and
+    only under a parent this user owns and nobody else can write. Otherwise
+    workspace recovery refuses, and the orderly drain exits 1. The macOS runner's
+    `BPR_TEST_SOCKET_ROOT` is such a directory. Linux's network sandbox sets
+    none, and shared `/tmp` is not one, so the course makes its own there. `/tmp`
+    keeps the socket path short.
+    """
+    configured = os.environ.get("BPR_TEST_SOCKET_ROOT")
+    if configured is not None:
+        yield configured
+        return
+    with tempfile.TemporaryDirectory(prefix="bpr-activation-course-", dir="/tmp") as private:
+        yield private
 
 
 def windows(root, profile):
@@ -39,9 +60,14 @@ def main():
                                  "--new-window", "--application-icon-probe"],
                                 capture_output=True, text=True, timeout=15)
         assert result.returncode == 0 and "APPLICATION_ICON_OK" in result.stdout, result
-    with tempfile.TemporaryDirectory(prefix="act-", dir=os.environ.get("BPR_TEST_SOCKET_ROOT", "/tmp")) as temporary:
+    with private_fixture_parent() as parent, tempfile.TemporaryDirectory(prefix="act-", dir=parent) as temporary:
         root = Path(temporary).resolve()
         os.chmod(root, 0o700)
+        # The product's own test of the parent, so a shared one fails here by name.
+        shared = root.parent.lstat()
+        owner_only = (stat.S_ISDIR(shared.st_mode) and shared.st_uid == os.geteuid()
+                      and shared.st_mode & (stat.S_IWGRP | stat.S_IWOTH) == 0)
+        assert owner_only, f"{root.parent} is not owner-only, so an owner's workspace recovery would refuse"
         processes = []
         logs = []
 
