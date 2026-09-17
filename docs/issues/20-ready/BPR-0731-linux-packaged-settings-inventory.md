@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0731"
 title: "Linux packaged Settings inventory (RFC-BPR-0018 AC-11)"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0018"]
 depends_on: []
 priority: "P2"
@@ -38,7 +38,7 @@ platform work and stays in Backlog until the Linux station takes it
 - The packaged inventory on Linux matches the dev build's, with each
   difference named as a documented capability row.
 - The captures or the recorded inventory are linked from the
-  [BPR-0593](BPR-0593-close-rfc-0018.md) closeout ledger's AC-11 row.
+  [BPR-0593](../10-backlog/BPR-0593-close-rfc-0018.md) closeout ledger's AC-11 row.
 - Where a person must look at it, an attended candidate on that station.
 
 ## Owner direction, 2026-09-11
@@ -46,7 +46,7 @@ platform work and stays in Backlog until the Linux station takes it
 Asked when the station takes this: "After we sort all the MacOS and
 platform agnostic stuff out". It stays in Backlog behind the macOS and
 platform-agnostic cards of the pack (BPR-0725 through BPR-0729, BPR-0734
-and the Home cards BPR-0732 and BPR-0733); the [BPR-0593](BPR-0593-close-rfc-0018.md)
+and the Home cards BPR-0732 and BPR-0733); the [BPR-0593](../10-backlog/BPR-0593-close-rfc-0018.md)
 closeout records the order.
 
 ## Linux station inventory, 2026-09-17
