@@ -196,6 +196,18 @@
 
 namespace bpr::app {
 	namespace {
+		// [[BPR-0875]]. The workspace-ownership refusal in words, for the one
+		// cleanup name a quit reports.
+		[[nodiscard]] auto named_workspace_ownership_failure(const int aFailure) -> std::string
+		{
+			switch (static_cast<adapters::git::workspace_ownership_failure>(aFailure)) {
+			case adapters::git::workspace_ownership_failure::repair_required: return "repair-required";
+			case adapters::git::workspace_ownership_failure::capacity:        return "capacity";
+			case adapters::git::workspace_ownership_failure::cancelled:       return "cancelled";
+			case adapters::git::workspace_ownership_failure::unavailable:     break;
+			}
+			return "unavailable";
+		}
 		using adapters::github::github_host_profile_candidate;
 		using adapters::github::github_profile_provenance;
 		using adapters::github::make_live_review_mutation_provider;
@@ -2430,16 +2442,37 @@ namespace bpr::app {
 			auto store(const application::workbench_layout_settings& aSettings, std::stop_token aStop) -> application::workbench_settings_result<void> override
 			{
 				WriteFailed.store(true, std::memory_order_release);
+				Attempted.fetch_add(1U, std::memory_order_acq_rel);
 				auto result = Service->perform<application::workbench_settings_result<void>>(Window, aStop, [&](auto& aStore) { return aStore.store(aSettings, aStop); });
 				WriteFailed.store(!result.has_value(), std::memory_order_release);
+				if (result) {
+					Completed.fetch_add(1U, std::memory_order_acq_rel);
+				} else {
+					LastFailure.store(static_cast<int>(result.error().Failure), std::memory_order_release);
+				}
 				return result;
 			}
 			auto write_failed() const noexcept -> bool { return WriteFailed.load(std::memory_order_acquire); }
+			// [[BPR-0875]]. `write_failed` is set before the store runs and
+			// cleared by its result, so it also reads true while a write is in
+			// flight. These two say which of those a shutdown saw: how many
+			// stores were attempted and completed, and what the last refusal was.
+			auto writes_attempted() const noexcept -> std::size_t { return Attempted.load(std::memory_order_acquire); }
+			auto writes_completed() const noexcept -> std::size_t { return Completed.load(std::memory_order_acquire); }
+			auto last_write_failure() const noexcept -> std::optional<application::workbench_settings_failure>
+			{
+				const auto recorded = LastFailure.load(std::memory_order_acquire);
+				return recorded < 0 ? std::nullopt
+									: std::optional{ static_cast<application::workbench_settings_failure>(recorded) };
+			}
 
 		private:
 			std::shared_ptr<profile_window_layout_service> Service;
 			core::bpr_window_id                            Window;
 			std::atomic_bool                               WriteFailed = false;
+			std::atomic_size_t                             Attempted   = 0U;
+			std::atomic_size_t                             Completed   = 0U;
+			std::atomic_int                                LastFailure = -1;
 		};
 
 		[[nodiscard]] auto unavailable_theme_document()
@@ -4098,6 +4131,9 @@ namespace bpr::app {
 		void fail(const core::window_review_error& aError) override
 		{
 			if (RestorationOrderly && aError.Reason != core::window_review_failure::cancelled) {
+				note_profile_cleanup_failure(
+					std::string{ "window-review-restoration-failed:reason=" }
+					+ std::to_string(static_cast<int>(aError.Reason)));
 				CleanupFailed = true;
 			}
 			auto message = QStringLiteral("The saved reading could not be resumed. Choose a review to continue.");
@@ -4128,6 +4164,14 @@ namespace bpr::app {
 		bool ServicesClosing  = false;
 		bool ShutdownComplete = false;
 		bool CleanupFailed    = false;
+		// [[BPR-0875]]. Which of the profile's cleanups refused first.
+		std::string CleanupDetail;
+		void        note_profile_cleanup_failure(std::string aDetail)
+		{
+			if (CleanupDetail.empty()) {
+				CleanupDetail = aDetail.empty() ? std::string{ "unnamed" } : std::move(aDetail);
+			}
+		}
 		void begin_shutdown()
 		{
 			Closing = true;
@@ -4183,11 +4227,41 @@ namespace bpr::app {
 			}
 			if (!AgentWorkspaceCleanupAttempted) {
 				AgentWorkspaceCleanupAttempted = true;
-				if (AgentWorkspaceParent) {
-					AgentWorkspaceCleanupFailed = !adapters::git::remove_installed_agent_workspace_parent(*AgentWorkspaceParent);
+				if (AgentWorkspaceParent
+					&& !adapters::git::remove_installed_agent_workspace_parent(*AgentWorkspaceParent)) {
+					// [[BPR-0875]]. Distinct from the recovery refusal above: this
+					// one is a removal at quit, and only this one is about a path
+					// that would not go away.
+					note_profile_cleanup_failure(
+						std::string{ "agent-workspace-parent-remove:" } + AgentWorkspaceParent->Path.string());
+					AgentWorkspaceCleanupFailed = true;
 				}
 			}
-			CleanupFailed = CleanupFailed || (ReviewRestoration && ReviewRestoration->projection_delivery_failed()) || AgentWorkspaceCleanupFailed || AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire) || (Host && Host->shutdown_cleanup_failed());
+			// [[BPR-0875]]. The profile's own flag folds five sources together,
+			// and a real quit turns it into exit 1, so each one is named here as
+			// it is folded in. The window host's own detail is taken whole: it
+			// already says which of its three cleanups refused and why.
+			if (ReviewRestoration && ReviewRestoration->projection_delivery_failed()) {
+				note_profile_cleanup_failure("review-restoration-projection-delivery");
+				CleanupFailed = true;
+			}
+			if (AgentWorkspaceCleanupFailed) {
+				note_profile_cleanup_failure(
+					AgentWorkspaceRecoveryFailure < 0
+						? std::string{ "agent-workspace-cleanup:unnamed-origin" }
+						: std::string{ "agent-workspace-recovery:" }
+							+ (ApplicationDataRoot / "agent-workspace-ownership-v1").string() + ":"
+							+ named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure));
+				CleanupFailed = true;
+			}
+			if (AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire)) {
+				note_profile_cleanup_failure("agent-workspace-recovery-post");
+				CleanupFailed = true;
+			}
+			if (Host && Host->shutdown_cleanup_failed()) {
+				note_profile_cleanup_failure("application-host-shutdown-cleanup");
+				CleanupFailed = true;
+			}
 			Provider->shutdown();
 			AnonymousProvider->shutdown();
 			ProfileCatalog->shutdown();
@@ -4907,6 +4981,14 @@ namespace bpr::app {
 					try {
 						DecisionLane.post([this, result = std::move(recovered)] {
 							AgentWorkspaceCleanupFailed = !result.has_value();
+							// [[BPR-0875]]. Recorded where it happens, as a plain
+							// value: this is startup work, and its refusal is what
+							// the profile's shutdown flag reports much later, so
+							// without it a reader looks for a shutdown fault that
+							// never happened. The name is composed at the fold.
+							if (!result) {
+								AgentWorkspaceRecoveryFailure = static_cast<int>(result.error());
+							}
 							// [[BPR-0808]]. Recovery is profile work, but its refusal is
 							// presented by every window: those open now, and any opened
 							// later, which replay the recorded refusal in `open_window`.
@@ -4922,6 +5004,7 @@ namespace bpr::app {
 					}
 				});
 			} catch (...) {
+				note_profile_cleanup_failure("agent-workspace-recovery:post-refused");
 				AgentWorkspaceCleanupFailed = true;
 				AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
 			}
@@ -5543,7 +5626,11 @@ namespace bpr::app {
 			 AgentWorkspaceParent;
 		bool AgentWorkspaceCleanupAttempted = false;
 		bool AgentWorkspaceCleanupFailed    = false;
-		bool AgentWorkspaceRecoveryRefused  = false;
+		// [[BPR-0875]]. The workspace recovery's refusal, as its enum value, or
+		// -1 when it did not refuse. A value, not a string, because it is set on
+		// a posted lane and read at the quit.
+		int  AgentWorkspaceRecoveryFailure = -1;
+		bool AgentWorkspaceRecoveryRefused = false;
 		// Dependents are destroyed before their retained ports and execution lanes.
 		std::unique_ptr<application::github_application_host> Host;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -11758,8 +11845,22 @@ namespace bpr::app {
 				schedule_shutdown_poll();
 				return;
 			}
-			if (DurableWindowLayout && Retirement == window_retirement::orderly_quit) {
-				ShutdownCleanupFailed = ShutdownCleanupFailed || DurableWindowLayout->write_failed();
+			if (DurableWindowLayout && Retirement == window_retirement::orderly_quit
+				&& DurableWindowLayout->write_failed()) {
+				// [[BPR-0875]]. Name the source, and say whether a write refused
+				// or one was still in flight when the quit drained: the flag
+				// cannot tell those apart, and only the first loses the layout.
+				const auto failure = DurableWindowLayout->last_write_failure();
+				note_cleanup_failure(
+					std::string{ "durable-layout-write:window=" }
+					+ std::to_string(DraftWindow.Window.value()) + ":attempted="
+					+ std::to_string(DurableWindowLayout->writes_attempted()) + ":completed="
+					+ std::to_string(DurableWindowLayout->writes_completed()) + ":"
+					+ (!failure ? "in-flight-at-drain"
+						   : *failure == application::workbench_settings_failure::cancelled
+						   ? "cancelled"
+						   : "unavailable"));
+				ShutdownCleanupFailed = true;
 			}
 			if (Profile->WindowLayouts && Retirement == window_retirement::explicit_close && !LayoutEraseComplete) {
 				if (!LayoutEraseStarted) {
@@ -11772,28 +11873,45 @@ namespace bpr::app {
 					try {
 						WorkbenchEffects.post([this, weak, service, context, lane, delivery] {
 							auto success = false;
+							// [[BPR-0875]]. The erase's own refusal, carried back so the
+							// shutdown can name it: the failure it answered, or the
+							// exception it threw.
+							auto refusal = std::string{ "threw" };
 							try {
-								success = service->erase(context.Window).has_value();
+								const auto erased = service->erase(context.Window);
+								success           = erased.has_value();
+								if (!success) {
+									refusal = erased.error().Failure == application::workbench_settings_failure::cancelled
+										? "cancelled"
+										: "unavailable";
+								}
 							} catch (...) { }
 							try {
-								lane->post([this, weak, context, success] {
+								lane->post([this, weak, context, success, refusal] {
 									if (weak.expired() || DraftWindow != context) {
 										return;
 									}
-									ShutdownCleanupFailed = ShutdownCleanupFailed || !success;
-									LayoutEraseComplete   = true;
+									if (!success) {
+										note_cleanup_failure(
+											std::string{ "layout-erase:window=" }
+											+ std::to_string(context.Window.value()) + ":" + refusal);
+										ShutdownCleanupFailed = true;
+									}
+									LayoutEraseComplete = true;
 								});
 							} catch (...) {
 								delivery->store(true, std::memory_order_release);
 							}
 						});
 					} catch (...) {
-						LayoutEraseComplete   = true;
+						LayoutEraseComplete = true;
+						note_cleanup_failure("layout-erase:post-refused");
 						ShutdownCleanupFailed = true;
 					}
 				}
 				if (LayoutEraseDeliveryFailed->load(std::memory_order_acquire)) {
-					LayoutEraseComplete   = true;
+					LayoutEraseComplete = true;
+					note_cleanup_failure("layout-erase:delivery-refused");
 					ShutdownCleanupFailed = true;
 				}
 				if (!LayoutEraseComplete) {
@@ -11809,7 +11927,15 @@ namespace bpr::app {
 			if (!McpSnapshotRoot.empty()) {
 				std::error_code error;
 				std::filesystem::remove_all(McpSnapshotRoot, error);
-				ShutdownCleanupFailed = ShutdownCleanupFailed || error.operator bool();
+				if (error) {
+					// [[BPR-0875]]. The path and the platform's own words: a
+					// directory still held open and a read-only entry are
+					// different faults with the same flag.
+					note_cleanup_failure(
+						std::string{ "mcp-snapshot-remove:" } + McpSnapshotRoot.string() + ":"
+						+ std::to_string(error.value()) + " " + error.message());
+					ShutdownCleanupFailed = true;
+				}
 			}
 			ShutdownComplete = true;
 			if (OnClosed) {
@@ -12387,13 +12513,23 @@ namespace bpr::app {
 			std::string                      Hostname;
 			core::repository_locator         Locator;
 		};
-		std::optional<agent_review_facts>                                 AgentReview;
-		decltype(github_profile_runtime::ExistingCheckout)&               ExistingCheckout               = Profile->ExistingCheckout;
-		bool                                                              Closing                        = false;
-		bool                                                              OtherShutdownBegun             = false;
-		bool                                                              ShutdownPollScheduled          = false;
-		bool                                                              ShutdownComplete               = false;
-		bool                                                              ShutdownCleanupFailed          = false;
+		std::optional<agent_review_facts>                   AgentReview;
+		decltype(github_profile_runtime::ExistingCheckout)& ExistingCheckout      = Profile->ExistingCheckout;
+		bool                                                Closing               = false;
+		bool                                                OtherShutdownBegun    = false;
+		bool                                                ShutdownPollScheduled = false;
+		bool                                                ShutdownComplete      = false;
+		bool                                                ShutdownCleanupFailed = false;
+		// [[BPR-0875]]. Which cleanup refused, where, and what the platform said.
+		// The first refusal keeps the record: a later one cannot overwrite the
+		// cause that started the failure.
+		std::string ShutdownCleanupDetail;
+		void        note_cleanup_failure(std::string aDetail)
+		{
+			if (ShutdownCleanupDetail.empty()) {
+				ShutdownCleanupDetail = std::move(aDetail);
+			}
+		}
 		decltype(github_profile_runtime::AgentWorkspaceCleanupAttempted)& AgentWorkspaceCleanupAttempted = Profile->AgentWorkspaceCleanupAttempted;
 		decltype(github_profile_runtime::AgentWorkspaceCleanupFailed)&    AgentWorkspaceCleanupFailed    = Profile->AgentWorkspaceCleanupFailed;
 		decltype(github_profile_runtime::NativePlatformVaultSelected)&    NativePlatformVaultSelected    = Profile->NativePlatformVaultSelected;
@@ -12789,7 +12925,12 @@ namespace bpr::app {
 				if (found == Sessions.end()) {
 					return;
 				}
-				Profile->CleanupFailed = Profile->CleanupFailed || found->second->ShutdownCleanupFailed;
+				if (found->second->ShutdownCleanupFailed) {
+					// [[BPR-0875]]. A window's cleanup refusal becomes the
+					// profile's; its name travels with it.
+					Profile->note_profile_cleanup_failure(found->second->ShutdownCleanupDetail);
+					Profile->CleanupFailed = true;
+				}
 				Sessions.erase(found);
 				if (Profile->Closing && Sessions.empty()) {
 					Profile->begin_shutdown();
@@ -12930,6 +13071,17 @@ namespace bpr::app {
 		return Profile->ShutdownComplete;
 	}
 	auto github_application::profile_shutdown_cleanup_failed() const noexcept -> bool { return Profile->CleanupFailed; }
+	// [[BPR-0875]]. What the profile's flag above is about, for the desktop's
+	// exit code and for a person reading a real quit.
+	auto github_application::profile_shutdown_cleanup_detail() const -> std::string { return Profile->CleanupDetail; }
+	// [[BPR-0875]]. The profile's name once it has one, else this window's.
+	auto github_application::shutdown_cleanup_detail() const -> std::string
+	{
+		if (!Profile->CleanupDetail.empty()) {
+			return Profile->CleanupDetail;
+		}
+		return Implementation ? Implementation->ShutdownCleanupDetail : std::string{ };
+	}
 
 	auto github_application::implementation::status() const noexcept -> github_application_status
 	{

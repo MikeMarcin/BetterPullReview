@@ -4353,6 +4353,17 @@ namespace {
 				   // [[BPR-0647]]. Last, because the native appearance contract
 				   // matches the first three facts as one literal.
 				   << " overview=" << (aRun.OverviewShown && aRun.OverviewReturned ? 1 : 0) << '\n'
+				   // [[BPR-0875]]. Which cleanup refused, printed after the
+				   // verdict so no existing expectation moves, and only when one
+				   // did: `<source>:<path-or-window>:<error>`.
+				   << QString::fromStdString(
+						  status.ShutdownCleanupFailed
+							  ? "PUBLIC_PATH_CLEANUP_SOURCE:"
+								  + (aApplication.shutdown_cleanup_detail().empty()
+										 ? std::string{ "unnamed" }
+										 : aApplication.shutdown_cleanup_detail())
+								  + "\n"
+							  : std::string{ })
 				   // Which of the four narrowing groups rejected the run. The
 				   // first `0` names the group to look in.
 				   << "PUBLIC_PATH_GROUPS:"
@@ -7548,8 +7559,14 @@ namespace {
 							<< "NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK\n";
 					}
 				} else if (!aRun->Failed) {
+					// [[BPR-0875]]. The refusal keeps its wording; the source it
+					// refused on follows it.
+					const auto detail = aApplication.shutdown_cleanup_detail();
 					QTextStream{ stdout }
-						<< "NATIVE_NOTIFICATION_REFUSED:shutdown_cleanup_failed\n";
+						<< "NATIVE_NOTIFICATION_REFUSED:shutdown_cleanup_failed\n"
+						<< "NATIVE_NOTIFICATION_CLEANUP_SOURCE:"
+						<< QString::fromStdString(detail.empty() ? std::string{ "unnamed" } : detail)
+						<< "\n";
 				}
 				aApplication.request_quit(
 					aRun->Failed || aApplication.status().ShutdownCleanupFailed
