@@ -1061,7 +1061,15 @@ def build_image(arguments: argparse.Namespace) -> None:
                 str(arguments.output),
             ]
         )
-    detach_created_image(arguments.output, arguments.hdiutil)
+    try:
+        detach_created_image(arguments.output, arguments.hdiutil)
+    except (CapsuleFailure, OSError, ValueError) as refusal:
+        # A failed create is the first cause; its detach refusal follows it.
+        if result.returncode == 0:
+            raise
+        raise CapsuleFailure(
+            f"image creation failed: {result.stderr.strip()}; {refusal}"
+        ) from refusal
     if result.returncode != 0:
         raise CapsuleFailure(f"image creation failed: {result.stderr.strip()}")
     arguments.output.chmod(0o600)

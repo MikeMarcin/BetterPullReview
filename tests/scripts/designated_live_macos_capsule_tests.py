@@ -821,6 +821,38 @@ class CapsuleImageTests(unittest.TestCase):
                 self.assertEqual(reported.getvalue(), "")
                 self.assertFalse(digest_file.exists())
 
+    def test_failed_image_create_is_named_before_its_detach_refusal(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory).resolve()
+            root, inventory = make_capsule(parent)
+            image = parent / "capsule.dmg"
+            events: list[list[str]] = []
+            tool = self.leaking_image_tool(
+                image,
+                events,
+                store="/dev/disk10",
+                create_returncode=1,
+                listing=subprocess.CompletedProcess([], 1, "", "hdiutil: info failed"),
+            )
+            with (
+                mock.patch.object(capsule, "command", tool),
+                self.assertRaises(capsule.CapsuleFailure) as refused,
+            ):
+                capsule.build_image(
+                    self.image_arguments(
+                        capsule=root,
+                        inventory=inventory,
+                        output=image,
+                        image_digest=None,
+                    )
+                )
+            self.assertEqual(
+                str(refused.exception),
+                "image creation failed: create refused; "
+                "image attachment listing failed: hdiutil: info failed",
+            )
+            self.assertEqual([event[1] for event in events], ["create", "info"])
+
     def test_failed_image_create_still_detaches_its_own_device(self) -> None:
         with contained_temporary_directory() as directory:
             parent = pathlib.Path(directory).resolve()

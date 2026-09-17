@@ -4561,6 +4561,41 @@ auto finish_background_reap(
             github_target=target,
         )
 
+        created_image_detach = (
+            "        detach_created_image(arguments.output, arguments.hdiutil)\n"
+        )
+        image_digest = "    digest = image_sha256(arguments.output)\n"
+        self.assertEqual(
+            DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.count(created_image_detach), 1
+        )
+        self.assertEqual(DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.count(image_digest), 1)
+        without_created_image_detach = DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.replace(
+            created_image_detach, "        pass\n", 1
+        )
+        moved_after_digest = "    " + created_image_detach.lstrip()
+        for regression, script in (
+            ("removed", without_created_image_detach),
+            (
+                "moved after the digest",
+                without_created_image_detach.replace(
+                    image_digest, image_digest + moved_after_digest, 1
+                ),
+            ),
+            (
+                "repeated after the digest",
+                DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.replace(
+                    image_digest, image_digest + moved_after_digest, 1
+                ),
+            ),
+        ):
+            with self.subTest(created_image_detach=regression):
+                self.assertNotEqual(script, DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT)
+                self.assert_failure(
+                    "must detach its own created image exactly once",
+                    {**sources, "scripts/designated_live_macos_capsule.py": script},
+                    github_target=target,
+                )
+
         for forbidden_stage_one_fragment in (
             "subprocess.run(arguments",
             "signal.pthread_sigmask",

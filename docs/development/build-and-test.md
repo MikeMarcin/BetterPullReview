@@ -313,11 +313,11 @@ operator packet must bind the exact stored image it reviews.
 
 While other images are being created, `hdiutil create` can exit 0 and leave
 its write-once device attached, and a later attach of that image then fails.
-After each create, the image build therefore lists `hdiutil info -plist`,
-detaches every whole disk attached from its own resolved image path without
-force, and lists again after each attempt. If the image is still attached
-after 60 seconds, or the listing cannot be read, the build fails and reports
-no digest (BPR-0836).
+After each create, the image build therefore ordinarily detaches, without
+force, one whole disk attached from its own resolved image path per attempt.
+It lists `hdiutil info -plist` again before each attempt, until none remains
+or 60 seconds pass. If the image is still attached then, or the listing cannot
+be read, the build fails and reports no digest (BPR-0836).
 
 Inspect the two manifest modes without running the live lane:
 

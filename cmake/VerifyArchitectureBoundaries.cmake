@@ -2487,6 +2487,51 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
     if(NOT designated_live_force_detach_index EQUAL -1)
         message(FATAL_ERROR "Designated live image stage zero must never force detach")
     endif()
+    # BPR-0836. `hdiutil create` can exit 0 with its write-once device still
+    # attached, so the image build detaches its own image, or refuses, before
+    # it hashes and reports it.
+    string(
+        REGEX MATCHALL
+        "detach_created_image[(]arguments[.]output, arguments[.]hdiutil[)]"
+        designated_live_created_image_detach_calls
+        "${designated_live_macos_capsule_script_compact}"
+    )
+    list(
+        LENGTH
+        designated_live_created_image_detach_calls
+        designated_live_created_image_detach_call_count
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_compact}"
+        "def build_image("
+        designated_live_build_image_index
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_compact}"
+        "detach_created_image(arguments.output, arguments.hdiutil)"
+        designated_live_created_image_detach_index
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_compact}"
+        "digest = image_sha256(arguments.output)"
+        designated_live_image_digest_index
+    )
+    if(
+        NOT designated_live_created_image_detach_call_count EQUAL 1
+        OR designated_live_build_image_index EQUAL -1
+        OR designated_live_image_digest_index EQUAL -1
+        OR designated_live_build_image_index GREATER_EQUAL designated_live_created_image_detach_index
+        OR designated_live_created_image_detach_index GREATER_EQUAL designated_live_image_digest_index
+    )
+        message(
+            FATAL_ERROR
+            "Designated live image build must detach its own created image "
+            "exactly once before hashing it"
+        )
+    endif()
     foreach(
         forbidden_stage_one_fragment
         IN ITEMS
