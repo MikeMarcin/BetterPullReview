@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0816"
 title: "Linux presets do not compile under GCC 15.2 with -Werror"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
