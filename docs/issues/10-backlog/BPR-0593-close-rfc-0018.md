@@ -12,44 +12,43 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r3): in progress
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r4): in progress
 
 Dispatch dsp-004 took over from dsp-003's handoff below, whose protocol,
 hazards and owner asks still hold. It holds the `project-integrator` lease
 (`bpr-main-mac`).
 
-- **Heads.** Main is `a1864fa2`, pushed. `windows-lane` and `linux-lane` are
-  fast-forwarded to it.
-- **Done so far:**
-  - [[BPR-0848]]: round-trip manifest pin resealed at `08c1aa30`;
+**Mandate r4.** At a good stable point the coordinator starts two read-only
+whole-project critical reviews: Fable and Codex. The integrator only reports
+the stable point and its main SHA.
+
+- **Heads.** Main is `bc0bff29`, pushed through `915c6867`. The lanes are at
+  `a1864fa2`, and their stations are working from it.
+- **Done in dsp-004 so far:**
+  - [[BPR-0848]]: pin resealed at `08c1aa30`;
   - [[BPR-0847]];
   - [[BPR-0850]];
   - [[BPR-0849]];
-  - [[BPR-0853]].
+  - [[BPR-0853]];
+  - [[BPR-0846]]: a trimmed pack is accepted when verifiably connected, on
+    all three platforms;
+  - [[BPR-0836]]: capsule image detach and gate pin.
 - **In progress on main.**
-  - [[BPR-0846]]: the import accepts a pack trimmed by haves (`bbdf8cc0`). The
-    critical review found no blocker. macOS, Linux and Windows runs all pass.
-    Its finish waits only on the BPR-0851 follow-ups it carried.
-  - [[BPR-0851]] and [[BPR-0852]]: candidate `15eb1540`. The critical review
-    is running, and the station runs are in the envelopes below.
-  - [[BPR-0836]]: candidate on the scratch worktree
-    `BetterPullReview.dsp4-worktrees/bpr-0836`, commits `1774ae80` and
-    `a6b9d390`. The critical review found no blocker, and a narrow recheck of
-    the corrections is running. The candidate is not yet on main.
+  - [[BPR-0851]] and [[BPR-0852]]: candidate `15eb1540`, critical review
+    without a blocker. The worker is making courses 7 and 8 independent.
+    Linux and Windows runs are in the envelopes.
+  - [[BPR-0840]]: claimed, for a quiet-machine diagnosis next.
 - **Active station envelopes (writers active).**
-  - `bpr-win` `task-20260917-win-0653-resume`, three steps:
-    1. measure the owner's 3-character modality labels at the 900-pixel floor;
-    2. the BPR-0851/0852 Windows runs;
-    3. [[BPR-0653]] criteria 1-3, if the labels fit.
+  - `bpr-win` `task-20260917-win-0653-resume`. The measurement shows the
+    3-character labels are 2 logical pixels short at the 900 floor, at both
+    100% and 125%. The station is parking [[BPR-0653]] with that ask and
+    running the BPR-0851/0852 Windows courses. On macOS the 3-character step
+    would never trigger.
   - `bpr-linux` `task-20260917-lnx-0851-sweep`: the BPR-0851/0852 Linux runs,
-    then a full read-only Linux ctest sweep.
-- **Owner answers recorded:** [[BPR-0653]], the width floor. The labels may
-  shorten, and every control stays.
-- **Next on the Mac:**
-  1. Consume the reviews.
-  2. Cherry-pick BPR-0836 onto main, with a gate run.
-  3. Finish BPR-0846, 0851 and 0852 on the station evidence.
-  4. [[BPR-0840]], on a quiet machine.
+    then a full read-only ctest sweep.
+- **Owner ask open.** [[BPR-0653]]: with the menu control and caption buttons,
+  3-character labels fall 2 pixels short at 900. The coordinator has relayed
+  this to the owner.
 - **Logs:** `build/r2-logs/dsp4-*`.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-003, mandate r3): handoff at an integrated boundary
