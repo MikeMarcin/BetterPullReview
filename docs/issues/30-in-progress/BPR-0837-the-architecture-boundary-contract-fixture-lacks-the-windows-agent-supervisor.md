@@ -41,3 +41,41 @@ passes: only the contract's own fixtures are stale.
 - `architecture_boundary_contract` passes on macOS, and each case again fails
   on its own named refusal (spot-check two cases' messages).
 - `architecture_boundaries` still passes.
+
+## Cause and fix (dsp-003)
+
+Both breaks come from `e11f19eb` ([[BPR-0622]] slice (a)), the only change to
+the gate since `a5667197`.
+
+1. **The missing source.** The gate requires
+   `src/adapters/agent/src/windows_agent_supervisor.cpp`, and the contract's
+   fixture tree never had it, so every case stopped at that refusal. The
+   contract now reads the real source into the fixture, the same way it
+   supplies `windows_agent_process.cpp`.
+2. **A stale mutation hidden behind it.** `e11f19eb` also gave the supervisor
+   target its own `Kernel32` link. The gate looks for `Kernel32` anywhere in
+   the agent CMake file, so the case that removed only the adapter's indented
+   `Kernel32` line still passed the gate (`0 == 0` once the first fix was in).
+   The case now removes every entry, and first asserts that the text changed.
+
+The gate itself is unchanged (`tests/scripts/architecture_boundary_tests.py` only).
+
+**Verification (macOS)**, logs in `build/r2-logs/`:
+
+- The full contract passes, 132 tests (`dsp3-0837-contract-final.log`).
+  After the first fix only, the Kernel32 case failed (`dsp3-0837-contract.log`).
+- Spot checks through the contract's own `run_check` (`dsp3-0837-spotcheck.log`):
+  - the unmodified fixture passes;
+  - the Kernel32 case fails on `Agent process adapter target contract is incomplete: Kernel32`,
+    while the old one-line mutation returns 0;
+  - `test_native_windows_agent_process_owner_is_exact` fails on
+    `native Windows process creation API ownership violation in src/adapters/agent/src/other.cpp`;
+  - `NSTask` added to the supervisor fixture is refused.
+- `architecture_boundaries` passes on the real tree (`dsp3-0837-gate.log`).
+
+**Limits, not criteria of this card.**
+
+- The gate's `Kernel32` check cannot tell the adapter's link from the
+  supervisor's.
+- No contract case yet covers the supervisor's permission to use Windows
+  process and job APIs.
