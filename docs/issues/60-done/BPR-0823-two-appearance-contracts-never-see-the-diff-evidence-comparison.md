@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0823"
 title: "Two appearance contracts never see the diff evidence comparison"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux"]
 metadata: {"found_by":"bpr-linux under BPR-0816 (pre-existing), confirmed on macOS by the dsp-002 integration pass","found_at":"99712ec3ada8e8482f3a855d3873d20690283f95","run":"run-20260916-stations","dispatch":"dsp-002"}
+acceptance: [{"criterion":"AC1 both contracts pass on macOS and the cause is named","outcome":"pass","revision":"10f30f0496a9f452be01d625a23d9e53e24b71db","evidence":{"kind":"command","detail":"First bad 284d1eac (BPR-0771): PR opened through the Home bar lands on Overview so the comparison is 0x0; fix chooses Review before measuring and fails fast. Both pass at 10f30f04 and the integrated head (build/r2-logs/dsp2-int8-ctest.log, dsp2-int9-courses.log); negative control dsp2-0823-ctest-negative.log."}},{"criterion":"AC2 Linux reruns all three appearance contracts; separate Linux cause gets its own card","outcome":"pass","revision":"780d0a1c3d2c52932e007601d179657168ba3124","evidence":{"kind":"command","detail":"bpr-linux 3 runs x 3 contracts all pass (docs/verification/dsp2-linux-confirmation.md, BPR-0823); gesture EPOCH_FIXTURE_SEED_FAILED does not reproduce at a stock build, so no separate Linux cause remains to card."}}]
 ---
 
 # BPR-0823: Two appearance contracts never see the diff evidence comparison
