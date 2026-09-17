@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0816"
 title: "Linux presets do not compile under GCC 15.2 with -Werror"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux during task-20260917-lnx-evidence","found_at":"17f495fea40f6985c0d2f6b0430c7a71062f8085","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"cmake --preset app-release and cmake --preset dev configure and build with the stock flags on the Linux station under GCC 15.2, with no demoted diagnostic classes","outcome":"pass","revision":"4883dbd9","evidence":{"kind":"artifact","detail":"bpr-linux stock --fresh configure and --clean-first build of both presets: app-release 429/429, dev 1241/1241, no first-party diagnostics, empty CMAKE_CXX_FLAGS; docs/verification/BPR-0816-linux-gcc15-stock-build.md. Integrated on main as fb84f41c."}},{"criterion":"The macOS dev build and the focused tests covering the touched sources still pass","outcome":"pass","revision":"99712ec3ada8e8482f3a855d3873d20690283f95","evidence":{"kind":"command","detail":"r2-dev (AppleClang -Werror) built 99712ec3ada8e8482f3a855d3873d20690283f95 with exit 0 and no warnings (dsp2-int2-build.log). The 16 focused tests the station passed on Linux all pass on macOS (dsp2-int2-units.log, dsp2-int2-courses.log). Of the 7 pre-existing Linux failures, 5 pass on macOS. The 2 appearance contracts that fail with DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED after all appearance stages pass were identical before and after this diff on Linux; they are classified pre-existing and carded as BPR-0823 (Linux-only remainder BPR-0824)."}}]
 ---
 
 # BPR-0816: Linux presets do not compile under GCC 15.2 with -Werror
@@ -104,3 +105,36 @@ bpr-linux fixed every site at `4883dbd9`. The full record is
     `tests/github_contract/live_review_submission_provider_tests.cpp`,
     `tests/adapters_qt/workbench_window_tests.cpp`,
     `tests/adapters_qt/dif_runtime_tests.cpp`.
+
+## macOS half, 2026-09-17 (dsp-002)
+
+main merged `linux-lane` `4e4fd6b9` `--no-ff` as `fb84f41c`. The `r2-dev`
+tree (AppleClang, `-Werror` from `cmake/Warnings.cmake`) then built
+`99712ec3ada8e8482f3a855d3873d20690283f95` with exit 0 and no `warning:` line (`build/r2-logs/dsp2-int2-build.log`).
+
+The focused set the station ran, on macOS at that head:
+
+- **The station's 16 Linux passes pass here too.**
+  `build/r2-logs/dsp2-int2-units.log` covers `github_capability_probe`,
+  `github_mutation_contract`, `live_review_mutation_provider`,
+  `live_review_mutation_restart_recovery`, `live_review_submission_provider`,
+  `live_review_submission_restart_recovery`, `sqlite_review_ledger_storage`,
+  `application_review_ledger_host`, `application_profile_startup_admission`,
+  `application_appearance_host`, `application_appearance_profile_consumers`,
+  `sqlite_profile_registry_storage`, `sqlite_queue_enrollment_storage` and
+  `qt_dif_runtime`. `build/r2-logs/dsp2-int2-courses.log` covers
+  `application_threaded_reply_contract` and
+  `application_profile_startup_public_path`.
+- **Of the station's seven pre-existing Linux failures, five pass on macOS:**
+  `qt_workbench_window_scale_{100,125,200}`,
+  `application_review_ledger_composition_contract` and
+  `application_appearance_gesture_contract`. [[BPR-0824]] owns the
+  workbench and ledger failures, which occur only on Linux; [[BPR-0823]]
+  covers the gesture contract's Linux seed failure.
+- **The other two fail on macOS as well:**
+  `application_appearance_theme_customization_contract` and
+  `application_appearance_store_fallback_contract`, both with
+  `DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED` after every appearance stage has
+  passed. The station showed their Linux output identical before and after
+  this card's diff, so they are classified as pre-existing and unrelated to
+  it. [[BPR-0823]] owns them. BPR-0816 is not claimed to have fixed them.
