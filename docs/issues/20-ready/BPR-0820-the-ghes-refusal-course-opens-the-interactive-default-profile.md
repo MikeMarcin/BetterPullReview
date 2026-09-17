@@ -38,6 +38,20 @@ reads or writes that profile's stores.
 set, 33 lines. That was a different failure, and whether it still exists is
 unknown until this one is out of the way.
 
+**More rows of the same class (dsp-002, the BPR-0802 slice).** Three more
+rows stop at `PROFILE_ALREADY_OPEN` while a person's app holds the default
+profile:
+
+- `application_composition_capabilities_inside_boundary`;
+- `application_composition_capabilities_product_run`;
+- `application_device_authorization_public_path`.
+
+Rerun with a private `--test-application-data-root`, the first printed
+`inside / recording / unavailable / (unavailable)` and the second
+`outside / system / available / uses your gh sign-in`. Both reported
+`cleanup_failed=1` under that private root, which was not investigated
+(`build/r2-logs/dsp2-0802-private-root-rows.log`).
+
 ## Scope
 
 - Establish which tests-enabled courses compose the default data root: every
