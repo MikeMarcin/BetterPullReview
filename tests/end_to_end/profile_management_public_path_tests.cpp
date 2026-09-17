@@ -1,5 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
@@ -111,7 +113,8 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private desktop test root");
-	const auto root = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+	expect(adapters::sqlite::make_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
 	{
 		auto store = adapters::sqlite::make_appearance_settings_store({ .StorageRoot = root });
 		expect(store.has_value(), "legacy appearance store");

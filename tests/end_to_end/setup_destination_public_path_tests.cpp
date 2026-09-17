@@ -1,4 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -78,8 +80,9 @@ namespace {
 	{
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated application store");
-		auto options                        = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot         = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private desktop test root under the canonical storage policy");
 		options.SetupUnconfiguredEnterprise = aEnterprise;
 		options.RegisteredDeviceCourse      = !aEnterprise;
 		// [[BPR-0732]]. The GitHub.com course composes the anonymous

@@ -19,5 +19,14 @@ namespace bpr::adapters::sqlite::detail {
 	/// platform primitives as state/v1 creation; the returned path is not a retained lease.
 	[[nodiscard]] auto ensure_private_storage_child(const std::filesystem::path& aParent, std::string_view aName)
 		-> std::expected<std::filesystem::path, state_directory_failure>;
+	/// \brief Admits an existing store file under state/v1 only when it is a private regular file.
+	/// \details An absent file is admitted, for sqlite to create. POSIX refuses group or other
+	/// permission bits; Windows applies the private-object rules (owner, one grant, one link, no
+	/// reparse point) and makes an inherited private grant explicit. Nothing wider is repaired.
+	[[nodiscard]] auto admit_private_store_file(state_directory& aDirectory, std::string_view aName)
+		-> std::expected<void, state_directory_failure>;
+	/// \brief Restricts a store file this process has just opened under state/v1 to its owner.
+	[[nodiscard]] auto restrict_private_store_file(state_directory& aDirectory, std::string_view aName)
+		-> std::expected<void, state_directory_failure>;
 }
 #endif

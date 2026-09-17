@@ -1,4 +1,5 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_link_map.hpp"
@@ -138,13 +139,7 @@ namespace {
 		return result;
 	}
 #if !defined(BPR_BUILD_TESTING)
-	[[nodiscard]] auto native_filesystem_path(const QString& aPath)
-		-> std::filesystem::path
-	{
-		const auto bytes = aPath.toUtf8();
-		return std::filesystem::path{ std::string{
-			bytes.constData(), static_cast<std::size_t>(bytes.size()) } };
-	}
+	using bpr::app::native_filesystem_path;
 #endif
 
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
@@ -7504,9 +7499,9 @@ auto main(int argc, char** argv) -> int
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
 				return EXIT_FAILURE;
 			}
-			automatedProfileRoot = std::filesystem::path{
-				QFileInfo{ automatedData->path() }.canonicalFilePath().toStdString()
-			} / "data";
+			automatedProfileRoot = native_filesystem_path(
+									   QFileInfo{ automatedData->path() }.canonicalFilePath())
+				/ "data";
 			config.ApplicationDataRoot = automatedProfileRoot;
 		}
 #endif

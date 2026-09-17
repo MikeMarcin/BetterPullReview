@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include <QAction>
 #include <QApplication>
@@ -39,7 +40,7 @@ int main(int aArgc, char** aArgv)
 	QApplication  qt{ aArgc, aArgv };
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private test root");
-	const auto                                           root = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+	const auto                                           root = bpr::app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
 	bpr::app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;

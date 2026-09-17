@@ -2,6 +2,7 @@
 
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
+#include "storage_internal.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -211,10 +212,8 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
 				Directory.emplace(std::move(*directory));
-				const auto      path = Directory->path() / "device-bindings.sqlite3";
-				std::error_code error;
-				const auto      status = std::filesystem::symlink_status(path, error);
-				if (std::filesystem::exists(status) && (!std::filesystem::is_regular_file(status) || (status.permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) != std::filesystem::perms::none)) {
+				const auto path = Directory->path() / "device-bindings.sqlite3";
+				if (!detail::admit_private_store_file(*Directory, "device-bindings.sqlite3")) {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
 				if (sqlite3_open_v2(path.string().c_str(), &Database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW, nullptr) != SQLITE_OK) {
@@ -222,8 +221,7 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
 				const auto readScope = binding_read_scope{ Database, aStop };
-				std::filesystem::permissions(path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
-				if (error) {
+				if (!detail::restrict_private_store_file(*Directory, "device-bindings.sqlite3")) {
 					Failed = true;
 					return std::unexpected(device_binding_failure::unavailable);
 				}

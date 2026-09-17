@@ -1,12 +1,14 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
-#include <QPushButton>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
@@ -50,7 +52,8 @@ int main(int aArgc, char** aArgv)
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private temporary application root");
 	app::detail::github_public_path_fixture_options options;
-	options.ApplicationDataRoot    = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+	options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+	expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private desktop test root under the canonical storage policy");
 	options.RegisteredDeviceCourse = true;
 	options.PersistDeviceBindings  = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();

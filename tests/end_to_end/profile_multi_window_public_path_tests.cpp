@@ -1,4 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
@@ -308,8 +310,9 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private multiwindow test root");
-	const auto root                = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
-	auto       options             = app::detail::github_public_path_fixture_options{ };
+	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+	expect(adapters::sqlite::make_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
+	auto options                   = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;
 	options.IndependentWindowReads = true;

@@ -1,6 +1,7 @@
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
+#include "storage_internal.hpp"
 #include <algorithm>
 #include <charconv>
 #include <limits>
@@ -506,10 +507,8 @@ namespace bpr::adapters::sqlite {
 					return fail(window_review_store_failure::unavailable);
 				}
 				Directory.emplace(std::move(*directory));
-				const auto      path = Directory->path() / "window-restoration.sqlite3";
-				std::error_code error;
-				const auto      status = std::filesystem::symlink_status(path, error);
-				if (std::filesystem::exists(status) && (!std::filesystem::is_regular_file(status) || (status.permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) != std::filesystem::perms::none)) {
+				const auto path = Directory->path() / "window-restoration.sqlite3";
+				if (!detail::admit_private_store_file(*Directory, "window-restoration.sqlite3")) {
 					return fail(window_review_store_failure::unavailable);
 				}
 				if (sqlite3_open_v2(path.string().c_str(), &Database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW, nullptr) != SQLITE_OK) {
@@ -520,8 +519,7 @@ namespace bpr::adapters::sqlite {
 					return fail(window_review_store_failure::unavailable);
 				}
 				restrict_reads(Database);
-				std::filesystem::permissions(path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
-				auto result = error ? window_review_store_result<void>{ fail(window_review_store_failure::unavailable) } : establish(aStop);
+				auto result = !detail::restrict_private_store_file(*Directory, "window-restoration.sqlite3") ? window_review_store_result<void>{ fail(window_review_store_failure::unavailable) } : establish(aStop);
 				if (!result) {
 					sqlite3_close_v2(Database);
 					Database = nullptr;
