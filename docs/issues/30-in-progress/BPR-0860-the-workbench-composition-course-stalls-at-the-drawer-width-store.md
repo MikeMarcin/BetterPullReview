@@ -84,3 +84,125 @@ A user dragging the drawer edge still persists the width, by the code, unless
 "no width dispatch" and "no stored layout". Emit the splitter sizes, the
 drawer state, `LayoutWidths` and whether the profile is scoped. Bisect from
 the last green run.
+
+## Fix, review and reseal (dsp-005, Mac)
+
+**Cause: a stale probe, and none of the scout's three candidates.** The course
+opens its pull request from the Home bar ([[BPR-0771]]), so the window opens
+on [[BPR-0661]]'s default `OpenModality`, Overview. Since [[BPR-0727]]
+(`7885e2d2`, 2026-09-11 — the last green day) the core collapses all three
+drawers inside `set_workbench_modality_intent`, and
+`review_behaviour_settings::DrawerControls` defaults to `hidden`, so a
+collapsed drawer takes **zero** width and hides itself. `observe_handle_drag`
+correctly refuses to report a collapsed drawer's width, so dragging handle 2
+dispatched nothing at all.
+
+The first instrumented failure named it in one line
+(`build/r2-logs/dsp5-0860-instr2.log`):
+
+```
+WORKBENCH_DRAWER_WIDTH_DISPATCH_STALLED:waits=513 dispatches=0 expected_dispatches=1
+ persisted_layouts=1 layout_updates=1 requested_files_width=361 initial_files_width=320
+ host_files_width=320 splitter_widgets=4 splitter_sizes=0,0,1280,0
+ files_drawer_state=collapsed host_files_drawer=collapsed modality=Overview
+ drawer_controls=hidden showing_overview=true persistence_available=false profile_scoped=false
+```
+
+That line also **rules out the scout's other two candidates**: `layout_updates=1`
+means a layout was published, so not (c); `profile_scoped=false` means the
+course is not on the profile-defaults branch, so not (b), and `ce62ed52` is
+exonerated.
+
+**Scope answers.** Handle 2 is still the files-drawer edge — the splitter
+order is repositories, files, centre, conversations, and `sizes()` still
+reports four widgets even when drawers are hidden. A drag still dispatches
+and persists the width; negative run B below is the positive proof.
+
+**No product defect.** The collapse is a deliberate owner-driven decision
+([[BPR-0674]], [[BPR-0724]], [[BPR-0727]]): a reviewer in Overview has no
+files-drawer edge to drag, leaves Overview first, and then the drag dispatches
+and persists. A width set in Review is retained in `Layout.FilesWidth` and
+re-granted on re-expansion. The course was asserting a gesture in a state
+where the product intentionally offers none.
+
+**The change**, one file, `src/app/src/github_application.cpp` (+145 / −7), all
+inside the workbench-composition probe:
+
+- A new `awaiting_files_drawer` phase enters **Review** through the strip's
+  public modality action. Review is the only modality whose files drawer is
+  expanded (`workbench_window.cpp` ~4224: collapsed for Overview, Read and
+  Discuss), so [[BPR-0858]]'s Read entry would not have worked here.
+- It waits until the window and host agree the drawer is expanded, the
+  splitter has four widgets with a non-zero files size, and
+  `outstanding_requests() == 0`, so the modality's own store lands before the
+  drag's baselines are taken and the next store is attributable to the drag.
+- The drag now moves the handle **by the reviewer's delta**,
+  `move_handle(2, handle(2)->x() + (target - sizes[1]))`, instead of the
+  absolute `sizes[0] + handleWidth() + target`, which assumed a visible
+  repositories drawer. The handle width cancels in both the collapsed and
+  expanded cases; the old form was itself off by `handleWidth()` when
+  repositories was hidden.
+- Both width phases are capped at `workbench_width_store_waits = 512`
+  (~5.3 s at the run's 10 ms tick) and name their stall.
+- **Every original assertion on the width wire is unchanged**, including the
+  strict `== base + 1` counts.
+
+**Criterion 2's named terms** are `WORKBENCH_DRAWER_WIDTH_DISPATCH_STALLED`,
+`WORKBENCH_DRAWER_WIDTH_STORE_STALLED` and
+`WORKBENCH_FILES_DRAWER_EXPAND_STALLED`. Each was shown to fire by a
+deliberately broken build, all three reverted:
+
+| Break | Log | Result |
+|---|---|---|
+| drag delta forced to 0 | `dsp5-0860-negA.log` | `…DISPATCH_STALLED`, exit 1 at 16.53 s |
+| `dispatch_workbench_width` returns before the host resize | `dsp5-0860-negB.log` | `…STORE_STALLED` with `dispatches=1`, exit 1 at 16.72 s |
+| strip triggers `overview` instead of `review` | `dsp5-0860-negC.log` | `…EXPAND_STALLED`, exit 1 at 16.62 s |
+
+All three name themselves at about 16.6 s, against 40.38 s and a bare
+`RUN_BUDGET_EXPIRED` before (`dsp5-0860-repro1.log`).
+
+**Independent review: no blocker.** An `rfc-reviewer` checked the eight risks
+this change carried and confirmed at file and line that no assertion was
+loosened, that `outstanding_requests()==0` cannot let the modality's own store
+satisfy the drag's assertion, that Review really is the only modality with an
+expanded files drawer, that the delta arithmetic is correct with repositories
+collapsed or expanded and under any handle width, that no negative-experiment
+residue survives, and that panels are never removed from the splitter, so
+`sizes().size() == 4` holds under the Linux `QT_STYLE_OVERRIDE=Windows` path.
+Its two non-blocking findings were adjudicated:
+
+- **Taken.** The stall line printed `waits=513` against a cap of 512, which
+  read as if the cap were 513. It now also prints `wait_cap=`.
+- **Recorded, not taken.** The `outstanding_requests()==0` guard does not
+  cover the profile-defaults store branch, where the store completes in
+  `accept_preferences` without an `Outstanding` record. On that branch the
+  modality's store could complete after the baseline and produce a spurious
+  `…STORE_STALLED`. It is unreachable in this row, which runs
+  `profile_scoped=false`, and the stall line prints `profile_scoped=`, so an
+  occurrence would be diagnosable in one run rather than a bisect. Widening
+  the guard was not part of this card's cause.
+- The reviewer also corrected an attribution: the Read and Discuss
+  files-collapse is [[BPR-0674]]'s rule, not [[BPR-0724]]'s.
+
+**Reseal.** `src/app/src/github_application.cpp` is pinned, so the full
+application and production manifest digests were resealed in this card's
+commit on the review above. Nothing committed since the last reseal at
+`fe5b4b64` had touched `src/` at all, so the reviewed range is exactly this
+change. The mutation-branch pin still has never moved.
+
+**Runs (macOS).** The row passes 6/6: 21.42, 21.25, 21.27, 21.74, 21.81
+(`dsp5-0860-ctest{1,2,3}.log`, `dsp5-0860-final2.log`) and 21.88 s after the
+`wait_cap` addition, at load averages 2.2 to 4.5 — far below the ~15
+spurious-failure threshold. `application_review_round_trip_composition_contract`
+(resealed), `test_network_isolation_manifest`, `architecture_boundaries`, the
+documentation gate and `git diff --check` all pass
+(`dsp5-0860-int{1,2}.log`).
+
+**Follow-ups carded.** [[BPR-0863]] (three courses now stranded on Overview;
+give a course a way to state the modality it needs) and [[BPR-0864]] (the same
+probe's remaining phases are still uncapped). [[BPR-0862]] records a separate
+uncarded red found on the way: the repo-wide formatting gate.
+
+**Still open.** Criterion 1 names macOS **and Linux**, so this card stays In
+Progress for the Linux run. The row is also registered on Windows
+(`WINDOWS_UNCONTAINED`), so the Windows run is worth taking in the same pass.

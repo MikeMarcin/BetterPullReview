@@ -11970,6 +11970,7 @@ namespace bpr::app {
 				awaiting_file_projection,
 				awaiting_diff,
 				awaiting_change_projection,
+				awaiting_files_drawer,
 				awaiting_width_store,
 				awaiting_invalidation,
 				awaiting_failure,
@@ -11992,7 +11993,13 @@ namespace bpr::app {
 			std::size_t                                   WidthDispatches          = 0U;
 			std::size_t                                   Invalidations            = 0U;
 			std::size_t                                   PersistedLayouts         = 0U;
+			std::size_t                                   Waits                    = 0U;
 			std::uint32_t                                 InitialFilesWidth        = 0U;
+			/// \brief [[BPR-0860]]. The files width the handle drag asked for.
+			///
+			/// \details Kept so a stalled store can say what it asked for beside
+			/// what the splitter and the host actually hold.
+			int RequestedFilesWidth = 0;
 		};
 		std::optional<workbench_composition_probe_state> WorkbenchCompositionProbe;
 		struct uiforetw_selected_diff_probe_state
@@ -14606,6 +14613,18 @@ namespace bpr::app {
 		return result::passed;
 	}
 
+	namespace {
+		/// \brief [[BPR-0860]]. Ticks the drawer-width store may take.
+		///
+		/// \details The automated run advances this probe about once every ten
+		/// milliseconds, so this is roughly five seconds: far longer than a
+		/// splitter drag, its host resize and the settings write behind it need
+		/// even on a loaded machine, and far short of the forty-second run
+		/// budget. The bound exists so the stage names a stalled dispatch or a
+		/// stalled store rather than expiring the whole run on a stage number.
+		inline constexpr std::size_t workbench_width_store_waits = 512U;
+	}
+
 	auto detail::github_application_fixture_access::exercise_workbench_composition(
 		github_application& aApplication)
 		-> detail::workbench_composition_probe_result
@@ -14634,6 +14653,66 @@ namespace bpr::app {
 		const auto  fail       = [&probe] {
 			probe.Phase = state_type::phase::failed;
 			return result::failed;
+		};
+		// [[BPR-0860]]. A bounded wait that gives up names the condition it was
+		// waiting for and prints what the window and the host were holding, so
+		// the stall is read from the run's own output. Before this, neither the
+		// drawer width dispatch nor its store arrived and the course simply ran
+		// until the forty-second run budget expired, which named a stage number
+		// and nothing else.
+		const auto stall = [&](const char* const aTerm) {
+			const auto* const splitter   = window->central_splitter();
+			const auto        sizes      = splitter->sizes();
+			const auto        statistics = window->statistics();
+			auto              stream     = QTextStream{ stdout };
+			stream
+				<< aTerm << ':' << "waits=" << static_cast<qulonglong>(probe.Waits)
+				<< " wait_cap=" << static_cast<qulonglong>(workbench_width_store_waits)
+				<< " dispatches=" << static_cast<qulonglong>(implementation->WorkbenchWidthDispatches)
+				<< " expected_dispatches=" << static_cast<qulonglong>(probe.WidthDispatches + 1U)
+				<< " persisted_layouts=" << static_cast<qulonglong>(host->persisted_layouts())
+				<< " expected_persisted=" << static_cast<qulonglong>(probe.PersistedLayouts + 1U)
+				<< " outstanding_requests=" << static_cast<qulonglong>(host->outstanding_requests())
+				<< " layout_updates=" << static_cast<qulonglong>(statistics.LayoutUpdates)
+				<< " requested_files_width=" << probe.RequestedFilesWidth
+				<< " initial_files_width=" << static_cast<qulonglong>(probe.InitialFilesWidth)
+				<< " host_files_width=" << static_cast<qulonglong>(host->layout().FilesWidth)
+				<< " splitter_widgets=" << static_cast<qulonglong>(sizes.size())
+				<< " splitter_sizes=";
+			for (auto index = qsizetype{ 0 }; index < sizes.size(); ++index) {
+				stream << (index == 0 ? "" : ",") << sizes[index];
+			}
+			stream
+				<< " files_drawer_state="
+				<< (window->files_drawer() != nullptr
+							&& window->files_drawer()->state()
+								== core::workbench_drawer_state::expanded
+						? "expanded"
+						: "collapsed")
+				<< " host_files_drawer="
+				<< (host->state().FilesDrawer
+							== core::workbench_drawer_state::expanded
+						? "expanded"
+						: "collapsed")
+				<< " modality="
+				<< (window->modality() != nullptr
+						? qt::review_modality_title(window->modality()->current())
+						: QStringLiteral("none"))
+				<< " drawer_controls="
+				<< (window->behaviour().DrawerControls
+							== application::review_drawer_controls::shown
+						? "shown"
+						: "hidden")
+				<< " persistence_available="
+				<< (implementation->WorkbenchPersistenceAvailable ? "true" : "false")
+				<< " profile_scoped="
+				<< (implementation->WorkbenchSettings != nullptr
+							&& implementation->WorkbenchSettings->profile_scoped()
+						? "true"
+						: "false")
+				<< '\n';
+			stream.flush();
+			return fail();
 		};
 
 		if (probe.Phase == state_type::phase::failed) {
@@ -14876,6 +14955,47 @@ namespace bpr::app {
 				return fail();
 			}
 
+			// [[BPR-0860]]. The drag needs a files drawer with an edge. Since
+			// [[BPR-0771]] this course names its pull request in the Home bar,
+			// so the window opens on Overview -- [[BPR-0661]]'s default opening
+			// modality -- and since [[BPR-0727]] Overview collapses the three
+			// drawers in the core's own decision. A collapsed drawer with the
+			// controls hidden takes no width and the handle beside it has
+			// nothing to move, so the drag reported nothing and the course sat
+			// in `awaiting_width_store` until the run budget ended. A reviewer
+			// who wants the files drawer wider leaves Overview first; the
+			// course does the same, through the strip the reviewer presses.
+			if (window->modality() == nullptr) {
+				return fail();
+			}
+			window->modality()
+				->action(qt::review_modality::review)
+				->trigger();
+			probe.Waits = 0U;
+			probe.Phase = state_type::phase::awaiting_files_drawer;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_files_drawer) {
+			// The modality, the drawer states and the widths that follow them
+			// travel the decision lane, and choosing Review stores the drawers
+			// it changes. The baselines below are taken only once that has
+			// settled, so the width store the drag causes is the next one.
+			auto* const splitter = window->central_splitter();
+			const auto  sizes    = splitter->sizes();
+			if (window->files_drawer() == nullptr
+				|| window->files_drawer()->state()
+					!= core::workbench_drawer_state::expanded
+				|| host->state().FilesDrawer
+					!= core::workbench_drawer_state::expanded
+				|| sizes.size() != 4 || sizes[1] <= 0
+				|| host->outstanding_requests() != 0U) {
+				if (++probe.Waits <= workbench_width_store_waits) {
+					return result::pending;
+				}
+				return stall("WORKBENCH_FILES_DRAWER_EXPAND_STALLED");
+			}
+
 			probe.WidthDispatches   = implementation->WorkbenchWidthDispatches;
 			probe.PersistedLayouts  = host->persisted_layouts();
 			probe.InitialFilesWidth = host->layout().FilesWidth;
@@ -14887,12 +15007,17 @@ namespace bpr::app {
 			// between the files drawer and the centre. A direct resize of
 			// the panel is a squeeze the window answers with the persisted
 			// widths and never reports.
-			{
-				auto* const splitter = window->central_splitter();
-				const auto  sizes    = splitter->sizes();
-				splitter->move_handle(2, sizes[0] + splitter->handleWidth() + target);
-			}
-			probe.Phase = state_type::phase::awaiting_width_store;
+			//
+			// The handle is moved by the distance the reviewer would drag it
+			// rather than to a position computed from the widths to its left:
+			// a collapsed neighbour is hidden, and so is its handle, so those
+			// widths are no longer what stands between the splitter's edge and
+			// this one.
+			splitter->move_handle(
+				2, splitter->handle(2)->x() + (target - sizes[1]));
+			probe.RequestedFilesWidth = target;
+			probe.Waits               = 0U;
+			probe.Phase               = state_type::phase::awaiting_width_store;
 			return result::pending;
 		}
 
@@ -14901,7 +15026,20 @@ namespace bpr::app {
 			if (implementation->WorkbenchWidthDispatches
 					== probe.WidthDispatches
 				|| host->persisted_layouts() == probe.PersistedLayouts) {
-				return result::pending;
+				// [[BPR-0860]]. This wait is bounded. The dispatch and the
+				// store are both effects this stage does not control, so it
+				// does not fail on the first refusal; but when neither arrives
+				// the stage names what it was waiting for and what the window
+				// and the host were holding, instead of letting the whole run
+				// budget expire on a stage number.
+				if (++probe.Waits <= workbench_width_store_waits) {
+					return result::pending;
+				}
+				return stall(
+					implementation->WorkbenchWidthDispatches
+							== probe.WidthDispatches
+						? "WORKBENCH_DRAWER_WIDTH_DISPATCH_STALLED"
+						: "WORKBENCH_DRAWER_WIDTH_STORE_STALLED");
 			}
 			probe.Evidence.DrawerWidthDispatch
 				= implementation->WorkbenchWidthDispatches
