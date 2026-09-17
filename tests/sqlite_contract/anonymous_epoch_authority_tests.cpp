@@ -250,6 +250,8 @@ namespace {
 		direct_database database{ aDatabase };
 		database.execute("PRAGMA foreign_keys = OFF");
 		database.execute("BEGIN IMMEDIATE");
+		// [[BPR-0857]]. Version 7 added it; version 1 predates it.
+		database.execute("DROP TABLE append_residency");
 		database.execute("DROP TABLE append_receiving");
 		database.execute("DROP TABLE append_occurrence");
 		database.execute("DROP TABLE epoch_occurrence_supersession");
@@ -430,12 +432,12 @@ namespace {
 		{
 			direct_database database{ database_path(root.path()) };
 			expect(
-				database.integer("PRAGMA user_version") == 6
+				database.integer("PRAGMA user_version") == 7
 					&& database.integer(
 						   "SELECT schema_format FROM catalog_meta "
 						   "WHERE singleton = 1")
-						== 6,
-				"the migrated catalog reports the v6 version everywhere");
+						== 7,
+				"the migrated catalog reports the v7 version everywhere");
 			expect(
 				database.integer("SELECT count(*) FROM repository_scope")
 						== repositoryRows
@@ -512,7 +514,7 @@ namespace {
 		expect(made.has_value(), "the next open migrates the same catalog");
 		direct_database database{ database_path(root.path()) };
 		expect(
-			database.integer("PRAGMA user_version") == 6,
+			database.integer("PRAGMA user_version") == 7,
 			"the retried migration completes");
 	}
 

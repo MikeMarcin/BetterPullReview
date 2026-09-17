@@ -45,3 +45,23 @@ the only one. It did not run the test.
 
 - The row passes on macOS and Linux. `sqlite_epoch_catalog_storage` still
   passes.
+
+## Fix (dsp-004, Mac)
+
+Two stale pieces, both left behind by `654235fe` when it raised the catalog to
+version 7:
+
+- **The downgrade.** `downgrade_to_v1` now drops `append_residency` first, the
+  same order as `epoch_catalog_legacy_fixture.hpp`.
+- **The version assertions.** Three assertions still expected version 6 after
+  the migration. They now expect 7: `the migrated catalog reports the v7
+  version everywhere` and `the retried migration completes`. An `rfc-reviewer`
+  found this second cause before the build.
+
+The reviewer also compared the helper against `validate_schema` at version 2.
+The six dropped tables are exactly the ones version 2 does not expect. No
+other index, trigger or view is left behind.
+
+`sqlite_anonymous_epoch_authority` and `sqlite_epoch_catalog_storage_contract`
+pass on macOS (`build/r2-logs/dsp4-int3-ctest.log`). Linux still has to run
+them.
