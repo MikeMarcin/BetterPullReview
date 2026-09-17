@@ -206,3 +206,29 @@ benchmark branch agree on the same binary.
 runs recorded above, this card's platform obligations are met and it is
 finished. Its evidence is the station's Linux runs plus this sweep; nothing
 was re-derived.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+**The Windows branch is affected, not unaffected.** `application_large_review_benchmark`,
+`application_unavailable_diff_public_path` and `application_approximate_diff_public_path`
+all fail at `large-review-benchmark-failed: application startup succeeds`.
+Measured:
+
+- The startup refusal is `profile_startup_failure` 2 = `registry_unavailable`
+  (temporary print, reverted). The root is the bare `QTemporaryDir` the Windows
+  branch keeps, e.g. `C:/Users/mikem/AppData/Local/Temp/better_pull_review_large_review-REVlKc`.
+- It is not a containment effect: the benchmark fails identically contained and
+  uncontained.
+- With the `#if !defined(_WIN32)` removed, so Windows also gets the owner-private
+  parent and the `data` child, the row **composes** uncontained
+  (`UNAVAILABLE_DIFF_COMPOSED_OK`).
+- Contained, that same arrangement stops earlier at
+  `large-review-benchmark-failed: private data root parent`, which is the
+  narrowing an AppContainer cannot perform, exactly as the decision anticipated.
+
+So Windows needs a third arrangement rather than either of the two: a root
+created owner-private with the container's own entry, as
+`create_storage_root_owner_private` does since [[BPR-0833]].

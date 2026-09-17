@@ -276,3 +276,22 @@ fired and the run budget was not touched.
 macOS passes at 21.27 s in the full macOS sweep at the same commit. Both
 acceptance criteria are met on both named platforms, so the card is Done. The
 Windows run is dispatched with `bpr-win` but is not part of this acceptance.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+**The drawer-width wire is fixed on Windows.** `WORKBENCH_DRAWER_WIDTH_WIRE_OK`
+now prints, every other `WORKBENCH_*` marker is OK,
+`WORKBENCH_COMPOSITION_TRACE_OK` and `WORKBENCH_HOST_COMPOSED_OK` follow, and
+the verdict carries `presentation=1`. None of the three named stall terms
+fired, so there is no `splitter_widgets` count to report under the real Windows
+style: the row reached its end.
+
+The row still fails, on one remaining fact: `cleanup_failed=1` at
+`PUBLIC_PATH_STAGE:23`, `elapsed_ms=5711` of a 40 s budget. Eleven other
+application rows on Windows fail the same way and only that way; see the sweep
+record, group D. Before this card's fix the same row failed at
+`WORKBENCH_DRAWER_WIDTH_WIRE_FAILED` with `presentation=0`, measured at
+`20d99914` with every local change reverted.

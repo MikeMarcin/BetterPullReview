@@ -63,3 +63,12 @@ computed off the wrong row height.
   assertion was platform-dependent.
 - The rendered Windows sign-in code is shown to be fixed-pitch at the intended
   size, not only asserted in a view-model test.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+Still red at the merged head: `qt_composed_github_scale_100`, `_125` and `_200`
+all fail at `FAILED: the code is in a fixed-pitch font at 1.6 times the row's
+size` (30.2 s, 31.6 s, 38.2 s in the sweep).

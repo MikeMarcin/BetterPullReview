@@ -155,3 +155,18 @@ Each log carries four `This plugin does not support propagateSizeHints()`
 lines. That is the offscreen Qt platform plugin, not a product diagnostic, and
 it appears on every offscreen public-path row on this station. The run record
 is in `docs/verification/dsp4-linux-confirmation.md`.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+Both rows still fail on Windows, and not for this card's reason. Each ends at
+`large-review-benchmark-failed: application startup succeeds`, because the
+application refuses to start: `profile_startup_failure` **2 =
+`registry_unavailable`**, measured with a temporary print at
+`github_application.cpp` ~12623 that was reverted. The refusal is the data root
+the Windows branch of the benchmark uses, so it is [[BPR-0856]]'s `#if` rather
+than the segment-limit work here; see that card and the sweep record. The
+course never reaches its diff assertions, so this card's own change is
+unmeasured on Windows.

@@ -94,3 +94,11 @@ contract is undisturbed. The run record is in
 runs recorded above, this card's platform obligations are met and it is
 finished. Its evidence is the station's Linux runs plus this sweep; nothing
 was re-derived.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+Both rows pass on Windows: `sqlite_anonymous_epoch_authority` 0.91 s and
+`sqlite_epoch_catalog_storage_contract` 1.22 s, each its own run.

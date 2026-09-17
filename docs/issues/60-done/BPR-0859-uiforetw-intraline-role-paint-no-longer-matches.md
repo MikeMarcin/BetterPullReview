@@ -202,3 +202,19 @@ macOS passes at 67.43 s in the full macOS sweep at the same commit. Both
 acceptance criteria are met on both named platforms, so the card is Done. The
 Windows run is not part of this card's acceptance and is dispatched with
 `bpr-win` anyway, because BPR-0653 makes the Windows strip row 29 actions.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+`application_uiforetw_selected_diff_contract` fails on Windows at
+`UIFORETW_SELECTED_DIFF_EVIDENCE_FAILED` and `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`,
+with `presentation=0` and `cleanup_failed=1`. Every marker before those is OK
+(`UIFORETW_RESOURCE_ROLE_OK`, `..._RC_GESTURE_OK`, `..._RC_BLOBS_OK`,
+`..._RC_INTRALINE_OK`, `..._RC_ROLE_OK`, `..._FOCUSED_REVIEW_LAYOUT_OK`,
+`..._FIXTURE_DIFF_HELPER_UNUSED_OK`, `..._SELECTED_DIFF_TRACE_OK`).
+
+**The platform-aware strip row held:** no
+`UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions=N` was printed, so the lead and
+trailing offsets counted the Windows row's 29 actions correctly.

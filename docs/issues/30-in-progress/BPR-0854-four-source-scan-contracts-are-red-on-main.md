@@ -477,3 +477,40 @@ Windows: the five contained courses, `msvc_secure_crt_contract` and
 `contained_temporary_usage_contract` where registered. macOS still owes
 `dependency_modernization_contract`. The run record is in
 `docs/verification/dsp4-linux-confirmation.md`.
+
+## Windows run at the merged head, 2026-09-17 (bpr-win, task-20260917-win-merged-head-runs)
+
+The head is `2b2e5549d81c4f9ba92cd93d542b5e6064b68c2e`. The full row-by-row sweep
+(362 rows, 309 passed, 53 failed) is `docs/verification/dsp4-windows-merged-head-sweep.md`.
+
+**Item 2 and the usage gate pass:** `msvc_secure_crt_contract` and
+`contained_temporary_usage_contract` both pass on Windows.
+
+**The helper is sound on Windows, which answers item 1's question.** Measured
+inside the AppContainer: a root created the helper's way (`os.mkdir` with no
+mode under `tempfile.gettempdir()`) is created, a child directory inside it is
+created, a file in it is written, and `icacls` shows the container's own SID
+inherited `(I)(OI)(CI)(CR)(F)`. So the contained driver can use the directory it
+just created.
+
+**Four of the five courses still fail, around the helper rather than in it:**
+
+| Row | First failing line |
+| --- | --- |
+| `application_device_binding_relaunch` | `os.chmod(root, 0o700)` -> `PermissionError: [WinError 5] Access is denied: '...\AC\Temp\bpr-0644-relaunch-612768de307ca452\application'` |
+| `application_profile_owner_admission_public_path` | `FAILED: seed registry`, then the seed child's `CalledProcessError` |
+| `application_profile_window_restart_public_path` | `seed failed (3)` |
+| `application_profile_window_layout_public_path` | `seed failed (3)` |
+| `application_profile_window_review_restoration_public_path` | `auth-seed failed (3)` |
+
+`application_device_binding_launch_renewal` also fails, at `FAILED: private
+desktop test root under the canonical storage policy`. Exit 3 from a seeding
+executable is the abort this station has measured before for
+`std::filesystem::canonical` inside the container ([[BPR-0833]], [[BPR-0845]]).
+`os.chmod` on a directory is denied there too.
+
+**[[BPR-0868]]'s swallowed removal, seen once.** After the sweep exactly one
+course directory is left behind,
+`...\AC\Temp\bpr-0644-relaunch-612768de307ca452`, from the row that died at
+`os.chmod`, and nothing reported it. No leftovers remain for the other four
+prefixes.
