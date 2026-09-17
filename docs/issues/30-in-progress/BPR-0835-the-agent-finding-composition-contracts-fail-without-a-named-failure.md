@@ -109,3 +109,12 @@ Both causes are platform-independent.
 
 **Still open:** the Windows rerun with this fix, and one quiet macOS rerun of
 both contracts.
+
+**Windows after the fix (dsp-003).** On `bpr-win` at `31fff506`, both
+contracts still fail, now with a named term: `positive-evidence failed=helper-directory-is-snapshot-root`.
+The full-agent row prints `agent-finding-full-agent:0:1:…`, so its second-edge
+term passes ([the Windows observation](../../verification/BPR-0835-windows-observation.md)).
+The remaining term is the course's exact string comparison
+`launch.WorkingDirectory == aSnapshotRoot.string()`, which differs on Windows
+in path spelling. That is a course defect in this card's own change. Next:
+compare the two as paths (normalised), and confirm on Windows.

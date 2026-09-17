@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0845"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-003: two SQLite storage rows fail contained on Windows",
+  "created": "2026-09-17T13:10:30.157162+00:00",
+  "base": "eade88287cfb67fd006657fd95888761f8be157f"
+}

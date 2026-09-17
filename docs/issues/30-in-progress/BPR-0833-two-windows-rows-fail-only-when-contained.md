@@ -219,3 +219,24 @@ Nothing in `src/app/main.cpp` was changed.
 
 **Portable sources touched:** `src/adapters/sqlite/src/catalog_database.cpp`,
 Windows branches only. `src/app/main.cpp` is untouched.
+
+## Integrator decision (dsp-003): (i), the seam creates its own private directory
+
+Inside the container, a `QTemporaryDir` gets Qt's protected owner-only DACL
+with no container SID. The contained process then cannot use that directory
+or create a child in it, so option (a) cannot keep `QTemporaryDir` as the
+parent. The integrator chooses **(i)**:
+
+- The seam creates a uniquely named private directory directly under
+  `QDir::temp()`, through the adapter's `create_storage_root_owner_private`.
+- Creation must be exclusive. The helper validates a directory that already
+  exists, so the seam must refuse or retry a name that exists, rather than
+  adopt one another process created. Use bounded retries with a fresh random
+  name.
+- A scope guard owns removal. It removes only the directory this run created,
+  on every exit path, after `desktop` is destroyed. A run killed by a signal
+  may leave the directory behind, as `QTemporaryDir` did.
+- The gate and the `AUTOMATED_PROFILE_PRIVATE_OK` / `_FAILED` markers stay,
+  and POSIX behaviour is unchanged apart from where the directory is created.
+
+(ii) is rejected, for the containment reason recorded under option (a).
