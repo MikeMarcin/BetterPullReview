@@ -7194,9 +7194,27 @@ namespace bpr::app {
 			if (root.empty() || !std::filesystem::is_directory(std::filesystem::symlink_status(root, error)) || error) {
 				return unavailable;
 			}
-			auto copies = std::size_t{ 0 };
-			auto files  = std::size_t{ 0 };
-			auto bytes  = std::uintmax_t{ 0 };
+			// [[BPR-0877]]. The one file this scan is blinded by is the one this
+			// runtime holds open itself: the profile's lease lock, opened with
+			// zero sharing, which Windows then refuses to every reader including
+			// this one. Answering `unavailable` for the whole root because of it
+			// is what made four device-authorization rows report a sentinel
+			// instead of their count.
+			//
+			// Only that exact path is excluded, and the fail-closed answer stays
+			// for every other unreadable file: a file this scan cannot read
+			// could hold a durable copy of the token, and counting it as absent
+			// would understate the number in the dangerous direction. A lease
+			// lock never holds a copy of anything.
+			//
+			// Excluded on every platform rather than behind a Windows guard. It
+			// is not a copy on POSIX either; POSIX merely fails to notice,
+			// because a locked file still opens for reading there. One rule is
+			// easier to keep true, and it keeps macOS and Linux on the same path.
+			const auto lease  = (root / "profile-runtime.lock").lexically_normal();
+			auto       copies = std::size_t{ 0 };
+			auto       files  = std::size_t{ 0 };
+			auto       bytes  = std::uintmax_t{ 0 };
 			for (auto iterator = std::filesystem::recursive_directory_iterator{ root, std::filesystem::directory_options::none, error };
 				 iterator != std::filesystem::recursive_directory_iterator{ } && !error; iterator.increment(error)) {
 				const auto& entry = *iterator;
@@ -7205,6 +7223,9 @@ namespace bpr::app {
 					return unavailable;
 				}
 				if (!std::filesystem::is_regular_file(type)) {
+					continue;
+				}
+				if (entry.path().lexically_normal() == lease) {
 					continue;
 				}
 				const auto size = entry.file_size(error);
