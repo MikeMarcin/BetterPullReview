@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0839"
 title: "Signed-out historical retention refetches the live head with no haves"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P3"
