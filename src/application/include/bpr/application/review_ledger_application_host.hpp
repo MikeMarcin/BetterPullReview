@@ -28,6 +28,9 @@ namespace bpr::application {
 		std::uint64_t MaterialObservations = 0U;
 		std::uint64_t ReceiptLoads         = 0U;
 		std::uint64_t ReceiptLoadHits      = 0U;
+		/// [[BPR-0824]]. The subset of `ReceiptLoadHits` found by
+		/// `observe_material`, so a later `refresh_receipt` cannot count as one.
+		std::uint64_t MaterialReceiptHits  = 0U;
 		std::uint64_t PrivateWrites        = 0U;
 		std::uint64_t PrivateDeletes       = 0U;
 		std::uint64_t PrivateLoads         = 0U;

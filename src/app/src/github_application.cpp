@@ -17485,8 +17485,10 @@ namespace bpr::app {
 					&& statistics.PersistenceRequests == 0U
 					&& statistics.Completions == 0U
 					&& statistics.StoreFailures > 0U;
+			// [[BPR-0824]]. Not `ReceiptLoadHits`: this window's queued refresh_shared_ledger re-reads its own carry-over commit, racing this tick.
 			probe.Evidence.ReceiptLoadedOnEntry
-				= statistics.ReceiptLoadHits == 1U;
+				= statistics.MaterialObservations == 1U
+				&& statistics.MaterialReceiptHits == 1U;
 			implementation->ReviewLedgerWasPresentOnEntry
 				= probe.Evidence.ReceiptLoadedOnEntry;
 

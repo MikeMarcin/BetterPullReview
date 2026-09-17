@@ -183,6 +183,7 @@ namespace bpr::application {
 			} else {
 				if (loaded->has_value()) {
 					++Statistics.ReceiptLoadHits;
+					++Statistics.MaterialReceiptHits;
 				}
 				auto observed = loaded->has_value()
 					? core::carry_over(**loaded, aObservation).Receipt
