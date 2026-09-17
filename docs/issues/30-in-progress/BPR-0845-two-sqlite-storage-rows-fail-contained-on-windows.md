@@ -101,3 +101,10 @@ measurement in the comment.
 - `tests/sqlite_contract/CMakeLists.txt` (two `WINDOWS_UNCONTAINED` markers,
   which do nothing elsewhere);
 - `scripts/verify_test_network_isolation.py` (pins).
+
+## macOS run; finished (dsp-003)
+
+Main merged `windows-lane` at `b52fea2f` as `3bd65861`. On macOS,
+`sqlite_queue_enrollment_storage`, `sqlite_workbench_settings_storage`, both
+isolation gates and `architecture_boundaries` pass
+(`build/r2-logs/dsp3-int10-ctest.log`).
