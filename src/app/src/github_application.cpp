@@ -31,6 +31,7 @@
 	#include "macos_keychain.hpp"
 #elif defined(_WIN32)
 	#include "windows_credential_manager.hpp"
+	#include "windows_title_row_host.hpp"
 #elif defined(__linux__)
 	#include "linux_secret_service.hpp"
 #endif
@@ -6056,6 +6057,11 @@ namespace bpr::app {
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); },
 				nullptr,
 				aConfig.DifCatalog);
+#if defined(_WIN32)
+			// [[BPR-0653]]. The strip is the title row: the host removes the
+			// system title bar and answers the platform's hit test for it.
+			TitleRow = std::make_unique<windows_title_row_host>(*Window);
+#endif
 
 			SetupDestination = std::make_unique<application::setup_destination_host>(*this);
 			Window->set_setup_destination_dispatch([this](application::setup_destination_intent aIntent) {
@@ -12198,15 +12204,20 @@ namespace bpr::app {
 		decltype(github_profile_runtime::PublicPreviewProjectionFanOut)& PublicPreviewProjectionFanOut = Profile->PublicPreviewProjectionFanOut;
 		decltype(github_profile_runtime::DecisionLane)&                  DecisionLane                  = Profile->DecisionLane;
 		std::unique_ptr<qt::workbench_window>                            Window;
-		std::unique_ptr<review_submission_workflow>                      ReviewSubmission;
-		decltype(github_profile_runtime::CredentialBindings)&            CredentialBindings  = Profile->CredentialBindings;
-		decltype(github_profile_runtime::GitCaches)&                     GitCaches           = Profile->GitCaches;
-		decltype(github_profile_runtime::EpochCatalogs)&                 EpochCatalogs       = Profile->EpochCatalogs;
-		decltype(github_profile_runtime::ApplicationDataRoot)&           ApplicationDataRoot = Profile->ApplicationDataRoot;
-		std::unique_ptr<application::review_ledger_store_port>           ReviewLedger;
-		std::unique_ptr<application::review_ledger_application_host>     ReviewLedgerHost;
-		mutable std::mutex                                               ReviewLedgerStateMutex;
-		std::optional<application::workbench_pull_request_authority>     ReviewLedgerAuthority;
+#if defined(_WIN32)
+		// [[BPR-0653]]. Declared after the window so it lets go of the window
+		// first.
+		std::unique_ptr<windows_title_row_host> TitleRow;
+#endif
+		std::unique_ptr<review_submission_workflow>                  ReviewSubmission;
+		decltype(github_profile_runtime::CredentialBindings)&        CredentialBindings  = Profile->CredentialBindings;
+		decltype(github_profile_runtime::GitCaches)&                 GitCaches           = Profile->GitCaches;
+		decltype(github_profile_runtime::EpochCatalogs)&             EpochCatalogs       = Profile->EpochCatalogs;
+		decltype(github_profile_runtime::ApplicationDataRoot)&       ApplicationDataRoot = Profile->ApplicationDataRoot;
+		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
+		std::unique_ptr<application::review_ledger_application_host> ReviewLedgerHost;
+		mutable std::mutex                                           ReviewLedgerStateMutex;
+		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
 		// [[BPR-0654]]. The overview's changed-since-review set: asked of the
 		// epoch host once per (last-reviewed head, accepted head, file list)
 		// and kept until one of them moves. `Changed` is empty while the host
@@ -17438,37 +17449,65 @@ namespace bpr::app {
 			  };
 		// [[BPR-0859]]. Home's Group, State headers and Filter controls joined
 		// the same strip when Home became a list of state panels, so the exact
-		// row is twenty-seven actions and those three sit between the review
-		// controls and refresh. The row is still asserted whole and in order;
-		// only what the product composes has changed.
-		const auto exactRowOrder = toolbarActions.size() == 27U
+		// row is twenty-seven actions off Windows and those three sit between
+		// the review controls and refresh.
+		//
+		// [[BPR-0653]]. On Windows the strip is the title row, so it carries
+		// two more actions: a compact menu control takes index 1, right after
+		// the inset, which shifts every later action along by one, and the
+		// caption buttons end the row after settings. Hence the lead and
+		// trailing offsets rather than a second copy of the row: the row stays
+		// asserted whole, in order and exactly, on every platform, and a
+		// control added to one platform cannot be absorbed by the other's
+		// expectation.
+	#if defined(_WIN32)
+		constexpr auto lead     = qsizetype{ 1 };
+		constexpr auto trailing = qsizetype{ 1 };
+	#else
+		constexpr auto lead     = qsizetype{ 0 };
+		constexpr auto trailing = qsizetype{ 0 };
+	#endif
+		const auto at
+			= [](const qsizetype aIndex) { return aIndex + lead; };
+		const auto named = [&widgetActionNamed](
+							   const qsizetype aIndex, const char* const aName) {
+			return widgetActionNamed(static_cast<std::size_t>(aIndex + lead), aName);
+		};
+		const auto exactRowOrder = toolbarActions.size() == 27 + lead + trailing
 			&& widgetActionNamed(0U, "workbenchStripInsetAction")
-			&& toolbarActions[1] == window->home_action()
-			&& toolbarActions[2] == repositoriesAction
-			&& toolbarActions[3] == filesAction
-			&& widgetActionNamed(4U, "workbenchStripIdentityAction")
-			&& widgetActionNamed(5U, "workbenchStripLeftDividerAction")
-			&& toolbarActions[6] == previousChange
-			&& toolbarActions[7] == nextChange
-			&& widgetActionNamed(8U, "workbenchStripChangePositionAction")
-			&& toolbarActions[9] == previousFile
-			&& toolbarActions[10] == nextFile
-			&& widgetActionNamed(11U, "workbenchStripFilePositionAction")
-			&& toolbarActions[12] == window->next_new_comment_action()
-			&& widgetActionNamed(13U, "workbenchStripNewCommentCountAction")
-			&& spacerAction == toolbarActions.begin() + 14
-			&& widgetActionNamed(15U, "workbenchModalityAction")
-			&& widgetActionNamed(16U, "workbenchModalitySpacerAction")
-			&& toolbarActions[17] == reviewDetails
-			&& reviewControlsAction == toolbarActions.begin() + 18
-			&& widgetActionNamed(19U, "homeGroupAction")
-			&& widgetActionNamed(20U, "homeStateHeadersAction")
-			&& widgetActionNamed(21U, "homeFilterAction")
-			&& toolbarActions[22] == window->github_refresh_action()
-			&& toolbarActions[23] == conversationsAction
-			&& widgetActionNamed(24U, "workbenchStripRightDividerAction")
-			&& toolbarActions[25] == window->account_action()
-			&& toolbarActions[26] == window->settings_action();
+	#if defined(_WIN32)
+			&& widgetActionNamed(1U, "workbenchStripMenuAction")
+	#endif
+			&& toolbarActions[at(1)] == window->home_action()
+			&& toolbarActions[at(2)] == repositoriesAction
+			&& toolbarActions[at(3)] == filesAction
+			&& named(4, "workbenchStripIdentityAction")
+			&& named(5, "workbenchStripLeftDividerAction")
+			&& toolbarActions[at(6)] == previousChange
+			&& toolbarActions[at(7)] == nextChange
+			&& named(8, "workbenchStripChangePositionAction")
+			&& toolbarActions[at(9)] == previousFile
+			&& toolbarActions[at(10)] == nextFile
+			&& named(11, "workbenchStripFilePositionAction")
+			&& toolbarActions[at(12)] == window->next_new_comment_action()
+			&& named(13, "workbenchStripNewCommentCountAction")
+			&& spacerAction == toolbarActions.begin() + at(14)
+			&& named(15, "workbenchModalityAction")
+			&& named(16, "workbenchModalitySpacerAction")
+			&& toolbarActions[at(17)] == reviewDetails
+			&& reviewControlsAction == toolbarActions.begin() + at(18)
+			&& named(19, "homeGroupAction")
+			&& named(20, "homeStateHeadersAction")
+			&& named(21, "homeFilterAction")
+			&& toolbarActions[at(22)] == window->github_refresh_action()
+			&& toolbarActions[at(23)] == conversationsAction
+			&& named(24, "workbenchStripRightDividerAction")
+			&& toolbarActions[at(25)] == window->account_action()
+			&& toolbarActions[at(26)] == window->settings_action()
+	#if defined(_WIN32)
+			&& named(27, "workbenchCaptionButtonsAction")
+	#endif
+			;
 		if (!exactRowOrder) {
 			// [[BPR-0859]]. An exact strip order that no longer holds names the
 			// row it did find, so the difference is read from the run rather

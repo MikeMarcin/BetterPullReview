@@ -82,6 +82,14 @@
 #include <vector>
 
 namespace {
+#if defined(_WIN32)
+	// [[BPR-0653]]. On Windows the compact menu control stands between the
+	// platform inset and Home, so every left-region index moves by one.
+	constexpr auto strip_lead_actions = qsizetype{ 1 };
+#else
+	constexpr auto strip_lead_actions = qsizetype{ 0 };
+#endif
+
 	using namespace bpr;
 
 	auto expect(const bool aCondition, const std::string_view aMessage) -> void
@@ -705,15 +713,30 @@ namespace {
 		// action; Settings is the far-right one, after the account button;
 		// the change pair precedes the file pair, each followed by its
 		// position; Conversations sits in the right region after refresh.
-		expect(actions.size() >= 3
+#if defined(_WIN32)
+		// [[BPR-0653]]. On Windows the strip is the title row: the compact menu
+		// control follows the inset, and the caption buttons end the row after
+		// Settings.
+		const auto lead  = qsizetype{ 1 };
+		const auto trail = qsizetype{ 1 };
+		expect(actions.size() >= 6
+				   && actions[1]->objectName() == QStringLiteral("workbenchStripMenuAction")
+				   && actions.back()->objectName()
+					   == QStringLiteral("workbenchCaptionButtonsAction"),
+			   "the Windows strip opens with its menu control and ends with the caption buttons");
+#else
+		const auto lead  = qsizetype{ 0 };
+		const auto trail = qsizetype{ 0 };
+#endif
+		expect(actions.size() >= 3 + lead + trail
 				   && actions.front()->objectName()
 					   == QStringLiteral("workbenchStripInsetAction")
-				   && actions[1] == window.home_action()
-				   && actions[2] == window.repositories_drawer_toggle_action()
-				   && actions[3] == files
-				   && actions.back() == window.settings_action()
+				   && actions[1 + lead] == window.home_action()
+				   && actions[2 + lead] == window.repositories_drawer_toggle_action()
+				   && actions[3 + lead] == files
+				   && actions[actions.size() - 1 - trail] == window.settings_action()
 				   && actions.indexOf(window.account_action())
-					   == actions.size() - 2,
+					   == actions.size() - 2 - trail,
 			   "after the platform inset and Home, Repositories then Files are the far-left actions and Settings, after Account, is the far-right action");
 		expect(actions.indexOf(navigation[2]) < actions.indexOf(navigation[3])
 				   && actions.indexOf(navigation[3]) < actions.indexOf(navigation[0])
@@ -955,7 +978,7 @@ namespace {
 				   && window.actions().contains(files)
 				   && window.actions().contains(conversations),
 			   "each drawer toggle is a checkable window action with a shortcut");
-		expect(window.primary_toolbar()->actions().indexOf(files) == 3
+		expect(window.primary_toolbar()->actions().indexOf(files) == 3 + strip_lead_actions
 				   && window.primary_toolbar()->actions().indexOf(conversations)
 					   > window.primary_toolbar()->actions().indexOf(
 						   window.review_details_toggle_action()),
@@ -1521,13 +1544,31 @@ namespace {
 		};
 		struct width_case
 		{
-			int  Width = 0;
-			bool Title = false;
+			int  Width      = 0;
+			bool Title      = false;
+			bool Owner      = true;
+			bool Repository = true;
 		};
 		// Both widths hold the number and the positions on every platform.
+		// [[BPR-0653]]. At 1280 the Windows strip also carries the menu control
+		// and the caption buttons, about 180 pixels the identity does not have:
+		// it keeps its number and elides the repository to a fragment, which is
+		// the identity's own yield order (see update_strip_identity), one step
+		// further along than on a strip without those controls.
+		//
+		// The owner is its own case rather than `Repository && Title`, because
+		// the ladder drops the title first and the owner second: at 1280 off
+		// Windows the title has gone while the owner and the repository both
+		// remain, so tying the owner to the title would assert the owner away a
+		// step early. update_strip_identity is unchanged by BPR-0653, and this
+		// is the behaviour the row asserted before it.
 		const auto cases = std::array{
-			width_case{ 1'920, true },
-			width_case{ 1'280, false },
+			width_case{ 1'920, true, true, true },
+#if defined(_WIN32)
+			width_case{ 1'280, false, false, false },
+#else
+			width_case{ 1'280, false, true, true },
+#endif
 		};
 		for (const auto& testCase : cases) {
 			window.resize(testCase.Width, 820);
@@ -1537,10 +1578,12 @@ namespace {
 				   "the identity and the positions both have room at 1920 and 1280");
 			const auto text = window.identity_label()->text();
 			expect(text.contains(QStringLiteral("#20607")), "the strip identity carries the number");
-			expect(text.contains(QStringLiteral("terminal")), "the strip identity keeps the repository");
+			expect(text.contains(QStringLiteral("terminal")) == testCase.Repository,
+				   "the strip identity keeps the repository while it has the room");
 			expect(text.contains(QStringLiteral("Fix the ScreenBufferTests")) == testCase.Title,
 				   "the title is the first part of the identity to yield");
-			expect(text.contains(QStringLiteral("microsoft/")), "the owner yields after the title");
+			expect(text.contains(QStringLiteral("microsoft/")) == testCase.Owner,
+				   "the owner yields after the title");
 			expect(window.identity_label()->toolTip().contains(QStringLiteral("microsoft/terminal  #20607 Fix the ScreenBufferTests")),
 				   "the full identity stays in the tooltip");
 		}
@@ -1557,6 +1600,15 @@ namespace {
 			window.resize(width, 820);
 			QApplication::processEvents();
 			expect(!overflowShown(), "no strip control folds into an overflow menu at any width");
+#if !defined(_WIN32)
+			// [[BPR-0653]]. The three-character labels are the last yield, taken
+			// only while the strip still overflows; this strip fits at every
+			// width down to its floor, so it never shortens.
+			expect(!window.modality()->abbreviated(),
+				   "where the strip fits at every width the modality labels never shorten");
+#endif
+			expect(!window.modality()->abbreviated() || !window.identity_label()->isVisible(),
+				   "the modality labels shorten only after the identity has yielded whole");
 			const auto identity  = window.identity_label()->isVisible();
 			const auto positions = window.file_position_label()->isVisible();
 			expect(!identity || window.identity_label()->text().contains(QStringLiteral("#20607")),
@@ -1589,6 +1641,29 @@ namespace {
 		expect(identityGone && !window.identity_label()->isVisible()
 				   && !window.file_position_label()->isVisible(),
 			   "at the width floor the identity has yielded whole and the positions keep their rule");
+#if defined(_WIN32)
+		// [[BPR-0653]]. The owner's floor on Windows is 902: with the menu
+		// control and the caption buttons, the compact labels do not fit there,
+		// so the segments show their three-character prefixes. Only the text
+		// shortens; the names and tooltips keep the whole word.
+		expect(window.minimumWidth() == 902, "the Windows strip's width floor is 902");
+		expect(window.modality()->abbreviated() && !window.caption_buttons()->isHidden()
+				   && !window.strip_menu_button()->isHidden(),
+			   "at the Windows floor the modality labels have shortened and every title-row control shows");
+		const auto prefixes = std::array{ QStringLiteral("Ove"), QStringLiteral("Rea"), QStringLiteral("Rev"), QStringLiteral("Dis") };
+		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+			const auto  modality = static_cast<qt::review_modality>(index);
+			auto* const segment  = window.modality()->button(modality);
+			const auto  title    = qt::review_modality_title(modality);
+			expect(segment->text() == prefixes[index]
+					   && segment->accessibleName() == title + QStringLiteral(" modality")
+					   && segment->toolTip().size() > title.size()
+					   && window.modality()->action(modality)->text() == title,
+				   "a shortened segment shows its prefix and keeps its full accessible name, tooltip and action text");
+		}
+#else
+		expect(window.minimumWidth() == 900, "the strip's width floor stays 900 off Windows");
+#endif
 		// Straight from the default width to the narrowest that shows the
 		// positions beside the number: the toolbar measures the segments in
 		// the form this resize gives them, not the form the last one left.
@@ -1768,20 +1843,63 @@ namespace {
 			   "double-clicking bare strip surface zooms the window");
 		// Zoomed, the strip has relaid its items, so the bare surface is
 		// found again rather than assumed where it was.
+		//
+		// [[BPR-0653]]. The point is now proved to be inside the strip before
+		// it is used. `empty_surface_at` refuses a point outside the strip's
+		// own rectangle, which the Windows hit test needs and which is plainly
+		// right -- a point the strip does not contain is not its title-bar
+		// surface. Before that guard existed an out-of-rect point read as bare
+		// surface, and this row was passing by double-clicking outside the
+		// strip entirely.
+		//
+		// The zoomed geometry has to be able to hold the strip for there to be
+		// any bare surface to aim at. The offscreen screen is 800x600 device
+		// pixels, so at 200% it is 400x300 logical: maximising there gives a
+		// window narrower than the strip's own width floor (measured: toolbar
+		// 398 wide, spacer left at x=426 from before the maximise), the strip
+		// necessarily overflows, and it offers no bare surface at all. Where
+		// that is the case the restore is exercised through the same public
+		// window state instead, and the sub-floor geometry is asserted rather
+		// than assumed, so this never silently skips on a screen that could
+		// have hosted the gesture.
+		strip->layout()->activate();
+		QApplication::processEvents();
 		const auto zoomedHold
 			= spacer->mapTo(strip, QPoint{ spacer->width() / 2, 11 });
-		auto unzoom = QMouseEvent{
-			QEvent::MouseButtonDblClick,
-			QPointF{ zoomedHold },
-			QPointF{ strip->mapToGlobal(zoomedHold) },
-			Qt::LeftButton,
-			Qt::LeftButton,
-			Qt::NoModifier,
-		};
-		QApplication::sendEvent(strip, &unzoom);
-		QApplication::processEvents();
-		expect(unzoom.isAccepted() && !window.isMaximized(),
-			   "double-clicking again restores the window");
+		const auto zoomedGeometry = std::string{ "point " }
+			+ std::to_string(zoomedHold.x()) + "," + std::to_string(zoomedHold.y())
+			+ " strip=" + std::to_string(strip->width()) + "x"
+			+ std::to_string(strip->height()) + " spacer=" + std::to_string(spacer->x())
+			+ "," + std::to_string(spacer->y()) + " " + std::to_string(spacer->width())
+			+ "x" + std::to_string(spacer->height())
+			+ " window=" + std::to_string(window.width()) + " floor="
+			+ std::to_string(window.minimumWidth());
+		if (strip->rect().contains(zoomedHold)) {
+			auto unzoom = QMouseEvent{
+				QEvent::MouseButtonDblClick,
+				QPointF{ zoomedHold },
+				QPointF{ strip->mapToGlobal(zoomedHold) },
+				Qt::LeftButton,
+				Qt::LeftButton,
+				Qt::NoModifier,
+			};
+			QApplication::sendEvent(strip, &unzoom);
+			QApplication::processEvents();
+			expect(unzoom.isAccepted() && !window.isMaximized(),
+				   std::string{ "double-clicking again restores the window: " }
+					   + zoomedGeometry + " accepted="
+					   + (unzoom.isAccepted() ? "1" : "0") + " maximized="
+					   + (window.isMaximized() ? "1" : "0"));
+		} else {
+			expect(window.width() < window.minimumWidth(),
+				   std::string{ "only a zoom narrower than the strip's floor may leave no bare "
+								"surface to double-click: " }
+					   + zoomedGeometry);
+			window.showNormal();
+			QApplication::processEvents();
+			expect(!window.isMaximized(),
+				   "a window zoomed below the strip's floor still restores");
+		}
 
 		expect(strip->height() == qt::workbench_strip::height_pixels
 				   && strip->actions().front()->objectName()
@@ -5040,12 +5158,26 @@ namespace {
 		window.resize(window.minimumWidth(), 720);
 		process_events();
 		const auto compact = window.focus_order();
-		expect(compact.front()
+		const auto lead    = strip_lead_actions;
+#if defined(_WIN32)
+		// [[BPR-0653]]. The compact menu control reads first, as it sits, and
+		// the three caption buttons follow Settings as the strip's last stops.
+		const auto settings = std::ranges::find(
+			compact, window.primary_toolbar()->widgetForAction(window.settings_action()));
+		expect(compact.front() == window.strip_menu_button()
+				   && window.caption_buttons() != nullptr && settings != compact.end()
+				   && std::distance(settings, compact.end()) > 3
+				   && *(settings + 1) == window.caption_buttons()->button(qt::title_row_part::minimize)
+				   && *(settings + 2) == window.caption_buttons()->button(qt::title_row_part::maximize)
+				   && *(settings + 3) == window.caption_buttons()->button(qt::title_row_part::close),
+			   "on Windows the menu control is the first stop and minimise, maximise and close follow Settings");
+#endif
+		expect(compact[lead]
 					   == window.primary_toolbar()->widgetForAction(window.home_action())
-				   && compact[1]
+				   && compact[lead + 1]
 					   == window.primary_toolbar()->widgetForAction(
 						   window.repositories_drawer_toggle_action())
-				   && compact[2]
+				   && compact[lead + 2]
 					   == window.primary_toolbar()->widgetForAction(
 						   window.files_drawer_toggle_action()),
 			   "Home, Repositories then Files remain the first interactive stops at the supported width floor");

@@ -3128,7 +3128,15 @@ namespace {
 			const auto  kept   = action == window.home_action() || action == window.account_action()
 				|| action == window.settings_action() || name == QStringLiteral("workbenchStripInsetAction")
 				|| name == QStringLiteral("workbenchNavigationSpacerAction")
-				|| name == QStringLiteral("workbenchModalitySpacerAction");
+				|| name == QStringLiteral("workbenchModalitySpacerAction")
+#if defined(_WIN32)
+				// [[BPR-0653]]. On Windows the strip is the title row in every
+				// state: its menu control and caption buttons are the window's,
+				// not a pull request's.
+				|| name == QStringLiteral("workbenchStripMenuAction")
+				|| name == QStringLiteral("workbenchCaptionButtonsAction")
+#endif
+				;
 			if (widget != nullptr && widget->isVisible() && !kept) {
 				strayStripControls.append(name.isEmpty() ? action->text() : name);
 			}

@@ -58,7 +58,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"11bc2b7c65cede0e172df2a95e3532982331b8ed37eec98be817e5306f84d968"
+		"b9825d72102a2ad11c38714d055b38474bbec126d3bff5e64778a1a3678d61df"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -89,6 +89,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/profile_desktop.cpp"
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
+		"src/windows_title_row_host.cpp"
+		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
     )
     set(bpr_production_app_manifest "")
@@ -146,6 +148,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/review_submission_workflow.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
+		"src/windows_title_row_host.cpp"
+		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
     )
     file(GLOB_RECURSE bpr_actual_app_sources
@@ -171,7 +175,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "9e83a67273e64b47931ae2bc7c2ba36cec7b91c8f92e04af1f6b65f612f33b71"
+        "4b18fe1ffa722fde51b4177926a83c10273323e13efdf45b8d72074bd83474b6"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

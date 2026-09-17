@@ -29,6 +29,9 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
+#if defined(_WIN32)
+	#include "bpr/qt/windows_caption_buttons.hpp"
+#endif
 
 #include <QList>
 #include <QMainWindow>
@@ -461,6 +464,19 @@ namespace bpr::qt {
 		void clear_defects();
 
 		[[nodiscard]] auto primary_toolbar() const noexcept -> QToolBar*;
+#if defined(_WIN32)
+		/// \brief Which part of the Windows title row a window point falls on.
+		///
+		/// \details [[BPR-0653]]. The strip is the title row on Windows. Its bare
+		/// surface is the caption, the three caption buttons are their own parts,
+		/// and every control is client. Presentation answers; the host turns the
+		/// answer into the platform's hit-test code.
+		[[nodiscard]] auto title_row_part_at(QPoint aWindowPoint) const -> title_row_part;
+		/// \brief Minimise, maximise-or-restore and close, the strip's last three stops.
+		[[nodiscard]] auto caption_buttons() const noexcept -> windows_caption_buttons*;
+		/// \brief The compact menu control at the strip's left, standing in for the menu bar.
+		[[nodiscard]] auto strip_menu_button() const noexcept -> QToolButton*;
+#endif
 		/// \brief The strip's modality control, alone at its centre.
 		///
 		/// \details [[BPR-0646]]. Overview, Read, Review and Discuss are
@@ -1071,17 +1087,21 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*                             PrimaryToolbar      = nullptr;
-		workbench_strip*                      Strip               = nullptr;
-		modality_control*                     Modality            = nullptr;
-		QAction*                              AccountAction       = nullptr;
-		QLabel*                               IdentityLabel       = nullptr;
-		QLabel*                               ChangePositionLabel = nullptr;
-		QLabel*                               FilePositionLabel   = nullptr;
-		QWidget*                              ModalitySpacer      = nullptr;
-		QWidget*                              StripInset          = nullptr;
-		core::workbench_reason_code           LastRefusal         = core::workbench_reason_code::none;
-		workbench_landing*                    HomeLanding         = nullptr;
+		QToolBar*         PrimaryToolbar      = nullptr;
+		workbench_strip*  Strip               = nullptr;
+		modality_control* Modality            = nullptr;
+		QAction*          AccountAction       = nullptr;
+		QLabel*           IdentityLabel       = nullptr;
+		QLabel*           ChangePositionLabel = nullptr;
+		QLabel*           FilePositionLabel   = nullptr;
+		QWidget*          ModalitySpacer      = nullptr;
+		QWidget*          StripInset          = nullptr;
+#if defined(_WIN32)
+		QToolButton*             StripMenuButton = nullptr;
+		windows_caption_buttons* CaptionButtons  = nullptr;
+#endif
+		core::workbench_reason_code           LastRefusal = core::workbench_reason_code::none;
+		workbench_landing*                    HomeLanding = nullptr;
 		std::shared_ptr<dif_catalog_provider> DifCatalog;
 		std::unique_ptr<dif_cue_router>       DifCues;
 		std::unique_ptr<QElapsedTimer>        DifCueClock;
