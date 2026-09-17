@@ -387,3 +387,25 @@ Still open on Windows: (b) the journal and ownership course, (c) guarded Git
 through the supervisor and the materialization course, (d) app wiring and
 the crash-recovery course. `windows-lane` is not fast-forwarded while the
 station builds on it.
+
+## Windows slice (b) integrated (dsp-002)
+
+`dd88b9c9` on `windows-lane` makes the ownership journal run on Windows.
+It keeps the same limits, with a handle identity, an owner/DACL privacy
+check, and a one-byte `LockFileEx` range: shared for live owners, exclusive
+for recovery. Evidence is in "Slice (b)" of
+[the Windows evidence file](../../verification/BPR-0622-windows-native-evidence.md).
+The merge into main (`a3ee3c72845016b1df7c0384a178cd0d911f67e1`) conflicted with BPR-0817's Linux change in
+`tests/scripts/agent_workspace_ownership_tests.py`. The resolution keeps
+both, and runs BPR-0817's mode-bit parent rule only on POSIX, because Windows
+proves its untrusted-parent refusal through the DACL course.
+
+Mac run of the slice's portable sources at `a3ee3c72845016b1df7c0384a178cd0d911f67e1`
+(`build/r2-logs/dsp2-int3-ctest.log`). These pass:
+`agent_workspace_ownership`, `git_process_contract`, `agent_parent_death`,
+`qt_agent_launch_canary`, `application_agent_crash_recovery`,
+`application_agent_materialization_crash_recovery`,
+`application_agent_invocation_host`, `architecture_boundaries` and the
+round-trip composition contract. The isolation manifest again reports only
+[[BPR-0802]]'s five findings. Linux coverage of the POSIX branches goes with
+the next `bpr-linux` envelope.
