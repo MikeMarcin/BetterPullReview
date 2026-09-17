@@ -67,9 +67,11 @@ file claims no exclusion there.
   7. Terminates the job and confirms it empty.
   8. Cancels its watcher's synchronous read and joins it, and only then releases
      the guard.
-- **`src/adapters/agent/src/windows_workspace_guard.hpp`** (new, header-only).
+- **`src/adapters/agent/include/bpr/adapters/agent/windows_workspace_guard.hpp`** (new, header-only; moved from `src/` in slice (b)).
   It provides:
-  - the kind-2 identity (volume serial, file index), which requires a
+  - the regular-file identity `{1, volume serial, file index high, file index
+    low}`, the same kind-1 encoding the Git adapter's opaque identities use
+    (slice (a) used kind 2 until slice (b) aligned it), which requires a
     single-link regular file that is not a reparse point;
   - the principals, the token user plus the AppContainer SID when contained;
   - the protected private descriptor, whose owner is set explicitly to the token
@@ -202,3 +204,135 @@ These are the files the Mac and Linux courses should cover at merge:
   Windows-only blocks.
 - `tests/scripts/agent_parent_death_tests.py`: the POSIX path is unchanged
   except the guard-course run timeout, which goes from 25 s to 60 s.
+
+## Slice (b): the ownership journal on Windows
+
+### Source
+
+- **`src/adapters/git/src/installed_git_process.cpp`.** The Unix-only journal
+  block now builds under `Q_OS_UNIX || Q_OS_WIN`. Its POSIX calls sit behind a
+  thin platform layer, and the owner, load, prepare, recover and cleanup logic
+  above that layer is shared. Windows primitives:
+  - **Handles.** The journal opens with `GENERIC_READ|GENERIC_WRITE|DELETE`,
+    share read/write/delete and `FILE_FLAG_OPEN_REPARSE_POINT`. Identity is
+    `{1, volume serial, index high, index low}` from the handle, and the
+    handle must be a regular file with exactly one link.
+  - **Privacy.** Every journal and directory check reads the descriptor
+    through the handle (`windows_private_to_current_user`). The owner must be
+    the token user, the DACL protected, and the only grants full access to that
+    user or to the AppContainer SID. New directories and journals are created
+    with that descriptor and the owner set explicitly.
+  - **Lock.** `LockFileEx` on one byte at `0x4000'0000'0000'0000`, shared for a
+    live owner and exclusive for recovery, fail-immediately. Every journal read,
+    append and truncate works inside the 64 KiB cap, far below that offset.
+  - **Create and delete.** Creation is `CREATE_NEW`, so it never replaces.
+    Deletion is `FileDispositionInfoEx` with
+    `DELETE|POSIX_SEMANTICS` on the verified handle. A directory sync is
+    `FlushFileBuffers` on a directory handle.
+  - **The parent.** A neighbourhood is created only under a parent the user
+    owns and no other principal can write. Only the user, the AppContainer SID,
+    SYSTEM and Administrators may hold write-type grants.
+  - **Unchanged.** The limits stay at 64 records, 64 KiB and a 4096-entry
+    inventory. The flow of mkdir, identity receipt, quarantine rename and
+    recursive removal is the same.
+- **`src/adapters/agent/include/bpr/adapters/agent/windows_workspace_guard.hpp`.**
+  Moved from `src/` so the Git adapter can include it. The identity kind changes
+  from 2 to 1 to match the Git adapter's opaque directory identities. The guard
+  opens with `FILE_SHARE_DELETE` as well, so a live owner does not block the
+  journal's own delete.
+- **CMake.** On Windows, `better_pull_review_adapter_git` links
+  `BetterPullReview::AdapterAgent` (for the header include path) and
+  `Advapi32`. The three Git contract targets that compile
+  `installed_git_process.cpp` directly get the same include and link.
+
+### Tests
+
+- **`agent_workspace_ownership` now runs on Windows** with the same course. It
+  covers:
+  - forced death (`TerminateProcess`) at every committed phase, including both
+    renames;
+  - the ambiguous mkdir, where recovery and abandon both refuse;
+  - the live owner: `recovered=0 live=1`, then recovery after its death;
+  - busy cleanup, cancellation and the partial tail;
+  - substitution, symlink and corruption negatives that preserve the exact
+    fixture;
+  - replaced quarantines and the inventory bound;
+  - capacity, with 64 live journals held by the test's own `LockFileEx`
+    shared locks: `live=64`, the 65th admission refused, then `live=63` and
+    `recovered=63`;
+  - removal that does not follow a symlink into an external checkout.
+- **Two Windows-only negatives:**
+  - `negative-acl`: an `Everyone:(R)` grant on the journal makes recover and
+    abandon both return `failure=1`, and the fixture is byte-identical before
+    and after.
+  - `untrusted-parent`: `Everyone` modify rights on the root make abandon return
+    `failure=1`, and no neighbourhood is created.
+- **Fixture changes.** Fixture directories are made private with `icacls`,
+  because Python's `mkdir(mode)` leaves SYSTEM, Administrators and OWNER RIGHTS
+  grants. The marker is written in binary mode, and the busy-cleanup course
+  takes an independent shared guard through the product header.
+- **Registration.** `agent_workspace_ownership` is pinned `WINDOWS_UNCONTAINED`
+  with cause `dos-volume-name`. Contained, CPython `Path.resolve(strict=True)` of
+  the fixture executable fails with `[WinError 5] Access is denied` before any
+  course step.
+
+### Results
+
+These ran on the committed source tree after a rebuild, from a `vcvars64` shell
+with Git's `usr/bin` appended (`ctest --preset windows-dev -V`).
+
+| Check | Result |
+|---|---|
+| `agent_workspace_ownership` | Passed, 9.07 s (8.88 s in the first working-tree run): `AGENT_WORKSPACE_OWNERSHIP_OK` |
+| `git_process_contract` | Passed, 38.13 s (38.36 s) |
+| `agent_parent_death` | Passed, 48.76 s (48.60 s) |
+| `qt_agent_launch_canary` | Passed, 105.00 s (105.31 s) |
+| `architecture_boundaries` | Passed, 15.20 s (15.27 s) |
+| `test_network_isolation_manifest` | The same 25 findings as slice (a), compared line by line; zero delta, and none name this slice's tests |
+| **Trial, reverted:** recovery ignores a busy lock | `agent_workspace_ownership` **fails**: `recover: expected 'recovered=0 live=1', got 'recovered=1 live=0'` |
+| **Trial, reverted:** the handle privacy check always passes | **Fails** at `negative-acl`: `expected 'failure=1', got 'recovered=1 live=0'` |
+| **Trial, reverted:** only the path-level privacy check in the header is disabled | Still passes, because the journal's handle check catches the widened DACL on its own. The handle check is the one that carries the negative. |
+| `cmake --build --preset windows-app-release` | Builds. The built and bundled supervisors both hash `b882ec449529b3535161f8bce9bac5558c8a44be60cfa6211831deb8d146d33a`. |
+
+### Defects found while building the slice
+
+- **Identity kind.** The guard encoded kind 2 while the Git adapter's opaque
+  identities use kind 1, so every prepare refused its own journal. The kinds are
+  now aligned.
+- **CRLF marker.** A text-mode `ofstream` wrote the ownership marker with CRLF,
+  so its bytes did not match. The marker is now written in binary mode.
+- **Fixture ACLs.** Directories from Python's `mkdir` inherit SYSTEM,
+  Administrators and OWNER RIGHTS grants and correctly failed the privacy rule.
+  The fixture now strips them.
+
+### Constraint (3) now met
+
+Recovery takes the exclusive lock on exactly the fixed range that live owners
+and the supervisor hold shared. No journal read or append reaches that offset.
+The busy-lock trial above shows the lock carries the live-owner negative.
+
+### Limits recorded
+
+- **The elevated shell.** Not run, as in slice (a). The descriptor sets the
+  owner explicitly.
+- **The POSIX branches.** Not built on this host. Review found them
+  behaviour-preserving. One check is new: journal creation also checks privacy
+  on the new file, which always holds for a new 0600 file.
+
+### Portable sources touched in slice (b)
+
+The Mac and Linux courses should cover these at merge:
+
+- `src/adapters/git/src/installed_git_process.cpp`: POSIX calls move behind
+  the platform layer; the preprocessor conditions widen to `Q_OS_WIN`.
+- `src/adapters/git/CMakeLists.txt`: Windows-only block.
+- `tests/git_contract/CMakeLists.txt`: the registration condition becomes
+  `UNIX OR WIN32`, plus `WINDOWS_UNCONTAINED` and Windows-only blocks.
+- `tests/git_contract/agent_workspace_ownership_tests.cpp`: POSIX includes go
+  under `#if`; the marker is written in binary mode (no effect on POSIX).
+- `tests/scripts/agent_workspace_ownership_tests.py`: `fcntl` is imported only
+  on POSIX. `create_root` now calls `make_private`, which on POSIX is an
+  explicit `chmod 0700` after the existing `mkdir(mode=0o700)`. The capacity
+  course holds its locks through `hold_shared`, which uses the same `flock` on
+  POSIX.
+- `scripts/verify_test_network_isolation.py`: pin only.

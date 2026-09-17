@@ -36,6 +36,11 @@ if(BPR_BUILD_QT)
                 _LIBCPP_ENABLE_EXPERIMENTAL
         )
     endif()
+    if(WIN32)
+        # [[BPR-0622]]. The ownership journal applies the same header-only
+        # Windows guard and private-object rules as the agent supervisor.
+        target_link_libraries(better_pull_review_adapter_git PRIVATE BetterPullReview::AdapterAgent Advapi32)
+    endif()
     if(UNIX)
         add_dependencies(better_pull_review_adapter_git tool_better_pull_review_agent_supervisor)
         if(BUILD_TESTING)

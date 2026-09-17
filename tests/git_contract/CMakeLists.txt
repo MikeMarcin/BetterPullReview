@@ -282,7 +282,9 @@ set_tests_properties(
         TIMEOUT 180
 )
 
-if(UNIX)
+# [[BPR-0622]]. Windows runs the same journal course through its native
+# identity, private-object and LockFileEx primitives.
+if(UNIX OR WIN32)
     bpr_add_executable(
         test_better_pull_review_agent_workspace_ownership_tests
         agent_workspace_ownership_tests.cpp
@@ -296,6 +298,13 @@ if(UNIX)
         test_better_pull_review_agent_workspace_ownership_tests
         PRIVATE BetterPullReview::Application glaze::glaze Qt6::Core Threads::Threads
     )
+    if(WIN32)
+        target_include_directories(
+            test_better_pull_review_agent_workspace_ownership_tests
+            PRIVATE ../../src/adapters/agent/include
+        )
+        target_link_libraries(test_better_pull_review_agent_workspace_ownership_tests PRIVATE Advapi32)
+    endif()
     target_compile_definitions(
         test_better_pull_review_agent_workspace_ownership_tests
         PRIVATE BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION=1
@@ -310,9 +319,28 @@ if(UNIX)
     bpr_enable_warnings(test_better_pull_review_agent_workspace_ownership_tests)
     bpr_add_network_isolated_test(
         NAME agent_workspace_ownership
+        WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/agent_workspace_ownership_tests.py"
             --executable "$<TARGET_FILE:test_better_pull_review_agent_workspace_ownership_tests>"
     )
     set_tests_properties(agent_workspace_ownership PROPERTIES TIMEOUT 120)
+endif()
+
+# [[BPR-0622]]. Targets that compile installed_git_process.cpp directly carry
+# its Windows ownership-journal dependencies: the header-only guard rules and
+# the security API.
+if(WIN32)
+    foreach(
+        bpr_git_source_target
+        IN ITEMS
+            test_better_pull_review_git_process_contract_tests
+            test_better_pull_review_git_cache_contract_tests
+            test_better_pull_review_git_anonymous_public_read_tests
+    )
+        if(TARGET ${bpr_git_source_target})
+            target_include_directories(${bpr_git_source_target} PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/agent/include")
+            target_link_libraries(${bpr_git_source_target} PRIVATE Advapi32)
+        endif()
+    endforeach()
 endif()

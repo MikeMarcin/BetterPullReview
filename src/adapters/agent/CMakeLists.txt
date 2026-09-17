@@ -33,6 +33,7 @@ if(WIN32)
     # windows_agent_supervisor.cpp. It links no Qt.
     bpr_add_executable(tool_better_pull_review_agent_supervisor src/windows_agent_supervisor.cpp)
     target_compile_features(tool_better_pull_review_agent_supervisor PRIVATE cxx_std_23)
+    target_include_directories(tool_better_pull_review_agent_supervisor PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_link_libraries(tool_better_pull_review_agent_supervisor PRIVATE Kernel32 Advapi32)
     bpr_enable_hardening(tool_better_pull_review_agent_supervisor)
     bpr_enable_warnings(tool_better_pull_review_agent_supervisor)
