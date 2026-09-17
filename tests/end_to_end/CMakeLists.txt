@@ -2260,6 +2260,38 @@ foreach(
     )
 endforeach()
 
+# [[BPR-0843]]. The linked spelling needs an unprivileged symbolic link, so this
+# is registered on macOS and Linux only. Windows has none. Its contained runs
+# also refuse startup with `registry` for a reason of their own ([[BPR-0834]]),
+# so the same pin could pass there for the wrong reason.
+if(UNIX)
+    bpr_add_network_isolated_test(
+        NAME application_epoch_fixture_noncanonical_root_cause
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-fixture-noncanonical-root"
+            "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/epoch_fixture_noncanonical_root_contract.cmake"
+    )
+    set_tests_properties(
+        application_epoch_fixture_noncanonical_root_cause
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}"
+            PASS_REGULAR_EXPRESSION
+                "EPOCH_FIXTURE_NONCANONICAL_ROOT_CAUSE_OK:registry"
+    )
+    # Two budgeted runs: the refused linked spelling and the canonical seed.
+    bpr_bound_automated_run(
+        application_epoch_fixture_noncanonical_root_cause
+        TIMEOUT 340
+        BUDGET_MS ${bpr_epoch_phase_budget_ms}
+        RUNS 2
+        RESERVE_MS 4000
+    )
+endif()
+
 bpr_add_network_isolated_test(
     NAME application_epoch_maintenance_public_path
     WINDOWS_UNCONTAINED
