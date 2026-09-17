@@ -35,3 +35,50 @@ that was not present on entry could be reported as present.
 - The round-trip course and `application_review_ledger_composition_contract`
   pass on macOS and Linux, repeated.
 - The negative control fails as expected.
+
+## Linux half (bpr-linux, task-20260917-lnx-confirm)
+
+**Fix.** `review_ledger_round_trip` in `src/app/src/github_application.cpp`
+now sets "present on entry" from `MaterialReceiptHits > 0U`, the counter
+`5875ce4f` added, instead of `ReceiptLoadHits > 0U`.
+`docs/verification/fixture-catalog.md` names the counter. It stays `> 0U`
+rather than the probe's `== 1U`: the round trip does not own how many
+publications precede its sample, so an exact count could report a present
+receipt as absent. No platform code is involved.
+
+**The defect, reproduced on Linux.** `lldb-22` forced a re-sample after the
+Seen commit, on a seeded root whose receipt row had been deleted before
+reopen. The base code printed `REVIEW_LEDGER_PRESENT_ON_ENTRY:1`
+(`ReceiptLoadHits=1`, `MaterialReceiptHits=0`). The fix printed `:0` twice. With
+the receipt kept, the fix printed `:1`.
+
+**Linux runs on the candidate.**
+
+- `application_review_ledger_composition_contract` passed 10 of 10.
+- `application_diff_workbench_public_path` passed 10 of 10, each with
+  `REVIEW_LEDGER_PRESENT_ON_ENTRY:0`.
+- The cross-process round trip (seed, then reuse) gave reuse
+  `PRESENT_ON_ENTRY:1` 10 of 10.
+- **Negative control.** With the receipt deleted before entry, reuse reported
+  `PRESENT_ON_ENTRY:0` 3 of 3.
+- The host test, both epoch persistence rows, epoch maintenance and two
+  appearance contracts pass.
+
+The evidence is in "BPR-0830" of
+[the dsp-002 Linux confirmation](../../verification/dsp2-linux-confirmation.md).
+
+**Review.** An independent `rfc-reviewer` found no blocking issue.
+
+**Pins, for main's reseal.** The edit moves
+`application_review_round_trip_composition_contract`'s pins, which this card
+does not own and did not change:
+
+- whole file: `ba30b1bad5c7eadf64305d0638894696d218d7ab52276c855c7e1aa4afcac834`;
+- manifest: `590b846f6059b28bbdf94f0feadf9444d0c98c45de000972c30e391facef24a4`;
+- mutation branch: unchanged.
+
+That contract is red on `linux-lane` until the reseal.
+
+**Status.** The Linux criteria are met. The card stays In Progress until
+macOS repeats the round trip and the composition contract, including the
+negative control.

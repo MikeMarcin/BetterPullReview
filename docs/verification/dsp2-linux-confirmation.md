@@ -7,11 +7,21 @@
   `task-20260917-lnx-confirm`. Station `bpr-linux` (`stn-3f7fcc92`, `wsl2`),
   branch `linux-lane`, authority `lane-commit`. Base
   `780d0a1c3d2c52932e007601d179657168ba3124`.
-- **State.** Step 1 is recorded below: every confirmation course passes at the
-  base except `application_anonymous_public_preview_public_path`, which printed
+- **State.** Step 1 is committed (`1738e6a4`) and pushed: every confirmation
+  course passes at the base except
+  `application_anonymous_public_preview_public_path`, which printed
   `PUBLIC_PREVIEW_SMART_ACQUISITIONS:2` in 3 of 5 runs, as it does on macOS.
-- **Next.** Step 2, BPR-0830: claim, move the round trip's "present on entry"
-  onto `MaterialReceiptHits`, repeat the courses, negative control, review.
+  BPR-0830 is claimed (`1a9d6c41`, pushed).
+- **BPR-0830.** The round trip now takes "present on entry" from
+  `MaterialReceiptHits`. The Linux half of the acceptance is met, and the
+  independent review found no blocking issue (see "BPR-0830" below). The card
+  stays In Progress until macOS runs the courses.
+- **Owed to main.** `application_review_round_trip_composition_contract` is red
+  on `linux-lane` until main reseals its pins. The new values are in "Pinned
+  digests moved" below.
+- **Commands.** None is active. The `rfc-reviewer` returned and is retired.
+- **Next.** macOS: repeat the ledger composition contract and the round trip,
+  including the negative control. Main: reseal the pins.
 - **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-confirm/`.
   None is committed.
 
@@ -213,3 +223,147 @@ Group `0830-base`, 11:12:56Z, 5.93 s, ctest rc 0: `application_review_ledger_hos
 (0.00 s), `application_review_ledger_composition_contract` (4.35 s) and
 `application_review_round_trip_composition_contract` (1.56 s, with the pins as
 committed) pass.
+
+## BPR-0830: the round trip's "present on entry"
+
+**Card.** Claimed on `linux-lane` in `1a9d6c41`. The fix is in the commit that
+records this section.
+
+**The change.** `detail::github_application_fixture_access::review_ledger_round_trip`
+in `src/app/src/github_application.cpp` sets `ReviewLedgerWasPresentOnEntry`
+from `statistics.MaterialReceiptHits > 0U` instead of
+`statistics.ReceiptLoadHits > 0U`. `MaterialReceiptHits` is the counter
+`5875ce4f` added for the composition probe: only `observe_material` increments
+it. `ReceiptLoadHits` also counts `refresh_receipt`, which
+`refresh_shared_ledger` queues after every commit, including this process's
+own. `fixture-catalog.md` now names the counter. The predicate stays `> 0U`,
+not the probe's `== 1U`. The round trip does not own how many diff publications
+precede its sample, and it can select row 0 itself, so an exact count could
+turn a present receipt into a false absent.
+
+### The defect, reproduced on Linux
+
+The ordinary fixture course samples "present on entry" on every tick until it
+passes, and passes on the tick that triggers Seen. So a re-sample after an
+in-process commit needs a first pass that returns false. `lldb-22` forced one:
+a one-shot breakpoint on the `return` cleared `ReviewLedgerRoundTripPassed`
+after the Seen commit. The run used a seeded root whose `file_receipt` row had
+been deleted before `--epoch-fixture-phase reuse`, and printed the counters at
+each sample (`rt/forced*.lldb`, `rt/lldb-*-forced-*`).
+
+| Build | Counters at the forced re-sample | Printed |
+|---|---|---|
+| Base code, line reverted | `ReceiptLoadHits=1`, `MaterialReceiptHits=0`, `PersistenceRequests=1` | `REVIEW_LEDGER_PRESENT_ON_ENTRY:1`, **wrong** |
+| Candidate, twice | `ReceiptLoadHits=1`, `MaterialReceiptHits=0`, `PersistenceRequests=1` | `REVIEW_LEDGER_PRESENT_ON_ENTRY:0` |
+| Candidate, receipt kept | `ReceiptLoadHits=3`, `MaterialReceiptHits=1` | `REVIEW_LEDGER_PRESENT_ON_ENTRY:1` |
+
+In each forced run, `refresh_receipt` ran between the Seen pass and the
+re-sample. The base build for this row came from reverting only the changed
+line (47 s build). The candidate was then restored, checked by SHA-256 against
+the saved patch, rebuilt (48 s, no diagnostic, `ninja -n` clean), and
+re-checked.
+
+**Unforced order.** At the base, one unforced reopen sampled
+`ReceiptLoadHits=1` before the refresh ran, and another sampled
+`ReceiptLoadHits=2, MaterialReceiptHits=1` after it. Linux runs both orders.
+The course passes without forcing because its first pass that triggers Seen
+also passes.
+
+### Runs on the candidate
+
+Working tree at `1a9d6c41` plus the change, built
+`cmake --build --preset dev` (rc 0, no `warning:` or `error:`). Serial,
+11:18:37Z to 11:21:11Z (`step2.summary`). The Secret Service `login`
+collection read `(<false>,)` before every course.
+
+| Course | Runs | Result | Durations |
+|---|---|---|---|
+| `application_review_ledger_host` | 1 | Pass | 0.00 s |
+| `application_review_ledger_composition_contract` | 10 | 10 pass | 4.23 to 4.35 s |
+| `application_diff_workbench_public_path` | 10 | 10 pass, each `REVIEW_LEDGER_PRESENT_ON_ENTRY:0` | 2.58 to 2.65 s |
+| `application_epoch_persistence_github-com`, `_ghes-3_18`, `application_epoch_maintenance_public_path`, `application_appearance_gesture_contract`, `application_appearance_store_fallback_contract` | 1 | 5 pass | 22.69 s together |
+
+**The round-trip course across processes** (`rt/rt.sh`). This runs the
+ordinary fixture course (`--github-fixture github-com --epoch-fixture-root R`)
+inside the network sandbox with the ctest environment: `seed`, then `reuse` on
+the same private root.
+
+| Case | Runs | Seed | Reuse |
+|---|---|---|---|
+| Receipt kept, base | 3 | `PRESENT_ON_ENTRY:0`, `REVIEW_LEDGER_OK` | `PRESENT_ON_ENTRY:1`, `REVIEW_LEDGER_OK` |
+| Receipt kept, candidate | 10 | `PRESENT_ON_ENTRY:0`, `REVIEW_LEDGER_OK` | `PRESENT_ON_ENTRY:1`, `REVIEW_LEDGER_OK` |
+| Negative control: `file_receipt` rows deleted (1 to 0), base | 2 | as above | `PRESENT_ON_ENTRY:0`, `REVIEW_LEDGER_OK` |
+| Negative control, candidate | 3 | as above | `PRESENT_ON_ENTRY:0`, `REVIEW_LEDGER_OK` |
+
+Every seed printed `EPOCH_FIXTURE_SEED_OK` and every reuse
+`EPOCH_FIXTURE_REUSE_OK`. After restoring the candidate,
+`application_review_ledger_host`, `application_review_ledger_composition_contract`
+and `application_diff_workbench_public_path` passed again
+(`0830-restore-sanity.ctest.log`).
+
+**Offscreen by registration.** Every course above except the host test runs
+`QT_QPA_PLATFORM=offscreen` with `QT_STYLE_OVERRIDE=Windows`.
+
+### Pinned digests moved; not resealed here
+
+`application_review_round_trip_composition_contract` passed at the base and
+now fails, as it must for any edit to `github_application.cpp`:
+`full LF-normalized github_application.cpp digest drifted: expected
+6866135fef0c5412d1ed7547d64c80a3f9f2a233c24f5fe8a5ab0b90cb4b8502, found
+ba30b1bad5c7eadf64305d0638894696d218d7ab52276c855c7e1aa4afcac834`. BPR-0830
+does not own the pins, so they are unchanged. `cmake
+-DBPR_PRINT_PINNED_DIGESTS=ON -DBPR_SOURCE_ROOT=<checkout> -P
+tests/end_to_end/application_review_round_trip_composition_contract.cmake`
+prints, for main's reseal:
+
+| Pin | Committed | With this change |
+|---|---|---|
+| `full_application` | `6866135fef0c5412d1ed7547d64c80a3f9f2a233c24f5fe8a5ab0b90cb4b8502` | `ba30b1bad5c7eadf64305d0638894696d218d7ab52276c855c7e1aa4afcac834` |
+| `production_app_manifest` | `3b8b0ce0d34b8fdd801918b25caf8fd78c3a1bc9c74781550a1ee1143cf1dc01` | `590b846f6059b28bbdf94f0feadf9444d0c98c45de000972c30e391facef24a4` |
+| `production_mutation_branch` | `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a` | unchanged |
+
+The reviewed range for that reseal is this card's source commit on
+`linux-lane`. The independent review is below.
+
+### Checks and review
+
+- **Format.** `/usr/bin/clang-format` 22.1.8 `--dry-run --Werror` on
+  `github_application.cpp` passes, and so does `git diff --check`.
+- **Tidy.** `_coding-standard/scripts/tidy.py --build-dir build/dev --paths
+  src/app/src/github_application.cpp --warnings-as-errors` (228 s) reports only
+  the two findings BPR-0824 recorded before this card: `#pragma once` in
+  `dif_runtime.hpp`, and `exact_current` at `github_application.cpp:7761`
+  (`df458d30`). Neither is on a changed line.
+- **Portability.** One portable statement in a tests-enabled fixture accessor.
+  No platform branch. Both counters are `std::uint64_t` fields maintained under
+  the host's mutex on every platform. AppleClang and MSVC did not compile it
+  here.
+- **Independent review** (`rfc-reviewer`, served as `claude-fable-5-1`, effort
+  medium, matching its generated route; read-only while the batch ran): **no
+  blocking finding.**
+  - No false present: `MaterialReceiptHits` moves only when `observe_material`
+    loads a row, and no course writes a receipt before the round trip's sample.
+  - No false absent: the sample needs retained material, and only
+    `observe_material` sets it. So a receipt present on entry is always counted
+    by that observation, before any refresh.
+  - The consumers pass the value through. The diff workbench row's `:0`
+    expectation still holds.
+  - `> 0U` is the right predicate. `== 1U` could produce a false absent.
+  - It raised no portability issue, and the RFC-BPR-0007 row needs no edit.
+  - Residual risk: this relies on Seen applying synchronously. If Seen were
+    queued, the new predicate would still answer correctly and the old one
+    would not.
+
+### Against the card's acceptance
+
+- **The round-trip course and the composition contract pass on Linux,
+  repeated: met.** The composition contract passed 10 of 10, the diff
+  workbench row 10 of 10, and the cross-process round trip 10 of 10.
+- **They pass on macOS: not run.** This station cannot run them.
+- **The negative control fails as expected: met.** With the receipt deleted
+  before entry, the course reports absent, 3 of 3 unforced and in both forced
+  runs. In the forced order the base code reported present.
+
+Logs: `step2.summary`, `0830-*.ctest.log`, `rt/`, `pins-print-candidate.log`,
+`bpr0830-candidate.patch`, `dev.build-0830.log`, `dev.build-ab-*.log`,
+`format-0830.log` and `tidy-0830.log`.
