@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0818",
+    "BPR-0819"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Pre-existing review contract failures found at the BPR-0810/0811 merge",
+  "created": "2026-09-17T07:03:36.224628+00:00",
+  "base": "f33a10c9c1ce6d5efae50ed35d87bd4da43c00bd"
+}
