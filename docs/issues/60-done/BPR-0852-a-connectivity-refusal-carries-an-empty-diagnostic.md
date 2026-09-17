@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0852"
 title: "A Git cache connectivity refusal carries an empty diagnostic"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-004 BPR-0846 critical review, non-blocking finding 4","found_at":"bbdf8cc0e9d5db0ebd66b05b8f3d1fcd76a62a42","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"AC1 the unconnected BPR-0846 course's refusal names a missing-object kind, and a contract row pins the bound","outcome":"pass","revision":"15eb1540d302795961f9f913af9942ff40a4bf2f","evidence":{"kind":"command","detail":"git_haves_trimmed_pack_unconnected prints UNCONNECTED_CACHE_FAILURE:10:fsck reported 1 missing commit, 1 missing blob, 2 broken links and requires the kind without the object's name, identically on macOS, Linux and Windows (dsp4-int1-ctest.log; docs/verification/dsp4-{linux,windows}-confirmation.md). git_process_contract rows pin the exact summary, no canary, 1024 bytes counted and 1025 bytes refused as standard_output_limit with no text. Negative control fails both assertions (dsp4-0851-negative-control.log). Critical review: no blocking finding."}}]
 ---
 
 # BPR-0852: A Git cache connectivity refusal carries an empty diagnostic
