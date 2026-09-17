@@ -20,7 +20,10 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
-from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+from scripts.contained_temporary_support import (  # noqa: E402
+    contained_temporary_directory,
+    inherits_parent_permissions,
+)
 
 TIMEOUT_SECONDS = 120
 
@@ -99,8 +102,20 @@ def main():
     arguments = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-0644-relaunch-") as temporary:
         root = Path(temporary).resolve() / "application"
-        root.mkdir(mode=0o700)
-        os.chmod(root, 0o700)
+        # [[BPR-0876]]. The mode is POSIX's way of saying "only me". On Windows
+        # `mkdir(mode=0o700)` stamps CPython's protected owner-only descriptor,
+        # which leaves out the AppContainer this course runs in, so the
+        # directory it just made is one it can neither narrow with `os.chmod`
+        # nor remove afterwards — both refuse with WinError 5. There the
+        # directory inherits the private entries of the temporary the support
+        # module made, which is the same guarantee expressed the platform's way.
+        # `inherits_parent_permissions` is this tree's existing way to ask which
+        # of the two applies.
+        if inherits_parent_permissions():
+            root.mkdir()
+        else:
+            root.mkdir(mode=0o700)
+            os.chmod(root, 0o700)
         vault = run(arguments.application, "seed", root)
         expect_live_binding(root, "the seeding lifetime")
         # An orderly quit after a restored session, then a relaunch.

@@ -57,7 +57,7 @@ class HistoricalReviewCardLinkTests(unittest.TestCase):
         self.old = self.board / "20-ready/BPR-0743-fixture.md"
         self.current = self.board / "30-in-progress/BPR-0743-fixture.md"
         self.current.parent.mkdir(parents=True)
-        self.current.write_text("current card\n")
+        self.current.write_text("current card\n", encoding="utf-8")
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -70,7 +70,7 @@ class HistoricalReviewCardLinkTests(unittest.TestCase):
         self.assertFalse(relocated_review_card_link(self.root, self.review, self.old.with_name("other.md")))
         duplicate = self.board / "60-done/BPR-0743-fixture.md"
         duplicate.parent.mkdir(parents=True)
-        duplicate.write_text("duplicate\n")
+        duplicate.write_text("duplicate\n", encoding="utf-8")
         self.assertFalse(relocated_review_card_link(self.root, self.review, self.old))
 
 
@@ -90,12 +90,12 @@ class RfcIndexTests(unittest.TestCase):
     def write_rfc(self, number: int, status: str) -> Path:
         rfc_id = f"RFC-BPR-{number:04d}"
         path = self.rfc_root / f"{rfc_id}-fixture.md"
-        path.write_text(f"---\nid: {rfc_id}\nstatus: {status}\n---\n")
+        path.write_text(f"---\nid: {rfc_id}\nstatus: {status}\n---\n", encoding="utf-8")
         self.rows.append(f"| [{rfc_id}]({path.name}) | Fixture | {status} | — |")
         return path
 
     def verify(self) -> None:
-        (self.rfc_root / "README.md").write_text("\n".join(self.rows) + "\n")
+        (self.rfc_root / "README.md").write_text("\n".join(self.rows) + "\n", encoding="utf-8")
         verify_rfc_index(self.root)
 
     def test_accepts_original_pack_and_additional_statuses_together(self) -> None:
@@ -112,7 +112,7 @@ class RfcIndexTests(unittest.TestCase):
 
     def test_rejects_duplicate_id(self) -> None:
         path = self.write_rfc(24, "Deferred")
-        path.with_name("RFC-BPR-0024-duplicate.md").write_text(path.read_text())
+        path.with_name("RFC-BPR-0024-duplicate.md").write_text(path.read_text(), encoding="utf-8")
         self.rows.append(
             "| [RFC-BPR-0024](RFC-BPR-0024-duplicate.md) | Duplicate | Deferred | — |"
         )
@@ -261,7 +261,7 @@ class IssueGraphTests(unittest.TestCase):
         self.write_card("BPR-0001", "20-ready", "Ready", "")
         self.write_card("BPR-0002", "20-ready", "Ready", "BPR-0001")
         path = self.issue_root / "20-ready/BPR-0002-fixture.md"
-        path.write_text(path.read_text().replace("rfcs: []", 'rfcs: []\nplatforms: ["win"]'))
+        path.write_text(path.read_text().replace("rfcs: []", 'rfcs: []\nplatforms: ["win"]'), encoding="utf-8")
         with self.assertRaises(SystemExit):
             self.verify("BPR-0003")
 

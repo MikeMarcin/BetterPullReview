@@ -571,6 +571,7 @@ bpr_enable_warnings(test_better_pull_review_agent_finding_protocol_tests)
 
 bpr_add_network_isolated_test(
     NAME application_agent_finding_protocol
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_agent_finding_protocol_tests
 )
 set_tests_properties(
