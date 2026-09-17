@@ -1,0 +1,3384 @@
+{
+ "schema": "bpr.settings-inventory.atspi.v1",
+ "build": "linux-app-release",
+ "revision": "9bbe3604a19416033e0543523a54d3fabab27b4a",
+ "source": "AT-SPI tree over D-Bus below the 'Settings page' layered pane, one sidebar row click per category, visible nodes only; default check states kept. Qt on Unix exposes a combo box's current text as its accessible name, so combo box names here are their displayed values; other values are omitted",
+ "categories": [
+  "General",
+  "Accounts & hosts",
+  "Reviews & queue",
+  "Appearance",
+  "Notifications",
+  "Agents & context",
+  "Storage & privacy"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "category": "General",
+   "hidden_nodes_below_page": 0,
+   "nodes": [
+    {
+     "depth": 0,
+     "role": "layered pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "role": "filler",
+     "name": "General",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "General",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "New windows open Home. Window restoration is not available in this build. Review navigation defaults are in Reviews & Queue; colours and fonts are in Appearance.",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "category": "Accounts & hosts",
+   "hidden_nodes_below_page": 68,
+   "nodes": [
+    {
+     "depth": 0,
+     "role": "layered pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "role": "filler",
+     "name": "Accounts & hosts",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "Accounts & hosts",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "filler",
+     "name": "Accounts and hosts",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "One account per server. Credentials are never shown here.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "filler",
+     "name": "github.com",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Host",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Server kind and transport",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Connection state",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "?",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Account",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Sign-in terms",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "push button",
+     "name": "Sign in to github.com",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "push button",
+     "name": "Connect github.com with GitHub CLI",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "GitHub CLI trust warning",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "check box",
+     "name": "Show details for github.com",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Capabilities, rate limits and the last problem.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "push button",
+     "name": "Add enterprise server",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "category": "Reviews & queue",
+   "hidden_nodes_below_page": 38,
+   "nodes": [
+    {
+     "depth": 0,
+     "role": "layered pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "role": "filler",
+     "name": "Reviews & queue",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "Reviews & queue",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "filler",
+     "name": "Reviews and queue",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Local behaviour only. Nothing here changes assignments or subscriptions on GitHub.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "filler",
+     "name": "Review behaviour",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Modality rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Reset modality rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "A pull request opens in",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "A pull request opens in: Overview",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "A pull request opens in: Read",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "A pull request opens in: Last used",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Continue review enters",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Continue review enters: Read",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Continue review enters: Review",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Reading",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Reset reading",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Mark a file read",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Mark a file read: By hand",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Mark a file read: When fully seen",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "On return, compare",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "On return, compare: Whole PR",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "On return, compare: Since my last review",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "On return, compare: Since last upload",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Comments drawer opens on",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Comments drawer opens on: All",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Comments drawer opens on: Unread",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Comments drawer opens on: Unresolved",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Drawers",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Reset drawers",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Drawer controls",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Drawer controls: Hidden",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Drawer controls: Shown",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 5,
+     "role": "panel",
+     "name": "Queue defaults",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "Role: any",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Role",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "Observer: any reason",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Observer reason",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "Bucket: any",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Attention",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "Repository: any",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Repository",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "State: any",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Quiet reviews",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "Sort: core priority",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "label",
+     "name": "Sort",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Reset queue defaults",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Queue settings status",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Observer rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "filler",
+     "name": "Observer rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "Saved observer rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "repository",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "text",
+     "name": "Observer rule pattern",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "check box",
+     "name": "Exclude matching rule",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Add local observer rule",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Remove selected observer rule",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Saved repositories",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "filler",
+     "name": "Saved repositories",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "combo box",
+     "name": "Saved repositories list",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "text",
+     "name": "Repository to save",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Save repository",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "push button",
+     "name": "Remove saved repository",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "scroll bar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "category": "Appearance",
+   "hidden_nodes_below_page": 82,
+   "nodes": [
+    {
+     "depth": 0,
+     "role": "layered pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "role": "filler",
+     "name": "Appearance",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "Appearance",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "filler",
+     "name": "Appearance settings",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Changes apply as you make them and show in the review window behind this one.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "panel",
+     "name": "Theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "push button",
+     "name": "Reset appearance mode",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "filler",
+     "name": "Theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "role": "scroll bar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "panel",
+     "name": "Type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "push button",
+     "name": "Reset type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Interface font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About interface font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "combo box",
+     "name": "Sans Serif",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "role": "text",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Interface size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About interface size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "spin box",
+     "name": "Interface font size, in points",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Interface weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About interface weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "spin box",
+     "name": "Interface font weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Line height",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About line height",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "spin box",
+     "name": "Interface line height, percent",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Code font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About code font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "combo box",
+     "name": "monospace",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "role": "text",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Code size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About code size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "spin box",
+     "name": "Code font size, in points",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Code weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About code weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "spin box",
+     "name": "Code font weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Tab width",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About tab width",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "filler",
+     "name": "Tab width, in spaces",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "role": "check box",
+     "name": "Tab width 2",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 10,
+     "role": "check box",
+     "name": "Tab width 4",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 10,
+     "role": "check box",
+     "name": "Tab width 8",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Ligatures",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About ligatures",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "check box",
+     "name": "Ligatures",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Bold syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About bold syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "check box",
+     "name": "Bold syntax emphasis",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Italic syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About italic syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "check box",
+     "name": "Italic syntax emphasis",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "filler",
+     "name": "Preview",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "label",
+     "name": "Preview",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Files",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "12 of 40 read",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Engine/Source/Runtime/Renderer",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "text",
+     "name": "Code preview",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "label",
+     "name": "Interface 9 pt, weight 400, line height 100 %. Code 9 pt, weight 400, tabs of 4, ligatures off, bold and italic emphasis on. Diff, selection and current-line colours from Light.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "panel",
+     "name": "Colours for Light",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Colours for Light",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "push button",
+     "name": "Import theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "push button",
+     "name": "Export saved theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "push button",
+     "name": "Reset all colours",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Edits change Light only. Each theme keeps its own colours.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "filler",
+     "name": "Colours",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "text",
+     "name": "Filter roles",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "Colour roles",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "Surfaces and text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Surfaces and text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "7",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Application surface",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Application surface",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#f6f7f9",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Application text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Application text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#1f2328",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Code background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Code background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#ffffff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Code gutter background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Code gutter background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#f0f2f5",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Code line number text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Code line number text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#5b6570",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Code selection background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Code selection background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#7fb0e8",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Code current line background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Code current line background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#f2f6fc",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "Diff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "8",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#e6ffec",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#ffebe9",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff in-line added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff in-line added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#9effb5",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff in-line removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff in-line removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#f1b9b4",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff moved background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff moved background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#fff1d6",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff hunk header background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff hunk header background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#e7eef9",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff hunk header text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff hunk header text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#3b5070",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Diff group boundary rule",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Diff group boundary rule",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#8c8c8c",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "Review states",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Review states",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "6",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "State unread",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "State unread",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#0969da",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "State accepted",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "State accepted",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#1a7f37",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "State defect",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "State defect",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#cf222e",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "State fixed",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "State fixed",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#8250df",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "State verified",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "State verified",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#0f7b6c",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "State stale",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "State stale",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#5b6570",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "Syntax",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "26",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax normal",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax normal",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#1f2328",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax keyword",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax keyword",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#b51d27",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax control flow",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax control flow",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#a40e26",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax operator",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax operator",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#24292f",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax builtin",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax builtin",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#953800",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax function",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax function",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#6639ba",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax variable",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax variable",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#24509b",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#6e3ec8",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax constant",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax constant",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#0a3069",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax number",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax number",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#0550ae",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax string",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax string",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#086a49",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax character",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax character",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#116329",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax escape sequence",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax escape sequence",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#944800",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax comment",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax comment",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#555e69",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax documentation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax documentation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#456351",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax annotation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax annotation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#7d4e00",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax macro",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax macro",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#7a3e9d",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax preprocessor",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax preprocessor",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#7a3e9d",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax import",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax import",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#156b2e",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax attribute",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax attribute",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#7e5500",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax region marker",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax region marker",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#555e68",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax information",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax information",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#0759bc",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax warning",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax warning",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#9f3f00",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax alert",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax alert",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#b60a5b",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax error",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax error",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#a40e11",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "push button",
+     "name": "Syntax other",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "Syntax other",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "role": "label",
+     "name": "#444d56",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "role": "scroll bar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "panel",
+     "name": "Dif",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "label",
+     "name": "Dif",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "push button",
+     "name": "Reset Dif preferences",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Show Dif mascot",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About show dif mascot",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "check box",
+     "name": "Show Dif mascot",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Dif motion",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "push button",
+     "name": "About dif motion",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "combo box",
+     "name": "System",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Motion now",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "role": "label",
+     "name": "Dif motion status",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "role": "panel",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Appearance settings status",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "scroll bar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "category": "Notifications",
+   "hidden_nodes_below_page": 1,
+   "nodes": [
+    {
+     "depth": 0,
+     "role": "layered pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "role": "filler",
+     "name": "Notifications",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "Notifications",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "check box",
+     "name": "Enable review notifications",
+     "enabled": true,
+     "state": "checked"
+    },
+    {
+     "depth": 5,
+     "role": "check box",
+     "name": "Pause notifications",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Notifications contain the repository, review number, attention category and unread count. They never include titles, source code or comment text. Choosing a notification selects that review in Home.\n\nYour operating system controls permission and presentation. BetterPullReview cannot confirm every system permission setting.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "push button",
+     "name": "Preview for selected Home review",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "push button",
+     "name": "Reset notification preferences",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Notification status",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "category": "Agents & context",
+   "hidden_nodes_below_page": 2,
+   "nodes": [
+    {
+     "depth": 0,
+     "role": "layered pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "role": "filler",
+     "name": "Agents & context",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "Agents & context",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "The selected host determines which agent profiles are allowed. Choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "combo box",
+     "name": "Allowed agent profile for this request",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "list",
+     "name": "Private notes included with this request",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "check box",
+     "name": "Include current private draft",
+     "enabled": false,
+     "state": "unchecked"
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Allowed profile",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Private notes",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Private draft",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "check box",
+     "name": "Use existing working copy for this request",
+     "enabled": true,
+     "state": "unchecked"
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Agent request scope",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "category": "Storage & privacy",
+   "hidden_nodes_below_page": 1,
+   "nodes": [
+    {
+     "depth": 0,
+     "role": "layered pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "role": "filler",
+     "name": "Storage & privacy",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "label",
+     "name": "Storage & privacy",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "role": "filler",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Local data location",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "text",
+     "name": "Local application data location",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Local data includes repository caches, retained review history, drafts, notes, receipts and preferences. Retained epochs remain until explicitly pruned; maintenance can remove revisions needed for an older comparison. Moving this storage location and global purge are not available in this build.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "push button",
+     "name": "&Prune selected epochs",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "push button",
+     "name": "Delete repository &cache",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "push button",
+     "name": "Cancel history &maintenance",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "role": "label",
+     "name": "Maintenance is limited to the selected review or repository cache and asks for confirmation. It does not change GitHub or your working copy. Basic diagnostics contain bounded operation metadata; advanced verbosity and export are not available here. Removing the application does not remove its local data folder or system credential entries. Use Accounts & Hosts to sign out of remembered device sessions.",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  }
+ ]
+}
