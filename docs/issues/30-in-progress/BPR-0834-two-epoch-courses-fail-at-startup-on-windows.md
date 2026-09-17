@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0834"
 title: "Two epoch courses fail at startup on Windows before any step"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
