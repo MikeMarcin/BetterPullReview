@@ -14,6 +14,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -164,7 +165,18 @@ auto main(int argc, char** argv) -> int
 	if (!data.isValid()) {
 		return EXIT_FAILURE;
 	}
-	const auto                               dataRoot = std::filesystem::path{ data.path().toStdString() };
+	// [[BPR-0812]]. The stores refuse a root that is not owner-private, and on
+	// Windows a QTemporaryDir is not: its descriptor is inherited. The agent
+	// workspace neighbourhood is created beside the root, so the root sits in
+	// the narrowed temporary directory rather than being it.
+	const auto dataRoot  = std::filesystem::path{ data.path().toStdString() } / "data";
+	auto       dataError = std::error_code{ };
+	if (!adapters::sqlite::make_storage_root_owner_private(dataRoot.parent_path())
+		|| !std::filesystem::create_directory(dataRoot, dataError) || dataError
+		|| !adapters::sqlite::make_storage_root_owner_private(dataRoot)) {
+		std::cerr << "agent-finding-composition-failure:private-test-root\n";
+		return EXIT_FAILURE;
+	}
 	std::unique_ptr<app::github_application> application;
 	auto                                     startupTerminal = false;
 	auto                                     startup         = app::detail::github_application_fixture_access::start(

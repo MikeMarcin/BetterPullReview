@@ -212,21 +212,15 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
 				Directory.emplace(std::move(*directory));
-				const auto path = Directory->path() / "device-bindings.sqlite3";
-				if (!detail::admit_private_store_file(*Directory, "device-bindings.sqlite3")) {
-					return std::unexpected(device_binding_failure::unavailable);
-				}
-				if (sqlite3_open_v2(path.string().c_str(), &Database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW, nullptr) != SQLITE_OK) {
+				auto opened = detail::open_private_store_database(*Directory, "device-bindings.sqlite3", SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW);
+				if (!opened) {
 					Failed = true;
 					return std::unexpected(device_binding_failure::unavailable);
 				}
-				const auto readScope = binding_read_scope{ Database, aStop };
-				if (!detail::restrict_private_store_file(*Directory, "device-bindings.sqlite3")) {
-					Failed = true;
-					return std::unexpected(device_binding_failure::unavailable);
-				}
-				auto established = establish(aStop);
-				Failed           = !established.has_value();
+				Database               = *opened;
+				const auto readScope   = binding_read_scope{ Database, aStop };
+				auto       established = establish(aStop);
+				Failed                 = !established.has_value();
 				if (!established && aStop.stop_requested()) {
 					return std::unexpected(device_binding_failure::cancelled);
 				}

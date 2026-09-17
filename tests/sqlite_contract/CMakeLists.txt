@@ -389,6 +389,18 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+# [[BPR-0813]]. Windows private stores bind SQLite's held handle to the
+# admitted name, and open under a root outside the ANSI code page.
+if(WIN32)
+    bpr_add_executable(test_private_store_open private_store_open_tests.cpp)
+    target_link_libraries(test_private_store_open PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+    target_compile_definitions(test_private_store_open PRIVATE BPR_SQLITE_TESTING=1)
+    bpr_enable_hardening(test_private_store_open)
+    bpr_enable_warnings(test_private_store_open)
+    bpr_add_network_isolated_test(NAME sqlite_private_store_open WINDOWS_UNCONTAINED COMMAND test_private_store_open)
+    set_tests_properties(sqlite_private_store_open PROPERTIES TIMEOUT 60 PASS_REGULAR_EXPRESSION "private-store-open-tests:pass")
+endif()
+
 bpr_add_executable(test_device_binding_storage device_binding_storage_tests.cpp)
 target_link_libraries(test_device_binding_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 bpr_enable_hardening(test_device_binding_storage)
@@ -451,7 +463,8 @@ target_compile_definitions(test_profile_activation PRIVATE BPR_ACTIVATION_TEST_E
 target_link_libraries(test_profile_activation PRIVATE BetterPullReview::AdapterSQLite)
 bpr_enable_hardening(test_profile_activation)
 bpr_enable_warnings(test_profile_activation)
-bpr_add_network_isolated_test(NAME sqlite_profile_activation WINDOWS_UNCONTAINED COMMAND test_profile_activation)
+# [[BPR-0812]]. Measured on JaegAW 2026-09-17: passes inside the AppContainer.
+bpr_add_network_isolated_test(NAME sqlite_profile_activation COMMAND test_profile_activation)
 set_tests_properties(sqlite_profile_activation PROPERTIES TIMEOUT 30)
 
 bpr_add_executable(test_better_pull_review_window_review_restoration_storage_tests window_review_restoration_storage_tests.cpp)

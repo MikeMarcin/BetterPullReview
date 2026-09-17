@@ -40,6 +40,33 @@ def make_private(path: Path) -> None:
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def grant_everyone_object_ace(path: Path) -> None:
+    """Windows only: the current user's full access plus an object ACE for Everyone.
+
+    icacls cannot write an object ACE, so the protected DACL is set from SDDL.
+    """
+    import ctypes
+    from ctypes import wintypes
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.ULONG)]
+    advapi32.SetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    user = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                          check=True).stdout.strip().split(",")[1].strip('"')
+    sddl = f"D:P(A;OICI;FA;;;{user})(OA;OICI;FA;bf967aba-0de6-11d0-a285-00aa003049e2;;WD)"
+    descriptor = ctypes.c_void_p()
+    if not advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, ctypes.byref(descriptor), None):
+        raise RuntimeError(f"object ACE descriptor ({ctypes.get_last_error()})")
+    try:
+        # DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION
+        if not advapi32.SetFileSecurityW(str(path), 0x00000004 | 0x80000000, descriptor):
+            raise RuntimeError(f"object ACE set ({ctypes.get_last_error()})")
+    finally:
+        kernel32.LocalFree(descriptor)
+
+
 def create_root(parent: Path, name: str) -> Path:
     root = parent / name
     root.mkdir(mode=0o700)
@@ -274,6 +301,15 @@ def main() -> None:
             check(exe, "abandon", root, "failure=1")
             if (root / "neighbourhood").exists():
                 raise RuntimeError("neighbourhood created under a foreign-writable parent")
+            # [[BPR-0825]]. An allow entry that is not a plain ACCESS_ALLOWED_ACE
+            # (here an object ACE granting Everyone full access) is refused too.
+            root = parent / "untrusted-object-ace"
+            root.mkdir()
+            make_private(root)
+            grant_everyone_object_ace(root)
+            check(exe, "abandon", root, "failure=1")
+            if (root / "neighbourhood").exists():
+                raise RuntimeError("neighbourhood created under a parent with a foreign object ACE")
         # A replaced quarantine is no more authoritative than a replaced source.
         for point in ("child-quarantined", "parent-quarantined"):
             root = create_root(parent, "replaced-" + point)
@@ -325,6 +361,38 @@ def main() -> None:
         check(exe, "recover", root, "recovered=1 live=0")
         if (external / "keep").read_text() != "user data":
             raise RuntimeError("recovery changed user checkout")
+        if os.name != "posix":
+            # [[BPR-0825]]. A directory junction, which needs no privilege, inside
+            # the workspace being removed. Recovery must leave the external
+            # directory exactly as it was, and either remove the junction itself
+            # or refuse with the junction still in place.
+            import _winapi
+            root = create_root(parent, "external-junction")
+            check(exe, "abandon", root, "prepared")
+            external = root / "user-checkout"
+            external.mkdir(mode=0o700)
+            (external / "keep").write_text("user data")
+            (external / "nested").mkdir()
+            (external / "nested" / "deep").write_text("deep user data")
+            owned = workspace(root)
+            junction = owned / "junction"
+            _winapi.CreateJunction(str(external), str(junction))
+            before = sorted((str(p.relative_to(external)), p.read_bytes() if p.is_file() else None)
+                            for p in external.rglob("*"))
+            result = run(exe, "recover", root).strip()
+            after = sorted((str(p.relative_to(external)), p.read_bytes() if p.is_file() else None)
+                           for p in external.rglob("*"))
+            if after != before:
+                raise RuntimeError("recovery changed the directory a junction pointed at")
+            if result == "recovered=1 live=0":
+                if os.path.lexists(junction) or owned.exists():
+                    raise RuntimeError("recovery reported removal but left the junction")
+            elif result == "failure=1":
+                if not os.path.lexists(junction):
+                    raise RuntimeError("recovery refused but removed the junction")
+            else:
+                raise RuntimeError(f"junction recovery: unexpected result {result!r}")
+            print(f"agent-workspace-ownership:external-junction:{result}", flush=True)
     print("AGENT_WORKSPACE_OWNERSHIP_OK")
 
 

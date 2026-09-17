@@ -3296,8 +3296,16 @@ namespace bpr::adapters::git {
 					return false;
 				}
 				const auto* const header = static_cast<ACE_HEADER*>(entry);
-				if (header->AceType != ACCESS_ALLOWED_ACE_TYPE) {
+				// [[BPR-0825]]. A deny entry can only narrow access. Every other type
+				// that is not a plain allow (object, callback, compound or unknown)
+				// may grant write to a principal this walk cannot identify, so the
+				// parent is refused rather than trusted past it.
+				if (header->AceType == ACCESS_DENIED_ACE_TYPE || header->AceType == ACCESS_DENIED_OBJECT_ACE_TYPE
+					|| header->AceType == ACCESS_DENIED_CALLBACK_ACE_TYPE || header->AceType == ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE) {
 					continue;
+				}
+				if (header->AceType != ACCESS_ALLOWED_ACE_TYPE) {
+					return false;
 				}
 				const auto* const allowed = static_cast<ACCESS_ALLOWED_ACE*>(entry);
 				const auto        sid     = static_cast<PSID>(static_cast<void*>(const_cast<DWORD*>(&allowed->SidStart)));

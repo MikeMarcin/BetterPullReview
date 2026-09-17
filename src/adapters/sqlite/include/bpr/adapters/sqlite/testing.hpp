@@ -37,6 +37,19 @@ namespace bpr::adapters::sqlite::detail::testing {
 	[[nodiscard]] auto classify_sqlite_result_code(int aResultCode) noexcept
 		-> application::epoch_catalog_failure;
 
+	// [[BPR-0813]]. Where a private store's open has reached: its file was
+	// admitted, or SQLite has opened it. The observer receives the store file's
+	// path and may change the file system, which is how a contract substitutes a
+	// reparse point or hard link between admission and open. Passing nullptr
+	// disarms it. This API and its storage are test-build only.
+	enum class private_store_open_stage : std::uint8_t {
+		admitted,
+		opened,
+	};
+	using private_store_open_checkpoint = void (*)(private_store_open_stage, const std::filesystem::path&);
+	/// \brief Sets the test observer for a private store's admission and open.
+	void set_private_store_open_checkpoint(private_store_open_checkpoint aCheckpoint) noexcept;
+
 	#if defined(_WIN32)
 	// What one owner-private catalog object is actually worth to the process
 	// that created it. `AceCount` is the measured size of the object's own

@@ -12,12 +12,12 @@
 // Command line: --workspace-owner <lifetime-pipe> <report-pipe>
 //   <lifetime-pipe> read end: the launch specification, then end-of-file when
 //                   the owner closes it or dies.
+//   <report-pipe>   write end: one int32 start result.
 //
 // The supervisor's own current directory is neutral. A process's current
 // directory handle does not share delete, so a supervisor started in the
 // workspace would keep that workspace from being renamed for as long as it
 // lives; the specification carries the child's working directory instead.
-//   <report-pipe>   write end: one int32 start result.
 // Standard handles belong to the selected agent protocol and pass straight to
 // the child. No Qt, repository, credential, settings or network capability is
 // linked here.
@@ -131,19 +131,25 @@ namespace {
 
 	/// Terminates everything in the job and returns only once the job is
 	/// confirmed empty, by the completion-port message or the accounting count.
-	/// The guard is not released before this returns true.
-	[[nodiscard]] auto terminate_and_confirm_empty(const HANDLE aJob, const HANDLE aPort) -> bool
+	/// The guard is not released before this returns.
+	///
+	/// [[BPR-0825]]. A failed terminate or accounting query is retried, never
+	/// answered by returning: this supervisor's exit would release the guard
+	/// and fire kill-on-close at the same moment, which is the unguarded window
+	/// of the double kill. A supervisor that can never confirm emptiness keeps
+	/// the guard, so recovery sees a live owner and refuses rather than reclaims.
+	void terminate_and_confirm_empty(const HANDLE aJob, const HANDLE aPort) noexcept
 	{
-		if (::TerminateJobObject(aJob, static_cast<UINT>(Failure)) == FALSE) {
-			return false;
-		}
+		auto terminated = false;
 		for (;;) {
-			auto accounting = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION{ };
-			if (::QueryInformationJobObject(aJob, JobObjectBasicAccountingInformation, &accounting, sizeof(accounting), nullptr) == FALSE) {
-				return false;
+			if (!terminated) {
+				terminated = ::TerminateJobObject(aJob, static_cast<UINT>(Failure)) != FALSE;
 			}
-			if (accounting.ActiveProcesses == 0U) {
-				return true;
+			auto accounting = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION{ };
+			if (terminated
+				&& ::QueryInformationJobObject(aJob, JobObjectBasicAccountingInformation, &accounting, sizeof(accounting), nullptr) != FALSE
+				&& accounting.ActiveProcesses == 0U) {
+				return;
 			}
 			auto        bytes      = DWORD{ 0U };
 			auto        key        = ULONG_PTR{ 0U };
@@ -254,18 +260,18 @@ auto wmain(const int argc, wchar_t** const argv) -> int
 	}
 	if (::ResumeThread(childThread.get()) == std::numeric_limits<DWORD>::max()) {
 		const auto resumeError = ::GetLastError();
-		static_cast<void>(terminate_and_confirm_empty(job.get(), port.get()));
+		terminate_and_confirm_empty(job.get(), port.get());
 		static_cast<void>(report_start(report.get(), static_cast<std::int32_t>(resumeError)));
 		return Failure;
 	}
 	if (!report_start(report.get(), 0)) {
-		static_cast<void>(terminate_and_confirm_empty(job.get(), port.get()));
+		terminate_and_confirm_empty(job.get(), port.get());
 		return Failure;
 	}
 
 	const auto ownerGone = windows_handle{ ::CreateEventW(nullptr, TRUE, FALSE, nullptr) };
 	if (!ownerGone) {
-		static_cast<void>(terminate_and_confirm_empty(job.get(), port.get()));
+		terminate_and_confirm_empty(job.get(), port.get());
 		return Failure;
 	}
 	std::thread watcher{ watch_owner, lifetime.get(), ownerGone.get() };
@@ -277,7 +283,7 @@ auto wmain(const int argc, wchar_t** const argv) -> int
 		static_cast<void>(::GetExitCodeProcess(child.get(), &exitCode));
 	}
 	// A normal exit still ends any descendant, as the Unix group kill does.
-	const auto emptied = terminate_and_confirm_empty(job.get(), port.get());
+	terminate_and_confirm_empty(job.get(), port.get());
 	// Closing the lifetime pipe while the watcher is inside a synchronous
 	// ReadFile on it would block until that read returns, which it never does
 	// while the owner lives; this supervisor would then never exit and never
@@ -286,9 +292,6 @@ auto wmain(const int argc, wchar_t** const argv) -> int
 		static_cast<void>(::CancelSynchronousIo(watcher.native_handle()));
 	}
 	watcher.join();
-	if (!emptied) {
-		return Failure;
-	}
 	guard.reset();
 	return woke == WAIT_OBJECT_0 ? static_cast<int>(exitCode) : Failure;
 }
