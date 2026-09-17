@@ -77,6 +77,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_windows_profile_storage_startup_contract": "dos-volume-name",
     "application_profile_management_public_path": "dos-volume-name",
     "application_profile_startup_public_path": "dos-volume-name",
+    # BPR-0810: measured on JaegAW 2026-09-17. Contained, both fixtures stop at
+    # "FAILED: private desktop test root under the canonical storage policy",
+    # make_storage_root_owner_private refusing the package temp root exactly as
+    # the BPR-0806 profile rows do; both pass uncontained.
+    "application_profile_multi_window_public_path": "dos-volume-name",
+    "application_setup_destination_public_path": "dos-volume-name",
     "application_device_binding_restart": "dos-volume-name",
     "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
     "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",

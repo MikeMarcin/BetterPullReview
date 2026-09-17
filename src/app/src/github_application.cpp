@@ -8366,6 +8366,27 @@ namespace bpr::app {
 			if (Window != nullptr && Window->review_editor() != nullptr) {
 				auto* const editor = Window->review_editor();
 				editor->present(aReason);
+				// [[BPR-0810]]. The clear above drops the draft and the file
+				// receipt together, but a new line in the same file leaves that
+				// file's accepted ledger receipt exactly as it was, and no ledger
+				// publication follows to present it again. Presenting it here
+				// keeps Accept and Exclude, and every reader of the shown
+				// receipt, on the file's real state rather than an empty one.
+				if (aSelection.has_value()
+					&& aReason == qt::review_draft_editor_clear_reason::selection_cleared
+					&& SelectedDiffPublication.has_value()) {
+					auto receipt = std::optional<core::file_receipt>{ };
+					{
+						const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+						if (ReviewLedgerReceipt.has_value()
+							&& ReviewLedgerReceipt->File == SelectedDiffPublication->Request.File.File) {
+							receipt = ReviewLedgerReceipt;
+						}
+					}
+					if (receipt.has_value()) {
+						editor->present(*receipt);
+					}
+				}
 				if (aSelection.has_value() && ReviewMutationHost != nullptr) {
 					editor->present(ReviewMutationHost->capabilities());
 				}

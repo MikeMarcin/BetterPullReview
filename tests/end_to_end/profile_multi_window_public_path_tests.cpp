@@ -2,6 +2,7 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -719,12 +720,31 @@ auto main(int aArgc, char** aArgv) -> int
 	action(*windowB, "quitProfilesAction")->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "Quit drains all sessions and shared profile services");
 	desktop.reset();
-	std::ifstream     stream{ root / "logs/diagnostics.log" };
-	const std::string log{ std::istreambuf_iterator<char>{ stream }, { } };
-	const auto        started = log.find("op=application outcome=started");
-	const auto        stopped = log.find("op=application outcome=shutdown");
-	expect(started != std::string::npos && log.find("op=application outcome=started", started + 1U) == std::string::npos, "one profile services startup");
-	expect(stopped != std::string::npos && log.find("op=application outcome=shutdown", stopped + 1U) == std::string::npos, "one profile services shutdown");
+	// [[BPR-0701]] claims the diagnostics file where the file sink exists; Windows
+	// has none, deferred with the rest of RFC-BPR-0027 by [[BPR-0603]]. The
+	// adapter's typed status says which claim this platform makes, as
+	// application_profile_management_public_path does ([[BPR-0806]]).
+	const auto sinkStatus = [&] {
+		adapters::logging::quill_log probe{ root / "diagnostic-sink-probe" };
+		const auto                   status = probe.status();
+		probe.close();
+		return status;
+	}();
+#if defined(_WIN32)
+	expect(sinkStatus == application::diagnostic_log_status::unavailable, "Windows reports no diagnostics file sink");
+#else
+	expect(sinkStatus == application::diagnostic_log_status::available, "this platform reports its diagnostics file sink");
+#endif
+	if (sinkStatus != application::diagnostic_log_status::available) {
+		expect(!std::filesystem::exists(root / "logs/diagnostics.log"), "no diagnostics file is written where the platform has no file sink");
+	} else {
+		std::ifstream     stream{ root / "logs/diagnostics.log" };
+		const std::string log{ std::istreambuf_iterator<char>{ stream }, { } };
+		const auto        started = log.find("op=application outcome=started");
+		const auto        stopped = log.find("op=application outcome=shutdown");
+		expect(started != std::string::npos && log.find("op=application outcome=started", started + 1U) == std::string::npos, "one profile services startup");
+		expect(stopped != std::string::npos && log.find("op=application outcome=shutdown", stopped + 1U) == std::string::npos, "one profile services shutdown");
+	}
 	std::cout << "profile-multi-window-public-path:pass\n";
 	return EXIT_SUCCESS;
 }
