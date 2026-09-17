@@ -82,3 +82,38 @@ That contract is red on `linux-lane` until the reseal.
 **Status.** The Linux criteria are met. The card stays In Progress until
 macOS repeats the round trip and the composition contract, including the
 negative control.
+
+## macOS half; finished (dsp-003)
+
+Run on `build/r2-dev` built from `2842f484` plus BPR-0820's change, which
+contains `4b677d8b` (merged `48b6422b`). The compiled sources match main
+`866c5b90`. The runs used the ctest registration's macOS network-deny wrapper
+and environment. Logs are in `build/r2-logs/`.
+
+- `application_review_ledger_host` and
+  `application_review_ledger_composition_contract` pass 5 of 5 (the contract
+  35.5 to 36.3 s; `dsp3-0830-s1-ctest.log`).
+- `application_diff_workbench_public_path` passes 5 of 5, each run printing
+  `REVIEW_LEDGER_PRESENT_ON_ENTRY:0` and `REVIEW_LEDGER_OK`.
+- **Cross-process round trip.** Each run used a fresh canonical private
+  root, with `--github-fixture github-com --epoch-fixture-root R`, seed then
+  reuse. Seed printed `PRESENT_ON_ENTRY:0` and reuse printed
+  `PRESENT_ON_ENTRY:1`, 5 of 5, each with `REVIEW_LEDGER_OK`
+  (`dsp3-0830-s2-roundtrip.log`).
+- **Negative control.** Between seed and reuse, the `file_receipt` rows in
+  `<root>/state/v1/review-ledger.sqlite3` were deleted (1 to 0, with
+  `quick_check` ok). Reuse printed `PRESENT_ON_ENTRY:0` and
+  `REVIEW_LEDGER_OK`, 3 of 3 (`dsp3-0830-s3-negative-control.log`).
+
+**Limit.** An unforced control cannot tell the fix from the old code:
+Linux's base code also printed `:0` in its two unforced control runs. Only
+Linux's `lldb`-forced re-sample showed the old counter reporting a deleted
+receipt as present. That forced reproduction was not repeated on macOS. What
+macOS shows is that no run reports a missing receipt as present, and that a
+kept receipt is still found.
+
+**Seen along the way, not changed.** A `--epoch-fixture-root` spelled through
+a symbolic link (`/var/folders/…` instead of `/private/var/folders/…`) prints
+only `STARTUP_FAILED`, with no cause
+(`dsp3-0830-s2attempt1-noncanonical-*.log`). The storage root requires a
+canonical path (`profile_storage_root.cpp` ~53).
