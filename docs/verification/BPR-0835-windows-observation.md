@@ -90,3 +90,41 @@ In the full-agent line, `no second edge` changed from 0 to 1; `exact` is still
 
 No diagnosis beyond these lines is attempted here; the card's owner
 diagnoses the failure.
+
+## The Windows path comparison (task-20260917-win-private-parent)
+
+The base is `2699a47e1ccd8e9a820429fc3279899597120292`. Logs are under
+`build/logs/task-20260917-win-private-parent/`.
+
+**Measured.** A reverted diagnostic printed both sides of
+`helper-directory-is-snapshot-root`:
+
+- `launch.WorkingDirectory`:
+  `C:\Users\mikem\AppData\Local\Temp\better_pull_review_agent_finding_composition_public_path-KsuudP\data\mcp-snapshot\window-1-generation-1`
+- `aSnapshotRoot.string()`:
+  `C:/Users/mikem/AppData/Local/Temp/better_pull_review_agent_finding_composition_public_path-KsuudP\data\mcp-snapshot\window-1-generation-1`
+
+They name the same directory. The helper is launched in the native spelling,
+while the course's root keeps Qt's forward slashes from `QTemporaryDir::path()`
+for its prefix.
+
+**Change** (`tests/end_to_end/agent_finding_composition_public_path.cpp`, for
+the Mac run). The term keeps its name, `helper-directory-is-snapshot-root`, and
+now compares
+`std::filesystem::path{ launch.WorkingDirectory }.lexically_normal() == aSnapshotRoot.lexically_normal()`.
+That is lexical normalisation only, with no file-system access: on Windows it
+makes the separators agree, and on POSIX it compares the same components as
+before. The term `helper-directory-names-no-host` still reads the helper's
+string unchanged.
+
+**Results.** Each row ran twice on Windows:
+
+| Row | Run 1 | Run 2 |
+|---|---|---|
+| `application_agent_finding_composition_contract` | **Passed**, 7.79 s, `agent-finding-composition:pass` | **Passed**, 7.76 s, `agent-finding-composition:pass` |
+| `application_agent_finding_full_agent_contract` | **Passed**, 7.88 s, `agent-finding-full-agent:pass` | **Passed**, 7.73 s, `agent-finding-full-agent:pass` |
+
+Neither run printed an `agent-finding-composition-failure` line. Without the
+change, the same two rows failed four times out of four in
+`task-20260917-win-creation-descriptor` (the section above), on exactly this
+term.

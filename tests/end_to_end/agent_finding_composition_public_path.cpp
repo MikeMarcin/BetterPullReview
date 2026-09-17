@@ -198,7 +198,12 @@ namespace {
 			aTerms.require("helper-environment-names-in-order", namesInOrder),
 			aTerms.require(
 				"helper-directory-is-snapshot-root",
-				launch.WorkingDirectory == aSnapshotRoot.string()),
+				// [[BPR-0835]]. The same directory, compared as paths. The helper is
+				// launched in the native spelling, while the course's root keeps Qt's
+				// forward slashes on Windows; lexical normalisation makes the
+				// separators agree without resolving anything.
+				std::filesystem::path{ launch.WorkingDirectory }.lexically_normal()
+					== aSnapshotRoot.lexically_normal()),
 			aTerms.require("helper-executable-named", !launch.Executable.empty()),
 			aTerms.require(
 				"helper-directory-names-no-host",
