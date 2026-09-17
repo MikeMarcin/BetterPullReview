@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0814"
 title: "Concurrent capsule suites leave a write-once device attached"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P3"
