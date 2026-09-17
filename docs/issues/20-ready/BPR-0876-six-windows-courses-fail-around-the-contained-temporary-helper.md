@@ -76,3 +76,30 @@ of the helper swallowing a removal error on Windows.
   its negative controls still failing by name.
 - This card records that BPR-0854 item 1 did not cause these failures, so the
   helper is not blamed for them later.
+
+## Decomposed (dsp-006 scout): two causes, and only one is a containment question
+
+The containment rule is recorded once on [[BPR-0872]]. All six rows are
+contained today. They split cleanly:
+
+- **One row is a test-code fix the station can make alone.**
+  `tests/end_to_end/device_binding_relaunch_contract.py:103` calls
+  `os.chmod(root, 0o700)`, a POSIX gesture with no Windows meaning.
+  `scripts/contained_temporary_support.py:58-60`
+  (`inherits_parent_permissions()`) is the existing and already-correct idiom
+  for exactly this case, so the fix is local to the test file and needs no
+  `scripts/**` change. The helper's Windows path is otherwise sound: it creates
+  with no explicit mode, so the parent's `(I)(OI)(CI)(M)` container grant
+  inherits.
+- **Four exit-3 seed courses are a containment decision.** The cause is the
+  `std::filesystem::canonical` contained abort — vocabulary `dos-volume-name`.
+  [[BPR-0833]]'s integrator decision was explicit that *no* choice of parent
+  passes contained while the stores require `validate_ancestor_chain`, and
+  relaxing that walk is a product security change out of scope here. So pin
+  them uncontained; the precedent is `application_composition_capabilities_*`.
+
+**These do not block on [[BPR-0867]] or [[BPR-0868]].** 0867's `onexc` gap is
+latent — every machine in this run exceeds 3.12 — and 0868 is a diagnostic
+multiplier rather than a prerequisite: making the helper report a failed
+removal by name would have surfaced this card's single leak
+(`AC\Temp\bpr-0644-relaunch-...`) for free instead of by hand.
