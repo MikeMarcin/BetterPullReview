@@ -48,3 +48,34 @@ platform agnostic stuff out". It stays in Backlog behind the macOS and
 platform-agnostic cards of the pack (BPR-0725 through BPR-0729, BPR-0734
 and the Home cards BPR-0732 and BPR-0733); the [BPR-0593](BPR-0593-close-rfc-0018.md)
 closeout records the order.
+
+## Linux station inventory, 2026-09-17
+
+Station `bpr-linux` recorded the inventory during task
+`task-20260917-lnx-evidence` (`dsp-001-r2`), in
+[BPR-0731's Linux Settings inventory](../../verification/BPR-0731-linux-settings-inventory.md),
+with captures
+[`linux-app-release.json`](../../verification/BPR-0731-linux-settings-inventory/linux-app-release.json)
+and [`linux-dev.json`](../../verification/BPR-0731-linux-settings-inventory/linux-dev.json).
+
+- **Builds.** Product source `9bbe3604` (at or after `d1ba791f`), GCC 15.2.
+  - The tests-disabled `app-release` image's SHA-256 is `da30fc69…f058`.
+  - The `dev` image's SHA-256 is `09c815c4…a563`.
+- **Capture.** An agent read the AT-SPI tree of each image on the WSLg display
+  (Qt Wayland), one verified sidebar click per category. All seven categories
+  are present in the same order in both builds.
+- **Result.** Per-category visible node counts are 6, 28, 66, 334, 12, 15 and
+  13 in both builds, with **zero differing nodes**. The full walks including
+  hidden nodes are identical too.
+  - No platform capability row is needed, and no defect was found.
+  - Against BPR-0730's Windows capture, the only differences are values: Qt on
+    Unix names combo boxes by their current text, and the Appearance page shows
+    Light here and Dark there.
+
+The first acceptance point is met on Linux. Linking this inventory from
+BPR-0593's AC-11 ledger row is still to do. It is a BPR-0593 edit, which this
+dispatch leaves to main. No person needed to look, so no attended candidate was
+prepared.
+
+The card was not moved on the lane: a move rewrites links in BPR-0593 and
+BPR-0683.
