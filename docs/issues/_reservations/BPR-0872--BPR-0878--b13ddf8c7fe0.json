@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0872",
+    "BPR-0873",
+    "BPR-0874",
+    "BPR-0875",
+    "BPR-0876",
+    "BPR-0877",
+    "BPR-0878"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "",
+  "created": "2026-09-17T21:20:22.624228+00:00",
+  "base": "4487277bbb6654c233541ac46e8b2f1e1c391ada"
+}
