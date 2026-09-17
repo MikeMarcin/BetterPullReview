@@ -126,3 +126,31 @@ fixture README and `docs/verification/fixture-catalog.md` describe both rows.
   `architecture_boundaries` and the documentation gate pass.
 
 **Still open.** The Linux run of both rows.
+
+## Linux runs at the merged head (dsp-005, bpr-linux/int-12)
+
+Station `bpr-linux` (JaegAW, WSL2), branch `linux-lane`, at
+`754d05387286b201d2afb13757cd894bccfddcbd` — the merged head, equal to `main`
+— on a clean tree, after a stock `cmake --preset dev --fresh` configure and a
+`--clean-first` build that was warning-clean under GCC 15.2.0. Each row was
+its own serial run, `ctest --test-dir build/dev -j1 -V -R '^<name>$'`, from
+18:51:50Z. The Secret Service `login` collection read `(<false>,)` before the
+group. Both rows are offscreen by registration and, on Linux, also carry
+`QT_STYLE_OVERRIDE=Windows`.
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `application_unavailable_diff_public_path` | Pass | 3.82 s | `UNAVAILABLE_DIFF_COMPOSED_OK` |
+| `application_approximate_diff_public_path` | Pass | 3.69 s | `APPROXIMATE_DIFF_COMPOSED_OK` |
+
+So both halves of the acceptance hold on Linux: the unavailable course proves
+the segment overflow with `MaximumSegments = 2`, entering Read through the
+strip's public modality action, and the new approximate course covers the
+alignment path BPR-0719 left uncovered. Linux is faster than the macOS
+integrator here (3.82 s and 3.69 s against 14.7-15.5 s and 13.0-13.3 s); both
+run well inside the rows' 120 s timeout.
+
+Each log carries four `This plugin does not support propagateSizeHints()`
+lines. That is the offscreen Qt platform plugin, not a product diagnostic, and
+it appears on every offscreen public-path row on this station. The run record
+is in `docs/verification/dsp4-linux-confirmation.md`.

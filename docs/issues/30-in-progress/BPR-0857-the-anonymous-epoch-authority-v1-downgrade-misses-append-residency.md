@@ -65,3 +65,24 @@ other index, trigger or view is left behind.
 `sqlite_anonymous_epoch_authority` and `sqlite_epoch_catalog_storage_contract`
 pass on macOS (`build/r2-logs/dsp4-int3-ctest.log`). Linux still has to run
 them.
+
+## Linux runs at the merged head (dsp-005, bpr-linux/int-12)
+
+Station `bpr-linux` (JaegAW, WSL2), branch `linux-lane`, at
+`754d05387286b201d2afb13757cd894bccfddcbd` — the merged head, equal to `main`
+— on a clean tree, after a stock `cmake --preset dev --fresh` configure and a
+`--clean-first` build that was warning-clean under GCC 15.2.0. Each row was
+its own serial run, `ctest --test-dir build/dev -j1 -V -R '^<name>$'`, from
+18:51:49Z. The Secret Service `login` collection read `(<false>,)` before the
+group.
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `sqlite_anonymous_epoch_authority` | Pass | 0.24 s | `sqlite-anonymous-epoch-authority-tests:pass` |
+| `sqlite_epoch_catalog_storage_contract` | Pass | 0.22 s | `sqlite-epoch-catalog-storage-tests:pass` |
+
+Both rows of this card's acceptance now pass on Linux as well as macOS: the
+`append_residency` drop in `downgrade_to_v1` and the three version assertions
+raised to 7 are confirmed on a second platform, and the neighbouring storage
+contract is undisturbed. The run record is in
+`docs/verification/dsp4-linux-confirmation.md`.

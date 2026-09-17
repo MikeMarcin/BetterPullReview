@@ -1,6 +1,136 @@
 # dsp-004 Linux confirmation runs
 
-## Current frontier
+> This file was opened by `dsp-004` and keeps its name. The section directly
+> below records a later dispatch, `dsp-005`; each section names its own
+> dispatch.
+
+## Current frontier (dsp-005, bpr-linux/int-12)
+
+- **Binding.** Run `run-20260916-stations`, dispatch `dsp-005` (station
+  dispatch `bpr-linux/int-12`), mandate r2, task
+  `task-20260917-lnx-merged-head-runs`, reply to `bpr-main-mac`. Station
+  `bpr-linux` (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`, authority
+  `lane-commit`. Envelope base and lane head
+  `754d05387286b201d2afb13757cd894bccfddcbd`, which is `main` at the merged
+  head. Expiry 2026-09-18T08:00:00Z.
+- **Dispatch correction.** The envelope arrived naming `dsp-004`. The project
+  integrator corrected it mid-task: `dsp-004` ended at main `85f47bde` and
+  handed off, so this is `dsp-005`. Every heading, card evidence section and
+  `metadata.dispatch` value written for this task says `dsp-005`, and no
+  commit of this task carries `dsp-004`.
+- **Scope.** Evidence only. The Linux runs of the rows main fixed on macOS,
+  of this station's own three cards at the merged head, and of the
+  conditional-branch gate. No product file, RFC or script is edited, no card
+  changes status or lane, and no card outside the envelope's list is touched.
+  `id_reservations` is empty, so no card is minted.
+- **State.** Steps 1, 2, 3 and 4 are complete. The stock `dev` build is
+  warning-clean, and all eighteen rows pass, including
+  `conditional_branch_identifiers`, which was the last red of [[BPR-0854]].
+- **Commands.** None is active. No child agent ran.
+- **Logs.** `build/r2-logs/dsp5-*` in this checkout (`dsp4-step1-*.log` for
+  the build, `dsp5-<row>.log` and `dsp5-step{2,3,4}.summary` for the rows).
+  `build/` is gitignored, so none is committed; the results are transcribed
+  onto the cards and here.
+
+## The stock `dev` build at the merged head (step 1, dsp-005)
+
+An independent check of [[BPR-0862]]'s reformat of seventeen files, on a
+different compiler from the one that made it. Two of those seventeen were not
+whitespace-only: `server_card.hpp` moved within `workbench_window.hpp`'s
+include block, and `<QPushButton>` within
+`review_submission_composition_public_path.cpp`'s. A full clean build is what
+decides whether both headers are genuinely self-contained, because a header
+that had been leaning on an earlier include in the block fails to compile once
+it is reordered.
+
+Stock `dev` preset, no flag overrides, at
+`754d05387286b201d2afb13757cd894bccfddcbd`, GCC 15.2.0 (Ubuntu 15.2.0-16ubuntu1),
+CMake 4.4.2, Ninja 1.13.2, 20 hardware threads.
+
+| Stage | Command | Result | Time |
+|---|---|---|---|
+| Configure | `cmake --preset dev --fresh` | Exit 0 | 6.96 s (18:48:53Z-18:49:00Z) |
+| Build | `cmake --build --preset dev --clean-first` | Exit 0, 1253 of 1253 steps | 2 m 15.70 s (18:49:00Z-18:51:16Z) |
+
+`--clean-first` removed 2284 built files before the build, so all 1253 steps
+are real compiles and links, not a no-op over the previous tree.
+
+**Warning-clean, with counts.** The build log holds **0 lines matching
+`warning:`, 0 matching `error:` and 0 matching `note:`**, and no occurrence of
+the word "warning" in any case. There is no diagnostic to quote. The project
+compiles its own translation units with the preset's author, deprecation and
+policy warnings promoted to errors, so a configure-time regression would also
+have stopped the run.
+
+Both reordered files were compiled from scratch in this build, so the check is
+real rather than inherited from a cached object:
+
+- `workbench_window.cpp.o`, which is the translation unit that includes the
+  reordered `workbench_window.hpp`, at step 934 of 1253;
+- `review_submission_composition_public_path.cpp.o` at step 1078 of 1253.
+
+Both compiled with no diagnostic. On GCC 15.2 the two moved includes are
+therefore self-contained, and [[BPR-0862]]'s reformat is confirmed on Linux.
+
+## How the dsp-005 rows ran
+
+Each row is its own serial run,
+`ctest --test-dir build/dev -j1 -V -R '^<name>$'`, at
+`754d05387286b201d2afb13757cd894bccfddcbd` on a clean tree. Every name was
+confirmed registered exactly once with `ctest -N -R` first. The Qt rows are
+**offscreen by registration**, not by an exported variable: the ctest row
+carries `QT_QPA_PLATFORM=offscreen`, and on Linux the public-path fixture rows
+also carry `QT_STYLE_OVERRIDE=Windows`
+(`tests/end_to_end/CMakeLists.txt` ~1086-1092, `bpr_public_path_fixture_environment`).
+Both are visible in each row's log under "Environment variables". The Secret
+Service `login` collection was re-checked before each course group and read
+`(<false>,)` every time.
+
+## Results: the four rows main fixed on macOS (step 2, dsp-005)
+
+Group started 18:51:49Z, `login` collection `(<false>,)`, 1-minute load
+average 12.06 falling to 9.76 — the tail of the build that had just finished,
+still far below the ~15 spurious-failure threshold [[BPR-0860]] records.
+
+| Row | Card | Result | Time | Marker |
+|---|---|---|---|---|
+| `sqlite_anonymous_epoch_authority` | [[BPR-0857]] | Pass | 0.24 s | `sqlite-anonymous-epoch-authority-tests:pass` |
+| `sqlite_epoch_catalog_storage_contract` | [[BPR-0857]] | Pass | 0.22 s | `sqlite-epoch-catalog-storage-tests:pass` |
+| `application_unavailable_diff_public_path` | [[BPR-0858]] | Pass | 3.82 s | `UNAVAILABLE_DIFF_COMPOSED_OK` |
+| `application_approximate_diff_public_path` | [[BPR-0858]] | Pass | 3.69 s | `APPROXIMATE_DIFF_COMPOSED_OK` |
+| `application_native_notification_attended_contract` | [[BPR-0861]] | Pass | 3.72 s | `NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK` |
+| `application_workbench_composition_contract` | [[BPR-0860]] | Pass | 2.80 s | `WORKBENCH_COMPOSITION_CONTRACT_OK` |
+
+### [[BPR-0860]]: the two questions the Linux run was asked
+
+**(a) `splitter_widgets` is 4 under `QT_STYLE_OVERRIDE=Windows`.** The row
+passed, and for this probe a pass is a direct measurement of that number
+rather than an inference about it. The `awaiting_files_drawer` phase refuses
+to take its baselines and perform the drag until
+`sizes.size() == 4 && sizes[1] > 0`, with both the window and the host
+reporting the files drawer expanded and `outstanding_requests() == 0`
+(`src/app/src/github_application.cpp` ~14986-14996); anything else re-waits
+and then stalls by name. The probe went on to drag and to satisfy every
+original width assertion, including the strict `== base + 1` dispatch and
+persisted-layout counts, so the splitter reported exactly four widgets with a
+non-zero files width at that moment. The hidden-drawer-still-occupies-a-slot
+expectation holds on the Linux Windows-style path.
+
+**(b) No stall term fired.** None of
+`WORKBENCH_FILES_DRAWER_EXPAND_STALLED`, `WORKBENCH_DRAWER_WIDTH_DISPATCH_STALLED`
+or `WORKBENCH_DRAWER_WIDTH_STORE_STALLED` appears in the log, and there is no
+`RUN_BUDGET_EXPIRED`. The row finished in 2.80 s against a 120 s row timeout
+and a 40 s run budget, so it did not come near either bound. One run, as the
+envelope asked; no bisect was needed.
+
+The probe's own marker lines are not in the ctest log on a passing run: the
+contract's CMake script captures the probe's output into `probe_output` and
+prints it only when the process fails
+(`tests/end_to_end/application_workbench_composition_contract.cmake` ~74-100).
+That is why the table above quotes the contract's marker and the stall line is
+quoted only where it would have fired.
+
+## Binding of the BPR-0851/sweep runs (int-10)
 
 - **Binding.** Run `run-20260916-stations`, dispatch `dsp-004` (station
   dispatch `bpr-linux/int-10`), mandate r2, task
