@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0843"
 title: "A non-canonical epoch fixture root prints STARTUP_FAILED without a cause"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-003 BPR-0830 macOS half","found_at":"866c5b906309f7b45cf9ed46b04d07662d8fcb75","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 a non-canonical fixture root's run names the refusal's cause","outcome":"pass","revision":"0c66037f03a3781000218a3d3544d8c6fcd9e38d","evidence":{"kind":"command","detail":"application_epoch_fixture_noncanonical_root_cause requires stdout STARTUP_FAILED and stderr STARTUP_FAILED_CAUSE: startup_failure=registry; Linux 5/5 (fails with the main.cpp change reverted); macOS 3/3 at 0c58092e (build/r2-logs/dsp3-int11-ctest.log, dsp3-int11-0843-*.log)."}},{"criterion":"AC2 the courses that match STARTUP_FAILED still pass on macOS","outcome":"pass","revision":"0c58092e3669f6fb77e09d88d0586995b9230b44","evidence":{"kind":"command","detail":"Inventory: no course, regex, script or packaging matches STARTUP_FAILED; stdout verdict unchanged. macOS epoch persistence, round-trip and composition contracts pass after the reseal (dsp3-int11-*)."}}]
 ---
 
 # BPR-0843: A non-canonical epoch fixture root prints STARTUP_FAILED without a cause
