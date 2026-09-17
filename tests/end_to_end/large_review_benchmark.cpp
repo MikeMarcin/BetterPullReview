@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/github_public_path_fixture.hpp"
 
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
@@ -813,6 +814,25 @@ namespace bpr::e2e::large_review {
 		if (!data.isValid()) {
 			return EXIT_FAILURE;
 		}
+		auto dataRoot = std::filesystem::path{ data.path().toStdString() };
+#if !defined(_WIN32)
+		// [[BPR-0856]]. The application creates its agent workspace neighbourhood
+		// beside its data root, and only under a parent this user owns and nobody
+		// else can write. Under any other parent workspace recovery refuses, and
+		// shutdown reports a cleanup failure. The macOS runner's `TMPDIR` is such
+		// a parent. Linux's network sandbox sets none, and shared `/tmp` is not
+		// one. So off Windows the data root sits in the private temporary
+		// directory rather than being it, as in [[BPR-0812]]'s agent courses, and
+		// the neighbourhood is removed with it. Windows keeps its temporary folder.
+		dataRoot /= "data";
+		std::error_code dataError;
+		if (!adapters::sqlite::make_storage_root_owner_private(dataRoot.parent_path())
+			|| !std::filesystem::create_directory(dataRoot, dataError) || dataError
+			|| !adapters::sqlite::make_storage_root_owner_private(dataRoot)) {
+			std::cerr << "large-review-benchmark-failed: private data root parent\n";
+			return EXIT_FAILURE;
+		}
+#endif
 		benchmark_report report;
 		report.UnavailableCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
 		report.LoadedCloseCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
@@ -843,7 +863,7 @@ namespace bpr::e2e::large_review {
 			report.Style                      = qtApplication.style()->objectName().toStdString();
 			report.BuildConfiguration         = BPR_BENCH_BUILD_CONFIGURATION;
 			report.LogicalProcessors          = QThread::idealThreadCount();
-			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } };
+			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ argv[1] } };
 			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse;
 			if (report.UnavailableCourse) {
 				// Retain the production matrix ceiling and disable only its optional
