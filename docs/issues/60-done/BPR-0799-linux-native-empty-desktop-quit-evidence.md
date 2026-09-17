@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0799"
 title: "Linux: observe the native empty-desktop quit"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0033"]
 depends_on: []
 platforms: ["linux"]
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"RFC-BPR-0033 B1, carried as not run since the profile-chooser milestone","acceptance":["B1"]}
+acceptance: [{"criterion":"On target-native Linux, closing the last window of the last open profile reaches quiescence through the existing drain and Quit path with exit code 0, and presents no chooser on the way out","outcome":"pass","revision":"1c6eaf21","evidence":{"kind":"observation","detail":"On WSLg (Wayland on Weston), the tests-disabled app-release image sha256 9b9ef069…f4a ran with a fresh XDG data root. Under umask 0002, caption closes (WM_SYSCOMMAND/SC_CLOSE to the RAIL window, no kill) exited 0 three times, 40-47 ms after the close, and File > Quit exited 0. Under umask 0022, two caption closes exited 0. Each run logged op=application outcome=shutdown. A RAIL window watch saw no Profiles or other BetterPullReview window after any close. The pre-fix image under umask 0002 exits 1. Logs: task-20260917-lnx-build/native/course-candidate2-umask002.json, course-candidate2-umask022.json and course-0817-prefix-umask002.json."}},{"criterion":"The restore record distinguishes that close from an explicit Quit: the next launch opens a window whose identity differs from the explicitly closed one","outcome":"pass","revision":"1c6eaf21","evidence":{"kind":"observation","detail":"Same umask 0002 native course, read from profile-registry.sqlite3 after each exit. Caption closes dropped the row, and the next launch opened a new identity: window 1, then window 2. File > Quit kept window 3 at generation 1, and the next launch restored window 3 at generation 2."}},{"criterion":"native_empty_desktop_policy() is observed answering quit on the target, rather than assumed from the #if","outcome":"pass","revision":"1c6eaf21","evidence":{"kind":"command","detail":"ctest --preset dev -R application_profile_management_public_path on the stock GCC 15.2 dev tree passed in 2.88 s with profile-management-public-path:pass (task-20260917-lnx-build/focused-0817.ctest.log). It ran under a root-owned 1777 /tmp with TMPDIR unset. Line 269 asserts app::native_empty_desktop_policy()() == quit on non-Apple platforms. Only that native assertion is cited; the course's injected-policy close section is not."}}]
 ---
 
 # BPR-0799: Linux: observe the native empty-desktop quit
@@ -111,3 +112,34 @@ bpr-linux observed B1 at `17f495fe` on WSL2 Ubuntu with WSLg. The full record is
 
 The card stays Blocked until [[BPR-0817]] is fixed. Criterion 1 must then be
 rerun under umask `0002`.
+
+## Linux rerun after BPR-0817, 2026-09-17 (task-20260917-lnx-build, dispatch dsp-001-r2)
+
+bpr-linux reran B1 on the stock, tests-disabled `app-release` image of
+`1c6eaf21` (SHA-256 `9b9ef069…f4a`). That image includes
+[[BPR-0816]]'s GCC fixes and [[BPR-0817]]'s owner-private data root. The run
+used the WSLg display, where Qt chose Wayland. The full record is
+[the Linux evidence](../../verification/BPR-0799-linux-native-empty-desktop-quit.md),
+under "Rerun after BPR-0817".
+
+- **Criterion 1: pass.** The process was never killed.
+  - **Umask 0002, fresh data root.** Three caption closes and one File > Quit
+    each exited 0; the closes exited 40–47 ms after the close was posted. No
+    chooser window appeared, and each run logged `outcome=shutdown`.
+  - **Umask 0022.** Two caption closes each exited 0, 39–42 ms after the close.
+  - **Folders.** The application created the data root's parent at 0700, and
+    the agent workspace neighbourhood exists.
+  - **Pre-fix control.** The same umask 0002 course on the pre-fix image exits
+    1.
+- **Criterion 2: pass.**
+  - Caption closes drop the row, and the next launch gets a new identity:
+    1, then 2.
+  - File > Quit keeps window 3.
+  - The next launch restores 3 at generation 2.
+- **Criterion 3: pass.** `application_profile_management_public_path` asserts
+  `native_empty_desktop_policy()() == quit` on Linux. It now passes under the
+  stock `/tmp`: root-owned, 1777, `TMPDIR` unset. The close and relaunch section
+  of that course is injected-policy evidence and is not cited.
+- **Residual, carried by [[BPR-0817]].** An install whose
+  `$XDG_DATA_HOME/BetterPullReview` already existed as 0775 still exits 1 on
+  close. The owner has not yet decided whether that should change.
