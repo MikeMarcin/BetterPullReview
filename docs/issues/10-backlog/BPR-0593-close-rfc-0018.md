@@ -12,6 +12,30 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-005, mandate r4): in progress
+
+Dispatch dsp-005 took over from dsp-004 at main `85f47bde`. The dsp-004
+protocol and hazards below still hold, and its next-objective list is this
+dispatch's order of work. The `project-integrator` lease is **held** by
+dsp-005 (a wrapped `sleep` process; release it at handoff).
+
+**Opening state, verified live.** Main `85f47bde`, clean and equal to
+`origin/main`. `origin/windows-lane` `20d99914`, an ancestor of main:
+`bpr-win` has not yet pushed [[BPR-0653]]. `origin/linux-lane` `d091ac3d`,
+three commits ahead of main (`c64e745c` claim, `b841dfb5` and `648e2140` for
+[[BPR-0856]], then `d091ac3d` claiming [[BPR-0855]]) — `bpr-linux` is still
+inside `task-20260917-lnx-sweep-fixes`. No BetterPullReview process is
+running; the owner's app is not open.
+
+**In flight on the Mac.** [[BPR-0860]] is claimed at `84f79470` and owned by
+one `rfc-worker`, which holds `build/r2-dev` and
+`src/app/src/github_application.cpp` exclusively. [[BPR-0859]] follows it
+serially, because both cards' probes live in that same file and both need the
+same build directory. Logs: `build/r2-logs/dsp5-*`.
+
+**r4 stable point: not reached.** Both stations are working and the full
+suite is not green on either platform.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-004, mandate r4): handoff at an integrated boundary
 
 Dispatch dsp-004 ends here, and a fresh integrator takes over. The protocol
