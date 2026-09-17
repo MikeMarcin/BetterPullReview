@@ -7741,23 +7741,43 @@ namespace bpr::app {
 			if (!exact_current()) {
 				return false;
 			}
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-			const auto consent = QMessageBox::warning(
-				Window.get(), QStringLiteral("Confirm GitHub CLI publication"),
-				QStringLiteral("%1 on %2 for %3/%4#%5 as %6?\n\n"
-							   "BetterPullReview will use your configured gh account for this write. "
-							   "The active gh account can switch outside this app, even after the identity check. "
-							   "Executable, configuration, certificate, redirect and helper-process behavior remain trusted as configured on this machine. "
-							   "This confirmation applies only to this publication.")
-					.arg(aOperation)
-					.arg(QString::fromStdString(std::string{ aTarget.Hostname.value() }))
-					.arg(QString::fromStdString(aTarget.Repository.Owner))
-					.arg(QString::fromStdString(aTarget.Repository.Name))
-					.arg(aTarget.Number.value())
-					.arg(QString::fromStdString(aActor.Login)),
-				QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-			return consent == QMessageBox::Yes && exact_current();
-#elif defined(BPR_BUILD_TESTING)
+			// [[BPR-0797]]. Asked at run time, and compiled into both graphs,
+			// for exactly the reason the label and the factory above are. This
+			// gate used to be `!BPR_BUILD_TESTING`, which is on in every build
+			// made with this project's CMake default. That was harmless only
+			// while the same define also withheld `opted_in_cli_transport_factory`,
+			// because a session that could not read over `gh` could never reach a
+			// write over it either. Moving the factory to a run-time question
+			// without moving this one would have left a person's own build
+			// composing the real CLI transport with its per-publication
+			// confirmation compiled out, which is [[BPR-0786]]'s first criterion
+			// -- "read opt-in alone cannot publish" -- turned false in the one
+			// build anybody actually runs.
+			//
+			// A run inside the automated test boundary composes a factory whose
+			// `supports_cli()` is false, so it cannot hold a CLI session and never
+			// arrives here; the unconditional `true` below stays its answer, and no
+			// unattended row is handed a modal dialog it has nobody to answer with.
+#if defined(__APPLE__)
+			if (Profile->cli_read_offered_here()) {
+				const auto consent = QMessageBox::warning(
+					Window.get(), QStringLiteral("Confirm GitHub CLI publication"),
+					QStringLiteral("%1 on %2 for %3/%4#%5 as %6?\n\n"
+								   "BetterPullReview will use your configured gh account for this write. "
+								   "The active gh account can switch outside this app, even after the identity check. "
+								   "Executable, configuration, certificate, redirect and helper-process behavior remain trusted as configured on this machine. "
+								   "This confirmation applies only to this publication.")
+						.arg(aOperation)
+						.arg(QString::fromStdString(std::string{ aTarget.Hostname.value() }))
+						.arg(QString::fromStdString(aTarget.Repository.Owner))
+						.arg(QString::fromStdString(aTarget.Repository.Name))
+						.arg(aTarget.Number.value())
+						.arg(QString::fromStdString(aActor.Login)),
+					QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+				return consent == QMessageBox::Yes && exact_current();
+			}
+#endif
+#if defined(BPR_BUILD_TESTING)
 			static_cast<void>(aOperation);
 			return true;
 #else
@@ -9456,22 +9476,31 @@ namespace bpr::app {
 						if (profile->authentication_transport()
 							== application::github_authentication_transport::
 								github_cli) {
-#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-							const auto consent = QMessageBox::warning(
-								Window.get(), QStringLiteral("Use configured GitHub CLI"),
-								QStringLiteral(
-									"BetterPullReview will use your installed gh for reads on %1. "
-									"The active gh account can change outside this app. "
-									"gh may follow redirects and use your CLI configuration, "
-									"certificates and executable. For Git objects, gh may launch Git and its own shell credential helper. "
-									"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
-									"File writes are restricted, but executable identity and external account-change races remain. "
-									"Git-object reads require the qualified gh/Git versions and fit a 32 MiB pack limit. Each publication requires a separate write confirmation. "
-									"Connecting for reads does not authorize publishing.")
-									.arg(QString::fromStdString(std::string{ profile->hostname() })),
-								QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-							if (consent != QMessageBox::Yes) {
-								return;
+						// [[BPR-0797]]. Run-time, for the same reason and
+						// with the same consequence if it had been left
+						// behind: this build offers the row labelled "uses
+						// your gh sign-in", so it owes the reviewer the
+						// trust warning that says what accepting it means.
+						// A run inside the boundary composes no factory that
+						// can serve a CLI read, so it never reaches here.
+#if defined(__APPLE__)
+							if (Profile->cli_read_offered_here()) {
+								const auto consent = QMessageBox::warning(
+									Window.get(), QStringLiteral("Use configured GitHub CLI"),
+									QStringLiteral(
+										"BetterPullReview will use your installed gh for reads on %1. "
+										"The active gh account can change outside this app. "
+										"gh may follow redirects and use your CLI configuration, "
+										"certificates and executable. For Git objects, gh may launch Git and its own shell credential helper. "
+										"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
+										"File writes are restricted, but executable identity and external account-change races remain. "
+										"Git-object reads require the qualified gh/Git versions and fit a 32 MiB pack limit. Each publication requires a separate write confirmation. "
+										"Connecting for reads does not authorize publishing.")
+										.arg(QString::fromStdString(std::string{ profile->hostname() })),
+									QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+								if (consent != QMessageBox::Yes) {
+									return;
+								}
 							}
 #endif
 							DeviceHost->release_refresh_authority();
