@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0834"
 title: "Two epoch courses fail at startup on Windows before any step"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-hardening new defect","found_at":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 both courses pass uncontained on the Windows station, each contained and passing or pinned with a measured reason","outcome":"pass","revision":"aedf471f864f23fb8c31aed2c217fa400056315d","evidence":{"kind":"command","detail":"bpr-win: startup_failure=5 (registry) named; cause CPython mkdir(mode=0o700) explicit SYSTEM/Administrators/OWNER RIGHTS entries; uncontained portable 90.65 s EPOCH_PORTABLE_TWO_CATALOGUES_OK:3 and ordinary 31.21 s EPOCH_ORDINARY_RECREATED_OK:1; contained measured STARTUP_FAILED startup_failure=5 and pinned dos-volume-name; manifest TEST_NETWORK_ISOLATION_OK:configured=357 with zero findings."}},{"criterion":"AC2 they still pass on macOS","outcome":"pass","revision":"013d2036018ed608c54e1ae5dc1c19b904e327cc","evidence":{"kind":"command","detail":"Both pass on macOS at 013d2036 (70.19 s and 231.85 s; build/r2-logs/dsp3-int5-ctest.log)."}}]
 ---
 
 # BPR-0834: Two epoch courses fail at startup on Windows before any step
