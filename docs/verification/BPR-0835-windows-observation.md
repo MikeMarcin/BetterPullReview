@@ -62,3 +62,31 @@ therefore one the line does not print. In the full-agent course, `exact` and
 
 This observation adds no diagnosis beyond these lines; the card's owner
 diagnoses the failure.
+
+## Rerun after the course fix `3cc2ac48` (task-20260917-win-creation-descriptor)
+
+The base is `31fff50675a71bc2c5ce55857c72e57dc36933df`, which contains
+`3cc2ac48`. The windows-dev tree was fully rebuilt; the only other change on
+top is [[BPR-0833]]'s Windows storage-root creation (`aa3c6ef1`), which the
+course does not reach through a different path. Each row ran twice. Logs:
+`build/logs/task-20260917-win-creation-descriptor/ctest-bpr0835-1.log` and
+`-2.log`.
+
+| Row | Run | Result | Lines |
+|---|---|---|---|
+| `application_agent_finding_composition_contract` | 1 | **Failed** | `agent-finding-composition-failure:positive-evidence failed=helper-directory-is-snapshot-root`, `agent-finding-positive-evidence:1:1:1:1:1:1:0:1:0:0` |
+| `application_agent_finding_composition_contract` | 2 | **Failed** | identical |
+| `application_agent_finding_full_agent_contract` | 1 | **Failed** | `agent-finding-composition-failure:positive-evidence failed=helper-directory-is-snapshot-root`, `agent-finding-positive-evidence:1:1:1:1:1:1:0:1:0:0`, `agent-finding-full-agent:0:1:802982:0:0:0` |
+| `application_agent_finding_full_agent_contract` | 2 | **Failed** | identical |
+
+The two runs of each row are identical.
+
+With the course fix the failure is now named: `helper-directory-is-snapshot-root`.
+In `tests/end_to_end/agent_finding_composition_public_path.cpp` that term is
+the exact string comparison `launch.WorkingDirectory == aSnapshotRoot.string()`.
+
+In the full-agent line, `no second edge` changed from 0 to 1; `exact` is still
+0.
+
+No diagnosis beyond these lines is attempted here; the card's owner
+diagnoses the failure.
