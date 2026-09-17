@@ -194,13 +194,13 @@ namespace {
 		application::workbench_layout_settings Stored{ };
 		// [[BPR-0783]]. The profile's defaults record is this port scoped to a
 		// profile with no window: the shape that must never carry a Home view.
-		bool                                   ProfileScoped = false;
-		core::bpr_window_id                    Window{ };
-		bool                                   Available = true;
-		std::size_t                            Loads     = 0U;
-		std::size_t                            Stores    = 0U;
-		std::vector<bool>                      LoadStopObserved;
-		std::vector<bool>                      StoreStopObserved;
+		bool                ProfileScoped = false;
+		core::bpr_window_id Window{ };
+		bool                Available = true;
+		std::size_t         Loads     = 0U;
+		std::size_t         Stores    = 0U;
+		std::vector<bool>   LoadStopObserved;
+		std::vector<bool>   StoreStopObserved;
 	};
 
 	class recording_projections final : public application::workbench_projection_port

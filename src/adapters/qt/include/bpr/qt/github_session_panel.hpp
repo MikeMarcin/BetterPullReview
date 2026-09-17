@@ -175,21 +175,21 @@ namespace bpr::qt {
 		QAction* OpenAction    = nullptr;
 		QAction* RefreshAction = nullptr;
 
-		std::optional<core::host_profile_id>                   ActiveProfile;
-		std::optional<core::host_profile_id>                   SelectedProfile;
+		std::optional<core::host_profile_id>                  ActiveProfile;
+		std::optional<core::host_profile_id>                  SelectedProfile;
 		std::optional<application::github_session_projection> Session;
-		core::github_capabilities                              Capabilities;
-		application::github_rate_limits_projection             RateLimits;
-		application::public_preview_presentation               PublicPreview;
-		std::uint64_t                                          PublicPreviewNow = 0;
-		QString                                                AccountText;
-		QString                                                StatusText;
-		QString                                                DiagnosticText;
-		std::optional<core::github_reason_code>                LastDiagnosticReason;
-		bool                                                   LastDiagnosticHasHostDetail = false;
-		bool                                                   ConnectCommandEnabled       = true;
-		core::github_reason_code                               ConnectDisabledReason       = core::github_reason_code::none;
-		core::github_status                                    CurrentStatus               = core::github_status::no_profile;
+		core::github_capabilities                             Capabilities;
+		application::github_rate_limits_projection            RateLimits;
+		application::public_preview_presentation              PublicPreview;
+		std::uint64_t                                         PublicPreviewNow = 0;
+		QString                                               AccountText;
+		QString                                               StatusText;
+		QString                                               DiagnosticText;
+		std::optional<core::github_reason_code>               LastDiagnosticReason;
+		bool                                                  LastDiagnosticHasHostDetail = false;
+		bool                                                  ConnectCommandEnabled       = true;
+		core::github_reason_code                              ConnectDisabledReason       = core::github_reason_code::none;
+		core::github_status                                   CurrentStatus               = core::github_status::no_profile;
 
 		github_session_panel_statistics Statistics;
 	};

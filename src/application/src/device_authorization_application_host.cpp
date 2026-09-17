@@ -1554,10 +1554,10 @@ namespace bpr::application {
 		// How long after `AuthorizedAt` renewal may still spend refresh
 		// material. The access lifetime for a live grant; the remaining refresh
 		// lifetime for a grant restored after its access expired ([[BPR-0644]]).
-		std::uint32_t                                             RenewalWindowSeconds  = 0U;
-		bool                                                      RefreshDurable        = false;
-		device_binding_lifetime                                   Lifetime;
-		std::uint32_t                                             RefreshFailures = 0U;
+		std::uint32_t           RenewalWindowSeconds = 0U;
+		bool                    RefreshDurable       = false;
+		device_binding_lifetime Lifetime;
+		std::uint32_t           RefreshFailures = 0U;
 		// [[BPR-0553]]. Whether the binding above was in place before the
 		// current flow began, which is what makes it the previous session's
 		// rather than this grant's. Recorded at the begin and answered at the

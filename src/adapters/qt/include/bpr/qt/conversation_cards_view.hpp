@@ -259,31 +259,31 @@ namespace bpr::qt {
 		std::vector<application::github_conversation_projection> Retained;
 		/// The file identity of each retained node's path, index for index,
 		/// derived once per adopted forest rather than once per relayout.
-		std::vector<core::file_identity>                         RetainedFiles;
-		std::vector<thread_card>                                 Cards;
-		std::optional<core::file_identity>                       AnchorFile;
-		std::optional<core::review_comment_draft>                Draft;
-		std::optional<core::file_comparison_digest>              CurrentComparison;
-		card_line_locator                                        Locator;
-		card_thread_dispatch                                     ThreadDispatch;
-		card_action_dispatch                                     ActionDispatch;
-		QString                                                  Viewer;
-		std::string                                              Current;
-		std::vector<thread_read_state>                           ReadState;
-		bool                                                     ReadStateKnown    = false;
-		bool                                                     Feed              = false;
-		bool                                                     ResolutionOffered = false;
-		discuss_filters                                          Filters;
-		QString                                                  PullRequestAuthor;
-		card_excerpt_locator                                     ExcerptLocator;
-		std::function<void()>                                    LayoutObserver;
-		QColor                                                   CodeBackground{ 0xF6, 0xF8, 0xFA };
-		QColor                                                   CodeInk{ 0x1F, 0x23, 0x28 };
-		cards_scope                                              Scope = cards_scope::this_file;
-		QColor                                                   Accent{ 0x09, 0x69, 0xDA };
-		QColor                                                   Marker{ 0xD2, 0x99, 0x22 };
-		int                                                      ContentHeight = 0;
-		std::uint64_t                                            Layouts       = 0U;
+		std::vector<core::file_identity>            RetainedFiles;
+		std::vector<thread_card>                    Cards;
+		std::optional<core::file_identity>          AnchorFile;
+		std::optional<core::review_comment_draft>   Draft;
+		std::optional<core::file_comparison_digest> CurrentComparison;
+		card_line_locator                           Locator;
+		card_thread_dispatch                        ThreadDispatch;
+		card_action_dispatch                        ActionDispatch;
+		QString                                     Viewer;
+		std::string                                 Current;
+		std::vector<thread_read_state>              ReadState;
+		bool                                        ReadStateKnown    = false;
+		bool                                        Feed              = false;
+		bool                                        ResolutionOffered = false;
+		discuss_filters                             Filters;
+		QString                                     PullRequestAuthor;
+		card_excerpt_locator                        ExcerptLocator;
+		std::function<void()>                       LayoutObserver;
+		QColor                                      CodeBackground{ 0xF6, 0xF8, 0xFA };
+		QColor                                      CodeInk{ 0x1F, 0x23, 0x28 };
+		cards_scope                                 Scope = cards_scope::this_file;
+		QColor                                      Accent{ 0x09, 0x69, 0xDA };
+		QColor                                      Marker{ 0xD2, 0x99, 0x22 };
+		int                                         ContentHeight = 0;
+		std::uint64_t                               Layouts       = 0U;
 		// Bounded by two widths of the current retained forest plus its one
 		// draft. Content, authority and presentation invalidations discard
 		// these rectangles.
@@ -292,12 +292,12 @@ namespace bpr::qt {
 		// the content width: a whole-pull-request layout shows it and a
 		// one-file layout hides it. Keeping one width re-measured every card of
 		// a large review each time a refresh widened the drawer.
-		measurement_generation               Measurements;
-		measurement_generation               PreviousMeasurements;
-		QFont                                MeasurementFont;
-		bool                                 MeasurementFeed              = false;
-		bool                                 MeasurementResolutionOffered = false;
-		std::uint64_t                        MeasurementCount             = 0U;
+		measurement_generation Measurements;
+		measurement_generation PreviousMeasurements;
+		QFont                  MeasurementFont;
+		bool                   MeasurementFeed              = false;
+		bool                   MeasurementResolutionOffered = false;
+		std::uint64_t          MeasurementCount             = 0U;
 	};
 } // namespace bpr::qt
 

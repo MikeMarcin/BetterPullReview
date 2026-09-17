@@ -74,7 +74,7 @@ namespace bpr::app {
 		/// included by a target that links the composition without defining
 		/// the guard, and a conditionally-sized record passed by value across
 		/// that seam would disagree about its own layout.
-		bool NetworkDenied = false;
+		bool                        NetworkDenied       = false;
 		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
 		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
 		/// One explicit process-owned native observation shared by profile windows.

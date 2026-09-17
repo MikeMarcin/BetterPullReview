@@ -4054,12 +4054,12 @@ namespace bpr::application {
 							   }));
 		}
 
-		device_binding_persistence*                             Persistence = nullptr;
-		std::function<std::int64_t()>                           WallClock;
-		std::optional<device_binding_record>                    PendingDeviceRestore;
-		bool                                                    PendingDeviceRestoreRenews = false;
-		device_launch_renewal_sink                              LaunchRenewalSink;
-		std::optional<device_launch_renewal>                    LaunchRenewal;
+		device_binding_persistence*          Persistence = nullptr;
+		std::function<std::int64_t()>        WallClock;
+		std::optional<device_binding_record> PendingDeviceRestore;
+		bool                                 PendingDeviceRestoreRenews = false;
+		device_launch_renewal_sink           LaunchRenewalSink;
+		std::optional<device_launch_renewal> LaunchRenewal;
 		// The rotated grant has enrolled and waits for its `/user` account.
 		bool                                                    LaunchRenewalEnrolled = false;
 		std::optional<device_binding_lifetime>                  NextDeviceLifetime;

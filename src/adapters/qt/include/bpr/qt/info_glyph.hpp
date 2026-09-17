@@ -25,7 +25,7 @@ namespace bpr::qt {
 		explicit info_glyph(QString aConsequence, QWidget* aParent = nullptr);
 
 		/// \brief Adopts the sentence the popover and the accessible description say.
-		void set_consequence(QString aConsequence);
+		void               set_consequence(QString aConsequence);
 		[[nodiscard]] auto consequence() const noexcept -> const QString&;
 		/// \brief Shows the popover now, as hovering, focusing or pressing the glyph does.
 		void show_popover();

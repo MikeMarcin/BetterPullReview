@@ -332,9 +332,9 @@ namespace bpr::qt {
 		void               open_row(const QAbstractItemView& aView, const QModelIndex& aIndex);
 		[[nodiscard]] auto item_of(const QAbstractItemView& aView, const QModelIndex& aIndex) const
 			-> std::optional<core::queue_item>;
-		void               ensure_row_visible(QAbstractItemView& aView, const QModelIndex& aIndex, const home_panel& aPanel);
-		void               derive_link_colour();
-		void               adopt_rows(home_row_view& aView, home_slice_model& aModel, const QString& aName, const QString& aAccessible);
+		void ensure_row_visible(QAbstractItemView& aView, const QModelIndex& aIndex, const home_panel& aPanel);
+		void derive_link_colour();
+		void adopt_rows(home_row_view& aView, home_slice_model& aModel, const QString& aName, const QString& aAccessible);
 		/// \brief Every shown panel in reading order, with the rows it holds.
 		[[nodiscard]] auto reading_order() const -> std::vector<panel_stop>;
 		/// \brief Every live rows view, whichever arrangement is shown.

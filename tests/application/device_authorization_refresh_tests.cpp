@@ -325,9 +325,9 @@ namespace {
 		std::vector<std::pair<application::github_credential_authority_key, core::github_identity_generation>> Invalidations;
 		std::vector<bool>                                                                                      RefreshSettled;
 		std::vector<application::device_binding_lifetime>                                                      Lifetimes;
-		order_log*                                        Order;
-		std::vector<core::host_profile_id>                Profiles;
-		std::vector<std::string>                          Credentials;
+		order_log*                                                                                             Order;
+		std::vector<core::host_profile_id>                                                                     Profiles;
+		std::vector<std::string>                                                                               Credentials;
 	};
 
 	class recording_projections final

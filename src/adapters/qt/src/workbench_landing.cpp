@@ -317,7 +317,7 @@ namespace bpr::qt {
 	void workbench_landing::paintEvent(QPaintEvent* const aEvent)
 	{
 		static_cast<void>(aEvent);
-		auto painter = QPainter{ this };
+		auto       painter = QPainter{ this };
 		const auto mid     = palette().color(QPalette::Active, QPalette::Mid);
 		if (State == landing_state::back_to_review) {
 			// One shaded row above the bar, closed by the page's hairline.

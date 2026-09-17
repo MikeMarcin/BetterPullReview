@@ -19,12 +19,12 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
-#include "bpr/qt/server_card.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/server_card.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -885,17 +885,17 @@ namespace bpr::qt {
 		void observe_drawer_width(
 			core::workbench_drawer aDrawer,
 			std::uint32_t          aWidth);
-		void               apply_drawer_layout();
-		void               apply_drawer_widths();
-		void               observe_handle_drag();
-		void               configure_tool_buttons();
-		void               refresh_toolbar_icons();
-		void               update_strip_positions();
-		void               update_strip_identity();
-		void               update_account_action();
-		void               apply_strip_width();
-		void               apply_review_details_visibility();
-		void               update_home_landing();
+		void apply_drawer_layout();
+		void apply_drawer_widths();
+		void observe_handle_drag();
+		void configure_tool_buttons();
+		void refresh_toolbar_icons();
+		void update_strip_positions();
+		void update_strip_identity();
+		void update_account_action();
+		void apply_strip_width();
+		void apply_review_details_visibility();
+		void update_home_landing();
 		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
 		/// or under it as the first-launch card.
 		void place_home_landing();
@@ -971,7 +971,7 @@ namespace bpr::qt {
 		/// \brief Whether the session is signed in, with or without an account.
 		[[nodiscard]] auto session_signed_in() const -> bool;
 		void               announce_update();
-		void apply_file_rows(
+		void               apply_file_rows(
 			const std::vector<application::workbench_file_projection>& aFiles);
 		[[nodiscard]] auto conversation_anchor_file() const -> std::optional<core::file_identity>;
 		void               apply_file_selection();
@@ -997,28 +997,28 @@ namespace bpr::qt {
 		/// last chosen.
 		void update_server_cards();
 		/// \brief Says the setup notice, or a pull request's load refusal, under the bar.
-		void update_home_open_notice();
+		void               update_home_open_notice();
 		[[nodiscard]] auto home_refusal_text() const -> QString;
 		/// \brief The card of the host the session is on, or of the chosen host
 		/// while none is.
 		[[nodiscard]] auto current_server_card() const -> server_card*;
-		void begin_selected_sign_in();
+		void               begin_selected_sign_in();
 		/// \brief [[BPR-0775]]. The first-launch card's second way in: Accounts &
 		/// hosts with a new enterprise server card in its edit state.
-		void               begin_enterprise_server_from_home();
+		void begin_enterprise_server_from_home();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
 		void open_pull_request_item(const core::queue_item& aItem);
 		void open_from_home_bar();
 		void build_saved_repositories_editor(QWidget* aParent, QVBoxLayout& aLayout);
-		void               build_enterprise_server_draft(QWidget* aParent, QVBoxLayout& aLayout);
-		void               open_enterprise_server_draft();
-		void               close_enterprise_server_draft();
-		void               add_enterprise_server();
-		void               update_enterprise_server_actions();
-		void               remember_enterprise_server(const std::string& aHostname);
-		void               confirm_forget_server(const application::saved_server& aServer);
-		void               dispatch_saved_repository(application::saved_repository_action aAction);
+		void build_enterprise_server_draft(QWidget* aParent, QVBoxLayout& aLayout);
+		void open_enterprise_server_draft();
+		void close_enterprise_server_draft();
+		void add_enterprise_server();
+		void update_enterprise_server_actions();
+		void remember_enterprise_server(const std::string& aHostname);
+		void confirm_forget_server(const application::saved_server& aServer);
+		void dispatch_saved_repository(application::saved_repository_action aAction);
 		void update_saved_repository_actions();
 		void dispatch_queue_preferences(QComboBox* aSource);
 		void build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
@@ -1045,9 +1045,9 @@ namespace bpr::qt {
 			application::queue_preference_field aField, const application::home_filter& aFilter);
 		/// \brief What Home filters by, whoever owns it.
 		[[nodiscard]] auto home_filter() const -> application::home_filter;
-		void update_notification_controls();
-		void build_capability_settings();
-		void apply_queue_preferences(
+		void               update_notification_controls();
+		void               build_capability_settings();
+		void               apply_queue_preferences(
 			const application::queue_presentation_preferences& aPreferences);
 		void rebuild_queue_repositories(
 			std::span<const core::queue_item> aItems,
@@ -1071,33 +1071,33 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*                                PrimaryToolbar      = nullptr;
-		workbench_strip*                         Strip               = nullptr;
-		modality_control*                        Modality            = nullptr;
-		QAction*                                 AccountAction       = nullptr;
-		QLabel*                                  IdentityLabel       = nullptr;
-		QLabel*                                  ChangePositionLabel = nullptr;
-		QLabel*                                  FilePositionLabel   = nullptr;
-		QWidget*                                 ModalitySpacer      = nullptr;
-		QWidget*                                 StripInset          = nullptr;
-		core::workbench_reason_code              LastRefusal         = core::workbench_reason_code::none;
-		workbench_landing*                       HomeLanding         = nullptr;
-		std::shared_ptr<dif_catalog_provider>    DifCatalog;
-		std::unique_ptr<dif_cue_router>          DifCues;
-		std::unique_ptr<QElapsedTimer>           DifCueClock;
-		dif_widget*                              Dif                = nullptr;
-		QWidget*                                 DifAiSlot          = nullptr;
-		QWidget*                                 DifCornerSlot      = nullptr;
-		QAction*                                 AiToolsAction      = nullptr;
-		QToolButton*                             AiToolsButton      = nullptr;
-		QScrollArea*                             ConversationScroll = nullptr;
-		bool                                     AiToolsSelected    = false;
-		core::dif_resolution                     DifResolution;
-		bool                                     DifResolutionReady   = false;
-		QWidget*                                 HomePage             = nullptr;
-		bool                                     StripHome            = false;
-		bool                                     HomeRequested        = false;
-		bool                                     HomeFocused          = false;
+		QToolBar*                             PrimaryToolbar      = nullptr;
+		workbench_strip*                      Strip               = nullptr;
+		modality_control*                     Modality            = nullptr;
+		QAction*                              AccountAction       = nullptr;
+		QLabel*                               IdentityLabel       = nullptr;
+		QLabel*                               ChangePositionLabel = nullptr;
+		QLabel*                               FilePositionLabel   = nullptr;
+		QWidget*                              ModalitySpacer      = nullptr;
+		QWidget*                              StripInset          = nullptr;
+		core::workbench_reason_code           LastRefusal         = core::workbench_reason_code::none;
+		workbench_landing*                    HomeLanding         = nullptr;
+		std::shared_ptr<dif_catalog_provider> DifCatalog;
+		std::unique_ptr<dif_cue_router>       DifCues;
+		std::unique_ptr<QElapsedTimer>        DifCueClock;
+		dif_widget*                           Dif                = nullptr;
+		QWidget*                              DifAiSlot          = nullptr;
+		QWidget*                              DifCornerSlot      = nullptr;
+		QAction*                              AiToolsAction      = nullptr;
+		QToolButton*                          AiToolsButton      = nullptr;
+		QScrollArea*                          ConversationScroll = nullptr;
+		bool                                  AiToolsSelected    = false;
+		core::dif_resolution                  DifResolution;
+		bool                                  DifResolutionReady = false;
+		QWidget*                              HomePage           = nullptr;
+		bool                                  StripHome          = false;
+		bool                                  HomeRequested      = false;
+		bool                                  HomeFocused        = false;
 		/// [[BPR-0775]]. Where focus was in the review when Home covered it.
 		QPointer<QWidget>                        FocusBeforeHome;
 		QAction*                                 HomeAction           = nullptr;
@@ -1163,30 +1163,30 @@ namespace bpr::qt {
 		QLineEdit*                      FilesFilter        = nullptr;
 		repositories_tree_view*         RepositoriesTree   = nullptr;
 		std::vector<server_card*>       ServerCards;
-		QVBoxLayout*                    ServerCardColumn   = nullptr;
-		QWidget*                        RulesEditor        = nullptr;
+		QVBoxLayout*                    ServerCardColumn = nullptr;
+		QWidget*                        RulesEditor      = nullptr;
 		/// Set when a pull request was chosen from the repositories tree, so
 		/// it opens on its overview when it arrives.
 		bool                       OpenOnOverview    = false;
 		github_conversation_panel* ConversationPanel = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
-		bool                                               ApplyingConversationAnchor       = false;
-		bool                                               LeftConversationEndpointCurrent  = false;
-		bool                                               RightConversationEndpointCurrent = false;
-		agent_launch_panel*                                AgentPanel                       = nullptr;
-		side_chat_panel*                                   SideChat                         = nullptr;
-		finding_queue_view*                                FindingQueue                     = nullptr;
-		review_draft_editor*                               ReviewEditor                     = nullptr;
-		defect_card_view*                                  DefectCard                       = nullptr;
-		QLabel*                                            DefectCountLabel                 = nullptr;
-		QAction*                                           ClassifyDefect                   = nullptr;
-		QAction*                                           PreviousDefect                   = nullptr;
-		QAction*                                           NextDefect                       = nullptr;
-		std::vector<core::defect_history>                  Defects;
-		std::optional<std::size_t>                         ShownDefectIndex;
-		review_landing_model*                              QueueLanding          = nullptr;
-		review_landing_filter_model*                       QueueFilterModel      = nullptr;
-		qt::home_list*                                     HomeList              = nullptr;
+		bool                              ApplyingConversationAnchor       = false;
+		bool                              LeftConversationEndpointCurrent  = false;
+		bool                              RightConversationEndpointCurrent = false;
+		agent_launch_panel*               AgentPanel                       = nullptr;
+		side_chat_panel*                  SideChat                         = nullptr;
+		finding_queue_view*               FindingQueue                     = nullptr;
+		review_draft_editor*              ReviewEditor                     = nullptr;
+		defect_card_view*                 DefectCard                       = nullptr;
+		QLabel*                           DefectCountLabel                 = nullptr;
+		QAction*                          ClassifyDefect                   = nullptr;
+		QAction*                          PreviousDefect                   = nullptr;
+		QAction*                          NextDefect                       = nullptr;
+		std::vector<core::defect_history> Defects;
+		std::optional<std::size_t>        ShownDefectIndex;
+		review_landing_model*             QueueLanding     = nullptr;
+		review_landing_filter_model*      QueueFilterModel = nullptr;
+		qt::home_list*                    HomeList         = nullptr;
 		// [[BPR-0783]]. This window's Home view and the strip controls over it.
 		application::home_view_state                      HomeView;
 		std::function<void(application::home_view_state)> HomeViewDispatch;
@@ -1211,13 +1211,13 @@ namespace bpr::qt {
 		QComboBox*                                         QueueRepositoryFilter = nullptr;
 		QComboBox*                                         QueueQuietFilter      = nullptr;
 		QComboBox*                                         QueueSort             = nullptr;
-		QCheckBox*                                         NotificationsEnabled = nullptr;
-		QCheckBox*                                         NotificationsPaused  = nullptr;
-		QPushButton*                                       NotificationPreview  = nullptr;
-		QPushButton*                                       NotificationReset    = nullptr;
-		QPushButton*                                       QueueDefaultsReset   = nullptr;
-		QLabel*                                            NotificationStatus   = nullptr;
-		QLineEdit*                                         StorageLocation      = nullptr;
+		QCheckBox*                                         NotificationsEnabled  = nullptr;
+		QCheckBox*                                         NotificationsPaused   = nullptr;
+		QPushButton*                                       NotificationPreview   = nullptr;
+		QPushButton*                                       NotificationReset     = nullptr;
+		QPushButton*                                       QueueDefaultsReset    = nullptr;
+		QLabel*                                            NotificationStatus    = nullptr;
+		QLineEdit*                                         StorageLocation       = nullptr;
 		std::function<bool(const core::pull_request_ref&)> NotificationPreviewDispatch;
 		QComboBox*                                         QueueRuleSelector     = nullptr;
 		QComboBox*                                         QueueRuleKind         = nullptr;
@@ -1258,31 +1258,31 @@ namespace bpr::qt {
 		bool                                     ReturnComparisonPending = false;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
-		bool                                               BehaviourPublished    = false;
-		bool                                               FirstFilterApplied    = false;
-		bool                                               ReturnComparisonAsked = false;
-		std::optional<core::file_receipt_command>          MarkedReadWhenSeen;
-		QWidget*                                           SavedRepositoriesEditor     = nullptr;
-		QComboBox*                                         SavedRepositorySelector     = nullptr;
-		QLineEdit*                                         SavedRepositoryName         = nullptr;
-		QAction*                                           AddSavedRepository          = nullptr;
-		QAction*                                           RemoveSavedRepository       = nullptr;
-		QToolButton*                                       AddSavedRepositoryButton    = nullptr;
-		QToolButton*                                       RemoveSavedRepositoryButton = nullptr;
-		QWidget*                                           EnterpriseServerDraft       = nullptr;
-		QLineEdit*                                         EnterpriseServerHostname    = nullptr;
-		QLineEdit*                                         EnterpriseServerAccount     = nullptr;
-		QLabel*                                            EnterpriseServerRefusal     = nullptr;
-		QPushButton*                                       EnterpriseServerAdd         = nullptr;
-		QPushButton*                                       EnterpriseServerCancel      = nullptr;
-		QPushButton*                                       AddEnterpriseServerButton   = nullptr;
-		QPointer<QMessageBox>                              ForgetServerConfirmation;
-		bool                                               EnterpriseDraftOpen = false;
+		bool                                      BehaviourPublished    = false;
+		bool                                      FirstFilterApplied    = false;
+		bool                                      ReturnComparisonAsked = false;
+		std::optional<core::file_receipt_command> MarkedReadWhenSeen;
+		QWidget*                                  SavedRepositoriesEditor     = nullptr;
+		QComboBox*                                SavedRepositorySelector     = nullptr;
+		QLineEdit*                                SavedRepositoryName         = nullptr;
+		QAction*                                  AddSavedRepository          = nullptr;
+		QAction*                                  RemoveSavedRepository       = nullptr;
+		QToolButton*                              AddSavedRepositoryButton    = nullptr;
+		QToolButton*                              RemoveSavedRepositoryButton = nullptr;
+		QWidget*                                  EnterpriseServerDraft       = nullptr;
+		QLineEdit*                                EnterpriseServerHostname    = nullptr;
+		QLineEdit*                                EnterpriseServerAccount     = nullptr;
+		QLabel*                                   EnterpriseServerRefusal     = nullptr;
+		QPushButton*                              EnterpriseServerAdd         = nullptr;
+		QPushButton*                              EnterpriseServerCancel      = nullptr;
+		QPushButton*                              AddEnterpriseServerButton   = nullptr;
+		QPointer<QMessageBox>                     ForgetServerConfirmation;
+		bool                                      EnterpriseDraftOpen = false;
 		/// [[BPR-0773]]. The hostname a device flow was last asked for; its
 		/// terminal sentence is said only on that host's card.
 		std::optional<std::string>                         DeviceFlowHost;
-		github_session_panel*                              SessionPanel                = nullptr;
-		device_authorization_panel*                        DevicePanel                 = nullptr;
+		github_session_panel*                              SessionPanel = nullptr;
+		device_authorization_panel*                        DevicePanel  = nullptr;
 		application::device_authorization_gesture_dispatch DeviceDispatch;
 		application::public_preview_gesture_dispatch       PublicPreviewDispatch;
 		github_pull_request_panel*                         PullRequestPanel   = nullptr;

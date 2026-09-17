@@ -808,11 +808,11 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 
-		auto* const viewState         = required_child<QStackedWidget>(window, "githubViewState");
-		auto* const emptyState        = required_child<QWidget>(window, "githubEmptyState");
-		auto* const emptyTitle        = required_label(window, "githubEmptyStateTitle");
-		auto* const emptyBody         = required_label(window, "githubEmptyStateBody");
-		auto* const technicalButton   = required_child<QToolButton>(
+		auto* const viewState       = required_child<QStackedWidget>(window, "githubViewState");
+		auto* const emptyState      = required_child<QWidget>(window, "githubEmptyState");
+		auto* const emptyTitle      = required_label(window, "githubEmptyStateTitle");
+		auto* const emptyBody       = required_label(window, "githubEmptyStateBody");
+		auto* const technicalButton = required_child<QToolButton>(
 			window, "githubTechnicalDetailsButton");
 		auto* const technicalDetails  = required_child<QWidget>(window, "githubTechnicalDetails");
 		auto* const conversationState = required_child<QStackedWidget>(window, "githubConversationState");
@@ -1434,8 +1434,8 @@ namespace {
 		sessionWindow.resize(960, 640);
 		sessionWindow.show();
 		QApplication::processEvents();
-		auto* const sessionStack      = required_child<QStackedWidget>(sessionWindow, "githubViewState");
-		auto* const sessionEmpty      = required_child<QWidget>(sessionWindow, "githubEmptyState");
+		auto* const sessionStack = required_child<QStackedWidget>(sessionWindow, "githubViewState");
+		auto* const sessionEmpty = required_child<QWidget>(sessionWindow, "githubEmptyState");
 		// [[BPR-0771]]. A session's problem is its host's card's, not a banner's.
 		auto* const sessionCard = sessionWindow.server_card_for(core::host_profile_id{ 11U });
 		sessionWindow.publish(application::github_presentation_update{
@@ -1597,14 +1597,14 @@ namespace {
 		refreshWindow.resize(960, 640);
 		refreshWindow.show();
 		QApplication::processEvents();
-		auto* const                 refreshStack      = required_child<QStackedWidget>(refreshWindow, "githubViewState");
-		auto* const                 refreshEmpty      = required_child<QWidget>(refreshWindow, "githubEmptyState");
-		auto* const                 refreshNotice     = refreshWindow.home_open_notice();
-		const auto                  retainedTitle     = required_label(refreshWindow, "pullRequestTitle")->text();
-		const auto                  retainedIdentity  = required_label(refreshWindow, "pullRequestIdentity")->text();
-		const auto                  retainedBody      = required_child<QPlainTextEdit>(
-															refreshWindow, "pullRequestBody")
-															->toPlainText();
+		auto* const                 refreshStack     = required_child<QStackedWidget>(refreshWindow, "githubViewState");
+		auto* const                 refreshEmpty     = required_child<QWidget>(refreshWindow, "githubEmptyState");
+		auto* const                 refreshNotice    = refreshWindow.home_open_notice();
+		const auto                  retainedTitle    = required_label(refreshWindow, "pullRequestTitle")->text();
+		const auto                  retainedIdentity = required_label(refreshWindow, "pullRequestIdentity")->text();
+		const auto                  retainedBody     = required_child<QPlainTextEdit>(
+														   refreshWindow, "pullRequestBody")
+														   ->toPlainText();
 		const QPersistentModelIndex retainedSelection{
 			refreshWindow.conversation_model()->index_for_id(
 				"issue-comment:i1")
@@ -2396,8 +2396,8 @@ namespace {
 
 	struct accessible_announcement
 	{
-		QString                             Message;
-		QString                             ObjectName;
+		QString Message;
+		QString ObjectName;
 		/// [[BPR-0771]]. Several cards share one object name, so the source is
 		/// also kept by identity.
 		const QObject*                      Object     = nullptr;

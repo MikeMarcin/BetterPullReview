@@ -32,7 +32,7 @@ namespace bpr::application {
 		inline constexpr std::uint8_t waiting_on_others = 1U << 1U;
 		inline constexpr std::uint8_t following         = 1U << 2U;
 		inline constexpr std::uint8_t recently_viewed   = 1U << 3U;
-		inline constexpr std::uint8_t all = needs_me | waiting_on_others | following | recently_viewed;
+		inline constexpr std::uint8_t all               = needs_me | waiting_on_others | following | recently_viewed;
 	} // namespace home_collapsed_panel
 
 	/// \brief [[BPR-0783]]. The four typed queue preferences that survive into

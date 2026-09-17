@@ -887,12 +887,12 @@ namespace bpr::app {
 		std::shared_ptr<implementation>                                             Lifetime;
 		/// Two seconds of 10 ms polls: long enough for the close that emptied the
 		/// desktop to finish saving, short enough not to leave an invisible process.
-		static constexpr unsigned                                                   empty_desktop_quit_attempts = 200U;
-		unsigned                                                                    EmptyDesktopQuitAttempts    = 0U;
-		bool                                                                        EmptyDesktopQuit            = false;
-		std::uint64_t                                                               NextStartup                 = 0;
-		bool                                                                        InitialRegistered = false, Quitting = false, Focusing = false;
-		int                                                                         ExitCode = 0;
+		static constexpr unsigned empty_desktop_quit_attempts = 200U;
+		unsigned                  EmptyDesktopQuitAttempts    = 0U;
+		bool                      EmptyDesktopQuit            = false;
+		std::uint64_t             NextStartup                 = 0;
+		bool                      InitialRegistered = false, Quitting = false, Focusing = false;
+		int                       ExitCode = 0;
 	};
 
 	auto native_empty_desktop_policy() -> empty_desktop_policy

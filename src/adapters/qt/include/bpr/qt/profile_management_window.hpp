@@ -102,16 +102,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto selected_is_open() const -> bool;
 
 		application::profile_management_dispatch                 Dispatch;
-		QListWidget*                                             Profiles          = nullptr;
-		QLineEdit*                                               Name              = nullptr;
-		QWidget*                                                 Notice            = nullptr;
-		QLabel*                                                  NoticeText        = nullptr;
-		QPushButton*                                             TryAgain          = nullptr;
-		QPushButton*                                             Create            = nullptr;
-		QPushButton*                                             Rename            = nullptr;
-		QPushButton*                                             Open              = nullptr;
-		QPushButton*                                             Save              = nullptr;
-		QPushButton*                                             Cancel            = nullptr;
+		QListWidget*                                             Profiles   = nullptr;
+		QLineEdit*                                               Name       = nullptr;
+		QWidget*                                                 Notice     = nullptr;
+		QLabel*                                                  NoticeText = nullptr;
+		QPushButton*                                             TryAgain   = nullptr;
+		QPushButton*                                             Create     = nullptr;
+		QPushButton*                                             Rename     = nullptr;
+		QPushButton*                                             Open       = nullptr;
+		QPushButton*                                             Save       = nullptr;
+		QPushButton*                                             Cancel     = nullptr;
 		std::map<core::bpr_profile_id, int>                      WindowCounts;
 		core::bpr_profile_id                                     CurrentProfile;
 		edit_mode                                                Mode              = edit_mode::none;

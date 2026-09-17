@@ -4,13 +4,13 @@
 #include "public_path_poll.hpp"
 
 #include <QAction>
-#include <QPushButton>
 #include <QApplication>
 #include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QTemporaryDir>
