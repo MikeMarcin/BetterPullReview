@@ -42,10 +42,11 @@ Reported by `bpr-linux` in `task-20260917-lnx-0847-drain`, not carded there.
 
 ## Current frontier (dsp-004, bpr-linux, task-20260917-lnx-0846-0849)
 
-- **Outcome:** the fix is in the course, on `linux-lane`. The course passes
-  on Linux with it; the 3 runs in a row at the pushed commit are under
-  "Verification at the commit". The card stays In Progress until main runs
-  the fixed course on macOS.
+- **Outcome:** the fix is in the course:
+  `9c1de12061cf170db5bd384660541e541f352459` on `linux-lane`. The course
+  passes 3 runs in a row on Linux at that pushed commit (see "Verification
+  at the commit"). The card stays In Progress until main runs the fixed
+  course on macOS.
 - **Changed path:** `tests/end_to_end/profile_owner_admission_contract.py`
   only. No product source and no pinned digest changed.
 - **Logs:** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-0846-0849/`.
@@ -114,6 +115,25 @@ Gates: `git diff --check` is clean, and
 `python3 scripts/verify_documentation.py --root .` prints
 `DOCUMENTATION_OK`. No C++ file changed, and the repository has no Python
 format or lint gate.
+
+## Verification at the commit (Linux, bpr-linux, WSL2)
+
+At `9c1de12061cf170db5bd384660541e541f352459`, pushed and equal to
+`origin/linux-lane`, a clean tree. `ninja -n` had no work to do. The setup
+is the same as above: offscreen by registration, the Secret Service
+collection read `(<false>,)` before the group, and each run was a serial
+`ctest --test-dir build/dev -j1 -V -R '^<name>$'`. The runs went from
+16:10:22Z to 16:10:28Z, with a 1-minute load average of 0.08 to 0.22. The
+summary is `at-commit.summary`, and the logs are `at-commit-*.log`.
+
+| Course | Result | Time |
+|---|---|---|
+| `application_profile_owner_admission_public_path`, run 1 | Pass, `PROFILE_OWNER_ADMISSION_OK` | 1.50 s |
+| `application_profile_owner_admission_public_path`, run 2 | Pass, `PROFILE_OWNER_ADMISSION_OK` | 1.36 s |
+| `application_profile_owner_admission_public_path`, run 3 | Pass, `PROFILE_OWNER_ADMISSION_OK` | 1.36 s |
+| `application_review_round_trip_composition_contract` | Pass, so the pins are unchanged | 1.56 s |
+
+No `bpr-admission-course-*` or `own-*` directory was left in `/tmp`.
 
 ## Other courses with a shared fallback
 
