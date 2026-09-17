@@ -232,8 +232,14 @@ set_tests_properties(
 # the test-seam factory. A scan that could pass here would pass against
 # anything (BPR-0451). The core-only graph has no application to scan.
 if(TARGET app_better_pull_review)
+    # BPR-0890. The scan it runs must fail here, so this row's child exits 1 on
+    # purpose and the row pins the refusal text below. `EXPECTS_NONZERO_EXIT`
+    # says that in the registration rather than leaving the seam's exit-status
+    # guard to discover it: the run verdict `PUBLIC_PATH_FAILED` still fails
+    # this row, only the non-zero exit does not.
     bpr_add_network_isolated_test(
         NAME rfc0017_release_absence_negative_control
+        EXPECTS_NONZERO_EXIT
         COMMAND
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0017_test_inventory.py"

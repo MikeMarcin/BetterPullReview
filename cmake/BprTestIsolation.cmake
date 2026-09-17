@@ -615,7 +615,7 @@ function(bpr_add_network_isolated_test)
     cmake_parse_arguments(
         PARSE_ARGV 0
         bpr_test
-        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED;EXPECTS_FAILED_RUN"
+        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED;EXPECTS_FAILED_RUN;EXPECTS_NONZERO_EXIT"
         "NAME;WORKING_DIRECTORY;LOOPBACK_PORT_COUNT"
         "COMMAND;CONFIGURATIONS"
     )
@@ -638,6 +638,14 @@ function(bpr_add_network_isolated_test)
         message(
             FATAL_ERROR
             "bpr_add_network_isolated_test LOOPBACK_PORT_COUNT must be between 0 and 8"
+        )
+    endif()
+    if(bpr_test_EXPECTS_FAILED_RUN AND bpr_test_EXPECTS_NONZERO_EXIT)
+        message(
+            FATAL_ERROR
+            "bpr_add_network_isolated_test: EXPECTS_FAILED_RUN already exempts the "
+            "row from both failure expressions; EXPECTS_NONZERO_EXIT is the "
+            "narrower one and the two cannot both be true of one row"
         )
     endif()
     if(bpr_test_UNRELATED_ENDPOINT_PROBE AND NOT APPLE)
@@ -756,20 +764,74 @@ function(bpr_add_network_isolated_test)
     # driver script captures the child's output - the `cmake -P` contracts -
     # never shows the marker to CTest and is decided instead by that script's
     # own check of the child's result code, which those scripts already make.
+    # BPR-0890. The same argument reaches one field further. `PUBLIC_PATH_OK` is
+    # printed by `report_verdict` *before* `QApplication::exec()` returns and
+    # before the desktop, the QApplication and the static destructors run, so
+    # an abort anywhere in that shutdown tail left the marker already on stdout
+    # and the row green - the tail BPR-0215, BPR-0217, BPR-0827 and BPR-0875's
+    # thirteen-row Windows cluster all live in. The verdict text cannot answer
+    # that; only the process's own exit status can, and an error expression is
+    # the one verdict CTest evaluates independently of the pass list.
+    #
+    # So the launcher states the exit status on the row's own output and this
+    # matches it: `scripts/run_network_isolated_test.py` prints
+    # `TEST_RUNNER_CHILD_EXIT:<n>` for every run as the evidence, and
+    # `TEST_RUNNER_CHILD_EXIT_FAILED:<n>` only when that code is non-zero,
+    # which is what the expression below catches. A literal rather than a
+    # negated digit class because CTest's regular expressions have no
+    # lookahead. The Linux `execvp` launcher replaces itself with the child and
+    # so has no exit status to state, and the Windows launcher does not print
+    # it yet; on those two the entry is inert rather than wrong, and pinning it
+    # here means each platform's launcher is the only thing left to change.
+    #
+    # APPEND, on both entries. `set_property(... PROPERTY ...)` without it
+    # replaces the whole property, so the second entry written that way would
+    # have silently deleted the first. The remaining way to lose them - a
+    # row-level `set_tests_properties(... FAIL_REGULAR_EXPRESSION ...)` running
+    # after this function returns - APPEND cannot defend against from in here,
+    # because the row is registered in this call and nothing precedes it. That
+    # is asserted instead, against CTest's own manifest, by
+    # `scripts/verify_test_network_isolation.py`, so the comment above about a
+    # guarantee that cannot drift is now enforced rather than claimed.
     if(bpr_test_EXPECTS_FAILED_RUN)
         # One row asks what a *failed* run reports, so the marker it must not
-        # be failed by is the marker it exists to observe. Stating that here
-        # keeps the default fail-closed: an exemption is written down at the
-        # row, not inferred from the absence of a property.
+        # be failed by is the marker it exists to observe, and the non-zero
+        # exit that run ends with is the verdict it is asserting rather than a
+        # fault. Stating that here keeps the default fail-closed: an exemption
+        # is written down at the row, not inferred from the absence of a
+        # property.
         set_property(
             TEST "${bpr_test_NAME}"
             APPEND
             PROPERTY LABELS "bpr_expects_failed_run"
         )
+    elseif(bpr_test_EXPECTS_NONZERO_EXIT)
+        # A narrower exemption, and a different fact. This row's child exits
+        # non-zero because that is the answer it is asserting - the RFC-0017
+        # negative control runs the shipped-artifact scan against the
+        # tests-enabled binary, where the scan must fail and name the test-seam
+        # factory, so the row pins that text and the scanner exits 1. Nothing
+        # about that says the run's own verdict may be ignored, so
+        # `PUBLIC_PATH_FAILED` stays. Measured under this card: before the
+        # child-exit entry existed the row was green with a child exit of 1,
+        # which is the same green a real shutdown abort would have produced.
+        set_property(
+            TEST "${bpr_test_NAME}"
+            APPEND
+            PROPERTY LABELS "bpr_expects_nonzero_exit"
+        )
+        set_property(
+            TEST "${bpr_test_NAME}"
+            APPEND
+            PROPERTY FAIL_REGULAR_EXPRESSION "PUBLIC_PATH_FAILED"
+        )
     else()
         set_property(
             TEST "${bpr_test_NAME}"
-            PROPERTY FAIL_REGULAR_EXPRESSION "PUBLIC_PATH_FAILED"
+            APPEND
+            PROPERTY FAIL_REGULAR_EXPRESSION
+                "PUBLIC_PATH_FAILED"
+                "TEST_RUNNER_CHILD_EXIT_FAILED"
         )
     endif()
     # A Windows loader finds a shared Qt only on PATH: nothing deploys the
