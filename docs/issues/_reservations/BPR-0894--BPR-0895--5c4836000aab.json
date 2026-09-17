@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0894",
+    "BPR-0895"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-006 findings from BPR-0881's rendezvous relocation",
+  "created": "2026-09-17T22:43:08.762818+00:00",
+  "base": "68f8152ea1ceabeb5b435dd3ed28b394e6b20b12"
+}
