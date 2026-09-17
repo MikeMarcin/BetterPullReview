@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0816",
+    "BPR-0817"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Linux defects found by bpr-linux: GCC 15.2 -Werror and group-writable data root shutdown",
+  "created": "2026-09-17T06:44:07.176216+00:00",
+  "base": "a9076de155b2a924f7b5495a1c3b9bf41d028e8d"
+}
