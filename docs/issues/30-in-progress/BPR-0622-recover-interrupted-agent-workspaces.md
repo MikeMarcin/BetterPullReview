@@ -357,3 +357,33 @@ and descendant timeout teardown. The Unix-only parent-death, journal and
 composed materialization tests identify the missing Windows test boundaries.
 Keep all live scopes, unknown-artifact preservation, capacity and session
 identity requirements from this card. Do not replace them with PID checks.
+
+## Windows slice (a) integrated, 2026-09-17 (dsp-002)
+
+`bpr-win` measured job and lock semantics before design. The measurement
+table is in
+[the Windows evidence file](../../verification/BPR-0622-windows-native-evidence.md).
+The design mirrors the Unix supervisor: `better_pull_review_agent_supervisor.exe`
+runs outside the child job, opens and locks the guard itself, and releases
+the guard only after the job is confirmed empty. The integrator raised no
+objection, with seven constraints; the station reports how it met each one in
+the evidence file. Slice (a), guarded Windows agent launches through the
+supervisor, is `e11f19eb` on `windows-lane`. It was merged into main
+`--no-ff` as `9767145d`.
+
+Two limits are recorded there, not claimed:
+
+- killing both the owner and the supervisor leaves an unguarded window, the
+  analogue of SIGKILLing the Unix supervisor;
+- no run used an elevated Windows token.
+
+Mac run of the slice's portable sources at `9767145d`
+(`build/r2-logs/dsp2-int1-ctest.log`): `agent_parent_death` (26.38 s),
+`qt_agent_launch_canary` (78.02 s) and `architecture_boundaries` pass.
+`test_network_isolation_manifest` reports only [[BPR-0802]]'s five
+`gh_cli_git_smart_transport` findings, so the slice adds none.
+
+Still open on Windows: (b) the journal and ownership course, (c) guarded Git
+through the supervisor and the materialization course, (d) app wiring and
+the crash-recovery course. `windows-lane` is not fast-forwarded while the
+station builds on it.
