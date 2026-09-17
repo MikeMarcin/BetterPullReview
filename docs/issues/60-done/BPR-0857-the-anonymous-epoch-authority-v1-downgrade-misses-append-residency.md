@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0857"
 title: "sqlite_anonymous_epoch_authority's v1 downgrade misses the append_residency table"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep; reproduced on macOS by dsp-004; scouted","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"The row passes on macOS and Linux","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"sqlite_anonymous_epoch_authority passes on macOS at 0.45 s in the full macOS sweep at 2b2e5549 and on Linux at 0.24 s in bpr-linux's merged-head runs and 0.32 s in its full Linux sweep at the same commit."}},{"criterion":"sqlite_epoch_catalog_storage still passes","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"sqlite_epoch_catalog_storage_contract passes on macOS at 0.45 s in the full macOS sweep and on Linux at 0.22 s in bpr-linux's merged-head runs, both at 2b2e5549."}}]
 ---
 
 # BPR-0857: sqlite_anonymous_epoch_authority's v1 downgrade misses the append_residency table
@@ -86,3 +87,10 @@ Both rows of this card's acceptance now pass on Linux as well as macOS: the
 raised to 7 are confirmed on a second platform, and the neighbouring storage
 contract is undisturbed. The run record is in
 `docs/verification/dsp4-linux-confirmation.md`.
+
+## macOS confirmation (dsp-005, integrator)
+
+`sqlite_anonymous_epoch_authority and sqlite_epoch_catalog_storage_contract` passes on macOS in the full macOS sweep at 2b2e5549 (build/r2-logs/dsp5-mac-full-sweep.log, 378 of 381, serial), at 0.45 s. Combined with the Linux
+runs recorded above, this card's platform obligations are met and it is
+finished. Its evidence is the station's Linux runs plus this sweep; nothing
+was re-derived.
