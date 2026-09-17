@@ -926,7 +926,9 @@ namespace {
 			State.Operation->HistoricalOccurrence = aRequest.HistoricalOccurrence;
 			advance(application::epoch_catalog_operation_phase::commit_authorized);
 			if (State.AfterCommitAuthorized) {
-				auto callback = std::move(State.AfterCommitAuthorized);
+				// One shot on every standard library: a moved-from std::function
+				// is unspecified, and libc++ leaves a small callable armed.
+				auto callback = std::exchange(State.AfterCommitAuthorized, { });
 				callback();
 			}
 			return *State.Operation;
@@ -974,7 +976,7 @@ namespace {
 						== application::epoch_catalog_operation_phase::
 							quarantine_rename_in_progress) {
 					if (State.AfterRefCommitInProgress) {
-						auto callback = std::move(State.AfterRefCommitInProgress);
+						auto callback = std::exchange(State.AfterRefCommitInProgress, { });
 						callback();
 					}
 				}
@@ -1005,7 +1007,7 @@ namespace {
 					== application::epoch_catalog_operation_phase::
 						ref_commit_in_progress
 				&& State.AfterRefCommitInProgress) {
-				auto callback = std::move(State.AfterRefCommitInProgress);
+				auto callback = std::exchange(State.AfterRefCommitInProgress, { });
 				callback();
 			}
 			if (
@@ -5409,15 +5411,16 @@ namespace {
 				   && !value.State.Occurrences.Occurrences.front().LocalEpoch
 				   && !value.State.Occurrences.Occurrences.back().LocalEpoch,
 			   "large review keeps both older events unimported");
-		value.State.AfterCommitAuthorized = [&value] {
+		const auto observeStagedCommit = [&value] {
 			expect(value.State.Operation.has_value(), "targeted import has a durable operation");
 			value.State.RecoveryInspections.emplace_back(recovery_observation(
 				*value.State.Operation, application::git_recovery_ref_topology::staging,
 				application::git_recovery_match::exact, application::git_recovery_match::absent));
 		};
-		const auto first   = value.State.Occurrences.Occurrences.front().Id;
-		const auto second  = aRepeatOccurrence ? first : value.State.Occurrences.Occurrences.back().Id;
-		const auto catalog = *value.Host->state().Catalog;
+		value.State.AfterCommitAuthorized = observeStagedCommit;
+		const auto first                  = value.State.Occurrences.Occurrences.front().Id;
+		const auto second                 = aRepeatOccurrence ? first : value.State.Occurrences.Occurrences.back().Id;
+		const auto catalog                = *value.Host->state().Catalog;
 		value.Host->dispatch(core::select_epoch_occurrence_intent{
 			.Side = core::comparison_side::left, .Occurrence = first, .ExpectedCatalog = catalog });
 		value.Effects.wait_for_pending();
@@ -5425,6 +5428,8 @@ namespace {
 		expect(value.State.Occurrences.Occurrences.front().LocalEpoch
 				   && value.Host->state().Catalog == catalog && value.Decisions.pending() > 0U,
 			   "first historical import commits durably while its decision is held");
+		// The commit hook fires once; a superseding import authorizes its own commit.
+		value.State.AfterCommitAuthorized = observeStagedCommit;
 		value.Host->dispatch(core::select_epoch_occurrence_intent{
 			.Side = core::comparison_side::left, .Occurrence = second, .ExpectedCatalog = catalog });
 		const auto updatesBeforeCommitDecision = value.State.Updates.size();
@@ -5464,15 +5469,16 @@ namespace {
 		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
 		value.Host->accept(std::move(handoff));
 		drain(value);
-		const auto first                  = value.State.Occurrences.Occurrences.front().Id;
-		const auto second                 = value.State.Occurrences.Occurrences.back().Id;
-		const auto catalog                = *value.Host->state().Catalog;
-		value.State.AfterCommitAuthorized = [&value] {
+		const auto first               = value.State.Occurrences.Occurrences.front().Id;
+		const auto second              = value.State.Occurrences.Occurrences.back().Id;
+		const auto catalog             = *value.Host->state().Catalog;
+		const auto observeStagedCommit = [&value] {
 			expect(value.State.Operation.has_value(), "historical append has a durable operation");
 			value.State.RecoveryInspections.emplace_back(recovery_observation(
 				*value.State.Operation, application::git_recovery_ref_topology::staging,
 				application::git_recovery_match::exact, application::git_recovery_match::absent));
 		};
+		value.State.AfterCommitAuthorized = observeStagedCommit;
 		std::mutex              gate;
 		std::condition_variable changed;
 		bool                    reachedCommitBoundary = false;
@@ -5499,6 +5505,8 @@ namespace {
 			changed.notify_all();
 		}
 		worker.join();
+		// The commit hook fires once; the later selection authorizes its own commit.
+		value.State.AfterCommitAuthorized = observeStagedCommit;
 		drain(value);
 		const auto linked = std::ranges::find(value.State.Occurrences.Occurrences, second,
 											  &core::epoch_occurrence::Id);
