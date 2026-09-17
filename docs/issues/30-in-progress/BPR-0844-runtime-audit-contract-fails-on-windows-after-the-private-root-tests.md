@@ -40,3 +40,41 @@ The course itself, `runtime_process_surface`, passes on Windows
 
 - `runtime_audit_contract` passes on the Windows station as registered, and
   on macOS.
+
+## Windows station, 2026-09-17 (task-20260917-win-creation-descriptor)
+
+The base is `31fff50675a71bc2c5ce55857c72e57dc36933df`. Logs are under
+`build/logs/task-20260917-win-creation-descriptor/`.
+
+**Change** in `tests/scripts/verify_runtime_surface_tests.py` only.
+`scripts/verify_runtime_surface.py` is unchanged.
+
+- **`test_application_command_names_a_root_only_when_one_is_owned`** expects
+  `str(data_root)` for `Path("/private/root/data")`, the path's own spelling,
+  instead of the POSIX literal.
+- **`private_root_run`, used by the three private-root cases,** patches two
+  things **on Windows only**, both outside the script under test:
+  - The script's `tempfile.mkdtemp` becomes
+    `make_contained_temporary_directory`. Inside the AppContainer a `mkdtemp`
+    directory is unusable ([[BPR-0350]]).
+  - `Path.resolve` becomes a recorder that returns the absolute path. Inside
+    the container CPython's `realpath` cannot resolve a DOS path.
+
+  The case then asserts that the script still called `resolve(strict=True)` on
+  the parent it made, so the canonical-spelling requirement stays tested. On
+  POSIX the real `mkdtemp` and `resolve` still run, with the existing `0700`
+  assertion.
+
+**Results.**
+
+| Check | Result |
+|---|---|
+| `runtime_audit_contract`, contained as registered | **Passed**, 0.32 s: `Ran 18 tests`, `OK (skipped=1)` |
+| `runtime_process_surface`, uncontained as registered | **Passed**, 1.67 s: `RUNTIME_SURFACE_OK` |
+| `python tests/scripts/verify_runtime_surface_tests.py`, uncontained | `OK (skipped=1)` |
+| **Trial, reverted:** HEAD's test file at this base | `runtime_audit_contract` **fails**: `FAILED (failures=1, errors=3, skipped=1)` |
+
+**Portable sources touched:** `tests/scripts/verify_runtime_surface_tests.py`.
+Its POSIX path is unchanged apart from the command case now comparing with
+`str(Path(...))`, which on POSIX is the same string. The macOS run is the
+integrator's.
