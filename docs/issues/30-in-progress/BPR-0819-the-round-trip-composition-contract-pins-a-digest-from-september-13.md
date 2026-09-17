@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0819"
 title: "The round-trip composition contract pins a github_application.cpp digest from September 13"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P2"
