@@ -22,6 +22,11 @@
 #include <iostream>
 #include <memory>
 
+#if !defined(_WIN32)
+	#include <sys/stat.h>
+	#include <sys/types.h>
+#endif
+
 namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
@@ -111,6 +116,44 @@ namespace {
 		expect(!aExpected || reason == aExpected, "exact admission failure");
 		expect(QApplication::topLevelWidgets().size() == windowCount, "refused admission constructs no window");
 	}
+#if !defined(_WIN32)
+	// The permission and special bits of the named entry itself; 0 when it is absent.
+	auto mode_of(const std::filesystem::path& aPath) -> mode_t
+	{
+		struct stat status{ };
+		return ::lstat(aPath.c_str(), &status) == 0 ? status.st_mode & static_cast<mode_t>(07777) : mode_t{ 0 };
+	}
+	// [[BPR-0817]]. A Linux desktop login with a user-private group runs under
+	// umask 0002. A fresh install there must create its data folders owner-only,
+	// so the agent workspace neighbourhood beside the root is admitted and the
+	// profile closes with no cleanup failure.
+	void expect_fresh_install_under_group_umask(const std::filesystem::path& aPrivateScratch)
+	{
+		const auto previousMask  = ::umask(0002);
+		const auto installParent = aPrivateScratch / "fresh-install";
+		const auto dataParent    = installParent / "BetterPullReview";
+		const auto dataRoot      = dataParent / "BetterPullReview";
+		const auto neighbourhood = dataParent / "BetterPullReview-agent-workspaces-v1";
+		expect(mode_of(aPrivateScratch) == 0700 && mode_of(installParent) == 0, "fresh install starts below a private folder with no data folder");
+		auto fresh = await_profile(dataRoot, core::default_bpr_profile_id);
+		expect(mode_of(installParent) == 0700, "the outermost folder a fresh install creates is exactly 0700 under umask 0002");
+		expect(mode_of(dataParent) == 0700, "the data root's created parent is exactly 0700 under umask 0002");
+		expect(mode_of(dataRoot) == 0700, "the created data root is exactly 0700 under umask 0002");
+		wait_for([&] { return mode_of(neighbourhood) != 0; }, "startup recovery creates the agent workspace neighbourhood beside a fresh root");
+		struct stat neighbourhoodStatus{ };
+		expect(::lstat(neighbourhood.c_str(), &neighbourhoodStatus) == 0 && S_ISDIR(neighbourhoodStatus.st_mode)
+				   && (neighbourhoodStatus.st_mode & static_cast<mode_t>(07777)) == 0700,
+			   "the agent workspace neighbourhood is an exactly 0700 directory");
+		fresh.Runtime->begin_shutdown();
+		wait_for([&] { return fresh.Runtime->status().ShutdownComplete; }, "fresh install profile shutdown");
+		const auto closed = fresh.Runtime->status();
+		expect(!closed.AgentWorkspaceCleanupFailed, "agent workspace recovery succeeds for a fresh install");
+		expect(!closed.ShutdownCleanupFailed, "a fresh install closes with no shutdown cleanup failure");
+		fresh.Runtime.reset();
+		fresh.Startup.reset();
+		static_cast<void>(::umask(previousMask));
+	}
+#endif
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -130,6 +173,7 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(std::filesystem::status(unsafeRoot).permissions() == unsafePermissions,
 		   "startup refuses existing shared root without permission repair");
 	expect(!std::filesystem::exists(unsafeRoot / "state"), "unsafe root creates no registry or domain store");
+	expect_fresh_install_under_group_umask(root);
 #endif
 	auto registry = adapters::sqlite::make_profile_registry_store(root);
 	auto snapshot = registry->load({ });

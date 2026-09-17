@@ -12458,8 +12458,7 @@ namespace bpr::app {
 				if (error || ancestor.empty() || std::filesystem::canonical(ancestor, error) != ancestor || error) {
 					return std::unexpected(application::profile_registry_failure::unavailable);
 				}
-				if (!std::filesystem::create_directories(RegistryRoot, error) || error
-					|| !adapters::sqlite::make_storage_root_owner_private(RegistryRoot)) {
+				if (!adapters::sqlite::create_storage_root_owner_private(RegistryRoot)) {
 					return std::unexpected(application::profile_registry_failure::unavailable);
 				}
 			}

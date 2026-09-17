@@ -113,9 +113,14 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication qtApplication{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
-	expect(temporary.isValid(), "private desktop test root");
-	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-	expect(adapters::sqlite::make_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
+	expect(temporary.isValid(), "private desktop test scratch");
+	// [[BPR-0817]]. The data root is a folder inside the private scratch, as an
+	// installed data root is a folder inside a private data folder. The agent
+	// workspace neighbourhood sits beside the root, so its parent is the scratch,
+	// not the host's temporary directory, which on stock Linux is a shared 1777
+	// `/tmp` the neighbourhood correctly refuses.
+	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath()) / "data";
+	expect(adapters::sqlite::create_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
 	{
 		auto store = adapters::sqlite::make_appearance_settings_store({ .StorageRoot = root });
 		expect(store.has_value(), "legacy appearance store");
