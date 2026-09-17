@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0831"
 title: "The large review benchmark does not compile under Windows warnings-as-errors"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-hardening new defect","found_at":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 a full windows-dev build succeeds on the Windows station","outcome":"pass","revision":"e142432063a90d76f4912ada063bd5fa14e2d498","evidence":{"kind":"command","detail":"bpr-win: full windows-dev Debug build succeeds with no C4702; no warning disabled or suppressed."}},{"criterion":"AC2 the benchmark target still builds on macOS and Linux","outcome":"pass","revision":"013d2036 (macOS); 84ac5e0c (Linux)","evidence":{"kind":"command","detail":"macOS build rebuilt large_review_benchmark.cpp with exit 0 (build/r2-logs/dsp3-int5-build.log); Linux stock build compiled and linked it (docs/verification/dsp3-linux-confirmation.md step 1)."}}]
 ---
 
 # BPR-0831: The large review benchmark does not compile under Windows warnings-as-errors
