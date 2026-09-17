@@ -69,12 +69,24 @@ retained workbench and epoch-model fixtures remain useful for focused checks.
 
 
 The separate `application_unavailable_diff_public_path` selector exercises
-resource-limit presentation and recovery using the same real composition. Its
-test-only limits retain the production matrix ceiling and disable the optional
-ordered index. It checks the resulting unavailable message, binary status and
-supported-file recovery, writing `unavailable-diff-measurement.json` and
-`unavailable-diff-window.png` beside the ordinary benchmark artifacts. This
-selector does not alter shipped limits or use a fixture-produced diff result.
+resource-limit presentation and recovery using the same real composition. Since
+BPR-0719 a work limit only degrades an alignment, so its test-only limits cap
+the alignment at 2 segments instead: the 20,000-line file needs 40 and is
+refused with `compute_limit`, while the one-line recovery file needs 2
+(BPR-0858). The course enters Read, then checks the unavailable message and
+its selectable label, the binary status and supported-file recovery, writing
+`unavailable-diff-measurement.json` and `unavailable-diff-window.png` beside
+the ordinary benchmark artifacts.
+
+`application_approximate_diff_public_path` covers BPR-0719's approximate
+alignment through the same composition. Its test-only limits disable the
+ordered line index, so the 20,000-line file exceeds the production matrix
+ceiling and the host publishes a text comparison marked `AlignmentApproximate`.
+The course enters Read and checks that marking, the exact
+`Diff ready — N semantic changes (approximate alignment)` status and both exact
+source panes, writing `approximate-diff-measurement.json` and
+`approximate-diff-window.png`. Neither selector alters shipped limits or uses a
+fixture-produced diff result.
 
 ## Earlier-head replay inputs
 

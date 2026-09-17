@@ -8,6 +8,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 
 #include <glaze/json.hpp>
 
@@ -121,6 +122,10 @@ namespace bpr::e2e::large_review {
 		bool                           PruneReleasedDiff = false, PruneReleasedIndex = false, PruneClearedProjection = false;
 		bool                           DeleteReleasedDiff = false, DeleteReleasedIndex = false, DestroyReleasedDiff = false, DestroyReleasedIndex = false;
 		bool                           UnavailableCourse = false, UnavailableReasonVerified = false, BinaryStatusVerified = false;
+		std::uint32_t                  UnavailableSegmentLimit = 0U;
+		std::size_t                    RecoverySegments        = 0U;
+		bool                           ApproximateCourse = false, ApproximateAlignmentVerified = false;
+		std::size_t                    ApproximateGroups = 0U, ApproximateSegments = 0U;
 		std::string                    Platform, Architecture, QtVersion, Style, BuildConfiguration;
 		std::string                    Fixture           = "large-review-v1", Base, Head;
 		int                            LogicalProcessors = 0, WindowWidth = 0, WindowHeight = 0;
@@ -392,6 +397,16 @@ namespace bpr::e2e::large_review {
 						&& aSurface.right_pane()->document()->findBlockByNumber(line).text() == prefix + (line % 1000 == 0 ? "1;" : "0;"),
 					"displayed source line differs from fixture");
 		}
+	}
+
+	/// [[BPR-0858]]. The review opens on Overview, which shows the pull request
+	/// in place of the comparison, so a course that reads the comparison's own
+	/// status label first enters Read through the strip's public modality.
+	void enter_read(app::github_application& aApplication, benchmark_report& aReport, QElapsedTimer& aBudget)
+	{
+		auto& window  = aApplication.window();
+		auto& surface = *window.comparison_surface();
+		require(measure_wait(aApplication, aBudget, aReport, "read_modality", [&] { window.modality()->action(qt::review_modality::read)->trigger(); }, [&] { return surface.isVisible() && quiet(aApplication); }), "Read modality did not present the comparison");
 	}
 
 	void select_epoch(qt::epoch_comparison_control& aControl, std::int64_t aOrdinal, core::comparison_side aSide)
@@ -806,7 +821,7 @@ namespace bpr::e2e::large_review {
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -815,6 +830,7 @@ namespace bpr::e2e::large_review {
 		}
 		benchmark_report report;
 		report.UnavailableCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
+		report.ApproximateCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--approximate";
 		report.LoadedCloseCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
 		report.ResourceCourse                                              = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
 		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
@@ -846,8 +862,18 @@ namespace bpr::e2e::large_review {
 			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } };
 			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse;
 			if (report.UnavailableCourse) {
-				// Retain the production matrix ceiling and disable only its optional
-				// ordered index, so the stored 20,000-line file exceeds real limits.
+				// [[BPR-0858]]. Since BPR-0719 a work limit only degrades the alignment;
+				// a segment overflow is what still refuses a file. The stored 20,000-line
+				// file aligns in 40 segments and the one-line recovery file in 2, so a
+				// limit of 2 refuses the first and still computes the second. A limit of
+				// 1 refuses both.
+				report.UnavailableSegmentLimit                   = 2U;
+				fixtureOptions.DiffComputeLimits.MaximumSegments = report.UnavailableSegmentLimit;
+			}
+			if (report.ApproximateCourse) {
+				// [[BPR-0719]] [[BPR-0858]]. Without its ordered line index the
+				// stored 20,000-line file exceeds the production matrix ceiling, and
+				// the host degrades the alignment instead of refusing the file.
 				fixtureOptions.DiffComputeLimits.MaximumPrimaryIndexWork = 0U;
 			}
 			sample_resources(report, nullptr, "before_application");
@@ -887,6 +913,7 @@ namespace bpr::e2e::large_review {
 			} else if (report.HistoryCourse) {
 				run_history(*application, manifest, report, budget, argv[3]);
 			} else if (report.UnavailableCourse) {
+				enter_read(*application, report, budget);
 				require(measure_wait(*application, budget, report, "unavailable_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "unavailable selection timed out");
 				const auto& alignment = surface.current_result()->Alignment;
 				require(alignment.Content == core::diff_content_state::unavailable && alignment.Diagnostic.Code == core::diff_reason_code::compute_limit, "real host result must exceed the retained comparison limit");
@@ -906,7 +933,32 @@ namespace bpr::e2e::large_review {
 				require(measure_wait(*application, budget, report, "supported_file_recovery", [&] { select_file(window, source_path(31)); }, [&] { return selected(surface, source_path(31)) && quiet(*application); }), "supported recovery timed out");
 				report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
 				require(report.ExactFinalSource && surface.status_text().startsWith(QStringLiteral("Diff ready — 1 semantic changes")), "supported file must restore exact normal display");
+				report.RecoverySegments = surface.current_result()->Alignment.Segments.size();
+				require(report.RecoverySegments <= report.UnavailableSegmentLimit && !surface.current_result()->AlignmentApproximate, "supported file must compute exactly within the segment limit");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "unavailable course bypassed the real diff host");
+			} else if (report.ApproximateCourse) {
+				enter_read(*application, report, budget);
+				require(measure_wait(*application, budget, report, "approximate_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "approximate selection timed out");
+				const auto& result = *surface.current_result();
+				require(result.Alignment.Content == core::diff_content_state::text && result.Alignment.Diagnostic.Code == core::diff_reason_code::none, "work-limited host result must still publish a text comparison");
+				require(result.AlignmentApproximate, "work-limited host result must be marked approximate alignment");
+				report.ApproximateGroups   = result.Alignment.Groups.size();
+				report.ApproximateSegments = result.Alignment.Segments.size();
+				report.PrimaryIndexWork    = result.PrimaryIndexWorkConsumed;
+				report.MatrixCells         = result.MatrixCellsConsumed;
+				// The exact status fixes the prefix, the count and the approximate suffix, and
+				// refuses a cached publication for this first selection.
+				require(report.ApproximateGroups != 0U && surface.status_text() == QStringLiteral("Diff ready — %1 semantic changes (approximate alignment)").arg(report.ApproximateGroups), "approximate comparison must say so in its status");
+				// Both panes hold the exact 20,000-line source, so neither is empty.
+				verify_large(surface, manifest);
+				report.ExactLargeSource             = true;
+				report.ApproximateAlignmentVerified = true;
+				report.WindowWidth                  = window.width();
+				report.WindowHeight                 = window.height();
+				report.DevicePixelRatio             = window.devicePixelRatioF();
+				report.Rendered                     = window.grab().save(QString::fromLocal8Bit(argv[3]));
+				require(report.Rendered, "approximate full-window capture failed");
+				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "approximate course bypassed the real diff host");
 			} else {
 				const auto          beforeMeasurement = surface.statistics().MeasurementBatches;
 				QTimer              inputDuringMeasurement;
@@ -1148,6 +1200,7 @@ namespace bpr::e2e::large_review {
 							  : report.HistoryCourse                                                         ? "LARGE_REVIEW_HISTORY_OK\n"
 							  : report.ResourceCourse                                                        ? "LARGE_REVIEW_RESOURCES_OK\n"
 							  : report.UnavailableCourse                                                     ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
+							  : report.ApproximateCourse                                                     ? "APPROXIMATE_DIFF_COMPOSED_OK\n"
 																											 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;

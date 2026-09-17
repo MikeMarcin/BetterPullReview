@@ -1121,6 +1121,18 @@ set_tests_properties(application_unavailable_diff_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
     PASS_REGULAR_EXPRESSION "UNAVAILABLE_DIFF_COMPOSED_OK")
 
+# [[BPR-0858]]: BPR-0719's approximate alignment through the same public path.
+bpr_add_network_isolated_test(
+    NAME application_approximate_diff_public_path
+    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        $<TARGET_FILE:Git::Git>
+        "${CMAKE_CURRENT_BINARY_DIR}/approximate-diff-measurement.json"
+        "${CMAKE_CURRENT_BINARY_DIR}/approximate-diff-window.png"
+        --approximate)
+set_tests_properties(application_approximate_diff_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+    PASS_REGULAR_EXPRESSION "APPROXIMATE_DIFF_COMPOSED_OK")
+
 if(APPLE)
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes

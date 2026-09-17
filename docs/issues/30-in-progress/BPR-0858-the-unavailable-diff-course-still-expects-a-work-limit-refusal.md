@@ -81,3 +81,48 @@ line.
 **Registration.** The row is registered on every platform, `RUN_SERIAL`, and
 shares its executable with `application_large_review_benchmark`, which the
 `--unavailable` branch does not affect.
+
+## Fix (dsp-004, Mac)
+
+**The unavailable course now proves a segment overflow.** Its test-only
+limits set `DiffComputeLimits.MaximumSegments = 2`. With default limits,
+`large/comparison.cpp` aligns in 40 segments and the recovery file
+`src/file_0031.cpp` in 2. The large file is therefore refused with
+`unavailable`/`compute_limit` and "Comparison unavailable — file exceeds the
+comparison work limit", while recovery still computes. The scouted limit of 1
+refused the recovery file too (`build/r2-logs/dsp4-0858-limit1-unavailable.log`).
+
+**A second fault was hidden behind the first.** The review opens on Overview,
+which replaces the comparison, so the status label was hidden and "unavailable
+message must support copying" failed. The course now enters Read through the
+strip's public modality action before selecting a file. Every original
+assertion is unchanged, and the course records the recovery file's segment
+count against the limit.
+
+**Approximate-alignment coverage.** The new
+`application_approximate_diff_public_path` row runs the same executable with
+`--approximate`. It is registered on all platforms, network isolated,
+`RUN_SERIAL`, with `TIMEOUT 120`. It sets `MaximumPrimaryIndexWork = 0`,
+enters Read, selects `large/comparison.cpp`, and asserts:
+
+- a text comparison with no diagnostic;
+- `AlignmentApproximate`;
+- the exact status "Diff ready — N semantic changes (approximate alignment)",
+  with N non-zero;
+- both panes holding the exact source.
+
+Negative control: with default limits the course fails at "work-limited host
+result must be marked approximate alignment"
+(`dsp4-0858-negative-approximate.log`).
+
+**Unchanged.** No product source, fixture file or round-trip pin moved. The
+fixture README and `docs/verification/fixture-catalog.md` describe both rows.
+
+**Runs (macOS).**
+
+- Both rows pass 3/3: unavailable in 14.7-15.5 s, approximate in 13.0-13.3 s
+  (`dsp4-0858-{unavailable,approximate}-run{1,2,3}.log`).
+- `application_large_review_benchmark`, `test_network_isolation_manifest`,
+  `architecture_boundaries` and the documentation gate pass.
+
+**Still open.** The Linux run of both rows.

@@ -1614,11 +1614,23 @@ Windows/Linux results. The tests run locally with denied network access.
 
 
 `application_unavailable_diff_public_path` reuses the same stored workload and
-real provider/Git/composition path with a test-only compute-limits override.
-It retains the production matrix ceiling and disables the optional ordered
-index, so the 20,000-line file produces a real typed compute-limit result. The
-course verifies the visible, selectable reason, empty source/selection, full
-window render, a distinct binary-file status and exact source recovery when a
-supported file is selected. Default production limits and live sign-in are
-unchanged. `qt_diff_workbench_scale_100` additionally checks genuine equal text
+the real provider, Git and composition path, with a test-only compute-limits
+override. Since [[BPR-0719]] a work limit degrades the alignment rather than
+refusing the file, so the course now sets `MaximumSegments` to 2
+([[BPR-0858]]). The 20,000-line file needs 40 segments, which yields a real
+typed compute-limit refusal. The 2-segment recovery file still computes. The
+course enters Read first and then checks:
+
+- the visible, selectable reason;
+- the empty source and selection;
+- a full-window render;
+- a distinct binary-file status;
+- exact source recovery when a supported file is selected.
+
+`application_approximate_diff_public_path` covers the degraded path. It disables
+the optional ordered index, then requires three things: a text comparison marked
+`AlignmentApproximate`, the status "Diff ready — N semantic changes
+(approximate alignment)", and exact source in both panes.
+
+Default production limits and live sign-in are unchanged. `qt_diff_workbench_scale_100` additionally checks genuine equal text
 and cached unavailable publications. BPR-0626 records the passing Mac result.
