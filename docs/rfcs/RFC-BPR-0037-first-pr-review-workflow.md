@@ -49,7 +49,7 @@ new wording or weakened exact-comparison guards.
 | Card | Work | Criterion |
 |---|---|---|
 | [BPR-0918](../issues/10-backlog/BPR-0918-long-overview-description-layout.md) | Long overview descriptions | AC-01 |
-| [BPR-0919](../issues/30-in-progress/BPR-0919-start-review-opens-review-mode.md) | Start review navigation | AC-02 |
+| [BPR-0919](../issues/60-done/BPR-0919-start-review-opens-review-mode.md) | Start review navigation | AC-02 |
 | [BPR-0920](../issues/10-backlog/BPR-0920-redesign-conversations-drawer-review-composition.md) | Review composition and drawer redesign | AC-03 |
 | [BPR-0921](../issues/60-done/BPR-0921-loaded-pr-update-history-empty.md) | Missing updates | AC-04 |
 | [BPR-0922](../issues/60-done/BPR-0922-source-files-exact-comparison-unavailable.md) | Source-loading blocker | AC-05 |
