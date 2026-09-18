@@ -144,6 +144,8 @@ namespace bpr::qt {
 		auto adopt_option(application::github_profile_option aOption) -> bool;
 		/// \brief Adopts one decision, changing only what differs from the last.
 		void apply(const server_card_presentation& aPresentation);
+		/// \brief Shows connection controls without management details during setup.
+		void set_setup_mode(bool aSetup, bool aCliOnly = false);
 		/// \brief Adopts the sink the public-preview ring's sign-in gesture leaves through.
 		void set_public_preview_dispatch(
 			application::public_preview_gesture_dispatch aDispatch);
@@ -248,6 +250,8 @@ namespace bpr::qt {
 		QPushButton*                ConnectButton    = nullptr;
 		QFrame*                     RowsSeparator    = nullptr;
 		QWidget*                    Rows             = nullptr;
+		bool                        SetupMode        = false;
+		bool                        CliSetupOnly     = false;
 		QWidget*                    AccessRow        = nullptr;
 		QWidget*                    RateLimitRow     = nullptr;
 		QWidget*                    DetailsRow       = nullptr;

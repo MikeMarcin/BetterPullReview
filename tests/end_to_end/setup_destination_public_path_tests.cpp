@@ -9,6 +9,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
@@ -65,6 +66,24 @@ namespace {
 		expect(result != nullptr, "public setup button is composed");
 		return result;
 	}
+	void cancel_setup(qt::workbench_window& aWindow)
+	{
+		expect(aWindow.sign_in_dialog() && aWindow.sign_in_dialog()->isVisible(), "shared sign-in dialog offers cancellation");
+		aWindow.sign_in_dialog()->reject();
+	}
+	void connect_native(qt::workbench_window& aWindow, const std::string& aHostname = "ghe.example.invalid")
+	{
+		for (auto* card : aWindow.server_cards()) {
+			if (card->hostname() == aHostname) {
+				auto* action = card->sign_in_button()->isVisible() ? card->sign_in_button() : card->connect_button();
+				expect(action->isVisible() && action->isEnabled(), "native connection is offered in the shared dialog");
+				action->click();
+				return;
+			}
+		}
+		expect(false, "requested native server card exists");
+	}
+
 	void capture(qt::workbench_window& aWindow, const QString& aName)
 	{
 		const auto root = qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT");
@@ -74,7 +93,8 @@ namespace {
 		expect(QDir{ }.mkpath(root), "review artifact directory");
 		aWindow.show();
 		QApplication::processEvents();
-		expect(aWindow.grab().save(root + QLatin1Char{ '/' } + aName), "public fixture window capture");
+		auto* surface = aWindow.sign_in_dialog() && aWindow.sign_in_dialog()->isVisible() ? static_cast<QWidget*>(aWindow.sign_in_dialog()) : &aWindow;
+		expect(surface->grab().save(root + QLatin1Char{ '/' } + aName), "public fixture window capture");
 	}
 
 	void run_course(const bool aEnterprise)
@@ -118,8 +138,7 @@ namespace {
 			expect(window.home_open_bar()->text().isEmpty(), "accepted opening clears input");
 			expect(window.session_panel()->active_host_text().find("github.com") != std::string::npos, "accepted review belongs to exact requested host");
 			submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
-			expect(button(window, "homeSetupCancel")->isVisible(), "cancel action visible before gesture");
-			button(window, "homeSetupCancel")->click();
+			cancel_setup(window);
 			expect(window.session_panel()->status() == core::github_status::pull_request_ready && github_application_fixture_access::evidence(*application).VaultStores == 0U, "cancelled unknown target preserves current review");
 			application->begin_shutdown();
 			wait_for([&] { return application->status().ShutdownComplete; }, "setup and review work quiesce");
@@ -138,18 +157,16 @@ namespace {
 		submit(window, url);
 		capture(window, QStringLiteral("setup-unknown.png"));
 		expect(window.home_open_bar()->text() == url, "pending setup retains the exact pasted target");
-		expect(button(window, "homeSetupContinue")->isVisible() && button(window, "homeSetupCancel")->isVisible(), "pending setup actions are visible on Home");
-		expect(button(window, "homeSetupContinue")->text() == QStringLiteral("Add server and continue"), "correct explicit setup action");
+		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible() && button(window, "homeSetupContinue")->isHidden(), "pasted PR uses the shared dialog without a continuation button or Settings");
+		expect(window.enterprise_server_hostname()->text() == QStringLiteral("ghe.example.invalid"), "pasted host prefills the server editor");
 		auto evidence = github_application_fixture_access::evidence(*application);
 		expect(evidence.VaultStores == 0U && !evidence.BootstrapTransportSelected && !evidence.AccountTransportSelected, "parsing sends no credentials or provider reads");
-		expect(button(window, "homeSetupCancel")->isVisible(), "cancel action visible before gesture");
-		button(window, "homeSetupCancel")->click();
+		cancel_setup(window);
 		expect(window.home_open_bar()->text() == url && button(window, "homeSetupContinue")->isHidden(), "cancel retains editable input and dismisses setup");
 		submit(window, url);
 		if (aEnterprise) {
-			expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
-			button(window, "homeSetupContinue")->click();
-			wait_for([&] { return button(window, "homeSetupContinue")->text() == QStringLiteral("Sign in and continue") && button(window, "homeSetupContinue")->isVisible(); }, "durable Add server makes the exact host available without restart");
+			window.enterprise_server_add()->click();
+			wait_for([&] { return window.server_cards().size() == 2U; }, "durable Add server makes the exact host available without restart");
 			evidence = github_application_fixture_access::evidence(*application);
 			expect(evidence.VaultStores == 0U && !evidence.BootstrapTransportSelected, "configuration alone never signs in");
 			// [[BPR-0772]]. The added server is a second card; it joins no other.
@@ -160,19 +177,15 @@ namespace {
 		}
 
 		if (aEnterprise) {
-			expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
-			button(window, "homeSetupContinue")->click();
-			expect(button(window, "homeSetupCancel")->isVisible(), "cancel action visible before gesture");
-			button(window, "homeSetupCancel")->click();
+			connect_native(window);
+			cancel_setup(window);
 			submit(window, url);
-			expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
-			button(window, "homeSetupContinue")->click();
+			connect_native(window);
 			submit(window, QStringLiteral("https://replacement.example.invalid/o/r/pull/99"));
 			expect(button(window, "homeSetupContinue")->text() == QStringLiteral("Add server and continue"), "a new target replaces queued authentication without reusing its authority");
 			submit(window, url);
 		}
-		expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
-		button(window, "homeSetupContinue")->click();
+		connect_native(window);
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "accepted exact setup opens the recorded pull request");
 		evidence = github_application_fixture_access::evidence(*application);
 		expect(evidence.VaultStores == 1U && evidence.BootstrapTransportSelected && evidence.AccountTransportSelected && evidence.RecordingConsumed, "public setup traverses one exact recorded authenticated read course");
@@ -186,19 +199,16 @@ namespace {
 			expect(window.home_open_notice()->text().contains(QStringLiteral("location is unavailable")) && window.statusBar()->currentMessage().contains(QStringLiteral("location is unavailable")), "unmapped exact fragment has an explanation on the accepted review");
 		}
 		submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
-		expect(button(window, "homeSetupCancel")->isVisible(), "cancel action visible before gesture");
-		button(window, "homeSetupCancel")->click();
+		cancel_setup(window);
 		expect(window.session_panel()->status() == core::github_status::pull_request_ready && github_application_fixture_access::evidence(*application).VaultStores == 1U, "cancelled unknown target preserves current review and credential authority");
 
 		if (aEnterprise) {
 			submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
-			expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
-			button(window, "homeSetupContinue")->click();
-			wait_for([&] { return button(window, "homeSetupContinue")->text() == QStringLiteral("Sign in and continue"); }, "second explicit server configured");
+			window.enterprise_server_add()->click();
+			wait_for([&] { return window.server_cards().size() == 3U; }, "second explicit server configured");
 			expect(window.server_cards().size() == 3U && window.server_cards().back()->hostname() == "other.example.invalid",
 				   "a second explicit server is a third card");
-			expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
-			button(window, "homeSetupContinue")->click();
+			connect_native(window, "other.example.invalid");
 			wait_for([&] { return window.home_open_notice()->text().contains(QStringLiteral("Sign-in did not complete")); }, "recorded transport refuses unsupported authority before commitment");
 			expect(window.session_panel()->status() == core::github_status::pull_request_ready && github_application_fixture_access::evidence(*application).VaultStores == 1U, "failed staged setup preserves accepted review and existing vault material");
 			// [[BPR-0774]]. RFC-BPR-0032 A3 through the shipped composition. The
@@ -242,15 +252,16 @@ namespace {
 	}
 
 #if defined(__APPLE__)
-	void run_connected_cli_destination_course()
+	void run_connected_cli_destination_course(const bool aPasteFirst, const bool aUnknownHost = false)
 	{
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated connected CLI root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
 		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private connected CLI root");
-		options.IndependentWindowReads     = true;
-		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
+		options.SetupUnconfiguredEnterprise = aUnknownHost;
+		options.IndependentWindowReads      = true;
+		options.GithubCliDiscoveryAccounts  = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
 			{ .Hostname = "ghe.example.invalid", .Login = "octo-reviewer" }
 		};
 		std::unique_ptr<bpr::app::github_application> application;
@@ -266,33 +277,43 @@ namespace {
 		auto& window = application->window();
 		window.show();
 		QApplication::processEvents();
+		// A canceled inventory must not present choices or connect on late completion.
 		window.home_landing()->secondary_button()->click();
-		wait_for([&] { return window.github_cli_discovery_status()->text().contains(QStringLiteral("Found 1")); }, "CLI discovery completes");
-		auto* card = window.server_cards().front();
-		expect(card->hostname() == "ghe.example.invalid" && card->native_option() && card->cli_option(), "native and CLI options share the Enterprise host");
-		const auto cliProfile = card->cli_option()->Profile;
-		QTimer::singleShot(0, [] {
+		cancel_setup(window);
+		auto   confirmations = 0U;
+		QTimer consent;
+		QObject::connect(&consent, &QTimer::timeout, [&] {
 			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				++confirmations;
 				prompt->button(QMessageBox::Yes)->click();
 			}
 		});
-		card->cli_offer_button()->click();
-
-		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready || window.session_panel()->status() == core::github_status::session_failed; }, "CLI connection reaches a terminal");
-		if (window.session_panel()->status() != core::github_status::session_ready) {
-			std::cerr << "CLI fixture failure: " << window.statusBar()->currentMessage().toStdString() << '\n';
+		consent.start(1);
+		const auto url = QStringLiteral("https://ghe.example.invalid/octo-org/review-repository/pull/17");
+		if (aPasteFirst) {
+			submit(window, url);
+			window.use_github_cli_button()->click();
+		} else {
+			window.home_landing()->secondary_button()->click();
+			wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "one Home CLI press connects after one confirmation");
+			submit(window, url);
 		}
-		expect(window.session_panel()->status() == core::github_status::session_ready, "CLI session is accepted before opening a PR");
-		submit(window, QStringLiteral("https://ghe.example.invalid/octo-org/review-repository/pull/17"));
+
 		expect(button(window, "homeSetupContinue")->isHidden(), "connected CLI paste does not offer native sign-in");
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "pasted Enterprise link reaches the PR through the accepted CLI session");
+		const auto cards = window.server_cards();
+		auto*      card  = *std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "ghe.example.invalid"; });
+		expect(card->cli_option() != nullptr, "discovered CLI profile is installed");
+		const auto cliProfile = card->cli_option()->Profile;
+		consent.stop();
+		expect(confirmations == 1U && !window.settings()->isVisible() && !window.sign_in_dialog()->isVisible(), "CLI setup needs one confirmation and closes the focused dialog");
 		const auto evidence = github_application_fixture_access::evidence(*application);
 		expect(window.session_panel()->selected_profile() == cliProfile && evidence.AccountTransportSelected, "exact CLI profile serves the recorded PR");
 		expect(evidence.VaultStores == 0U && evidence.VaultRetrieveAttempts == 0U && !evidence.BootstrapTransportSelected, "CLI link opens without native credential access");
 		capture(window, QStringLiteral("setup-connected-cli.png"));
 		submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
 		expect(button(window, "homeSetupContinue")->text() == QStringLiteral("Add server and continue"), "another host cannot reuse CLI authentication");
-		button(window, "homeSetupCancel")->click();
+		cancel_setup(window);
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "connected CLI work quiesces");
 	}
@@ -310,6 +331,7 @@ namespace {
 		options.GithubCliDiscoveryAccounts
 			= std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
 				  { .Hostname = "ghe.discovered.example", .Login = "enterprise-reviewer" },
+				  { .Hostname = "second.example.invalid", .Login = "another-reviewer" },
 			  };
 
 		std::unique_ptr<bpr::app::github_application> application;
@@ -338,12 +360,12 @@ namespace {
 		wait_for(
 			[&] {
 				return window.github_cli_discovery_status()->text().contains(
-					QStringLiteral("Found 1"));
+					QStringLiteral("Found 2"));
 			},
 			"the composed discovery reaches its ready terminal");
-		expect(window.settings()->current_page() == qt::settings_page::accounts_and_hosts,
-			   "CLI discovery opens Accounts and hosts");
+		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible(), "CLI discovery presents choices without opening Settings");
 
+		capture(window, QStringLiteral("setup-cli-choices.png"));
 		qt::server_card* discovered = nullptr;
 		for (auto* const card : window.server_cards()) {
 			if (card->hostname() == "ghe.discovered.example") {
@@ -387,7 +409,9 @@ int main(int aArgc, char** aArgv)
 	run_course(true);
 #if defined(__APPLE__)
 	run_github_cli_discovery_course();
-	run_connected_cli_destination_course();
+	run_connected_cli_destination_course(false);
+	run_connected_cli_destination_course(true);
+	run_connected_cli_destination_course(true, true);
 #endif
 	std::cout << "setup-destination-public-path:pass\n";
 	return EXIT_SUCCESS;

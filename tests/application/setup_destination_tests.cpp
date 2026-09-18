@@ -122,5 +122,24 @@ int main()
 	host.previewed(seventh, core::host_profile_id{ 2U }, "enterprise.example");
 	expect(port.Opened.size() == 3U && host.pending(), "a preview report never completes a sign-in stage");
 
+	// An explicit account choice binds the destination to that exact transport.
+	port.Profiles.push_back({ core::host_profile_id{ 3U }, "enterprise.example", false, false });
+	expect(!host.begin_authentication(sixth, core::host_profile_id{ 3U }), "stale choice cannot authenticate a replacement");
+	expect(!host.begin_authentication(seventh, core::host_profile_id{ 1U }), "another host cannot consume the pending destination");
+	expect(host.begin_authentication(seventh, core::host_profile_id{ 3U }), "same-host CLI choice replaces the native setup profile");
+	host.authenticated(seventh, core::host_profile_id{ 2U }, "enterprise.example");
+	expect(port.Opened.size() == 3U, "former native profile cannot complete chosen CLI setup");
+	host.authenticated(seventh, core::host_profile_id{ 3U }, "enterprise.example");
+	host.authenticated(seventh, core::host_profile_id{ 3U }, "enterprise.example");
+	expect(port.Opened.size() == 4U, "chosen profile opens the destination once");
+	host.submit("https://enterprise.example/o/r/pull/50");
+	// Avoid recursive presentation while exercising cancellation during selection.
+	port.OnPresent = [&] {
+		if (host.pending()) {
+			host.cancel();
+		}
+	};
+	expect(!host.begin_authentication(host.pending()->Request, core::host_profile_id{ 3U }), "reentrant cancellation defeats account choice");
+
 	return EXIT_SUCCESS;
 }

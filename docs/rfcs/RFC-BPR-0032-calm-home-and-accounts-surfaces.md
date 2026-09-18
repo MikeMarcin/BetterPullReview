@@ -10,6 +10,17 @@ metadata: {"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plan
 
 # RFC-BPR-0032: Calm Home and Accounts & hosts
 
+## Owner amendment: shared sign-in (BPR-0915)
+
+Home and pasted PR links now use one focused sign-in dialog, reusing the account
+controls and authentication operations from Settings. Settings retains connection
+management. This supersedes the requirement below to keep active sign-in only
+inside Settings. A CLI action starts discovery immediately; one matching account
+advances to the existing trust confirmation, and multiple accounts offer a choice.
+A pending PR resumes after acceptance for its exact host. Cancel or a replacement
+link retires pending setup and ignores late discovery completion. Credential
+storage, CLI trust and separate publication approval requirements are unchanged.
+
 ## Summary and scope
 
 Home and the Accounts & hosts page of Settings are the surfaces a reviewer

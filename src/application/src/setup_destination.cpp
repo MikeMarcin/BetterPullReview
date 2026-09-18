@@ -212,6 +212,27 @@ namespace bpr::application {
 			}
 		}
 	}
+	auto setup_destination_host::begin_authentication(const core::setup_request_id aRequest, const core::host_profile_id aProfile) -> bool
+	{
+		if (!Pending || Pending->Request != aRequest || Pending->Owner != Port.owner()
+			|| (Pending->Stage != core::setup_destination_stage::add_server && Pending->Stage != core::setup_destination_stage::sign_in && Pending->Stage != core::setup_destination_stage::authenticating)) {
+			return false;
+		}
+		const auto profiles = Port.profiles();
+		const auto chosen   = std::ranges::find(profiles, aProfile, &setup_profile_observation::Profile);
+		if (chosen == profiles.end()) {
+			return false;
+		}
+		auto selected = core::resolve_setup_destination(*Pending, Port.owner(), std::span{ &*chosen, 1U });
+		if (!selected || selected->Profile != aProfile) {
+			return false;
+		}
+		selected->Stage = core::setup_destination_stage::authenticating;
+		Pending         = *selected;
+		present("Connecting to " + Pending->Destination.Hostname);
+		return Pending == selected && Port.owner() == selected->Owner;
+	}
+
 	void setup_destination_host::committed(const core::setup_request_id aRequest)
 	{
 		if (Pending && Pending->Request == aRequest && Pending->Owner == Port.owner()) {

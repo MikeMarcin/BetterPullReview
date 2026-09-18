@@ -32,9 +32,11 @@ namespace bpr::application {
 		explicit setup_destination_host(setup_destination_port& aPort);
 		void submit(std::string_view aText);
 		void continue_setup(core::setup_request_id aRequest);
-		void committed(core::setup_request_id aRequest);
-		void configured(core::setup_request_id aRequest);
-		void authenticated(core::setup_request_id aRequest, core::host_profile_id aProfile, std::string_view aHostname);
+		/// \brief Binds an account choice to the current exact-host navigation.
+		[[nodiscard]] auto begin_authentication(core::setup_request_id aRequest, core::host_profile_id aProfile) -> bool;
+		void               committed(core::setup_request_id aRequest);
+		void               configured(core::setup_request_id aRequest);
+		void               authenticated(core::setup_request_id aRequest, core::host_profile_id aProfile, std::string_view aHostname);
 		/// \brief [[BPR-0732]]. The signed-out session for the pending profile exists; opens the destination.
 		void               previewed(core::setup_request_id aRequest, core::host_profile_id aProfile, std::string_view aHostname);
 		void               cancel();

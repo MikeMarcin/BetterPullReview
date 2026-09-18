@@ -6179,6 +6179,7 @@ namespace bpr::app {
 						retire_setup_effects();
 						if constexpr (std::is_same_v<intent_type, application::submit_setup_destination>) {
 							cancel_restoration(true);
+							retire_cli_discovery();
 							SetupDestination->submit(aValue.Text);
 						} else {
 							SetupDestination->cancel();
@@ -6186,6 +6187,17 @@ namespace bpr::app {
 					}
 				},
 						   aIntent);
+			});
+			Window->set_sign_in_cancel_dispatch([this] {
+				retire_cli_discovery();
+				retire_setup_effects();
+				SetupOwner = next_setup_owner();
+				if (SetupDestination) {
+					SetupDestination->cancel();
+				}
+				if (DeviceHost && !core::terminal(DeviceHost->state().Stage)) {
+					DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
+				}
 			});
 			Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
 			Window->set_profile_label(QString::fromStdString(aAdmission.Label));
@@ -7357,8 +7369,16 @@ namespace bpr::app {
 			if (const auto* const begin
 				= std::get_if<core::begin_device_authorization_intent>(
 					&aGesture)) {
+				if (GithubCliDiscoveryPending) {
+					retire_cli_discovery();
+				}
 				cancel_restoration(true);
 				retire_setup_effects();
+				if (SetupDestination && SetupDestination->pending()
+					&& SetupDestination->begin_authentication(SetupDestination->pending()->Request, begin->Profile)) {
+					authenticate(*SetupDestination->pending());
+					return;
+				}
 				if (SetupDestination) {
 					SetupDestination->cancel();
 				}
@@ -9406,11 +9426,6 @@ namespace bpr::app {
 			for (const auto& profile : Profiles) {
 				const auto authenticated = session && session->Mode == core::github_access_mode::authenticated
 					&& session->Profile == profile.profile() && session->Host == profile.host();
-				// CLI discovery is not authentication. Only the accepted CLI
-				// session participates; inactive profiles retain native setup.
-				if (profile.authentication_transport() != application::github_authentication_transport::native_https && !authenticated) {
-					continue;
-				}
 				// [[BPR-0732]]. Preview is the composition's anonymous authority
 				// on the GitHub.com contract; the host refuses GHES by policy,
 				// so a GHES profile with no account keeps the sign-in stop.
@@ -9514,7 +9529,9 @@ namespace bpr::app {
 				|| !Profile->cli_read_offered_here()) {
 				return;
 			}
-			GithubCliDiscoveryPending = true;
+			GithubCliDiscoveryPending      = true;
+			const auto discoveryGeneration = ++GithubCliDiscoveryGeneration;
+			const auto requestedHost       = SetupDestination && SetupDestination->pending() ? SetupDestination->pending()->Destination.Hostname : std::string{ };
 			Window->present_github_cli_discovery(
 				qt::github_cli_discovery_state::discovering);
 
@@ -9532,7 +9549,7 @@ namespace bpr::app {
 			}
 	#endif
 			try {
-				ProviderEffects.post([this, weak, lane, fixtureResult = std::move(fixtureAccounts)] {
+				ProviderEffects.post([this, weak, lane, discoveryGeneration, requestedHost, fixtureResult = std::move(fixtureAccounts)] {
 					auto accounts = std::optional<std::vector<
 						adapters::github::detail::gh_cli_authenticated_account>>{ };
 					auto failure  = qt::github_cli_discovery_state::process_failed;
@@ -9570,8 +9587,8 @@ namespace bpr::app {
 					} catch (...) { }
 
 					try {
-						lane->post([this, weak, discovered = std::move(accounts), failure]() mutable {
-							if (weak.expired() || Closing || Window == nullptr) {
+						lane->post([this, weak, discoveryGeneration, requestedHost, discovered = std::move(accounts), failure]() mutable {
+							if (weak.expired() || Closing || Window == nullptr || GithubCliDiscoveryGeneration != discoveryGeneration) {
 								return;
 							}
 							GithubCliDiscoveryPending = false;
@@ -9586,11 +9603,27 @@ namespace bpr::app {
 									return;
 								}
 							}
+							auto choices = std::vector<core::host_profile_id>{ };
+							for (const auto& account : *discovered) {
+								if (!requestedHost.empty() && account.Hostname != requestedHost) {
+									continue;
+								}
+								const auto found = std::ranges::find_if(Profiles, [&](const auto& aProfile) {
+									return aProfile.hostname() == account.Hostname && aProfile.authentication_transport() == application::github_authentication_transport::github_cli;
+								});
+								if (found != Profiles.end()) {
+									choices.push_back(found->profile());
+								}
+							}
+							Window->present_cli_account_choices(choices);
 							Window->present_github_cli_discovery(
-								discovered->empty()
+								choices.empty()
 									? qt::github_cli_discovery_state::empty
 									: qt::github_cli_discovery_state::ready,
-								discovered->size());
+								choices.size());
+							if (choices.size() == 1U && GithubCliDiscoveryGeneration == discoveryGeneration) {
+								Window->connect_github_profile(choices.front());
+							}
 						});
 					} catch (...) { }
 				});
@@ -9709,6 +9742,10 @@ namespace bpr::app {
 			if (!profile) {
 				return;
 			}
+			if (profile->authentication_transport() == application::github_authentication_transport::github_cli) {
+				dispatch_intent(core::activate_host_profile_intent{ .Profile = *aPending.Profile });
+				return;
+			}
 			if (profile->product_kind() == application::github_product_kind::github_com) {
 				SetupDeviceRequest       = aPending.Request;
 				Profile->SetupWindow     = DraftWindow;
@@ -9719,7 +9756,7 @@ namespace bpr::app {
 					}
 					stage_setup_credential(aPending, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
 				};
-				Window->open_settings(qt::settings_page::accounts_and_hosts);
+				Window->open_sign_in(aPending.Destination.Hostname);
 				DeviceHost->dispatch(core::begin_device_authorization_intent{ .Profile = *aPending.Profile });
 				SetupDeviceGeneration = DeviceHost->state().Generation;
 				return;
@@ -9829,19 +9866,36 @@ namespace bpr::app {
 			}
 		}
 
+		void retire_cli_discovery()
+		{
+			++GithubCliDiscoveryGeneration;
+			GithubCliDiscoveryPending = false;
+			Window->present_github_cli_discovery(qt::github_cli_discovery_state::idle);
+		}
+
 		void dispatch_intent(application::github_intent aIntent)
 		{
+			if (GithubCliDiscoveryPending) {
+				retire_cli_discovery();
+			}
 			cancel_restoration(true);
 			retire_setup_effects();
-			SetupOwner = next_setup_owner();
-			if (SetupDestination) {
-				SetupDestination->cancel();
+			auto setupActivation = false;
+			if (const auto* activation = std::get_if<core::activate_host_profile_intent>(&aIntent);
+				activation && activation->Mode == core::github_access_mode::authenticated && SetupDestination && SetupDestination->pending()) {
+				setupActivation = SetupDestination->begin_authentication(SetupDestination->pending()->Request, activation->Profile);
+			}
+			if (!setupActivation) {
+				SetupOwner = next_setup_owner();
+				if (SetupDestination) {
+					SetupDestination->cancel();
+				}
 			}
 			if (Closing || Host == nullptr) {
 				return;
 			}
 			std::visit(
-				[this](auto aValue) {
+				[this, setupActivation, expectedSetup = SetupDestination->pending(), discoveryGeneration = GithubCliDiscoveryGeneration](auto aValue) {
 					using intent_type = decltype(aValue);
 					if constexpr (std::is_same_v<
 									  intent_type,
@@ -9880,8 +9934,14 @@ namespace bpr::app {
 								}
 							}
 #endif
+							if (Closing || GithubCliDiscoveryGeneration != discoveryGeneration || (setupActivation && SetupDestination->pending() != expectedSetup)) {
+								return;
+							}
 							DeviceHost->release_refresh_authority();
 							DeviceRefreshAuthority.reset();
+							if (setupActivation) {
+								SetupAcceptedGeneration = core::github_identity_generation{ Host->state().IdentityGeneration.value() + 1U };
+							}
 							Host->dispatch(core::github_event{
 								core::activate_host_profile_intent{ .Profile = aValue.Profile },
 							});
@@ -9894,6 +9954,10 @@ namespace bpr::app {
 							return;
 						}
 
+						if (setupActivation && SetupDestination->pending()) {
+							authenticate_manual(*SetupDestination->pending());
+							return;
+						}
 						auto credential = std::optional<
 							application::github_credential_material>{ };
 #if defined(BPR_BUILD_TESTING)
@@ -12235,9 +12299,10 @@ namespace bpr::app {
 		std::optional<core::device_authorization_generation>     SetupDeviceGeneration;
 		std::unique_ptr<application::setup_destination_host>     SetupDestination;
 		std::optional<core::setup_request_id>                    SetupConfigurationRequest;
-		bool                                                     SetupQueueReady             = false;
-		bool                                                     SetupConfigurationSubmitted = false;
-		bool                                                     GithubCliDiscoveryPending   = false;
+		bool                                                     SetupQueueReady              = false;
+		bool                                                     SetupConfigurationSubmitted  = false;
+		bool                                                     GithubCliDiscoveryPending    = false;
+		std::uint64_t                                            GithubCliDiscoveryGeneration = 0U;
 		core::setup_owner_id                                     SetupOwner{ 1U };
 		std::optional<core::setup_request_id>                    SetupDeviceRequest;
 		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;

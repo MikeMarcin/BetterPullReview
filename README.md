@@ -127,7 +127,11 @@ remains with BPR-0788 and the canonical predecessor gate.
 
 After a CLI profile connects, pasting a PR link for that exact host reuses the
 accepted CLI session, including when an unconnected native profile also exists
-for that server. Discovering a CLI account alone does not connect it. Home does
+for that server. Home and pasted PR links share a focused sign-in dialog;
+Settings manages existing connections. Use GitHub CLI starts discovery immediately:
+a single matching account advances to the trust confirmation, while multiple
+accounts offer a choice. Acceptance resumes the pending PR for that exact host.
+Cancellation discards the pending setup and ignores late discovery results. Home does
 not yet discover authored or requested PRs automatically; personal discovery
 remains tracked under RFC-BPR-0026.
 

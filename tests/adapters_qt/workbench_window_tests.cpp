@@ -6363,7 +6363,7 @@ namespace {
 
 		window.present_github_cli_discovery(qt::github_cli_discovery_state::discovering);
 		QApplication::processEvents();
-		expect(!useCli->isEnabled() && status->isVisibleTo(page)
+		expect(!useCli->isEnabled() && status->isVisible()
 				   && status->text().contains(QStringLiteral("Checking")),
 			   "discovery disables re-entry and reports its in-flight state");
 		useCli->click();
@@ -6376,6 +6376,7 @@ namespace {
 			.Product   = application::github_profile_product::github_enterprise_server,
 			.Transport = application::github_profile_transport::github_cli,
 		});
+		window.present_cli_account_choices({ core::host_profile_id{ 91U } });
 		window.present_github_cli_discovery(qt::github_cli_discovery_state::ready, 1U);
 		QApplication::processEvents();
 		auto* const discovered = window.server_card_for(core::host_profile_id{ 91U });

@@ -120,12 +120,11 @@ namespace bpr::qt {
 			// without an account, and it says so itself.
 			Body->setText(QStringLiteral(
 				"A device code in the browser signs this Mac in once; the session is "
-				"remembered here. Home then lists the pull requests that need me, the "
-				"ones waiting on others, and the ones I follow."));
+				"remembered here. Paste a pull request link to start a review."));
 			Primary->setText(QStringLiteral("Sign in"));
 			Primary->setAccessibleName(QStringLiteral("Sign in to GitHub"));
 			Primary->setAccessibleDescription(QStringLiteral(
-				"Opens Accounts and hosts in Settings and begins a device sign-in there."));
+				"Opens the sign-in dialog and begins a device sign-in."));
 			Secondary->setText(QStringLiteral("Use GitHub CLI"));
 			Secondary->setAccessibleName(QStringLiteral("Use GitHub CLI"));
 			Secondary->setAccessibleDescription(QStringLiteral(
@@ -133,7 +132,7 @@ namespace bpr::qt {
 			Tertiary->setText(QStringLiteral("Add enterprise server"));
 			Tertiary->setAccessibleName(QStringLiteral("Add enterprise server"));
 			Tertiary->setAccessibleDescription(QStringLiteral(
-				"Opens Accounts and hosts in Settings with a new enterprise server card to fill in."));
+				"Opens the sign-in dialog to add an enterprise server."));
 			setAccessibleDescription(
 				GithubCliAvailable
 					? QStringLiteral("Sign in to GitHub, use GitHub CLI, or add an enterprise server")

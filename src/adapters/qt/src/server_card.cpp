@@ -612,6 +612,15 @@ namespace bpr::qt {
 		});
 	}
 
+	void server_card::set_setup_mode(const bool aSetup, const bool aCliOnly)
+	{
+		SetupMode    = aSetup;
+		CliSetupOnly = aSetup && aCliOnly;
+		Rows->setVisible(!aSetup);
+		RowsSeparator->setVisible(!aSetup);
+		apply_account_row();
+	}
+
 	void server_card::apply(const server_card_presentation& aPresentation)
 	{
 		++Statistics.Applications;
@@ -696,7 +705,9 @@ namespace bpr::qt {
 			|| shown.State == server_card_state::signing_in;
 		const auto login = signedIn ? text(shown.Session->Login) : QString{ };
 		Avatar->setText(login.isEmpty() ? QStringLiteral("?") : login.left(1).toUpper());
-		LoginLabel->setText(login.isEmpty() ? QStringLiteral("No account") : login);
+		LoginLabel->setText(!signedIn && CliSetupOnly && cli_option() ? cli_offer_text(*cli_option())
+								: login.isEmpty()                     ? QStringLiteral("No account")
+																	  : login);
 
 		// [[BPR-0773]]. While signing in, the account row is the device sign-in:
 		// the code, the browser and the way out replace who is signed in and the
@@ -728,7 +739,7 @@ namespace bpr::qt {
 		// profile it speaks for; a chosen GitHub CLI profile's retry is its
 		// Connect. The GitHub CLI offer stays beside them.
 		SignOutButton->setVisible(signedIn);
-		const auto signIn = shown.Current && !signedIn && !waiting && native != nullptr && shown.SignInAdmitted;
+		const auto signIn = !CliSetupOnly && shown.Current && !signedIn && !waiting && native != nullptr && shown.SignInAdmitted;
 		SignInButton->setVisible(signIn);
 		SignInButton->setDefault(signIn && !cliPresented);
 		const auto signInTerms = native != nullptr ? signed_out_sentence(*native) : QString{ };
@@ -736,13 +747,13 @@ namespace bpr::qt {
 		SignInButton->setToolTip(signInTerms);
 		ConnectButton->setVisible(
 			!signedIn && !waiting && shown.ConnectAdmitted
-			&& (!shown.Current || cliPresented));
+			&& (!shown.Current || cliPresented) && (!CliSetupOnly || cliPresented));
 		ConnectButton->setAccessibleDescription(shown.ConnectDescription);
 		ConnectButton->setToolTip(shown.ConnectDescription);
 		if (CliOfferButton != nullptr) {
-			const auto offered = !flowRow && !cliPresented && !waiting && shown.ConnectAdmitted;
+			const auto offered = (!SetupMode || CliSetupOnly) && !flowRow && !cliPresented && !waiting && shown.ConnectAdmitted;
 			CliOfferButton->setVisible(offered);
-			CliTrustWarning->setVisible(!flowRow && (offered || cliPresented));
+			CliTrustWarning->setVisible(!SetupMode && !flowRow && (offered || cliPresented));
 		}
 		// The Sign in that began the flow is gone from under the keyboard; its
 		// focus moves to the row's job rather than to whatever is next.

@@ -34,6 +34,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDialog>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -3082,19 +3083,9 @@ namespace {
 					return false;
 				}
 				homeSignIn->click();
-				// [[BPR-0815]]. Settings is the profile's one window since
-				// [[BPR-0705]]: the gesture mounts this window's pages into
-				// that parentless shell and leaves the window's own Settings
-				// child hidden, so a child lookup reads the wrong Settings.
-				// `settings()` answers the one presented, and the pressed
-				// begin must be on its Accounts & hosts page.
-				const auto* const settings = aWindow.settings();
-				if (settings == nullptr || !settings->isVisible()
-					|| settings->current_page() != bpr::qt::settings_page::accounts_and_hosts) {
-					return false;
-				}
-				const auto* const accounts = settings->page_widget(bpr::qt::settings_page::accounts_and_hosts);
-				return accounts != nullptr && accounts->isAncestorOf(button);
+				const auto* dialog = aWindow.sign_in_dialog();
+				return dialog && dialog->isVisible() && dialog->isAncestorOf(button)
+					&& !aWindow.settings()->isVisible();
 			}
 			return false;
 		}

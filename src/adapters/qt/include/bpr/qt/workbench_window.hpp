@@ -60,6 +60,7 @@ class QElapsedTimer;
 class QHBoxLayout;
 class QLabel;
 class QLineEdit;
+class QDialog;
 class QListView;
 class QListWidget;
 class QMessageBox;
@@ -782,7 +783,13 @@ namespace bpr::qt {
 		void mount_settings(settings_window& aSettings);
 		void unmount_settings();
 
-		void               open_settings(settings_page aPage);
+		void open_settings(settings_page aPage);
+		/// \brief Presents the shared connection controls without Settings navigation.
+		void               open_sign_in(std::string aHostname = { }, bool aCliOnly = false);
+		void               set_sign_in_cancel_dispatch(std::function<void()> aDispatch);
+		void               connect_github_profile(core::host_profile_id aProfile);
+		void               present_cli_account_choices(std::vector<core::host_profile_id> aProfiles);
+		[[nodiscard]] auto sign_in_dialog() const noexcept -> QDialog*;
 		[[nodiscard]] auto settings() const noexcept -> settings_window*;
 		[[nodiscard]] auto settings_action() const noexcept -> QAction*;
 		[[nodiscard]] auto appearance_settings() const noexcept
@@ -1036,6 +1043,7 @@ namespace bpr::qt {
 		/// while none is.
 		[[nodiscard]] auto current_server_card() const -> server_card*;
 		void               begin_selected_sign_in();
+		void               update_sign_in_surface();
 		/// \brief [[BPR-0775]]. The first-launch card's second way in: Accounts &
 		/// hosts with a new enterprise server card in its edit state.
 		void begin_enterprise_server_from_home();
@@ -1331,7 +1339,15 @@ namespace bpr::qt {
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
 		std::function<void(settings_page)>                 SettingsPresenter;
-		settings_window*                                   SettingsWindow       = nullptr;
+		settings_window*                                   SettingsWindow = nullptr;
+		QWidget*                                           AccountsPanel  = nullptr;
+		QPointer<QWidget>                                  AccountsReturnParent;
+		QDialog*                                           SignInDialog = nullptr;
+		QScrollArea*                                       SignInScroll = nullptr;
+		std::string                                        SignInHostname;
+		bool                                               SignInCliOnly = false;
+		std::vector<core::host_profile_id>                 SignInCliProfiles;
+		std::function<void()>                              SignInCancelDispatch;
 		QAction*                                           SettingsAction       = nullptr;
 		QStackedWidget*                                    PullRequestStack     = nullptr;
 		QLabel*                                            EmptyStateTitleLabel = nullptr;

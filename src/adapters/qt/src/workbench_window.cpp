@@ -31,6 +31,8 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFont>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -1856,6 +1858,7 @@ namespace bpr::qt {
 		// (BPR-0647) take them.
 		SettingsWindow       = new settings_window{ this };
 		auto* const accounts = new QWidget;
+		AccountsPanel        = accounts;
 		accounts->setObjectName(QStringLiteral("workbenchAccountsPage"));
 		accounts->setAccessibleName(QStringLiteral("Accounts and hosts"));
 		auto* const accountsColumn = new QVBoxLayout{ accounts };
@@ -3442,6 +3445,7 @@ namespace bpr::qt {
 		connect(UseGithubCliButton, &QPushButton::clicked, this, [this] {
 			if (GithubCliDiscoveryDispatch
 				&& GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
+				open_sign_in(SignInHostname, true);
 				GithubCliDiscoveryDispatch();
 			}
 		});
@@ -3495,7 +3499,7 @@ namespace bpr::qt {
 			break;
 		case github_cli_discovery_state::ready:
 			GithubCliDiscoveryStatus->setText(
-				QStringLiteral("Found %1 active GitHub CLI account%2. Choose its server card to connect.")
+				QStringLiteral("Found %1 active GitHub CLI account%2.")
 					.arg(aAccounts)
 					.arg(aAccounts == 1U ? QString{ } : QStringLiteral("s")));
 			GithubCliDiscoveryStatus->show();
@@ -3521,6 +3525,7 @@ namespace bpr::qt {
 			GithubCliDiscoveryStatus->show();
 			break;
 		}
+		update_sign_in_surface();
 	}
 
 	auto workbench_window::use_github_cli_button() const noexcept -> QPushButton*
@@ -5484,16 +5489,16 @@ namespace bpr::qt {
 
 	void workbench_window::begin_enterprise_server_from_home()
 	{
-		open_settings(settings_page::accounts_and_hosts);
+		open_sign_in();
 		// The same draft the page's own button opens, under the same readiness.
 		open_enterprise_server_draft();
 	}
 
 	void workbench_window::begin_github_cli_from_home()
 	{
-		open_settings(settings_page::accounts_and_hosts);
-		if (UseGithubCliButton != nullptr && UseGithubCliButton->isVisible()) {
-			UseGithubCliButton->click();
+		open_sign_in({ }, true);
+		if (GithubCliDiscoveryDispatch && GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
+			GithubCliDiscoveryDispatch();
 		}
 	}
 
@@ -5859,6 +5864,10 @@ namespace bpr::qt {
 		if (aUpdate.Session.has_value()) {
 			SessionPanel->apply_session(*aUpdate.Session);
 			update_server_cards();
+			if (SignInDialog && SignInDialog->isVisible() && aUpdate.Session->Account.value() != 0U
+				&& (SignInHostname.empty() || (server_card_for(aUpdate.Session->Profile) && server_card_for(aUpdate.Session->Profile)->hostname() == SignInHostname))) {
+				SignInDialog->accept();
+			}
 			// [[BPR-0775]]. Home's line names the accepted session's login, which
 			// arrives after the transition that already decided the line.
 			if (StatusLabel != nullptr) {
@@ -6493,11 +6502,22 @@ namespace bpr::qt {
 			server_card_gestures{
 				.Connect =
 					[this](const core::host_profile_id aProfile) {
+						const auto* chosen = server_card_for(aProfile);
+						const auto  cli    = chosen->cli_option() && chosen->cli_option()->Profile == aProfile;
+						if (cli) {
+							present_cli_account_choices({ aProfile });
+						}
+						open_sign_in(chosen->hostname(), cli);
 						select_github_profile(aProfile);
-						GithubConnectAction->trigger();
+						if (chosen->offers_device_sign_in() && chosen->native_option() && chosen->native_option()->Profile == aProfile) {
+							begin_selected_sign_in();
+						} else {
+							GithubConnectAction->trigger();
+						}
 					},
 				.SignIn =
 					[this](const core::host_profile_id aProfile) {
+						open_sign_in(server_card_for(aProfile)->hostname());
 						select_github_profile(aProfile);
 						if (const auto* const chosen = server_card_for(aProfile);
 							chosen != nullptr && chosen->offers_device_sign_in()) {
@@ -6620,6 +6640,7 @@ namespace bpr::qt {
 			}
 			card->apply(shown);
 		}
+		update_sign_in_surface();
 	}
 
 	auto workbench_window::session_panel() const noexcept -> github_session_panel*
@@ -6635,7 +6656,8 @@ namespace bpr::qt {
 
 	void workbench_window::begin_selected_sign_in()
 	{
-		open_settings(settings_page::accounts_and_hosts);
+		const auto* card = current_server_card();
+		open_sign_in(card ? card->hostname() : std::string{ });
 		if (DevicePanel == nullptr) {
 			return;
 		}
@@ -7034,9 +7056,17 @@ namespace bpr::qt {
 		// [[BPR-0732]]. A public-preview stage needs no press: the host is
 		// already opening it, so only Cancel is offered.
 		const auto actionable = aProjection.Pending && (aProjection.Pending->Stage == core::setup_destination_stage::add_server || aProjection.Pending->Stage == core::setup_destination_stage::sign_in);
-		SetupContinueButton->setVisible(actionable);
+		SetupContinueButton->hide();
+		if (actionable) {
+			open_sign_in(aProjection.Pending->Destination.Hostname);
+			if (aProjection.Pending->Stage == core::setup_destination_stage::add_server) {
+				open_enterprise_server_draft();
+				EnterpriseServerHostname->setText(QString::fromStdString(aProjection.Pending->Destination.Hostname));
+				update_enterprise_server_actions();
+			}
+		}
 		SetupContinueButton->setText(aProjection.Pending && aProjection.Pending->Stage == core::setup_destination_stage::add_server ? tr("Add server and continue") : tr("Sign in and continue"));
-		SetupCancelButton->setVisible(aProjection.Pending && aProjection.Pending->Stage != core::setup_destination_stage::opening);
+		SetupCancelButton->setVisible(aProjection.Pending && aProjection.Pending->Stage != core::setup_destination_stage::opening && (!SignInDialog || !SignInDialog->isVisible()));
 		update_home_landing();
 		ApplyingSetupProjection = false;
 	}
@@ -7044,6 +7074,9 @@ namespace bpr::qt {
 	void workbench_window::open_from_home_bar()
 	{
 		if (HomeOpenBar && SetupDestinationDispatch) {
+			if (SignInDialog && SignInDialog->isVisible()) {
+				SignInDialog->reject();
+			}
 			SetupDestinationDispatch(application::submit_setup_destination{ HomeOpenBar->text().toStdString() });
 		}
 	}
@@ -7865,8 +7898,121 @@ namespace bpr::qt {
 		AppearanceSettings->cancel_preview();
 	}
 
+	void workbench_window::set_sign_in_cancel_dispatch(std::function<void()> aDispatch)
+	{
+		SignInCancelDispatch = std::move(aDispatch);
+	}
+
+	auto workbench_window::sign_in_dialog() const noexcept -> QDialog* { return SignInDialog; }
+
+	void workbench_window::connect_github_profile(const core::host_profile_id aProfile)
+	{
+		select_github_profile(aProfile);
+		GithubConnectAction->trigger();
+	}
+
+	void workbench_window::present_cli_account_choices(std::vector<core::host_profile_id> aProfiles)
+	{
+		SignInCliProfiles = std::move(aProfiles);
+		update_sign_in_surface();
+	}
+
+	void workbench_window::update_sign_in_surface()
+	{
+		if (!SignInDialog || !SignInDialog->isVisible()) {
+			return;
+		}
+		for (auto* card : ServerCards) {
+			const auto matches = SignInHostname.empty() || card->hostname() == SignInHostname;
+			const auto cli     = !SignInCliOnly || std::ranges::any_of(SignInCliProfiles, [card](auto aProfile) { return card->holds(aProfile); });
+			card->setVisible(matches && cli);
+			card->set_setup_mode(true, SignInCliOnly);
+		}
+		if (auto* lede = AccountsPanel->findChild<QLabel*>(QStringLiteral("accountsLede"))) {
+			lede->hide();
+		}
+		EnterpriseServerCancel->hide();
+		AddEnterpriseServerButton->setVisible(QueueReady && static_cast<bool>(SavedServerDispatch) && SignInHostname.empty() && !SignInCliOnly && !EnterpriseDraftOpen);
+		UseGithubCliButton->setVisible(static_cast<bool>(GithubCliDiscoveryDispatch)
+									   && (!SignInCliOnly || GithubCliDiscoveryState == github_cli_discovery_state::empty
+										   || GithubCliDiscoveryState == github_cli_discovery_state::process_failed
+										   || GithubCliDiscoveryState == github_cli_discovery_state::malformed_response
+										   || GithubCliDiscoveryState == github_cli_discovery_state::unsupported_version));
+		if (DevicePanel && DevicePanel->signing_in()) {
+			DevicePanel->cancel_button()->hide();
+		}
+	}
+
+	void workbench_window::open_sign_in(std::string aHostname, const bool aCliOnly)
+	{
+		if (!AccountsPanel) {
+			return;
+		}
+		if (!SignInDialog) {
+			SignInDialog = new QDialog{ this };
+			SignInDialog->setObjectName(QStringLiteral("sharedSignInDialog"));
+			SignInDialog->setWindowModality(Qt::NonModal);
+			auto* layout = new QVBoxLayout{ SignInDialog };
+			SignInScroll = new QScrollArea{ SignInDialog };
+			SignInScroll->setWidgetResizable(true);
+			SignInScroll->setFrameShape(QFrame::NoFrame);
+			layout->addWidget(SignInScroll);
+			auto* buttons = new QDialogButtonBox{ QDialogButtonBox::Cancel, SignInDialog };
+			layout->addWidget(buttons);
+			connect(buttons, &QDialogButtonBox::rejected, SignInDialog, &QDialog::reject);
+			connect(SignInDialog, &QDialog::finished, this, [this](int aResult) {
+				SignInScroll->takeWidget();
+				AccountsPanel->layout()->setAlignment(Qt::Alignment{ });
+				if (AccountsReturnParent) {
+					AccountsPanel->setParent(AccountsReturnParent);
+					if (auto* returnLayout = qobject_cast<QVBoxLayout*>(AccountsReturnParent->layout())) {
+						returnLayout->insertWidget(1, AccountsPanel);
+					}
+					AccountsPanel->show();
+				}
+				for (auto* card : ServerCards) {
+					card->show();
+					card->set_setup_mode(false);
+				}
+				if (auto* lede = AccountsPanel->findChild<QLabel*>(QStringLiteral("accountsLede"))) {
+					lede->show();
+				}
+				EnterpriseServerCancel->show();
+				SignInHostname.clear();
+				SignInCliOnly = false;
+				SignInCliProfiles.clear();
+				UseGithubCliButton->setVisible(static_cast<bool>(GithubCliDiscoveryDispatch));
+				close_enterprise_server_draft();
+				update_server_cards();
+				if (aResult == QDialog::Rejected && SignInCancelDispatch) {
+					SignInCancelDispatch();
+				}
+			});
+		}
+		if (!SignInDialog->isVisible()) {
+			AccountsReturnParent = AccountsPanel->parentWidget();
+			AccountsPanel->layout()->setAlignment(Qt::AlignTop);
+			SignInScroll->setWidget(AccountsPanel);
+			SignInDialog->resize(620, 440);
+		}
+		SignInHostname = std::move(aHostname);
+		SignInCliOnly  = aCliOnly;
+		if (aCliOnly) {
+			close_enterprise_server_draft();
+		}
+		SignInDialog->setWindowTitle(SignInHostname.empty() ? tr("Sign in") : tr("Sign in to %1").arg(QString::fromStdString(SignInHostname)));
+		settings()->hide();
+		SignInDialog->show();
+		update_sign_in_surface();
+		SignInDialog->raise();
+		SignInDialog->activateWindow();
+	}
+
 	void workbench_window::open_settings(const settings_page aPage)
 	{
+		if (SignInDialog && SignInDialog->isVisible()) {
+			SignInDialog->reject();
+		}
 		if (SettingsPresenter) {
 			SettingsPresenter(aPage);
 		} else if (SettingsWindow != nullptr) {
