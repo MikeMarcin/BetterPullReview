@@ -579,6 +579,12 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "ninja-named-pipe",
                 "qprocess-named-pipe",
                 "credential-manager",
+                # [[BPR-0872]], [[BPR-0873]]. Measured on the Windows station:
+                # CreateProcess refused outright for a tool outside the granted
+                # scopes, and content the repository points at but does not
+                # contain.
+                "child-process-denied",
+                "repository-content-outside-checkout",
             },
         )
 
@@ -1022,7 +1028,11 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "os._exit(70)\n",
                 encoding="utf-8",
             )
-            interpreter = sys.executable
+            # [[BPR-0890]]. CMake reads a backslash in a quoted argument as an
+            # escape, so a Windows interpreter path written raw produces a
+            # CTestTestfile that lists no tests at all. The generated script
+            # path beside it already uses forward slashes for the same reason.
+            interpreter = pathlib.Path(sys.executable).as_posix()
             rows = [
                 f'add_test(before "{interpreter}" "-I" "-S" "{child.as_posix()}")',
                 'set_tests_properties(before PROPERTIES '
