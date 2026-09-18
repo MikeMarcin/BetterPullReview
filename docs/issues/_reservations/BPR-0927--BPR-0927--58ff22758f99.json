@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0927"
+  ],
+  "reserve_for": "review-feedback-rfc",
+  "purpose": "Closeout for RFC consolidating first-PR review feedback",
+  "created": "2026-09-18T10:25:38.778726+00:00",
+  "base": "4fcb293a5c900b6d2b3a9a78f1e660b1da8382a8"
+}
