@@ -115,3 +115,43 @@ container-temp rows.** It is a lead, and a cheap one, but that station measured
 well, which rules the AppContainer grant out for that row specifically. If the
 container grant does turn out to be what the family needs, that belongs in its
 own commit with its own sentence rather than inside a six-row fix.
+
+## The promotion is done, and the divergence is now measured in both directions — dsp-009
+
+Recorded from `bpr-win`'s CHECKPOINT `cbf6d920` (windows-lane), at that
+station's request; the station itself edits only `tests/**`.
+
+**Three authors are two again.** `make_root_private` and `appcontainer_sid`
+now live once, in `tests/end_to_end/bpr_narrow_owner_private.py`, named to
+match the `.cmake` helper beside it, and both epoch courses import it. Both
+pass on Windows at that tip: `application_epoch_portable_occurrence_two_catalogues`
+90.38 s, `application_epoch_ordinary_update_recreated` 31.23 s, ctest exit 0.
+No third spelling was written. The CMake helper's descriptor was deliberately
+not changed.
+
+**Neither helper is wrong; they answer different questions**, and that is the
+sentence this card was missing:
+
+- the CMake descriptor — one inheritable user grant, inheritance removed — is
+  **enough** for the two composition rows `df54d00b` fixed;
+- the Python descriptor — the same plus the process's AppContainer SID and the
+  SYSTEM / Administrators / OWNER RIGHTS removals — is **not enough** for the
+  contained container-temp courses. `application_profile_owner_admission_public_path`
+  still refuses at the registry (`SEED_REGISTRY_REFUSAL:0`) when contained,
+  even with the container SID granted on the leaf. The refusal is upstream of
+  the leaf: `open_state_directory` → `validate_ancestor_chain`, and the
+  ancestors of the container's `AC\Temp` are not openable by the lowbox token.
+  No descriptor written on the leaf can change what the token can open above
+  it. **So the contained question is not a descriptor question at all**, and
+  the AppContainer-grant lead dsp-008 recorded is closed for that row: measured,
+  not the missing piece.
+
+Uncontained, the promoted descriptor *does* get that row's seed accepted where
+it was refused, and the course then fails later and elsewhere (its own
+"bounded public course condition"), so the family has split into two obstacles
+and a `WINDOWS_UNCONTAINED` pin alone would not make the row pass. That is
+`bpr-win`'s next measurement, not this card's.
+
+Consequence for the acceptance row: pin the two remaining harness authors
+against the product, and say in the row that they differ on purpose, with the
+two facts above as the reason each is shaped as it is.
