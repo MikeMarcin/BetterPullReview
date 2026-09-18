@@ -12,6 +12,137 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-007, mandate r5): both stations were blocked by a lane ref, and one reply has never worked
+
+Dispatch dsp-007 is **in progress**; this section is a checkpoint refreshed
+before a long command, not a handoff. The dsp-006 section below still holds
+except where this one corrects it. The `project-integrator` lease is **held**.
+
+### The first thing dsp-007 found, because it blocked both stations
+
+dsp-006 dispatched both envelopes with `base_commit d6dfca2b`, which existed
+**only on `main`**. A station fetches its own lane and nothing else, so neither
+could reach its own base. `origin/linux-lane` was at `618bad62` and
+`origin/windows-lane` at `23e7eb18`, both older than the base they were told to
+work from. `bpr-linux` was stopped dead by it. `bpr-win` had been working
+around it silently, checking ancestry and merging the `main` SHA explicitly
+each time — the right defence, and the reason nobody noticed sooner.
+
+Fixed by fast-forwarding both lane refs to `e2ec4b4b`, which contains
+`618bad62`, `23e7eb18` and `d6dfca2b`. **The generalisation is the point:** a
+lane ref is not advanced by merging the lane into `main`. dsp-005 pushed the
+lanes forward and dsp-006 did not, so the protocol has to be explicit —
+*after merging a lane, push the lane ref forward, then tell the station.*
+
+### The station protocol gained two things and both stations adopted them
+
+- **CHECKPOINT or RETURN, in the first line of every reply.** dsp-006 merged
+  `618bad62` as if it were a return while a writer was live, which is what
+  created the reconciliation `bpr-linux`'s writer is now paying for. Both
+  stations now label every pushed tip. An unlabelled tip is treated as a
+  checkpoint and queried, never merged.
+- **`bpr-win` is at `86b04901`, labelled CHECKPOINT. It is fetched and
+  deliberately not merged**; a full sweep is running against that exact tree
+  and the RETURN will be labelled.
+
+### `bpr-linux`'s answer: main is not stale
+
+The question that could have invalidated `main` is answered, from an in-flight
+read of the uncommitted writer tree and explicitly **not** a return. The
+BPR-0880 msgid **identifier list does not move**. Five **version floors** drop
+at patch level, `2.39.5` to `2.39.0` (`gitattributesSymlink`,
+`gitignoreSymlink`, `mailmapSymlink`, `nulInHeader`, `unterminatedHeader`).
+Three are INFO, so the emitted `--strict=<id>=ignore` string only *widens*, and
+only on an installation in `[2.39.0, 2.39.5)`; the two fatal rows never enter
+the policy. Every Git at or above `2.39.5` — which is every installation this
+run uses, including Apple Git 2.50.1 here — gets a byte-identical string.
+**So `caeb98da`'s merged copy is incomplete in a permissive direction, not
+wrong, and nothing was built on a stale table.** The floor change lands once,
+with the writer's return; it is deliberately not split out early.
+
+### Done on main in dsp-007
+
+**[[BPR-0894]] is Done** (`424a64cc`). The architecture boundary rule reserved
+the *token* of a platform's per-user directory variable to the GitHub CLI
+transport, so no component could read one to find a directory — which is what
+forced [[BPR-0881]] to probe `/run/user/<uid>` directly. The rule now separates
+*constructing* a child environment (still the transport's alone) from *reading*
+a variable as a directory path through `environment_directory("NAME")`
+(permitted anywhere), for the four variables that are directory publishers:
+`XDG_RUNTIME_DIR`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`. The other reserved
+names stay reserved with a reason each, on the card. Sixteen hostile forms are
+pinned, including a discovery read followed by a construction naming the same
+variable, so the strip cannot launder a leak. **Falsified against the
+pre-change rule**: the same discovery test fails on all four variables there,
+which is what shows the narrowing is load-bearing rather than a test that would
+pass either way. The product probe is deliberately unchanged while `bpr-linux`
+measures BPR-0881's Linux criterion against the current resolution order; the
+follow-up is on the card.
+
+### [[BPR-0896]] is now P1: a live reply has never worked at all
+
+A read-only survey checked the card against the code. The defect is confirmed
+and **understated**. `submit_and_reconcile` runs a **pre-admission baseline**
+reconciliation (`github_mutation_contract.cpp:2116`) before the POST, using the
+same broken compiler, so against a real server a reply **fails before anything
+is written**. Not "cannot reconcile or recover" — cannot be submitted, on the
+operation a reviewer uses most.
+
+Two further corrections are recorded on the card rather than edited in: the
+machinery the card said to reuse returns no comment data and cannot be reused
+as-is, and there are three GraphQL-rooted operations rather than two. Two
+server-behaviour questions are named that decide the fix's shape and that this
+repository cannot answer by reading; **neither shape should be built before
+they are answered.**
+
+**[[BPR-0904]] is new and explains why nothing caught it.** The mutation
+fixtures' `fake_transport` answers from a positional queue and **ignores method
+and path**, so no row can fail a wrong request URL. Exactly two assertions pin
+a request path across the whole mutation surface. `validate_outbound_review_mutation_request`
+cannot cover the gap either: it validates by recompiling the canonical form and
+comparing, so it reproduces the same defect and passes.
+
+[[BPR-0897]] gained one fact and no recommendation: since a reply could never
+have been written against a real server, that card's residual could not have
+produced a write for that operation. It shrinks the exposure and is not a
+reason to answer (1).
+
+### In flight on the Mac as this checkpoint is written
+
+- [[BPR-0901]] is claimed and a worker is running the card's discriminating
+  experiment. Early results are recorded in
+  `build/r2-logs/dsp7-0901-summary.txt`: at HEAD both rows passed four
+  consecutive parallel runs and three more under fourteen artificial load
+  spinners. **The flake has not yet reproduced**, which is itself informative.
+- The worker was warned of a confound the card does not name: the integrator
+  ran boundary tests concurrently early on, and **machine load is a fourth
+  hypothesis** the card's three do not cover. It was also given
+  [[BPR-0893]]'s measured precedent — the same build directory producing
+  pass-then-fail at one fixed revision — because two cards now describe macOS
+  rows in `build/r2-dev` that fail some of the time, and that is either
+  coincidence or a shared cause.
+- A read-only review of [[BPR-0894]]'s rule narrowing is running, tasked with
+  defeating the rule rather than confirming it, and with separating a
+  **regression** this commit introduced from a **pre-existing** limit of
+  matching tokens in text.
+- A read-only analysis of [[BPR-0902]] is running, to turn a Windows-station
+  investigation into a Windows-station fix.
+
+### Hazards learned in dsp-007
+
+- **A lane ref does not advance when you merge the lane.** See above. It cost
+  one station its whole envelope.
+- **`issue_board.py move` does not commit.** A `claim` immediately after a
+  `move` refuses, because the card it is about to move is already dirty.
+  Commit the promotion first.
+- **Do not run anything on the machine while an intermittency experiment is
+  running.** CPU contention is a confound that changes the result without
+  changing what is being tested, and a run taken under unknown load is not
+  comparable with one taken idle.
+- **Test numbers are not identity.** dsp-006's sweep failed `#342
+  application_overview_since_review_contract`; the same row is `#343` today,
+  because BPR-0890 added one. Resolve names against `ctest -N`, always.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-006, mandate r5): the three P1 review findings are answered, and one was answered by being overturned
 
 Dispatch dsp-006 ends here. The dsp-004/dsp-005 protocol and hazards below still
