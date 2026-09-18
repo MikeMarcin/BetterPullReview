@@ -20,7 +20,9 @@ this ledger and dependency list until their runtime acceptance is complete.
 Markdown cards BPR-0916 and BPR-0917 remain outside this RFC.
 
 [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md) is Proposed.
-This registration consolidates owner feedback; no runtime evidence exists yet.
+The accepted source/update/entry milestone now supplies runtime evidence for
+AC-02, AC-04 and AC-05. Design decisions for AC-01, AC-03, AC-06 and AC-09 do
+not substitute for the open BPR-0928/BPR-0929 runtime work.
 
 ## Current frontier
 
@@ -38,10 +40,10 @@ This registration consolidates owner feedback; no runtime evidence exists yet.
 | Criterion | Owning card and direct evidence | Result |
 |---|---|---|
 | AC-01: Long PR descriptions have a demonstrated reading layout that exposes the complete admitted body, retains place and keeps Files reachable across representative window sizes and font scales. | [[BPR-0918]] design evidence; [[BPR-0928]] composed runtime and applicable native layout/input evidence | Design selected; runtime pending |
-| AC-02: Overview Start review enters Review rather than empty Read; Continue review preserves the intended position, and navigation publishes nothing. | [[BPR-0919]]: composed start review navigation course and applicable native layout/input evidence | Not run |
+| AC-02: Overview Start review enters Review rather than empty Read; Continue review preserves the intended position, and navigation publishes nothing. | [[BPR-0919]]: accepted composed start/continue course at `5b95485c` and applicable focused evidence | Pass for accepted milestone; combined closeout pending |
 | AC-03: Review composition has an agreed, implemented placement with usable input space, no unexplained large gaps or clipping, and preserved drafts and explicit submission semantics. | [[BPR-0920]] design evidence; [[BPR-0929]] composed review composition course and applicable native layout/input evidence | Design selected; runtime pending |
-| AC-04: Available update history appears for the loaded PR; loading, empty, unavailable and failed states are distinct, and stale history cannot replace another PR’s updates. | [[BPR-0921]]: composed missing updates course and applicable native layout/input evidence | Not run |
-| AC-05: Supported stable comparisons open the intended source for multiple files; genuine stale selections remain rejected and unavailable comparisons explain the actual cause and recovery path. | [[BPR-0922]]: composed source-loading blocker course and applicable native layout/input evidence | Not run |
+| AC-04: Available update history appears for the loaded PR; loading, empty, unavailable and failed states are distinct, and stale history cannot replace another PR’s updates. | [[BPR-0921]]: accepted recorded CLI/GHES update-history course at `5b95485c` | Pass for accepted milestone; combined closeout pending |
+| AC-05: Supported stable comparisons open the intended source for multiple files; genuine stale selections remain rejected and unavailable comparisons explain the actual cause and recovery path. | [[BPR-0922]]: accepted recorded CLI/GHES two-file and unavailable/stale course at `5b95485c` | Pass for accepted milestone; combined closeout pending |
 | AC-06: The thread action has an understandable visible effect or is replaced by a clear automatic/reachable flow; loading, filtering, empty results and failures are explicit. | [[BPR-0923]] design evidence; [[BPR-0929]] composed Discuss entry/state course | Design selected; runtime pending |
 | AC-07: Full admitted thread bodies are reachable without accidental nested scroll traps; wheel, trackpad and keyboard behavior is responsive and supported by observed or measured evidence. | [[BPR-0924]]: composed clipped threads and slow nested scrolling course and applicable native layout/input evidence | Not run |
 | AC-08: The graph and thread detail form one understandable reading path with consistent body presentation and no unexplained duplicate full thread, while preserving identity and navigation. | [[BPR-0925]]: composed apparent duplicate thread rendering course and applicable native layout/input evidence | Not run |
