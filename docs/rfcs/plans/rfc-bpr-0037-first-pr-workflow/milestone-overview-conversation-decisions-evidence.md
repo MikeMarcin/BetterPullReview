@@ -58,13 +58,13 @@
   the next milestone's explicit follow-up exit and BPR-0927's dependency ledger.
 - Active owners/commands: the bounded Overview correction and route-record audit
   are complete, its disposable directory is removed and all leaf commands are
-  quiescent. The independent reviewer is holding final judgment for the corrected SHA.
-- Pending obligations: verify and commit the bounded correction, complete
-  independent review, finish BPR-0918/BPR-0920/BPR-0923/BPR-0926 and publish the
+  quiescent. The independent reviewer accepted corrected candidate
+  `fe6ac3633a61bf5fc4abab0057f6546d412c6446` with no blocking or non-blocking
+  finding; review commands are complete.
+- Pending obligations: finish BPR-0918/BPR-0920/BPR-0923/BPR-0926 and publish the
   milestone return while leaving BPR-0928/BPR-0929 runtime work open.
-- Next discriminating step: narrow reviewer confirmation that the corrected
-  source-anchor evidence closes BPR-0918's design-demonstration gap without
-  overstating BPR-0928 runtime completion.
+- Next discriminating step: record per-card revision-bound acceptance and verify
+  the final board/documentation state.
 
 Historical source/update/entry evidence remains in
 `milestone-source-update-review-entry-evidence.md`; this milestone does not

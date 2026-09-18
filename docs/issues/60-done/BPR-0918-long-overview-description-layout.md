@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0918"
 title: "Investigate a larger overview description for long PR bodies"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
+acceptance: [{"criterion":"Trace where body length and visible height are limited; distinguish provider truncation from viewport constraints and document the evidence.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"artifact","detail":"overview-description-layout-study.md traces the 262,144-byte fail-closed admission through accepted projection to the complete plain-text body and the independent 110-pixel Qt viewport cap; no owner/server truncation is inferred."}},{"criterion":"Compare inline expansion, resizing and a dedicated reading surface across representative widths, fonts, scales, keyboard, selection/copy and scroll ownership.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"observation","detail":"The study compares all three options and records 36 full-body native-library probe cases at 800/1400 widths, 13/20-point fonts and 1x/1.25x/2x scale, including full copy, end visibility, PageDown and keyboard return."}},{"criterion":"Recommend and demonstrate full-body reading, expansion/restoration and Return to Files without losing place; describe short/empty and refresh/replacement behavior.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"observation","detail":"The selected retained central reader reaches the complete synthetic body. Its digest-bound source-anchor correction preserves directed selection and keeps the exact anchor visible in 864/864 Return-to-Files/reopen courses; disabled adjustment fails, and short/empty, same-body refresh, edit clamping and authority replacement rules are explicit."}},{"criterion":"Record a concrete design recommendation and bounded implementation follow-up with runtime acceptance.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"artifact","detail":"BPR-0928 is canonically allocated and linked to AC-01 with full-body, input, retention, invalidation, accessibility and target-native acceptance; runtime AC-01 remains pending."}}]
 ---
 
 # Investigate a larger overview description for long PR bodies
