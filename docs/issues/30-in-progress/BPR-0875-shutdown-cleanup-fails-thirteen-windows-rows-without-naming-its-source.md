@@ -443,12 +443,30 @@ down a level.
 
 ### The [[BPR-0901]] margin holds on this host, and it is not close
 
-Rows 5 and 6 are the two that carry `bpr_fixture_run_budget_ms` (40000) with
-`RUNS 4` rather than `bpr_epoch_phase_budget_ms` (120000), and that macOS failed
-at `elapsed_ms=40035` and `40052`. **Neither failed here**, and no
-`RUN_BUDGET_EXPIRED` was emitted: the whole row took 8.16 s and 8.23 s
-respectively, for all four of its runs together, against a 40 s budget for each
-one. That is roughly a fivefold margin rather than a marginal pass, so this host
-says nothing about whether macOS's failures are a path-length or 0700-parent
-effect — it says the two rows are nowhere near the budget on Linux. Not
-investigated and not changed here; the registration is untouched.
+**This is a measurement of the defect side, not the fixed side.** Main has
+landed [[BPR-0901]]'s budget fix on `main` at `026e87cc`; it is **not** on this
+lane and was not fetched — that object does not exist in this clone. At this
+station's HEAD both rows still register `BUDGET_MS ${bpr_fixture_run_budget_ms}`
+(**40000**) with `RUNS 4` and `RESERVE_MS 4000`, read out of `git show HEAD` at
+`tests/end_to_end/CMakeLists.txt:1888-1893` and `:1914-1919`. This station never
+edited that file. So the figures below are taken against the bound the defect
+describes.
+
+Rows 5 and 6 are the two that carry that 40000 ms bound rather than
+`bpr_epoch_phase_budget_ms` (120000), and that macOS failed at
+`elapsed_ms=40035` and `40052`. **Neither expired here** — stated as a result
+rather than as an absence: on this host, against the unfixed 40000 ms bound,
+both rows completed and no `RUN_BUDGET_EXPIRED` was emitted for either.
+
+No `elapsed_ms` can be quoted for them, and that is a property of the harness
+rather than a gap in the measurement: `src/app/main.cpp:4379` prints
+`PUBLIC_PATH_BUDGET:… elapsed_ms=…` only inside the failing-verdict block, so a
+run that stays inside its budget prints no elapsed figure at all. The whole rows
+took 8.16 s and 8.23 s serially for all four of their runs together, and 10.53 s
+and 11.59 s under `-j10` sweep load — at worst a fourfold margin against a 40 s
+per-run budget.
+
+So this host says nothing about whether macOS's failures are a path-length or
+0700-parent effect; it says these two rows are nowhere near the bound on Linux
+**even before the fix**. Not investigated and not changed here; the registration
+is untouched.
