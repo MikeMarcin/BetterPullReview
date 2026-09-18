@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0926"
 title: "Show conversations in Discuss and investigate a file-independent default"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028", "RFC-BPR-0008"]
 depends_on: []
 priority: "P1"
