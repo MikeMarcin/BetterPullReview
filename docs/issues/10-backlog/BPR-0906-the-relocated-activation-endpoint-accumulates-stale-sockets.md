@@ -70,6 +70,50 @@ They are cheaper to answer together than separately.
   the user runs; a sweep that is wrong here takes a *live* owner's name away,
   which is worse than the accumulation it fixes.
 
+## Measured on Linux: scope item 1 is answered
+
+`bpr-linux` (dispatch `dsp-007`, `bpr-linux/int-16`) produced every path
+below on the host rather than reasoning about it. Full evidence, commands and
+exit statuses:
+[BPR-0906 Linux measurement](../../verification/BPR-0906-linux-endpoint-exit-paths.md).
+**No fix was chosen or implemented** — that stays joint with [[BPR-0895]].
+
+**A survivor is reclaimed, not refused,** so the accumulation is inert. The
+next start on the same root proves the leftover is dead — socket, owner, `0600`,
+and a probe connection that must be refused — and only then unlinks and rebinds
+(`src/adapters/sqlite/src/profile_activation.cpp:413-427`). A live owner answers
+that probe and is left alone, measured. Two boundaries qualify it: the reclaim
+only helps when a root is *reused*, and the harness never reuses one, so the
+debris is never reclaimed by anybody; and a leftover that is *not* a socket is
+refused forever, which is the shape that would make this harmful.
+
+The owner does unlink on an orderly exit, in `~native_server()`
+(`profile_activation.cpp:263-280`). The paths that skip it:
+
+- **A crash (`SIGABRT`, `SIGSEGV`), `SIGKILL`, `SIGTERM`, `SIGINT`, `SIGHUP`** —
+  the unlink is a destructor and there is no signal handler anywhere in `src/**`.
+- **A CTest `TIMEOUT`** — measured to kill the whole process group uncatchably;
+  `TIMEOUT_SIGNAL_NAME` is set nowhere in this tree.
+- **An orderly exit whose data root was removed, or replaced, underneath it** —
+  the destructor runs, exits 0, prints `OWNER_RELEASED`, and still declines,
+  because the lease guard can no longer prove it owns the root
+  (`src/adapters/sqlite/src/catalog_database.cpp:4378-4392`). That guard is
+  correct and is what stops an owner unlinking a name it no longer owns, but it
+  means *orderly exit* alone does not imply cleanup.
+- **A failed assertion inside a live owner**, which calls `std::exit` and so
+  skips `main`'s automatic destructors
+  (`tests/end_to_end/profile_activation_public_path_tests.cpp:22-27`).
+
+**A second leaking row was found, and it is not an activation row.** Every
+owner-only start binds an endpoint (`src/app/src/github_application.cpp:12765`),
+so any row that starts a real owner and then signals it leaks one.
+`application_attended_launch_contract` does exactly that: an attended launch is
+designed never to exit on its own, so the test must signal it, at
+`tests/end_to_end/attended_launch_contract.py:150`. Two consecutive **passing**
+runs left two different endpoints. The activation rows themselves leave none.
+So the sweep's two survivors should not be assumed to be the activation rows'
+doing, and a fix aimed only at those rows would miss this.
+
 ## Acceptance
 
 - A full test sweep leaves no more endpoints behind than it started with, or
