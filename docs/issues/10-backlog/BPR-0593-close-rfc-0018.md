@@ -316,7 +316,23 @@ tight enough to fail.
   `git_cache_contract_tests.cpp:1405`, which passes. The writer's own first
   draft made dsp-006's mistake in the other direction and its row caught it on
   2.53.0, independently.
-- **`bpr-linux` returned its whole envelope and is idle.** `ef630436` is
+- **`bpr-linux` returned its whole envelope and has one bounded task.** It is
+  measuring [[BPR-0906]]'s first scope item — which exit paths skip the
+  endpoint unlink — with an explicit instruction to measure and not fix,
+  because the choice is entangled with [[BPR-0895]] and must be made once for
+  both.
+- **Two card dispositions were made here, not by the station.** [[BPR-0881]] is
+  **Done** (`90c40e49`): the Linux criterion closed it, and the number that did
+  so is the in-root endpoint measuring 108 against a `sun_path` of 108.
+  [[BPR-0875]] **stays In Progress** for the Windows remainder alone; its
+  macOS-and-Linux line is closed by the 13/13.
+- **One of the two defects `bpr-linux` reported needed no card**: its red
+  `test_network_isolation_structure_contract` is the same tripwire `bpr-win`
+  had already fixed, and the same one my macOS sweep hit. Three platforms met
+  it, one station fixed it, and it is green at the merged head. The station was
+  right to refuse to paste the expected strings in rather than confirm the
+  measurements.
+- **`bpr-linux` returned its whole envelope.** `ef630436` is
   merged; its tree is clean and nothing is queued for it. [[BPR-0881]]'s Linux
   criterion, [[BPR-0875]]'s thirteen Linux rows, [[BPR-0890]]'s Linux launcher
   and the full sweep are all in.
