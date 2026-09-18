@@ -12,8 +12,10 @@ the functional core or Qt presentation adapter.
   that source is the sole permitted telemetry reference.
 - Keep `github_cli_process.hpp`, `github_cli_process_runner.hpp`, and
   `github_wire_transport.hpp` standard-C++-only. The process result may expose
-  bounded stdout only on clean success or the explicitly opted-in completed
-  `gh api --include` HTTP response path. That path may carry a bounded nonzero
+  bounded stdout only on clean success; the exact token-hidden legacy
+  `gh auth status` request may merge stderr into that single bounded stream and
+  still requires clean success. The explicitly opted-in completed
+  `gh api --include` HTTP response path may carry a bounded nonzero
   exit code so the adapter can normalize an HTTP error. Crashes, cancellation,
   timeouts, limits and unrelated process requests expose fixed categories, not
   stderr, `QProcess::errorString()`, arguments, environment, paths, exit

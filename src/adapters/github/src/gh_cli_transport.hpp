@@ -96,6 +96,8 @@ namespace bpr::adapters::github::detail {
 		invalid_certificate_directory,
 	};
 
+	enum class gh_cli_auth_status_format : std::uint8_t;
+
 	class validated_gh_cli_configuration final
 	{
 	public:
@@ -140,7 +142,8 @@ namespace bpr::adapters::github::detail {
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
 		friend auto compile_gh_cli_auth_status_request(
-			const validated_gh_cli_configuration& aConfiguration)
+			const validated_gh_cli_configuration& aConfiguration,
+			gh_cli_auth_status_format             aFormat)
 			-> github_cli_process_request;
 		friend auto compile_gh_cli_exact_blob_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
@@ -196,15 +199,27 @@ namespace bpr::adapters::github::detail {
 		malformed_response,
 	};
 
+	/// \brief Closed account-inventory protocol selected from `gh --version`.
+	enum class gh_cli_auth_status_format : std::uint8_t {
+		legacy_text,
+		json,
+	};
+
+	/// \brief Selects the supported inventory protocol for a bounded version line.
+	/// \details `gh` 2.45--2.95 use token-hidden text; 2.96+ use JSON.
+	[[nodiscard]] auto select_gh_cli_auth_status_format(std::string_view aOutput)
+		-> std::optional<gh_cli_auth_status_format>;
+
 	/// \brief Compiles the explicit, token-free active-account inventory request.
 	[[nodiscard]] auto compile_gh_cli_auth_status_request(
-		const validated_gh_cli_configuration& aConfiguration)
+		const validated_gh_cli_configuration& aConfiguration,
+		gh_cli_auth_status_format             aFormat)
 		-> github_cli_process_request;
 
-	/// \brief Parses the bounded JSON returned by `gh auth status`.
+	/// \brief Parses the selected bounded response returned by `gh auth status`.
 	/// \details Only active successful host/login pairs cross this boundary.
 	[[nodiscard]] auto parse_gh_cli_auth_status(
-		std::string_view aOutput)
+		std::string_view aOutput, gh_cli_auth_status_format aFormat)
 		-> std::expected<
 			std::vector<gh_cli_authenticated_account>,
 			gh_cli_auth_status_failure>;

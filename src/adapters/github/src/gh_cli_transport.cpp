@@ -77,6 +77,171 @@ namespace bpr::adapters::github::detail {
 		constexpr auto        process_timeout                 = std::chrono::seconds{ 30 };
 		constexpr auto        process_reap_timeout            = std::chrono::seconds{ 2 };
 
+		[[nodiscard]] auto valid_auth_status_text(const std::string_view aText) noexcept
+			-> bool
+		{
+			for (auto position = std::size_t{ 0U }; position < aText.size();) {
+				const auto byte = static_cast<unsigned char>(aText[position]);
+				if (byte == '\n' || (byte >= 0x20U && byte <= 0x7eU)) {
+					++position;
+					continue;
+				}
+				if (position + 2U < aText.size() && byte == 0xe2U
+					&& static_cast<unsigned char>(aText[position + 1U]) == 0x9cU
+					&& static_cast<unsigned char>(aText[position + 2U]) == 0x93U) {
+					position += 3U;
+					continue;
+				}
+				return false;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto valid_auth_status_login(const std::string_view aLogin) noexcept
+			-> bool
+		{
+			return !aLogin.empty() && aLogin.size() <= 128U
+				&& std::ranges::all_of(aLogin, [](const unsigned char aByte) {
+					   return aByte >= 0x21U && aByte <= 0x7eU;
+				   });
+		}
+
+		[[nodiscard]] auto valid_masked_token(const std::string_view aToken) noexcept
+			-> bool
+		{
+			if (aToken.empty() || aToken.size() > 256U) {
+				return false;
+			}
+			const auto mask = aToken.find('*');
+			if (mask == std::string_view::npos) {
+				return false;
+			}
+			return std::ranges::all_of(aToken.substr(0U, mask), [](const unsigned char aByte) {
+					   return (aByte >= 'a' && aByte <= 'z')
+						   || (aByte >= 'A' && aByte <= 'Z')
+						   || (aByte >= '0' && aByte <= '9') || aByte == '_';
+				   })
+				&& std::ranges::all_of(aToken.substr(mask), [](const char aByte) {
+					   return aByte == '*';
+				   });
+		}
+
+		[[nodiscard]] auto parse_legacy_gh_cli_auth_status(const std::string_view aOutput)
+			-> std::expected<
+				std::vector<gh_cli_authenticated_account>,
+				gh_cli_auth_status_failure>
+		{
+			if (!valid_auth_status_text(aOutput)) {
+				return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+			}
+
+			auto           result         = std::vector<gh_cli_authenticated_account>{ };
+			auto           seenHosts      = std::vector<std::string>{ };
+			auto           currentHost    = std::string{ };
+			auto           pendingLogin   = std::optional<std::string>{ };
+			auto           hostAccounts   = std::size_t{ 0U };
+			auto           accountCount   = std::size_t{ 0U };
+			auto           position       = std::size_t{ 0U };
+			constexpr auto successPrefix  = std::string_view{ "  \xe2\x9c\x93 Logged in to " };
+			constexpr auto activePrefix   = std::string_view{ "  - Active account: " };
+			constexpr auto protocolPrefix = std::string_view{ "  - Git operations protocol: " };
+			constexpr auto tokenPrefix    = std::string_view{ "  - Token: " };
+			constexpr auto scopesPrefix   = std::string_view{ "  - Token scopes: " };
+
+			while (position < aOutput.size()) {
+				const auto end  = aOutput.find('\n', position);
+				const auto line = aOutput.substr(
+					position,
+					end == std::string_view::npos ? aOutput.size() - position : end - position);
+				position = end == std::string_view::npos ? aOutput.size() : end + 1U;
+
+				if (pendingLogin.has_value()) {
+					if (!line.starts_with(activePrefix)) {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					const auto active = line.substr(activePrefix.size());
+					if (active != "true" && active != "false") {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					if (active == "true") {
+						if (std::ranges::any_of(result, [&](const auto& aAccount) {
+								return aAccount.Hostname == currentHost;
+							})) {
+							return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+						}
+						result.push_back({ currentHost, std::move(*pendingLogin) });
+					}
+					pendingLogin.reset();
+					continue;
+				}
+
+				if (line.empty()) {
+					continue;
+				}
+				if (!line.starts_with("  ")) {
+					if (currentHost.size() > 0U && hostAccounts == 0U) {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					if (!application::valid_github_canonical_hostname(line)
+						|| seenHosts.size() >= maximum_auth_status_hosts
+						|| std::ranges::find(seenHosts, line) != seenHosts.end()) {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					currentHost = line;
+					seenHosts.emplace_back(line);
+					hostAccounts = 0U;
+					continue;
+				}
+				if (currentHost.empty()) {
+					return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+				}
+				if (line.starts_with(successPrefix)) {
+					const auto accountPrefix = currentHost + " account ";
+					const auto detail        = line.substr(successPrefix.size());
+					const auto source        = detail.rfind(" (");
+					if (!detail.starts_with(accountPrefix) || source == std::string_view::npos
+						|| source <= accountPrefix.size() || detail.back() != ')'
+						|| source + 3U > detail.size()) {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					const auto login       = detail.substr(accountPrefix.size(), source - accountPrefix.size());
+					const auto sourceValue = detail.substr(source + 2U, detail.size() - source - 3U);
+					if (!valid_auth_status_login(login) || sourceValue.empty()
+						|| sourceValue.size() > 1024U || ++accountCount > maximum_auth_status_accounts) {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					pendingLogin = std::string{ login };
+					++hostAccounts;
+					continue;
+				}
+				if (line.starts_with(protocolPrefix)) {
+					const auto protocol = line.substr(protocolPrefix.size());
+					if (protocol != "https" && protocol != "ssh") {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					continue;
+				}
+				if (line.starts_with(tokenPrefix)) {
+					if (!valid_masked_token(line.substr(tokenPrefix.size()))) {
+						return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+					}
+					continue;
+				}
+				if (line.starts_with(scopesPrefix)) {
+					if (line.size() - scopesPrefix.size() > 2048U) {
+						return std::unexpected{ gh_cli_auth_status_failure::response_limit };
+					}
+					continue;
+				}
+				return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+			}
+
+			if (pendingLogin.has_value() || currentHost.empty() || hostAccounts == 0U) {
+				return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto constrain_gh_writes(github_cli_process_request aRequest,
 											   const std::string&         aWritableRoot = { })
 			-> github_cli_process_request
@@ -1174,13 +1339,44 @@ namespace bpr::adapters::github::detail {
 		});
 	}
 
+	auto select_gh_cli_auth_status_format(const std::string_view aOutput)
+		-> std::optional<gh_cli_auth_status_format>
+	{
+		constexpr auto prefix = std::string_view{ "gh version 2." };
+		if (!aOutput.starts_with(prefix)) {
+			return std::nullopt;
+		}
+		auto       version     = aOutput.substr(prefix.size());
+		int        minor       = 0;
+		const auto parsedMinor = std::from_chars(
+			version.data(), version.data() + version.size(), minor);
+		if (parsedMinor.ec != std::errc{ } || parsedMinor.ptr == version.data()
+			|| parsedMinor.ptr == version.data() + version.size() || *parsedMinor.ptr != '.'
+			|| minor < 45) {
+			return std::nullopt;
+		}
+		int        patch       = 0;
+		const auto parsedPatch = std::from_chars(
+			parsedMinor.ptr + 1, version.data() + version.size(), patch);
+		if (parsedPatch.ec != std::errc{ } || parsedPatch.ptr == parsedMinor.ptr + 1
+			|| (parsedPatch.ptr != version.data() + version.size()
+				&& *parsedPatch.ptr != ' ' && *parsedPatch.ptr != '\n')) {
+			return std::nullopt;
+		}
+		return minor >= 96 ? gh_cli_auth_status_format::json
+						   : gh_cli_auth_status_format::legacy_text;
+	}
+
 	auto compile_gh_cli_auth_status_request(
-		const validated_gh_cli_configuration& aConfiguration)
+		const validated_gh_cli_configuration& aConfiguration,
+		const gh_cli_auth_status_format       aFormat)
 		-> github_cli_process_request
 	{
 		return constrain_gh_writes(github_cli_process_request{
 			.Executable              = path_bytes(aConfiguration.Executable),
-			.Arguments               = { "auth", "status", "--active", "--json", "hosts" },
+			.Arguments               = aFormat == gh_cli_auth_status_format::json
+				? std::vector<std::string>{ "auth", "status", "--active", "--json", "hosts" }
+				: std::vector<std::string>{ "auth", "status" },
 			.Environment             = aConfiguration.Environment,
 			.WorkingDirectory        = path_bytes(aConfiguration.NeutralWorkingDirectory),
 			.StandardInput           = { },
@@ -1189,19 +1385,25 @@ namespace bpr::adapters::github::detail {
 			.StandardErrorLimit      = 8U * 1024U,
 			.Timeout                 = std::chrono::seconds{ 10 },
 			.ReapTimeout             = process_reap_timeout,
-			.PreserveCompletedOutput = true,
+			.MergeStandardError      = aFormat == gh_cli_auth_status_format::legacy_text,
+			.PreserveCompletedOutput = aFormat == gh_cli_auth_status_format::json,
 		});
 	}
 
-	auto parse_gh_cli_auth_status(const std::string_view aOutput)
+	auto parse_gh_cli_auth_status(
+		const std::string_view aOutput, const gh_cli_auth_status_format aFormat)
 		-> std::expected<
 			std::vector<gh_cli_authenticated_account>,
 			gh_cli_auth_status_failure>
 	{
-		using namespace auth_status_json_detail;
 		if (aOutput.size() > maximum_auth_status_bytes) {
 			return std::unexpected{ gh_cli_auth_status_failure::response_limit };
 		}
+		if (aFormat == gh_cli_auth_status_format::legacy_text) {
+			return parse_legacy_gh_cli_auth_status(aOutput);
+		}
+
+		using namespace auth_status_json_detail;
 		auto parsed = document{ };
 		if (glz::read<options{ }>(parsed, aOutput)) {
 			return std::unexpected{ gh_cli_auth_status_failure::malformed_response };

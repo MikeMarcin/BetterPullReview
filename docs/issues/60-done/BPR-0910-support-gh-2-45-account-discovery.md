@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0910"
 title: "Support gh 2.45 account discovery"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
@@ -47,3 +47,34 @@ credential is healthy.
   the same exact-host CLI card.
 - Focused adapter, Qt and setup public-path checks, formatting and documentation
   verification pass.
+
+## Implementation
+
+- Version parsing selects the bounded legacy text inventory for `gh` 2.45
+  through 2.95 and retains the active-host JSON inventory for 2.96 and newer.
+- The legacy request is exactly `gh auth status`: it never requests a token,
+  merges the command's human-status stderr into one bounded result only on a
+  clean exit, and admits only one active successful login per canonical host.
+  Token masks, scopes, protocol, credential source and all other text are
+  discarded; actual-token shapes, controls, host drift and ambiguity fail
+  closed.
+- CLI account discovery and `gh api` transport creation now accept 2.45 or
+  newer. The Git-object acquisition gate remains exactly `gh` 2.100.0 plus
+  Apple Git 2.50.1 and therefore makes no full-comparison claim for 2.45.
+- Signed-out presentation distinguishes unsupported version, process failure
+  and malformed inventory.
+
+## Evidence
+
+- The official macOS arm64 `gh` 2.45.0 archive matched its published checksum.
+  A write-denied, empty-environment probe returned the documented token-hidden
+  human status shape successfully; no hostname, login, token, scope or private
+  repository value from the live probe was retained in this card or test data.
+- `ctest --preset dev --output-on-failure -R
+  '^(github_cli_process_runner|gh_cli_transport|qt_workbench_window_scale_100|application_setup_destination_public_path)$'`
+  passed all four focused tests.
+- `cmake --build --preset dev --target coding-format-check` passed across 699
+  files.
+- `python3 scripts/verify_documentation.py --root .` returned
+  `DOCUMENTATION_OK`; `python3 tests/scripts/verify_documentation_tests.py`
+  passed 64 tests (its expected negative fixtures emitted validation errors).

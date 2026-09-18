@@ -6388,9 +6388,17 @@ namespace {
 		window.present_github_cli_discovery(qt::github_cli_discovery_state::empty);
 		expect(status->text().contains(QStringLiteral("no active authenticated accounts")),
 			   "an empty authenticated inventory is explicit and retryable");
-		window.present_github_cli_discovery(qt::github_cli_discovery_state::failed);
-		expect(status->text().contains(QStringLiteral("could not be checked")),
-			   "a failed inventory is explicit and retryable");
+		window.present_github_cli_discovery(
+			qt::github_cli_discovery_state::unsupported_version);
+		expect(status->text().contains(QStringLiteral("gh 2.45 or newer")),
+			   "an unsupported version names the compatibility floor");
+		window.present_github_cli_discovery(qt::github_cli_discovery_state::process_failed);
+		expect(status->text().contains(QStringLiteral("could not be run successfully")),
+			   "a process failure is explicit and retryable");
+		window.present_github_cli_discovery(
+			qt::github_cli_discovery_state::malformed_response);
+		expect(status->text().contains(QStringLiteral("could not safely read")),
+			   "a malformed inventory is distinguished from process failure");
 		window.settings()->hide();
 		window.hide();
 	}

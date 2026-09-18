@@ -148,7 +148,9 @@ namespace bpr::qt {
 		discovering,
 		ready,
 		empty,
-		failed,
+		unsupported_version,
+		process_failed,
+		malformed_response,
 	};
 	using github_cli_discovery_dispatch = std::function<void()>;
 	/// [[BPR-0661]]. The review-behaviour preferences the page dispatches.

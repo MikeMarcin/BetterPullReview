@@ -97,7 +97,10 @@ has explicit
 CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
 observed `/user` identity, pre/post-request account checks and a read-only lease.
 It invokes the configured `gh` directly with bounded arguments, input, output
-and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
+and time; account discovery and API use accept `gh` 2.x with minor >= 45.
+Versions 2.45 through 2.95 use the bounded token-hidden `gh auth status` text
+form and admit only its active hostname/login; 2.96 and newer use the active
+JSON form. BetterPullReview never passes `--show-token`.
 This is a version check, not proof of an official executable's provenance.
 The r2 trust-boundary amendment permits a bounded exact-repository `gh` Git
 operation for objects; `gh` may internally launch Git and its shell credential

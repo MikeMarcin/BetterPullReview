@@ -3505,9 +3505,19 @@ namespace bpr::qt {
 				"GitHub CLI reported no active authenticated accounts. Run gh auth login, then try again."));
 			GithubCliDiscoveryStatus->show();
 			break;
-		case github_cli_discovery_state::failed:
+		case github_cli_discovery_state::unsupported_version:
 			GithubCliDiscoveryStatus->setText(QStringLiteral(
-				"GitHub CLI accounts could not be checked. Verify gh auth status in Terminal, then try again."));
+				"This GitHub CLI version is not supported. Install gh 2.45 or newer, then try again."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::process_failed:
+			GithubCliDiscoveryStatus->setText(QStringLiteral(
+				"GitHub CLI could not be run successfully. Verify gh auth status in Terminal, then try again."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::malformed_response:
+			GithubCliDiscoveryStatus->setText(QStringLiteral(
+				"GitHub CLI returned an account status this version of BetterPullReview could not safely read."));
 			GithubCliDiscoveryStatus->show();
 			break;
 		}

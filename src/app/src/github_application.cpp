@@ -587,29 +587,28 @@ namespace bpr::app {
 			return configuration ? std::optional{ *configuration } : std::nullopt;
 		}
 
-		[[nodiscard]] auto supported_gh_cli_version(
+		enum class gh_cli_version_probe_failure : std::uint8_t {
+			process_failed,
+			unsupported_version,
+		};
+
+		[[nodiscard]] auto probe_gh_cli_auth_status_format(
 			adapters::github::detail::github_cli_process_port&              aProcess,
 			const adapters::github::detail::validated_gh_cli_configuration& aConfiguration)
-			-> bool
+			-> std::expected<
+				adapters::github::detail::gh_cli_auth_status_format,
+				gh_cli_version_probe_failure>
 		{
 			using namespace adapters::github::detail;
 			const auto version = aProcess.run(
 				compile_gh_cli_version_request(aConfiguration), std::stop_token{ });
 			if (!version || version->ExitCode != 0) {
-				return false;
+				return std::unexpected{ gh_cli_version_probe_failure::process_failed };
 			}
-			constexpr auto prefix = std::string_view{ "gh version 2." };
-			auto           output = std::string_view{ version->StandardOutput };
-			if (!output.starts_with(prefix)) {
-				return false;
-			}
-			output.remove_prefix(prefix.size());
-			int        minor  = 0;
-			const auto parsed = std::from_chars(
-				output.data(), output.data() + output.size(), minor);
-			return parsed.ec == std::errc{ } && parsed.ptr != output.data()
-				&& parsed.ptr != output.data() + output.size() && *parsed.ptr == '.'
-				&& minor >= 96;
+			const auto format = select_gh_cli_auth_status_format(version->StandardOutput);
+			return format.has_value()
+				? std::expected<gh_cli_auth_status_format, gh_cli_version_probe_failure>{ *format }
+				: std::unexpected{ gh_cli_version_probe_failure::unsupported_version };
 		}
 
 		class owned_cli_read_transport final
@@ -738,7 +737,8 @@ namespace bpr::app {
 						return unavailable();
 					}
 					auto process = make_github_cli_process_runner();
-					if (!process || !supported_gh_cli_version(*process, *configuration)) {
+					if (!process
+						|| !probe_gh_cli_auth_status_format(*process, *configuration)) {
 						return unavailable();
 					}
 					return std::shared_ptr<github_wire_transport_port>{
@@ -9533,23 +9533,34 @@ namespace bpr::app {
 				ProviderEffects.post([this, weak, lane, fixtureResult = std::move(fixtureAccounts)] {
 					auto accounts = std::optional<std::vector<
 						adapters::github::detail::gh_cli_authenticated_account>>{ };
+					auto failure  = qt::github_cli_discovery_state::process_failed;
 					try {
 						if (fixtureResult.has_value()) {
 							accounts = std::move(fixtureResult);
 						} else {
 							auto configuration = live_gh_cli_configuration();
 							auto process       = adapters::github::detail::make_github_cli_process_runner();
-							if (configuration && process
-								&& supported_gh_cli_version(*process, *configuration)) {
-								const auto status = process->run(
-									adapters::github::detail::compile_gh_cli_auth_status_request(
-										*configuration),
-									std::stop_token{ });
-								if (status && status->ExitCode == 0) {
-									auto parsed = adapters::github::detail::parse_gh_cli_auth_status(
-										status->StandardOutput);
-									if (parsed) {
-										accounts = std::move(*parsed);
+							if (configuration && process) {
+								const auto format = probe_gh_cli_auth_status_format(
+									*process, *configuration);
+								if (!format) {
+									failure = format.error()
+											== gh_cli_version_probe_failure::unsupported_version
+										? qt::github_cli_discovery_state::unsupported_version
+										: qt::github_cli_discovery_state::process_failed;
+								} else {
+									const auto status = process->run(
+										adapters::github::detail::compile_gh_cli_auth_status_request(
+											*configuration, *format),
+										std::stop_token{ });
+									if (status && status->ExitCode == 0) {
+										auto parsed = adapters::github::detail::parse_gh_cli_auth_status(
+											status->StandardOutput, *format);
+										if (parsed) {
+											accounts = std::move(*parsed);
+										} else {
+											failure = qt::github_cli_discovery_state::malformed_response;
+										}
 									}
 								}
 							}
@@ -9557,20 +9568,19 @@ namespace bpr::app {
 					} catch (...) { }
 
 					try {
-						lane->post([this, weak, discovered = std::move(accounts)]() mutable {
+						lane->post([this, weak, discovered = std::move(accounts), failure]() mutable {
 							if (weak.expired() || Closing || Window == nullptr) {
 								return;
 							}
 							GithubCliDiscoveryPending = false;
 							if (!discovered.has_value()) {
-								Window->present_github_cli_discovery(
-									qt::github_cli_discovery_state::failed);
+								Window->present_github_cli_discovery(failure);
 								return;
 							}
 							for (const auto& account : *discovered) {
 								if (!register_discovered_cli_account(account)) {
 									Window->present_github_cli_discovery(
-										qt::github_cli_discovery_state::failed);
+										qt::github_cli_discovery_state::malformed_response);
 									return;
 								}
 							}
@@ -9585,7 +9595,7 @@ namespace bpr::app {
 			} catch (...) {
 				GithubCliDiscoveryPending = false;
 				Window->present_github_cli_discovery(
-					qt::github_cli_discovery_state::failed);
+					qt::github_cli_discovery_state::process_failed);
 			}
 #endif
 		}
