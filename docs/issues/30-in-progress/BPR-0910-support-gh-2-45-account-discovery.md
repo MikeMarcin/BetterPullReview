@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0910"
 title: "Support gh 2.45 account discovery"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
