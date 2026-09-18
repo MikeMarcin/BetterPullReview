@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -12,6 +13,8 @@
 #include <iostream>
 #include <random>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -153,11 +156,108 @@ namespace {
 		body += ']';
 		return body;
 	}
+	// [[BPR-0904]] spike. The fixture transport answers by the shape of the
+	// request rather than by the operation the product says it is making:
+	// method, path, and for a GraphQL root the operation name in the body. A
+	// request no key names has no answer, and the row fails at that request,
+	// naming it. Every answer is therefore a pin on the request it answers.
+	// The keys and the diagnostic follow the mutation suite's transport; the
+	// answers stay the stateful simulated server this suite already had, so
+	// every row still scripts by flag and the measurement is the fixture
+	// author's intent rather than this spike's.
+	struct scripted_request
+	{
+		http_method Method = http_method::get;
+		std::string Path;
+		/// The GraphQL operation name, empty for a REST request.
+		std::string Operation;
+
+		auto operator==(const scripted_request&) const -> bool = default;
+	};
+	// The compiled GraphQL envelope is `{"query":"<kind> <Name>(...`; a body
+	// of any other shape, including an empty one, names no operation.
+	[[nodiscard]] auto graphql_operation_name(const std::string_view aBody) -> std::string
+	{
+		constexpr auto marker = std::string_view{ "{\"query\":\"" };
+		if (!aBody.starts_with(marker)) {
+			return { };
+		}
+		auto       document = aBody.substr(marker.size());
+		const auto word     = [&document]() {
+			auto length = std::size_t{ };
+			while (length < document.size() && (std::isalnum(static_cast<unsigned char>(document[length])) != 0 || document[length] == '_')) {
+				++length;
+			}
+			auto value = std::string{ document.substr(0, length) };
+			document.remove_prefix(length);
+			return value;
+		};
+		const auto kind = word();
+		if (kind != "query" && kind != "mutation") {
+			return { };
+		}
+		while (!document.empty() && document.front() == ' ') {
+			document.remove_prefix(1);
+		}
+		return word();
+	}
+	[[nodiscard]] auto scripted_key(const review_mutation_wire_request& aWire) -> scripted_request
+	{
+		return { .Method = aWire.Method, .Path = aWire.Path, .Operation = graphql_operation_name(aWire.Body) };
+	}
+	[[nodiscard]] auto method_name(const http_method aMethod) -> std::string_view
+	{
+		return aMethod == http_method::post ? "POST" : "GET";
+	}
+	[[nodiscard]] auto operation_name(const review_mutation_operation aOperation) -> std::string_view
+	{
+		switch (aOperation) {
+		case review_mutation_operation::observe_pull_request:    return "observe_pull_request";
+		case review_mutation_operation::observe_viewer:          return "observe_viewer";
+		case review_mutation_operation::observe_review_comments: return "observe_review_comments";
+		case review_mutation_operation::create_review_comment:   return "create_review_comment";
+		case review_mutation_operation::create_review:           return "create_review";
+		case review_mutation_operation::observe_reviews:         return "observe_reviews";
+		case review_mutation_operation::reply_review_thread:     return "reply_review_thread";
+		case review_mutation_operation::resolve_review_thread:   return "resolve_review_thread";
+		case review_mutation_operation::unresolve_review_thread: return "unresolve_review_thread";
+		case review_mutation_operation::observe_review_thread:   return "observe_review_thread";
+		}
+		return "unknown";
+	}
+	[[nodiscard]] auto describe(const scripted_request& aRequest) -> std::string
+	{
+		auto text = std::string{ method_name(aRequest.Method) } + " " + aRequest.Path;
+		if (!aRequest.Operation.empty()) {
+			text += " " + aRequest.Operation;
+		}
+		return text;
+	}
+	// The requests the fixture answers, named by the server resource each
+	// answer describes. The paths are GitHub's REST paths for the fixture
+	// target, not a copy of the product's compiled path.
+	[[nodiscard]] auto viewer_get() -> scripted_request
+	{
+		return { .Method = http_method::get, .Path = "/user" };
+	}
+	[[nodiscard]] auto pull_request_get() -> scripted_request
+	{
+		return { .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1" };
+	}
+	[[nodiscard]] auto reviews_get() -> scripted_request
+	{
+		return { .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100" };
+	}
+	[[nodiscard]] auto review_post() -> scripted_request
+	{
+		return { .Method = http_method::post, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1/reviews" };
+	}
 	struct transport final : github_mutation_wire_transport
 	{
 		application::review_submission_request Request = request();
 		std::vector<std::string>               Reviews;
 		std::vector<review_mutation_operation> Trace;
+		std::size_t                            Requests        = 0U;
 		std::size_t                            Posts           = 0U;
 		std::size_t                            NewCount        = 1U;
 		bool                                   WrongRepository = false, MovedContext = false;
@@ -168,33 +268,33 @@ namespace {
 		auto                                   perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
 			expect(validate_outbound_review_mutation_request(aRequest.Wire).has_value(), "all session requests are canonical");
+			++Requests;
 			Trace.push_back(aRequest.Wire.Operation);
-			switch (aRequest.Wire.Operation) {
-			case review_mutation_operation::observe_viewer: {
+			const auto key = scripted_key(aRequest.Wire);
+			if (key == viewer_get()) {
 				auto response = viewer_response();
 				if (WrongActor) {
 					std::get<github_mutation_wire_success>(response).Response.Body = "{\"id\":23,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"}";
 				}
 				return response;
 			}
-			case review_mutation_operation::observe_pull_request:
+			if (key == pull_request_get()) {
 				if (OnTarget) {
 					OnTarget();
 				}
-				{
-					auto response = target_response(WrongRepository ? 999U : target().RepositoryDatabaseId, WrongHead ? commit(0x22U) : target().Semantic.ExpectedHead);
-					if (MovedContext) {
-						auto& body = std::get<github_mutation_wire_success>(response).Response.Body;
-						for (const auto& [from, to] : std::array<std::pair<std::string_view, std::string_view>, 4>{ { { "1010101010101010101010101010101010101010", "3333333333333333333333333333333333333333" },
-																													  { "codex/disposable-live-review-20260810", "moved-head" },
-																													  { "main", "moved-base" },
-																													  { "open", "closed" } } }) {
-							body.replace(body.find(from), from.size(), to);
-						}
+				auto response = target_response(WrongRepository ? 999U : target().RepositoryDatabaseId, WrongHead ? commit(0x22U) : target().Semantic.ExpectedHead);
+				if (MovedContext) {
+					auto& body = std::get<github_mutation_wire_success>(response).Response.Body;
+					for (const auto& [from, to] : std::array<std::pair<std::string_view, std::string_view>, 4>{ { { "1010101010101010101010101010101010101010", "3333333333333333333333333333333333333333" },
+																												  { "codex/disposable-live-review-20260810", "moved-head" },
+																												  { "main", "moved-base" },
+																												  { "open", "closed" } } }) {
+						body.replace(body.find(from), from.size(), to);
 					}
-					return response;
 				}
-			case review_mutation_operation::observe_reviews: {
+				return response;
+			}
+			if (key == reviews_get()) {
 				// Built by statement: GCC 15.2 misreads a header list temporary in a ?: arm as dangling (BPR-0816).
 				auto headers = std::vector<http_header>{ };
 				if (Incomplete) {
@@ -202,7 +302,7 @@ namespace {
 				}
 				return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = std::move(headers), .Body = list(Reviews) } };
 			}
-			case review_mutation_operation::create_review:
+			if (key == review_post()) {
 				++Posts;
 				if (DefinitelyUnsent) {
 					return github_mutation_wire_error{ };
@@ -225,8 +325,22 @@ namespace {
 					return github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate };
 				}
 				return github_mutation_wire_success{ .Response = { .Status = 200, .Body = MalformedResponse ? "{" : review(Request) } };
-			default: expect(false, "unexpected transport operation"); return github_mutation_wire_error{ };
 			}
+			fail_unscripted(aRequest.Wire, key);
+		}
+		// The row fails here, at the request the product made, with the
+		// requests the transport does answer beside it. Exiting is what
+		// `expect` does; unwinding would be caught by the session and reported
+		// as a typed transport failure, which is the silence [[BPR-0904]]
+		// names.
+		[[noreturn]] void fail_unscripted(const review_mutation_wire_request& aWire, const scripted_request& aKey) const
+		{
+			std::cerr << "FAILED: unscripted request #" << Requests << ": " << describe(aKey) << " (operation " << operation_name(aWire.Operation) << ", body " << (aWire.Body.empty() ? "empty" : "of " + std::to_string(aWire.Body.size()) + " bytes") << ")\n  this transport answers:";
+			for (const auto& answered : { viewer_get(), pull_request_get(), reviews_get(), review_post() }) {
+				std::cerr << "\n    " << describe(answered);
+			}
+			std::cerr << '\n';
+			std::exit(EXIT_FAILURE);
 		}
 	};
 	struct temporary_directory
@@ -595,10 +709,38 @@ namespace {
 		}
 		std::cout << aPhase << ":pass\n";
 	}
+	struct row
+	{
+		std::string_view Name;
+		void (*Run)();
+	};
+	// [[BPR-0904]]. Rows by name, so one can run alone: a row fails by
+	// exiting, and a measurement of which rows fail needs each in isolation.
+	constexpr auto rows = std::array{
+		row{ "dispositions_and_old_reviews", &test_dispositions_and_old_reviews },
+		row{ "uncertainty_and_cancellation", &test_uncertainty_and_cancellation },
+		row{ "historical_recovery", &test_historical_recovery },
+	};
 }
 auto main(int aArgc, char** aArgv) -> int
 {
 	static_assert(std::is_base_of_v<application::review_submission_port, bpr::adapters::github::live_review_submission_provider>);
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--list") {
+		for (const auto& selected : rows) {
+			std::cout << selected.Name << '\n';
+		}
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 3 && std::string_view{ aArgv[1] } == "--only") {
+		const auto selected = std::ranges::find(rows, std::string_view{ aArgv[2] }, &row::Name);
+		if (selected == rows.end()) {
+			std::cerr << "FAILED: no row named " << aArgv[2] << '\n';
+			return EXIT_FAILURE;
+		}
+		selected->Run();
+		std::cout << selected->Name << ":pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (aArgc == 3) {
 		const auto phase = std::string_view{ aArgv[1] };
 		if (phase.starts_with("--kill-")) {
@@ -610,9 +752,9 @@ auto main(int aArgc, char** aArgv) -> int
 		}
 		return EXIT_SUCCESS;
 	}
-	test_dispositions_and_old_reviews();
-	test_uncertainty_and_cancellation();
-	test_historical_recovery();
+	for (const auto& selected : rows) {
+		selected.Run();
+	}
 	std::cout << "live-review-submission-provider-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
+#include <compare>
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
@@ -433,6 +435,134 @@ namespace {
 		return std::move(*opened);
 	}
 
+	// [[BPR-0904]] spike. The fixture transport answers by the shape of the
+	// request rather than by its position in a queue: method, path, and for a
+	// GraphQL root the operation name in the body. A request no row scripted
+	// has no answer, and the row fails at that request, naming it. Every
+	// scripted answer is therefore a pin on the request it answers.
+	struct scripted_request
+	{
+		http_method Method = http_method::get;
+		std::string Path;
+		/// The GraphQL operation name, empty for a REST request.
+		std::string Operation;
+
+		auto operator<=>(const scripted_request&) const = default;
+	};
+
+	// The compiled GraphQL envelope is `{"query":"<kind> <Name>(...`; a body
+	// of any other shape, including an empty one, names no operation.
+	[[nodiscard]] auto graphql_operation_name(const std::string_view aBody) -> std::string
+	{
+		constexpr auto marker = std::string_view{ "{\"query\":\"" };
+		if (!aBody.starts_with(marker)) {
+			return { };
+		}
+		auto       document = aBody.substr(marker.size());
+		const auto word     = [&document]() {
+			auto length = std::size_t{ };
+			while (length < document.size()
+				   && (std::isalnum(static_cast<unsigned char>(document[length])) != 0
+					   || document[length] == '_')) {
+				++length;
+			}
+			auto value = std::string{ document.substr(0, length) };
+			document.remove_prefix(length);
+			return value;
+		};
+		const auto kind = word();
+		if (kind != "query" && kind != "mutation") {
+			return { };
+		}
+		while (!document.empty() && document.front() == ' ') {
+			document.remove_prefix(1);
+		}
+		return word();
+	}
+
+	[[nodiscard]] auto scripted_key(const review_mutation_wire_request& aWire) -> scripted_request
+	{
+		return {
+			.Method    = aWire.Method,
+			.Path      = aWire.Path,
+			.Operation = graphql_operation_name(aWire.Body),
+		};
+	}
+
+	[[nodiscard]] auto method_name(const http_method aMethod) -> std::string_view
+	{
+		return aMethod == http_method::post ? "POST" : "GET";
+	}
+
+	[[nodiscard]] auto operation_name(const review_mutation_operation aOperation)
+		-> std::string_view
+	{
+		switch (aOperation) {
+		case review_mutation_operation::observe_pull_request:
+			return "observe_pull_request";
+		case review_mutation_operation::observe_viewer:
+			return "observe_viewer";
+		case review_mutation_operation::observe_review_comments:
+			return "observe_review_comments";
+		case review_mutation_operation::create_review_comment:
+			return "create_review_comment";
+		case review_mutation_operation::create_review:
+			return "create_review";
+		case review_mutation_operation::observe_reviews:
+			return "observe_reviews";
+		case review_mutation_operation::reply_review_thread:
+			return "reply_review_thread";
+		case review_mutation_operation::resolve_review_thread:
+			return "resolve_review_thread";
+		case review_mutation_operation::unresolve_review_thread:
+			return "unresolve_review_thread";
+		case review_mutation_operation::observe_review_thread:
+			return "observe_review_thread";
+		}
+		return "unknown";
+	}
+
+	[[nodiscard]] auto describe(const scripted_request& aRequest) -> std::string
+	{
+		auto text = std::string{ method_name(aRequest.Method) } + " " + aRequest.Path;
+		if (!aRequest.Operation.empty()) {
+			text += " " + aRequest.Operation;
+		}
+		return text;
+	}
+
+	// The requests the fixture answers, named by the server resource each
+	// helper's answer describes. The paths are GitHub's REST paths for the
+	// fixture target and the GraphQL root, not a copy of the product's
+	// compiled path.
+	[[nodiscard]] auto pull_request_get() -> scripted_request
+	{
+		return { .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1" };
+	}
+
+	[[nodiscard]] auto viewer_get() -> scripted_request
+	{
+		return { .Method = http_method::get, .Path = "/user" };
+	}
+
+	[[nodiscard]] auto comments_get() -> scripted_request
+	{
+		return {
+			.Method = http_method::get,
+			.Path   = "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100",
+		};
+	}
+
+	[[nodiscard]] auto comment_post() -> scripted_request
+	{
+		return { .Method = http_method::post, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1/comments" };
+	}
+
+	[[nodiscard]] auto graphql(std::string aOperation) -> scripted_request
+	{
+		return { .Method = http_method::post, .Path = "/graphql", .Operation = std::move(aOperation) };
+	}
+
 	class fake_transport final : public github_mutation_wire_transport
 	{
 	public:
@@ -447,13 +577,13 @@ namespace {
 			if (OnPerform) {
 				OnPerform(Requests.size());
 			}
-			if (Completions.empty()) {
-				return github_mutation_wire_error{
-					.Failure = application::review_mutation_failure::unavailable,
-				};
+			const auto key   = scripted_key(aRequest.Wire);
+			const auto found = Answers.find(key);
+			if (found == Answers.end() || found->second.empty()) {
+				fail_unscripted(aRequest.Wire, key);
 			}
-			auto next = std::move(Completions.front());
-			Completions.pop_front();
+			auto next = std::move(found->second.front());
+			found->second.pop_front();
 			if (aRequest.Wire.Operation
 				== review_mutation_operation::create_review_comment) {
 				if (ThrowBeforePostWitness) {
@@ -483,21 +613,53 @@ namespace {
 			return next;
 		}
 
-		void exact_submit_course()
+		void answer(scripted_request aRequest, github_mutation_wire_completion aCompletion)
 		{
-			Completions.push_back(comment_list_response(0U));
-			Completions.push_back(viewer_response());
-			Completions.push_back(target_response());
-			Completions.push_back(comment_response());
-			Completions.push_back(comment_list_response());
+			Answers[std::move(aRequest)].push_back(std::move(aCompletion));
 		}
 
-		std::deque<github_mutation_wire_completion> Completions;
-		std::vector<github_mutation_wire_request>   Requests;
-		std::vector<bool>                           StopObserved;
-		std::function<void(std::size_t)>            OnPerform;
-		bool                                        ThrowBeforePostWitness = false;
-		bool                                        RepeatWitness          = false;
+		void exact_submit_course()
+		{
+			answer(comments_get(), comment_list_response(0U));
+			answer(viewer_get(), viewer_response());
+			answer(pull_request_get(), target_response());
+			answer(comment_post(), comment_response());
+			answer(comments_get(), comment_list_response());
+		}
+
+		// Answers keyed by the request they answer; within one key the order
+		// of scripting is the order of answering, so a course may answer the
+		// same read twice with different snapshots.
+		std::map<scripted_request, std::deque<github_mutation_wire_completion>> Answers;
+		std::vector<github_mutation_wire_request>                               Requests;
+		std::vector<bool>                                                       StopObserved;
+		std::function<void(std::size_t)>                                        OnPerform;
+		bool                                                                    ThrowBeforePostWitness = false;
+		bool                                                                    RepeatWitness          = false;
+
+	private:
+		// The row fails here, at the request the product made, with the
+		// answers the row did script beside it. Exiting is what `expect`
+		// does; unwinding would be caught by the session and reported as a
+		// typed transport failure, which is the silence [[BPR-0904]] names.
+		[[noreturn]] void fail_unscripted(
+			const review_mutation_wire_request& aWire,
+			const scripted_request&             aKey) const
+		{
+			std::cerr << "FAILED: unscripted request #" << Requests.size() << ": "
+					  << describe(aKey) << " (operation " << operation_name(aWire.Operation)
+					  << ", body " << (aWire.Body.empty() ? "empty" : "of " + std::to_string(aWire.Body.size()) + " bytes")
+					  << ")\n  scripted answers remaining:";
+			auto remaining = false;
+			for (const auto& [request, completions] : Answers) {
+				if (!completions.empty()) {
+					remaining = true;
+					std::cerr << "\n    " << describe(request) << " x" << completions.size();
+				}
+			}
+			std::cerr << (remaining ? "\n" : " none\n");
+			std::exit(EXIT_FAILURE);
+		}
 	};
 
 	class fake_github_review_mutation_lease final
@@ -682,9 +844,9 @@ namespace {
 	void test_revalidation_drift_and_identity_failure_stop_before_write()
 	{
 		auto drift = fake_transport{ };
-		drift.Completions.push_back(comment_list_response(0U));
-		drift.Completions.push_back(viewer_response());
-		drift.Completions.push_back(target_response(1'328'277'632U));
+		drift.answer(comments_get(), comment_list_response(0U));
+		drift.answer(viewer_get(), viewer_response());
+		drift.answer(pull_request_get(), target_response(1'328'277'632U));
 		auto driftSession = review_mutation_session{
 			drift, configuration(), mutation_lease(), make_recovery()
 		};
@@ -693,10 +855,9 @@ namespace {
 			   "repository drift stops before write");
 
 		auto movedHead = fake_transport{ };
-		movedHead.Completions.push_back(comment_list_response(0U));
-		movedHead.Completions.push_back(viewer_response());
-		movedHead.Completions.push_back(target_response(
-			1'328'277'631U, commit(0x77U)));
+		movedHead.answer(comments_get(), comment_list_response(0U));
+		movedHead.answer(viewer_get(), viewer_response());
+		movedHead.answer(pull_request_get(), target_response(1'328'277'631U, commit(0x77U)));
 		auto movedSession = review_mutation_session{
 			movedHead, configuration(), mutation_lease(), make_recovery()
 		};
@@ -707,14 +868,14 @@ namespace {
 			   "a fresh moved-head observation stops before write");
 
 		auto identityFailure = fake_transport{ };
-		identityFailure.Completions.push_back(comment_list_response(0U));
-		identityFailure.Completions.emplace_back(github_mutation_wire_success{
-			.Response = {
-				.Status = 200,
-				.Body   = "{\"login\":\"other\",\"id\":22,"
-						  "\"node_id\":\"MDQ6VXNlcjIy\"}",
-			},
-		});
+		identityFailure.answer(comments_get(), comment_list_response(0U));
+		identityFailure.answer(viewer_get(), github_mutation_wire_success{
+												 .Response = {
+													 .Status = 200,
+													 .Body   = "{\"login\":\"other\",\"id\":22,"
+															   "\"node_id\":\"MDQ6VXNlcjIy\"}",
+												 },
+											 });
 		auto identitySession = review_mutation_session{
 			identityFailure, configuration(), mutation_lease(), make_recovery()
 		};
@@ -744,14 +905,14 @@ namespace {
 
 		auto recovery  = std::make_shared<fake_recovery_state>();
 		auto uncertain = fake_transport{ };
-		uncertain.Completions.push_back(comment_list_response());
-		uncertain.Completions.push_back(viewer_response());
-		uncertain.Completions.push_back(target_response());
-		uncertain.Completions.emplace_back(github_mutation_wire_error{
-			.Failure      = application::review_mutation_failure::unavailable,
-			.Transmission = github_mutation_transmission::indeterminate,
-		});
-		uncertain.Completions.push_back(comment_list_response());
+		uncertain.answer(comments_get(), comment_list_response());
+		uncertain.answer(viewer_get(), viewer_response());
+		uncertain.answer(pull_request_get(), target_response());
+		uncertain.answer(comment_post(), github_mutation_wire_error{
+											 .Failure      = application::review_mutation_failure::unavailable,
+											 .Transmission = github_mutation_transmission::indeterminate,
+										 });
+		uncertain.answer(comments_get(), comment_list_response());
 		auto uncertainSession = review_mutation_session{
 			uncertain, configuration(), mutation_lease(), make_recovery(recovery)
 		};
@@ -760,9 +921,9 @@ namespace {
 			   "a witnessed indeterminate POST with only C0 remains unresolved");
 
 		auto restarted = fake_transport{ };
-		restarted.Completions.push_back(viewer_response());
-		restarted.Completions.push_back(target_response());
-		restarted.Completions.push_back(comment_list_response(2U));
+		restarted.answer(viewer_get(), viewer_response());
+		restarted.answer(pull_request_get(), target_response());
+		restarted.answer(comments_get(), comment_list_response(2U));
 		auto restartedSession = review_mutation_session{
 			restarted, configuration(), mutation_lease(), make_recovery(recovery)
 		};
@@ -782,14 +943,14 @@ namespace {
 
 		auto ambiguousRecovery = std::make_shared<fake_recovery_state>();
 		auto ambiguous         = fake_transport{ };
-		ambiguous.Completions.push_back(comment_list_response());
-		ambiguous.Completions.push_back(viewer_response());
-		ambiguous.Completions.push_back(target_response());
-		ambiguous.Completions.emplace_back(github_mutation_wire_error{
-			.Failure      = application::review_mutation_failure::unavailable,
-			.Transmission = github_mutation_transmission::indeterminate,
-		});
-		ambiguous.Completions.push_back(comment_list_response(3U));
+		ambiguous.answer(comments_get(), comment_list_response());
+		ambiguous.answer(viewer_get(), viewer_response());
+		ambiguous.answer(pull_request_get(), target_response());
+		ambiguous.answer(comment_post(), github_mutation_wire_error{
+											 .Failure      = application::review_mutation_failure::unavailable,
+											 .Transmission = github_mutation_transmission::indeterminate,
+										 });
+		ambiguous.answer(comments_get(), comment_list_response(3U));
 		auto ambiguousSession = review_mutation_session{
 			ambiguous,
 			configuration(),
@@ -808,13 +969,13 @@ namespace {
 		for (const auto crashBeforeWitness : { false, true }) {
 			auto state     = std::make_shared<fake_recovery_state>();
 			auto transport = fake_transport{ };
-			transport.Completions.push_back(comment_list_response(0U));
-			transport.Completions.push_back(viewer_response());
-			transport.Completions.push_back(target_response());
-			transport.Completions.emplace_back(github_mutation_wire_error{
-				.Failure      = application::review_mutation_failure::unavailable,
-				.Transmission = github_mutation_transmission::definitely_not_sent,
-			});
+			transport.answer(comments_get(), comment_list_response(0U));
+			transport.answer(viewer_get(), viewer_response());
+			transport.answer(pull_request_get(), target_response());
+			transport.answer(comment_post(), github_mutation_wire_error{
+												 .Failure      = application::review_mutation_failure::unavailable,
+												 .Transmission = github_mutation_transmission::definitely_not_sent,
+											 });
 			transport.ThrowBeforePostWitness = crashBeforeWitness;
 			auto session                     = review_mutation_session{
 				transport, configuration(), mutation_lease(), make_recovery(state)
@@ -826,9 +987,9 @@ namespace {
 				   "admission-to-POST crash and definite no-send both remain prepared");
 
 			auto restarted = fake_transport{ };
-			restarted.Completions.push_back(viewer_response());
-			restarted.Completions.push_back(target_response());
-			restarted.Completions.push_back(comment_list_response());
+			restarted.answer(viewer_get(), viewer_response());
+			restarted.answer(pull_request_get(), target_response());
+			restarted.answer(comments_get(), comment_list_response());
 			auto restartedSession = review_mutation_session{
 				restarted, configuration(), mutation_lease(), make_recovery(state)
 			};
@@ -868,9 +1029,9 @@ namespace {
 
 		state->RejectTransmissionMark = false;
 		auto restarted                = fake_transport{ };
-		restarted.Completions.push_back(viewer_response());
-		restarted.Completions.push_back(target_response());
-		restarted.Completions.push_back(comment_list_response());
+		restarted.answer(viewer_get(), viewer_response());
+		restarted.answer(pull_request_get(), target_response());
+		restarted.answer(comments_get(), comment_list_response());
 		auto restartedSession = review_mutation_session{
 			restarted, configuration(), mutation_lease(), make_recovery(state)
 		};
@@ -882,11 +1043,11 @@ namespace {
 	void test_direct_post_receipt_must_be_new_to_the_baseline()
 	{
 		auto preexisting = fake_transport{ };
-		preexisting.Completions.push_back(comment_list_response());
-		preexisting.Completions.push_back(viewer_response());
-		preexisting.Completions.push_back(target_response());
-		preexisting.Completions.push_back(comment_response());
-		preexisting.Completions.push_back(comment_list_response());
+		preexisting.answer(comments_get(), comment_list_response());
+		preexisting.answer(viewer_get(), viewer_response());
+		preexisting.answer(pull_request_get(), target_response());
+		preexisting.answer(comment_post(), comment_response());
+		preexisting.answer(comments_get(), comment_list_response());
 		auto preexistingSession = review_mutation_session{
 			preexisting, configuration(), mutation_lease(), make_recovery()
 		};
@@ -895,14 +1056,14 @@ namespace {
 			   "a direct 201 identity already present in C0 cannot resolve the attempt");
 
 		auto direct = fake_transport{ };
-		direct.Completions.push_back(comment_list_response());
-		direct.Completions.push_back(viewer_response());
-		direct.Completions.push_back(target_response());
-		direct.Completions.push_back(comment_response(45U));
-		direct.Completions.emplace_back(github_mutation_wire_error{
-			.Failure      = application::review_mutation_failure::unavailable,
-			.Transmission = github_mutation_transmission::definitely_not_sent,
-		});
+		direct.answer(comments_get(), comment_list_response());
+		direct.answer(viewer_get(), viewer_response());
+		direct.answer(pull_request_get(), target_response());
+		direct.answer(comment_post(), comment_response(45U));
+		direct.answer(comments_get(), github_mutation_wire_error{
+										  .Failure      = application::review_mutation_failure::unavailable,
+										  .Transmission = github_mutation_transmission::definitely_not_sent,
+									  });
 		auto directSession = review_mutation_session{
 			direct, configuration(), mutation_lease(), make_recovery()
 		};
@@ -916,14 +1077,14 @@ namespace {
 	{
 		auto state = std::make_shared<fake_recovery_state>();
 		auto seed  = fake_transport{ };
-		seed.Completions.push_back(comment_list_response(0U));
-		seed.Completions.push_back(viewer_response());
-		seed.Completions.push_back(target_response());
-		seed.Completions.emplace_back(github_mutation_wire_error{
-			.Failure      = application::review_mutation_failure::unavailable,
-			.Transmission = github_mutation_transmission::indeterminate,
-		});
-		seed.Completions.push_back(comment_list_response(0U));
+		seed.answer(comments_get(), comment_list_response(0U));
+		seed.answer(viewer_get(), viewer_response());
+		seed.answer(pull_request_get(), target_response());
+		seed.answer(comment_post(), github_mutation_wire_error{
+										.Failure      = application::review_mutation_failure::unavailable,
+										.Transmission = github_mutation_transmission::indeterminate,
+									});
+		seed.answer(comments_get(), comment_list_response(0U));
 		auto seedSession = review_mutation_session{
 			seed, configuration(), mutation_lease(), make_recovery(state)
 		};
@@ -963,9 +1124,9 @@ namespace {
 	void test_typed_transport_outcomes_propagate_without_diagnostics()
 	{
 		auto refusedTransport = fake_transport{ };
-		refusedTransport.Completions.emplace_back(github_mutation_wire_error{
-			.Failure = application::review_mutation_failure::refused_by_server,
-		});
+		refusedTransport.answer(pull_request_get(), github_mutation_wire_error{
+														.Failure = application::review_mutation_failure::refused_by_server,
+													});
 		auto refusedSession = review_mutation_session{
 			refusedTransport, configuration(), mutation_lease(), make_recovery()
 		};
@@ -975,7 +1136,7 @@ namespace {
 			   "server refusal remains typed");
 
 		auto cancelledTransport = fake_transport{ };
-		cancelledTransport.Completions.emplace_back(github_mutation_wire_cancelled{ });
+		cancelledTransport.answer(pull_request_get(), github_mutation_wire_cancelled{ });
 		auto cancelledSession = review_mutation_session{
 			cancelledTransport, configuration(), mutation_lease(), make_recovery()
 		};
@@ -1001,7 +1162,7 @@ namespace {
 
 		auto afterBaselineStop = std::stop_source{ };
 		auto afterBaseline     = fake_transport{ };
-		afterBaseline.Completions.push_back(comment_list_response(0U));
+		afterBaseline.answer(comments_get(), comment_list_response(0U));
 		afterBaseline.OnPerform = [&afterBaselineStop](const std::size_t aCount) {
 			if (aCount == 1U) {
 				static_cast<void>(afterBaselineStop.request_stop());
@@ -1020,8 +1181,8 @@ namespace {
 
 		auto afterViewerStop = std::stop_source{ };
 		auto afterViewer     = fake_transport{ };
-		afterViewer.Completions.push_back(comment_list_response(0U));
-		afterViewer.Completions.push_back(viewer_response());
+		afterViewer.answer(comments_get(), comment_list_response(0U));
+		afterViewer.answer(viewer_get(), viewer_response());
 		afterViewer.OnPerform = [&afterViewerStop](const std::size_t aCount) {
 			if (aCount == 2U) {
 				static_cast<void>(afterViewerStop.request_stop());
@@ -1040,9 +1201,9 @@ namespace {
 
 		auto beforeWriteStop = std::stop_source{ };
 		auto beforeWrite     = fake_transport{ };
-		beforeWrite.Completions.push_back(comment_list_response(0U));
-		beforeWrite.Completions.push_back(viewer_response());
-		beforeWrite.Completions.push_back(target_response());
+		beforeWrite.answer(comments_get(), comment_list_response(0U));
+		beforeWrite.answer(viewer_get(), viewer_response());
+		beforeWrite.answer(pull_request_get(), target_response());
 		beforeWrite.OnPerform = [&beforeWriteStop](const std::size_t aCount) {
 			if (aCount == 3U) {
 				static_cast<void>(beforeWriteStop.request_stop());
@@ -1117,8 +1278,9 @@ namespace {
 	{
 		for (const auto resolve : { true, false }) {
 			auto transport = fake_transport{ };
-			transport.Completions.push_back(thread_observation_response(true, !resolve));
-			transport.Completions.push_back(thread_resolution_response(resolve));
+			transport.answer(graphql("ObserveThread"), thread_observation_response(true, !resolve));
+			transport.answer(graphql(resolve ? "ResolveThread" : "UnresolveThread"),
+							 thread_resolution_response(resolve));
 			auto session = review_mutation_session{
 				transport, configuration(), mutation_lease(), make_recovery()
 			};
@@ -1135,8 +1297,9 @@ namespace {
 
 		for (const auto resolve : { true, false }) {
 			auto foreign = fake_transport{ };
-			foreign.Completions.push_back(thread_observation_response(false));
-			foreign.Completions.push_back(thread_resolution_response(resolve));
+			foreign.answer(graphql("ObserveThread"), thread_observation_response(false));
+			foreign.answer(graphql(resolve ? "ResolveThread" : "UnresolveThread"),
+						   thread_resolution_response(resolve));
 			auto session = review_mutation_session{
 				foreign, configuration(), mutation_lease(), make_recovery()
 			};
@@ -1151,9 +1314,9 @@ namespace {
 		}
 
 		auto answered = fake_transport{ };
-		answered.Completions.push_back(thread_observation_response(true));
-		answered.Completions.push_back(
-			thread_resolution_response(true, foreign_pull_request_json()));
+		answered.answer(graphql("ObserveThread"), thread_observation_response(true));
+		answered.answer(graphql("ResolveThread"),
+						thread_resolution_response(true, foreign_pull_request_json()));
 		auto answeredSession = review_mutation_session{
 			answered, configuration(), mutation_lease(), make_recovery()
 		};
@@ -1171,7 +1334,7 @@ namespace {
 		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
 		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
 		auto transport               = fake_transport{ };
-		transport.Completions.push_back(thread_observation_response(false));
+		transport.answer(graphql("ObserveThread"), thread_observation_response(false));
 		auto session = review_mutation_session{
 			transport, configuration(), mutation_lease(), make_recovery()
 		};
@@ -1183,6 +1346,44 @@ namespace {
 				   && transport.Requests.front().Wire.Operation
 					   == review_mutation_operation::observe_review_thread,
 			   "a reply into a thread outside the designated pull request never reaches a write");
+	}
+
+	// [[BPR-0904]] acceptance probe of [[BPR-0896]]. The row above stops at
+	// the [[BPR-0879]] pre-flight refusal, so nothing in this suite reached a
+	// reply's baseline reconciliation. This row binds the thread to the
+	// designated pull request and lets the session go on to that baseline.
+	// It claims nothing about the reply succeeding: it claims that the
+	// baseline is asked in a shape a real server answers, which [[BPR-0896]]
+	// names as `POST /graphql` with `query ObserveThreadComments`. The answer
+	// scripted here is a bare envelope; BPR-0896's own row owns its shape.
+	void test_a_replys_baseline_reconciliation_is_a_request_a_server_can_answer()
+	{
+		auto reply                   = request();
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		auto transport               = fake_transport{ };
+		transport.answer(graphql("ObserveThread"), thread_observation_response(true));
+		transport.answer(graphql("ObserveThreadComments"), github_mutation_wire_success{
+															   .Response = {
+																   .Status = 200,
+																   .Body   = "{\"data\":{\"node\":{\"id\":\"PRRT_fixture_1\"}}}",
+															   },
+														   });
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), make_recovery()
+		};
+		static_cast<void>(session.submit(reply));
+		expect(transport.Requests.size() >= 2U
+				   && transport.Requests[0].Wire.Operation
+					   == review_mutation_operation::observe_review_thread
+				   && transport.Requests[1].Wire.Operation
+					   == review_mutation_operation::observe_review_comments
+				   && transport.Requests[1].Wire.Method == http_method::post
+				   && transport.Requests[1].Wire.Path == "/graphql"
+				   && graphql_operation_name(transport.Requests[1].Wire.Body)
+					   == "ObserveThreadComments",
+			   "a reply's baseline reconciliation observes its thread over GraphQL, "
+			   "not the GraphQL root with a REST query string");
 	}
 
 	// [[BPR-0879]]. The coordinator needs a port. The session is the exact
@@ -1263,10 +1464,10 @@ namespace {
 	void test_the_coordinator_confirms_the_target_and_counts_a_resolution()
 	{
 		auto transport = fake_transport{ };
-		transport.Completions.push_back(target_response());
-		transport.Completions.push_back(viewer_response());
-		transport.Completions.push_back(thread_observation_response(true));
-		transport.Completions.push_back(thread_resolution_response(true));
+		transport.answer(pull_request_get(), target_response());
+		transport.answer(viewer_get(), viewer_response());
+		transport.answer(graphql("ObserveThread"), thread_observation_response(true));
+		transport.answer(graphql("ResolveThread"), thread_resolution_response(true));
 		auto session = review_mutation_session{
 			transport, configuration(), mutation_lease(), make_recovery()
 		};
@@ -1282,9 +1483,9 @@ namespace {
 			   "the coordinator observes the target, resolves, and counts the write as a submission");
 
 		auto foreign = fake_transport{ };
-		foreign.Completions.push_back(target_response());
-		foreign.Completions.push_back(viewer_response());
-		foreign.Completions.push_back(thread_observation_response(false));
+		foreign.answer(pull_request_get(), target_response());
+		foreign.answer(viewer_get(), viewer_response());
+		foreign.answer(graphql("ObserveThread"), thread_observation_response(false));
 		auto foreignSession = review_mutation_session{
 			foreign, configuration(), mutation_lease(), make_recovery()
 		};
@@ -1306,7 +1507,7 @@ namespace {
 			   "a foreign thread is named undesignated_target at the coordinator and never written");
 
 		auto drifted = fake_transport{ };
-		drifted.Completions.push_back(target_response(1'328'277'632U));
+		drifted.answer(pull_request_get(), target_response(1'328'277'632U));
 		auto driftedSession = review_mutation_session{
 			drifted, configuration(), mutation_lease(), make_recovery()
 		};
@@ -1327,14 +1528,14 @@ namespace {
 	void write_unresolved_restart_fixture(const std::filesystem::path& aRoot)
 	{
 		auto transport = fake_transport{ };
-		transport.Completions.push_back(comment_list_response());
-		transport.Completions.push_back(viewer_response());
-		transport.Completions.push_back(target_response());
-		transport.Completions.emplace_back(github_mutation_wire_error{
-			.Failure      = application::review_mutation_failure::unavailable,
-			.Transmission = github_mutation_transmission::indeterminate,
-		});
-		transport.Completions.push_back(comment_list_response());
+		transport.answer(comments_get(), comment_list_response());
+		transport.answer(viewer_get(), viewer_response());
+		transport.answer(pull_request_get(), target_response());
+		transport.answer(comment_post(), github_mutation_wire_error{
+											 .Failure      = application::review_mutation_failure::unavailable,
+											 .Transmission = github_mutation_transmission::indeterminate,
+										 });
+		transport.answer(comments_get(), comment_list_response());
 		auto session = review_mutation_session{
 			transport, configuration(), mutation_lease(), open_recovery(aRoot)
 		};
@@ -1350,9 +1551,9 @@ namespace {
 	void recover_unresolved_restart_fixture(const std::filesystem::path& aRoot)
 	{
 		auto transport = fake_transport{ };
-		transport.Completions.push_back(viewer_response());
-		transport.Completions.push_back(target_response());
-		transport.Completions.push_back(comment_list_response(2U));
+		transport.answer(viewer_get(), viewer_response());
+		transport.answer(pull_request_get(), target_response());
+		transport.answer(comments_get(), comment_list_response(2U));
 		auto session = review_mutation_session{
 			transport, configuration(), mutation_lease(), open_recovery(aRoot)
 		};
@@ -1374,13 +1575,13 @@ namespace {
 		const std::filesystem::path& aRoot)
 	{
 		auto transport = fake_transport{ };
-		transport.Completions.push_back(comment_list_response(0U));
-		transport.Completions.push_back(viewer_response());
-		transport.Completions.push_back(target_response());
-		transport.Completions.emplace_back(github_mutation_wire_error{
-			.Failure      = application::review_mutation_failure::unavailable,
-			.Transmission = github_mutation_transmission::definitely_not_sent,
-		});
+		transport.answer(comments_get(), comment_list_response(0U));
+		transport.answer(viewer_get(), viewer_response());
+		transport.answer(pull_request_get(), target_response());
+		transport.answer(comment_post(), github_mutation_wire_error{
+											 .Failure      = application::review_mutation_failure::unavailable,
+											 .Transmission = github_mutation_transmission::definitely_not_sent,
+										 });
 		transport.ThrowBeforePostWitness = true;
 		auto session                     = review_mutation_session{
 			transport, configuration(), mutation_lease(), open_recovery(aRoot)
@@ -1396,9 +1597,9 @@ namespace {
 	void recover_prepared_restart_fixture(const std::filesystem::path& aRoot)
 	{
 		auto transport = fake_transport{ };
-		transport.Completions.push_back(viewer_response());
-		transport.Completions.push_back(target_response());
-		transport.Completions.push_back(comment_list_response());
+		transport.answer(viewer_get(), viewer_response());
+		transport.answer(pull_request_get(), target_response());
+		transport.answer(comments_get(), comment_list_response());
 		auto session = review_mutation_session{
 			transport, configuration(), mutation_lease(), open_recovery(aRoot)
 		};
@@ -1408,10 +1609,71 @@ namespace {
 			   "second process cannot reconcile external C1 against a prepared attempt");
 		std::cout << "restart-prepared-phase-two:zero-transport\n";
 	}
+
+	struct row
+	{
+		std::string_view Name;
+		void (*Run)();
+	};
+
+	// [[BPR-0904]]. Rows by name, so one can run alone: a row fails by
+	// exiting, and a measurement of which rows fail needs each in isolation.
+	constexpr auto rows = std::array{
+		row{ "observe_then_immediate_revalidate_then_submit",
+			 &test_observe_then_immediate_revalidate_then_submit },
+		row{ "invalid_bindings_submit_nothing", &test_invalid_bindings_submit_nothing },
+		row{ "revalidation_drift_and_identity_failure_stop_before_write",
+			 &test_revalidation_drift_and_identity_failure_stop_before_write },
+		row{ "idempotency_and_indeterminate_attempts_never_duplicate",
+			 &test_idempotency_and_indeterminate_attempts_never_duplicate },
+		row{ "prepared_attempts_never_reconcile_external_comments",
+			 &test_prepared_attempts_never_reconcile_external_comments },
+		row{ "transmission_witness_is_one_shot", &test_transmission_witness_is_one_shot },
+		row{ "failed_transmission_witness_stays_prepared",
+			 &test_failed_transmission_witness_stays_prepared },
+		row{ "direct_post_receipt_must_be_new_to_the_baseline",
+			 &test_direct_post_receipt_must_be_new_to_the_baseline },
+		row{ "baseline_incomplete_attempt_never_observes_or_resolves",
+			 &test_baseline_incomplete_attempt_never_observes_or_resolves },
+		row{ "reconciliation_rejects_omitted_or_ambiguous_exact_comment",
+			 &test_reconciliation_rejects_omitted_or_ambiguous_exact_comment },
+		row{ "typed_transport_outcomes_propagate_without_diagnostics",
+			 &test_typed_transport_outcomes_propagate_without_diagnostics },
+		row{ "stop_token_cancels_every_session_phase_before_the_next_wire_call",
+			 &test_stop_token_cancels_every_session_phase_before_the_next_wire_call },
+		row{ "retained_revoked_lease_refuses_every_provider_use",
+			 &test_retained_revoked_lease_refuses_every_provider_use },
+		row{ "retained_revoked_lease_refuses_provider_admission",
+			 &test_retained_revoked_lease_refuses_provider_admission },
+		row{ "thread_resolution_is_bound_to_the_designated_pull_request",
+			 &test_thread_resolution_is_bound_to_the_designated_pull_request },
+		row{ "a_reply_observes_its_thread_before_it_writes",
+			 &test_a_reply_observes_its_thread_before_it_writes },
+		row{ "a_replys_baseline_reconciliation_is_a_request_a_server_can_answer",
+			 &test_a_replys_baseline_reconciliation_is_a_request_a_server_can_answer },
+		row{ "the_coordinator_confirms_the_target_and_counts_a_resolution",
+			 &test_the_coordinator_confirms_the_target_and_counts_a_resolution },
+	};
 } // namespace
 
 auto main(const int aCount, char** aValues) -> int
 {
+	if (aCount == 2 && std::string_view{ aValues[1] } == "--list") {
+		for (const auto& selected : rows) {
+			std::cout << selected.Name << '\n';
+		}
+		return EXIT_SUCCESS;
+	}
+	if (aCount == 3 && std::string_view{ aValues[1] } == "--only") {
+		const auto selected = std::ranges::find(rows, std::string_view{ aValues[2] }, &row::Name);
+		if (selected == rows.end()) {
+			std::cerr << "FAILED: no row named " << aValues[2] << '\n';
+			return EXIT_FAILURE;
+		}
+		selected->Run();
+		std::cout << selected->Name << ":pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (aCount == 3 && std::string_view{ aValues[1] } == "--write-unresolved") {
 		// The recovery store refuses a root another local principal can
 		// reach; the temporary root the driver hands over is private by mode
@@ -1437,23 +1699,9 @@ auto main(const int aCount, char** aValues) -> int
 	if (aCount != 1) {
 		return EXIT_FAILURE;
 	}
-	test_observe_then_immediate_revalidate_then_submit();
-	test_invalid_bindings_submit_nothing();
-	test_revalidation_drift_and_identity_failure_stop_before_write();
-	test_idempotency_and_indeterminate_attempts_never_duplicate();
-	test_prepared_attempts_never_reconcile_external_comments();
-	test_transmission_witness_is_one_shot();
-	test_failed_transmission_witness_stays_prepared();
-	test_direct_post_receipt_must_be_new_to_the_baseline();
-	test_baseline_incomplete_attempt_never_observes_or_resolves();
-	test_reconciliation_rejects_omitted_or_ambiguous_exact_comment();
-	test_typed_transport_outcomes_propagate_without_diagnostics();
-	test_stop_token_cancels_every_session_phase_before_the_next_wire_call();
-	test_retained_revoked_lease_refuses_every_provider_use();
-	test_retained_revoked_lease_refuses_provider_admission();
-	test_thread_resolution_is_bound_to_the_designated_pull_request();
-	test_a_reply_observes_its_thread_before_it_writes();
-	test_the_coordinator_confirms_the_target_and_counts_a_resolution();
+	for (const auto& selected : rows) {
+		selected.Run();
+	}
 	std::cout << "live-review-mutation-provider-tests:pass\n";
 	return EXIT_SUCCESS;
 }

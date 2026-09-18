@@ -101,7 +101,7 @@ auto main(int aArgc, char** aArgv) -> int
 			failure = aResult.error();
 		}
 	});
-	wait_for([&] { return terminal; });
+	wait_for([&] { return terminal; }, "startup reaches a terminal");
 	if (mode == "contender") {
 		const auto expectedFailure =
 #if defined(__unix__) || defined(__APPLE__)
@@ -113,31 +113,31 @@ auto main(int aArgc, char** aArgv) -> int
 			std::cerr << "unexpected startup result " << (failure ? static_cast<int>(*failure) : -1) << '\n';
 		}
 		expect(failure == expectedFailure, "same-profile startup routes or reports unavailable transport");
-		wait_for([&] { return desktop->is_quiescent(); });
+		wait_for([&] { return desktop->is_quiescent(); }, "desktop goes quiescent");
 		expect(completions == 1, "refusal delivers one startup terminal through shutdown");
 		expect(desktop->windows(profile).empty(), "contender never publishes a window");
 		std::cout << "OWNER_HANDOFF_OR_BUSY\n";
 		return EXIT_SUCCESS;
 	}
 	expect(!failure, "owner startup succeeds");
-	wait_for([&] { return desktop->windows(profile).size() == 1; });
+	wait_for([&] { return desktop->windows(profile).size() == 1; }, "the profile has exactly one window");
 	if (mode == "other") {
 		auto* management = desktop->management_window();
 		expect(management != nullptr, "management composed");
 #if !defined(__unix__) && !defined(__APPLE__)
 		retry_on_refusal retry{ *management };
 #endif
-		wait_for([&] { return management->open_button()->isEnabled(); });
+		wait_for([&] { return management->open_button()->isEnabled(); }, "the management window offers open");
 		management->profiles()->setCurrentRow(0);
 		management->open_button()->click();
 #if !defined(__unix__) && !defined(__APPLE__)
-		wait_for([&] { return retry.Retried; });
+		wait_for([&] { return retry.Retried; }, "the refusal is retried");
 #endif
 		// [[BPR-0777]]. Create's enablement is the registry-settled fact the retired
 		// Reload Profiles button carried.
 		auto* settled = management->create_button();
 		expect(settled != nullptr, "registry settlement indicator");
-		wait_for([&] { return settled->isEnabled(); });
+		wait_for([&] { return settled->isEnabled(); }, "the settled control is enabled");
 		expect(desktop->windows(core::default_bpr_profile_id).empty(), "Open Profile contention creates no foreign window");
 		expect(desktop->windows(profile).size() == 1, "other profile remains usable after refusal");
 		std::cout << "OTHER_REFUSED_DEFAULT\n"
