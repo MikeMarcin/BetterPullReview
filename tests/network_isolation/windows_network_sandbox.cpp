@@ -317,6 +317,17 @@ namespace {
 		if (::GetExitCodeProcess(process.hProcess, &exitCode) == FALSE) {
 			fail_win32("exit-code", ::GetLastError());
 		}
+		// [[BPR-0890]]. The launcher already knows what the child returned, and
+		// until now it only returned it: a row whose pass expression matches its
+		// own output stays green over a child that died. Printed unsigned,
+		// because a Windows crash arrives as a status rather than a small
+		// number -- 0xC0000005 is 3221225477, and this dispatch has already met
+		// 0xC0000409 -- and `%d` would report those as negative.
+		std::printf("TEST_RUNNER_CHILD_EXIT:%lu\n", static_cast<unsigned long>(exitCode));
+		if (exitCode != 0U) {
+			std::printf("TEST_RUNNER_CHILD_EXIT_FAILED:%lu\n", static_cast<unsigned long>(exitCode));
+		}
+		static_cast<void>(std::fflush(stdout));
 		static_cast<void>(::CloseHandle(process.hProcess));
 		return exitCode;
 	}
