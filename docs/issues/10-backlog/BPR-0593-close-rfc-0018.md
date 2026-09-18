@@ -14,9 +14,35 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-007, mandate r5): both stations were blocked by a lane ref, and one reply has never worked
 
-Dispatch dsp-007 is **in progress**; this section is a checkpoint refreshed
-before a long command, not a handoff. The dsp-006 section below still holds
-except where this one corrects it. The `project-integrator` lease is **held**.
+Dispatch dsp-007 ends here. The dsp-006 section below still holds except where
+this one corrects it.
+
+**Heads.** Main `026e87ccddee8c2e4fadbac8e16abd3e9db5aa52`, pushed, 16 commits
+since `e2ec4b4b`. `origin/windows-lane` is **already fast-forwarded** to that
+same commit and `bpr-win` has been told. `origin/linux-lane` is at
+`7dc78341` — **ahead of main and unlabelled**; see Station state. The
+`project-integrator` lease is **released**. On the Mac no worker, scout,
+reviewer, test process or scratch worktree remains, and no BetterPullReview
+process is running. Logs are `build/r2-logs/dsp7-*`.
+
+### Sweep status — all three platforms swept in this dispatch
+
+| Platform | Result | When |
+|---|---|---|
+| macOS dev | **380/383** | this dispatch at `22023667`, `dsp7-0901-full-sweep.log` |
+| macOS, merged head | the sweep's one non-[[BPR-0893]] failure **re-run green** | `dsp7-merge-ctest.log`, 8/8 |
+| Windows | **338/364** | this dispatch at `86b04901`, `docs/verification/dsp7-windows-full-sweep.md` |
+| Linux | in flight from `271bb452` | dsp-005's 367/367 at `2b2e5549` is the last completed one |
+
+macOS's three failures were `test_network_isolation_structure_contract` —
+**fixed by merging `bpr-win`, and verified green here at the merged head** —
+and two [[BPR-0893]] footprint rows. `application_large_review_loaded_close`
+**passed** this time having failed in dsp-006's sweep, which is BPR-0893's own
+instability showing again.
+
+Windows went from 309/362 to **338/364: twenty-seven rows green, and no row
+that was green at `2b2e5549` is red**, compared by name against the recorded
+sweep rather than from memory.
 
 ### The first thing dsp-007 found, because it blocked both stations
 
@@ -107,26 +133,221 @@ have been written against a real server, that card's residual could not have
 produced a write for that operation. It shrinks the exposure and is not a
 reason to answer (1).
 
-### In flight on the Mac as this checkpoint is written
+### [[BPR-0901]] is Done, and the answer is none of the card's three hypotheses
 
-- [[BPR-0901]] is claimed and a worker is running the card's discriminating
-  experiment. Early results are recorded in
-  `build/r2-logs/dsp7-0901-summary.txt`: at HEAD both rows passed four
-  consecutive parallel runs and three more under fourteen artificial load
-  spinners. **The flake has not yet reproduced**, which is itself informative.
-- The worker was warned of a confound the card does not name: the integrator
-  ran boundary tests concurrently early on, and **machine load is a fourth
-  hypothesis** the card's three do not cover. It was also given
-  [[BPR-0893]]'s measured precedent — the same build directory producing
-  pass-then-fail at one fixed revision — because two cards now describe macOS
-  rows in `build/r2-dev` that fail some of the time, and that is either
-  coincidence or a shared cause.
-- A read-only review of [[BPR-0894]]'s rule narrowing is running, tasked with
-  defeating the rule rather than confirming it, and with separating a
-  **regression** this commit introduced from a **pre-existing** limit of
-  matching tokens in text.
-- A read-only analysis of [[BPR-0902]] is running, to turn a Windows-station
-  investigation into a Windows-station fix.
+- **[[BPR-0901]] is diagnosed, and the answer is none of the card's three
+  hypotheses. It is a budget.** Both rows drive `--epoch-fixture-phase` four
+  times, so they are epoch-phase rows — but they carry
+  `bpr_fixture_run_budget_ms` (**40000**) instead of
+  `bpr_epoch_phase_budget_ms` (**120000**). Seventeen sites already use the
+  epoch budget; these two were missed when [[BPR-0555]] moved the rows it knew
+  about. dsp-006's two failures were `RUN_BUDGET_EXPIRED:elapsed_ms=40035` and
+  `elapsed_ms=40052` against a 40000 ms line — **over by 35 and 52
+  milliseconds**, on a phase that takes about 28 s driven directly on a quiet
+  host. Confirmed independently by the integrator from `build/r2-logs/dsp6-*`
+  rather than taken from the worker.
+
+  That explains every observation the card found puzzling. They alternate
+  because whichever row meets more contention reaches 40 s first. They never
+  failed together for the same reason. dsp-005's sweep missed them because a
+  1.4x margin usually holds. Eleven green runs at HEAD in four contexts missed
+  them because none was heavy enough. And the reason it was read as an epoch
+  defect is that the row's headline said "seed process failed" while
+  `RUN_BUDGET_EXPIRED` sat further down the dump — so the fix also promotes
+  that line to the headline.
+
+  **This is not macOS-only, and that is established on two checkouts without
+  running anything.** Those two registrations in
+  `tests/end_to_end/CMakeLists.txt` are not platform-conditional, and
+  `bpr-linux` quoted both of them verbatim from its own HEAD: `TIMEOUT 240`,
+  `BUDGET_MS ${bpr_fixture_run_budget_ms}`, `RUNS 4`. So all three trees carry
+  it. Both stations were told to report the exact `elapsed_ms` rather than
+  diagnose it, and not to patch it in a lane — the fix edits a file all three
+  of us edit.
+- [[BPR-0893]] was given to the worker as a possible shared cause, since two
+  cards described macOS rows in `build/r2-dev` failing intermittently. On this
+  evidence they are **not** the same fault: BPR-0901 is a clock, BPR-0893 is a
+  footprint budget. BPR-0893 remains open on its own terms.
+
+**The evidence was on disk the whole time.** Eleven expiries are recorded
+across four dispatches in `build/r2-logs/`, every one within 53 ms of the
+bound — which is what a clock looks like and what a race does not. One of them,
+`dsp2-0818-contract-4a2be1b1.log`, is dated **2026-09-13, four days before
+`81844fef`**, so hypothesis 1 dies on a date rather than on an absence of
+failures. That mattered: [[BPR-0893]] had already shown that green runs in this
+build directory prove very little.
+
+**The card's own Defect section was wrong, and that is why four dispatches
+misread this.** The marker chain it records for `#343` —
+`EPOCH_EFFECT_FAILED:revision-prepare:5`, `GITHUB_FIXTURE_FAILED`,
+`REVIEW_LEDGER_FAILED` — is not what the log shows; `revision-prepare:5`
+appears only in dsp-004 logs for a different card. The marker that *was* in
+both failures, and was omitted, is `RUN_BUDGET_EXPIRED`. **A card quoting
+markers from the wrong log is worse than a card quoting none**, and nobody
+could establish where they were copied from.
+
+**Landed** (`1ad7d7aa`): both rows move to the epoch budget, 40 s → 120 s,
+4.3x the 28 s quiet measurement — the argument being that it makes them
+ordinary among seventeen sites rather than a pair with a bound of their own.
+`TIMEOUT` rises 240 s → 660 s **because it must**: the row bounds itself at
+484000 ms and the harness requires the worst case to fit in three quarters of
+the timeout, so 240 s would not configure at all. `RESERVE_MS` stays 4000.
+Both drivers now lift `RUN_BUDGET_EXPIRED` into the headline, which is the half
+of [[BPR-0555]] these two never got.
+
+Windows measured both rows passing at 44 s with **no expiry anywhere** in its
+sweep, so the margin holds on that host. Linux's datapoint is still owed.
+
+### [[BPR-0894]] survived a review that was told to defeat it, but not on the first try
+
+The narrowing was reviewed read-only with the explicit brief to break the rule
+rather than confirm it, and it found **two holes, both introduced by the
+change**. The strip was unanchored, so any name *ending* in
+`environment_directory` was laundered — plausible rather than contrived, since
+the transport already contains `canonical_environment_directory`. And the
+accessor is a file-local function, so the rule trusted a spelling: a file could
+define its own that constructs rather than reads. Both are closed in
+`efcdff4c`, and five laundering forms are pinned. **All five pass against the
+first landing's script and fail against the current one**, which is the check
+the original acceptance lacked — its construction test would have passed with
+the narrowing removed entirely.
+
+The acceptance recorded before that review was wrong on its second criterion
+when it was written. It is corrected on the card rather than rewritten. Two
+pre-existing gaps the review separated out — a `KEY=VALUE` spelling never
+contains the quoted token, and a name can be assembled from pieces — are
+recorded with their snippets and deliberately not fixed, because they defeat
+the old rule and the new one equally and apply to the whole 5,400-line script.
+
+### Two new cards, and one of them is a pattern rather than a defect
+
+[[BPR-0904]] — the mutation fixtures' transport answers from a positional queue
+and **ignores method and path**, so no row can fail a wrong request URL.
+Exactly two assertions pin a request path across the whole mutation surface,
+and the egress validator cannot help because it validates by recompiling the
+canonical form and comparing, so it reproduces the same defect and passes. This
+is why [[BPR-0896]] was found by reading and could not have been found by a
+test.
+
+[[BPR-0905]] — **four more bounds sized for a quiet host**, one already
+recorded expiring: `application_saved_server_contract` at a 1.7x margin,
+`application_defect_composition_contract` and
+`application_review_ledger_composition_contract` at 2.2x, and `bpr-linux`'s
+`sqlite_epoch_catalog_behavior_contract`, a 180 s timeout against a 122.65 s
+isolated run. The four rows are an afternoon; the card exists because the same
+shape appeared in **three separate investigations in this one run**, in three
+different mechanisms, and each was first read as a defect in the thing being
+measured. A bound with a thin margin does not fail honestly — it fails as
+though its subject were broken. The card warns explicitly against raising every
+bound as a reflex, because two of the three were found *because* a bound was
+tight enough to fail.
+
+### Next objectives, in order
+
+1. **Label `7dc78341`.** `bpr-linux` owes CHECKPOINT or RETURN. Do not merge it
+   until it says. Then merge, then fast-forward `origin/linux-lane` — in that
+   order.
+2. **The rest of `bpr-linux`'s envelope:** [[BPR-0881]]'s Linux criterion and
+   [[BPR-0875]]'s twelve courses on Linux, both criteria this run created and
+   neither measured, then its chained full sweep. Reconfigure first.
+3. **`bpr-win`'s five-row family** — the store refusing a root whose parent
+   lacks the private descriptor — then [[BPR-0902]], whose cause is now read
+   and whose first step is one marker line and one run.
+4. **[[BPR-0896]]**, now **P1**: a live reply cannot be submitted at all. It is
+   blocked on two server-behaviour questions this repository cannot answer by
+   reading; they decide the fix's shape and neither shape should be built
+   before they are answered. [[BPR-0904]] is its companion and explains the
+   silence.
+5. **[[BPR-0905]]**, then [[BPR-0893]] — settle whether the footprint rows
+   measure the product or the machine, now that its sibling question has been
+   settled the other way.
+6. Then [[BPR-0874]], [[BPR-0898]], [[BPR-0899]], [[BPR-0900]], [[BPR-0903]],
+   and finally [[BPR-0854]] and [[BPR-0861]], still In Progress for Windows
+   alone.
+
+### Station state — read this before dispatching
+
+- **`bpr-win` returned and is merged.** Its RETURN `2fc69fc1` is in main and
+  `origin/windows-lane` has been fast-forwarded to `026e87cc`. It has been
+  given two tasks and is **not** blocked: the five-row family it named (a store
+  refusing a root whose parent lacks the private descriptor, for rows rooted
+  under the container temp rather than a course-owned parent — it has the
+  mechanism from [[BPR-0875]]), then [[BPR-0902]] with the analysis now on its
+  card. Its item 3
+  is answered: **no uncontained row exits non-zero while green** — it measured
+  each row's own command from `--show-only=json-v1` rather than building a
+  second launcher mode, and every green row exits 0. The one red row is red on
+  both signals. Two rows it could not classify are resolved: with no
+  `PASS_REGULAR_EXPRESSION`, ctest's verdict *is* the exit status, so they are
+  judged by the stronger signal and never needed BPR-0890's guard. It also
+  fixed two Windows defects in the tests tree, one of which — a raw Windows
+  interpreter path eaten as a CMake escape, producing a generated file listing
+  no tests — would have failed on any Windows station.
+- **The decision it asked for:** record the uncontained-row gap deliberately
+  rather than add a no-container launcher mode. Agreed and told. The
+  measurement that would justify the machinery came back empty, and a second
+  mode on the isolation seam is the last place this suite should gain one. The
+  conditions are that the measurement and its *method* go on [[BPR-0890]], and
+  that the re-measurement trigger is named: a row newly pinned
+  `WINDOWS_UNCONTAINED` makes it stale.
+- **`bpr-linux`'s BPR-0880 writer returned and is merged** (`271bb452` →
+  main). Its lane had diverged and it merged rather than rebased; **there was
+  no conflict in the end**, because the writer had already adopted dsp-006's
+  comment text verbatim, so the two edits landed as one change. The residue
+  question resolved itself and is **not** a gap: the cache calls
+  `remove_failed_index_residue` unconditionally off the `!indexed.has_value()`
+  branch, so the new refusal is cleaned like every other, pinned by
+  `git_cache_contract_tests.cpp:1405`, which passes. The writer's own first
+  draft made dsp-006's mistake in the other direction and its row caught it on
+  2.53.0, independently.
+- **`bpr-linux` is ACTIVE and `origin/linux-lane` is at `7dc78341`, ahead of
+  main and UNLABELLED** ("Measure what the Linux guard was hiding: nothing,
+  across all 369 rows"). It has been asked whether that is a CHECKPOINT or a
+  RETURN and **it has not been merged**. The lane ref was deliberately **not**
+  advanced toward main, because the station's tip is ahead of what is merged
+  and forcing it would destroy work — the lane stays the station's until it
+  returns it, and only then does it fast-forward. That order is the whole
+  lesson of this dispatch's opening.
+- Still owed by `bpr-linux`: [[BPR-0881]]'s Linux criterion, [[BPR-0875]]'s
+  twelve courses on Linux, [[BPR-0890]]'s Linux half (apparently the commit
+  above), and the chained full sweep. Envelope expiry `2026-09-18T18:00:00Z`.
+- **Both stations must reconfigure** before their next sweep: [[BPR-0901]]'s
+  budget is a configure-time argument to the course script.
+
+### Open owner asks
+
+Unchanged from dsp-006, none decided here: [[BPR-0897]] (the release-build
+mutation boundary, three answers offered); [[BPR-0653]]'s private Qt API in a
+shipped target (integrator recommends accepting, with a recheck obliged on
+every Qt upgrade) and its criterion-4 capture, seven steps; [[BPR-0825]] item 3
+(recommend (c)); [[BPR-0644]]; [[BPR-0817]]; [[BPR-0824]]; [[BPR-0803]];
+[[BPR-0800]]; [[BPR-0801]]; [[BPR-0604]]; and the [[BPR-0794]]/[[BPR-0795]]
+attended packet, intact.
+
+**New in dsp-007, and it blocks a P1.** [[BPR-0896]]'s fix cannot be shaped
+without two facts about GitHub's server that this repository cannot establish
+by reading:
+
+1. does GraphQL `PullRequestReviewThread.comments` return fields sufficient for
+   the exactness check the reconciliation already performs — path, line,
+   commit, author, `viewerDidAuthor`?
+2. would replies returned by the REST `/comments` collection satisfy that same
+   check, given they carry `in_reply_to_id` and a synthesized position?
+
+If (1) is yes the fix is a thread-scoped GraphQL observation; if (1) is no and
+(2) is yes it is a REST reconciliation whose path comes from the thread's pull
+request instead of the mutation's GraphQL path. **They are different work and
+neither should be built before the questions are answered.** Either route
+closes it: someone reading the published schema, or a user-named safe live
+target. [[BPR-0897]] is adjacent but separate — it asks whether a release build
+should compose a live provider at all, and it now carries the fact that a reply
+could never have been written against a real server anyway.
+
+**Also worth a decision, not urgent:** [[BPR-0905]] asks whether this tree
+wants a stated rule for sizing run budgets and row timeouts, or accepts that it
+does not have one. Three instances in one run is the evidence; the cheapest
+answer is to make an expiry name itself in the failure headline, which
+[[BPR-0901]] already did for two drivers.
 
 ### Hazards learned in dsp-007
 
@@ -142,6 +363,24 @@ reason to answer (1).
 - **Test numbers are not identity.** dsp-006's sweep failed `#342
   application_overview_since_review_contract`; the same row is `#343` today,
   because BPR-0890 added one. Resolve names against `ctest -N`, always.
+- **A card's quoted markers can come from the wrong log.** [[BPR-0901]]'s
+  Defect section quoted a marker chain that appears only in another card's
+  logs, and it sent four dispatches to the wrong subsystem. Quote with a
+  log path and a line number or do not quote.
+- **Do not run anything while an intermittency experiment runs**, and say so in
+  the brief. Load is a confound that changes the answer without changing what
+  is tested.
+- **Look at the existing logs before constructing an experiment.** The whole of
+  BPR-0901 was decidable from eleven lines already on disk. Twenty-two green
+  runs were spent before anyone grepped for the marker that was in every
+  failure.
+- **Brief a reviewer to defeat the change, not to confirm it.** The BPR-0894
+  review found two real holes in a change that passed its own new tests. A
+  review that only re-runs the author's reasoning finds what the author found.
+- **An acceptance record can be wrong when written.** When review falsifies
+  one, correct it in a new section and say what was missed; do not rewrite it.
+- **`git stash push` cannot take an untracked path.** Commit the finished
+  independent thing instead of trying to park it.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-006, mandate r5): the three P1 review findings are answered, and one was answered by being overturned
 
