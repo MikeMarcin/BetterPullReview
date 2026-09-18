@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0918"
 title: "Investigate a larger overview description for long PR bodies"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
