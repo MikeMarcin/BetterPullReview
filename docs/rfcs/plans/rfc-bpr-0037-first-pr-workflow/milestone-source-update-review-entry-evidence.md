@@ -61,6 +61,9 @@ All commands ran from the repository root without a live GitHub/GHES target:
 - `application_profile_multi_window_public_path`: passed.
 - `python3 tests/end_to_end/rfc0015_cli_read_fixture_tests.py`: 3 tests passed.
 - `cmake --build --preset dev --target coding-format-check -j 4`: passed.
+- `python3 scripts/verify_documentation.py --root .`: `DOCUMENTATION_OK`.
+- `python3 tests/scripts/verify_documentation_tests.py`: 64 tests passed.
+- RFC-BPR-0037 board validation: valid, 919 cards, no errors.
 - `git diff --check`: passed.
 
 The correction pass from
@@ -69,3 +72,8 @@ with no blocking or non-blocking findings. The reviewer independently traced
 the typed CLI/GHES authority, unavailable and stale paths, natural Start and
 Continue gestures, exact two-file display assertions, and quiescent read-only
 review state.
+
+The accepted cards closed in authored milestone order: BPR-0922 at
+`ae881081ddb8b7d9d8db6a1986863dded3aaf85a`, BPR-0921 at
+`e34649d676eddb5bbeb34799e7dd91dc07f31099`, and BPR-0919 at
+`34760e1381573f4c0db2f1a70090d17143b704ae`.

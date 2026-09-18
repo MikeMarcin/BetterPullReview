@@ -29,7 +29,8 @@ This registration consolidates owner feedback; no runtime evidence exists yet.
 - Composed evidence: a confirmed CLI-typed GHES fixture records the exact unavailable acquisition boundary without source or credentials; supported single/reuse launches over one durable store retain two actual epochs and render both recorded files. Natural Start and Continue enter Review without publication. Evidence is in `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-source-update-review-entry-evidence.md`.
 - Investigation boundary: the course establishes current behavior and one shared recorded acquisition boundary, not the owner run's cause. The exact owner build, CLI/Git versions and live target remain unobserved; no live target was contacted.
 - Verification/review: focused host, Qt, composed application, CLI/Git, GHES, history, multi-window, formatting and fixture checks passed. The critical correction review accepted the candidate with no remaining finding.
-- Ownership: both read-only scouts and the critical reviewer completed without edits; all test commands are complete. The three milestone cards are ready for dependency-ordered acceptance and no child writer or long-running command is active.
+- Acceptance: BPR-0922, BPR-0921 and BPR-0919 are Done at `ae881081`, `e34649d6` and `34760e13` respectively. Documentation and RFC-scoped board validation pass.
+- Ownership: both read-only scouts and the critical reviewer completed without edits; all test commands are complete, and no child writer or long-running command is active.
 - Next bounded objective after this milestone: begin `overview-conversation-decisions` in a fresh integration context; RFC closeout remains blocked on that milestone, `thread-reading-integration`, combined evidence and any required human/native observations.
 
 ## Closeout checklist
