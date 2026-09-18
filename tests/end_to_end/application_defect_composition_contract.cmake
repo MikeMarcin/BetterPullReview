@@ -6,6 +6,8 @@ foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS BPR_SOURCE)
     endif()
 endforeach()
 
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+
 file(READ "${BPR_SOURCE}" bpr_application_source)
 string(FIND
     "${bpr_application_source}"
@@ -114,6 +116,9 @@ function(bpr_run_defect_probe fixture fixture_label root course epoch_phase expe
     endforeach()
 endfunction()
 
+# [[BPR-0875]]. The data root gains an owned parent: the build directory it was
+# given is shared and the stores refuse a parent another principal can write.
+bpr_private_data_root(BPR_ROOT)
 file(REMOVE_RECURSE "${BPR_ROOT}")
 foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
     string(REPLACE "|" ";" fixture_parts "${fixture_spec}")
@@ -121,7 +126,9 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
     list(GET fixture_parts 1 fixture_label)
     set(fixture_root "${BPR_ROOT}/${fixture}")
     file(MAKE_DIRECTORY "${fixture_root}")
-    file(CHMOD "${fixture_root}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
+    # [[BPR-0875]]. Owner-private in each platform's own terms; `file(CHMOD)`
+    # only clears the read-only attribute on Windows.
+    bpr_narrow_owner_private("${fixture_root}")
     bpr_run_defect_probe(
         "${fixture}"
         "${fixture_label}"
