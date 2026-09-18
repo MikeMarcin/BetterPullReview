@@ -1,0 +1,143 @@
+{
+  "schema": "implement-rfc.milestone-return.v2",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-001",
+  "producer_id": "/root/rfc0037_m1",
+  "mandate_revision": "1",
+  "milestone": "source-update-review-entry",
+  "disposition": "milestone-complete",
+  "summary": "BPR-0922, BPR-0921, and BPR-0919 are accepted Done: the recorded CLI/GHES path distinguishes unavailable comparison from stale replacement, retains and displays a two-epoch source update across relaunch, renders two exact files, and routes natural Overview Start and Continue gestures into Review without publication.",
+  "candidate_revision": "f5d22eb3e2072fa254aa98133006feaa325c212c",
+  "handoff_ref": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-return-rfc0037-dispatch-001.json",
+  "ownership": "quiescent",
+  "next_objective": "Execute the overview-conversation-decisions milestone for BPR-0918, BPR-0920, BPR-0923, and BPR-0926, preserving RFC-BPR-0036 Markdown separation and allocating any required runtime follow-ups canonically.",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-source-update-review-entry-evidence.md",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0922.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0921.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0919.json",
+    "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+    "f5d22eb3e2072fa254aa98133006feaa325c212c"
+  ],
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "source-update-review-entry",
+    "definition_fingerprint": "sha256:31f2703ec421464cb19e239e8f5c0ea8070dbf44554ef3e8818914726278c1f4",
+    "obligations": [
+      {
+        "id": "BPR-0922:*",
+        "source": "BPR-0922",
+        "selector": null,
+        "source_fingerprint": "sha256:ad1288cea8bc0e7b484adf6b85fd1390cba39845c8d28b045c309ee480860b06"
+      },
+      {
+        "id": "BPR-0921:*",
+        "source": "BPR-0921",
+        "selector": null,
+        "source_fingerprint": "sha256:d7cf65ea64e03022edbb59bef34d3cc1822837a54660a95930b1d4775f184003"
+      },
+      {
+        "id": "BPR-0919:*",
+        "source": "BPR-0919",
+        "selector": null,
+        "source_fingerprint": "sha256:48a4c2bb34c13199dedd1cbc432cfa2389707fdd865cb93ef746e233c580758a"
+      }
+    ],
+    "obligation_fingerprint": "sha256:b3afcb303bc8a50c76ce40442be5b0e3d08066c62d7ea5253a5035e6a84a31a7",
+    "exit_criteria": [
+      {
+        "id": "source-update-review-entry:exit:1",
+        "text": "A composed recorded CLI/GHES fixture proves the first missing or refused history/comparison boundary and records whether the two reported symptoms share a cause."
+      },
+      {
+        "id": "source-update-review-entry:exit:2",
+        "text": "Supported stable base/head comparisons open intended content for multiple files while real authority, head, selection and stale-completion replacements still reject stale content."
+      },
+      {
+        "id": "source-update-review-entry:exit:3",
+        "text": "Available update history is projected after PR load and loading, genuine empty, unavailable and failed states are distinct without inventing epochs or retaining another PR's history."
+      },
+      {
+        "id": "source-update-review-entry:exit:4",
+        "text": "The composed Overview Start review gesture enters Review with an appropriate selected file or an honest empty/error state; Continue review retains its intended place and neither navigation path publishes remotely."
+      },
+      {
+        "id": "source-update-review-entry:exit:5",
+        "text": "Focused positive and negative checks, the direct composed public path, the documentation gate and one integration-focused selector pass, with no live GitHub/GHES mutation or credential/private-content capture."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "overview-conversation-decisions",
+    "reason": "integrated-boundary",
+    "detail": "The coupled source/history/Review-entry boundary is accepted and committed; the next milestone changes to layout and conversation design with distinct evidence and likely follow-up allocation, so it should begin in a fresh integrator context."
+  },
+  "acceptance_records": [
+    {
+      "id": "BPR-0922:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0922.json"
+      ]
+    },
+    {
+      "id": "BPR-0921:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0921.json"
+      ]
+    },
+    {
+      "id": "BPR-0919:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0919.json"
+      ]
+    },
+    {
+      "id": "source-update-review-entry:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-source-update-review-entry-evidence.md"
+      ]
+    },
+    {
+      "id": "source-update-review-entry:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0922.json"
+      ]
+    },
+    {
+      "id": "source-update-review-entry:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0921.json"
+      ]
+    },
+    {
+      "id": "source-update-review-entry:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0919.json"
+      ]
+    },
+    {
+      "id": "source-update-review-entry:exit:5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-source-update-review-entry-evidence.md",
+        "f5d22eb3e2072fa254aa98133006feaa325c212c"
+      ]
+    }
+  ]
+}
