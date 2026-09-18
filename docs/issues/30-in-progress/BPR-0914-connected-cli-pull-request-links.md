@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0914"
 title: "Route pasted PR links through the connected CLI session"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
