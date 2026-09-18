@@ -353,8 +353,8 @@ namespace bpr::qt {
 		///
 		/// \details [[BPR-0647]]. The Overview modality shows it in the centre
 		/// beneath the epoch line, in place of the comparison; the other
-		/// modalities keep the comparison. Its one action and its file rows
-		/// enter Read at the named file through the core's file selection.
+		/// modalities keep the comparison. Start enters Review, Continue follows
+		/// its preference, and file rows enter Read at the core-selected file.
 		void publish(const application::pull_request_overview_projection& aProjection);
 		/// \brief [[BPR-0733]]. Adopts the window's recently viewed pull requests.
 		///
@@ -972,7 +972,11 @@ namespace bpr::qt {
 		void apply_thread_marks();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
-		/// \brief Selects the file and enters Read, from the overview.
+		/// \brief Selects the overview entry file and enters its semantic modality.
+		void enter_overview_at(
+			application::overview_entry_kind aEntry,
+			const QString&                   aPath);
+		/// \brief Selects a file-row or thread path and enters Read.
 		void enter_read_at(const QString& aPath);
 		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
 		/// it would, so the draft a card starts anchors on the thread's line.

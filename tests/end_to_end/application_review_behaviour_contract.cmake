@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 4.4.2)
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
 # [[BPR-0661]]. The review-behaviour preferences over the epoch fixture's two
-# phases: the seed run chooses "Continue review enters Review" and "the
-# comments drawer opens on Unread" on the Reviews & queue page and requires
-# Continue review to enter Review once the host has stored and published the
-# record; the reuse run opens over the same store and requires the restored
-# record honoured: the drawer on the unread filter.
+# phases: before changing preferences, the seed run exercises the natural
+# first-visit Start review gesture. It then chooses "Continue review enters
+# Review" and "the comments drawer opens on Unread", and exercises the natural
+# Continue review gesture after the host has stored and published the record.
+# The reuse run requires the restored record honoured: the drawer on Unread.
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -65,7 +65,7 @@ function(bpr_run_behaviour_phase fixture fixture_label root phase)
         )
     endif()
     if(phase STREQUAL "seed")
-        set(phase_marker "REVIEW_BEHAVIOUR_SEEDED:continue=review:filter=unread:honoured=1")
+        set(phase_marker "REVIEW_BEHAVIOUR_SEEDED:continue=review:filter=unread:honoured=1:start=review:start-publication=none:continue-publication=none")
     else()
         set(phase_marker "REVIEW_BEHAVIOUR:continue=review:filter=unread:honoured=1")
     endif()

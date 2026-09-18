@@ -748,6 +748,7 @@ namespace bpr::application {
 		selected_file_missing_both,
 		selected_file_ambiguous,
 		selected_file_cancelled,
+		selected_file_comparison_unavailable,
 		selected_file_stale,
 		host_failure,
 	};

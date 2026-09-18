@@ -352,6 +352,10 @@ namespace bpr::qt {
 					"The selected rename matches both paths in one revision.");
 			case application::workbench_host_failure::selected_file_cancelled:
 				return QStringLiteral("Loading the selected file was cancelled.");
+			case application::workbench_host_failure::selected_file_comparison_unavailable:
+				return QStringLiteral(
+					"No exact comparison is ready for this file. Check Review history, "
+					"then retry.");
 			case application::workbench_host_failure::selected_file_stale:
 				return QStringLiteral("The selected file changed before it could be loaded.");
 			case application::workbench_host_failure::host_failure:
@@ -1044,7 +1048,10 @@ namespace bpr::qt {
 		comparisonColumn->setSpacing(0);
 		comparisonColumn->addWidget(ComparisonSurface, 1);
 		OverviewPage = new pull_request_overview_page{ CentreStack };
-		OverviewPage->set_entry_dispatch([this](const QString& aPath) { enter_read_at(aPath); });
+		OverviewPage->set_entry_dispatch(
+			[this](const application::overview_entry_kind aEntry, const QString& aPath) {
+				enter_overview_at(aEntry, aPath);
+			});
 		OverviewPage->set_file_dispatch([this](const QString& aPath) { enter_read_at(aPath); });
 		CentreStack->addWidget(ComparisonPage);
 		CentreStack->addWidget(OverviewPage);
@@ -4787,19 +4794,28 @@ namespace bpr::qt {
 		apply_drawer_widths();
 	}
 
-	void workbench_window::enter_read_at(const QString& aPath)
+	void workbench_window::enter_overview_at(
+		const application::overview_entry_kind aEntry,
+		const QString&                         aPath)
 	{
 		// The overview names a path; the core knows the file by identity.
-		// Selecting it is the same intent the files drawer sends, and Read is
-		// the modality the accepted design enters from Continue review.
+		// Selecting it is the same intent the files drawer sends. Start review
+		// always enters Review; Continue review keeps the configured destination.
 		if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
-		// [[BPR-0661]]. Read unless the reviewer asked Continue review to
-		// enter Review.
-		choose_modality(Behaviour.ContinueModality == application::review_continue_modality::review
+		choose_modality(aEntry == application::overview_entry_kind::start_review
+								|| Behaviour.ContinueModality == application::review_continue_modality::review
 							? review_modality::review
 							: review_modality::read);
+	}
+
+	void workbench_window::enter_read_at(const QString& aPath)
+	{
+		if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
+			Dispatch(core::select_workbench_file_intent{ .File = *file });
+		}
+		choose_modality(review_modality::read);
 	}
 
 	auto workbench_window::select_thread_line(const std::string& aIdentity) -> bool

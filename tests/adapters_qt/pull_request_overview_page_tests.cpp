@@ -104,9 +104,12 @@ namespace {
 				   && page.title_label()->text() == QStringLiteral("No pull request"),
 			   "before a projection the page names nothing and offers no entry");
 
-		auto entered   = std::vector<QString>{ };
+		auto entered   = std::vector<std::pair<application::overview_entry_kind, QString>>{ };
 		auto activated = std::vector<QString>{ };
-		page.set_entry_dispatch([&entered](const QString& aPath) { entered.push_back(aPath); });
+		page.set_entry_dispatch(
+			[&entered](const application::overview_entry_kind aEntry, const QString& aPath) {
+				entered.emplace_back(aEntry, aPath);
+			});
 		page.set_file_dispatch([&activated](const QString& aPath) { activated.push_back(aPath); });
 		page.present(projection());
 		QApplication::processEvents();
@@ -182,8 +185,9 @@ namespace {
 		page.entry_button()->click();
 		QApplication::processEvents();
 		expect(entered.size() == 1U
-				   && entered.front() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "Continue review reports the entry path");
+				   && entered.front().first == application::overview_entry_kind::continue_review
+				   && entered.front().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
+			   "Continue review reports its semantic kind and entry path");
 		page.files_view()->activated(lighting);
 		QApplication::processEvents();
 		expect(activated.size() == 1U
@@ -208,6 +212,12 @@ namespace {
 					   == QStringLiteral("?")
 				   && page.entry_button()->text() == QStringLiteral("Start review"),
 			   "what the host cannot answer reads as not known, never as none");
+		page.entry_button()->click();
+		QApplication::processEvents();
+		expect(entered.size() == 2U
+				   && entered.back().first == application::overview_entry_kind::start_review
+				   && entered.back().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
+			   "Start review remains distinct from Continue review at dispatch");
 
 		auto partial                = projection();
 		partial.CommitCount         = 9'311U;

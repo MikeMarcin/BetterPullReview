@@ -962,6 +962,15 @@ namespace {
 		// with every file, and Continue review back in Read.
 		bool OverviewShown    = false;
 		bool OverviewReturned = false;
+		// [[BPR-0919]]. The recorded public path keeps Start review distinct
+		// from Continue preferences and observes that the gesture issues no
+		// review mutation.
+		bool StartReviewAttempted               = false;
+		bool StartReviewEnteredReview           = false;
+		bool StartReviewPublishedNothing        = false;
+		bool ReviewBehaviourPreferencesSelected = false;
+		bool ContinueReviewEnteredReview        = false;
+		bool ContinueReviewPublishedNothing     = false;
 		// [[BPR-0654]]. The head I have marked reviewed, the head moved to the
 		// fixture's second head, and the overview naming exactly the files
 		// that differ between the two; asked for by `OverviewSinceReviewRequested`.
@@ -6042,6 +6051,44 @@ namespace {
 							initialEpochs)) {
 						break;
 					}
+					if (aRun->ReviewBehaviourRequested
+						&& aRun->EpochPhase
+							== bpr::app::detail::github_epoch_fixture_phase::seed
+						&& !aRun->StartReviewAttempted) {
+						// [[BPR-0919]]. Exercise the natural first-visit projection before
+						// the ledger probe below creates a receipt and turns it into Continue.
+						window.choose_modality(bpr::qt::review_modality::overview);
+						QApplication::processEvents();
+						auto* const overview = window.overview_page();
+						if (overview == nullptr || !overview->presented()
+							|| overview->projection()->Entry
+								!= bpr::application::overview_entry_kind::start_review
+							|| !overview->projection()->EntryPath.has_value()
+							|| !overview->entry_button()->isEnabled()) {
+							break;
+						}
+						const auto before = bpr::app::detail::
+							github_application_fixture_access::review_mutation_evidence(
+								aApplication);
+						overview->entry_button()->click();
+						QApplication::processEvents();
+						const auto after = bpr::app::detail::
+							github_application_fixture_access::review_mutation_evidence(
+								aApplication);
+						aRun->StartReviewAttempted     = true;
+						aRun->StartReviewEnteredReview = window.current_modality()
+							== bpr::qt::review_modality::review;
+						aRun->StartReviewPublishedNothing
+							= before.Submissions == after.Submissions
+							&& before.StoredComments == after.StoredComments
+							&& before.Replies == after.Replies
+							&& before.Resolutions == after.Resolutions;
+						if (!aRun->StartReviewEnteredReview
+							|| !aRun->StartReviewPublishedNothing) {
+							fail_automated_run(aApplication, *aRun);
+						}
+						break;
+					}
 					if (aRun->ReviewLedgerCompositionProbe.has_value()
 						&& !aRun->ReviewLedgerCompositionPassed) {
 						const auto result = bpr::app::detail::
@@ -6732,17 +6779,6 @@ namespace {
 						// [[BPR-0661]]. The seed run chooses two preferences
 						// on the page as a reviewer would; the reuse run opens
 						// over the same store and must find them honoured.
-						if (aRun->EpochPhase
-							== bpr::app::detail::github_epoch_fixture_phase::seed) {
-							auto* const continueReview
-								= window.findChild<QToolButton*>(QStringLiteral("continueModalityReview"));
-							auto* const unread
-								= window.findChild<QToolButton*>(QStringLiteral("commentsFilterUnread"));
-							if (continueReview != nullptr && unread != nullptr) {
-								continueReview->click();
-								unread->click();
-							}
-						}
 						advance_fixture_stage(*aRun, automated_run::stage::review_behaviour);
 					} else if (aRun->SavedServerRequested) {
 						// [[BPR-0660]], [[BPR-0774]]. The seed run keeps an
@@ -6953,9 +6989,25 @@ namespace {
 			case automated_run::stage::review_behaviour: {
 				// [[BPR-0661]]. Poll, do not race: the host stores the record
 				// and publishes it back, and the budget bounds a store that
-				// never answers. The seed run then requires Continue review to
-				// enter Review; the reuse run requires the drawer to have
-				// opened on the unread filter from the restored record.
+				// never answers. The seed run retains the original composed Continue
+				// gesture after the first-visit Start probe. The reuse run requires
+				// the drawer to open on the restored unread filter.
+				const auto seed = aRun->EpochPhase
+					== bpr::app::detail::github_epoch_fixture_phase::seed;
+				if (seed && !aRun->ReviewBehaviourPreferencesSelected) {
+					auto* const continueReview
+						= window.findChild<QToolButton*>(QStringLiteral("continueModalityReview"));
+					auto* const unread
+						= window.findChild<QToolButton*>(QStringLiteral("commentsFilterUnread"));
+					if (continueReview == nullptr || unread == nullptr) {
+						fail_automated_run(aApplication, *aRun);
+						break;
+					}
+					continueReview->click();
+					unread->click();
+					aRun->ReviewBehaviourPreferencesSelected = true;
+					break;
+				}
 				const auto expected = bpr::application::review_behaviour_settings{
 					.ContinueModality = bpr::application::review_continue_modality::review,
 					.CommentsFilter   = bpr::application::review_comments_filter::unread,
@@ -6963,25 +7015,49 @@ namespace {
 				if (window.behaviour() != expected) {
 					break;
 				}
-				const auto seed = aRun->EpochPhase
-					== bpr::app::detail::github_epoch_fixture_phase::seed;
 				auto passed = false;
 				if (seed) {
 					window.choose_modality(bpr::qt::review_modality::overview);
 					QApplication::processEvents();
 					auto* const overview = window.overview_page();
-					if (overview != nullptr && overview->presented()) {
-						overview->entry_button()->click();
-						QApplication::processEvents();
+					if (overview == nullptr || !overview->presented()
+						|| overview->projection()->Entry
+							!= bpr::application::overview_entry_kind::continue_review
+						|| !overview->projection()->EntryPath.has_value()
+						|| !overview->entry_button()->isEnabled()) {
+						break;
 					}
-					passed = window.current_modality() == bpr::qt::review_modality::review;
+					const auto before = bpr::app::detail::
+						github_application_fixture_access::review_mutation_evidence(
+							aApplication);
+					overview->entry_button()->click();
+					QApplication::processEvents();
+					const auto after = bpr::app::detail::
+						github_application_fixture_access::review_mutation_evidence(
+							aApplication);
+					aRun->ContinueReviewEnteredReview = window.current_modality()
+						== bpr::qt::review_modality::review;
+					aRun->ContinueReviewPublishedNothing
+						= before.Submissions == after.Submissions
+						&& before.StoredComments == after.StoredComments
+						&& before.Replies == after.Replies
+						&& before.Resolutions == after.Resolutions;
+					passed = aRun->StartReviewEnteredReview
+						&& aRun->StartReviewPublishedNothing
+						&& aRun->ContinueReviewEnteredReview
+						&& aRun->ContinueReviewPublishedNothing;
 				} else {
 					passed = window.conversation_panel()->filter_unread_button()->isChecked()
 						&& !window.conversation_panel()->filter_unresolved_button()->isChecked();
 				}
 				QTextStream{ stdout } << (seed ? "REVIEW_BEHAVIOUR_SEEDED" : "REVIEW_BEHAVIOUR")
 									  << ":continue=review:filter=unread:honoured="
-									  << (passed ? 1 : 0) << '\n';
+									  << (passed ? 1 : 0);
+				if (seed) {
+					QTextStream{ stdout }
+						<< ":start=review:start-publication=none:continue-publication=none";
+				}
+				QTextStream{ stdout } << '\n';
 				aRun->PresentationPassed = aRun->PresentationPassed && passed;
 				transition_to_shutdown(aApplication, *aRun);
 				break;

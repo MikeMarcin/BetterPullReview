@@ -840,6 +840,21 @@ namespace {
 				&& value.SelectedProjections.Failed.back().Status
 					== application::workbench_selected_diff_status::failure,
 			"an arbitrary third right path cannot replace the epoch-sealed endpoint");
+
+		value.SelectedDiffs.ForgeRightPath = false;
+		value.SelectedDiffs.Context        = selected_diff_context();
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(2U) });
+		value.Effects.drain();
+		auto replacement                    = selected_diff_context();
+		replacement.ComparisonRevision      = core::comparison_revision{ 2U };
+		replacement.Comparison.Right.Commit = oid<core::git_commit_oid>(31U);
+		value.SelectedDiffs.Context         = replacement;
+		value.Lane.drain();
+		expect(
+			value.SelectedProjections.Failed.size() == 3U
+				&& value.SelectedProjections.Failed.back().Status
+					== application::workbench_selected_diff_status::stale,
+			"a comparison replacement still rejects the in-flight selected-file terminal as stale");
 	}
 
 	void test_selected_diff_replays_after_context_arrives_and_changes()
@@ -862,8 +877,8 @@ namespace {
 					   == "publish"
 				   && value.Projections.Events.back() == "fail"
 				   && value.Projections.Failed.back().Failure
-					   == application::workbench_host_failure::selected_file_stale,
-			   "the accepted selection is published before its typed stale failure");
+					   == application::workbench_host_failure::selected_file_comparison_unavailable,
+			   "the accepted selection is published before its typed unavailable-comparison failure");
 
 		value.SelectedDiffs.Context = selected_diff_context();
 		value.Host.refresh_selected_diff();

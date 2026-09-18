@@ -88,13 +88,20 @@ namespace bpr::app::detail {
 		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
 		/// so both the resident and the quit outcome are observable on one machine.
 		/// Unset selects the running platform's own policy.
-		empty_desktop_policy                             EmptyDesktopPolicy;
-		core::diff_compute_limits                        DiffComputeLimits;
-		bool                                             LargeReviewHistory = false;
-		github_epoch_fixture_phase                       EpochPhase         = github_epoch_fixture_phase::single;
-		std::string                                      TimelineCourse;
-		bool                                             EmptyHistoricalTimeline        = false;
-		bool                                             UnfetchableFirstHistoricalHead = false;
+		empty_desktop_policy       EmptyDesktopPolicy;
+		core::diff_compute_limits  DiffComputeLimits;
+		bool                       LargeReviewHistory = false;
+		github_epoch_fixture_phase EpochPhase         = github_epoch_fixture_phase::single;
+		std::string                TimelineCourse;
+		bool                       EmptyHistoricalTimeline        = false;
+		bool                       UnfetchableFirstHistoricalHead = false;
+		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file
+		/// reading graph so the CLI-profile course can prove exact source recovery.
+		bool GhesCliSourceUpdateCourse = false;
+		/// [[BPR-0922]]. Refuses exactly the first valid smart-Git acquisition.
+		/// The next application course is served normally, making the boundary
+		/// and the supported path independently observable.
+		bool                                             RefuseFirstSmartAcquire        = false;
 		bool                                             DisableWorkbenchSelectionWire  = false;
 		bool                                             DisableReviewLedgerGestureWire = false;
 		std::shared_ptr<review_submission_fixture_state> ReviewSubmissionServer;
@@ -257,6 +264,7 @@ namespace bpr::app::detail {
 		int         AccountReadCount           = 0;
 		int         LastReadOperation          = -1;
 		int         SmartAcquireCount          = 0;
+		int         SmartAcquireRefusalCount   = 0;
 		int         SmartDiscoveryCount        = 0;
 		int         SmartLsRefsCount           = 0;
 		int         SmartFetchCount            = 0;

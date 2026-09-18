@@ -157,6 +157,8 @@ namespace bpr::qt {
 	inline constexpr std::size_t overview_value_count = 9U;
 
 	using overview_path_dispatch = std::function<void(const QString&)>;
+	using overview_entry_dispatch
+		= std::function<void(application::overview_entry_kind, const QString&)>;
 
 	/// \brief RFC-BPR-0028's overview: what changed and who has signed off.
 	///
@@ -165,8 +167,8 @@ namespace bpr::qt {
 	/// column is the pull request's identity, description and the files
 	/// table; the side column is the participants, what happened since my
 	/// last review, my review progress, and the one action. Every gesture
-	/// leaves as a path through a dispatch: the window turns it into the
-	/// core's file selection and the Read modality.
+	/// leaves through a semantic dispatch: the window turns it into the core's
+	/// file selection and the entry or file-row modality.
 	class pull_request_overview_page final : public QWidget
 	{
 	public:
@@ -186,7 +188,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto colours() const noexcept -> const overview_colours&;
 
 		/// \brief Continue review or Start review.
-		void set_entry_dispatch(overview_path_dispatch aDispatch);
+		void set_entry_dispatch(overview_entry_dispatch aDispatch);
 		/// \brief A file row activated: open it in Read.
 		void set_file_dispatch(overview_path_dispatch aDispatch);
 
@@ -209,7 +211,7 @@ namespace bpr::qt {
 
 		std::optional<application::pull_request_overview_projection> Projection;
 		overview_colours                                             Colours;
-		overview_path_dispatch                                       EntryDispatch;
+		overview_entry_dispatch                                      EntryDispatch;
 		overview_path_dispatch                                       FileDispatch;
 		QHBoxLayout*                                                 TechnicalRow = nullptr;
 		QLabel*                                                      Title        = nullptr;

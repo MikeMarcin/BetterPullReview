@@ -5009,6 +5009,16 @@ namespace {
 				   && window.status_text() != cancelled,
 			   "a workbench host failure is explicit in the same combined line "
 			   "and does not read like a review-history state");
+
+		window.fail({ .Failure = application::workbench_host_failure::selected_file_comparison_unavailable });
+		const auto unavailable = window.status_text();
+		window.fail({ .Failure = application::workbench_host_failure::selected_file_stale });
+		const auto stale = window.status_text();
+		expect(unavailable.contains(QStringLiteral("No exact comparison is ready"))
+				   && unavailable.contains(QStringLiteral("Check Review history, then retry"))
+				   && stale.contains(QStringLiteral("selected file changed"))
+				   && unavailable != stale,
+			   "an unavailable comparison gives actionable recovery without claiming the selected file changed");
 	}
 
 	/// [[BPR-0742]]. An unavailable saved layout is retained window state, not a
@@ -7143,19 +7153,23 @@ namespace {
 		expect(pageResets > beforeAuthority, "authority clear does not suppress the next PR's identical visible overview");
 	}
 
-	void test_overview_shows_the_decided_page_and_continue_enters_read()
+	void test_overview_entry_preserves_start_and_continue_semantics()
 	{
 		// [[BPR-0647]]. The Overview modality shows the host-decided overview in
-		// place of the comparison; Continue review and a file row select the
-		// file through the core and enter Read.
+		// place of the comparison. Start review and Continue review keep distinct
+		// modality semantics; a file row remains a plain Read gesture.
 		intent_log           log;
+		auto                 githubIntents = std::size_t{ 0U };
 		qt::workbench_window window{
 			[&log](core::workbench_interaction_intent aIntent) {
 				log.Workbench.push_back(aIntent);
 			},
 			[&log](core::navigate_diff_change_intent aIntent) {
 				log.Change.push_back(aIntent);
-			}
+			},
+			{ },
+			{ },
+			[&githubIntents](application::github_intent) { ++githubIntents; }
 		};
 		window.resize(1'280, 820);
 		window.show();
@@ -7183,7 +7197,7 @@ namespace {
 			application::overview_file_row{ .Path = "src/b.cpp", .Folder = "src", .Name = "b.cpp" },
 		};
 		overview.Progress  = { .FilesTotal = 2U };
-		overview.Entry     = application::overview_entry_kind::continue_review;
+		overview.Entry     = application::overview_entry_kind::start_review;
 		overview.EntryPath = "src/b.cpp";
 		window.publish(overview);
 		process_events();
@@ -7205,18 +7219,35 @@ namespace {
 		log.Workbench.clear();
 		window.overview_page()->entry_button()->click();
 		process_events();
-		// The selection comes first; Read's two set-drawer intents follow it.
 		expect(!log.Workbench.empty()
 				   && std::get_if<core::select_workbench_file_intent>(&log.Workbench.front()) != nullptr
 				   && std::get<core::select_workbench_file_intent>(log.Workbench.front()).File
 					   == workbench_file(2U),
-			   "Continue review selects the entry file through the core");
-		expect(window.current_modality() == qt::review_modality::read,
-			   "Continue review enters Read");
+			   "Start review selects the entry file through the core");
+		expect(window.current_modality() == qt::review_modality::review,
+			   "Start review enters Review even while Continue review defaults to Read");
 		expect(!window.showing_overview() && window.comparison_surface()->isVisible(),
-			   "Continue review shows the comparison");
+			   "Start review shows the comparison");
+
+		overview.Entry = application::overview_entry_kind::continue_review;
+		window.publish(overview);
+		window.choose_modality(qt::review_modality::overview);
+		log.Workbench.clear();
+		window.overview_page()->entry_button()->click();
+		process_events();
+		expect(!log.Workbench.empty()
+				   && std::get_if<core::select_workbench_file_intent>(&log.Workbench.front()) != nullptr
+				   && std::get<core::select_workbench_file_intent>(log.Workbench.front()).File
+					   == workbench_file(2U)
+				   && window.current_modality() == qt::review_modality::read,
+			   "Continue review keeps its intended entry file and default Read destination");
 
 		window.choose_modality(qt::review_modality::overview);
+		auto behaviour      = application::workbench_projection{ };
+		behaviour.Behaviour = application::review_behaviour_settings{
+			.ContinueModality = application::review_continue_modality::review,
+		};
+		window.publish(behaviour);
 		log.Workbench.clear();
 		const auto first = window.overview_page()->file_model()->index_for_path(QStringLiteral("src/a.cpp"));
 		window.overview_page()->files_view()->activated(first);
@@ -7226,7 +7257,9 @@ namespace {
 				   && std::get<core::select_workbench_file_intent>(log.Workbench.front()).File
 					   == workbench_file(1U)
 				   && window.current_modality() == qt::review_modality::read,
-			   "activating a file row selects that file and enters Read");
+			   "activating a file row selects that file and enters Read independently of Continue preference");
+		expect(githubIntents == 0U,
+			   "Start review, Continue review, and file-row navigation publish no GitHub intent");
 
 		window.choose_modality(qt::review_modality::overview);
 		window.clear_overview();
@@ -8134,7 +8167,7 @@ auto main(int argc, char** argv) -> int
 	test_home_composes_the_production_catalog_and_respects_motion_and_width();
 	test_dif_moves_to_the_explicit_ai_area_without_owning_it();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
-	test_overview_shows_the_decided_page_and_continue_enters_read();
+	test_overview_entry_preserves_start_and_continue_semantics();
 	test_identical_overview_skips_rebuild_but_restores_cleared_files();
 	test_overview_refuses_a_hand_opened_drawer_and_says_so();
 	test_a_large_file_leaves_the_widget_count_bounded();

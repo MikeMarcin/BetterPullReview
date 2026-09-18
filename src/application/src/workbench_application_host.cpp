@@ -637,7 +637,7 @@ namespace bpr::application {
 			}
 			if (!context.has_value()) {
 				publish_failure(
-					local_context(), workbench_host_failure::selected_file_stale);
+					local_context(), workbench_host_failure::selected_file_comparison_unavailable);
 				return;
 			}
 			auto* const record = reserve(workbench_request_domain::selected_diff);

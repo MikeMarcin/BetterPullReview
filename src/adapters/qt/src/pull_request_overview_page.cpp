@@ -890,7 +890,7 @@ namespace bpr::qt {
 		Entry->setFocusPolicy(Qt::StrongFocus);
 		connect(Entry, &QPushButton::clicked, this, [this] {
 			if (Projection.has_value() && Projection->EntryPath.has_value() && EntryDispatch) {
-				EntryDispatch(text(*Projection->EntryPath));
+				EntryDispatch(Projection->Entry, text(*Projection->EntryPath));
 			}
 		});
 		sideColumn->addSpacing(12);
@@ -998,9 +998,14 @@ namespace bpr::qt {
 		const auto start = aProjection.Entry == application::overview_entry_kind::start_review;
 		Entry->setText(start ? QStringLiteral("Start review") : QStringLiteral("Continue review"));
 		Entry->setAccessibleName(Entry->text());
-		Entry->setToolTip(aProjection.EntryPath.has_value()
-							  ? QStringLiteral("Opens %1 in Read").arg(text(*aProjection.EntryPath))
-							  : QStringLiteral("Nothing to read yet"));
+		auto entryDescription = QStringLiteral("Nothing to read yet");
+		if (aProjection.EntryPath.has_value()) {
+			entryDescription = start
+				? QStringLiteral("Starts Review at %1").arg(text(*aProjection.EntryPath))
+				: QStringLiteral("Continues at %1").arg(text(*aProjection.EntryPath));
+		}
+		Entry->setToolTip(entryDescription);
+		Entry->setAccessibleDescription(Entry->toolTip());
 		Entry->setEnabled(aProjection.EntryPath.has_value());
 	}
 
@@ -1066,7 +1071,7 @@ namespace bpr::qt {
 		return Colours;
 	}
 
-	void pull_request_overview_page::set_entry_dispatch(overview_path_dispatch aDispatch)
+	void pull_request_overview_page::set_entry_dispatch(overview_entry_dispatch aDispatch)
 	{
 		EntryDispatch = std::move(aDispatch);
 	}

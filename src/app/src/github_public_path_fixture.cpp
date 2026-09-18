@@ -259,8 +259,11 @@ namespace bpr::app::detail {
 		/// `fixture_recorded_wire_transport::acquire`.
 		struct fixture_descriptor
 		{
-			std::string_view          ContractDirectory;
-			std::string_view          CapabilityDirectory;
+			std::string_view ContractDirectory;
+			std::string_view CapabilityDirectory;
+			/// Optional recorded-wire source when the semantic descriptor overlays
+			/// another contract. Empty means `ContractDirectory`.
+			std::string_view          RecordingDirectory;
 			server_contract           Server;
 			core::github_account_id   AccountId;
 			core::repository_id       RepositoryId;
@@ -294,6 +297,7 @@ namespace bpr::app::detail {
 				return {
 					.ContractDirectory   = "profile-window-restoration-v1",
 					.CapabilityDirectory = "github-com",
+					.RecordingDirectory  = "github-com",
 					.Server              = server_contract::github_com,
 					.AccountId           = core::github_account_id{ 1001U },
 					.RepositoryId        = core::repository_id{ 2001U },
@@ -522,8 +526,11 @@ namespace bpr::app::detail {
 			if (aDescriptor.Paged) {
 				return large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory, aHead);
 			}
-			const auto root = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }
-				/ (aDescriptor.WindowReading ? "github-com" : aDescriptor.ContractDirectory);
+			const auto recordingDirectory = aDescriptor.RecordingDirectory.empty()
+				? aDescriptor.ContractDirectory
+				: aDescriptor.RecordingDirectory;
+			const auto root               = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }
+				/ recordingDirectory;
 			const auto  manifest     = parse_recording(root / "manifest.json");
 			const auto& interactions = manifest.Interactions;
 			if (interactions.size()
@@ -1147,18 +1154,21 @@ namespace bpr::app::detail {
 			// the same authority -- so under that course, and only there, the
 			// recorded transports serve each of them. The counts are still
 			// kept, so a course that reads them still reads the truth.
-			bool                                        RepeatSessions = false;
-			bool                                        CliEnabled     = false;
+			bool                                        RepeatSessions           = false;
+			bool                                        CliEnabled               = false;
+			bool                                        RefuseFirstSmartAcquire  = false;
+			bool                                        FirstSmartAcquireRefused = false;
 			std::optional<core::application_session_id> AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
 			// its start once it is consumed, so the product's re-read is
 			// served with the mutation overlay rather than refused.
-			bool                                        RepeatReads         = false;
-			std::size_t                                 AccountReadCalls    = 0U;
-			std::size_t                                 SmartAcquireCalls   = 0U;
-			std::size_t                                 SmartDiscoveryCalls = 0U;
-			std::size_t                                 SmartLsRefsCalls    = 0U;
-			std::size_t                                 SmartFetchCalls     = 0U;
+			bool                                        RepeatReads          = false;
+			std::size_t                                 AccountReadCalls     = 0U;
+			std::size_t                                 SmartAcquireCalls    = 0U;
+			std::size_t                                 SmartAcquireRefusals = 0U;
+			std::size_t                                 SmartDiscoveryCalls  = 0U;
+			std::size_t                                 SmartLsRefsCalls     = 0U;
+			std::size_t                                 SmartFetchCalls      = 0U;
 			std::optional<core::pull_request_authority> LastSmartAuthority;
 			int                                         LastReadOperation = -1;
 			int                                         RecordingFailure  = -1;
@@ -1748,6 +1758,13 @@ namespace bpr::app::detail {
 				}
 				{
 					const std::scoped_lock lock{ State->Mutex };
+					if (State->RefuseFirstSmartAcquire
+						&& !State->FirstSmartAcquireRefused) {
+						State->FirstSmartAcquireRefused = true;
+						++State->SmartAcquireRefusals;
+						return std::unexpected{ application::git_smart_transport_error{
+							.Failure = application::git_smart_transport_failure::unavailable } };
+					}
 					++State->SmartAcquireCalls;
 					State->LastSmartAuthority = aContext.Authority;
 				}
@@ -3127,6 +3144,23 @@ namespace bpr::app::detail {
 				};
 			}
 			auto served = descriptor(aFixture);
+			if (aOptions.GhesCliSourceUpdateCourse) {
+				if (aFixture != github_public_path_fixture::ghes_3_18) {
+					throw std::runtime_error{
+						"GHES CLI source-update course requires the GHES fixture"
+					};
+				}
+				const auto reading = descriptor(
+					github_public_path_fixture::profile_window_restoration_v1);
+				served.BaseOid       = reading.BaseOid;
+				served.HeadOneOid    = reading.HeadOneOid;
+				served.HeadTwoOid    = reading.HeadTwoOid;
+				served.BaseBlob      = reading.BaseBlob;
+				served.HeadOneBlob   = reading.HeadOneBlob;
+				served.HeadTwoBlob   = reading.HeadTwoBlob;
+				served.Packs         = reading.Packs;
+				served.WindowReading = true;
+			}
 			if (aOptions.TimelineCourse == "ordinary") {
 				if (aFixture != github_public_path_fixture::github_com || !aOptions.EmptyHistoricalTimeline) {
 					throw std::runtime_error{ "Ordinary update requires the synthetic GitHub fixture and empty timeline" };
@@ -3146,11 +3180,14 @@ namespace bpr::app::detail {
 			Recording = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads,
 				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead, aOptions.TimelineCourse);
-			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings || aOptions.IndependentWindowReads;
-			Recording->RepeatReads    = aOptions.RepeatReadSessions;
-			Recording->CliEnabled     = aOptions.GithubCliDiscoveryAccounts.has_value();
-			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
-			VaultState                = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
+			Recording->RepeatSessions = aOptions.DeviceRefreshCourse
+				|| aOptions.PersistDeviceBindings
+				|| aOptions.IndependentWindowReads;
+			Recording->RepeatReads             = aOptions.RepeatReadSessions;
+			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
+			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
+			Factory                            = std::make_shared<fixture_transport_factory>(Recording);
+			VaultState                         = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since
 			// [[BPR-0542]] and [[BPR-0543]], so the fixture's has one on every
 			// course too: a shutdown that erases the refresh slot beside the
@@ -3283,6 +3320,8 @@ namespace bpr::app::detail {
 			result.LastReadOperation = Implementation->Recording->LastReadOperation;
 			result.SmartAcquireCount = static_cast<int>(
 				Implementation->Recording->SmartAcquireCalls);
+			result.SmartAcquireRefusalCount = static_cast<int>(
+				Implementation->Recording->SmartAcquireRefusals);
 			result.SmartDiscoveryCount = static_cast<int>(
 				Implementation->Recording->SmartDiscoveryCalls);
 			result.SmartLsRefsCount = static_cast<int>(
