@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0915"
 title: "Consolidate Home and PR setup into shared sign-in"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015", "RFC-BPR-0018", "RFC-BPR-0032"]
 depends_on: ["BPR-0914"]
 priority: "P1"
