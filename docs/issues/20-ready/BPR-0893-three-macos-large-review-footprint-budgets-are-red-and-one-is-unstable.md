@@ -83,3 +83,49 @@ that rests on "it passed at the baseline" does not survive it.
   tolerates it or is made deterministic.
 - The card states how long each row had been failing before this sweep.
 - Linux and Windows are unaffected: these rows do not run there.
+
+## How long each row has been failing — established from the logs on disk, dsp-009
+
+An `rfc-utility` on Fable inventoried every log that names the three rows:
+32 logs (13 under `build/*.log` from 2026-09-12/13, 19 under `build/r2-logs/`
+from 2026-09-17). No `Testing/Temporary/LastTest*.log` under any of the ~120
+build directories retains a block for them (all overwritten), and
+`docs/verification/**` names none. No log records the source-tree SHA; dates
+are log mtimes except two logs with in-log timestamps. Growth figures below
+are the failing `PhysicalFootprintBytes` sample minus the run's
+`before_application` sample (`large_review_benchmark.cpp:199-205`); **the
+harness never prints the growth number itself.**
+
+| Row | Last recorded PASS | Earliest budget FAIL | 2026-09-17 record |
+|---|---|---|---|
+| `cache_bytes` | 2026-09-13 00:36 (`build/rfc0013-d2-byte-post-projection.log`, 333 s) | 2026-09-17 14:04 (`dsp5-mac-full-sweep.log`) | 9 of 9 FAIL, sampled growth 168.1–171.6 MiB vs 160 MiB |
+| `resources` | 2026-09-13 00:41 (`build/rfc0013-d2-preserved-public-courses.log`) | 2026-09-17 14:04 | 7 of 7 FAIL, cleanup growth 96.7–102.0 MiB vs 96 MiB |
+| `loaded_close` | 2026-09-17 18:27 (`dsp7-0901-full-sweep.log`, 13.55 s) | 2026-09-17 14:04 | flips: FAIL 14:04, 14:43 ×2, 14:54 ×2, 14:56, 16:33; PASS 14:29, 14:30, 14:56, 18:27 |
+
+So the honest answer to "how long" is a **window, not a date**: `cache_bytes`
+and `resources` were green on 2026-09-13 and red at the first 2026-09-17 run,
+including at the `85f47bde` baseline (10:43 that day), and **no run of either
+row is recorded between 2026-09-13 00:41 and 2026-09-17 10:43**. Whatever
+moved them is in that four-day window. Changes to
+`tests/end_to_end/large_review_benchmark.cpp` inside it: `284d1eac`
+(2026-09-15 10:16), `e1424320` (2026-09-17 05:00), `b841dfb5` (2026-09-17
+10:35, [[BPR-0856]], already excluded above), `fe75b3a4` (2026-09-17 10:42,
+[[BPR-0858]]). The limits themselves are unchanged since `316390ce`
+(2026-09-05) apart from `1681994a` (2026-09-12) re-indenting them and adding
+`ByteDrainedFootprintGrowthLimitBytes`. Product changes in the window were not
+inventoried; that is the next discriminating step and it is a bisect, not a
+grep.
+
+`cache_bytes` also flipped six times on the evening of 2026-09-12 (the
+`bpr0635-*` logs), several for non-budget reasons, and `loaded_close` holds a
+FAIL and a PASS **in one log** (`dsp5-lc-src-baseline.log`). On this evidence
+`loaded_close` is nondeterministic independent of the tree, which the scope's
+first item already suspected; the distribution still has to be taken on a
+quiet host, and dsp-009's host was not quiet (a foreign test run held ~100% of
+one core throughout).
+
+**A discrepancy to reconcile before anyone quotes this card's numbers:** the
+"growth vs limit at head" figures in the table above (163.4 / 167.8 MB,
+131.0 / 100.7 MB, 144.7 / 100.7 MB) do not match the failing-sample arithmetic
+from the same logs (`dsp5-current-*`: 177.9 MiB, 101.7 MiB, 100.7 MiB). Their
+derivation is not recorded. Not reconciled here.

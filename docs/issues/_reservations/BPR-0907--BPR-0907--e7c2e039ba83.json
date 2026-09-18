@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0907"
+  ],
+  "reserve_for": "dsp-009-main",
+  "purpose": "",
+  "created": "2026-09-18T02:38:33.636853+00:00",
+  "base": "1b73daf75662da9a822c2b4a84b5dfad097dc453"
+}
