@@ -8580,6 +8580,13 @@ auto main(int argc, char** argv) -> int
 				// build compiles this away and says no more than before.
 				if (aResult.error() != bpr::app::github_application_startup_failure::owner_busy) {
 					QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: startup_failure=" << startup_failure_name(aResult.error()) << '\n';
+					// [[BPR-0877]]. `registry` above is a catch-all arm, so the
+					// profile refusal that actually fired follows on its own
+					// line: the line above keeps the exact wording a contract
+					// already matches.
+					if (const auto refusal = bpr::app::profile_startup_refusal_name(); !refusal.empty()) {
+						QTextStream{ stderr } << "STARTUP_PROFILE_REFUSAL:" << QString::fromStdString(refusal) << '\n';
+					}
 				}
 #endif
 				QTextStream{ stdout } << (aResult.error() == bpr::app::github_application_startup_failure::owner_busy ? "PROFILE_ALREADY_OPEN\n" : "STARTUP_FAILED\n");

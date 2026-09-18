@@ -196,6 +196,17 @@
 
 namespace bpr::app {
 	namespace {
+		// [[BPR-0877]]. The profile refusal a startup actually saw, as its enum
+		// value, or -1 when none did. A value rather than a string because it is
+		// written on a startup lane and read by whoever reports the refusal.
+		std::atomic_int FirstProfileStartupRefusal{ -1 };
+
+		void note_profile_startup_refusal(const application::profile_startup_failure aFailure)
+		{
+			auto expected = -1;
+			static_cast<void>(FirstProfileStartupRefusal.compare_exchange_strong(
+				expected, static_cast<int>(aFailure), std::memory_order_acq_rel));
+		}
 		// [[BPR-0875]]. The workspace-ownership refusal in words, for the one
 		// cleanup name a quit reports.
 		[[nodiscard]] auto named_workspace_ownership_failure(const int aFailure) -> std::string
@@ -12784,6 +12795,11 @@ namespace bpr::app {
 			}
 			if (!aTerminal.Result) {
 				const auto failure = aTerminal.Result.error();
+				// [[BPR-0877]]. `registry` below is the catch-all arm of this
+				// mapping, so five different profile refusals arrive at a reader
+				// wearing one name. Record the one that actually fired, first
+				// refusal wins, so a run says which rather than needing a bisect.
+				note_profile_startup_refusal(failure);
 				if (failure == application::profile_startup_failure::owner_busy && Handoff) {
 					finish(std::unexpected(*Handoff));
 					return;
@@ -13101,6 +13117,26 @@ namespace bpr::app {
 	// [[BPR-0875]]. What the profile's flag above is about, for the desktop's
 	// exit code and for a person reading a real quit.
 	auto github_application::profile_shutdown_cleanup_detail() const -> std::string { return Profile->CleanupDetail; }
+
+	auto profile_startup_refusal_name() -> std::string
+	{
+		const auto recorded = FirstProfileStartupRefusal.load(std::memory_order_acquire);
+		if (recorded < 0) {
+			return { };
+		}
+		switch (static_cast<application::profile_startup_failure>(recorded)) {
+		case application::profile_startup_failure::unknown_profile:      return "unknown_profile";
+		case application::profile_startup_failure::invalid_registry:     return "invalid_registry";
+		case application::profile_startup_failure::registry_unavailable: return "registry_unavailable";
+		case application::profile_startup_failure::root_unavailable:     return "root_unavailable";
+		case application::profile_startup_failure::owner_busy:           return "owner_busy";
+		case application::profile_startup_failure::cancelled:            return "cancelled";
+		case application::profile_startup_failure::busy:                 return "busy";
+		case application::profile_startup_failure::closing:              return "closing";
+		case application::profile_startup_failure::identity_exhausted:   return "identity_exhausted";
+		}
+		return "unknown";
+	}
 	// [[BPR-0875]]. The profile's name once it has one, else this window's.
 	auto github_application::shutdown_cleanup_detail() const -> std::string
 	{

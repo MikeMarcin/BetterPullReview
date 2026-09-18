@@ -92,6 +92,15 @@ namespace bpr::app {
 	[[nodiscard]] auto initialize_or_reset_designated_live_replay_state(
 		const std::filesystem::path& aApplicationDataRoot) noexcept -> bool;
 
+	/// \brief Which profile refusal a startup actually saw, or empty.
+	///
+	/// \details [[BPR-0877]]. `github_application_startup_failure::registry` is
+	/// the catch-all arm of the profile mapping, so several different refusals
+	/// reach a reader under one name, and finding which needed a bisect. This
+	/// names the one that fired, first refusal wins. Diagnostic only: every
+	/// caller keeps reading the mapped failure it already reads.
+	[[nodiscard]] auto profile_startup_refusal_name() -> std::string;
+
 	/// \brief Names the device-authorization browser capability a run bound.
 	///
 	/// \details `DeviceAuthorizationBrowserComposed` answers whether anything
@@ -656,7 +665,7 @@ namespace bpr::app {
 		[[nodiscard]] auto window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
 		[[nodiscard]] auto profile_shutdown_complete() const noexcept -> bool;
 		[[nodiscard]] auto profile_shutdown_cleanup_failed() const noexcept -> bool;
-		/// rief Which of the profile's cleanups refused first, or empty.
+		/// \brief Which of the profile's cleanups refused first, or empty.
 		///
 		/// \details [[BPR-0875]]. The flag above becomes the desktop's exit 1, and
 		/// five sources can raise it, so the one that did is named here.

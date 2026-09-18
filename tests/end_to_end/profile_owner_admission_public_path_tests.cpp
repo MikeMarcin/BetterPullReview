@@ -76,6 +76,11 @@ auto main(int aArgc, char** aArgv) -> int
 	if (mode == "seed") {
 		auto store = adapters::sqlite::make_profile_registry_store(root);
 		auto state = store->load({ });
+		// [[BPR-0877]]. Name the refusal rather than only reporting that the
+		// seed failed: this store's own failure value says which.
+		if (!state) {
+			std::cerr << "SEED_REGISTRY_REFUSAL:" << static_cast<int>(state.error()) << std::endl;
+		}
 		expect(state.has_value(), "seed registry");
 		const auto revision  = state->Revision++;
 		state->LastProfileId = 2;
