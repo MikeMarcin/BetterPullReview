@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0921"
 title: "Investigate No updates loaded after opening a PR"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0029", "RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
