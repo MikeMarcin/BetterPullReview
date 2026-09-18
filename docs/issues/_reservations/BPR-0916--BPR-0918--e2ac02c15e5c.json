@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0916",
+    "BPR-0917",
+    "BPR-0918"
+  ],
+  "reserve_for": "markdown-and-description",
+  "purpose": "Markdown rendering RFC and long overview description investigation",
+  "created": "2026-09-18T09:53:43.782699+00:00",
+  "base": "e0eab2e5381f7cecba03aac1be91d46a0bff869a"
+}
