@@ -268,3 +268,81 @@ fall-through candidates. With `TMPDIR` unset and `/tmp` at 1777 root-owned, its
 first candidate verifies immediately, so `$TMPDIR` and the product-created
 `/tmp/bpr-<uid>` branches stay untested on Linux by construction. A WSL2 host
 with systemd disabled is the configuration that would exercise them.
+
+## The Linux criterion is closed, and it was a criterion worth running (bpr-linux, dsp-007)
+
+Base `271bb452`. Both rows pass on the first attempt, `ctest` exit **0**
+(`build/r2-logs/dsp7-0881-activation.log`, verbose in
+`dsp7-0881-activation-verbose.log`):
+
+| Row (resolved against `ctest -N`, not prose) | Result |
+| --- | --- |
+| `sqlite_profile_activation` (#147) | **Passed, 4.13 s** |
+| `application_profile_activation_public_path` (#362) | **Passed, 2.79 s** (2.75 s on the verbose rerun) |
+
+### The geometry, printed by the contract on this host
+
+```text
+profile-activation geometry: root 94 bytes, in-root endpoint 108 bytes, runtime endpoint 49 bytes, sun_path 108 bytes
+```
+
+**The in-root endpoint is 108 against a `sun_path` of 108, and Linux refuses
+with `>=`.** So the real macOS root geometry would have failed on Linux too,
+exactly as this card predicted from the Mac — measured here rather than argued.
+Moving the endpoint out of the data root did not merely tidy Linux, it removed a
+refusal Linux was one long user name away from.
+
+The runtime endpoint is **49** bytes, not the 45 estimated above from the host
+survey; 49 is the correct figure and it is a constant:
+
+```text
+/run/user/1000/bpr-activate-<16 hex>.sock
+```
+
+14 + 1 + 13 + 16 + 5 = 49, with **59 bytes of margin** inside 108, and it does
+not vary with the root's length. Two worked examples through the driver's own
+`activation_endpoint`, one legacy-root and one `profiles/profile-2`:
+`…/bpr-activate-b2a75921f1ffa0ee.sock` and `…/bpr-activate-1bdaba24724cfcdb.sock`
+— different digests, both 49 bytes.
+
+### The Python mirror of `lexically_normal()` agrees on Linux
+
+`application_profile_activation_public_path` now derives the endpoint the way
+the product does instead of globbing for `activate.sock`. A wrong derivation
+fails the row naming both the expected path and the `bpr-activate-*.sock` files
+actually present. **No such message was produced**: the row printed
+`PROFILE_ACTIVATION_OK` and passed. So the C++ digest over
+`aRoot.lexically_normal().string()` and the Python digest over
+`os.fsencode(str(profile_root))` agree on this platform, and neither side
+resolved symlinks.
+
+### The candidate order resolved as the host survey predicted
+
+`runtime_directory()` returns `/run/user/1000` — the first candidate, verified
+owner-private (mode `0700`, uid 1000) rather than read from the environment.
+`TMPDIR` is unset and `/tmp` is 1777 root-owned here, so the two fall-through
+branches remain untested on Linux by construction, as recorded above. Both
+rows left **no** `bpr-activate-*.sock` behind in `/run/user/1000`, so the
+server's destructor removed what it bound.
+
+### What the tree still says `activate.sock`
+
+Grepped and **not fixed**, as instructed. Outside `docs/issues/**` — which is
+history and should keep saying it — there is exactly one reference left, and it
+is deliberate:
+
+- `tests/sqlite_contract/profile_activation_tests.cpp:38,42` —
+  `constexpr std::string_view legacy_endpoint_name{ "/activate.sock" }`, used to
+  compute the "in-root endpoint 108 bytes" figure above. It is the arithmetic
+  the contract exists to print, not a leftover caller.
+
+**No product source refers to `activate.sock` any more.** The only other hits
+are card and RFC prose in `docs/issues/`.
+
+### Disposition
+
+Against this card's four acceptance lines, the fourth's Linux half is now met by
+a run rather than by argument, and the station has no remaining Linux work on
+it. The card is left **In Progress** for `bpr-main-mac` to dispose of: moving it
+is a main-side judgment, and a lane does not move a card whose other three lines
+were met on another platform.
