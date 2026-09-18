@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0896"
 title: "A reply's reconciliation request is the GraphQL root with a REST query string, so a live reply can never reconcile or recover"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
