@@ -5,10 +5,15 @@ Inspected baseline: `4384e20982f6ed736a3845f1fd8e6f346b8a9ae3`.
 
 ## Current frontier
 
-Investigation complete: the milestone integrator selects a dedicated expanded
+Correction complete at `3efa66bc20c91ae5d3506614ff44a445f4c4c417`:
+864 disposable-probe courses demonstrate source-anchor/selection restoration
+after Return to Files, including width/font reflow and cross-process scale
+restoration. A negative control fails when anchor adjustment is disabled.
+The earlier failed raw-scroll evidence is preserved below.
+The milestone integrator selects a dedicated expanded
 description within the central Overview surface, with a fixed Return to Files
 control. Native-library offscreen probes demonstrate full-body reachability and
-expose a failed naive scroll-retention strategy. BPR-0928 owns implementation;
+the selected source-anchor retention mechanics. BPR-0928 owns implementation;
 AC-01 runtime acceptance is not claimed. No production code changed and no
 separate human decision gate is required for this milestone.
 
@@ -170,6 +175,25 @@ font or scale reflow retain the first visible source-text position and its
 within-line offset where representable, rather than replaying a scrollbar
 integer. Files retains its own selected stable row and table position.
 
+The correction probe below directly demonstrates this restoration algorithm for
+an unchanged synthetic document: bind the anchor to its exact content digest;
+capture the UTF-16 source position at the top visible line, its viewport offset,
+and the selection's directed endpoints; retain the editor/document through
+Return to Files; after layout settles, resolve the saved source position in the
+current layout, center it to ensure layout availability, restore selection, then
+adjust the current scrollbar one visual step at a time until that same source
+position lies within one wrapped line of the top. No captured scrollbar integer
+is replayed. A 256-step probe guard fails rather than hiding non-convergence;
+the observed maximum was 15 steps. Production should use its bounded layout
+mechanics rather than adopt a polling loop merely because the probe uses one.
+
+At document end, the scrollbar may reach its maximum before the saved anchor
+can be top-aligned after reflow. The explicit boundary rule is then to keep the
+entire anchor line visible at the nearest legal scroll position. Do not insert
+blank document content to simulate an impossible scroll range. This exception
+does not permit an offscreen anchor, selection loss or a jump to another source
+position. For ordinary positions the one-wrapped-line tolerance still applies.
+
 For a same-authority body edit, retain the reader state, clamp the prior source
 position to the new document and announce “Description updated”; do not claim
 the old text still exists or jump to a similarly worded passage. Restore the
@@ -222,7 +246,9 @@ Acceptance checks:
    still dispatches exactly once through the established semantic route.
 5. Title/receipt-only refresh preserves unchanged body, anchor and selection;
    body edits apply the explicit clamp/update announcement rule. Resize/font/
-   scale changes retain the same visible source anchor within one wrapped line.
+   scale changes retain the same visible source anchor within one wrapped line;
+   when document-end clamping makes that impossible, retain the entire anchor
+   line visibly at the nearest legal position, as the correction probe shows.
    Test mid-document anchors as well as the end, never only scrollbar integers.
 6. Exact authority invalidation and PR/account/host replacement clear old text
    and local state before new content, including same repo/PR number on another
@@ -279,6 +305,95 @@ input/appearance and Windows/Linux evidence remain unobserved. The later Markdow
 renderer must preserve the same identity, selection/copy and single-scroll
 ownership contract. Source anchors across edited text are explicitly best-effort
 clamped positions, not a promise of semantic text tracking.
+
+## Correction: demonstrated Return to Files anchor retention
+
+The original raw-scroll failures remain valid. This correction closes the
+design-demonstration gap with a second disposable probe linked to the same
+native Qt Overview library. It does not patch the shipped implementation.
+Its selected reader hides while Files is shown, retaining the actual editor
+and document. A synthetic file row remains selected; Return to Files focuses
+that table and emits no file-activation callback. Reopen reveals the same
+document, whose pointer and revision are checked unchanged. A prototype
+title-only update changes the title label without calling today's resetting
+`present()` path. Production incremental refresh remains BPR-0928 work.
+
+Each source configuration captures three positions: approximately one-third,
+two-thirds, and the first visible text when reading the document end. The
+capture is a source offset inside the exact digest-bound string, not a search
+for repeated wording or merely a paragraph number. Each selection spans 24
+source characters near the captured anchor. After return/reopen, the probe
+asserts the exact directed selection endpoints and selected source text,
+the full anchor cursor rectangle's visibility, the top-line/clamp tolerance,
+the retained document, stable Files selection and zero activation callbacks.
+
+| Source and destination geometry | Courses | Result |
+| --- | --- | --- |
+| L/V × 800/1400 width × 13/20 pt × 3 positions × unchanged/width-only/font-only/both reflow, at each of 1/1.25/2x | 96 per scale; 288 total | All pass |
+| Same matrix, each ordered pair of different source/destination scales from 1/1.25/2x | 96 per pair; 576 total | All pass |
+| Adjustment disabled by `BPR_PROBE_SKIP_ANCHOR_ADJUSTMENT=1` | First non-boundary case | Exit 1: `FAIL top anchor within one visual line unless document-end clamped` |
+
+All nine scale-pair runs reported `courses=96 endClamped=14 maxSteps=15
+maxAnchorTop=300 maxUnclampedTop=32`. Thus 864/864 return/reopen courses passed,
+with 126 document-end-clamped returns. The ordinary maximum top offset was
+32 logical pixels, within the current wrapped-line height; the boundary
+maximum was 300 pixels, with the complete anchor line still visible. No saved
+source anchor or selection endpoint changed. There were no unexpected failures.
+This positive result supplements rather than erases the six/eight failed naive
+raw-scroll geometries recorded above.
+
+Scale changes are deliberately qualified: Qt's offscreen scale is selected
+at process startup. The capture process writes synthetic source-offset and
+selection snapshots; a destination-scale process reconstructs the exact body,
+verifies its digest and restores those anchors before exercising return/reopen
+and width/font reflow on a retained widget. This demonstrates that the retained
+source identity survives changed scale geometry, but does not demonstrate a
+live screen/DPR-change event or durable product state. BPR-0928 still must test
+the shipped event path. No private text or production clipboard was used.
+
+Reproduction uses the existing CMake block below and the correction `probe.cpp`
+at the end of this document, saved in the uniquely created directory. These
+were the successful commands; for replay, substitute a newly created exact
+directory throughout. The source scale snapshots and build outputs are
+disposable, never repository evidence files.
+
+```sh
+mktemp -d /tmp/bpr-0918-overview-anchor.XXXXXX
+cmake -S /tmp/bpr-0918-overview-anchor.AA9g2M -B /tmp/bpr-0918-overview-anchor.AA9g2M/build -G Ninja -DCMAKE_PREFIX_PATH=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprqt/6.10.3/6.10.3/macos
+cmake --build /tmp/bpr-0918-overview-anchor.AA9g2M/build
+set -e
+for probe_scale in 1.0 1.25 2.0; do
+  QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=$probe_scale /tmp/bpr-0918-overview-anchor.AA9g2M/build/probe capture /tmp/bpr-0918-overview-anchor.AA9g2M/scale-$probe_scale.json 2>/dev/null
+done
+for source_scale in 1.0 1.25 2.0; do
+  for target_scale in 1.0 1.25 2.0; do
+    if test "$source_scale" != "$target_scale"; then
+      QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=$target_scale /tmp/bpr-0918-overview-anchor.AA9g2M/build/probe restore /tmp/bpr-0918-overview-anchor.AA9g2M/scale-$source_scale.json 2>/dev/null
+    fi
+  done
+done
+```
+
+The suppression above removes the previously inspected offscreen warnings;
+all positive commands retain their own process exit status and stop on failure.
+The deliberate negative control was run separately with pipe failure preserved:
+
+```sh
+set -o pipefail
+QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=1.0 BPR_PROBE_SKIP_ANCHOR_ADJUSTMENT=1 /tmp/bpr-0918-overview-anchor.AA9g2M/build/probe restore /tmp/bpr-0918-overview-anchor.AA9g2M/scale-1.0.json 2>&1 | rg 'FAIL|anchor-probe'
+```
+
+It exited 1 with the expected assertion, demonstrating that the positioning
+claim is falsifiable. Snapshot identity refusal is implemented in the probe,
+but this correction did not add a separate mismatched-content negative run;
+authority and edited-body behavior remain the implementation follow-up's tests.
+
+Correction cleanup: after all commands exited, the two source files were checked
+and the exact directory `/tmp/bpr-0918-overview-anchor.AA9g2M` was removed with
+non-forced `rm -r`; `test ! -e` confirmed absence. No probe process, snapshot,
+binary or other correction artifact remains outside this source-only study.
+`python3 scripts/verify_documentation.py --root .` returned `DOCUMENTATION_OK`
+and `git diff --check` passed after the correction.
 
 ## Disposable probe reproduction source
 
@@ -386,5 +501,216 @@ int main(int argc, char** argv)
         std::cout << " restored=" << (edit->textCursor().position() == retainedCursor.position() && edit->verticalScrollBar()->value() == retainedScroll) << "\n";
         page.hide();
     }
+}
+```
+
+## Correction probe.cpp reproduction source
+
+Use this block instead of the original `probe.cpp` above for the correction
+commands. The original block remains the reproduction of the negative raw-scroll
+investigation. The snapshot files are a disposable probe transport only.
+
+```cpp
+#include "bpr/qt/pull_request_overview_page.hpp"
+#include <QApplication>
+#include <QPlainTextEdit>
+#include <QScrollBar>
+#include <QTreeView>
+#include <QLabel>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QTextBlock>
+#include <QTextLayout>
+#include <QCryptographicHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
+#include <iostream>
+#include <cstdlib>
+#include <cmath>
+
+void require(bool condition, const char* message)
+{
+    if (!condition) { std::cerr << "FAIL " << message << '\n'; std::exit(1); }
+}
+
+QString body(int sections)
+{
+    QString result;
+    for (int i = 1; i <= sections; ++i) {
+        result += QString("## Section %1\n\nThis synthetic description explains the change and its verification.\n- [x] Unit checks pass\n- [ ] Check the interactive workflow\n```cpp\nauto result = compare(old_revision, new_revision, exact_repository_identity, selected_file_identity, retained_comparison_identity);\n```\n| Case | Expected result |\n| ---- | --------------- |\n| Narrow | All admitted text remains selectable and reachable |\n\n").arg(i);
+    }
+    return result + "END OF ADMITTED BODY";
+}
+
+QString digest(const QString& text)
+{
+    return QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Sha256).toHex();
+}
+
+struct fixture
+{
+    bpr::qt::pull_request_overview_page Page;
+    QPlainTextEdit* Edit = Page.body_view();
+    QPushButton* Back;
+    int FileActivations = 0;
+
+    fixture(const QString& text, int width, int points)
+    {
+        bpr::application::pull_request_overview_projection projection;
+        projection.Title = "Source-anchor retention study";
+        projection.Body = text.toStdString();
+        bpr::application::overview_file_row row;
+        row.Path = "src/synthetic.cpp"; row.Name = "synthetic.cpp"; row.Folder = "src";
+        projection.Files.push_back(row);
+        Page.present(projection);
+        Page.set_file_dispatch([this](const QString&) { ++FileActivations; });
+        auto* column = Page.findChild<QWidget*>("overviewMainColumn");
+        Back = new QPushButton("Return to Files", column);
+        qobject_cast<QVBoxLayout*>(column->layout())->insertWidget(0, Back);
+        QObject::connect(Back, &QPushButton::clicked, [this] { summary(); });
+        geometry(width, points);
+        Page.show(); expanded();
+        const auto index = Page.file_model()->index_for_path("src/synthetic.cpp");
+        require(index.isValid(), "file index");
+        Page.files_view()->setCurrentIndex(index);
+    }
+
+    void geometry(int width, int points)
+    {
+        auto font = Page.font(); font.setPointSize(points); Page.setFont(font);
+        Page.resize(width, 800); QApplication::processEvents();
+    }
+
+    void expanded()
+    {
+        Page.findChild<QWidget*>("overviewSideColumn")->hide();
+        Page.files_view()->hide(); Page.files_heading()->hide(); Back->show();
+        Edit->setMaximumHeight(QWIDGETSIZE_MAX);
+        Edit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        Edit->show(); QApplication::processEvents(); Edit->setFocus();
+    }
+
+    void summary()
+    {
+        Back->hide(); Edit->hide();
+        Page.findChild<QWidget*>("overviewSideColumn")->show();
+        Page.files_view()->show(); Page.files_heading()->show();
+        QApplication::processEvents(); Page.files_view()->setFocus();
+    }
+};
+
+QJsonObject capture(fixture& f, const QString& text, int sample)
+{
+    auto cursor = f.Edit->textCursor();
+    cursor.setPosition(sample == 2 ? text.size() : text.size() * (sample + 1) / 3);
+    f.Edit->setTextCursor(cursor); f.Edit->centerCursor(); QApplication::processEvents();
+    auto anchor = f.Edit->cursorForPosition(QPoint(0, 0));
+    const int position = anchor.position();
+    const int offset = f.Edit->cursorRect(anchor).top();
+    auto selection = anchor;
+    selection.setPosition(std::min(position + 7, int(text.size())));
+    selection.setPosition(std::min(position + 31, int(text.size())), QTextCursor::KeepAnchor);
+    f.Edit->setTextCursor(selection);
+    return QJsonObject{{"position", position}, {"offset", offset},
+                      {"cursor", selection.position()}, {"selection", selection.anchor()},
+                      {"digest", digest(text)}, {"sample", sample}};
+}
+
+struct statistics { int Cases = 0, Clamped = 0, MaxSteps = 0, MaxTop = 0, MaxUnclampedTop = 0; } Stats;
+
+void restore(fixture& f, const QString& text, const QJsonObject& saved, bool record = true)
+{
+    require(saved["digest"].toString() == digest(f.Edit->toPlainText()), "exact document identity");
+    const int position = saved["position"].toInt();
+    require(position >= 0 && position <= text.size(), "valid source anchor");
+    auto anchor = QTextCursor(f.Edit->document()); anchor.setPosition(position);
+    f.Edit->setTextCursor(anchor); f.Edit->centerCursor();
+    auto selection = QTextCursor(f.Edit->document());
+    selection.setPosition(saved["selection"].toInt());
+    selection.setPosition(saved["cursor"].toInt(), QTextCursor::KeepAnchor);
+    f.Edit->setTextCursor(selection); QApplication::processEvents();
+    auto* bar = f.Edit->verticalScrollBar();
+    int steps = 0;
+    // Resolve against current visual layout; never replay the captured bar value.
+    for (; steps < 256; ++steps) {
+        if (qEnvironmentVariableIsSet("BPR_PROBE_SKIP_ANCHOR_ADJUSTMENT")) break;
+        const auto rect = f.Edit->cursorRect(anchor);
+        const int desired = std::clamp(saved["offset"].toInt(), 0, rect.height() - 1);
+        const int delta = rect.top() > desired + rect.height() ? 1 : (rect.top() < 0 ? -1 : 0);
+        if (!delta) break;
+        const int before = bar->value(); bar->setValue(before + delta);
+        QApplication::processEvents();
+        if (bar->value() == before) break;
+    }
+    const auto rect = f.Edit->cursorRect(anchor);
+    const bool visible = rect.top() >= 0 && rect.bottom() < f.Edit->viewport()->height();
+    const bool clamped = bar->value() == bar->maximum();
+    require(visible, "source anchor visible after return/reopen");
+    require(rect.top() <= std::max(0, saved["offset"].toInt()) + rect.height() || clamped,
+            "top anchor within one visual line unless document-end clamped");
+    require(f.Edit->textCursor().position() == saved["cursor"].toInt()
+            && f.Edit->textCursor().anchor() == saved["selection"].toInt(), "selection endpoints retained");
+    const auto selectedSource = text.mid(std::min(selection.anchor(), selection.position()),
+                                        std::abs(selection.anchor() - selection.position())).replace('\n', QChar(0x2029));
+    require(f.Edit->textCursor().selectedText() == selectedSource, "selection source identity");
+    require(f.FileActivations == 0, "return/reopen dispatched no file activation");
+    require(steps < 256, "bounded anchor settling");
+    if (record) {
+        ++Stats.Cases; Stats.Clamped += clamped;
+        Stats.MaxSteps = std::max(Stats.MaxSteps, steps); Stats.MaxTop = std::max(Stats.MaxTop, rect.top());
+        if (!clamped) Stats.MaxUnclampedTop = std::max(Stats.MaxUnclampedTop, rect.top());
+    }
+}
+
+void course(const QJsonObject& saved)
+{
+    const auto text = body(saved["sections"].toInt());
+    const int width = saved["width"].toInt(), points = saved["points"].toInt();
+    for (int change = 0; change != 4; ++change) {
+        fixture f(text, width, points);
+        restore(f, text, saved, false); // Bind the carried anchor to the source geometry first.
+        auto* document = f.Edit->document();
+        const auto revision = document->revision();
+        const auto file = f.Page.files_view()->currentIndex();
+        f.Back->click(); QApplication::processEvents();
+        require(f.Page.files_view()->hasFocus(), "Return to Files focused table");
+        require(f.Page.files_view()->currentIndex() == file, "Files selection unchanged");
+        // Prototype the selected incremental title-only presentation contract.
+        // Calling today's Page.present() here would reset the text, as the original probe proved.
+        f.Page.title_label()->setText("Title-only update while reading state is retained");
+        f.geometry(change & 1 ? (width == 800 ? 1400 : 800) : width,
+                   change & 2 ? (points == 13 ? 20 : 13) : points);
+        f.expanded();
+        require(f.Edit->document() == document, "retained reader document");
+        require(document->revision() == revision, "unchanged body never rewritten");
+        restore(f, text, saved);
+    }
+}
+
+int main(int argc, char** argv)
+{
+    QApplication app(argc, argv);
+    require(argc == 3, "capture/restore and snapshot path required");
+    QJsonArray states;
+    if (QString::fromLocal8Bit(argv[1]) == "capture") {
+        for (int width : {800, 1400}) for (int points : {13, 20}) for (int sections : {20, 500}) for (int sample : {0, 1, 2}) {
+            const auto text = body(sections); fixture f(text, width, points);
+            auto saved = capture(f, text, sample);
+            saved["width"] = width; saved["points"] = points; saved["sections"] = sections;
+            saved["dpr"] = f.Page.devicePixelRatioF(); states.append(saved);
+        }
+        QFile output(QString::fromLocal8Bit(argv[2])); require(output.open(QIODevice::WriteOnly), "open snapshot");
+        const auto bytes = QJsonDocument(states).toJson(); require(output.write(bytes) == bytes.size(), "write snapshot"); output.close();
+    } else {
+        QFile input(QString::fromLocal8Bit(argv[2])); require(input.open(QIODevice::ReadOnly), "open snapshot");
+        states = QJsonDocument::fromJson(input.readAll()).array(); require(states.size() == 24, "complete snapshot");
+    }
+    for (const auto& state : states) course(state.toObject());
+    std::cout << "anchor-probe:pass qt=" << qVersion() << " sourceDpr=" << states[0].toObject()["dpr"].toDouble()
+              << " targetDpr=" << app.devicePixelRatio() << " courses=" << Stats.Cases
+              << " endClamped=" << Stats.Clamped << " maxSteps=" << Stats.MaxSteps << " maxAnchorTop=" << Stats.MaxTop
+              << " maxUnclampedTop=" << Stats.MaxUnclampedTop << '\n';
 }
 ```

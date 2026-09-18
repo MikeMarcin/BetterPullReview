@@ -34,7 +34,13 @@
   Synthetic 39-byte, 8,131-byte and 203,412-byte bodies were exercised at
   800/1400 widths, 13/20-point fonts and 1×/1.25×/2× scale. Full selection/copy,
   end visibility and keyboard return passed; raw scrollbar replay failed six
-  of eight long-body width/font combinations, which bounds BPR-0928.
+  of eight long-body width/font combinations. The correction's digest-bound
+  source-anchor strategy then preserved directed selection and kept the exact
+  source anchor visible in 864/864 Return-to-Files/reopen courses across all
+  ordered scale pairs; a disabled-adjustment negative control failed as
+  expected. Ordinary anchors restored within one wrapped line, while 126
+  document-end cases used the explicit fully-visible nearest-position clamp.
+  These results bound BPR-0928 without claiming the shipped runtime is fixed.
 - Selected conversation decision: one in-window Compose review page retains
   the existing workflow instance, while Discuss becomes PR-wide by default
   with explicit optional file/Unread/Unresolved filters and distinct loading,
@@ -50,17 +56,15 @@
   preserve its obligation atom set. The live plan is unchanged. The cards are
   instead linked through the existing current exit requiring runtime follow-ups,
   the next milestone's explicit follow-up exit and BPR-0927's dependency ledger.
-- Active owners/commands: the conversation worker and failure scout are complete.
-  The independent reviewer identified that BPR-0918's Return-to-Files criterion
-  was not demonstrated by a raw-scroll strategy that failed six of eight cases.
-  The same Overview owner is active under renewed exclusive study-path authority
-  to demonstrate source-anchor restoration; the reviewer is holding final judgment.
-- Pending obligations: integrate and verify that bounded correction, complete
+- Active owners/commands: the bounded Overview correction and route-record audit
+  are complete, its disposable directory is removed and all leaf commands are
+  quiescent. The independent reviewer is holding final judgment for the corrected SHA.
+- Pending obligations: verify and commit the bounded correction, complete
   independent review, finish BPR-0918/BPR-0920/BPR-0923/BPR-0926 and publish the
   milestone return while leaving BPR-0928/BPR-0929 runtime work open.
-- Next discriminating step: require the corrected disposable probe to restore a
-  logical visible source anchor after Return to Files and representative reflow,
-  or keep BPR-0918 and the milestone incomplete.
+- Next discriminating step: narrow reviewer confirmation that the corrected
+  source-anchor evidence closes BPR-0918's design-demonstration gap without
+  overstating BPR-0928 runtime completion.
 
 Historical source/update/entry evidence remains in
 `milestone-source-update-review-entry-evidence.md`; this milestone does not

@@ -49,7 +49,9 @@ implementing Markdown.
 - Same-body title, receipt, participant and history refreshes do not replace the
   document or reset place. Body edits clamp the source anchor and announce the
   update. Width/font/scale reflow retains the same visible source anchor within
-  one wrapped line.
+  one wrapped line. When document-end geometry makes top alignment impossible,
+  the exact anchor line remains fully visible at the nearest legal scroll
+  position; no synthetic blank content is inserted to force alignment.
 - Exact PR/account/host replacement clears old text and reader state before new
   content; stale projections cannot revive it. Inherited appearance, focus and
   accessible names/states remain usable without QSS or a forced style.

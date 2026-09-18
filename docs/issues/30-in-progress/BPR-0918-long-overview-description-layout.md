@@ -64,5 +64,8 @@ a retained expanded central description reader with one scroll owner and a
 fixed Return to Files control. Synthetic Qt evidence distinguishes the
 262,144-byte admission boundary from the 110-pixel viewport, reaches the full
 body across the width/font/scale matrix and demonstrates why raw scrollbar
-replay cannot retain place after reflow. [[BPR-0928]] is the linked runtime
-follow-up. This investigation does not claim AC-01 runtime acceptance.
+replay cannot retain place after reflow. A corrected source-anchor prototype
+then preserves exact selection and keeps the captured source anchor visible in
+864/864 Return-to-Files/reopen courses across the same geometry, including the
+explicit document-end clamp. [[BPR-0928]] is the linked runtime follow-up. This
+investigation does not claim AC-01 runtime acceptance.
