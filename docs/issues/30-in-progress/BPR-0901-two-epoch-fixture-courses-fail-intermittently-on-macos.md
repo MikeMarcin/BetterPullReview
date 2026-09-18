@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0901"
 title: "macOS: two epoch fixture courses fail intermittently, and they alternate"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
