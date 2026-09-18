@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0894"
 title: "The architecture boundary rule reserves the Linux runtime-directory variable name to one transport, so nothing else may discover it"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
