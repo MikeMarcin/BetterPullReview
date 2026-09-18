@@ -7,6 +7,7 @@ rfcs: ["RFC-BPR-0037"]
 depends_on: ["BPR-0918", "BPR-0919", "BPR-0920", "BPR-0921", "BPR-0922", "BPR-0923", "BPR-0924", "BPR-0925", "BPR-0926"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0037"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0037
@@ -19,6 +20,15 @@ Markdown cards BPR-0916 and BPR-0917 remain outside this RFC.
 
 [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md) is Proposed.
 This registration consolidates owner feedback; no runtime evidence exists yet.
+
+## Current frontier
+
+- Run/dispatch: `rfc0037-run-20260918` / `rfc0037-dispatch-001`; mandate revision `1`; producer `/root/rfc0037_m1`.
+- Adopted plan: `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json`; current milestone `source-update-review-entry` is bound by `assignment-rfc0037-dispatch-001.json` in the same directory.
+- Outcome: execute BPR-0922, BPR-0921 and BPR-0919 as one composed first-review entry boundary. No runtime candidate or accepted criterion exists yet.
+- Owned paths: current milestone source/tests/documentation plus its three card transitions and these workflow records. No child or long-running command is active at this checkpoint.
+- Pending obligations: diagnose recorded source/history failure together; retain exact stale guards; make Overview Start review enter Review without publication; exercise the composed recorded-fixture path and focused checks.
+- Next discriminating step: inspect the current composition, transition and existing synthetic CLI/GHES courses, then claim the dependency-ready cards before source edits.
 
 ## Closeout checklist
 

@@ -1,0 +1,71 @@
+{
+  "schema": "implement-rfc.milestone-assignment.v1",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-001",
+  "producer_id": "/root/rfc0037_m1",
+  "mandate_revision": "1",
+  "milestone": "source-update-review-entry",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "source-update-review-entry",
+    "definition_fingerprint": "sha256:31f2703ec421464cb19e239e8f5c0ea8070dbf44554ef3e8818914726278c1f4",
+    "obligations": [
+      {
+        "id": "BPR-0922:*",
+        "source": "BPR-0922",
+        "selector": null,
+        "source_fingerprint": "sha256:ad1288cea8bc0e7b484adf6b85fd1390cba39845c8d28b045c309ee480860b06"
+      },
+      {
+        "id": "BPR-0921:*",
+        "source": "BPR-0921",
+        "selector": null,
+        "source_fingerprint": "sha256:d7cf65ea64e03022edbb59bef34d3cc1822837a54660a95930b1d4775f184003"
+      },
+      {
+        "id": "BPR-0919:*",
+        "source": "BPR-0919",
+        "selector": null,
+        "source_fingerprint": "sha256:48a4c2bb34c13199dedd1cbc432cfa2389707fdd865cb93ef746e233c580758a"
+      }
+    ],
+    "obligation_fingerprint": "sha256:b3afcb303bc8a50c76ce40442be5b0e3d08066c62d7ea5253a5035e6a84a31a7",
+    "exit_criteria": [
+      {
+        "id": "source-update-review-entry:exit:1",
+        "text": "A composed recorded CLI/GHES fixture proves the first missing or refused history/comparison boundary and records whether the two reported symptoms share a cause."
+      },
+      {
+        "id": "source-update-review-entry:exit:2",
+        "text": "Supported stable base/head comparisons open intended content for multiple files while real authority, head, selection and stale-completion replacements still reject stale content."
+      },
+      {
+        "id": "source-update-review-entry:exit:3",
+        "text": "Available update history is projected after PR load and loading, genuine empty, unavailable and failed states are distinct without inventing epochs or retaining another PR's history."
+      },
+      {
+        "id": "source-update-review-entry:exit:4",
+        "text": "The composed Overview Start review gesture enters Review with an appropriate selected file or an honest empty/error state; Continue review retains its intended place and neither navigation path publishes remotely."
+      },
+      {
+        "id": "source-update-review-entry:exit:5",
+        "text": "Focused positive and negative checks, the direct composed public path, the documentation gate and one integration-focused selector pass, with no live GitHub/GHES mutation or credential/private-content capture."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "source-update-review-entry",
+    "overview-conversation-decisions",
+    "thread-reading-integration",
+    "combined-first-pr-closeout"
+  ]
+}

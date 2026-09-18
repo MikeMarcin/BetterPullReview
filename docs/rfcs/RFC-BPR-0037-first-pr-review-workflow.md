@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0003", "RFC-BPR-0008", "RFC-BPR-0013", "RFC-BPR-0015", "RFC-BPR-0028", "RFC-BPR-0029"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0037: First-PR Review Workflow

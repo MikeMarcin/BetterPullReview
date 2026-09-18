@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0003", "RFC-BPR-0015", "RFC-BPR-0029"]
 depends_on: []
 priority: "P1"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
 ---
 
 # Fix source files refusing to open with unavailable exact comparison

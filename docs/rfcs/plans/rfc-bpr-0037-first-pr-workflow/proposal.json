@@ -1,0 +1,108 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0037-first-pr-workflow",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0037"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "source-update-review-entry",
+      "outcome": "A stable recorded CLI/GHES pull request loads its real update history and exact selected-file comparisons, and Overview Start review enters Review with an honest usable selection or explicit unavailable state without publishing anything.",
+      "work": [
+        {
+          "issue": "BPR-0922"
+        },
+        {
+          "issue": "BPR-0921"
+        },
+        {
+          "issue": "BPR-0919"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A composed recorded CLI/GHES fixture proves the first missing or refused history/comparison boundary and records whether the two reported symptoms share a cause.",
+        "Supported stable base/head comparisons open intended content for multiple files while real authority, head, selection and stale-completion replacements still reject stale content.",
+        "Available update history is projected after PR load and loading, genuine empty, unavailable and failed states are distinct without inventing epochs or retaining another PR's history.",
+        "The composed Overview Start review gesture enters Review with an appropriate selected file or an honest empty/error state; Continue review retains its intended place and neither navigation path publishes remotely.",
+        "Focused positive and negative checks, the direct composed public path, the documentation gate and one integration-focused selector pass, with no live GitHub/GHES mutation or credential/private-content capture."
+      ],
+      "boundary": "One functional first-review entry boundary spanning BPR-0922, BPR-0921 and BPR-0919; layout redesign and Markdown rendering remain outside this milestone."
+    },
+    {
+      "id": "overview-conversation-decisions",
+      "outcome": "The Overview description and conversation/review surfaces have concrete evidence-backed layout decisions, clear loading/filtering states and bounded implementation follow-ups where investigation cards do not themselves deliver runtime behavior.",
+      "work": [
+        {
+          "issue": "BPR-0918"
+        },
+        {
+          "issue": "BPR-0920"
+        },
+        {
+          "issue": "BPR-0923"
+        },
+        {
+          "issue": "BPR-0926"
+        }
+      ],
+      "depends_on": [
+        "source-update-review-entry"
+      ],
+      "exit_criteria": [
+        "Synthetic short, long and very long bodies distinguish provider admission from viewport limits and demonstrate the selected full-body reading interaction across representative widths, fonts and input methods.",
+        "The reported drawer gap and clipped controls are identified, and the selected placement preserves drafts, explicit publication semantics and useful input space without changing authentication or publication authority.",
+        "Thread loading, revealing, filtering, empty and failure states have a clear reachable interaction, and Discuss can present known PR-wide conversations without requiring a source comparison.",
+        "Every design-only card records the selected design and an allocated linked implementation follow-up with runtime acceptance; investigation alone is not accepted as the RFC behavior."
+      ],
+      "boundary": "One evidence-backed layout/design boundary; source correctness is consumed, Markdown stays under RFC-BPR-0036 and all runtime follow-ups remain linked to RFC-BPR-0037."
+    },
+    {
+      "id": "thread-reading-integration",
+      "outcome": "The selected conversation layouts, thread sizing and graph/detail behavior form one coherent responsive reading path with complete admitted bodies and no unexplained duplicate full thread.",
+      "work": [
+        {
+          "issue": "BPR-0924"
+        },
+        {
+          "issue": "BPR-0925"
+        }
+      ],
+      "depends_on": [
+        "overview-conversation-decisions"
+      ],
+      "exit_criteria": [
+        "Synthetic long threads identify the clipping and scroll owners, and complete admitted bodies are reachable without accidental nested scroll traps at representative widths, fonts and display scales.",
+        "Wheel, trackpad and keyboard behavior has observed or measured responsive evidence, with sensible focus and reading-position behavior across selection, expansion and refresh.",
+        "The graph and selected-thread detail preserve comment/thread identity and navigation while exposing one understandable body-reading path with consistent presentation and no unexplained duplicate full content.",
+        "All implementation follow-ups allocated by the preceding design milestone are completed or remain explicitly bound as unsatisfied obligations before this milestone can be accepted."
+      ],
+      "boundary": "One integrated conversation-reading boundary; no broad publication, provider or Markdown authority change."
+    },
+    {
+      "id": "combined-first-pr-closeout",
+      "outcome": "The combined Overview to Review and Overview to Discuss courses are verified against all RFC-BPR-0037 criteria and the RFC records truthful dependency-ordered closeout state.",
+      "work": [
+        {
+          "issue": "BPR-0927"
+        }
+      ],
+      "depends_on": [
+        "source-update-review-entry",
+        "overview-conversation-decisions",
+        "thread-reading-integration"
+      ],
+      "exit_criteria": [
+        "Every RFC-BPR-0037 criterion and linked implementation follow-up has direct revision-bound evidence, including initial load, failures, empty content, refresh, authority replacement, head changes and retained selection/drafts.",
+        "The combined recorded-fixture course loads a PR, reaches update history and multiple exact source files, enters Review correctly and reads conversations without an accidental file-selection prerequisite.",
+        "Applicable target-native accessibility, responsive-layout and scrolling observations are recorded separately from deterministic tests, and unavailable platform or live-service evidence remains explicit.",
+        "Documentation and board validation pass; RFC/index status changes only when canonical dependencies and every closeout obligation permit it."
+      ],
+      "boundary": "One RFC closeout boundary against registration baseline 9bd2002b859ce4c5599d86dcc51771aa365fa90b; no claim for RFC-BPR-0036 Markdown work or unobserved platforms."
+    }
+  ],
+  "unplanned_work": []
+}

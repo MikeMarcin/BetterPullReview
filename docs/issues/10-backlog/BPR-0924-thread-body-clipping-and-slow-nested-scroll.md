@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028", "RFC-BPR-0013"]
 depends_on: []
 priority: "P1"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
 ---
 
 # Fix clipped thread bodies and slow nested scrolling
