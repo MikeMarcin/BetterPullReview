@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0926"
 title: "Show conversations in Discuss and investigate a file-independent default"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028", "RFC-BPR-0008"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
+acceptance: [{"criterion":"A composed PR with known conversations shows them in Discuss or explains a specific loading, filter or failure state.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"observation","detail":"The synthetic composed probe retained one whole-PR card while an inherited absent-file anchor gated the loaded page behind zero roots; clearing file and line anchors revealed three roots and Discuss page two. This identifies a filter/stack cause without inferring the owner's provider state."}},{"criterion":"Demonstrate entering Discuss without a selected file, recommend the default scope and define optional file filtering.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"observation","detail":"The probe demonstrates the existing complete PR projection after clearing code anchors. The selected design makes All PR conversations the default and defines independent optional file, Unread and Unresolved filters with visible scope and Clear filters."}},{"criterion":"Preserve clear thread-to-code navigation while discussion remains readable without an available comparison.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"artifact","detail":"The design separates reading selection from explicit Open in code, preserves exact endpoint guards, leaves outdated/removed/unavailable anchors readable with a specific reason and restores PR-wide scope/selection on return."}},{"criterion":"Exercise top-level and inline content, resolved/outdated threads, empty content, refresh and PR replacement with synthetic evidence without conflating failure and empty.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"command","detail":"The focused github conversation panel/cards tests passed over synthetic conversation types, filters and stable selection; the study maps top-level comments, review summaries, inline/resolved/outdated content and replacement semantics into distinct initial, empty, filtered, refreshing, failed, unavailable and authority-replacement states. BPR-0929 requires the composed runtime matrix before AC-09 closes."}}]
 ---
 
 # Show conversations in Discuss and investigate a file-independent default
