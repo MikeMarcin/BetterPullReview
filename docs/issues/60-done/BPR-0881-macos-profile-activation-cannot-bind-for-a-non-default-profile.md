@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0881"
 title: "macOS: profile activation can never bind for a non-default profile, because the socket path exceeds sun_path"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite/agent/qt partition, by arithmetic against the code's own limit","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"A second launch of a non-default macOS profile activates the running window","outcome":"pass","revision":"16ef0152964e2ed5f31a85ea85f4dcf26cc438a8","evidence":{"kind":"observation","detail":"dsp-006 moved the rendezvous out of the data root to the first per-user runtime directory that verifies owner-private. The contract prints its measured geometry rather than asserting it: on macOS root 94 bytes, in-root endpoint 108 against a sun_path of 104, runtime endpoint 83."}},{"criterion":"The contract uses a root of realistic length and fails if the limit is exceeded again","outcome":"pass","revision":"16ef0152964e2ed5f31a85ea85f4dcf26cc438a8","evidence":{"kind":"observation","detail":"The fixture previously asserted the one condition the real root could not meet, which is why the row passed while the product could not bind. It now measures the real geometry on each platform and prints it."}},{"criterion":"An endpoint that cannot bind reports why rather than being skipped silently","outcome":"pass","revision":"16ef0152964e2ed5f31a85ea85f4dcf26cc438a8","evidence":{"kind":"observation","detail":"Recorded on the card by dsp-006 and unchanged by the Linux work."}},{"criterion":"Linux and Windows activation are unaffected","outcome":"pass","revision":"16ef0152964e2ed5f31a85ea85f4dcf26cc438a8","evidence":{"kind":"command","detail":"bpr-linux measured the Linux criterion at 7dc78341: sqlite_profile_activation 4.13 s and application_profile_activation_public_path 2.79 s, both first attempt, ctest exit 0. Its geometry line reads root 94 bytes, in-root endpoint 108, runtime endpoint 49, sun_path 108 -- so the real macOS geometry would have failed on Linux too, which is what makes dsp-006's decision to move Linux's socket as well load-bearing rather than tidy-up. The relocated endpoint is constant in root length, leaving 59 bytes of margin instead of four. No derivation-mismatch message was produced, so the host survey's prediction held. Re-verified on macOS at the merged head 16ef0152: both rows pass, 4.23 s and 4.99 s, and application_review_round_trip_composition_contract passes at 11.75 s, confirming the digest reseal. Windows activation uses a different transport and bpr-win's 338/364 sweep shows no activation failure."}}]
 ---
 
 # BPR-0881: macOS: profile activation can never bind for a non-default profile, because the socket path exceeds sun_path
