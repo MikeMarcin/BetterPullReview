@@ -183,3 +183,113 @@ child and only needs to print, but its `WINDOWS_UNCONTAINED` rows run with no
 launcher at all and stay unguarded — which is exactly [[BPR-0875]]'s cluster.
 Both platforms already carry the property, so the launcher is the only thing
 left to change on each.
+
+## The Linux launcher now supervises instead of dissolving (bpr-linux, dsp-007)
+
+Base `019bab8f`. One file changed,
+`tests/network_isolation/linux_network_sandbox.cpp`. No CMake and no gate
+change: `cmake/BprTestIsolation.cmake` already appends
+`TEST_RUNNER_CHILD_EXIT_FAILED` to every Linux row, where it has been inert
+because `::execvp` left nothing to report.
+
+After `enable_loopback()` succeeds the launcher forks. The child sets
+`prctl(PR_SET_PDEATHSIG, SIGKILL)`, re-checks `getppid()` to close the window
+between the fork and that call, and then `execvp`s exactly as before. The parent
+installs forwarding handlers for SIGINT, SIGTERM and SIGHUP, `waitpid`s,
+translates the status the way the macOS runner does, prints
+`TEST_RUNNER_CHILD_EXIT:<n>` always and `TEST_RUNNER_CHILD_EXIT_FAILED:<n>` when
+non-zero, `fflush`es and `_exit`s with the child's own number.
+
+**The two platforms now print the same number for the same event.** `_exit`
+keeps only the low eight bits, so passing the negative signal number through
+reproduces macOS's status exactly: a SIGABRT prints `-6` and exits **250** on
+both. Measured here — `-6`/250, `-15`/241 (forwarded SIGTERM), `-2`/254
+(forwarded SIGINT), `3`/3, `0`/0.
+
+**The boundary did not move.** Namespaces are inherited across `fork`, so the
+child runs in the same `CLONE_NEWUSER|CLONE_NEWNET` pair; the identity mapping
+argued at lines 47-55 is written *before* the fork and is untouched. Verified
+from inside the child: one interface (`lo`, up, 127.0.0.1), `uid_map`
+`1000 1000 1`, uid/gid 1000 — self-mapped, not root.
+
+### Evidence, through the real seam
+
+Three rows were registered temporarily through `bpr_add_network_isolated_test`
+in `tests/CMakeLists.txt`, each given a `PASS_REGULAR_EXPRESSION` the child
+does print, run, and then **reverted before the commit**. All three inherited
+`FAIL_REGULAR_EXPRESSION = ['PUBLIC_PATH_FAILED', 'TEST_RUNNER_CHILD_EXIT_FAILED']`,
+confirmed against `ctest --show-only=json-v1`.
+
+- **A row that prints its marker and then aborts now fails**
+  (`build/r2-logs/dsp7-0890-seam-proof.log`):
+
+  ```text
+  1/2 Test #54: dsp7_probe_abort_after_marker ....***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]  0.00 sec
+  PUBLIC_PATH_OK
+  TEST_RUNNER_CHILD_EXIT:-6
+  TEST_RUNNER_CHILD_EXIT_FAILED:-6
+  ```
+
+- **The control separates the guard from the fixture.**
+  `dsp7_probe_clean_after_marker` — same seam, same pass expression, clean exit
+  — **Passed**. So the difference is the guard.
+
+- **A CTest TIMEOUT still kills the child and leaves no orphan**
+  (`build/r2-logs/dsp7-0890-timeout-orphan.log`). This is the single regression
+  forking can introduce, so it was measured rather than argued.
+  `dsp7_probe_timeout_orphan` (`TIMEOUT 5`, child `exec sleep 313`) reports
+  `***Timeout 5.01 sec`; the census of live `sleep 313` processes is empty
+  before the run, immediately after it, and again three seconds later. CTest
+  SIGKILLs the launcher pid only, and `PR_SET_PDEATHSIG` takes the child down
+  with it. Killing the launcher with SIGKILL by hand gives the same result
+  (`dsp7-0890-signal-probe.log`).
+
+- **Signal forwarding works** (`dsp7-0890-signal-probe.log`,
+  `dsp7-0890-sigint-probe.log`): SIGTERM to the launcher reaches the child,
+  which dies of it — `TEST_RUNNER_CHILD_EXIT:-15`, launcher exit 241; SIGINT
+  likewise, `-2` and 254.
+
+- **The four isolation rows and both declared exemptions are green**
+  (`build/r2-logs/dsp7-0890-isolation-rows.log`):
+  `test_network_isolation_identity` 0.03 s, `_external` 0.03 s, `_child`
+  0.06 s, `_loopback` 0.04 s, plus `_manifest` 1.28 s and `_application`
+  0.08 s. `rfc0017_release_absence_negative_control` (the
+  `EXPECTS_NONZERO_EXIT` row, child exit 1) **Passed, 1.63 s** — so macOS's
+  exemption carries on Linux — and `application_automated_run_budget` (the
+  `EXPECTS_FAILED_RUN` row) **Passed, 5.32 s**.
+
+### Independent review, and what it changed
+
+An independent reviewer worked the diff for process and signal handling and
+returned **no critical and no major findings**, clearing signal safety, wait
+correctness, exit fidelity, orphan/timeout behaviour, boundary preservation,
+stdio and verdict effects. Three of its findings were taken:
+
+1. **The reaped pid was still forwardable.** Between `waitpid` returning and
+   `_exit`, a signal would have `kill`ed a pid already released and possibly
+   reassigned. `ChildPid` is now cleared at the reap — the same window the
+   macOS runner guards with `child.poll() is None`.
+2. **An inherited `SIGCHLD = SIG_IGN` produced no exit line at all.** Ignored
+   dispositions survive `execve`; under one, the child is auto-reaped,
+   `waitpid` fails with `ECHILD`, and the launcher exited 125 having printed
+   neither line — a row with a pass expression would have been green again with
+   no exit evidence, which is precisely this card's defect. The launcher now
+   sets `SIGCHLD` back to `SIG_DFL` before forking and is self-sufficient
+   rather than relying on CTest resetting dispositions. Verified: the same case
+   now prints `TEST_RUNNER_CHILD_EXIT:7` / `..._FAILED:7`.
+3. **A comment misstated `PR_SET_PDEATHSIG`'s clearing rule** (dumpability
+   rather than set-id / file capabilities / credential change, and about the
+   wrong process). Corrected.
+
+One finding was adjudicated and **not** taken: the reviewer called `extern "C"`
+on a handler inside an unnamed namespace odd. It is kept, because a signal
+handler is entered from outside the program and C linkage is what the language
+guarantees for that; a comment now says so. One observation is recorded rather
+than fixed: a **grandchild** the test spawns still outlives the timeout kill.
+That is unchanged from the `execvp` launcher rather than newly introduced, and
+the comment no longer implies otherwise.
+
+### Still open on Linux
+
+The census — how many previously green rows were hiding a non-zero exit — is
+measured in the full sweep and recorded below it, not here.
