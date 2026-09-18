@@ -283,8 +283,13 @@ tight enough to fail.
 
 ### Station state — read this before dispatching
 
-- **`bpr-win` returned and is merged.** Its RETURN `2fc69fc1` is in main and
-  `origin/windows-lane` has been fast-forwarded to `026e87cc`. It has been
+- **`bpr-win` is working again and `origin/windows-lane` is at `df54d00b`,
+  ahead of main and UNLABELLED.** It has been asked for CHECKPOINT or RETURN;
+  it is **not merged**, and the lane ref is deliberately **not** advanced even
+  though main and `origin/linux-lane` are both at `7fe5811a`. Its tip is ahead
+  of what is merged and forcing the ref would destroy work.
+- Its earlier RETURN `2fc69fc1` is in main and
+  `origin/windows-lane` was fast-forwarded at that point. It has been
   given two tasks and is **not** blocked: the five-row family it named (a store
   refusing a root whose parent lacks the private descriptor, for rows rooted
   under the container temp rather than a course-owned parent — it has the
@@ -440,6 +445,15 @@ answer is to make an expiry name itself in the failure headline, which
   one, correct it in a new section and say what was missed; do not rewrite it.
 - **`git stash push` cannot take an untracked path.** Commit the finished
   independent thing instead of trying to park it.
+- **In zsh, `$H:refs/heads/x` is not what you wrote.** `:r` is a parameter
+  modifier, so the expansion silently became
+  `<sha>efs/heads/linux-lane` and the push failed with a refspec that matched
+  nothing. Write `"${H}:refs/heads/x"`. A literal SHA followed by `:refs/...`
+  is unaffected, which is why this only appeared once a variable was used.
+- **`cmd | tail` inside an `&&` chain masks the failure and the chain keeps
+  going.** AGENTS.md already says not to pipe a gate; the chained form is the
+  same bug wearing a different hat. Two lane pushes failed in one command and
+  the command reported success. Redirect to a file and test `$?`.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-006, mandate r5): the three P1 review findings are answered, and one was answered by being overturned
 
