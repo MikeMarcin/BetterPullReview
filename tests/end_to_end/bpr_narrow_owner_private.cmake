@@ -38,3 +38,24 @@ function(bpr_narrow_owner_private)
         endif()
     endforeach()
 endfunction()
+
+# Gives a course's application data root a parent this platform trusts, and
+# answers with the root to use.
+#
+# [[BPR-0875]]. The application puts its agent workspace neighbourhood beside
+# its data root, and `workspace_parent_trusted` refuses a parent another
+# principal can write. A course rooted directly in the build tree hands it
+# `tests/end_to_end`, which inherits `Authenticated Users:(M)` on Windows, so
+# recovery refuses with `repair_required` at startup and the profile reports it
+# as a cleanup failure at the quit. The build directory is shared and must stay
+# writable, so the course gains one owned level instead: the directory it was
+# given becomes the private parent, and the root moves inside it.
+#
+# Pass the name of the variable holding the root. It is rewritten in the
+# caller's scope.
+function(bpr_private_data_root root_variable)
+    set(parent "${${root_variable}}")
+    file(MAKE_DIRECTORY "${parent}")
+    bpr_narrow_owner_private("${parent}")
+    set(${root_variable} "${parent}/data" PARENT_SCOPE)
+endfunction()

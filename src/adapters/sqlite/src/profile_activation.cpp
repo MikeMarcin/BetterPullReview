@@ -2,10 +2,14 @@
 
 #include "storage_internal.hpp"
 
+#include "bpr/core/sha256.hpp"
+
 #include <array>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <string>
 #include <utility>
 
 #if !defined(_WIN32)
@@ -81,18 +85,104 @@ namespace bpr::adapters::sqlite {
 	#endif
 		}
 
-		auto endpoint(const std::filesystem::path& aRoot) -> std::optional<sockaddr_un>
+		auto owner_private_directory(const std::filesystem::path& aPath, const bool aFollowLinks) -> bool
 		{
-			if (!detail::validate_private_storage_root(aRoot)) {
+			struct stat info{ };
+			const auto  queried = aFollowLinks ? ::stat(aPath.c_str(), &info) : ::lstat(aPath.c_str(), &info);
+			return queried == 0 && S_ISDIR(info.st_mode) && info.st_uid == ::geteuid() && (info.st_mode & 0777U) == 0700U;
+		}
+
+		auto environment_directory(const char* aName) -> std::optional<std::filesystem::path>
+		{
+			// The MSVC gate reads text rather than branches, and the suppression is what the
+			// tree spells everywhere `std::getenv` is read (BPR-0519, [[BPR-0854]]).
+	#if defined(_MSC_VER)
+		#pragma warning(push)
+		#pragma warning(disable : 4996)
+	#endif
+			const auto* configured = std::getenv(aName);
+	#if defined(_MSC_VER)
+		#pragma warning(pop)
+	#endif
+			if (configured == nullptr || configured[0] != '/') {
 				return std::nullopt;
 			}
-			const auto  path = (aRoot / "activate.sock").string();
+			return std::filesystem::path{ configured };
+		}
+
+		/// \brief Finds the short per-user runtime directory the rendezvous belongs in.
+		/// \details The candidates are the per-user runtime directories the platforms already
+		/// keep owner-private, which is why the endpoint can leave the data root without losing
+		/// an ownership guarantee: Linux's `/run/user/<uid>` first, then `$TMPDIR`, which is what
+		/// macOS gives each user. Linux names that directory in an environment variable this
+		/// adapter is not the owner of -- `cmake/VerifyArchitectureBoundaries.cmake` reserves the
+		/// name to the GitHub CLI transport -- so its standard location is probed directly and
+		/// verified like any other candidate; a system that puts it elsewhere falls through.
+		/// Each candidate is verified owner-private rather than assumed, and a shared candidate
+		/// such as `/tmp` earns one owner-private child instead, verified as a real directory so
+		/// a planted symlink is refused rather than followed. No existing permissions are widened.
+		auto runtime_directory() -> std::optional<std::filesystem::path>
+		{
+			const auto identity = std::to_string(::geteuid());
+			const auto owned    = "bpr-" + identity;
+			for (const auto& candidate : { std::optional<std::filesystem::path>{ std::filesystem::path{ "/run/user" } / identity }, environment_directory("TMPDIR"), std::optional<std::filesystem::path>{ "/tmp" } }) {
+				if (!candidate) {
+					continue;
+				}
+				if (owner_private_directory(*candidate, true)) {
+					return *candidate;
+				}
+				const auto child = *candidate / owned;
+				if ((::mkdir(child.c_str(), 0700) == 0 || errno == EEXIST) && owner_private_directory(child, false)) {
+					return child;
+				}
+			}
+			return std::nullopt;
+		}
+
+		/// \brief Names the endpoint by a digest of the canonical root, so both launches agree.
+		auto endpoint_name(const std::filesystem::path& aRoot) -> std::string
+		{
+			const auto                 native = aRoot.lexically_normal().string();
+			const auto                 digest = core::sha256({ reinterpret_cast<const std::uint8_t*>(native.data()), native.size() });
+			constexpr std::string_view hex{ "0123456789abcdef" };
+			std::string                result{ "bpr-activate-" };
+			for (std::size_t index = 0; index < 8U; ++index) {
+				const auto byte = static_cast<unsigned>(digest[index]);
+				result.push_back(hex[byte >> 4U]);
+				result.push_back(hex[byte & 15U]);
+			}
+			result += ".sock";
+			return result;
+		}
+
+		auto resolve_endpoint(const std::filesystem::path& aRoot)
+			-> std::expected<std::filesystem::path, profile_activation_endpoint_failure>
+		{
+			// The root still gates the rendezvous: a caller cannot meet on a root it does not own.
+			if (!detail::validate_private_storage_root(aRoot)) {
+				return std::unexpected(profile_activation_endpoint_failure::root_refused);
+			}
+			const auto directory = runtime_directory();
+			if (!directory) {
+				return std::unexpected(profile_activation_endpoint_failure::runtime_directory_absent);
+			}
+			auto path = *directory / endpoint_name(aRoot);
+			if (path.string().size() >= sizeof(sockaddr_un::sun_path)) {
+				return std::unexpected(profile_activation_endpoint_failure::path_too_long);
+			}
+			return path;
+		}
+
+		auto endpoint_address(const std::filesystem::path& aPath) -> std::optional<sockaddr_un>
+		{
+			const auto  native = aPath.string();
 			sockaddr_un address{ };
-			if (path.size() >= sizeof(address.sun_path)) {
+			if (native.size() >= sizeof(address.sun_path)) {
 				return std::nullopt;
 			}
 			address.sun_family = AF_UNIX;
-			std::memcpy(address.sun_path, path.c_str(), path.size() + 1U);
+			std::memcpy(address.sun_path, native.c_str(), native.size() + 1U);
 			return address;
 		}
 
@@ -156,13 +246,14 @@ namespace bpr::adapters::sqlite {
 		class native_server final : public application::profile_activation_server
 		{
 		public:
-			native_server(socket_handle aListener, std::filesystem::path aRoot, core::bpr_profile_id aProfile, std::shared_ptr<application::profile_runtime_lease> aLease)
+			native_server(socket_handle aListener, std::filesystem::path aRoot, std::filesystem::path aEndpoint, core::bpr_profile_id aProfile, std::shared_ptr<application::profile_runtime_lease> aLease)
 				: Listener(std::move(aListener))
 				, Root(std::move(aRoot))
+				, Endpoint(std::move(aEndpoint))
 				, Profile(aProfile)
 				, Lease(std::move(aLease))
 			{
-				(void)::lstat((Root / "activate.sock").c_str(), &Identity);
+				(void)::lstat(Endpoint.c_str(), &Identity);
 			}
 			~native_server() override
 			{
@@ -173,9 +264,10 @@ namespace bpr::adapters::sqlite {
 				Client   = socket_handle{ };
 				try {
 					struct stat named{ };
-					const auto  path = Root / "activate.sock";
-					if (detail::validates_profile_runtime_lease(Root, Lease) && ::lstat(path.c_str(), &named) == 0 && named.st_dev == Identity.st_dev && named.st_ino == Identity.st_ino) {
-						(void)::unlink(path.c_str());
+					// Still the root's own lease that admits removal, and still exactly the entry
+					// this owner bound: the rendezvous moved, the ownership proof did not.
+					if (detail::validates_profile_runtime_lease(Root, Lease) && ::lstat(Endpoint.c_str(), &named) == 0 && named.st_dev == Identity.st_dev && named.st_ino == Identity.st_ino) {
+						(void)::unlink(Endpoint.c_str());
 					}
 				} catch (...) {
 					// A later admitted owner can remove a stale socket; destruction must still drain descriptors.
@@ -237,6 +329,7 @@ namespace bpr::adapters::sqlite {
 		private:
 			socket_handle                                       Listener;
 			std::filesystem::path                               Root;
+			std::filesystem::path                               Endpoint;
 			core::bpr_profile_id                                Profile;
 			std::shared_ptr<application::profile_runtime_lease> Lease;
 			struct stat                                         Identity{ };
@@ -264,6 +357,33 @@ namespace bpr::adapters::sqlite {
 #endif
 	}
 
+	auto profile_activation_endpoint(const std::filesystem::path& aRoot)
+		-> std::expected<std::filesystem::path, profile_activation_endpoint_failure>
+	{
+#if defined(_WIN32)
+		(void)aRoot;
+		return std::unexpected(profile_activation_endpoint_failure::platform_unsupported);
+#else
+		try {
+			return resolve_endpoint(aRoot);
+		} catch (...) {
+			return std::unexpected(profile_activation_endpoint_failure::unavailable);
+		}
+#endif
+	}
+
+	auto describe_profile_activation_endpoint_failure(const profile_activation_endpoint_failure aFailure) noexcept -> const char*
+	{
+		switch (aFailure) {
+		case profile_activation_endpoint_failure::platform_unsupported:     return "platform-unsupported";
+		case profile_activation_endpoint_failure::root_refused:             return "root-refused";
+		case profile_activation_endpoint_failure::runtime_directory_absent: return "runtime-directory-absent";
+		case profile_activation_endpoint_failure::path_too_long:            return "endpoint-path-too-long";
+		case profile_activation_endpoint_failure::unavailable:              break;
+		}
+		return "unavailable";
+	}
+
 	auto make_profile_activation_server(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, std::shared_ptr<application::profile_runtime_lease> aLease)
 		-> std::expected<std::shared_ptr<application::profile_activation_server>, outcome>
 	{
@@ -277,7 +397,11 @@ namespace bpr::adapters::sqlite {
 			if (aProfile.value() == 0U || !detail::validates_profile_runtime_lease(aRoot, aLease)) {
 				return std::unexpected(outcome::unavailable);
 			}
-			const auto address = endpoint(aRoot);
+			const auto path = resolve_endpoint(aRoot);
+			if (!path) {
+				return std::unexpected(outcome::unavailable);
+			}
+			const auto address = endpoint_address(*path);
 			if (!address) {
 				return std::unexpected(outcome::unavailable);
 			}
@@ -300,12 +424,12 @@ namespace bpr::adapters::sqlite {
 			if (!configure_socket(listener.Value) || ::bind(listener.Value, reinterpret_cast<const sockaddr*>(&*address), sizeof(*address)) != 0) {
 				return std::unexpected(outcome::unavailable);
 			}
-			// The parent is already 0700, so no other user can reach the socket before chmod.
+			// The runtime directory is already owner-private, so no other user can reach the socket before chmod.
 			if (::chmod(address->sun_path, 0600) != 0 || ::listen(listener.Value, 8) != 0) {
 				(void)::unlink(address->sun_path);
 				return std::unexpected(outcome::unavailable);
 			}
-			return std::make_shared<native_server>(std::move(listener), aRoot, aProfile, std::move(aLease));
+			return std::make_shared<native_server>(std::move(listener), aRoot, *path, aProfile, std::move(aLease));
 		} catch (...) {
 			return std::unexpected(outcome::unavailable);
 		}
@@ -327,7 +451,11 @@ namespace bpr::adapters::sqlite {
 			if (aStop.stop_requested() || aProfile.value() == 0U || (aIntent != core::profile_launch_intent::activate && aIntent != core::profile_launch_intent::new_window)) {
 				return std::unexpected(outcome::unavailable);
 			}
-			const auto address = endpoint(aRoot);
+			const auto path = resolve_endpoint(aRoot);
+			if (!path) {
+				return std::unexpected(outcome::unavailable);
+			}
+			const auto address = endpoint_address(*path);
 			if (!address || !private_socket(address->sun_path)) {
 				return std::unexpected(outcome::unavailable);
 			}

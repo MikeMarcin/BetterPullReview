@@ -93,3 +93,25 @@ cause are registered `WINDOWS_UNCONTAINED`.
   `EPOCH_FIXTURE_NONCANONICAL_ROOT_CAUSE_OK:registry`.** When this card splits
   the `registry` arm into named causes, that pin must move with it, or it will
   fail for the right reason and look like a regression. Change them together.
+
+## Classified (dsp-006 scout): a genuine defect; containment is a red herring here
+
+The containment rule is recorded once on [[BPR-0872]]. It does **not** settle
+this card. Two of the five rows —
+`application_review_ledger_composition_contract` and
+`application_defect_composition_contract` — are already in
+`WINDOWS_UNCONTAINED_TESTS`, so they run **outside** the container and fail
+anyway, which matches this card's own observation that the benchmark fails
+identically contained and uncontained.
+
+So the work is the third data-root arrangement plus splitting the `registry`
+arm (`src/app/src/github_application.cpp:12633-12655`), not a registration
+change. Containment adds only one extra constraint, already established by
+[[BPR-0833]]: the third arrangement must carry the container's own SID, which
+`create_storage_root_owner_private` writes at creation.
+
+**Name the arm before fixing it**, exactly as [[BPR-0875]] must name its three
+cleanup sources: say which of the seven `registry`/`unavailable` sub-causes
+fires. That change lands in `src/app/**`, which no station owns. Note also that
+this card couples to the pin at `tests/end_to_end/CMakeLists.txt:2295-2296`,
+which has to move in the same commit.

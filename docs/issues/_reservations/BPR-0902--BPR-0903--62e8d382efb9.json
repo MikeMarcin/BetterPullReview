@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0902",
+    "BPR-0903"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-006: bpr-win's two uncarded findings",
+  "created": "2026-09-18T00:15:10.483102+00:00",
+  "base": "d6dfca2ba54fbf0cb90d0e7d9a3226c8691a558b"
+}

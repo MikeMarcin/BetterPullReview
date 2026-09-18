@@ -57,6 +57,21 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 #   a child's standard streams over a named pipe.
 # - `credential-manager`: the Windows Credential Manager refuses a lowbox
 #   token; the native vault tests pass uncontained and fail inside.
+# - `child-process-denied`: `CreateProcess` is refused outright with WinError 5,
+#   because the tool being launched lives outside the three granted scopes --
+#   `git.exe` under Program Files, whose ACL carries no application-package
+#   entry. Measured on the Windows station on 2026-09-17 ([[BPR-0872]]). This is
+#   a different obstacle from `dos-volume-name`, which is what Git hits *after*
+#   it starts; the pin names the first failure, not the second.
+# - `repository-content-outside-checkout`: the row reads content the repository
+#   points at but does not contain. `scripts/verify_documentation.py` imports
+#   `board_model` from `.agents/skills/implement-rfc/scripts`, which on the
+#   Windows station is a symlink out of the checkout into the MASK store under
+#   the user profile. The container is denied it, and a Git child lies behind
+#   that as well. Measured 2026-09-17 ([[BPR-0873]]). Unlike the others this is
+#   not at heart a lowbox limitation -- it is a fact about the checkout that
+#   would bite any sandbox -- but it is measured here and it is why these rows
+#   cannot be contained.
 #
 # The application tests are `dos-volume-name` through one step: the
 # application canonicalises its data root and the catalog walks that root's
@@ -217,6 +232,27 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # beside the transport fixture above and uncontained for the same reason.
     "native_https_device_authorization_fixture": "dos-volume-name",
     "epoch_history_fixture_contract": "dos-volume-name",
+    # [[BPR-0880]]. Rebuilds the fsck-severity packs from their recipe and asks
+    # the installed Git about every message identifier the adapter ships, so it
+    # needs a Git child.
+    "fsck_severity_fixture_contract": "child-process-denied",
+    # [[BPR-0872]]. Eleven tooling rows measured uncontained on the Windows
+    # station on 2026-09-17: each launches Git or another interpreter, and the
+    # container refuses the child before the tool runs at all.
+    "application_agent_finding_protocol": "child-process-denied",
+    "attended_review_verdict_contract": "child-process-denied",
+    "dif_assets_contract": "child-process-denied",
+    "github_recorded_fixture_contract": "child-process-denied",
+    "issue_id_allocation_contract": "child-process-denied",
+    "large_review_fixture_contract": "child-process-denied",
+    "project_source_dump_contract": "child-process-denied",
+    "rfc0016_production_identity_security": "child-process-denied",
+    "rfc0016_relocated_operator_contract": "child-process-denied",
+    "rfc0017_public_preview_decision_contract": "child-process-denied",
+    # [[BPR-0873]]. The documentation gate imports a module from outside the
+    # checkout, and needs a Git child behind that.
+    "documentation_structure": "repository-content-outside-checkout",
+    "documentation_issue_graph_contract": "repository-content-outside-checkout",
     "epoch_maintenance_integration": "dos-volume-name",
     # BPR-0846: the same real host, cache and catalog composition as
     # epoch_maintenance_integration, not yet measured contained on Windows.
@@ -321,6 +357,45 @@ FORBIDDEN_EXIT_VERDICT_PROPERTIES = {
     "SKIP_RETURN_CODE",
     "DISABLED",
 }
+# BPR-0552 and BPR-0890. The exact error expressions
+# `bpr_add_network_isolated_test` writes on every ordinary row, in the order it
+# writes them. `PUBLIC_PATH_FAILED` is the run's own verdict.
+# `TEST_RUNNER_CHILD_EXIT_FAILED` is the launcher's statement that the child
+# exited non-zero, which is the only verdict left once a row carries a
+# `PASS_REGULAR_EXPRESSION`: CTest computes success as `retVal == 0 ||
+# !RequiredRegularExpressions.empty()`, so on such a row the exit status is
+# ignored outright and an abort after the marker was printed passed.
+#
+# Held here as a literal rather than parsed out of the CMake that sets it. The
+# CMake is the claim; this is the independent record, and it is checked against
+# CTest's own manifest because that is where a later row-level
+# `set_tests_properties(<row> PROPERTIES FAIL_REGULAR_EXPRESSION ...)` would
+# show up. That statement replaces the whole property, runs after the seam has
+# returned, and cannot be defended against from inside the seam by any amount
+# of APPEND; until this record existed nothing noticed it at all.
+RUN_VERDICT_EXPRESSION = "PUBLIC_PATH_FAILED"
+CHILD_EXIT_EXPRESSION = "TEST_RUNNER_CHILD_EXIT_FAILED"
+INHERITED_FAILURE_EXPRESSIONS = [RUN_VERDICT_EXPRESSION, CHILD_EXIT_EXPRESSION]
+EXPECTS_FAILED_RUN_LABEL = "bpr_expects_failed_run"
+EXPECTS_NONZERO_EXIT_LABEL = "bpr_expects_nonzero_exit"
+# The narrower exemption: a row whose child exits non-zero because that is the
+# answer it asserts, which is not a reason to stop reading the run's own
+# verdict. So it keeps `PUBLIC_PATH_FAILED` and drops only the exit entry.
+#
+# `rfc0017_release_absence_negative_control` runs the shipped-artifact scan
+# against the tests-enabled binary, where it must fail naming the test-seam
+# factory; the row pins that text with a `PASS_REGULAR_EXPRESSION` and the
+# scanner exits 1. Measured green with a child exit of 1 under BPR-0890, which
+# is the same green an abort in a shutdown tail produced.
+EXPECTS_NONZERO_EXIT_TESTS = {"rfc0017_release_absence_negative_control"}
+EXPECTS_NONZERO_EXIT_EXPRESSIONS = [RUN_VERDICT_EXPRESSION]
+# The rows whose subject is a failed run, so the rows that inherit neither
+# entry: the marker they exist to observe must not fail them, and the non-zero
+# exit they end on is the thing being asserted rather than a fault. Exact in
+# one direction only. A row that takes the exemption without being written down
+# here fails the gate; a name here that is not configured does not, because a
+# row registered on one platform must not turn the gate red on the others.
+EXPECTS_FAILED_RUN_TESTS = {"application_automated_run_budget"}
 REQUIRED_COMMAND_BOUND_TESTS = {
     "architecture_boundaries",
     "architecture_boundary_contract",
@@ -639,9 +714,11 @@ def property_value(test: dict[str, Any], name: str) -> Any | None:
 
 
 def exit_verdict_failures(test: dict[str, Any], name: str) -> list[str]:
-    # The ordinary registration seam adds this exact failure-only guard.
-    # It cannot turn a failed process into a pass; the live lane still accepts
-    # no verdict property because its reviewed command has a separate owner.
+    # The ordinary registration seam adds these exact failure-only guards.
+    # Neither can turn a failed process into a pass; the live lane still
+    # accepts no verdict property because its reviewed command has a separate
+    # owner. The value is compared whole, so a row that keeps the property name
+    # while widening what it matches is not mistaken for the inherited one.
     present = sorted(
         candidate.get("name")
         for candidate in test.get("properties", [])
@@ -649,7 +726,7 @@ def exit_verdict_failures(test: dict[str, Any], name: str) -> list[str]:
         and not (
             name != LIVE_TEST_NAME
             and candidate.get("name") == "FAIL_REGULAR_EXPRESSION"
-            and candidate.get("value") == ["PUBLIC_PATH_FAILED"]
+            and candidate.get("value") == INHERITED_FAILURE_EXPRESSIONS
         )
     )
     return (
@@ -657,6 +734,90 @@ def exit_verdict_failures(test: dict[str, Any], name: str) -> list[str]:
         if present
         else []
     )
+
+
+def inherited_verdict_failures(
+    manifest: dict[str, Any],
+    macos_unsandboxed: dict[str, MacosUnsandboxedTest] | None = None,
+) -> list[str]:
+    """Check that every configured row still carries the seam's own verdict.
+
+    `cmake/BprTestIsolation.cmake` claims a row added later inherits the
+    fail-closed verdict and that the guarantee cannot drift. Nothing enforced
+    that claim: a row-level `set_tests_properties(... FAIL_REGULAR_EXPRESSION
+    ...)` replaces the property outright and the manifest gate passed anyway.
+    This asserts the property's presence and its exact value on every row,
+    which is where such a replacement becomes visible.
+
+    Three kinds of row are exempt, each for a reason that is written down
+    rather than inferred: the live lane, which accepts no verdict property at
+    all; the rows labelled `bpr_expects_failed_run`, whose subject is a failed
+    run; and the enumerated macOS rows registered outside the seam, which
+    cannot inherit anything and are held to the stronger rule instead - no pass
+    expression, so their exit status is the only thing that decides them.
+    """
+    failures: list[str] = []
+    exempt = set(macos_unsandboxed or {})
+    tests = manifest.get("tests")
+    if not isinstance(tests, list):
+        return failures
+    for test in tests:
+        name = test.get("name", "<unnamed>")
+        if name == LIVE_TEST_NAME:
+            continue
+        if name in exempt:
+            if property_value(test, "PASS_REGULAR_EXPRESSION") is not None:
+                failures.append(
+                    f"{name} runs outside the registration seam and so inherits "
+                    "no failure verdict; it must keep process exit as its only "
+                    "verdict and carry no PASS_REGULAR_EXPRESSION"
+                )
+            continue
+        value = property_value(test, "FAIL_REGULAR_EXPRESSION")
+        labels = property_value(test, "LABELS") or []
+        labels = labels if isinstance(labels, list) else []
+        if EXPECTS_FAILED_RUN_LABEL in labels and EXPECTS_NONZERO_EXIT_LABEL in labels:
+            failures.append(
+                f"{name} carries both {EXPECTS_FAILED_RUN_LABEL} and "
+                f"{EXPECTS_NONZERO_EXIT_LABEL}; the first already covers the second"
+            )
+            continue
+        if EXPECTS_FAILED_RUN_LABEL in labels:
+            if name not in EXPECTS_FAILED_RUN_TESTS:
+                failures.append(
+                    f"{name} takes the {EXPECTS_FAILED_RUN_LABEL} exemption "
+                    "without being recorded in EXPECTS_FAILED_RUN_TESTS"
+                )
+            if value is not None:
+                failures.append(
+                    f"{name} is an expected-failure row and must carry no "
+                    f"FAIL_REGULAR_EXPRESSION; found {value!r}"
+                )
+            continue
+        if EXPECTS_NONZERO_EXIT_LABEL in labels:
+            if name not in EXPECTS_NONZERO_EXIT_TESTS:
+                failures.append(
+                    f"{name} takes the {EXPECTS_NONZERO_EXIT_LABEL} exemption "
+                    "without being recorded in EXPECTS_NONZERO_EXIT_TESTS"
+                )
+            if value != EXPECTS_NONZERO_EXIT_EXPRESSIONS:
+                failures.append(
+                    f"{name} asserts its own non-zero exit and must still carry "
+                    f"{EXPECTS_NONZERO_EXIT_EXPRESSIONS!r}; found {value!r}"
+                )
+            continue
+        if name in EXPECTS_NONZERO_EXIT_TESTS or name in EXPECTS_FAILED_RUN_TESTS:
+            failures.append(
+                f"{name} is recorded as an exempt row but carries neither "
+                f"{EXPECTS_FAILED_RUN_LABEL} nor {EXPECTS_NONZERO_EXIT_LABEL}"
+            )
+            continue
+        if value != INHERITED_FAILURE_EXPRESSIONS:
+            failures.append(
+                f"{name} must carry the inherited fail-closed verdict "
+                f"{INHERITED_FAILURE_EXPRESSIONS!r}; found {value!r}"
+            )
+    return failures
 
 
 def environment_injection_failures(test: dict[str, Any], name: str) -> list[str]:
@@ -1379,6 +1540,11 @@ def main() -> int:
                     ),
                 ],
             }
+        macos_unsandboxed = (
+            MACOS_UNSANDBOXED_TESTS
+            if arguments.backend == "macos-sandbox-exec"
+            else None
+        )
         failures.extend(
             configured_failures(
                 manifest,
@@ -1391,12 +1557,14 @@ def main() -> int:
                     if arguments.backend == WINDOWS_BACKEND
                     else frozenset()
                 ),
-                macos_unsandboxed=(
-                    MACOS_UNSANDBOXED_TESTS
-                    if arguments.backend == "macos-sandbox-exec"
-                    else None
-                ),
+                macos_unsandboxed=macos_unsandboxed,
                 symbol_probe=composition_symbols,
+            )
+        )
+        failures.extend(
+            inherited_verdict_failures(
+                manifest,
+                macos_unsandboxed=macos_unsandboxed,
             )
         )
 

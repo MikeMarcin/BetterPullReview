@@ -69,6 +69,7 @@ function(bpr_prepare_workbench_root root)
     )
 endfunction()
 
+bpr_private_data_root(BPR_ROOT)
 bpr_prepare_workbench_root("${BPR_ROOT}")
 
 execute_process(

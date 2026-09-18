@@ -74,6 +74,12 @@ namespace bpr::application {
 
 		/// \brief [[BPR-0657]]. Resolves or unresolves one thread through the provider,
 		/// bound to the designated target and the acting identity.
+		///
+		/// \details [[BPR-0879]]. The target is confirmed against the server
+		/// first, as it is for a publication, so one rule governs every write
+		/// this coordinator makes. A thread identity is still a free
+		/// identifier at this level; binding it to a pull request needs a
+		/// server observation only the provider can make.
 		[[nodiscard]] auto resolve_thread(
 			const std::string& aThread,
 			bool               aResolve,

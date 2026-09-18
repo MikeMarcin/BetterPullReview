@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0899"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-006: the layout write-failed flag cannot distinguish in-flight from refused",
+  "created": "2026-09-17T23:08:50.217396+00:00",
+  "base": "c1723a3fd5c75d2d20e7fdbdc636011a2c3127f3"
+}

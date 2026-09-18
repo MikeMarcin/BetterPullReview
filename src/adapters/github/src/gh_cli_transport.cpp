@@ -1474,7 +1474,8 @@ namespace bpr::adapters::github::detail {
 		// The CLI publication milestone admits REST review and inline-comment shapes only.
 		if (!correlated || aRequest.Wire.Operation == review_mutation_operation::reply_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread) {
+			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread) {
 			return github_mutation_wire_error{ };
 		}
 		const auto prefix = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28

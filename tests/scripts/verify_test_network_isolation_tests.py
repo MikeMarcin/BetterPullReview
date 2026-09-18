@@ -23,7 +23,13 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST,
     AUTOMATED_TEST_BOUNDARY_VARIABLE,
     EXIT_VERDICT_TESTS,
+    EXPECTS_FAILED_RUN_LABEL,
+    EXPECTS_FAILED_RUN_TESTS,
+    EXPECTS_NONZERO_EXIT_EXPRESSIONS,
+    EXPECTS_NONZERO_EXIT_LABEL,
+    EXPECTS_NONZERO_EXIT_TESTS,
     FORBIDDEN_EXIT_VERDICT_PROPERTIES,
+    INHERITED_FAILURE_EXPRESSIONS,
     LIVE_CREDENTIAL_VARIABLES,
     LIVE_TEST_LABEL,
     LIVE_TEST_NAME,
@@ -42,6 +48,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     configured_failures,
     environment_injection_failures,
     exit_verdict_failures,
+    inherited_verdict_failures,
     live_image_failures,
     live_stage_zero_command,
     manifest_command,
@@ -693,7 +700,10 @@ class ConfiguredManifestTests(unittest.TestCase):
     def test_exact_inherited_failure_marker_is_ordinary_only(self) -> None:
         test = {
             "properties": [
-                {"name": "FAIL_REGULAR_EXPRESSION", "value": ["PUBLIC_PATH_FAILED"]}
+                {
+                    "name": "FAIL_REGULAR_EXPRESSION",
+                    "value": list(INHERITED_FAILURE_EXPRESSIONS),
+                }
             ]
         }
         for name in sorted(EXIT_VERDICT_TESTS):
@@ -706,6 +716,12 @@ class ConfiguredManifestTests(unittest.TestCase):
         for value in (
             [], [".*"], ["PUBLIC_PATH_FAILED", "OK"],
             "PUBLIC_PATH_FAILED", ["PUBLIC_PATH_FAILED|OK"],
+            # BPR-0890. The value before the child's exit status joined it: a
+            # row still guarded against the printed verdict and not against an
+            # abort in the shutdown tail is not the inherited value.
+            ["PUBLIC_PATH_FAILED"],
+            ["TEST_RUNNER_CHILD_EXIT_FAILED"],
+            list(reversed(INHERITED_FAILURE_EXPRESSIONS)),
         ):
             with self.subTest(value=value):
                 self.assertTrue(exit_verdict_failures(
@@ -778,6 +794,283 @@ class ConfiguredManifestTests(unittest.TestCase):
             ["/sandbox"],
         )
         self.assertTrue(any("process exit" in value for value in failures))
+
+    def test_inherited_verdict_is_required_on_every_ordinary_row(self) -> None:
+        good = {
+            "name": "ordinary",
+            "properties": [
+                {"name": "LABELS", "value": ["bpr_network_isolated"]},
+                {
+                    "name": "FAIL_REGULAR_EXPRESSION",
+                    "value": list(INHERITED_FAILURE_EXPRESSIONS),
+                },
+            ],
+        }
+        self.assertEqual(inherited_verdict_failures({"tests": [good]}), [])
+        missing = {
+            "name": "ordinary",
+            "properties": [{"name": "LABELS", "value": ["bpr_network_isolated"]}],
+        }
+        self.assertEqual(
+            inherited_verdict_failures({"tests": [missing]}),
+            [
+                "ordinary must carry the inherited fail-closed verdict "
+                f"{INHERITED_FAILURE_EXPRESSIONS!r}; found None"
+            ],
+        )
+
+    def test_row_level_replacement_of_the_inherited_verdict_is_rejected(self) -> None:
+        # BPR-0890. `set_tests_properties(<row> PROPERTIES FAIL_REGULAR_EXPRESSION
+        # ...)` runs after the registration seam and replaces the property
+        # outright. This is the shape that passed the gate before the check
+        # existed.
+        for replacement in (["x"], ["PUBLIC_PATH_FAILED"], [], ["PUBLIC_PATH_FAILED", "x"]):
+            with self.subTest(replacement=replacement):
+                failures = inherited_verdict_failures(
+                    {
+                        "tests": [
+                            {
+                                "name": "replaced",
+                                "properties": [
+                                    {
+                                        "name": "LABELS",
+                                        "value": ["bpr_network_isolated"],
+                                    },
+                                    {
+                                        "name": "FAIL_REGULAR_EXPRESSION",
+                                        "value": replacement,
+                                    },
+                                ],
+                            }
+                        ]
+                    }
+                )
+                self.assertTrue(
+                    any("inherited fail-closed verdict" in value for value in failures)
+                )
+
+    def test_expected_failure_rows_are_exempt_only_when_recorded(self) -> None:
+        recorded = sorted(EXPECTS_FAILED_RUN_TESTS)[0]
+        exempt = {
+            "name": recorded,
+            "properties": [
+                {
+                    "name": "LABELS",
+                    "value": ["bpr_network_isolated", EXPECTS_FAILED_RUN_LABEL],
+                }
+            ],
+        }
+        self.assertEqual(inherited_verdict_failures({"tests": [exempt]}), [])
+        unrecorded = {
+            "name": "unrecorded_expected_failure",
+            "properties": [
+                {
+                    "name": "LABELS",
+                    "value": ["bpr_network_isolated", EXPECTS_FAILED_RUN_LABEL],
+                }
+            ],
+        }
+        failures = inherited_verdict_failures({"tests": [unrecorded]})
+        self.assertTrue(
+            any("without being recorded" in value for value in failures)
+        )
+        contradictory = {
+            "name": recorded,
+            "properties": [
+                {
+                    "name": "LABELS",
+                    "value": ["bpr_network_isolated", EXPECTS_FAILED_RUN_LABEL],
+                },
+                {
+                    "name": "FAIL_REGULAR_EXPRESSION",
+                    "value": list(INHERITED_FAILURE_EXPRESSIONS),
+                },
+            ],
+        }
+        self.assertTrue(
+            any(
+                "must carry no FAIL_REGULAR_EXPRESSION" in value
+                for value in inherited_verdict_failures({"tests": [contradictory]})
+            )
+        )
+
+    def test_rows_that_assert_their_own_non_zero_exit_keep_the_run_verdict(
+        self,
+    ) -> None:
+        recorded = sorted(EXPECTS_NONZERO_EXIT_TESTS)[0]
+
+        def row(name: str, value: object) -> dict[str, object]:
+            properties: list[dict[str, object]] = [
+                {
+                    "name": "LABELS",
+                    "value": ["bpr_network_isolated", EXPECTS_NONZERO_EXIT_LABEL],
+                }
+            ]
+            if value is not None:
+                properties.append(
+                    {"name": "FAIL_REGULAR_EXPRESSION", "value": value}
+                )
+            return {"name": name, "properties": properties}
+
+        self.assertEqual(
+            inherited_verdict_failures(
+                {"tests": [row(recorded, list(EXPECTS_NONZERO_EXIT_EXPRESSIONS))]}
+            ),
+            [],
+        )
+        # Dropping the run verdict as well is a wider exemption than the row
+        # asked for, and dropping nothing means the row was never exempt.
+        for value in (None, list(INHERITED_FAILURE_EXPRESSIONS)):
+            with self.subTest(value=value):
+                self.assertTrue(
+                    any(
+                        "must still carry" in failure
+                        for failure in inherited_verdict_failures(
+                            {"tests": [row(recorded, value)]}
+                        )
+                    )
+                )
+        self.assertTrue(
+            any(
+                "without being recorded" in failure
+                for failure in inherited_verdict_failures(
+                    {
+                        "tests": [
+                            row("unrecorded", list(EXPECTS_NONZERO_EXIT_EXPRESSIONS))
+                        ]
+                    }
+                )
+            )
+        )
+        # A recorded row that is configured without its label has lost the
+        # keyword, which is the drift this pin exists to catch.
+        self.assertTrue(
+            any(
+                "carries neither" in failure
+                for failure in inherited_verdict_failures(
+                    {
+                        "tests": [
+                            {
+                                "name": recorded,
+                                "properties": [
+                                    {
+                                        "name": "LABELS",
+                                        "value": ["bpr_network_isolated"],
+                                    },
+                                    {
+                                        "name": "FAIL_REGULAR_EXPRESSION",
+                                        "value": list(INHERITED_FAILURE_EXPRESSIONS),
+                                    },
+                                ],
+                            }
+                        ]
+                    }
+                )
+            )
+        )
+
+    def test_live_lane_and_unsandboxed_exception_keep_process_exit(self) -> None:
+        live = {"name": LIVE_TEST_NAME, "properties": []}
+        self.assertEqual(inherited_verdict_failures({"tests": [live]}), [])
+        unsandboxed_name = sorted(MACOS_UNSANDBOXED_TESTS)[0]
+        bare = {"name": unsandboxed_name, "properties": []}
+        self.assertEqual(
+            inherited_verdict_failures(
+                {"tests": [bare]}, macos_unsandboxed=MACOS_UNSANDBOXED_TESTS
+            ),
+            [],
+        )
+        pinned = {
+            "name": unsandboxed_name,
+            "properties": [
+                {"name": "PASS_REGULAR_EXPRESSION", "value": ["OK"]},
+            ],
+        }
+        self.assertTrue(
+            any(
+                "process exit as its only verdict" in value
+                for value in inherited_verdict_failures(
+                    {"tests": [pinned]}, macos_unsandboxed=MACOS_UNSANDBOXED_TESTS
+                )
+            )
+        )
+
+    def test_ctest_fails_a_row_that_prints_its_marker_and_then_exits_non_zero(
+        self,
+    ) -> None:
+        # BPR-0890, the measurement the whole design rests on. CTest computes a
+        # row's success as `!forceFail && (retVal == 0 ||
+        # !RequiredRegularExpressions.empty())`, so a row with a
+        # `PASS_REGULAR_EXPRESSION` ignores the exit status outright - which is
+        # why an abort after `PUBLIC_PATH_OK` was printed kept the row green.
+        # An error expression is evaluated independently of the pass list, so
+        # this drives the real CTest on both property sets and shows that only
+        # the inherited one refuses the run.
+        ctest = shutil.which("ctest")
+        if ctest is None:
+            self.skipTest("ctest is not on PATH")
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            child = root / "abort_after_marker.py"
+            child.write_text(
+                "import os, sys\n"
+                'sys.stdout.write("PUBLIC_PATH_OK\\n")\n'
+                "sys.stdout.flush()\n"
+                'sys.stdout.write("TEST_RUNNER_CHILD_EXIT:-6\\n")\n'
+                'sys.stdout.write("TEST_RUNNER_CHILD_EXIT_FAILED:-6\\n")\n'
+                "sys.stdout.flush()\n"
+                "os._exit(70)\n",
+                encoding="utf-8",
+            )
+            interpreter = sys.executable
+            rows = [
+                f'add_test(before "{interpreter}" "-I" "-S" "{child.as_posix()}")',
+                'set_tests_properties(before PROPERTIES '
+                'PASS_REGULAR_EXPRESSION "PUBLIC_PATH_OK" '
+                'FAIL_REGULAR_EXPRESSION "PUBLIC_PATH_FAILED")',
+                f'add_test(after "{interpreter}" "-I" "-S" "{child.as_posix()}")',
+                'set_tests_properties(after PROPERTIES '
+                'PASS_REGULAR_EXPRESSION "PUBLIC_PATH_OK" '
+                'FAIL_REGULAR_EXPRESSION "'
+                + ";".join(INHERITED_FAILURE_EXPRESSIONS)
+                + '")',
+            ]
+            (root / "CTestTestfile.cmake").write_text(
+                "\n".join(rows) + "\n", encoding="utf-8"
+            )
+            result = subprocess.run(
+                [ctest, "--test-dir", str(root), "-N"],
+                capture_output=True,
+                text=True,
+                errors="replace",
+                check=False,
+                timeout=120,
+            )
+            self.assertIn("Total Tests: 2", result.stdout)
+            outcomes = {}
+            for name in ("before", "after"):
+                run = subprocess.run(
+                    [ctest, "--test-dir", str(root), "-R", f"^{name}$"],
+                    capture_output=True,
+                    text=True,
+                    errors="replace",
+                    check=False,
+                    timeout=120,
+                )
+                outcomes[name] = run.returncode
+            self.assertEqual(
+                outcomes["before"],
+                0,
+                "a pass expression alone still ignores a non-zero exit; if this "
+                "ever fails, CTest changed and the error expression below may "
+                "no longer be needed",
+            )
+            self.assertNotEqual(
+                outcomes["after"],
+                0,
+                "the inherited error expression must refuse a run that printed "
+                "its marker and then exited non-zero",
+            )
 
     def test_pre_boundary_python_injection_is_rejected(self) -> None:
         test = {

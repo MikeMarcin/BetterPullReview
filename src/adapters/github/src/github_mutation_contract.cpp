@@ -92,18 +92,33 @@ namespace bpr::adapters::github::detail {
 		/// The operation names are the ones the read contract reserves as
 		/// mutations, so a document that reaches the read transport is refused
 		/// by name.
+		///
+		/// [[BPR-0879]]. Every document that names a thread also selects the
+		/// pull request that thread belongs to. A thread node identity is the
+		/// one free identifier the product hands to a write, and without this
+		/// selection nothing on the wire says which pull request it reaches.
 		constexpr auto reply_document = std::string_view{
 			"mutation ReplyToThread($thread:ID!,$body:String!){"
 			"addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$thread,body:$body}){"
-			"comment{id databaseId body path line commit{oid} author{login} viewerDidAuthor}}}"
+			"comment{id databaseId body path line commit{oid} author{login} viewerDidAuthor "
+			"pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
 		constexpr auto resolve_document = std::string_view{
 			"mutation ResolveThread($thread:ID!){resolveReviewThread(input:{threadId:$thread}){"
-			"thread{id isResolved}}}"
+			"thread{id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
 		constexpr auto unresolve_document = std::string_view{
 			"mutation UnresolveThread($thread:ID!){unresolveReviewThread(input:{threadId:$thread}){"
-			"thread{id isResolved}}}"
+			"thread{id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+		};
+		/// [[BPR-0879]]. The read that precedes a thread write. Detecting a
+		/// foreign write in the answer is not refusing one, so the server is
+		/// asked which pull request the thread belongs to first. A thread
+		/// cannot migrate between pull requests, so the extra round trip
+		/// races with nothing.
+		constexpr auto observe_thread_document = std::string_view{
+			"query ObserveThread($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
+			"id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
 
 		[[nodiscard]] auto graphql_token(const std::string_view aValue) noexcept -> bool
@@ -349,16 +364,60 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("login", &reply_author_json::Login);
 			};
 		};
+		// [[BPR-0879]]. The pull request a thread-addressed write landed in, as
+		// the server names it: node identities and database identities, which
+		// no rename can move, beside the human-readable spelling.
+		struct thread_repository_json
+		{
+			std::string   Id;
+			std::uint64_t DatabaseId = 0U;
+			std::string   NameWithOwner;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &thread_repository_json::Id,
+					"databaseId", &thread_repository_json::DatabaseId,
+					"nameWithOwner", &thread_repository_json::NameWithOwner);
+			};
+		};
+		struct thread_pull_request_json
+		{
+			std::string            Id;
+			std::uint64_t          DatabaseId = 0U;
+			std::uint64_t          Number     = 0U;
+			thread_repository_json Repository;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &thread_pull_request_json::Id,
+					"databaseId", &thread_pull_request_json::DatabaseId,
+					"number", &thread_pull_request_json::Number,
+					"repository", &thread_pull_request_json::Repository);
+			};
+		};
+		[[nodiscard]] auto binds_designated_pull_request(
+			const thread_pull_request_json&                    aPullRequest,
+			const application::review_mutation_target_binding& aTarget) -> bool
+		{
+			return aPullRequest.Id == aTarget.PullRequestNodeId
+				&& aPullRequest.DatabaseId == aTarget.PullRequestDatabaseId
+				&& aPullRequest.Number == aTarget.Number.value()
+				&& aPullRequest.Repository.Id == aTarget.RepositoryNodeId
+				&& aPullRequest.Repository.DatabaseId == aTarget.RepositoryDatabaseId
+				&& aPullRequest.Repository.NameWithOwner
+				== aTarget.Repository.Owner + "/" + aTarget.Repository.Name;
+		}
 		struct reply_comment_json
 		{
-			std::string       Id;
-			std::uint64_t     DatabaseId = 0U;
-			std::string       Body;
-			std::string       Path;
-			std::uint64_t     Line = 0U;
-			reply_commit_json Commit;
-			reply_author_json Author;
-			bool              ViewerDidAuthor = false;
+			std::string              Id;
+			std::uint64_t            DatabaseId = 0U;
+			std::string              Body;
+			std::string              Path;
+			std::uint64_t            Line = 0U;
+			reply_commit_json        Commit;
+			reply_author_json        Author;
+			bool                     ViewerDidAuthor = false;
+			thread_pull_request_json PullRequest;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -369,7 +428,8 @@ namespace bpr::adapters::github::detail {
 					"line", &reply_comment_json::Line,
 					"commit", &reply_comment_json::Commit,
 					"author", &reply_comment_json::Author,
-					"viewerDidAuthor", &reply_comment_json::ViewerDidAuthor);
+					"viewerDidAuthor", &reply_comment_json::ViewerDidAuthor,
+					"pullRequest", &reply_comment_json::PullRequest);
 			};
 		};
 		struct reply_payload_json
@@ -398,13 +458,33 @@ namespace bpr::adapters::github::detail {
 		};
 		struct resolution_thread_json
 		{
-			std::string Id;
-			bool        IsResolved = false;
+			std::string              Id;
+			bool                     IsResolved = false;
+			thread_pull_request_json PullRequest;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
 					"id", &resolution_thread_json::Id,
-					"isResolved", &resolution_thread_json::IsResolved);
+					"isResolved", &resolution_thread_json::IsResolved,
+					"pullRequest", &resolution_thread_json::PullRequest);
+			};
+		};
+		// [[BPR-0879]]. The pre-flight answer: `node(id:)` narrowed to a review
+		// thread carries exactly the fields a resolution answer does.
+		struct thread_node_data_json
+		{
+			resolution_thread_json Node;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("node", &thread_node_data_json::Node);
+			};
+		};
+		struct thread_node_response_json
+		{
+			thread_node_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &thread_node_response_json::Data);
 			};
 		};
 		struct resolution_payload_json
@@ -1009,10 +1089,13 @@ namespace bpr::adapters::github::detail {
 			}
 			const auto& binding      = *aExpected.LiveBinding;
 			const auto  semanticLine = static_cast<std::uint32_t>(aComment.Line - 1U);
+			// [[BPR-0879]]. The thread identity was free; the pull request the
+			// server says it answered is not.
 			if (aComment.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
 				|| semanticLine != binding.Anchor.Semantic.Line
 				|| aComment.Body != aExpected.Proposal.Body || !aComment.ViewerDidAuthor
-				|| aComment.Author.Login != binding.ActingIdentity.Login) {
+				|| aComment.Author.Login != binding.ActingIdentity.Login
+				|| !binds_designated_pull_request(aComment.PullRequest, binding.Target)) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
 			// [[BPR-0816]]. Name the nested type, as in comment_observation.
@@ -1092,6 +1175,22 @@ namespace bpr::adapters::github::detail {
 				result = receipt;
 			}
 			return result;
+		}
+
+		/// [[BPR-0879]]. A reply is addressed by a thread identity exactly as a
+		/// resolution is, so it is observed by exactly the same read. The read
+		/// document names no state, so `Resolve` is carried unread.
+		[[nodiscard]] auto thread_observation_subject(
+			const application::review_mutation_request& aRequest)
+			-> application::review_thread_resolution_request
+		{
+			return {
+				.Target         = aRequest.Target,
+				.ActingIdentity = aRequest.ActingIdentity,
+				.Thread         = aRequest.Proposal.ReplyToThread.value_or(std::string{ }),
+				.Resolve        = true,
+				.LiveBinding    = aRequest.LiveBinding,
+			};
 		}
 
 		[[nodiscard]] auto map_contract_failure(
@@ -1233,6 +1332,30 @@ namespace bpr::adapters::github::detail {
 		};
 	}
 
+	auto compile_thread_target_observation_request(
+		const application::review_thread_resolution_request& aRequest,
+		const application::github_server_contract            aServer)
+		-> review_mutation_request_result
+	{
+		// The mutation's own compiled request with a read document in its
+		// place: identical authority, identical guards, no write.
+		auto observation = compile_thread_resolution_request(aRequest, aServer);
+		if (!observation.has_value()) {
+			return observation;
+		}
+		auto body = glz::write<review_json_options{ }>(resolution_query_json{
+			.Query     = observe_thread_document,
+			.Variables = { .Thread = aRequest.Thread },
+		});
+		if (!body.has_value() || body->empty()
+			|| body->size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		observation->Operation = review_mutation_operation::observe_review_thread;
+		observation->Body      = std::move(*body);
+		return observation;
+	}
+
 	auto compile_review_submission_request(
 		const review_submission_request&          aRequest,
 		const application::github_server_contract aServer)
@@ -1318,7 +1441,10 @@ namespace bpr::adapters::github::detail {
 							? compile_review_submission_observation_request(aSemantic, aRequest.Server)
 							: compile_review_submission_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>) {
-						canonical = compile_thread_resolution_request(aSemantic, aRequest.Server);
+						canonical = aRequest.Operation
+								== review_mutation_operation::observe_review_thread
+							? compile_thread_target_observation_request(aSemantic, aRequest.Server)
+							: compile_thread_resolution_request(aSemantic, aRequest.Server);
 					} else if (aRequest.Operation
 								   == review_mutation_operation::create_review_comment
 							   || aRequest.Operation
@@ -1441,6 +1567,38 @@ namespace bpr::adapters::github::detail {
 		return comment_observation(*response, aExpected);
 	}
 
+	auto parse_thread_target_observation(
+		const review_mutation_wire_response&                 aResponse,
+		const application::review_thread_resolution_request& aExpected)
+		-> review_mutation_parse_result<review_thread_target_observation>
+	{
+		if (!aExpected.LiveBinding.has_value()
+			|| !compile_thread_target_observation_request(
+					aExpected, aExpected.LiveBinding->Target.ServerContract)
+					.has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		// A node that is not a review thread, or one the account cannot see,
+		// selects nothing; that is a malformed answer, not a licence to write.
+		const auto response = document<thread_node_response_json>(aResponse);
+		if (!response.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		const auto& thread = response->Data.Node;
+		if (thread.Id != aExpected.Thread
+			|| !binds_designated_pull_request(
+				thread.PullRequest, aExpected.LiveBinding->Target)) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return review_thread_target_observation{
+			.Thread   = thread.Id,
+			.Resolved = thread.IsResolved,
+		};
+	}
+
 	auto parse_thread_resolution_response(
 		const review_mutation_wire_response&                 aResponse,
 		const application::review_thread_resolution_request& aExpected)
@@ -1463,7 +1621,14 @@ namespace bpr::adapters::github::detail {
 		if (!thread.has_value()) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		if (thread->Id != aExpected.Thread || thread->IsResolved != aExpected.Resolve) {
+		// [[BPR-0879]]. The second, cheap check: the write's own answer names
+		// the pull request it changed. It cannot refuse a write that already
+		// happened, which is why the pre-flight observation exists, but it
+		// catches anything the pre-flight could not see.
+		if (thread->Id != aExpected.Thread || thread->IsResolved != aExpected.Resolve
+			|| !aExpected.LiveBinding.has_value()
+			|| !binds_designated_pull_request(
+				thread->PullRequest, aExpected.LiveBinding->Target)) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		return review_thread_resolution_observation{
@@ -1706,6 +1871,29 @@ namespace bpr::adapters::github::detail {
 		return { };
 	}
 
+	auto review_mutation_session::observe_thread_target(
+		const application::review_thread_resolution_request& aRequest,
+		const std::stop_token                                aStop)
+		-> std::expected<
+			review_thread_target_observation,
+			application::review_mutation_failure>
+	{
+		const auto wire = compile_thread_target_observation_request(
+			aRequest, Configuration.CredentialContext.Authority.ServerContract);
+		if (!wire.has_value()) {
+			return std::unexpected(map_contract_failure(wire.error()));
+		}
+		auto response = perform(*wire, aStop, { });
+		if (!response.has_value()) {
+			return std::unexpected(response.error());
+		}
+		auto observed = parse_thread_target_observation(*response, aRequest);
+		if (!observed.has_value()) {
+			return std::unexpected(map_contract_failure(observed.error()));
+		}
+		return std::move(*observed);
+	}
+
 	auto review_mutation_session::reconcile(
 		const application::review_mutation_request& aRequest,
 		const std::stop_token                       aStop)
@@ -1794,6 +1982,10 @@ namespace bpr::adapters::github::detail {
 				|| aRequest.LiveBinding->Target != Configuration.Target
 				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
 				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			if (const auto bound = observe_thread_target(aRequest, aStop);
+				!bound.has_value()) {
+				return std::unexpected(bound.error());
 			}
 			const auto wire = compile_thread_resolution_request(
 				aRequest, Configuration.CredentialContext.Authority.ServerContract);
@@ -1907,6 +2099,18 @@ namespace bpr::adapters::github::detail {
 			}
 			if (loaded->has_value()) {
 				return finishKnown(**loaded);
+			}
+
+			// [[BPR-0879]]. A reply names a thread, and a thread identity says
+			// nothing about which pull request it belongs to. Ask before the
+			// attempt is admitted, so a refusal leaves no prepared record
+			// behind and no write has happened.
+			if (aRequest.Proposal.ReplyToThread.has_value()) {
+				const auto bound = observe_thread_target(
+					thread_observation_subject(aRequest), aStop);
+				if (!bound.has_value()) {
+					return failure(bound.error());
+				}
 			}
 
 			auto baseline = reconcile(aRequest, aStop);

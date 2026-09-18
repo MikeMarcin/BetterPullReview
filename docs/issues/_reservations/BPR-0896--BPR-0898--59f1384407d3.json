@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0896",
+    "BPR-0897",
+    "BPR-0898"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-006: BPR-0879's out-of-scope findings",
+  "created": "2026-09-17T22:52:18.197077+00:00",
+  "base": "5c8ee790b3f56dc2bbda81be09612888eca1c5ae"
+}

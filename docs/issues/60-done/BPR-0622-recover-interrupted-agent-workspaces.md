@@ -484,3 +484,15 @@ hardening follow-ups are [[BPR-0825]]; they are not criteria of this card.
 At main `8a03a5be` after the windows-lane merge (BPR-0825's supervisor and
 ACE changes), `agent_workspace_ownership` and `git_process_contract` still
 pass on macOS (`build/r2-logs/dsp3-int1-ctest.log`).
+
+## Windows follow-up: this card's `c94e02b1` introduced BPR-0875
+
+`c94e02b1` added `Q_OS_WIN` to the guard around the workspace recovery post in
+`start_services`, and `dd88b9c9` put the ownership journal on Windows. From
+then on, a Windows profile that roots its data in a directory whose parent
+another principal can write gets `repair_required` from recovery at startup,
+which the profile reports as a cleanup failure at the quit. That made thirteen
+Windows rows red and turned an ordinary quit into exit 1 with this card's
+repair presentation in every window. See [[BPR-0875]]: the product rule is
+correct and unchanged, and the harness was given an owner-private parent. A
+real installation was never affected, which is measured there.

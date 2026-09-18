@@ -15,9 +15,39 @@ import tempfile
 from typing import NoReturn
 
 
+# BPR-0890. CTest computes a row's success as
+# `!forceFail && (retVal == 0 || !RequiredRegularExpressions.empty())`, so on
+# any row carrying a `PASS_REGULAR_EXPRESSION` the child's exit status is
+# ignored outright. The application prints `PUBLIC_PATH_OK` before
+# `QApplication::exec()` returns and before the destructors run, so an abort in
+# that shutdown tail left the marker on stdout and the row green.
+#
+# An error expression is the one verdict CTest evaluates independently of the
+# pass list, so the exit status is put where an error expression can read it.
+# The unconditional line is the evidence - every log now says what the child
+# returned - and the second line is what
+# `bpr_add_network_isolated_test` matches, as a literal rather than a negated
+# digit class, because CTest's own regular expressions have no lookahead.
+#
+# The number is what `subprocess` reports, so a negative value is death by that
+# signal: `TEST_RUNNER_CHILD_EXIT:-6` is the SIGABRT this card is about. Both
+# lines are printed after the child has been reaped and before the runner's own
+# post-run checks, so they are present even when the runner goes on to refuse
+# the run for a reason of its own.
+CHILD_EXIT_MARKER = "TEST_RUNNER_CHILD_EXIT:"
+CHILD_EXIT_FAILED_MARKER = "TEST_RUNNER_CHILD_EXIT_FAILED:"
+
+
 def fail(message: str) -> NoReturn:
     print(f"TEST_NETWORK_ISOLATION_RUNNER_FAILED:{message}", file=sys.stderr)
     raise SystemExit(125)
+
+
+def report_child_exit(return_code: int) -> None:
+    """State the child's exit status on the row's own output."""
+    print(f"{CHILD_EXIT_MARKER}{return_code}", flush=True)
+    if return_code != 0:
+        print(f"{CHILD_EXIT_FAILED_MARKER}{return_code}", flush=True)
 
 
 def reserve_loopback_port() -> tuple[int, list[socket.socket]]:
@@ -141,7 +171,8 @@ def run_child(command: list[str], environment: dict[str, str]) -> int:
         for signum, handler in previous.items():
             signal.signal(signum, handler)
     if forwarded_signal and return_code == 0:
-        return 128 + forwarded_signal
+        return_code = 128 + forwarded_signal
+    report_child_exit(return_code)
     return return_code
 
 

@@ -73,6 +73,12 @@ namespace {
 			}
 		});
 		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		// [[BPR-0877]]. A refusal here used to say only that startup failed. The
+		// profile refusal that actually fired is named beside it, so a seed that
+		// cannot start says why in its own output.
+		if (application == nullptr) {
+			std::cerr << "SEED_STARTUP_PROFILE_REFUSAL:" << bpr::app::profile_startup_refusal_name() << std::endl;
+		}
 		expect(application != nullptr, "application startup succeeds");
 		return application;
 	}

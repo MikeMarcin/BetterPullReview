@@ -24,6 +24,12 @@ endforeach()
 math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
+# [[BPR-0875]]. The data root moves inside an owned parent, because the build
+# tree this course roots in is writable by other principals and the agent
+# workspace neighbourhood refuses such a parent.
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_private_data_root(BPR_ROOT)
+
 function(run_phase label expected)
     execute_process(
         COMMAND

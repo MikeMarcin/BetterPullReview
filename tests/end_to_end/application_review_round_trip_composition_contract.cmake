@@ -58,7 +58,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b9825d72102a2ad11c38714d055b38474bbec126d3bff5e64778a1a3678d61df"
+		"e04f598b6134379950fcf1698aa5a6eb21ac72a04ac05d04d4b7c241d248e0d5"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -175,7 +175,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4b18fe1ffa722fde51b4177926a83c10273323e13efdf45b8d72074bd83474b6"
+        "218b5e0150e19f840b86ac59a87195722a0dc91afa13cf8eee6c292133ca3847"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -720,6 +720,12 @@ foreach(forbidden_live_action IN ITEMS
         )
     endif()
 endforeach()
+
+# [[BPR-0875]]. The data root moves inside an owned parent, because the build
+# tree this course roots in is writable by other principals and the agent
+# workspace neighbourhood refuses such a parent.
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_private_data_root(BPR_ROOT)
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")

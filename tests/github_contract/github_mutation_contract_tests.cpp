@@ -231,11 +231,33 @@ namespace {
 		return { .Status = 200, .Body = fixture_json(aObject) };
 	}
 
+	// [[BPR-0879]]. The pull request a thread belongs to, spelled as the
+	// server spells it: the designated one, and one that is not.
+	[[nodiscard]] auto designated_pull_request_json() -> std::string
+	{
+		return { "\"pullRequest\":{\"id\":\"PR_kwDOTyvof879G6NV\","
+				 "\"databaseId\":4246446933,\"number\":1,"
+				 "\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,"
+				 "\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}" };
+	}
+
+	[[nodiscard]] auto foreign_pull_request_json() -> std::string
+	{
+		return { "\"pullRequest\":{\"id\":\"PR_kwDOTyvof879Gzzz\","
+				 "\"databaseId\":4246446999,\"number\":7,"
+				 "\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,"
+				 "\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}" };
+	}
+
 	// [[BPR-0657]]. A reply names its thread and goes by GraphQL with the
 	// reserved ReplyToThread document; a new root keeps REST. The reply's
 	// response is held to the same identity as a REST comment. Resolve and
 	// unresolve compile to the reserved documents and accept only the exact
 	// thread in the state asked for.
+	//
+	// [[BPR-0879]]. Every one of those documents also names the pull request
+	// the thread belongs to, and the pre-flight read that precedes a write
+	// refuses a thread in any other pull request before the write happens.
 	void test_replies_and_thread_resolution_go_by_graphql_exactly()
 	{
 		auto reply                   = request();
@@ -248,7 +270,8 @@ namespace {
 		const auto document = std::string{
 			"mutation ReplyToThread($thread:ID!,$body:String!){"
 			"addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$thread,body:$body}){"
-			"comment{id databaseId body path line commit{oid} author{login} viewerDidAuthor}}}"
+			"comment{id databaseId body path line commit{oid} author{login} viewerDidAuthor "
+			"pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
 		expect(compiled->Operation == review_mutation_operation::reply_review_thread
 				   && compiled->Method == http_method::post && compiled->Path == "/graphql"
@@ -287,12 +310,18 @@ namespace {
 		expect(!compile_review_comment_request(badThread).has_value(),
 			   "a thread identity outside the GraphQL token vocabulary is refused");
 
-		const auto replyBody = [](const std::string_view aLogin, const std::string_view aBody) {
+		const auto replyBodyIn = [](const std::string_view aLogin,
+									const std::string_view aBody,
+									const std::string&     aPullRequest) {
 			return std::string{ "{\"data\":{\"addPullRequestReviewThreadReply\":{\"comment\":{"
 								"\"id\":\"PRRC_reply_45\",\"databaseId\":45,\"body\":\"" }
 			+ std::string{ aBody } + "\",\"path\":\"fixture/review.txt\",\"line\":13,\"commit\":{\"oid\":\""
 				+ std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() }
-			+ "\"},\"author\":{\"login\":\"" + std::string{ aLogin } + "\"},\"viewerDidAuthor\":true}}}}";
+			+ "\"},\"author\":{\"login\":\"" + std::string{ aLogin } + "\"},\"viewerDidAuthor\":true,"
+				+ aPullRequest + "}}}}";
+		};
+		const auto replyBody = [&replyBodyIn](const std::string_view aLogin, const std::string_view aBody) {
+			return replyBodyIn(aLogin, aBody, designated_pull_request_json());
 		};
 		const auto parsed = parse_review_comment_response(
 			{ .Status = 200, .Body = replyBody("fixture-reviewer", "Please rename this.") }, reply);
@@ -314,6 +343,15 @@ namespace {
 			   "a reply with another body is an identity mismatch");
 		expect(!parse_review_comment_response({ .Status = 200, .Body = "{\"data\":null}" }, reply).has_value(),
 			   "a GraphQL error envelope is malformed for a reply");
+		// [[BPR-0879]]. The reply's response binding was strong on the comment
+		// and silent on the pull request; it is not silent now.
+		const auto foreignReply = parse_review_comment_response(
+			{ .Status = 200,
+			  .Body   = replyBodyIn("fixture-reviewer", "Please rename this.", foreign_pull_request_json()) },
+			reply);
+		expect(!foreignReply.has_value()
+				   && foreignReply.error() == review_mutation_contract_failure::identity_mismatch,
+			   "a reply the server says landed in another pull request is an identity mismatch");
 
 		const auto resolution = application::review_thread_resolution_request{
 			.Target         = target().Semantic,
@@ -327,8 +365,9 @@ namespace {
 				   && resolve->Method == http_method::post && resolve->Path == "/graphql"
 				   && resolve->Body
 					   == "{\"query\":\"mutation ResolveThread($thread:ID!){resolveReviewThread(input:{threadId:$thread}){"
-						  "thread{id isResolved}}}\",\"variables\":{\"thread\":\"PRRT_fixture_1\"}}",
-			   "resolve compiles to the reserved document with the exact thread");
+						  "thread{id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}\","
+						  "\"variables\":{\"thread\":\"PRRT_fixture_1\"}}",
+			   "resolve compiles to the reserved document with the exact thread and its pull request");
 		expect(validate_outbound_review_mutation_request(*resolve).has_value(), "resolve revalidates canonically");
 		auto unresolution    = resolution;
 		unresolution.Resolve = false;
@@ -348,27 +387,111 @@ namespace {
 				   && !compile_thread_resolution_request(blankThread).has_value(),
 			   "an unbound, foreign or nameless resolution is refused before the wire");
 
+		// [[BPR-0879]]. Every resolution answer names its pull request, so the
+		// same body is spelled once and varied only where a row varies it.
+		const auto resolutionBody = [](const std::string_view aField,
+									   const std::string_view aThread,
+									   const bool             aResolved,
+									   const std::string&     aPullRequest) {
+			return std::string{ "{\"data\":{\"" } + std::string{ aField }
+			+ "\":{\"thread\":{\"id\":\"" + std::string{ aThread } + "\",\"isResolved\":"
+				+ (aResolved ? "true" : "false") + "," + aPullRequest + "}}}}";
+		};
 		const auto resolved = parse_thread_resolution_response(
-			{ .Status = 200, .Body = "{\"data\":{\"resolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":true}}}}" },
+			{ .Status = 200,
+			  .Body   = resolutionBody("resolveReviewThread", "PRRT_fixture_1", true, designated_pull_request_json()) },
 			resolution);
 		expect(resolved.has_value() && resolved->Receipt.Thread == "PRRT_fixture_1" && resolved->Receipt.Resolved,
 			   "an exact resolve response yields the resolved thread");
 		const auto stillOpen = parse_thread_resolution_response(
-			{ .Status = 200, .Body = "{\"data\":{\"resolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":false}}}}" },
+			{ .Status = 200,
+			  .Body   = resolutionBody("resolveReviewThread", "PRRT_fixture_1", false, designated_pull_request_json()) },
 			resolution);
 		expect(!stillOpen.has_value() && stillOpen.error() == review_mutation_contract_failure::identity_mismatch,
 			   "a thread not in the state asked for is a mismatch, not a success");
 		const auto otherThread = parse_thread_resolution_response(
-			{ .Status = 200, .Body = "{\"data\":{\"resolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_2\",\"isResolved\":true}}}}" },
+			{ .Status = 200,
+			  .Body   = resolutionBody("resolveReviewThread", "PRRT_fixture_2", true, designated_pull_request_json()) },
 			resolution);
 		expect(!otherThread.has_value() && otherThread.error() == review_mutation_contract_failure::identity_mismatch,
 			   "another thread's state is a mismatch");
+		// [[BPR-0879]]. The write's own answer, bound to the pull request.
+		const auto foreignResolved = parse_thread_resolution_response(
+			{ .Status = 200,
+			  .Body   = resolutionBody("resolveReviewThread", "PRRT_fixture_1", true, foreign_pull_request_json()) },
+			resolution);
+		expect(!foreignResolved.has_value()
+				   && foreignResolved.error() == review_mutation_contract_failure::identity_mismatch,
+			   "a thread the server places in another pull request is an identity mismatch");
 		const auto unresolved = parse_thread_resolution_response(
-			{ .Status = 200, .Body = "{\"data\":{\"unresolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":false}}}}" },
+			{ .Status = 200,
+			  .Body   = resolutionBody("unresolveReviewThread", "PRRT_fixture_1", false, designated_pull_request_json()) },
 			unresolution);
 		expect(unresolved.has_value() && !unresolved->Receipt.Resolved, "an exact unresolve response yields the open thread");
 		expect(!parse_thread_resolution_response({ .Status = 401, .Body = "{}" }, resolution).has_value(),
 			   "a non-200 resolve answer is an invalid status");
+
+		// [[BPR-0879]]. The pre-flight read: the same authority, the same
+		// guards, a query in place of the mutation, and an answer that admits
+		// only a thread inside the designated pull request.
+		const auto observation = compile_thread_target_observation_request(resolution);
+		expect(observation.has_value()
+				   && observation->Operation == review_mutation_operation::observe_review_thread
+				   && observation->Method == http_method::post && observation->Path == "/graphql"
+				   && observation->Body
+					   == "{\"query\":\"query ObserveThread($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
+						  "id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}\","
+						  "\"variables\":{\"thread\":\"PRRT_fixture_1\"}}",
+			   "the thread observation compiles to a read document with the exact thread");
+		expect(validate_outbound_review_mutation_request(*observation).has_value(),
+			   "the thread observation revalidates canonically");
+		expect(compile_thread_target_observation_request(
+				   resolution, application::github_server_contract::ghes_3_18_2022_11_28)
+					   ->Path
+				   == "/api/graphql",
+			   "GHES observes a thread at the exact GraphQL root");
+		expect(!compile_thread_target_observation_request(unbound).has_value()
+				   && !compile_thread_target_observation_request(foreign).has_value()
+				   && !compile_thread_target_observation_request(blankThread).has_value(),
+			   "an unbound, foreign or nameless thread is not observed either");
+		auto sameDocumentAsUnresolve      = *observation;
+		sameDocumentAsUnresolve.Operation = review_mutation_operation::unresolve_review_thread;
+		expect(!validate_outbound_review_mutation_request(sameDocumentAsUnresolve).has_value(),
+			   "a read document cannot pass itself off as the unresolve mutation");
+
+		const auto nodeBody = [](const std::string_view aThread,
+								 const bool             aResolved,
+								 const std::string&     aPullRequest) {
+			return std::string{ "{\"data\":{\"node\":{\"id\":\"" } + std::string{ aThread }
+			+ "\",\"isResolved\":" + (aResolved ? "true" : "false") + "," + aPullRequest + "}}}";
+		};
+		const auto inside = parse_thread_target_observation(
+			{ .Status = 200, .Body = nodeBody("PRRT_fixture_1", false, designated_pull_request_json()) },
+			resolution);
+		expect(inside.has_value() && inside->Thread == "PRRT_fixture_1" && !inside->Resolved,
+			   "a thread inside the designated pull request is observed with its state");
+		const auto outside = parse_thread_target_observation(
+			{ .Status = 200, .Body = nodeBody("PRRT_fixture_1", false, foreign_pull_request_json()) },
+			resolution);
+		expect(!outside.has_value() && outside.error() == review_mutation_contract_failure::identity_mismatch,
+			   "a thread in another pull request is refused before any write");
+		const auto echoed = parse_thread_target_observation(
+			{ .Status = 200, .Body = nodeBody("PRRT_fixture_2", false, designated_pull_request_json()) },
+			resolution);
+		expect(!echoed.has_value() && echoed.error() == review_mutation_contract_failure::identity_mismatch,
+			   "an answer about another thread is refused");
+		expect(!parse_thread_target_observation({ .Status = 200, .Body = "{\"data\":{\"node\":{}}}" }, resolution)
+					.has_value(),
+			   "a node that is not a review thread selects nothing and is malformed");
+		expect(!parse_thread_target_observation({ .Status = 200, .Body = "{\"data\":{\"node\":null}}" }, resolution)
+					.has_value(),
+			   "a thread the account cannot see is not a licence to write");
+		expect(!parse_thread_target_observation({ .Status = 401, .Body = "{}" }, resolution).has_value()
+				   && !parse_thread_target_observation(
+						   { .Status = 200, .Body = nodeBody("PRRT_fixture_1", false, designated_pull_request_json()) },
+						   unbound)
+						   .has_value(),
+			   "a non-200 answer and an unbound expectation are both refused");
 	}
 
 	void test_whole_review_dispositions_and_literal_summary()

@@ -67,3 +67,24 @@ skill store is arranged differently, not only a contained Windows row.
 - The documentation gate's dependency on out-of-repository content is written
   down, or removed.
 - macOS and Linux keep passing both rows.
+
+## Classified (dsp-006 scout): containment policy, plus a portability defect that is not about Windows
+
+The containment rule and the main-side sequencing constraint are recorded once
+on [[BPR-0872]]; this card is settled by it — both rows check the repository's
+own files and reach no network, so they should be pinned `WINDOWS_UNCONTAINED`
+with their measured cause.
+
+Two obstacles, not one, and the pinned vocabulary already names both: the
+out-of-repository import, and git's child exiting 128 (`dos-volume-name`, for
+git's `getcwd`; `scripts/verify_test_network_isolation.py:46-50`).
+
+**The separate, cross-platform fact worth its own record:**
+`scripts/verify_documentation.py:37-38` does
+`sys.path.insert(0, .../.agents/skills/implement-rfc/scripts)` and then
+`import board_model`. On the Windows station `.agents` is an untracked symlink
+into the MASK store, which is outside both granted read scopes
+(`cmake/WindowsTestIsolationSetup.cmake:124-138`) — so the denial is
+**structural**, not a missing ACL. That the repository's documentation gate
+imports a module from outside the repository is true on every platform and is
+independent of whatever containment decision this card takes.

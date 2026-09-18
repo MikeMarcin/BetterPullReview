@@ -92,6 +92,15 @@ namespace bpr::app {
 	[[nodiscard]] auto initialize_or_reset_designated_live_replay_state(
 		const std::filesystem::path& aApplicationDataRoot) noexcept -> bool;
 
+	/// \brief Which profile refusal a startup actually saw, or empty.
+	///
+	/// \details [[BPR-0877]]. `github_application_startup_failure::registry` is
+	/// the catch-all arm of the profile mapping, so several different refusals
+	/// reach a reader under one name, and finding which needed a bisect. This
+	/// names the one that fired, first refusal wins. Diagnostic only: every
+	/// caller keeps reading the mapped failure it already reads.
+	[[nodiscard]] auto profile_startup_refusal_name() -> std::string;
+
 	/// \brief Names the device-authorization browser capability a run bound.
 	///
 	/// \details `DeviceAuthorizationBrowserComposed` answers whether anything
@@ -609,6 +618,17 @@ namespace bpr::app {
 		[[nodiscard]] auto window(core::bpr_window_context aContext) noexcept -> qt::workbench_window*;
 		[[nodiscard]] auto status(core::bpr_window_context aContext) const noexcept -> std::optional<github_application_status>;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;
+		/// \brief Which cleanup refused, where, and what the platform said.
+		///
+		/// \details [[BPR-0875]]. The flag `status()` carries has three sources in
+		/// a window's shutdown (the durable layout write, the layout erase and
+		/// the MCP snapshot removal) and the profile folds in two more. Thirteen
+		/// Windows rows reported the bare flag, so which one fired needed a
+		/// bisect rather than a run. The first refusal is named here as
+		/// `<source>:<path-or-window>:<error>`; empty means nothing refused. An
+		/// accessor rather than a field on `github_application_status`, because
+		/// that record crosses a seam by value and must keep its layout.
+		[[nodiscard]] auto shutdown_cleanup_detail() const -> std::string;
 
 		/// \brief Reports what the signed-out live-candidate transport
 		/// forwarded, in the order it forwarded it.
@@ -645,6 +665,11 @@ namespace bpr::app {
 		[[nodiscard]] auto window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
 		[[nodiscard]] auto profile_shutdown_complete() const noexcept -> bool;
 		[[nodiscard]] auto profile_shutdown_cleanup_failed() const noexcept -> bool;
+		/// \brief Which of the profile's cleanups refused first, or empty.
+		///
+		/// \details [[BPR-0875]]. The flag above becomes the desktop's exit 1, and
+		/// five sources can raise it, so the one that did is named here.
+		[[nodiscard]] auto profile_shutdown_cleanup_detail() const -> std::string;
 		void               set_window_admission(std::function<bool(core::bpr_window_context)> aAdmission);
 		void               set_profile_label(std::string aLabel);
 

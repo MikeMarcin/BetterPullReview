@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0900"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-006: the harness descriptor and the product descriptor are asserted equal but not pinned",
+  "created": "2026-09-17T23:28:12.808662+00:00",
+  "base": "81844fef797412df805b363c0216c40bab663e4a"
+}
