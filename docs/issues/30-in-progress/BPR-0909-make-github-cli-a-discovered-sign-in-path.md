@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0909"
 title: "Make GitHub CLI a discovered sign-in path"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
