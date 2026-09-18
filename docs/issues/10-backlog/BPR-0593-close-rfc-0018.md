@@ -316,11 +316,40 @@ tight enough to fail.
   `git_cache_contract_tests.cpp:1405`, which passes. The writer's own first
   draft made dsp-006's mistake in the other direction and its row caught it on
   2.53.0, independently.
-- **`bpr-linux` returned its whole envelope and has one bounded task.** It is
-  measuring [[BPR-0906]]'s first scope item — which exit paths skip the
-  endpoint unlink — with an explicit instruction to measure and not fix,
-  because the choice is entangled with [[BPR-0895]] and must be made once for
-  both.
+- **`bpr-linux` returned its whole envelope and now holds two tasks**, both
+  measurements, neither authorised to fix anything.
+  1. [[BPR-0906]]'s first scope item — which exit paths skip the endpoint
+     unlink — instructed to measure and not fix, because the choice is
+     entangled with [[BPR-0895]] and must be made once for both. **The station
+     added the question that was missing from my scope text and it is the
+     important one:** is a survivor *reclaimed or refused* on the next start
+     with the same root? The endpoint name is a digest of the normalised root,
+     so that answer decides whether the accumulation is inert or harmful — and
+     it decides which of the pair is the serious one.
+  2. **[[BPR-0904]]'s central measurement**, because the station had spare
+     capacity and said so rather than expanding task 1. It is building the
+     keyed `fake_transport` as a **spike** — not as the fix — to produce the
+     number the card says must be measured rather than estimated: how many
+     rows break when the fixture queue stops ignoring method and path, and for
+     each, whether it is a fixture that never declared its path or a row where
+     the *product* asks for something nobody intended. **It is also the
+     acceptance test for the approach:** does [[BPR-0896]]'s live
+     `GET /graphql?per_page=100` become a red row under it? If not, the keyed
+     transport is weaker than BPR-0904 assumes, and that must be known before
+     anyone builds it. Scoped to `tests/github_contract/**` only, so it cannot
+     collide with `bpr-win` in `tests/end_to_end/**`.
+- **A Windows-adjacent offer from `bpr-linux` was declined on purpose.** It
+  correctly guessed that `bpr-win`'s five-row private-descriptor family may
+  have a POSIX analogue — both clauses say "nobody but me can write here" in
+  different dialects. But `bpr-win` is inside that work with the mechanism in
+  hand, and a second station reasoning about the same rule from the other side
+  is how two stations produce two answers. Hand it the analogue *after*
+  `bpr-win` returns, with the files named.
+- The station also asked whether to re-run
+  `test_network_isolation_structure_contract` just to confirm it green on
+  Linux. Told not to: it is green on macOS at the merged head, the fix is in a
+  file with nothing platform-conditional about it, and it will be observed on
+  the next run that has another reason to exist.
 - **Two card dispositions were made here, not by the station.** [[BPR-0881]] is
   **Done** (`90c40e49`): the Linux criterion closed it, and the number that did
   so is the in-root endpoint measuring 108 against a `sun_path` of 108.
