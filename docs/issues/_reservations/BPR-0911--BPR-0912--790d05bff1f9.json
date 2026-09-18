@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0911",
+    "BPR-0912"
+  ],
+  "reserve_for": "rfc-0035-updater",
+  "purpose": "",
+  "created": "2026-09-18T08:32:21.065923+00:00",
+  "base": "1b4c24154bd1d4f1d4bea3d84c593e2fb4c3d47f"
+}
