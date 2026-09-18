@@ -21,6 +21,7 @@
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTimer>
 
 #include <algorithm>
 #include <cstdlib>
@@ -239,12 +240,99 @@ namespace {
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "setup and review work quiesce");
 	}
+
+#if defined(__APPLE__)
+	void run_github_cli_discovery_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated CLI discovery application store");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = app::native_filesystem_path(
+			QFileInfo{ temporary.path() }.canonicalFilePath());
+		expect(adapters::sqlite::make_storage_root_owner_private(
+				   *options.ApplicationDataRoot),
+			   "private CLI discovery test root under the canonical storage policy");
+		options.GithubCliDiscoveryAccounts
+			= std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
+				  { .Hostname = "ghe.discovered.example", .Login = "enterprise-reviewer" },
+			  };
+
+		std::unique_ptr<bpr::app::github_application> application;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(
+			app::detail::github_public_path_fixture::github_com,
+			options,
+			[&](auto aResult) {
+				startupTerminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		wait_for(
+			[&] { return startupTerminal && startup && startup->is_quiescent(); },
+			"CLI discovery application startup reaches a terminal");
+		expect(application != nullptr, "CLI discovery application startup succeeds");
+		auto& window = application->window();
+		window.show();
+		QApplication::processEvents();
+		expect(!window.home_landing()->secondary_button()->isHidden()
+				   && window.home_landing()->secondary_button()->text()
+					   == QStringLiteral("Use GitHub CLI"),
+			   "the shipped composition exposes CLI discovery as its own signed-out path");
+		window.home_landing()->secondary_button()->click();
+		wait_for(
+			[&] {
+				return window.github_cli_discovery_status()->text().contains(
+					QStringLiteral("Found 1"));
+			},
+			"the composed discovery reaches its ready terminal");
+		expect(window.settings()->current_page() == qt::settings_page::accounts_and_hosts,
+			   "CLI discovery opens Accounts and hosts");
+
+		qt::server_card* discovered = nullptr;
+		for (auto* const card : window.server_cards()) {
+			if (card->hostname() == "ghe.discovered.example") {
+				discovered = card;
+			}
+		}
+		expect(discovered != nullptr && discovered->options().size() == 1U
+				   && discovered->native_option() == nullptr
+				   && discovered->cli_option() != nullptr
+				   && discovered->cli_offer_button() != nullptr
+				   && discovered->cli_offer_button()->text().contains(
+					   QStringLiteral("enterprise-reviewer")),
+			   "the discovered GHES identity is a CLI-only card naming the observed login");
+
+		const auto profile = discovered->cli_option()->Profile;
+		QTimer::singleShot(0, [] {
+			if (auto* const prompt = qobject_cast<QMessageBox*>(
+					QApplication::activeModalWidget());
+				prompt != nullptr) {
+				prompt->done(QMessageBox::Yes);
+			}
+		});
+		discovered->cli_offer_button()->click();
+		QApplication::processEvents();
+		expect(window.session_panel()->selected_profile() == profile
+				   && window.session_panel()->profile_option(profile) != nullptr
+				   && window.session_panel()->profile_option(profile)->Hostname
+					   == "ghe.discovered.example",
+			   "the CLI-only GHES card reaches the existing exact-host connection path");
+
+		application->begin_shutdown();
+		wait_for([&] { return application->status().ShutdownComplete; },
+				 "CLI discovery work quiesces");
+	}
+#endif
 }
 int main(int aArgc, char** aArgv)
 {
 	QApplication application{ aArgc, aArgv };
 	run_course(false);
 	run_course(true);
+#if defined(__APPLE__)
+	run_github_cli_discovery_course();
+#endif
 	std::cout << "setup-destination-public-path:pass\n";
 	return EXIT_SUCCESS;
 }

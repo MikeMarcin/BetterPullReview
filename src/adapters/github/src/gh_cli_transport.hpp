@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -138,6 +139,9 @@ namespace bpr::adapters::github::detail {
 		friend auto compile_gh_cli_version_request(
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
+		friend auto compile_gh_cli_auth_status_request(
+			const validated_gh_cli_configuration& aConfiguration)
+			-> github_cli_process_request;
 		friend auto compile_gh_cli_exact_blob_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_exact_blob_request&)
@@ -176,6 +180,34 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto compile_gh_cli_version_request(
 		const validated_gh_cli_configuration& aConfiguration)
 		-> github_cli_process_request;
+
+	/// \brief One active authenticated account reported by the configured gh.
+	/// \details This deliberately carries no token, scopes or credential source.
+	struct gh_cli_authenticated_account
+	{
+		std::string Hostname;
+		std::string Login;
+
+		auto operator==(const gh_cli_authenticated_account&) const -> bool = default;
+	};
+
+	enum class gh_cli_auth_status_failure : std::uint8_t {
+		response_limit,
+		malformed_response,
+	};
+
+	/// \brief Compiles the explicit, token-free active-account inventory request.
+	[[nodiscard]] auto compile_gh_cli_auth_status_request(
+		const validated_gh_cli_configuration& aConfiguration)
+		-> github_cli_process_request;
+
+	/// \brief Parses the bounded JSON returned by `gh auth status`.
+	/// \details Only active successful host/login pairs cross this boundary.
+	[[nodiscard]] auto parse_gh_cli_auth_status(
+		std::string_view aOutput)
+		-> std::expected<
+			std::vector<gh_cli_authenticated_account>,
+			gh_cli_auth_status_failure>;
 
 	/// \brief Compiles one exact-commit clone into an owned, write-confined store.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(

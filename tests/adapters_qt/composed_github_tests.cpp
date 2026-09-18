@@ -3097,7 +3097,8 @@ namespace {
 		// [[BPR-0775]]. RFC-BPR-0032 A5, first launch and signed out: the strip
 		// with Home, account and settings; the bar relabelled for public
 		// reading; one card with Sign in filled and Add enterprise server
-		// bordered; the status bar line; and nothing else.
+		// bordered; the status bar line; and nothing else. The CLI way is
+		// capability-driven, so this presentation-only window does not invent it.
 		const auto top = [&window](const QWidget* const aWidget) {
 			return aWidget->mapTo(window.home_page(), QPoint{ }).y();
 		};
@@ -3107,9 +3108,10 @@ namespace {
 				   && landing->primary_button()->isVisible() && landing->primary_button()->text() == QStringLiteral("Sign in")
 				   && landing->primary_button()->accessibleName() == QStringLiteral("Sign in to GitHub")
 				   && landing->primary_button()->isDefault()
-				   && landing->secondary_button()->isVisible()
-				   && landing->secondary_button()->text() == QStringLiteral("Add enterprise server")
-				   && !landing->secondary_button()->isFlat() && !landing->secondary_button()->isDefault()
+				   && !landing->secondary_button()->isVisible()
+				   && landing->tertiary_button()->isVisible()
+				   && landing->tertiary_button()->text() == QStringLiteral("Add enterprise server")
+				   && !landing->tertiary_button()->isFlat() && !landing->tertiary_button()->isDefault()
 				   && !landing->shortcut_label()->isVisible()
 				   && window.findChild<QPushButton*>(QStringLiteral("workbenchHomeReadSignedOutButton")) == nullptr,
 			   "signed out, Home's card is Sign in to GitHub with Sign in filled and Add enterprise server bordered");
@@ -3156,7 +3158,21 @@ namespace {
 				   && window.findChild<QPushButton*>(QStringLiteral("homeSetupCancel"))->isHidden()
 				   && !window.home_recent_list()->isVisible(),
 			   "nothing else is on Home: no stack page, no notice, no setup row and no recently viewed list");
+		auto cliDiscoveries = std::size_t{ 0U };
+		window.set_github_cli_discovery_dispatch([&cliDiscoveries] { ++cliDiscoveries; });
+		QApplication::processEvents();
+		expect(landing->secondary_button()->isVisible()
+				   && landing->secondary_button()->text() == QStringLiteral("Use GitHub CLI"),
+			   "the explicit GitHub CLI capability adds its own first-launch path");
 		landing->secondary_button()->click();
+		QApplication::processEvents();
+		expect(window.settings()->isVisible()
+				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+				   && cliDiscoveries == 1U,
+			   "Use GitHub CLI opens Accounts and hosts and dispatches discovery once");
+		window.settings()->hide();
+		QApplication::processEvents();
+		landing->tertiary_button()->click();
 		QApplication::processEvents();
 		expect(window.settings()->isVisible()
 				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts,
@@ -3168,7 +3184,7 @@ namespace {
 		window.set_saved_server_dispatch([](application::saved_server_intent) { });
 		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
 		QApplication::processEvents();
-		landing->secondary_button()->click();
+		landing->tertiary_button()->click();
 		QApplication::processEvents();
 		expect(window.settings()->isVisible()
 				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts

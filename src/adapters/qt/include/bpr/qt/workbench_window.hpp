@@ -142,6 +142,15 @@ namespace bpr::qt {
 	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
 	/// \brief [[BPR-0660]]. One remember or forget gesture for an enterprise server.
 	using workbench_saved_server_dispatch = std::function<void(application::saved_server_intent)>;
+	/// \brief Presentation state for the explicit GitHub CLI account inventory.
+	enum class github_cli_discovery_state : std::uint8_t {
+		idle,
+		discovering,
+		ready,
+		empty,
+		failed,
+	};
+	using github_cli_discovery_dispatch = std::function<void()>;
 	/// [[BPR-0661]]. The review-behaviour preferences the page dispatches.
 	using review_behaviour_dispatch = std::function<void(const application::review_behaviour_settings&)>;
 
@@ -424,6 +433,12 @@ namespace bpr::qt {
 		/// reviewer keeps: Add enterprise server, a card's Remember switch and
 		/// its confirmed Forget server.
 		void set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
+		/// \brief Adopts the explicit `Use GitHub CLI` gesture; absent means hidden.
+		void set_github_cli_discovery_dispatch(github_cli_discovery_dispatch aDispatch);
+		/// \brief Presents the bounded result of an explicitly requested CLI inventory.
+		void               present_github_cli_discovery(github_cli_discovery_state aState, std::size_t aAccounts = 0U);
+		[[nodiscard]] auto use_github_cli_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto github_cli_discovery_status() const noexcept -> QLabel*;
 		/// \brief [[BPR-0774]]. The bordered button under the server cards, shown
 		/// while the queue that keeps servers is ready.
 		[[nodiscard]] auto add_enterprise_server_button() const noexcept -> QPushButton*;
@@ -1028,6 +1043,7 @@ namespace bpr::qt {
 		void open_from_home_bar();
 		void build_saved_repositories_editor(QWidget* aParent, QVBoxLayout& aLayout);
 		void build_enterprise_server_draft(QWidget* aParent, QVBoxLayout& aLayout);
+		void begin_github_cli_from_home();
 		void open_enterprise_server_draft();
 		void close_enterprise_server_draft();
 		void add_enterprise_server();
@@ -1296,6 +1312,10 @@ namespace bpr::qt {
 		QPushButton*                              EnterpriseServerAdd         = nullptr;
 		QPushButton*                              EnterpriseServerCancel      = nullptr;
 		QPushButton*                              AddEnterpriseServerButton   = nullptr;
+		QPushButton*                              UseGithubCliButton          = nullptr;
+		QLabel*                                   GithubCliDiscoveryStatus    = nullptr;
+		github_cli_discovery_dispatch             GithubCliDiscoveryDispatch;
+		github_cli_discovery_state                GithubCliDiscoveryState = github_cli_discovery_state::idle;
 		QPointer<QMessageBox>                     ForgetServerConfirmation;
 		bool                                      EnterpriseDraftOpen = false;
 		/// [[BPR-0773]]. The hostname a device flow was last asked for; its

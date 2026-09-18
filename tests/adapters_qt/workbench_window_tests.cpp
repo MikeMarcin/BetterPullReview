@@ -6334,6 +6334,67 @@ namespace {
 		window.hide();
 	}
 
+	// [[BPR-0909]]. CLI discovery is a capability-owned action, separate from
+	// the explicit enterprise-server editor. Presentation reports its bounded
+	// asynchronous states and accepts a discovered CLI-only GHES card.
+	void test_github_cli_discovery_is_a_separate_accounts_path()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const page   = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		auto* const useCli = window.use_github_cli_button();
+		auto* const status = window.github_cli_discovery_status();
+		expect(page != nullptr && useCli != nullptr && status != nullptr
+				   && !useCli->isVisibleTo(page)
+				   && !window.home_landing()->secondary_button()->isVisible(),
+			   "without a composed CLI capability neither Accounts nor Home offers discovery");
+
+		auto discoveries = std::size_t{ 0U };
+		window.set_github_cli_discovery_dispatch([&discoveries] { ++discoveries; });
+		QApplication::processEvents();
+		expect(useCli->isVisibleTo(page) && useCli->isEnabled()
+				   && window.home_landing()->secondary_button()->isVisible(),
+			   "the composed CLI capability adds one explicit discovery action to Accounts and Home");
+		useCli->click();
+		expect(discoveries == 1U, "one Use GitHub CLI press dispatches one discovery");
+
+		window.present_github_cli_discovery(qt::github_cli_discovery_state::discovering);
+		QApplication::processEvents();
+		expect(!useCli->isEnabled() && status->isVisibleTo(page)
+				   && status->text().contains(QStringLiteral("Checking")),
+			   "discovery disables re-entry and reports its in-flight state");
+		useCli->click();
+		expect(discoveries == 1U, "an in-flight discovery cannot be dispatched twice");
+
+		window.add_setup_profile({
+			.Profile   = core::host_profile_id{ 91U },
+			.Label     = "GHES 3.18 — GitHub CLI (reviewer, active in gh)",
+			.Hostname  = "ghe.example.com",
+			.Product   = application::github_profile_product::github_enterprise_server,
+			.Transport = application::github_profile_transport::github_cli,
+		});
+		window.present_github_cli_discovery(qt::github_cli_discovery_state::ready, 1U);
+		QApplication::processEvents();
+		auto* const discovered = window.server_card_for(core::host_profile_id{ 91U });
+		expect(useCli->isEnabled() && status->text().contains(QStringLiteral("Found 1"))
+				   && discovered != nullptr && discovered->hostname() == "ghe.example.com"
+				   && discovered->cli_offer_button() != nullptr
+				   && discovered->cli_offer_button()->text().contains(QStringLiteral("reviewer")),
+			   "a discovered GHES identity becomes a selectable CLI-only server card naming the observed login");
+
+		window.present_github_cli_discovery(qt::github_cli_discovery_state::empty);
+		expect(status->text().contains(QStringLiteral("no active authenticated accounts")),
+			   "an empty authenticated inventory is explicit and retryable");
+		window.present_github_cli_discovery(qt::github_cli_discovery_state::failed);
+		expect(status->text().contains(QStringLiteral("could not be checked")),
+			   "a failed inventory is explicit and retryable");
+		window.settings()->hide();
+		window.hide();
+	}
+
 	// [[BPR-0774]]. RFC-BPR-0032 A3: a kept enterprise server is its host's
 	// card. Remember this server is a switch showing exactly the record the
 	// queue keeps; Forget server and the switch turned off confirm first,
@@ -8041,6 +8102,7 @@ auto main(int argc, char** argv) -> int
 	test_queue_rule_selection_survives_unrelated_projection();
 	test_saved_repository_gestures_round_trip_through_the_dispatch();
 	test_add_enterprise_server_opens_a_card_in_its_edit_state();
+	test_github_cli_discovery_is_a_separate_accounts_path();
 	test_a_kept_enterprise_server_remembers_and_forgets_on_its_card();
 	test_the_servers_combo_editor_is_gone();
 	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();

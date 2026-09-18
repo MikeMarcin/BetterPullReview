@@ -1007,8 +1007,8 @@ namespace bpr::qt {
 		home->setSpacing(0);
 		HomeColumn  = home;
 		HomeLanding = new workbench_landing{ HomePage };
-		// [[BPR-0775]]. The landing's focus-only buttons are gone: the card's
-		// two ways in and the row's way back are all it offers.
+		// [[BPR-0775]], [[BPR-0909]]. The card's three explicit ways in and the
+		// row's way back are all it offers.
 		HomeLanding->set_primary_dispatch([this] {
 			if (HomeLanding->state() == landing_state::back_to_review) {
 				choose_home(false);
@@ -1019,6 +1019,11 @@ namespace bpr::qt {
 			}
 		});
 		HomeLanding->set_secondary_dispatch([this] {
+			if (HomeLanding->state() == landing_state::sign_in) {
+				begin_github_cli_from_home();
+			}
+		});
+		HomeLanding->set_tertiary_dispatch([this] {
 			if (HomeLanding->state() == landing_state::sign_in) {
 				begin_enterprise_server_from_home();
 			}
@@ -3409,16 +3414,37 @@ namespace bpr::qt {
 		draft->hide();
 		aLayout.addWidget(draft);
 
+		UseGithubCliButton = new QPushButton{ QStringLiteral("Use GitHub CLI"), aParent };
+		UseGithubCliButton->setObjectName(QStringLiteral("accountsUseGithubCli"));
+		UseGithubCliButton->setAutoDefault(false);
+		UseGithubCliButton->setAccessibleDescription(QStringLiteral(
+			"Checks active authenticated hosts with the installed gh. Tokens are never requested or shown."));
+		UseGithubCliButton->hide();
+
 		AddEnterpriseServerButton = new QPushButton{ QStringLiteral("Add enterprise server"), aParent };
 		AddEnterpriseServerButton->setObjectName(QStringLiteral("accountsAddEnterpriseServer"));
 		AddEnterpriseServerButton->setAutoDefault(false);
 		AddEnterpriseServerButton->setAccessibleDescription(QStringLiteral("Adds a GitHub Enterprise server as a card, offered again at the next start. No sign-in is stored."));
 		auto* const addRow = new QHBoxLayout{ };
 		addRow->setContentsMargins(0, 0, 0, 0);
+		addRow->addWidget(UseGithubCliButton);
 		addRow->addWidget(AddEnterpriseServerButton);
 		addRow->addStretch(1);
 		aLayout.addLayout(addRow);
+		GithubCliDiscoveryStatus = new QLabel{ aParent };
+		GithubCliDiscoveryStatus->setObjectName(QStringLiteral("githubCliDiscoveryStatus"));
+		GithubCliDiscoveryStatus->setTextFormat(Qt::PlainText);
+		GithubCliDiscoveryStatus->setWordWrap(true);
+		GithubCliDiscoveryStatus->setForegroundRole(QPalette::PlaceholderText);
+		GithubCliDiscoveryStatus->hide();
+		aLayout.addWidget(GithubCliDiscoveryStatus);
 
+		connect(UseGithubCliButton, &QPushButton::clicked, this, [this] {
+			if (GithubCliDiscoveryDispatch
+				&& GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
+				GithubCliDiscoveryDispatch();
+			}
+		});
 		connect(AddEnterpriseServerButton, &QPushButton::clicked, this, [this] { open_enterprise_server_draft(); });
 		connect(EnterpriseServerAdd, &QPushButton::clicked, this, [this] { add_enterprise_server(); });
 		connect(EnterpriseServerHostname, &QLineEdit::returnPressed, this, [this] { add_enterprise_server(); });
@@ -3432,6 +3458,69 @@ namespace bpr::qt {
 	{
 		SavedServerDispatch = std::move(aDispatch);
 		update_enterprise_server_actions();
+	}
+
+	void workbench_window::set_github_cli_discovery_dispatch(github_cli_discovery_dispatch aDispatch)
+	{
+		GithubCliDiscoveryDispatch = std::move(aDispatch);
+		if (HomeLanding != nullptr) {
+			HomeLanding->set_github_cli_available(
+				static_cast<bool>(GithubCliDiscoveryDispatch));
+		}
+		if (UseGithubCliButton != nullptr) {
+			UseGithubCliButton->setVisible(static_cast<bool>(GithubCliDiscoveryDispatch));
+			UseGithubCliButton->setEnabled(
+				GithubCliDiscoveryState != github_cli_discovery_state::discovering);
+		}
+	}
+
+	void workbench_window::present_github_cli_discovery(
+		const github_cli_discovery_state aState, const std::size_t aAccounts)
+	{
+		GithubCliDiscoveryState = aState;
+		if (UseGithubCliButton == nullptr || GithubCliDiscoveryStatus == nullptr) {
+			return;
+		}
+		UseGithubCliButton->setEnabled(
+			static_cast<bool>(GithubCliDiscoveryDispatch)
+			&& aState != github_cli_discovery_state::discovering);
+		switch (aState) {
+		case github_cli_discovery_state::idle:
+			GithubCliDiscoveryStatus->clear();
+			GithubCliDiscoveryStatus->hide();
+			break;
+		case github_cli_discovery_state::discovering:
+			GithubCliDiscoveryStatus->setText(QStringLiteral("Checking active GitHub CLI accounts…"));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::ready:
+			GithubCliDiscoveryStatus->setText(
+				QStringLiteral("Found %1 active GitHub CLI account%2. Choose its server card to connect.")
+					.arg(aAccounts)
+					.arg(aAccounts == 1U ? QString{ } : QStringLiteral("s")));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::empty:
+			GithubCliDiscoveryStatus->setText(QStringLiteral(
+				"GitHub CLI reported no active authenticated accounts. Run gh auth login, then try again."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::failed:
+			GithubCliDiscoveryStatus->setText(QStringLiteral(
+				"GitHub CLI accounts could not be checked. Verify gh auth status in Terminal, then try again."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		}
+	}
+
+	auto workbench_window::use_github_cli_button() const noexcept -> QPushButton*
+	{
+		return UseGithubCliButton;
+	}
+
+	auto workbench_window::github_cli_discovery_status() const noexcept -> QLabel*
+	{
+		return GithubCliDiscoveryStatus;
 	}
 
 	void workbench_window::open_enterprise_server_draft()
@@ -5390,6 +5479,14 @@ namespace bpr::qt {
 		open_enterprise_server_draft();
 	}
 
+	void workbench_window::begin_github_cli_from_home()
+	{
+		open_settings(settings_page::accounts_and_hosts);
+		if (UseGithubCliButton != nullptr && UseGithubCliButton->isVisible()) {
+			UseGithubCliButton->click();
+		}
+	}
+
 	auto workbench_window::session_signed_in() const -> bool
 	{
 		if (SessionPanel == nullptr) {
@@ -7192,6 +7289,7 @@ namespace bpr::qt {
 		if (HomeLanding != nullptr) {
 			append(HomeLanding->primary_button());
 			append(HomeLanding->secondary_button());
+			append(HomeLanding->tertiary_button());
 		}
 		append(EpochSelectors->line());
 		append(EpochSelectors->comparing_button());

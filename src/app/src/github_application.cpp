@@ -555,6 +555,63 @@ namespace bpr::app {
 		}
 
 #if defined(__APPLE__)
+		[[nodiscard]] auto native_gh_executable() -> std::filesystem::path
+		{
+			auto executable = QStandardPaths::findExecutable(QStringLiteral("gh"));
+			if (executable.isEmpty()) {
+				executable = QStandardPaths::findExecutable(
+					QStringLiteral("gh"),
+					{
+						QStringLiteral("/opt/homebrew/bin"),
+						QStringLiteral("/usr/local/bin"),
+						QStringLiteral("/opt/local/bin"),
+					});
+			}
+			return native_filesystem_path(QFileInfo{ executable }.canonicalFilePath());
+		}
+
+		[[nodiscard]] auto live_gh_cli_configuration()
+			-> std::optional<adapters::github::detail::validated_gh_cli_configuration>
+		{
+			using namespace adapters::github::detail;
+			const auto executable = native_gh_executable();
+			const auto candidate  = gh_cli_configuration_candidate{
+				.Executable              = executable,
+				.NeutralWorkingDirectory = native_filesystem_path(QDir::tempPath()),
+				.Platform                = gh_cli_macos_environment_facts{
+					.HomeDirectory = native_filesystem_path(QDir::homePath()),
+				},
+				.Https = { },
+			};
+			const auto configuration = validate_gh_cli_configuration(candidate);
+			return configuration ? std::optional{ *configuration } : std::nullopt;
+		}
+
+		[[nodiscard]] auto supported_gh_cli_version(
+			adapters::github::detail::github_cli_process_port&              aProcess,
+			const adapters::github::detail::validated_gh_cli_configuration& aConfiguration)
+			-> bool
+		{
+			using namespace adapters::github::detail;
+			const auto version = aProcess.run(
+				compile_gh_cli_version_request(aConfiguration), std::stop_token{ });
+			if (!version || version->ExitCode != 0) {
+				return false;
+			}
+			constexpr auto prefix = std::string_view{ "gh version 2." };
+			auto           output = std::string_view{ version->StandardOutput };
+			if (!output.starts_with(prefix)) {
+				return false;
+			}
+			output.remove_prefix(prefix.size());
+			int        minor  = 0;
+			const auto parsed = std::from_chars(
+				output.data(), output.data() + output.size(), minor);
+			return parsed.ec == std::errc{ } && parsed.ptr != output.data()
+				&& parsed.ptr != output.data() + output.size() && *parsed.ptr == '.'
+				&& minor >= 96;
+		}
+
 		class owned_cli_read_transport final
 			: public adapters::github::detail::github_wire_transport_port,
 			  public adapters::github::detail::github_mutation_wire_transport,
@@ -676,42 +733,12 @@ namespace bpr::app {
 					return unavailable();
 				}
 				try {
-					const auto executable = native_filesystem_path(
-						QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("gh")) }
-							.canonicalFilePath());
-					const auto candidate = gh_cli_configuration_candidate{
-						.Executable              = executable,
-						.NeutralWorkingDirectory = native_filesystem_path(QDir::tempPath()),
-						.Platform                = gh_cli_macos_environment_facts{
-							.HomeDirectory = native_filesystem_path(QDir::homePath()),
-						},
-						.Https = { },
-					};
-					const auto configuration = validate_gh_cli_configuration(candidate);
+					const auto configuration = live_gh_cli_configuration();
 					if (!configuration) {
 						return unavailable();
 					}
 					auto process = make_github_cli_process_runner();
-					if (!process) {
-						return unavailable();
-					}
-					const auto version = process->run(
-						compile_gh_cli_version_request(*configuration), std::stop_token{ });
-					if (!version) {
-						return unavailable();
-					}
-					constexpr auto prefix = std::string_view{ "gh version 2." };
-					auto           output = std::string_view{ version->StandardOutput };
-					if (!output.starts_with(prefix)) {
-						return unavailable();
-					}
-					output.remove_prefix(prefix.size());
-					int        minor  = 0;
-					const auto parsed = std::from_chars(output.data(),
-														output.data() + output.size(), minor);
-					if (parsed.ec != std::errc{ } || parsed.ptr == output.data()
-						|| parsed.ptr == output.data() + output.size()
-						|| *parsed.ptr != '.' || minor < 96) {
+					if (!process || !supported_gh_cli_version(*process, *configuration)) {
 						return unavailable();
 					}
 					return std::shared_ptr<github_wire_transport_port>{
@@ -3907,6 +3934,7 @@ namespace bpr::app {
 			std::function<void(const QString&)>                                                       RestoreNotice;
 			std::function<void()>                                                                     RecentChanged;
 			std::function<void(const application::workbench_pull_request_authority&, ledger_changes)> Ledger;
+			std::function<void(const application::github_profile_option&)>                            SetupProfile;
 			std::function<void()>                                                                     AgentWorkspaceRepair;
 		};
 		// [[BPR-0733]]. The recently viewed list is profile state; every window
@@ -4417,7 +4445,10 @@ namespace bpr::app {
 			InsideAutomatedTestBoundary
 				= !qEnvironmentVariableIsEmpty("BPR_AUTOMATED_TEST_BOUNDARY")
 				|| aFixture.has_value();
-			DiffComputeLimits = aFixture.has_value()
+			GithubCliDiscoveryAccounts = aFixture.has_value()
+				? aFixtureOptions.GithubCliDiscoveryAccounts
+				: std::nullopt;
+			DiffComputeLimits          = aFixture.has_value()
 				? aFixtureOptions.DiffComputeLimits
 				: core::diff_compute_limits{ };
 			// [[BPR-0316]]. Read outside the fixture branch below, because
@@ -4517,21 +4548,6 @@ namespace bpr::app {
 						"github.com",
 						github_profile_provenance::builtin),
 					"GitHub.com — Native HTTPS");
-				append_profile(
-					Profiles,
-					ProfileOptions,
-					native_profile_candidate(
-						core::host_profile_id{ 2U },
-						core::git_host_id{ 1U },
-						application::github_profile_revision{ 1U },
-						application::github_server_contract::
-							github_com_2022_11_28,
-						application::github_authentication_transport::github_cli,
-						"github.com",
-						github_profile_provenance::builtin),
-					cli_read_offered_here()
-						? "GitHub.com — GitHub CLI (uses your gh sign-in)"
-						: "GitHub.com — GitHub CLI (unavailable)");
 				if (aConfig.EnterpriseHostname.has_value()) {
 					append_profile(
 						Profiles,
@@ -4547,22 +4563,6 @@ namespace bpr::app {
 							*aConfig.EnterpriseHostname,
 							github_profile_provenance::explicit_user),
 						"GHES 3.18 — Native HTTPS");
-					append_profile(
-						Profiles,
-						ProfileOptions,
-						native_profile_candidate(
-							core::host_profile_id{ 4U },
-							core::git_host_id{ 2U },
-							application::github_profile_revision{ 1U },
-							application::github_server_contract::
-								ghes_3_18_2022_11_28,
-							application::github_authentication_transport::
-								github_cli,
-							*aConfig.EnterpriseHostname,
-							github_profile_provenance::explicit_user),
-						cli_read_offered_here()
-							? "GHES 3.18 — GitHub CLI (uses your gh sign-in)"
-							: "GHES 3.18 — GitHub CLI (unavailable)");
 				}
 			}
 
@@ -5504,6 +5504,8 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool NetworkDenied = false;
+		std::optional<std::vector<detail::github_public_path_fixture_options::github_cli_discovery_account>>
+			GithubCliDiscoveryAccounts;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		// [[BPR-0797]]. Whether this run is standing inside the automated test
@@ -5521,7 +5523,12 @@ namespace bpr::app {
 		[[nodiscard]] auto cli_read_offered_here() const noexcept -> bool
 		{
 #if defined(BPR_BUILD_TESTING)
-			return cli_read_offered(InsideAutomatedTestBoundary);
+	#if defined(__APPLE__)
+			return GithubCliDiscoveryAccounts.has_value()
+				|| cli_read_offered(InsideAutomatedTestBoundary);
+	#else
+			return false;
+	#endif
 #else
 			return cli_read_offered(false);
 #endif
@@ -6081,7 +6088,7 @@ namespace bpr::app {
 } }, .SignIn = [this, weak](core::host_profile_id aProfile) { if (!weak.expired() && !Closing){ begin_public_preview_sign_in(aProfile);
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
-} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } }, .AgentWorkspaceRepair = [this, weak] { if (!weak.expired()) { present_agent_workspace_repair(); } } });
+} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } }, .SetupProfile = [this, weak](const application::github_profile_option& aOption) { if (!weak.expired() && !Closing) { Window->add_setup_profile(aOption); } }, .AgentWorkspaceRepair = [this, weak] { if (!weak.expired()) { present_agent_workspace_repair(); } } });
 			// Home may already be checked while a restored read is pending. Its
 			// toggle then emits false, but the gesture still supersedes restoration.
 			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
@@ -6301,6 +6308,10 @@ namespace bpr::app {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
+			if (Profile->cli_read_offered_here()) {
+				Window->set_github_cli_discovery_dispatch(
+					[this] { discover_github_cli_accounts(); });
+			}
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{
@@ -9432,6 +9443,153 @@ namespace bpr::app {
 			}
 		}
 
+		[[nodiscard]] auto register_discovered_cli_account(
+			const adapters::github::detail::gh_cli_authenticated_account& aAccount)
+			-> bool
+		{
+			const auto existing = std::ranges::find_if(
+				Profiles,
+				[&](const validated_github_host_profile& aProfile) {
+					return aProfile.hostname() == aAccount.Hostname
+						&& aProfile.authentication_transport()
+						== application::github_authentication_transport::github_cli;
+				});
+			if (existing != Profiles.end()) {
+				return true;
+			}
+
+			auto nextProfile = std::uint64_t{ 1U };
+			auto nextHost    = std::uint64_t{ 1U };
+			auto host        = std::optional<core::git_host_id>{ };
+			for (const auto& profile : Profiles) {
+				if (profile.profile().value() == std::numeric_limits<std::uint64_t>::max()
+					|| profile.host().value() == std::numeric_limits<std::uint64_t>::max()) {
+					return false;
+				}
+				nextProfile = std::max(nextProfile, profile.profile().value() + 1U);
+				nextHost    = std::max(nextHost, profile.host().value() + 1U);
+				if (profile.hostname() == aAccount.Hostname) {
+					host = profile.host();
+				}
+			}
+
+			const auto githubCom = aAccount.Hostname == "github.com";
+			const auto candidate = validate_github_host_profile(
+				native_profile_candidate(
+					core::host_profile_id{ nextProfile },
+					host.value_or(core::git_host_id{ nextHost }),
+					application::github_profile_revision{ 1U },
+					githubCom
+						? application::github_server_contract::github_com_2022_11_28
+						: application::github_server_contract::ghes_3_18_2022_11_28,
+					application::github_authentication_transport::github_cli,
+					aAccount.Hostname,
+					github_profile_provenance::explicit_user));
+			if (!candidate || !ProfileCatalog
+				|| !ProfileCatalog->register_profile(*candidate)) {
+				return false;
+			}
+
+			Profiles.push_back(*candidate);
+			auto option = profile_option(
+				*candidate,
+				(githubCom ? std::string{ "GitHub.com" }
+						   : std::string{ "GHES 3.18" })
+					+ " — GitHub CLI (" + aAccount.Login + ", active in gh)");
+			ProfileOptions.push_back(option);
+			Profile->for_each_window([&](const github_profile_runtime::window_observer& aObserver) {
+				if (aObserver.SetupProfile) {
+					aObserver.SetupProfile(option);
+				}
+			});
+			return true;
+		}
+
+		void discover_github_cli_accounts()
+		{
+#if defined(__APPLE__)
+			if (Closing || GithubCliDiscoveryPending || Window == nullptr
+				|| !Profile->cli_read_offered_here()) {
+				return;
+			}
+			GithubCliDiscoveryPending = true;
+			Window->present_github_cli_discovery(
+				qt::github_cli_discovery_state::discovering);
+
+			auto        weak            = std::weak_ptr<const int>{ WindowLifetime };
+			auto* const lane            = &DecisionLane;
+			auto        fixtureAccounts = std::optional<std::vector<
+				adapters::github::detail::gh_cli_authenticated_account>>{ };
+	#if defined(BPR_BUILD_TESTING)
+			if (Profile->GithubCliDiscoveryAccounts.has_value()) {
+				fixtureAccounts.emplace();
+				fixtureAccounts->reserve(Profile->GithubCliDiscoveryAccounts->size());
+				for (const auto& account : *Profile->GithubCliDiscoveryAccounts) {
+					fixtureAccounts->push_back({ account.Hostname, account.Login });
+				}
+			}
+	#endif
+			try {
+				ProviderEffects.post([this, weak, lane, fixtureResult = std::move(fixtureAccounts)] {
+					auto accounts = std::optional<std::vector<
+						adapters::github::detail::gh_cli_authenticated_account>>{ };
+					try {
+						if (fixtureResult.has_value()) {
+							accounts = std::move(fixtureResult);
+						} else {
+							auto configuration = live_gh_cli_configuration();
+							auto process       = adapters::github::detail::make_github_cli_process_runner();
+							if (configuration && process
+								&& supported_gh_cli_version(*process, *configuration)) {
+								const auto status = process->run(
+									adapters::github::detail::compile_gh_cli_auth_status_request(
+										*configuration),
+									std::stop_token{ });
+								if (status && status->ExitCode == 0) {
+									auto parsed = adapters::github::detail::parse_gh_cli_auth_status(
+										status->StandardOutput);
+									if (parsed) {
+										accounts = std::move(*parsed);
+									}
+								}
+							}
+						}
+					} catch (...) { }
+
+					try {
+						lane->post([this, weak, discovered = std::move(accounts)]() mutable {
+							if (weak.expired() || Closing || Window == nullptr) {
+								return;
+							}
+							GithubCliDiscoveryPending = false;
+							if (!discovered.has_value()) {
+								Window->present_github_cli_discovery(
+									qt::github_cli_discovery_state::failed);
+								return;
+							}
+							for (const auto& account : *discovered) {
+								if (!register_discovered_cli_account(account)) {
+									Window->present_github_cli_discovery(
+										qt::github_cli_discovery_state::failed);
+									return;
+								}
+							}
+							Window->present_github_cli_discovery(
+								discovered->empty()
+									? qt::github_cli_discovery_state::empty
+									: qt::github_cli_discovery_state::ready,
+								discovered->size());
+						});
+					} catch (...) { }
+				});
+			} catch (...) {
+				GithubCliDiscoveryPending = false;
+				Window->present_github_cli_discovery(
+					qt::github_cli_discovery_state::failed);
+			}
+#endif
+		}
+
 		void synchronize_setup_servers(const application::queue_landing_projection& aProjection)
 		{
 			if (!ProfileCatalog || !SetupDestination) {
@@ -9446,16 +9604,24 @@ namespace bpr::app {
 			}
 
 			for (const auto& server : aProjection.SavedServers) {
-				if (std::ranges::any_of(Profiles, [&](const auto& aProfile) { return aProfile.hostname() == server.Hostname; })) {
+				if (std::ranges::any_of(Profiles, [&](const auto& aProfile) {
+						return aProfile.hostname() == server.Hostname
+							&& aProfile.authentication_transport()
+							== application::github_authentication_transport::native_https;
+					})) {
 					continue;
 				}
 				auto nextProfile = std::uint64_t{ 1U };
 				auto nextHost    = std::uint64_t{ 1U };
+				auto host        = std::optional<core::git_host_id>{ };
 				for (const auto& profile : Profiles) {
 					nextProfile = std::max(nextProfile, profile.profile().value() + 1U);
 					nextHost    = std::max(nextHost, profile.host().value() + 1U);
+					if (profile.hostname() == server.Hostname) {
+						host = profile.host();
+					}
 				}
-				const auto candidate = validate_github_host_profile(native_profile_candidate(core::host_profile_id{ nextProfile }, core::git_host_id{ nextHost }, application::github_profile_revision{ 1U }, application::github_server_contract::ghes_3_18_2022_11_28, application::github_authentication_transport::native_https, server.Hostname, github_profile_provenance::explicit_user));
+				const auto candidate = validate_github_host_profile(native_profile_candidate(core::host_profile_id{ nextProfile }, host.value_or(core::git_host_id{ nextHost }), application::github_profile_revision{ 1U }, application::github_server_contract::ghes_3_18_2022_11_28, application::github_authentication_transport::native_https, server.Hostname, github_profile_provenance::explicit_user));
 				if (!candidate || !ProfileCatalog->register_profile(*candidate)) {
 					continue;
 				}
@@ -12058,6 +12224,7 @@ namespace bpr::app {
 		std::optional<core::setup_request_id>                    SetupConfigurationRequest;
 		bool                                                     SetupQueueReady             = false;
 		bool                                                     SetupConfigurationSubmitted = false;
+		bool                                                     GithubCliDiscoveryPending   = false;
 		core::setup_owner_id                                     SetupOwner{ 1U };
 		std::optional<core::setup_request_id>                    SetupDeviceRequest;
 		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;

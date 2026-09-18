@@ -1637,6 +1637,54 @@ namespace {
 		}
 	}
 
+	void test_auth_status_inventory_is_token_free_bounded_and_fail_closed()
+	{
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		expect(configuration.has_value(), "CLI configuration for auth inventory validates");
+		const auto request = compile_gh_cli_auth_status_request(*configuration);
+		expect(
+			gh_arguments(request)
+				== std::vector<std::string>{ "auth", "status", "--active", "--json", "hosts" },
+			"auth inventory requests only active JSON hosts without show-token");
+		expect(
+			request.StandardInput.empty() && request.StandardInputLimit == 1U
+				&& request.StandardOutputLimit == 64U * 1024U
+				&& request.StandardErrorLimit == 8U * 1024U
+				&& request.Timeout == std::chrono::seconds{ 10 }
+				&& request.PreserveCompletedOutput,
+			"auth inventory has fixed process and output bounds");
+		for (const auto& argument : gh_arguments(request)) {
+			expect(argument != "--show-token" && argument != "-t", "auth inventory cannot request a token");
+		}
+
+		const auto parsed = parse_gh_cli_auth_status(R"({"hosts":{"github.example.com":[{"active":true,"host":"github.example.com","login":"enterprise-reviewer","state":"success","tokenSource":"keyring","scopes":"repo"}],"github.com":[{"active":false,"host":"github.com","login":"old-account","state":"success"},{"active":true,"host":"github.com","login":"octocat","state":"success"}],"unavailable.example.com":[{"active":true,"host":"unavailable.example.com","login":"broken","state":"failure"}]}})");
+		expect(
+			parsed.has_value()
+				&& *parsed == std::vector<gh_cli_authenticated_account>{
+					   { .Hostname = "github.com", .Login = "octocat" },
+					   { .Hostname = "github.example.com", .Login = "enterprise-reviewer" },
+				   },
+			"only successful active host/login pairs cross the discovery boundary in stable order");
+
+		for (const auto& hostile : {
+				 std::string{ "not-json" },
+				 std::string{ R"({"hosts":{"github.com":[{"active":true,"host":"elsewhere.example","login":"octocat","state":"success"}]}})" },
+				 std::string{ R"({"hosts":{"github.com":[{"active":true,"host":"github.com","login":"one","state":"success"},{"active":true,"host":"github.com","login":"two","state":"success"}]}})" },
+				 std::string{ R"({"hosts":{"https://github.example":[{"active":true,"host":"https://github.example","login":"octocat","state":"success"}]}})" },
+			 }) {
+			expect(!parse_gh_cli_auth_status(hostile), "malformed or ambiguous auth inventory fails closed");
+		}
+		expect(
+			parse_gh_cli_auth_status(R"({"hosts":{}})").has_value()
+				&& parse_gh_cli_auth_status(R"({"hosts":{}})")->empty(),
+			"an authenticated CLI with no active accounts reports an empty inventory");
+		expect(
+			parse_gh_cli_auth_status(std::string(64U * 1024U + 1U, 'x')).error()
+				== gh_cli_auth_status_failure::response_limit,
+			"oversized auth inventory is refused before parsing");
+	}
+
 }
 
 auto main() -> int
@@ -1649,6 +1697,7 @@ auto main() -> int
 	test_correlation_server_and_wire_drift_are_rejected();
 	test_transport_parses_actual_response_and_fixed_failures();
 	test_capability_probe_uses_closed_query_and_response();
+	test_auth_status_inventory_is_token_free_bounded_and_fail_closed();
 	test_detected_configuration_change_refuses_launch();
 	test_configuration_file_metadata_changes();
 	test_completed_http_errors_preserve_provider_evidence();

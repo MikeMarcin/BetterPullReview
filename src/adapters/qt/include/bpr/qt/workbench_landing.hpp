@@ -31,8 +31,8 @@ namespace bpr::qt {
 	///
 	/// \details [[BPR-0646]], [[BPR-0775]]. RFC-BPR-0032 accepted Home as the
 	/// bar first. Signed out, the landing is the card "Sign in to GitHub" with
-	/// Sign in filled and Add enterprise server bordered, the two ways in
-	/// RFC-BPR-0018 requires without opening Settings. Over an open review it
+	/// Sign in filled, Use GitHub CLI and Add enterprise server bordered, the
+	/// three explicit ways in without opening Settings. Over an open review it
 	/// is one shaded row naming the review, with Back to the review and its
 	/// shortcut at the right. Signed in with nothing open it shows nothing and
 	/// the window hides it. The surface is presentation only: each button
@@ -52,8 +52,10 @@ namespace bpr::qt {
 
 		/// \brief Sign in on the first-launch card, Back to the review on the row.
 		[[nodiscard]] auto primary_button() const noexcept -> QPushButton*;
-		/// \brief Add enterprise server on the first-launch card; hidden otherwise.
+		/// \brief Use GitHub CLI on the first-launch card; hidden otherwise.
 		[[nodiscard]] auto secondary_button() const noexcept -> QPushButton*;
+		/// \brief Add enterprise server on the first-launch card; hidden otherwise.
+		[[nodiscard]] auto tertiary_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_label() const noexcept -> QLabel*;
 		/// \brief The shortcut beside Back to the review; hidden on the card.
@@ -74,6 +76,9 @@ namespace bpr::qt {
 
 		void set_primary_dispatch(std::function<void()> aDispatch);
 		void set_secondary_dispatch(std::function<void()> aDispatch);
+		void set_tertiary_dispatch(std::function<void()> aDispatch);
+		/// \brief Shows the CLI path only when the composition can inspect gh.
+		void set_github_cli_available(bool aAvailable);
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -90,13 +95,16 @@ namespace bpr::qt {
 		QLabel*               Shortcut            = nullptr;
 		QPushButton*          Primary             = nullptr;
 		QPushButton*          Secondary           = nullptr;
+		QPushButton*          Tertiary            = nullptr;
 		QHBoxLayout*          Content             = nullptr;
 		QHBoxLayout*          Header              = nullptr;
 		QHBoxLayout*          Buttons             = nullptr;
 		QWidget*              Illustration        = nullptr;
 		bool                  IllustrationEnabled = true;
+		bool                  GithubCliAvailable  = false;
 		std::function<void()> PrimaryDispatch;
 		std::function<void()> SecondaryDispatch;
+		std::function<void()> TertiaryDispatch;
 	};
 } // namespace bpr::qt
 

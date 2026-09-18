@@ -2,6 +2,8 @@
 #include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
 
+#include <glaze/json.hpp>
+
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -10,6 +12,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <iterator>
+#include <map>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -20,6 +23,46 @@
 	#include <unistd.h>
 #endif
 
+namespace bpr::adapters::github::detail::auth_status_json_detail {
+	struct account
+	{
+		bool        Active = false;
+		std::string Host;
+		std::string Login;
+		std::string State;
+	};
+
+	struct document
+	{
+		std::map<std::string, std::vector<account>, std::less<>> Hosts;
+	};
+
+	struct options : glz::opts
+	{
+		static constexpr bool error_on_unknown_keys = false;
+	};
+}
+
+namespace glz {
+	template <>
+	struct meta<bpr::adapters::github::detail::auth_status_json_detail::account>
+	{
+		using T                     = bpr::adapters::github::detail::auth_status_json_detail::account;
+		static constexpr auto value = object(
+			"active", &T::Active,
+			"host", &T::Host,
+			"login", &T::Login,
+			"state", &T::State);
+	};
+
+	template <>
+	struct meta<bpr::adapters::github::detail::auth_status_json_detail::document>
+	{
+		using T                     = bpr::adapters::github::detail::auth_status_json_detail::document;
+		static constexpr auto value = object("hosts", &T::Hosts);
+	};
+}
+
 namespace bpr::adapters::github::detail {
 	namespace {
 		constexpr std::size_t maximum_environment_value_bytes = 4U * 1024U;
@@ -28,6 +71,9 @@ namespace bpr::adapters::github::detail {
 		constexpr std::size_t maximum_standard_input_bytes    = 256U * 1024U;
 		constexpr std::size_t maximum_standard_output_bytes   = 4U * 1024U * 1024U;
 		constexpr std::size_t maximum_standard_error_bytes    = 64U * 1024U;
+		constexpr std::size_t maximum_auth_status_bytes       = 64U * 1024U;
+		constexpr std::size_t maximum_auth_status_hosts       = 64U;
+		constexpr std::size_t maximum_auth_status_accounts    = 128U;
 		constexpr auto        process_timeout                 = std::chrono::seconds{ 30 };
 		constexpr auto        process_reap_timeout            = std::chrono::seconds{ 2 };
 
@@ -1126,6 +1172,80 @@ namespace bpr::adapters::github::detail {
 			.Timeout             = std::chrono::seconds{ 5 },
 			.ReapTimeout         = process_reap_timeout,
 		});
+	}
+
+	auto compile_gh_cli_auth_status_request(
+		const validated_gh_cli_configuration& aConfiguration)
+		-> github_cli_process_request
+	{
+		return constrain_gh_writes(github_cli_process_request{
+			.Executable              = path_bytes(aConfiguration.Executable),
+			.Arguments               = { "auth", "status", "--active", "--json", "hosts" },
+			.Environment             = aConfiguration.Environment,
+			.WorkingDirectory        = path_bytes(aConfiguration.NeutralWorkingDirectory),
+			.StandardInput           = { },
+			.StandardInputLimit      = 1U,
+			.StandardOutputLimit     = maximum_auth_status_bytes,
+			.StandardErrorLimit      = 8U * 1024U,
+			.Timeout                 = std::chrono::seconds{ 10 },
+			.ReapTimeout             = process_reap_timeout,
+			.PreserveCompletedOutput = true,
+		});
+	}
+
+	auto parse_gh_cli_auth_status(const std::string_view aOutput)
+		-> std::expected<
+			std::vector<gh_cli_authenticated_account>,
+			gh_cli_auth_status_failure>
+	{
+		using namespace auth_status_json_detail;
+		if (aOutput.size() > maximum_auth_status_bytes) {
+			return std::unexpected{ gh_cli_auth_status_failure::response_limit };
+		}
+		auto parsed = document{ };
+		if (glz::read<options{ }>(parsed, aOutput)) {
+			return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+		}
+		if (parsed.Hosts.size() > maximum_auth_status_hosts) {
+			return std::unexpected{ gh_cli_auth_status_failure::response_limit };
+		}
+
+		auto result       = std::vector<gh_cli_authenticated_account>{ };
+		auto accountCount = std::size_t{ 0U };
+		result.reserve(parsed.Hosts.size());
+		for (const auto& [hostname, accounts] : parsed.Hosts) {
+			if (accounts.size() > maximum_auth_status_accounts - accountCount) {
+				return std::unexpected{ gh_cli_auth_status_failure::response_limit };
+			}
+			accountCount += accounts.size();
+			if (!application::valid_github_canonical_hostname(hostname)) {
+				return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+			}
+			auto admitted = std::optional<gh_cli_authenticated_account>{ };
+			for (const auto& account : accounts) {
+				const auto validLogin = !account.Login.empty() && account.Login.size() <= 128U
+					&& std::ranges::all_of(account.Login, [](const unsigned char aByte) {
+						   return aByte >= 0x21U && aByte <= 0x7eU;
+					   });
+				if (account.Host != hostname || !validLogin || account.State.size() > 32U) {
+					return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+				}
+				if (!account.Active || account.State != "success") {
+					continue;
+				}
+				if (admitted.has_value()) {
+					return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+				}
+				admitted = gh_cli_authenticated_account{
+					.Hostname = hostname,
+					.Login    = account.Login,
+				};
+			}
+			if (admitted.has_value()) {
+				result.push_back(std::move(*admitted));
+			}
+		}
+		return result;
 	}
 
 	auto compile_gh_cli_exact_blob_request(

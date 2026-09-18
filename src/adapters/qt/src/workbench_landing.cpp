@@ -56,6 +56,10 @@ namespace bpr::qt {
 		Secondary->setObjectName(QStringLiteral("workbenchHomeSecondaryButton"));
 		Secondary->setAutoDefault(false);
 		Secondary->setFocusPolicy(Qt::StrongFocus);
+		Tertiary = new QPushButton{ this };
+		Tertiary->setObjectName(QStringLiteral("workbenchHomeTertiaryButton"));
+		Tertiary->setAutoDefault(false);
+		Tertiary->setFocusPolicy(Qt::StrongFocus);
 		connect(Primary, &QPushButton::clicked, this, [this] {
 			if (PrimaryDispatch) {
 				PrimaryDispatch();
@@ -64,6 +68,11 @@ namespace bpr::qt {
 		connect(Secondary, &QPushButton::clicked, this, [this] {
 			if (SecondaryDispatch) {
 				SecondaryDispatch();
+			}
+		});
+		connect(Tertiary, &QPushButton::clicked, this, [this] {
+			if (TertiaryDispatch) {
+				TertiaryDispatch();
 			}
 		});
 
@@ -83,6 +92,7 @@ namespace bpr::qt {
 		Buttons->setSpacing(8);
 		Buttons->addWidget(Primary);
 		Buttons->addWidget(Secondary);
+		Buttons->addWidget(Tertiary);
 		Buttons->addStretch(1);
 
 		auto* const column = new QVBoxLayout;
@@ -116,11 +126,18 @@ namespace bpr::qt {
 			Primary->setAccessibleName(QStringLiteral("Sign in to GitHub"));
 			Primary->setAccessibleDescription(QStringLiteral(
 				"Opens Accounts and hosts in Settings and begins a device sign-in there."));
-			Secondary->setText(QStringLiteral("Add enterprise server"));
-			Secondary->setAccessibleName(QStringLiteral("Add enterprise server"));
+			Secondary->setText(QStringLiteral("Use GitHub CLI"));
+			Secondary->setAccessibleName(QStringLiteral("Use GitHub CLI"));
 			Secondary->setAccessibleDescription(QStringLiteral(
+				"Checks the active authenticated hosts in your installed gh after you choose it."));
+			Tertiary->setText(QStringLiteral("Add enterprise server"));
+			Tertiary->setAccessibleName(QStringLiteral("Add enterprise server"));
+			Tertiary->setAccessibleDescription(QStringLiteral(
 				"Opens Accounts and hosts in Settings with a new enterprise server card to fill in."));
-			setAccessibleDescription(QStringLiteral("Sign in to GitHub, or add an enterprise server"));
+			setAccessibleDescription(
+				GithubCliAvailable
+					? QStringLiteral("Sign in to GitHub, use GitHub CLI, or add an enterprise server")
+					: QStringLiteral("Sign in to GitHub or add an enterprise server"));
 			break;
 		case landing_state::back_to_review: {
 			// Home over an open review closes nothing; the first thing on the
@@ -142,6 +159,9 @@ namespace bpr::qt {
 			Secondary->setText(QString{ });
 			Secondary->setAccessibleName(QString{ });
 			Secondary->setAccessibleDescription(QString{ });
+			Tertiary->setText(QString{ });
+			Tertiary->setAccessibleName(QString{ });
+			Tertiary->setAccessibleDescription(QString{ });
 			setAccessibleDescription(reviewing);
 			break;
 		}
@@ -156,11 +176,15 @@ namespace bpr::qt {
 			Secondary->setText(QString{ });
 			Secondary->setAccessibleName(QString{ });
 			Secondary->setAccessibleDescription(QString{ });
+			Tertiary->setText(QString{ });
+			Tertiary->setAccessibleName(QString{ });
+			Tertiary->setAccessibleDescription(QString{ });
 			setAccessibleDescription(QString{ });
 			break;
 		}
 		Primary->setToolTip(Primary->accessibleDescription());
 		Secondary->setToolTip(Secondary->accessibleDescription());
+		Tertiary->setToolTip(Tertiary->accessibleDescription());
 		apply_arrangement();
 		apply_illustration_layout();
 		updateGeometry();
@@ -190,7 +214,8 @@ namespace bpr::qt {
 		Title->setFont(titleFont);
 		Body->setVisible(card);
 		Primary->setVisible(card || row);
-		Secondary->setVisible(card);
+		Secondary->setVisible(card && GithubCliAvailable);
+		Tertiary->setVisible(card);
 		Shortcut->setVisible(row);
 		if (card) {
 			Content->setContentsMargins(
@@ -198,6 +223,15 @@ namespace bpr::qt {
 		} else {
 			Content->setContentsMargins(page_inset, row_inset, page_inset, row_inset);
 		}
+	}
+
+	void workbench_landing::set_github_cli_available(const bool aAvailable)
+	{
+		if (GithubCliAvailable == aAvailable) {
+			return;
+		}
+		GithubCliAvailable = aAvailable;
+		set_state(State);
 	}
 
 	void workbench_landing::set_review_identity(const QString& aIdentity)
@@ -235,6 +269,11 @@ namespace bpr::qt {
 	auto workbench_landing::secondary_button() const noexcept -> QPushButton*
 	{
 		return Secondary;
+	}
+
+	auto workbench_landing::tertiary_button() const noexcept -> QPushButton*
+	{
+		return Tertiary;
 	}
 
 	auto workbench_landing::title_label() const noexcept -> QLabel*
@@ -312,6 +351,11 @@ namespace bpr::qt {
 	void workbench_landing::set_secondary_dispatch(std::function<void()> aDispatch)
 	{
 		SecondaryDispatch = std::move(aDispatch);
+	}
+
+	void workbench_landing::set_tertiary_dispatch(std::function<void()> aDispatch)
+	{
+		TertiaryDispatch = std::move(aDispatch);
 	}
 
 	void workbench_landing::paintEvent(QPaintEvent* const aEvent)

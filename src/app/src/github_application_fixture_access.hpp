@@ -77,6 +77,12 @@ namespace bpr::app::detail {
 
 	struct github_public_path_fixture_options
 	{
+		struct github_cli_discovery_account
+		{
+			std::string Hostname;
+			std::string Login;
+		};
+
 		std::optional<std::filesystem::path>      ApplicationDataRoot;
 		std::shared_ptr<qt::dif_catalog_provider> DifCatalog;
 		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
@@ -103,13 +109,17 @@ namespace bpr::app::detail {
 		// RFC-BPR-0012 construction cuts. One per composed surface, each
 		// removing exactly one construction and nothing else, so a course can
 		// show that the gesture still fires and its effect is gone.
-		bool                                 DisableAgentFindingHostComposition = false;
-		bool                                 DisableChatSessionHostComposition  = false;
-		bool                                 DisableCommentWorkshopComposition  = false;
-		bool                                 DisableMcpHelperComposition        = false;
-		bool                                 DisableSideChatPanelComposition    = false;
-		bool                                 DisableFindingQueueComposition     = false;
-		std::optional<std::filesystem::path> ExternalAgentExecutable;
+		bool DisableAgentFindingHostComposition = false;
+		bool DisableChatSessionHostComposition  = false;
+		bool DisableCommentWorkshopComposition  = false;
+		bool DisableMcpHelperComposition        = false;
+		bool DisableSideChatPanelComposition    = false;
+		bool DisableFindingQueueComposition     = false;
+		/// [[BPR-0909]]. Synthetic token-free `gh auth status` result. Presence
+		/// enables discovery inside the test boundary without inspecting the
+		/// developer's real CLI configuration.
+		std::optional<std::vector<github_cli_discovery_account>> GithubCliDiscoveryAccounts;
+		std::optional<std::filesystem::path>                     ExternalAgentExecutable;
 		/// Points the Codex JSONL profile at a fixture executable. That
 		/// protocol is the one with a result frame a finding payload can ride
 		/// on; the external terminal has none and refuses one by design.
