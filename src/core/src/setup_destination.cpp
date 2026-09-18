@@ -10,7 +10,12 @@ namespace bpr::core {
 		if (aPending.Owner != aOwner) {
 			return std::nullopt;
 		}
-		const auto found = std::ranges::find(aProfiles, aPending.Destination.Hostname, &setup_profile_observation::Hostname);
+		auto found = std::ranges::find_if(aProfiles, [&aPending](const auto& aProfile) {
+			return aProfile.Hostname == aPending.Destination.Hostname && aProfile.Authenticated;
+		});
+		if (found == aProfiles.end()) {
+			found = std::ranges::find(aProfiles, aPending.Destination.Hostname, &setup_profile_observation::Hostname);
+		}
 		aPending.Profile.reset();
 		aPending.Stage = setup_destination_stage::add_server;
 		if (found != aProfiles.end()) {

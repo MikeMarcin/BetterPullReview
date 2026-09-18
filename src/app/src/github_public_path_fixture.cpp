@@ -1148,6 +1148,7 @@ namespace bpr::app::detail {
 			// recorded transports serve each of them. The counts are still
 			// kept, so a course that reads them still reads the truth.
 			bool                                        RepeatSessions = false;
+			bool                                        CliEnabled     = false;
 			std::optional<core::application_session_id> AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
 			// its start once it is consumed, so the product's re-read is
@@ -1777,6 +1778,26 @@ namespace bpr::app::detail {
 				, AccountTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::account) }
 				, AnonymousTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::anonymous) }
 			{
+			}
+
+			[[nodiscard]] auto supports_cli() const noexcept -> bool override { return State->CliEnabled; }
+
+			[[nodiscard]] auto make_cli(
+				const adapters::github::validated_github_host_profile& aProfile,
+				const core::github_session_request_context             aContext) noexcept
+				-> github_wire_transport_factory_result override
+			{
+				const std::scoped_lock lock{ State->Mutex };
+				if (!State->CliEnabled || aProfile.hostname() != State->Profile.hostname()
+					|| aProfile.host() != State->Profile.host() || aProfile.server_contract() != State->Profile.server_contract()
+					|| aProfile.authentication_transport() != application::github_authentication_transport::github_cli
+					|| aContext.Profile != aProfile.profile() || State->AccountFactoryCalls != 0U) {
+					return std::unexpected{ provider_error(application::github_provider_failure::unavailable) };
+				}
+				State->Profile               = aProfile;
+				State->AuthenticationSession = aContext.ApplicationSession;
+				++State->AccountFactoryCalls;
+				return AccountTransport;
 			}
 
 			[[nodiscard]] auto make_bootstrap(
@@ -3127,6 +3148,7 @@ namespace bpr::app::detail {
 				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead, aOptions.TimelineCourse);
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings || aOptions.IndependentWindowReads;
 			Recording->RepeatReads    = aOptions.RepeatReadSessions;
+			Recording->CliEnabled     = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since

@@ -50,5 +50,22 @@ int main()
 	pending.Destination.Hostname = "github.com";
 	resolved                     = resolve_setup_destination(pending, owner, both);
 	expect(resolved && resolved->Stage == setup_destination_stage::ready, "an account wins over preview");
+	const auto nativeAndCli = std::array{
+		setup_profile_observation{ host_profile_id{ 3U }, "ghe.example", false, false },
+		setup_profile_observation{ host_profile_id{ 4U }, "ghe.example", true, false },
+		setup_profile_observation{ host_profile_id{ 5U }, "other.example", false, false },
+	};
+	pending.Destination.Hostname = "ghe.example";
+	resolved                     = resolve_setup_destination(pending, owner, nativeAndCli);
+	expect(resolved && resolved->Profile == host_profile_id{ 4U } && resolved->Stage == setup_destination_stage::ready, "accepted CLI profile wins over earlier inactive native profile");
+	expect(accept_setup_destination(resolved, request, owner, host_profile_id{ 4U }, "ghe.example") == pending.Destination, "CLI destination is accepted without native enrollment");
+	pending.Destination.Hostname = "other.example";
+	resolved                     = resolve_setup_destination(pending, owner, nativeAndCli);
+	expect(resolved && resolved->Profile == host_profile_id{ 5U } && resolved->Stage == setup_destination_stage::sign_in, "another host cannot borrow CLI authentication");
+	pending.Destination.Hostname  = "ghe.example";
+	auto disconnected             = nativeAndCli;
+	disconnected[1].Authenticated = false;
+	resolved                      = resolve_setup_destination(pending, owner, disconnected);
+	expect(resolved && resolved->Profile == host_profile_id{ 3U } && resolved->Stage == setup_destination_stage::sign_in, "disconnected CLI profile does not grant authentication");
 	return EXIT_SUCCESS;
 }

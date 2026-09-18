@@ -9401,10 +9401,14 @@ namespace bpr::app {
 		[[nodiscard]] auto owner() const -> core::setup_owner_id override { return SetupOwner; }
 		[[nodiscard]] auto profiles() const -> std::vector<application::setup_profile_observation> override
 		{
-			auto       result    = std::vector<application::setup_profile_observation>{ };
-			const auto authority = Host ? Host->accepted_credential_authority() : std::nullopt;
+			auto       result  = std::vector<application::setup_profile_observation>{ };
+			const auto session = Host ? Host->accepted_session() : std::nullopt;
 			for (const auto& profile : Profiles) {
-				if (profile.authentication_transport() != application::github_authentication_transport::native_https) {
+				const auto authenticated = session && session->Mode == core::github_access_mode::authenticated
+					&& session->Profile == profile.profile() && session->Host == profile.host();
+				// CLI discovery is not authentication. Only the accepted CLI
+				// session participates; inactive profiles retain native setup.
+				if (profile.authentication_transport() != application::github_authentication_transport::native_https && !authenticated) {
 					continue;
 				}
 				// [[BPR-0732]]. Preview is the composition's anonymous authority
@@ -9412,8 +9416,8 @@ namespace bpr::app {
 				// so a GHES profile with no account keeps the sign-in stop.
 				result.push_back({ .Profile          = profile.profile(),
 								   .Hostname         = std::string{ profile.hostname() },
-								   .Authenticated    = authority && authority->Profile == profile.profile() && Host->accepted_session().has_value(),
-								   .PreviewAvailable = PublicPreviewComposed && profile.server_contract() == application::github_server_contract::github_com_2022_11_28 });
+								   .Authenticated    = authenticated,
+								   .PreviewAvailable = PublicPreviewComposed && profile.authentication_transport() == application::github_authentication_transport::native_https && profile.server_contract() == application::github_server_contract::github_com_2022_11_28 });
 			}
 			return result;
 		}
@@ -9774,14 +9778,15 @@ namespace bpr::app {
 		}
 		void open(const core::host_profile_id aProfile, const core::setup_destination& aDestination) override
 		{
-			const auto  authority = Host ? Host->accepted_credential_authority() : std::nullopt;
-			const auto& session   = Host ? Host->accepted_session() : std::optional<application::github_session_read_model>{ };
-			const auto* profile   = find_profile(aProfile);
+			const auto& session = Host ? Host->accepted_session() : std::optional<application::github_session_read_model>{ };
+			const auto* profile = find_profile(aProfile);
 			// [[BPR-0732]]. A signed-out session opens too, for the exact
 			// profile it was activated for; it still has no authority.
 			const auto previewing = session && session->Mode == core::github_access_mode::public_preview && session->Profile == aProfile
 				&& profile != nullptr && profile->hostname() == aDestination.Hostname;
-			const auto authenticated = authority && authority->Profile == aProfile && authority->Hostname.value() == aDestination.Hostname && session.has_value();
+			// Accepted sessions cover both native credentials and token-free CLI leases.
+			const auto authenticated = session && session->Mode == core::github_access_mode::authenticated && session->Profile == aProfile
+				&& profile != nullptr && session->Host == profile->host() && profile->hostname() == aDestination.Hostname;
 			if (!previewing && !authenticated) {
 				return;
 			}

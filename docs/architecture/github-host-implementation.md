@@ -1934,3 +1934,14 @@ same application lifetime, before profile or vault effects. Restarting the
 application retries the load. A restored grant that arrives during a pending
 device flow remains the preceding session's binding until that flow validates
 its own account.
+
+## Connected CLI destination routing
+
+The setup profile observation uses the host's accepted authenticated session,
+including CLI leases that intentionally have no native credential-vault key.
+Only an accepted CLI session participates in pasted-link resolution; account
+inventory does not grant authentication. The core prefers an authenticated
+exact-host profile over an inactive native profile, then retains the existing
+native sign-in or anonymous-preview fallback. Opening checks the accepted
+session's profile and host against the configured destination before dispatching
+the window read. Publication admission is unchanged.

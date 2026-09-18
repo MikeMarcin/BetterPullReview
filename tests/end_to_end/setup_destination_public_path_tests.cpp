@@ -242,6 +242,61 @@ namespace {
 	}
 
 #if defined(__APPLE__)
+	void run_connected_cli_destination_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated connected CLI root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private connected CLI root");
+		options.IndependentWindowReads     = true;
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
+			{ .Hostname = "ghe.example.invalid", .Login = "octo-reviewer" }
+		};
+		std::unique_ptr<bpr::app::github_application> application;
+		auto                                          terminal = false;
+		auto                                          startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::ghes_3_18, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "connected CLI startup completes");
+		expect(application != nullptr, "connected CLI startup succeeds");
+		auto& window = application->window();
+		window.show();
+		QApplication::processEvents();
+		window.home_landing()->secondary_button()->click();
+		wait_for([&] { return window.github_cli_discovery_status()->text().contains(QStringLiteral("Found 1")); }, "CLI discovery completes");
+		auto* card = window.server_cards().front();
+		expect(card->hostname() == "ghe.example.invalid" && card->native_option() && card->cli_option(), "native and CLI options share the Enterprise host");
+		const auto cliProfile = card->cli_option()->Profile;
+		QTimer::singleShot(0, [] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				prompt->button(QMessageBox::Yes)->click();
+			}
+		});
+		card->cli_offer_button()->click();
+
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready || window.session_panel()->status() == core::github_status::session_failed; }, "CLI connection reaches a terminal");
+		if (window.session_panel()->status() != core::github_status::session_ready) {
+			std::cerr << "CLI fixture failure: " << window.statusBar()->currentMessage().toStdString() << '\n';
+		}
+		expect(window.session_panel()->status() == core::github_status::session_ready, "CLI session is accepted before opening a PR");
+		submit(window, QStringLiteral("https://ghe.example.invalid/octo-org/review-repository/pull/17"));
+		expect(button(window, "homeSetupContinue")->isHidden(), "connected CLI paste does not offer native sign-in");
+		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "pasted Enterprise link reaches the PR through the accepted CLI session");
+		const auto evidence = github_application_fixture_access::evidence(*application);
+		expect(window.session_panel()->selected_profile() == cliProfile && evidence.AccountTransportSelected, "exact CLI profile serves the recorded PR");
+		expect(evidence.VaultStores == 0U && evidence.VaultRetrieveAttempts == 0U && !evidence.BootstrapTransportSelected, "CLI link opens without native credential access");
+		capture(window, QStringLiteral("setup-connected-cli.png"));
+		submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
+		expect(button(window, "homeSetupContinue")->text() == QStringLiteral("Add server and continue"), "another host cannot reuse CLI authentication");
+		button(window, "homeSetupCancel")->click();
+		application->begin_shutdown();
+		wait_for([&] { return application->status().ShutdownComplete; }, "connected CLI work quiesces");
+	}
+
 	void run_github_cli_discovery_course()
 	{
 		auto temporary = QTemporaryDir{ };
@@ -308,7 +363,7 @@ namespace {
 			if (auto* const prompt = qobject_cast<QMessageBox*>(
 					QApplication::activeModalWidget());
 				prompt != nullptr) {
-				prompt->done(QMessageBox::Yes);
+				prompt->button(QMessageBox::Yes)->click();
 			}
 		});
 		discovered->cli_offer_button()->click();
@@ -332,6 +387,7 @@ int main(int aArgc, char** aArgv)
 	run_course(true);
 #if defined(__APPLE__)
 	run_github_cli_discovery_course();
+	run_connected_cli_destination_course();
 #endif
 	std::cout << "setup-destination-public-path:pass\n";
 	return EXIT_SUCCESS;

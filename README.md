@@ -125,6 +125,12 @@ exercise this path; no live PR was written. Windows and Linux remain
 unavailable. Mac qualification is recorded by BPR-0787; formal RFC closeout
 remains with BPR-0788 and the canonical predecessor gate.
 
+After a CLI profile connects, pasting a PR link for that exact host reuses the
+accepted CLI session, including when an unconnected native profile also exists
+for that server. Discovering a CLI account alone does not connect it. Home does
+not yet discover authored or requested PRs automatically; personal discovery
+remains tracked under RFC-BPR-0026.
+
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,
 socket routing, CA and redirect behavior, active account and helper processes.
