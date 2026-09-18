@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "A composed Overview Start review gesture enters Review, never an empty Read page.",
+      "outcome": "pass",
+      "revision": "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_review_behaviour_contract passed the natural pre-receipt Start projection entering Review."
+      }
+    },
+    {
+      "criterion": "Define and exercise file selection or an honest empty/error state, including the unavailable-comparison case in BPR-0922; no blank dead end.",
+      "outcome": "pass",
+      "revision": "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+      "evidence": {
+        "kind": "command",
+        "detail": "The typed Overview dispatch selects its projected file; overview, workbench, and composed source tests passed the usable comparison and actionable unavailable cases."
+      }
+    },
+    {
+      "criterion": "Continue review preserves the intended existing review position; starting either path publishes nothing.",
+      "outcome": "pass",
+      "revision": "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The composed seed course exercised natural Continue after preference and receipt acceptance; Start and Continue both left the recorded mutation counters unchanged."
+      }
+    }
+  ]
+}

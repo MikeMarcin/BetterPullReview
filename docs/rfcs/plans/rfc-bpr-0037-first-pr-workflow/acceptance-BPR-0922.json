@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "Establish the failing boundary with a composed reproducer and exact request/comparison identity; distinguish observation from root-cause inference.",
+      "outcome": "pass",
+      "revision": "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "milestone-source-update-review-entry-evidence.md records the CLI-typed GHES smart-acquisition refusal, exact evidence limits, and no claim about the owner's unobserved live cause."
+      }
+    },
+    {
+      "criterion": "Supported stable comparisons open source for multiple files and render the intended base/head content after initial PR load.",
+      "outcome": "pass",
+      "revision": "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_setup_destination_public_path passed and rendered exact base/head first lines for review.cpp and secondary.cpp from the recorded Git packs."
+      }
+    },
+    {
+      "criterion": "Real head/selection replacement still rejects stale content; unsupported or missing comparisons explain the actual reason and provide an actionable recovery state.",
+      "outcome": "pass",
+      "revision": "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_workbench_host and qt_workbench_window_scale_100 passed the unavailable-context and genuine replacement-stale distinctions; the composed refusal retained no source and offered Refresh."
+      }
+    },
+    {
+      "criterion": "Verify history and source loading together on recorded GHES/CLI fixtures; preserve credentials/private repository content outside committed fixtures and logs.",
+      "outcome": "pass",
+      "revision": "5b95485c9432cd365e8cedffc3aee0ea7d52b164",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The composed course selected a discovered github_cli profile on the recorded GHES contract, retained two epochs, used no vault/bootstrap path, and contacted no live target."
+      }
+    }
+  ]
+}

@@ -25,10 +25,12 @@ This registration consolidates owner feedback; no runtime evidence exists yet.
 
 - Run/dispatch: `rfc0037-run-20260918` / `rfc0037-dispatch-001`; mandate revision `1`; producer `/root/rfc0037_m1`.
 - Adopted plan: `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json`; current milestone `source-update-review-entry` is bound by `assignment-rfc0037-dispatch-001.json` in the same directory.
-- Outcome: execute BPR-0922, BPR-0921 and BPR-0919 as one composed first-review entry boundary. No runtime candidate or accepted criterion exists yet.
-- Owned paths: current milestone source/tests/documentation plus its three card transitions and these workflow records. No child or long-running command is active at this checkpoint.
-- Pending obligations: diagnose recorded source/history failure together; retain exact stale guards; make Overview Start review enter Review without publication; exercise the composed recorded-fixture path and focused checks.
-- Next discriminating step: inspect the current composition, transition and existing synthetic CLI/GHES courses, then claim the dependency-ready cards before source edits.
+- Outcome: source candidate `5b95485c9432cd365e8cedffc3aee0ea7d52b164` preserves Start/Continue as a typed overview dispatch, makes Start select its projected file and enter Review, keeps file rows in Read, and maps an absent exact comparison to an actionable comparison-unavailable failure rather than falsely claiming that the file changed. Genuine stale selected-diff terminals retain the stale guard.
+- Composed evidence: a confirmed CLI-typed GHES fixture records the exact unavailable acquisition boundary without source or credentials; supported single/reuse launches over one durable store retain two actual epochs and render both recorded files. Natural Start and Continue enter Review without publication. Evidence is in `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-source-update-review-entry-evidence.md`.
+- Investigation boundary: the course establishes current behavior and one shared recorded acquisition boundary, not the owner run's cause. The exact owner build, CLI/Git versions and live target remain unobserved; no live target was contacted.
+- Verification/review: focused host, Qt, composed application, CLI/Git, GHES, history, multi-window, formatting and fixture checks passed. The critical correction review accepted the candidate with no remaining finding.
+- Ownership: both read-only scouts and the critical reviewer completed without edits; all test commands are complete. The three milestone cards are ready for dependency-ordered acceptance and no child writer or long-running command is active.
+- Next bounded objective after this milestone: begin `overview-conversation-decisions` in a fresh integration context; RFC closeout remains blocked on that milestone, `thread-reading-integration`, combined evidence and any required human/native observations.
 
 ## Closeout checklist
 
