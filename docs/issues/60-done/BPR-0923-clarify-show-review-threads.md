@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0923"
 title: "Clarify or replace the Show review threads action"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
+acceptance: [{"criterion":"Document the action's actual behavior and why its current label does not make that effect apparent.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"artifact","detail":"conversation-surface-layout-study.md traces Show review threads to focus/select/expand/center of the first currently filtered thread root. It neither loads data, clears filters nor opens the drawer, and may focus an empty model, so 'Show' obscures its focus-only effect."}},{"criterion":"Replace the redundant gesture with a clear reachable behavior and before/after interaction.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"artifact","detail":"The selected design removes the drawer action, automatically reveals accepted PR-wide content in Discuss and permits only an Open discussions shortcut to that same state. The study records the inherited-filter blank before case and PR-wide result after case."}},{"criterion":"Define explicit accessible loading, no-threads, filtered-empty and failure states with no silent no-op.","outcome":"pass","revision":"fe6ac3633a61bf5fc4abab0057f6546d412c6446","evidence":{"kind":"artifact","detail":"The selected state table distinguishes initial loading, accepted empty, filtered empty with active scope/Clear filters, refreshing, failed refresh, unavailable capability and authority replacement. BPR-0929 binds accessible runtime acceptance for the replacement flow."}}]
 ---
 
 # Clarify or replace the Show review threads action
