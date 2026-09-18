@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0913"
 title: "Require gh 2.96 for CLI account discovery"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
