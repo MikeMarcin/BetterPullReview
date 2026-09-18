@@ -75,6 +75,26 @@
       }
     },
     {
+      "name": "macos-release",
+      "displayName": "Universal macOS release application",
+      "description": "Tests-disabled universal application used by the local signing, notarization, and packaging workflow.",
+      "inherits": "_ninja-common",
+      "binaryDir": "${sourceDir}/build/macos-release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "BPR_BUILD_QT": "ON",
+        "BPR_MACOS_CODESIGN_IDENTITY": "-",
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
+        "CMAKE_TEST_BUILD_DEPENDS": "OFF"
+      }
+    },
+    {
       "name": "windows-dev",
       "displayName": "Windows developer build",
       "inherits": "_common",
@@ -130,6 +150,14 @@
       "name": "app-release",
       "inherits": "_build-common",
       "configurePreset": "app-release",
+      "targets": [
+        "app_better_pull_review"
+      ]
+    },
+    {
+      "name": "macos-release",
+      "inherits": "_build-common",
+      "configurePreset": "macos-release",
       "targets": [
         "app_better_pull_review"
       ]
@@ -202,6 +230,14 @@
       "steps": [
         { "type": "configure", "name": "app-release" },
         { "type": "build", "name": "app-release" }
+      ]
+    },
+    {
+      "name": "macos-release",
+      "displayName": "Configure and build the universal tests-disabled macOS app",
+      "steps": [
+        { "type": "configure", "name": "macos-release" },
+        { "type": "build", "name": "macos-release" }
       ]
     },
     {

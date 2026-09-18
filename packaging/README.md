@@ -79,10 +79,34 @@ cancellation timing; the single-success trace is dependency evidence only.
 Tracked and on-disk scans found no GitHub Actions workflow file, and the
 source/build configuration selected no GitHub Actions integration.
 
-The macOS and Linux observations are development build/runtime evidence, not
-a signed, notarized, bundled, or installable package claim. RFC-BPR-0014 still
-owns trusted Qt plugin placement, complete transitive dependency inventory,
-SBOM, signing/notarization, installers, launch, upgrade, and uninstall evidence.
+The macOS production identity is `com.gamecoretech.betterpullreview`, registered
+under App ID prefix/team `YTQKP2V2A8` without optional capabilities or managed
+capability requests. `tools/release.sh --version X.Y.Z` is the narrow private
+macOS distribution path: it builds the tests-disabled universal product,
+deploys the allow-listed Qt runtime, signs with Developer ID and hardened
+runtime, notarizes and staples the app and DMG, and emits DMG/ZIP/checksums.
+`tools/publish-release.sh` separately guards GitHub visibility as `PRIVATE`
+before any tag push or release creation. Signing credentials remain outside the
+repository. This slice does not satisfy the full RFC-BPR-0014 cross-platform,
+SBOM, license, install/upgrade/uninstall, or clean-target acceptance matrix.
+
+The one-time notarization setup is interactive so the app-specific password is
+entered into Keychain rather than a shell argument or repository file:
+
+```sh
+xcrun notarytool store-credentials BetterPullReview-notary \
+  --apple-id YOUR_APPLE_ID \
+  --team-id YTQKP2V2A8
+```
+
+After that profile exists, `tools/release.sh --version X.Y.Z` performs the
+Apple submissions. `--skip-notarize` exists only for local package-path
+verification and does not produce a distribution-ready artifact.
+
+The Linux observations remain development build/runtime evidence, not a signed,
+bundled, or installable package claim. RFC-BPR-0014 still owns complete
+transitive dependency inventory, SBOM, other-platform signing and installers,
+launch, upgrade, uninstall, and clean-machine evidence.
 Windows target-native execution is nonblocking for current implementation and
 documentation work but remains required for the affected Windows claim and
 RFC-BPR-0002 closeout. The public host policy requires exact deletion on

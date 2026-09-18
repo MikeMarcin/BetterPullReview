@@ -360,7 +360,7 @@ if(BPR_BUILD_QT)
                     MACOSX_BUNDLE_BUNDLE_NAME "BetterPullReview"
                     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
                     MACOSX_BUNDLE_GUI_IDENTIFIER
-                        "io.github.MikeMarcin.BetterPullReview"
+                        "com.gamecoretech.betterpullreview"
                     MACOSX_BUNDLE_ICON_FILE "better_pull_review.icns"
                     MACOSX_BUNDLE_INFO_PLIST
                         "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"

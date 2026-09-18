@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0908"
+  ],
+  "reserve_for": "rfc0015-private-macos-test-release",
+  "purpose": "Prepare the minimum private notarized macOS distribution path for a real GHES test",
+  "created": "2026-09-18T04:09:58.926648+00:00",
+  "base": "b7d5beb61baee9fc51a81519946fb133d1e913c3"
+}
