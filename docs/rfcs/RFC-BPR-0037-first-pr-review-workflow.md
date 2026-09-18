@@ -50,13 +50,13 @@ new wording or weakened exact-comparison guards.
 |---|---|---|
 | [BPR-0918](../issues/30-in-progress/BPR-0918-long-overview-description-layout.md) | Long overview descriptions | AC-01 |
 | [BPR-0919](../issues/60-done/BPR-0919-start-review-opens-review-mode.md) | Start review navigation | AC-02 |
-| [BPR-0920](../issues/10-backlog/BPR-0920-redesign-conversations-drawer-review-composition.md) | Review composition and drawer redesign | AC-03 |
+| [BPR-0920](../issues/20-ready/BPR-0920-redesign-conversations-drawer-review-composition.md) | Review composition and drawer redesign | AC-03 |
 | [BPR-0921](../issues/60-done/BPR-0921-loaded-pr-update-history-empty.md) | Missing updates | AC-04 |
 | [BPR-0922](../issues/60-done/BPR-0922-source-files-exact-comparison-unavailable.md) | Source-loading blocker | AC-05 |
-| [BPR-0923](../issues/10-backlog/BPR-0923-clarify-show-review-threads.md) | Show review threads | AC-06 |
+| [BPR-0923](../issues/20-ready/BPR-0923-clarify-show-review-threads.md) | Show review threads | AC-06 |
 | [BPR-0924](../issues/10-backlog/BPR-0924-thread-body-clipping-and-slow-nested-scroll.md) | Clipped threads and slow nested scrolling | AC-07 |
 | [BPR-0925](../issues/10-backlog/BPR-0925-duplicate-thread-below-conversation-graph.md) | Apparent duplicate thread rendering | AC-08 |
-| [BPR-0926](../issues/10-backlog/BPR-0926-discuss-threads-without-file-selection.md) | Empty Discuss and file-independent reading | AC-09 |
+| [BPR-0926](../issues/20-ready/BPR-0926-discuss-threads-without-file-selection.md) | Empty Discuss and file-independent reading | AC-09 |
 
 ## Source and update correctness
 

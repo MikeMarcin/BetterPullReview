@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0920"
 title: "Revisit review composition placement and Conversations drawer layout"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
