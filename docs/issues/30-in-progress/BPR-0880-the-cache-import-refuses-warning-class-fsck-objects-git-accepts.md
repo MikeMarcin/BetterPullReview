@@ -112,9 +112,42 @@ Git measured to know it and is offered only to an installation at or above that
 version, because an identifier Git does not know is answered with
 `fatal: Unhandled message id` and would fail every import on that installation.
 The list is encoded for the oldest supported Git, never for this station's.
-Eleven rows are Git 2.2-era and carry the admitted floor, 2.39.0; the four
-`.gitattributes`/`.gitignore`/`.mailmap` symlink checks carry 2.39.5, the
-oldest admitted Git the change was actually measured against.
+All fifteen carry the admitted floor, 2.39.0.
+
+**What a recorded floor means, and how to tell a measured one from a guess.**
+A row recorded at 2.39.0 is one the Git 2.34.1 probe already knew, and Git does
+not retire message identifiers, so every admitted Git knows it too. A row
+recorded higher is one that answered `fatal: Unhandled message id` on the
+oldest Git it was tried against; that version is where the evidence starts, not
+where the identifier was introduced. Lowering such a row needs a measurement,
+never an inference from a release note.
+
+**The three Gits, by their own `git --version` output:**
+
+| Reported version | Where |
+|---|---|
+| `git version 2.34.1` | `ubuntu:22.04` container, run from this station |
+| `git version 2.39.5` | `debian:bookworm` container, run from this station |
+| `git version 2.53.0` | `/usr/bin/git` on bpr-linux (stn-3f7fcc92) |
+
+The encoding rule is "the oldest Git across the platforms", and three measured
+versions are what make it checkable rather than asserted: Git answers an
+identifier it does not know with `fatal: Unhandled message id` and exits 128,
+so a single wrong row would fail **every** import on that installation, not
+just the pull request that carries such an object.
+
+Probed directly on Git 2.34.1: all fifteen shipped identifiers are known
+(`nulInHeader` and `unterminatedHeader` answer `Cannot demote`, which is also
+Git saying it knows them), while `largePathname` and a deliberately bogus
+control identifier both answer `Unhandled message id`.
+
+**Five rows were lowered from 2.39.5 to 2.39.0, each established by the same
+2.34.1 probe:** `gitattributesSymlink`, `gitignoreSymlink` and `mailmapSymlink`
+(shipped `INFO` rows — before the correction they were gated out of Git 2.39.0
+through 2.39.4, where the symlinked-`.gitignore` dead end would have persisted
+and the new information-class row would have failed), and `nulInHeader` and
+`unterminatedHeader` (`FATAL` rows, never shipped; corrected so the table's
+recorded evidence is accurate rather than pessimistic).
 
 `largePathname` is **left out** below Git 2.53.0: it answers
 `Unhandled message id` on 2.39.5 and its introduction could not be dated from
@@ -163,7 +196,8 @@ list covers `INFO` for that reason, and `information-class.pack` (a symlinked
 ## Evidence and review
 
 Measured on Git 2.53.0 (this station) and, by the critical review, on Git
-2.39.5 in a container — the oldest admitted Git that could be obtained.
+2.39.5 and Git 2.34.1 in containers — 2.39.5 being the oldest admitted Git that
+could be obtained.
 The independent critical review found one blocking defect: an earlier draft
 excluded `gitattributesSymlink`, `gitignoreSymlink` and `mailmapSymlink` as
 "newer than the floor", which the 2.39.5 measurement falsified. They are in the
@@ -177,3 +211,42 @@ an empty name, `.GIT`, `GIT~1` and absolute paths, that Git's always-on
 `verify_path` in `read-tree` — not fsck — is what protects the agent workspace,
 so ignoring `hasDotgit`, `hasDot`, `hasDotdot`, `emptyName` and `fullPathname`
 does not open a checkout path.
+
+## The residue assertion this card removed, and what holds that guarantee
+
+A first draft of the error-class row in
+`tests/git_contract/git_process_contract_tests.cpp` asserted
+`index_pack_residue(repository / "objects" / "pack") == 0U` after a refusal —
+that a refused import leaves no `tmp_pack_XXXXXX` behind. It was wrong, and it
+failed here on Git 2.53.0 the first time it ran. Main removed the same
+assertion independently after it failed on Apple Git 2.50.1; this card reaches
+the same place and leaves it out.
+
+**What it was asserting.** That the *process* layer cleans up after a refused
+`index-pack`. **Why that layer is not the place for it.** `index-pack` opens
+its temporary pack before it fsck-checks any object and dies with that file
+open, so whether the temporary survives is Git's behaviour, and it differs by
+Git version and platform. The process adapter runs one command and reports its
+result; it never promised to tidy what Git left. Pinning the absence there
+turned a version difference into a product promise.
+
+**What holds the guarantee.** The cache does, and is tested for it.
+`installed_git_cache.cpp` calls `remove_failed_index_residue` on every failed
+import — unconditionally, off the `!indexed.has_value()` branch, with the
+single exception of `reap_failure`, which deliberately keeps the whole boundary
+quarantined — and `git_cache_contract` pins it: "a refused strict import
+reports index-pack's failure and leaves no temporary file" ([[BPR-0851]]).
+That path is not conditioned on the failure code, so this card's new
+`unsupported_object` refusal is cleaned up exactly like the refusals that came
+before it. The guarantee is held; only the layer claiming it has moved.
+
+A second review round on the first correction found one more: the three symlink
+checks had been recorded against 2.39.5 when Git 2.34.1 already knows them,
+which would have left the information class refused on Git 2.39.0 through
+2.39.4 and failed the new rows there. All fifteen now carry the floor. That
+round also found a defect outside this card's scope, in
+`scripts/contained_temporary_support.py`: it calls `shutil.rmtree(onexc=...)`,
+which needs Python 3.12, while `docs/development/build-and-test.md` promises
+3.10 or newer. Every fixture verifier that uses it, including this card's,
+inherits that requirement. It is reported to main with a patch rather than
+fixed here, because this station may not edit `scripts/`.

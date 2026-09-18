@@ -3903,9 +3903,18 @@ namespace {
 				require(
 					indexed.error().Detail == "duplicateEntries",
 					"the refusal names the exact fsck message class");
-				require(
-					index_pack_residue(repository / "objects" / "pack") == 0U,
-					"the refused import leaves no temporary file");
+				// [[BPR-0880]]. No residue claim here, deliberately. Removing
+				// Git's `tmp_pack_XXXXXX` after a refusal is the *cache's*
+				// guarantee, not this layer's: `installed_git_cache.cpp` owns
+				// the exact removal ([[BPR-0851]]) and
+				// `git_cache_contract_tests.cpp` pins it on the refused strict
+				// import. Asserting it here passed on Git 2.53 and failed on
+				// Apple Git 2.50.1, which leaves the temporary behind on an
+				// error-class refusal exactly as this card's original
+				// reproduction recorded -- so the assertion was reading a Git
+				// version difference as a product promise. What this layer does
+				// promise is the refusal itself, which the three requirements
+				// above pin.
 			}
 		}
 	}
