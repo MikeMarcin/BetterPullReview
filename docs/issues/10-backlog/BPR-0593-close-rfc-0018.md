@@ -12,6 +12,46 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-009, mandate r6): in progress — checkpoint written before long work
+
+This section is a live checkpoint for dsp-009 and is rewritten at its end.
+The dsp-008 section below holds except where this one corrects it.
+
+**Heads at this checkpoint.** Main `a87c0c2a` (local; `de6bc6bf` pushed).
+`origin/linux-lane` = `de6bc6bf`, **held there on purpose** (see below).
+`origin/windows-lane` = `cbf6d920`, labelled CHECKPOINT by `bpr-win`, not
+merged. The `project-integrator` lease is taken per command with
+`station_lease.py run`, not held by a long-lived process.
+
+**Done so far.** `bpr-linux`'s BPR-0906 RETURN `de6bc6bf` (docs only: the
+Linux exit-path measurement, a survivor is *reclaimed* not refused, and a
+second leaking row `application_attended_launch_contract`) is fast-forwarded
+onto main and pushed. [[BPR-0896]] is claimed (`a87c0c2a`).
+
+**In flight on the Mac.** One `rfc-worker` on Fable (mandate r6) building
+[[BPR-0896]] in an isolated worktree with its own build directory; its brief
+pins the design: a new `observe_review_thread_comments` operation compiling
+`query ObserveThreadComments` (POST to the GraphQL root), a GraphQL-envelope
+parser behind the same `parse_review_comment_observations` entry, **outdated
+and non-User comments are tolerated non-matches and never abort** a
+reconciliation, `fullDatabaseId` read as a string, side from the thread's
+`diffSide`, the CLI transport refuses the new operation with the other four,
+and session rows that assert every request's method/path/operation-name
+explicitly under the unchanged positional `fake_transport`. Its rows are
+**held** until `bpr-linux`'s spike checkpoint lands, and the linux-lane ref is
+held at `de6bc6bf` (defect side) so the spike's acceptance test stays runnable.
+A five-row POSIX check of `bpr-win`'s checkpoint runs in `build/r2-dev`
+(`build/r2-logs/dsp9-win-checkpoint-posix.log`); `build/dev` is a day stale and
+must not be used for evidence.
+
+**Decisions made.** Spike first for the `tests/github_contract/**` question,
+told to `bpr-linux`, which has started on Fable. The bpr-win checkpoint's three
+non-green corrections are to be kept, not reverted, pending the POSIX check.
+
+**Next.** Answer `bpr-win`; collect the worker; merge the spike checkpoint;
+land BPR-0896 on top; current macOS sweep and [[BPR-0893]] once the machine is
+quiet; then the dsp-008 objective order.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-008, mandate r6): a P1's blocking question is answered from the published schema, and the Windows lane is collected
 
 Dispatch dsp-008 ends here. The dsp-007 section below still holds except where
