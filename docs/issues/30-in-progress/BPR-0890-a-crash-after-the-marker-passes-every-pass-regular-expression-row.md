@@ -183,3 +183,91 @@ child and only needs to print, but its `WINDOWS_UNCONTAINED` rows run with no
 launcher at all and stay unguarded — which is exactly [[BPR-0875]]'s cluster.
 Both platforms already carry the property, so the launcher is the only thing
 left to change on each.
+
+## Windows: the launcher states the exit, and the uncontained set is measured (bpr-win, 2026-09-17)
+
+The tip is `86b049014577bb02ec6952868215b8c1d31a5589`.
+
+### The marker
+
+`tests/network_isolation/windows_network_sandbox.cpp` prints
+`TEST_RUNNER_CHILD_EXIT:<n>` after `GetExitCodeProcess`, and
+`TEST_RUNNER_CHILD_EXIT_FAILED:<n>` when the status is not zero, then flushes,
+before `CloseHandle`. Unsigned `%lu`: a Windows crash arrives as a status
+rather than a small number — `0xC0000005` is 3221225477, and this run met
+`0xC0000409` once already — and `%d` would print those negative. No CMake or
+gate change; the inherited failure expression is on every row already.
+
+### The measured gap: thirteen rows have no launcher, and it is currently empty
+
+A `WINDOWS_UNCONTAINED` row clears the isolation prefix entirely
+(`cmake/BprTestIsolation.cmake` ~702), so it runs with no launcher and
+therefore carries no `TEST_RUNNER_CHILD_EXIT` marker at all. That set is
+[[BPR-0875]]'s thirteen-row cluster — precisely where a shutdown fault would
+hide.
+
+**Measured on 2026-09-17 at `86b04901`: every green one of the thirteen exited
+0. The one red row is red on both signals.** So the gap is real and, today,
+empty.
+
+| Rows | Result |
+| --- | --- |
+| `application_workbench_composition_contract`, `application_overview_since_review_contract`, `application_review_behaviour_contract`, `application_saved_server_contract`, `application_appearance_theme_customization_contract`, `application_epoch_persistence_github-com`, `application_epoch_persistence_ghes-3_18`, `application_epoch_maintenance_public_path`, `application_appearance_gesture_contract`, `application_appearance_store_fallback_contract` | green, exit 0 |
+| `application_uiforetw_selected_diff_contract` | red on both signals: exit 1 **and** its pass expression does not match. [[BPR-0859]]'s capture fault |
+| `application_native_notification_attended_contract`, `application_review_round_trip_composition_contract` | green, exit 0, and **judged by the exit status directly** — see below |
+
+**The last two never needed this card's guard.** They carry a
+`FAIL_REGULAR_EXPRESSION` but no `PASS_REGULAR_EXPRESSION`, and it is only a
+pass expression that makes CTest ignore a non-zero exit. Their verdict is the
+exit status, with the failure expression as an additional veto — the stronger
+signal, not a weaker one. They are the part of the uncontained set this card's
+defect cannot reach.
+
+### The method, so this is re-runnable rather than re-invented
+
+For each row in the set:
+
+1. Take the row's own command, environment and `PASS_REGULAR_EXPRESSION` from
+   `ctest --test-dir build/windows-dev --build-config Debug --show-only=json-v1`.
+   The registry, never a card's prose: five of these thirteen names lacked
+   their `_contract` suffix in a dispatch note, and a regex built from the prose
+   quietly matched 8 of 13.
+2. Run that command directly, with that environment, from the row's working
+   directory.
+3. Compare the exit status against whether the pass expression matched. A row
+   that matches while exiting non-zero is the defect this card is about.
+
+The driver used is `uncontained_exits.py`, kept with the station's task
+scripts; it is thirty lines and the three steps above are all it does.
+
+### When this measurement goes stale
+
+**When a row is newly pinned `WINDOWS_UNCONTAINED`, re-run it.** That is the
+only way the set grows, so it is the only trigger needed, and [[BPR-0872]]'s
+rule is what moves a row into the set. A result that is empty today says
+nothing about a set that has gained a member since.
+
+### Deliberately not built: a no-container launcher mode
+
+Running these rows under the launcher in a "report exit only" mode was
+considered and declined. The question it would answer has been answered
+without it, so the machinery would be justified only by the possibility that
+the answer changes later — and that is better served by re-running the
+measurement above than by a permanent second code path on the isolation seam.
+
+### Two Windows defects found by running the contract, both fixed here
+
+- `tests/scripts/verify_test_network_isolation_tests.py` pinned the cause
+  vocabulary at five terms, so the contract failed the moment main landed the
+  two this station measured. It now names `child-process-denied` and
+  `repository-content-outside-checkout`.
+- This card's own new row — the one proving CTest fails a marker-printing child
+  that exits non-zero — wrote its generated `CTestTestfile.cmake` with a raw
+  Windows interpreter path. CMake reads a backslash in a quoted argument as an
+  escape, so the file listed no tests and the assertion counting them failed:
+  a broken generator wearing a broken assertion's clothes. The interpreter path
+  now uses forward slashes, as the generated script path beside it already did.
+  This would fail on any Windows station, not only this one.
+
+Both isolation gates pass at this tip: `test_network_isolation_structure_contract`
+3.53 s and `test_network_isolation_manifest` 6.48 s.
