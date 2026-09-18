@@ -70,6 +70,11 @@
   retention negative control failed as intended. `DOCUMENTATION_OK`, 64
   documentation self-tests, RFC-scoped board validation (921 cards) and
   `git diff --check` pass at the accepted boundary.
+- Handoff reconciliation: the final return checker reports `reconcile` because
+  finishing the four cards changed the live obligation fingerprints captured
+  while they were In Progress. The original binding, acceptance JSON, Done
+  cards, follow-up links and quiescent ownership agree; this is expected
+  completion bookkeeping drift, not an engineering rejection.
 - Pending obligations: publish the milestone return while leaving BPR-0928,
   BPR-0929, BPR-0924 and BPR-0925 runtime work and target-native observations
   open for `thread-reading-integration`.

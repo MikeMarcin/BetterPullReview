@@ -1,0 +1,160 @@
+{
+  "schema": "implement-rfc.milestone-return.v2",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-002",
+  "producer_id": "/root/rfc0037_m2",
+  "mandate_revision": "1",
+  "milestone": "overview-conversation-decisions",
+  "disposition": "milestone-complete",
+  "summary": "BPR-0918, BPR-0920, BPR-0923 and BPR-0926 are accepted Done at the design boundary: a retained central Overview reader and a dedicated Compose review plus PR-wide Discuss interaction are evidence-backed, while canonically allocated BPR-0928 and BPR-0929 retain all runtime acceptance.",
+  "candidate_revision": "fe6ac3633a61bf5fc4abab0057f6546d412c6446",
+  "handoff_ref": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-return-rfc0037-dispatch-002.json",
+  "ownership": "quiescent",
+  "next_objective": "Execute thread-reading-integration for BPR-0924 and BPR-0925 together with the milestone's exit-bound BPR-0928 and BPR-0929 runtime follow-ups; preserve RFC-BPR-0036 Markdown separation and obtain required target-native input/layout observations.",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-overview-conversation-decisions-evidence.md",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/overview-description-layout-study.md",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/conversation-surface-layout-study.md",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0918.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0920.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0923.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0926.json",
+    "docs/issues/10-backlog/BPR-0928-expanded-overview-description-reader.md",
+    "docs/issues/10-backlog/BPR-0929-review-composition-and-pr-wide-discuss.md",
+    "f021c138",
+    "fe6ac3633a61bf5fc4abab0057f6546d412c6446",
+    "d2282aba5e1490cf4743e53a6bb54165615be6f5",
+    "5cec3bbf7b0def28e35dd35d44d14d7d601e901f",
+    "969b8a607675af97a33fa833919e69958b9b2446",
+    "3b4423172339351972da40de48bbb67665ba8724",
+    "f074c2b0"
+  ],
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "overview-conversation-decisions",
+    "definition_fingerprint": "sha256:a34bec3ba05fffe409d5dadb63fb30af151a70d5967bb3bc5e83bc61f5229262",
+    "obligations": [
+      {
+        "id": "BPR-0918:*",
+        "source": "BPR-0918",
+        "selector": null,
+        "source_fingerprint": "sha256:534b2abe2991f39126637162aa8e43f0f250471ba928da11e85e9242235a881d"
+      },
+      {
+        "id": "BPR-0920:*",
+        "source": "BPR-0920",
+        "selector": null,
+        "source_fingerprint": "sha256:63f753847f5580a9238e01aababf03accc7f0668dad606c755fd368d8f2edefa"
+      },
+      {
+        "id": "BPR-0923:*",
+        "source": "BPR-0923",
+        "selector": null,
+        "source_fingerprint": "sha256:24d46c2a2c59473d1f2467152d57a99f751a08d6aee6bedd43d019d6aecfadf5"
+      },
+      {
+        "id": "BPR-0926:*",
+        "source": "BPR-0926",
+        "selector": null,
+        "source_fingerprint": "sha256:43a6aa268dc9ca32d1f951035ff8528f5ca755ed52dee390256a38586d55decb"
+      }
+    ],
+    "obligation_fingerprint": "sha256:6616fbea22d894b36817b7641055400da27b37610a91d7518827bb3c2dea7141",
+    "exit_criteria": [
+      {
+        "id": "overview-conversation-decisions:exit:1",
+        "text": "Synthetic short, long and very long bodies distinguish provider admission from viewport limits and demonstrate the selected full-body reading interaction across representative widths, fonts and input methods."
+      },
+      {
+        "id": "overview-conversation-decisions:exit:2",
+        "text": "The reported drawer gap and clipped controls are identified, and the selected placement preserves drafts, explicit publication semantics and useful input space without changing authentication or publication authority."
+      },
+      {
+        "id": "overview-conversation-decisions:exit:3",
+        "text": "Thread loading, revealing, filtering, empty and failure states have a clear reachable interaction, and Discuss can present known PR-wide conversations without requiring a source comparison."
+      },
+      {
+        "id": "overview-conversation-decisions:exit:4",
+        "text": "Every design-only card records the selected design and an allocated linked implementation follow-up with runtime acceptance; investigation alone is not accepted as the RFC behavior."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:cf9a7d6ce2e078fed63fcd40b19cf8f09d44fe17369aba3f45cf47f0472b9d0b",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "thread-reading-integration",
+    "reason": "integrated-boundary",
+    "detail": "The evidence-backed design boundary is accepted and all four investigation cards are Done. The next milestone changes to runtime implementation, thread-body input behavior and graph/detail integration, so it should begin in a fresh integrator context with BPR-0928/BPR-0929 carried as explicit exit-bound obligations."
+  },
+  "acceptance_records": [
+    {
+      "id": "BPR-0918:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0918.json"
+      ]
+    },
+    {
+      "id": "BPR-0920:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0920.json"
+      ]
+    },
+    {
+      "id": "BPR-0923:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0923.json"
+      ]
+    },
+    {
+      "id": "BPR-0926:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0926.json"
+      ]
+    },
+    {
+      "id": "overview-conversation-decisions:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/overview-description-layout-study.md",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0918.json"
+      ]
+    },
+    {
+      "id": "overview-conversation-decisions:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/conversation-surface-layout-study.md",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0920.json"
+      ]
+    },
+    {
+      "id": "overview-conversation-decisions:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/conversation-surface-layout-study.md",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0923.json",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0926.json"
+      ]
+    },
+    {
+      "id": "overview-conversation-decisions:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/10-backlog/BPR-0928-expanded-overview-description-reader.md",
+        "docs/issues/10-backlog/BPR-0929-review-composition-and-pr-wide-discuss.md",
+        "f021c138"
+      ]
+    }
+  ]
+}
