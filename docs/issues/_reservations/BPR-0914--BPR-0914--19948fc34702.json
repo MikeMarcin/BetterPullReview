@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0914"
+  ],
+  "reserve_for": "ghe-cli-connected-destination",
+  "purpose": "",
+  "created": "2026-09-18T09:02:37.044348+00:00",
+  "base": "1b73d61f6cfe9ce592a44a3528a2282b4713faec"
+}
