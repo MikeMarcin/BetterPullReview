@@ -17,6 +17,9 @@
         },
         {
           "issue": "BPR-0785"
+        },
+        {
+          "issue": "BPR-0909"
         }
       ],
       "depends_on": [],
