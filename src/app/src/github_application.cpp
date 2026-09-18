@@ -592,12 +592,10 @@ namespace bpr::app {
 			unsupported_version,
 		};
 
-		[[nodiscard]] auto probe_gh_cli_auth_status_format(
+		[[nodiscard]] auto probe_supported_gh_cli_version(
 			adapters::github::detail::github_cli_process_port&              aProcess,
 			const adapters::github::detail::validated_gh_cli_configuration& aConfiguration)
-			-> std::expected<
-				adapters::github::detail::gh_cli_auth_status_format,
-				gh_cli_version_probe_failure>
+			-> std::expected<void, gh_cli_version_probe_failure>
 		{
 			using namespace adapters::github::detail;
 			const auto version = aProcess.run(
@@ -605,10 +603,10 @@ namespace bpr::app {
 			if (!version || version->ExitCode != 0) {
 				return std::unexpected{ gh_cli_version_probe_failure::process_failed };
 			}
-			const auto format = select_gh_cli_auth_status_format(version->StandardOutput);
-			return format.has_value()
-				? std::expected<gh_cli_auth_status_format, gh_cli_version_probe_failure>{ *format }
-				: std::unexpected{ gh_cli_version_probe_failure::unsupported_version };
+			if (!supported_gh_cli_auth_status_version(version->StandardOutput)) {
+				return std::unexpected{ gh_cli_version_probe_failure::unsupported_version };
+			}
+			return { };
 		}
 
 		class owned_cli_read_transport final
@@ -738,7 +736,7 @@ namespace bpr::app {
 					}
 					auto process = make_github_cli_process_runner();
 					if (!process
-						|| !probe_gh_cli_auth_status_format(*process, *configuration)) {
+						|| !probe_supported_gh_cli_version(*process, *configuration)) {
 						return unavailable();
 					}
 					return std::shared_ptr<github_wire_transport_port>{
@@ -9541,21 +9539,21 @@ namespace bpr::app {
 							auto configuration = live_gh_cli_configuration();
 							auto process       = adapters::github::detail::make_github_cli_process_runner();
 							if (configuration && process) {
-								const auto format = probe_gh_cli_auth_status_format(
+								const auto version = probe_supported_gh_cli_version(
 									*process, *configuration);
-								if (!format) {
-									failure = format.error()
+								if (!version) {
+									failure = version.error()
 											== gh_cli_version_probe_failure::unsupported_version
 										? qt::github_cli_discovery_state::unsupported_version
 										: qt::github_cli_discovery_state::process_failed;
 								} else {
 									const auto status = process->run(
 										adapters::github::detail::compile_gh_cli_auth_status_request(
-											*configuration, *format),
+											*configuration),
 										std::stop_token{ });
 									if (status && status->ExitCode == 0) {
 										auto parsed = adapters::github::detail::parse_gh_cli_auth_status(
-											status->StandardOutput, *format);
+											status->StandardOutput);
 										if (parsed) {
 											accounts = std::move(*parsed);
 										} else {

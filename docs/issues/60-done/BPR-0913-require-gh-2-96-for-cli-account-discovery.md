@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0913"
 title: "Require gh 2.96 for CLI account discovery"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
@@ -45,3 +45,30 @@ source after that release.
 - The signed-out UI tells an older-CLI user to upgrade to `gh` 2.96 or newer and
   still distinguishes process and malformed-response failures.
 - Focused adapter and Qt checks, formatting and documentation verification pass.
+
+## Implementation
+
+- Account discovery and API transport creation now reject every `gh` release
+  below 2.96 before running account status. Supported versions use only the
+  bounded `gh auth status --active --json hosts` request and JSON parser.
+- The legacy human-status parser, format selector, merged-stderr request field,
+  runner behavior and focused compatibility tests were removed. Process output
+  is again separate-channel only.
+- Signed-out presentation explicitly says the CLI is too old and requires an
+  upgrade to `gh` 2.96 or newer while preserving distinct process-failure and
+  malformed-response states.
+- Current product, architecture, security, development and RFC documentation
+  records the 2.96 floor. The completed BPR-0910 card and private `v0.1.2`
+  release notes remain unchanged as historical evidence.
+
+## Evidence
+
+- `gh_cli_transport` covers refusal of 2.45 and 2.95, acceptance of 2.96 and
+  2.100, the exact token-free JSON request and fail-closed JSON parsing.
+- `ctest --preset dev --output-on-failure -R
+  '^(github_cli_process_runner|gh_cli_transport|qt_workbench_window_scale_100|application_setup_destination_public_path)$'`
+  passed all four focused tests.
+- The focused build completed and `coding-format-check` passed across 699 files.
+- `python3 scripts/verify_documentation.py --root .` returned
+  `DOCUMENTATION_OK`; `python3 tests/scripts/verify_documentation_tests.py`
+  passed 64 tests (its expected negative fixtures emitted validation errors).

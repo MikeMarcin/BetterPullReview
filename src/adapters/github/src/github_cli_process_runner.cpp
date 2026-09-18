@@ -578,9 +578,7 @@ namespace bpr::adapters::github::detail {
 				process->setArguments(validated.Arguments);
 				process->setProcessEnvironment(validated.Environment);
 				process->setWorkingDirectory(validated.WorkingDirectory);
-				process->setProcessChannelMode(
-					aRequest.MergeStandardError ? QProcess::MergedChannels
-												: QProcess::SeparateChannels);
+				process->setProcessChannelMode(QProcess::SeparateChannels);
 				process->setInputChannelMode(QProcess::ManagedInputChannel);
 				if (!aFileLimits.StandardOutputFile.empty()) {
 					process->setStandardOutputFile(QString::fromStdString(aFileLimits.StandardOutputFile.string()), QIODevice::Truncate);

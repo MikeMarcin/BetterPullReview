@@ -46,10 +46,6 @@ namespace bpr::adapters::github::detail {
 		std::chrono::milliseconds                         Timeout{ };
 		std::chrono::milliseconds                         ReapTimeout{ };
 
-		// Legacy token-hidden auth status opts into bounded merged output. The
-		// result still exposes one clean-success byte stream, never raw stderr.
-		bool MergeStandardError = false;
-
 		// Only gh API response parsing opts in to completed nonzero output.
 		bool PreserveCompletedOutput = false;
 

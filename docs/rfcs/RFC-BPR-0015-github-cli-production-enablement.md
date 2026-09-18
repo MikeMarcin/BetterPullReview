@@ -44,14 +44,12 @@ attempted write must reconcile server truth without issuing a second POST.
 
 The narrower enforceable connector boundary is:
 
-- Account discovery and API use accept `gh` 2.x from 2.45 onward. Versions
-  2.45 through 2.95 use the token-hidden human `gh auth status` response;
-  its successful stderr is merged into one bounded clean-success stream, and
-  only an unambiguous active hostname/login crosses the parser boundary.
-  Versions 2.96 and newer retain the active JSON inventory. Neither path may
-  pass `--show-token`; masked-token, scopes, protocol, and credential-source
-  text do not enter the typed account result. This compatibility floor does
-  not weaken the separate exact 2.100.0 qualification for Git-object cloning.
+- Account discovery and API use require `gh` 2.96 or newer so the app can use
+  the structured active JSON inventory. Older versions are refused before
+  account status runs and require an explicit upgrade. Human auth-status text
+  and stderr do not enter the process result or typed account boundary, and
+  the app never passes `--show-token`. This compatibility floor does not
+  weaken the separate exact 2.100.0 qualification for Git-object cloning.
 - Only an explicitly selected CLI profile may execute `gh`; native profiles
   never use it. Resolve an absolute official executable, record its version
   and observed identity, and refuse detected changes. Path preflight cannot

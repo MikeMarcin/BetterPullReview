@@ -6390,8 +6390,9 @@ namespace {
 			   "an empty authenticated inventory is explicit and retryable");
 		window.present_github_cli_discovery(
 			qt::github_cli_discovery_state::unsupported_version);
-		expect(status->text().contains(QStringLiteral("gh 2.45 or newer")),
-			   "an unsupported version names the compatibility floor");
+		expect(status->text().contains(QStringLiteral("too old"))
+				   && status->text().contains(QStringLiteral("gh 2.96 or newer")),
+			   "an unsupported version requires an explicit upgrade from the compatibility floor");
 		window.present_github_cli_discovery(qt::github_cli_discovery_state::process_failed);
 		expect(status->text().contains(QStringLiteral("could not be run successfully")),
 			   "a process failure is explicit and retryable");

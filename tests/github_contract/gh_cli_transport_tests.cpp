@@ -1643,19 +1643,15 @@ namespace {
 		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 		expect(configuration.has_value(), "CLI configuration for auth inventory validates");
 		expect(
-			select_gh_cli_auth_status_format("gh version 2.45.0 (2024-03-04)\n")
-					== gh_cli_auth_status_format::legacy_text
-				&& select_gh_cli_auth_status_format("gh version 2.95.1 (2026-06-01)\n")
-					== gh_cli_auth_status_format::legacy_text
-				&& select_gh_cli_auth_status_format("gh version 2.96.0 (2026-07-02)\n")
-					== gh_cli_auth_status_format::json
-				&& !select_gh_cli_auth_status_format("gh version 2.44.1 (2024-02-20)\n")
-				&& !select_gh_cli_auth_status_format("gh version 2.45.bad\n")
-				&& !select_gh_cli_auth_status_format("gh version 3.0.0\n"),
-			"the exact version line selects legacy text from 2.45 and JSON from 2.96");
+			!supported_gh_cli_auth_status_version("gh version 2.45.0 (2024-03-04)\n")
+				&& !supported_gh_cli_auth_status_version("gh version 2.95.1 (2026-06-01)\n")
+				&& supported_gh_cli_auth_status_version("gh version 2.96.0 (2026-07-02)\n")
+				&& supported_gh_cli_auth_status_version("gh version 2.100.0 (2026-09-09)\n")
+				&& !supported_gh_cli_auth_status_version("gh version 2.96.bad\n")
+				&& !supported_gh_cli_auth_status_version("gh version 3.0.0\n"),
+			"the exact version line requires gh 2.96 or newer within major version 2");
 
-		const auto request = compile_gh_cli_auth_status_request(
-			*configuration, gh_cli_auth_status_format::json);
+		const auto request = compile_gh_cli_auth_status_request(*configuration);
 		expect(
 			gh_arguments(request)
 				== std::vector<std::string>{ "auth", "status", "--active", "--json", "hosts" },
@@ -1671,7 +1667,7 @@ namespace {
 			expect(argument != "--show-token" && argument != "-t", "auth inventory cannot request a token");
 		}
 
-		const auto parsed = parse_gh_cli_auth_status(R"({"hosts":{"github.example.com":[{"active":true,"host":"github.example.com","login":"enterprise-reviewer","state":"success","tokenSource":"keyring","scopes":"repo"}],"github.com":[{"active":false,"host":"github.com","login":"old-account","state":"success"},{"active":true,"host":"github.com","login":"octocat","state":"success"}],"unavailable.example.com":[{"active":true,"host":"unavailable.example.com","login":"broken","state":"failure"}]}})", gh_cli_auth_status_format::json);
+		const auto parsed = parse_gh_cli_auth_status(R"({"hosts":{"github.example.com":[{"active":true,"host":"github.example.com","login":"enterprise-reviewer","state":"success","tokenSource":"keyring","scopes":"repo"}],"github.com":[{"active":false,"host":"github.com","login":"old-account","state":"success"},{"active":true,"host":"github.com","login":"octocat","state":"success"}],"unavailable.example.com":[{"active":true,"host":"unavailable.example.com","login":"broken","state":"failure"}]}})");
 		expect(
 			parsed.has_value()
 				&& *parsed == std::vector<gh_cli_authenticated_account>{
@@ -1687,76 +1683,18 @@ namespace {
 				 std::string{ R"({"hosts":{"https://github.example":[{"active":true,"host":"https://github.example","login":"octocat","state":"success"}]}})" },
 			 }) {
 			expect(
-				!parse_gh_cli_auth_status(hostile, gh_cli_auth_status_format::json),
+				!parse_gh_cli_auth_status(hostile),
 				"malformed or ambiguous JSON auth inventory fails closed");
 		}
 		expect(
-			parse_gh_cli_auth_status(R"({"hosts":{}})", gh_cli_auth_status_format::json).has_value()
-				&& parse_gh_cli_auth_status(R"({"hosts":{}})", gh_cli_auth_status_format::json)->empty(),
+			parse_gh_cli_auth_status(R"({"hosts":{}})").has_value()
+				&& parse_gh_cli_auth_status(R"({"hosts":{}})")->empty(),
 			"an authenticated CLI with no active accounts reports an empty inventory");
 		expect(
-			parse_gh_cli_auth_status(
-				std::string(64U * 1024U + 1U, 'x'), gh_cli_auth_status_format::json)
+			parse_gh_cli_auth_status(std::string(64U * 1024U + 1U, 'x'))
 					.error()
 				== gh_cli_auth_status_failure::response_limit,
 			"oversized auth inventory is refused before parsing");
-
-		const auto legacyRequest = compile_gh_cli_auth_status_request(
-			*configuration, gh_cli_auth_status_format::legacy_text);
-		expect(
-			gh_arguments(legacyRequest) == std::vector<std::string>{ "auth", "status" },
-			"gh 2.45 inventory uses the token-hidden status command without unsupported flags");
-		expect(
-			legacyRequest.MergeStandardError && !legacyRequest.PreserveCompletedOutput,
-			"legacy status merges its bounded human-status channel but still requires clean exit");
-		const auto legacy = parse_gh_cli_auth_status(
-			"github.com\n"
-			"  \xe2\x9c\x93 Logged in to github.com account old-account (keyring)\n"
-			"  - Active account: false\n"
-			"  - Git operations protocol: https\n"
-			"  - Token: ghp_********\n"
-			"  - Token scopes: 'repo'\n"
-			"\n"
-			"  \xe2\x9c\x93 Logged in to github.com account octocat (keyring)\n"
-			"  - Active account: true\n"
-			"  - Git operations protocol: https\n"
-			"  - Token: gho_********\n"
-			"  - Token scopes: 'repo'\n"
-			"\n"
-			"ghe.example.com\n"
-			"  \xe2\x9c\x93 Logged in to ghe.example.com account enterprise-reviewer (keyring)\n"
-			"  - Active account: true\n"
-			"  - Git operations protocol: https\n"
-			"  - Token: gho_********\n"
-			"  - Token scopes: 'read:org', 'repo'\n",
-			gh_cli_auth_status_format::legacy_text);
-		expect(
-			legacy.has_value()
-				&& *legacy == std::vector<gh_cli_authenticated_account>{
-					   { .Hostname = "github.com", .Login = "octocat" },
-					   { .Hostname = "ghe.example.com", .Login = "enterprise-reviewer" },
-				   },
-			"the official 2.45 text shape admits only the active host/login and discards metadata");
-
-		for (const auto& hostile : {
-				 std::string{
-					 "github.com\n  \xe2\x9c\x93 Logged in to github.com account octocat (keyring)\n"
-					 "  - Active account: true\n  - Token: actual-secret\n" },
-				 std::string{
-					 "github.com\n  \xe2\x9c\x93 Logged in to github.com account octocat (keyring)\n"
-					 "  - Active account: true\n\x1b[31m" },
-				 std::string{
-					 "github.com\n  \xe2\x9c\x93 Logged in to github.com account one (keyring)\n"
-					 "  - Active account: true\n  \xe2\x9c\x93 Logged in to github.com account two (keyring)\n"
-					 "  - Active account: true\n" },
-				 std::string{
-					 "github.com\n  \xe2\x9c\x93 Logged in to elsewhere.example account octocat (keyring)\n"
-					 "  - Active account: true\n" },
-			 }) {
-			expect(
-				!parse_gh_cli_auth_status(hostile, gh_cli_auth_status_format::legacy_text),
-				"legacy secrets, controls, ambiguity, and host drift fail closed");
-		}
 	}
 
 }

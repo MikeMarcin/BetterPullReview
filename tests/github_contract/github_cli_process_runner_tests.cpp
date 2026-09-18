@@ -879,31 +879,6 @@ namespace {
 			   "opt-in cancellation exposes no partial output");
 	}
 
-	auto test_clean_success_can_merge_bounded_standard_error() -> void
-	{
-		QTemporaryDir directory;
-		expect(directory.isValid(), "merged-output directory is available");
-		const auto runner  = make_github_cli_process_runner();
-		auto       request = base_request(directory, { "--bpr-helper", "stderr", "31" });
-		expect_failure(
-			*runner,
-			request,
-			github_cli_process_failure::unexpected_standard_error,
-			"stderr remains hidden and rejected by default");
-		request.MergeStandardError = true;
-		const auto result          = runner->run(request, { });
-		expect(
-			result.has_value() && result->ExitCode == 0
-				&& result->StandardOutput == std::string(31U, 'x'),
-			"the exact opt-in exposes one bounded merged stream only on clean success");
-		request.StandardOutputLimit = 30U;
-		expect_failure(
-			*runner,
-			request,
-			github_cli_process_failure::standard_output_limit,
-			"merged output remains bounded as standard output");
-	}
-
 #if defined(Q_OS_UNIX)
 	[[nodiscard]] auto read_descendant_pid(const QString& aPath) -> pid_t
 	{
@@ -1453,7 +1428,6 @@ auto main(int argc, char* argv[]) -> int
 	test_git_acquisition_factory_refuses_unbounded_stores();
 	test_stream_limits_and_redaction();
 	test_completed_output_opt_in();
-	test_clean_success_can_merge_bounded_standard_error();
 #if defined(Q_OS_UNIX)
 	test_unix_process_hardening();
 	test_descendant_process_group_is_killed();

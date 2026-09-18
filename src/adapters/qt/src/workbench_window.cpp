@@ -3507,7 +3507,7 @@ namespace bpr::qt {
 			break;
 		case github_cli_discovery_state::unsupported_version:
 			GithubCliDiscoveryStatus->setText(QStringLiteral(
-				"This GitHub CLI version is not supported. Install gh 2.45 or newer, then try again."));
+				"This GitHub CLI version is too old. Upgrade to gh 2.96 or newer, then try again."));
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::process_failed:
