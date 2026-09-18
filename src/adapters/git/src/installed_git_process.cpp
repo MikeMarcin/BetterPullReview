@@ -1622,8 +1622,10 @@ namespace bpr::adapters::git {
 		/// import on it. An identifier is therefore only ever offered to an
 		/// installation at or above its recorded version, and a version recorded
 		/// too high only leaves that Git as strict as it is today. BPR-0880
-		/// measured every row against Git 2.39.5, the oldest admitted Git that
-		/// could be obtained, and against Git 2.53.0.
+		/// measured every row against Git 2.34.1, Git 2.39.5 — the oldest
+		/// admitted Git that could be obtained — and Git 2.53.0. A row recorded
+		/// at 2.39.0 is one the 2.34.1 probe already knew, and Git does not
+		/// retire message identifiers, so the admitted floor knows it too.
 		struct fsck_message final
 		{
 			std::string_view Id;
@@ -1698,8 +1700,8 @@ namespace bpr::adapters::git {
 			{ "gitattributesLarge", fsck_severity::error, 2U, 39U, 5U },
 			{ "gitattributesLineLength", fsck_severity::error, 2U, 39U, 5U },
 			{ "gitattributesMissing", fsck_severity::error, 2U, 39U, 5U },
-			{ "gitattributesSymlink", fsck_severity::info, 2U, 39U, 5U },
-			{ "gitignoreSymlink", fsck_severity::info, 2U, 39U, 5U },
+			{ "gitattributesSymlink", fsck_severity::info, 2U, 39U, 0U },
+			{ "gitignoreSymlink", fsck_severity::info, 2U, 39U, 0U },
 			{ "gitmodulesBlob", fsck_severity::error, 2U, 39U, 0U },
 			{ "gitmodulesLarge", fsck_severity::error, 2U, 39U, 0U },
 			{ "gitmodulesMissing", fsck_severity::error, 2U, 39U, 0U },
@@ -1713,7 +1715,7 @@ namespace bpr::adapters::git {
 			{ "hasDotdot", fsck_severity::warn, 2U, 39U, 0U },
 			{ "hasDotgit", fsck_severity::warn, 2U, 39U, 0U },
 			{ "largePathname", fsck_severity::warn, 2U, 53U, 0U },
-			{ "mailmapSymlink", fsck_severity::info, 2U, 39U, 5U },
+			{ "mailmapSymlink", fsck_severity::info, 2U, 39U, 0U },
 			{ "missingAuthor", fsck_severity::error, 2U, 39U, 0U },
 			{ "missingCommitter", fsck_severity::error, 2U, 39U, 0U },
 			{ "missingEmail", fsck_severity::error, 2U, 39U, 0U },
@@ -1729,11 +1731,11 @@ namespace bpr::adapters::git {
 			{ "missingTypeEntry", fsck_severity::error, 2U, 39U, 0U },
 			{ "multipleAuthors", fsck_severity::error, 2U, 39U, 0U },
 			{ "nulInCommit", fsck_severity::warn, 2U, 39U, 0U },
-			{ "nulInHeader", fsck_severity::fatal, 2U, 39U, 5U },
+			{ "nulInHeader", fsck_severity::fatal, 2U, 39U, 0U },
 			{ "nullSha1", fsck_severity::warn, 2U, 39U, 0U },
 			{ "treeNotSorted", fsck_severity::error, 2U, 39U, 0U },
 			{ "unknownType", fsck_severity::error, 2U, 39U, 0U },
-			{ "unterminatedHeader", fsck_severity::fatal, 2U, 39U, 5U },
+			{ "unterminatedHeader", fsck_severity::fatal, 2U, 39U, 0U },
 			{ "zeroPaddedDate", fsck_severity::error, 2U, 39U, 0U },
 			{ "zeroPaddedFilemode", fsck_severity::warn, 2U, 39U, 0U },
 		} };

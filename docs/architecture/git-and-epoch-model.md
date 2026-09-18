@@ -693,10 +693,9 @@ Each identifier carries the oldest Git measured to recognise it, and is offered
 only to an installation at or above that version. Git answers an identifier it
 does not know with `fatal: Unhandled message id` and exits 128, so shipping one
 an installation has never heard of would fail every import on it; a version
-recorded too high only leaves that Git as strict as it is today. The four
-identifiers above whose introduction postdates a plain 2.39 — the three symlink
-checks and `gitattributesSymlink` — are recorded against 2.39.5, the oldest
-admitted Git the change was measured on.
+recorded too high only leaves that Git as strict as it is today. Every
+identifier in the list above was measured against Git 2.34.1, Git 2.39.5 and
+Git 2.53.0, and all fifteen are recorded at the admitted floor.
 
 The reason is that `index-pack --strict` promotes a warning to a fatal error,
 so a repository whose history carries one of these — an old tree with a
