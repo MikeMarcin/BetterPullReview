@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0910"
+  ],
+  "reserve_for": "bpr0910-gh245-cli-discovery",
+  "purpose": "Support organization-standard gh 2.45 account discovery without exposing tokens",
+  "created": "2026-09-18T07:48:35.294450+00:00",
+  "base": "4c74f5f7475ba4f31e6ef605fdf554707b6494ee"
+}
