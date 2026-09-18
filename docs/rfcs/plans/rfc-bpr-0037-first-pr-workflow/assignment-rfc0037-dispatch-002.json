@@ -1,0 +1,73 @@
+{
+  "schema": "implement-rfc.milestone-assignment.v1",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-002",
+  "producer_id": "/root/rfc0037_m2",
+  "mandate_revision": "1",
+  "milestone": "overview-conversation-decisions",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "overview-conversation-decisions",
+    "definition_fingerprint": "sha256:a34bec3ba05fffe409d5dadb63fb30af151a70d5967bb3bc5e83bc61f5229262",
+    "obligations": [
+      {
+        "id": "BPR-0918:*",
+        "source": "BPR-0918",
+        "selector": null,
+        "source_fingerprint": "sha256:534b2abe2991f39126637162aa8e43f0f250471ba928da11e85e9242235a881d"
+      },
+      {
+        "id": "BPR-0920:*",
+        "source": "BPR-0920",
+        "selector": null,
+        "source_fingerprint": "sha256:63f753847f5580a9238e01aababf03accc7f0668dad606c755fd368d8f2edefa"
+      },
+      {
+        "id": "BPR-0923:*",
+        "source": "BPR-0923",
+        "selector": null,
+        "source_fingerprint": "sha256:24d46c2a2c59473d1f2467152d57a99f751a08d6aee6bedd43d019d6aecfadf5"
+      },
+      {
+        "id": "BPR-0926:*",
+        "source": "BPR-0926",
+        "selector": null,
+        "source_fingerprint": "sha256:43a6aa268dc9ca32d1f951035ff8528f5ca755ed52dee390256a38586d55decb"
+      }
+    ],
+    "obligation_fingerprint": "sha256:6616fbea22d894b36817b7641055400da27b37610a91d7518827bb3c2dea7141",
+    "exit_criteria": [
+      {
+        "id": "overview-conversation-decisions:exit:1",
+        "text": "Synthetic short, long and very long bodies distinguish provider admission from viewport limits and demonstrate the selected full-body reading interaction across representative widths, fonts and input methods."
+      },
+      {
+        "id": "overview-conversation-decisions:exit:2",
+        "text": "The reported drawer gap and clipped controls are identified, and the selected placement preserves drafts, explicit publication semantics and useful input space without changing authentication or publication authority."
+      },
+      {
+        "id": "overview-conversation-decisions:exit:3",
+        "text": "Thread loading, revealing, filtering, empty and failure states have a clear reachable interaction, and Discuss can present known PR-wide conversations without requiring a source comparison."
+      },
+      {
+        "id": "overview-conversation-decisions:exit:4",
+        "text": "Every design-only card records the selected design and an allocated linked implementation follow-up with runtime acceptance; investigation alone is not accepted as the RFC behavior."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:cf9a7d6ce2e078fed63fcd40b19cf8f09d44fe17369aba3f45cf47f0472b9d0b",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "source-update-review-entry",
+    "overview-conversation-decisions",
+    "thread-reading-integration",
+    "combined-first-pr-closeout"
+  ]
+}
