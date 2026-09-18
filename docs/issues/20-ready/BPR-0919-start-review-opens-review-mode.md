@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0919"
 title: "Make Overview Start review enter Review instead of empty Read"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
