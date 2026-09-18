@@ -5108,13 +5108,42 @@ function(
         endif()
 
         file(READ "${source_file}" contents)
+        set(contents_before_discovery_reads "${contents}")
+        # The accessor spelling is anchored. Without the leading class any name
+        # *ending* in `environment_directory` would be stripped too, and the
+        # transport's own convention already contains
+        # `canonical_environment_directory`, so
+        # `child.inherit_environment_directory("APPDATA")` would have laundered
+        # a real leak. `.`, `>` and `:` are excluded as well, so a member or
+        # qualified call on some other object cannot pose as the accessor.
         string(
             REGEX REPLACE
-            "environment_directory[ \t\r\n]*\\([ \t\r\n]*\"${variable_name}\"[ \t\r\n]*\\)"
-            ""
+            "(^|[^A-Za-z0-9_.>:])environment_directory[ \t\r\n]*\\([ \t\r\n]*\"${variable_name}\"[ \t\r\n]*\\)"
+            "\\1"
             contents
             "${contents}"
         )
+        if(NOT contents STREQUAL contents_before_discovery_reads)
+            # This file reads the variable for discovery. The spelling alone is
+            # not a guarantee -- the accessor is file-local, so a file could
+            # define its own `environment_directory` that constructs rather than
+            # reads. A file may discover, or it may build child environments,
+            # and only the transport may do both.
+            if(
+                contents
+                    MATCHES
+                    "(append_environment[ \t\r\n]*\\(|(^|[^A-Za-z0-9_])(set|put)env[ \t\r\n]*\\(|QProcessEnvironment|\\.Environment|(^|[^A-Za-z0-9_])environ([^A-Za-z0-9_]|$))"
+            )
+                file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
+                message(
+                    FATAL_ERROR
+                    "${effect_name} ownership violation in ${relative_file}; "
+                    "it reads ${variable_name} for directory discovery and "
+                    "also constructs a child process environment. Only "
+                    "${allowed_relative_files} may do both"
+                )
+            endif()
+        endif()
         if(contents MATCHES "\"${variable_name}\"")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
             message(

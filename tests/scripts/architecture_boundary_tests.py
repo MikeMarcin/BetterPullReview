@@ -4857,6 +4857,42 @@ auto finish_background_reap(
                         },
                     )
 
+    def test_platform_directory_discovery_cannot_launder_construction(
+        self,
+    ) -> None:
+        # BPR-0894, second landing. Independent review defeated the first one
+        # twice, and both holes are here so they cannot come back.
+        #
+        # The first: the accessor spelling was unanchored, so any name *ending*
+        # in environment_directory was stripped with it. The transport's own
+        # convention already contains canonical_environment_directory, so this
+        # was a plausible accident rather than a contrived one.
+        #
+        # The second: the accessor is a file-local function, so a file can
+        # define its own that constructs instead of reading. The spelling alone
+        # is not a guarantee, which is why a file may discover or may build
+        # child environments but only the transport may do both.
+        laundering_forms = (
+            'child.inherit_environment_directory("APPDATA");\n',
+            'pass_environment_directory("LOCALAPPDATA");\n',
+            "request.Environment.push_environment_directory"
+            '("USERPROFILE");\n',
+            "#define environment_directory(name) "
+            "append_environment(environment, name, std::getenv(name))\n"
+            'environment_directory("XDG_RUNTIME_DIR");\n',
+            "static auto environment_directory(const char* name) { "
+            "request.Environment.push_back({ name, std::getenv(name) }); }\n"
+            'void build() { environment_directory("USERPROFILE"); }\n',
+        )
+        for laundering_form in laundering_forms:
+            with self.subTest(form=laundering_form):
+                self.assert_failure(
+                    "environment construction ownership violation",
+                    {
+                        "src/adapters/github/src/other.cpp": laundering_form
+                    },
+                )
+
     def test_cli_transport_rejects_credential_status_cache_and_debug(
         self,
     ) -> None:

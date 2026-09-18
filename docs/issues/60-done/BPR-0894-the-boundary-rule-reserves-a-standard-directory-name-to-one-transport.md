@@ -119,6 +119,62 @@ a system that puts the runtime directory elsewhere is found rather than falling
 through to `$TMPDIR`. Do it after BPR-0881's Linux criterion is measured and
 green. It touches Linux behaviour only.
 
+## Independent review defeated the first landing, twice
+
+The first landing (`424a64cc`) was reviewed read-only with the explicit brief
+to *defeat* the rule rather than confirm it. It found two holes, both real,
+both introduced by the narrowing rather than inherited. The acceptance record
+above was written before that review and was **wrong on its second criterion**
+when written; it is left as it stands and corrected here rather than rewritten,
+because a card that quietly edits its own history is worth less than one that
+says what it missed.
+
+**Hole 1: the accessor spelling was unanchored.** The strip pattern began at
+`environment_directory` with nothing before it, so it also matched any name
+*ending* in that token. `child.inherit_environment_directory("APPDATA")` was
+stripped and the file passed. This was a plausible accident rather than a
+contrived one: the transport's own convention already contains
+`canonical_environment_directory` (`gh_cli_transport.cpp:518`). Closed by
+anchoring on `(^|[^A-Za-z0-9_.>:])` and replacing with the captured character,
+so a member or qualified call on another object cannot pose as the accessor
+either.
+
+**Hole 2: the accessor is a file-local function, so the rule trusted a
+spelling.** Nothing verified that a function named `environment_directory`
+reads rather than constructs. A file could define its own — or a macro of the
+same name — and leak the variable into a child environment from inside it.
+Closed by a second condition: a file whose contents changed under the strip has
+declared itself a *reader*, and such a file may not also contain a
+child-environment construction surface (`append_environment(`, `setenv(`,
+`putenv(`, `QProcessEnvironment`, `.Environment`, a bare `environ`). A file may
+discover, or it may build child environments; only the transport may do both.
+`std::getenv` is deliberately not in that list — reading is the thing being
+permitted.
+
+**Both holes are now pinned and the pin is falsified.**
+`test_platform_directory_discovery_cannot_launder_construction` asserts five
+laundering forms, including the macro and the local-definition shapes. Run
+against the **first landing's** copy of the script, all five pass it — the hole
+was real — and all five fail against the current one. That is the check the
+original acceptance lacked: its construction test would have passed with the
+narrowing removed entirely, so it pinned nothing about the strip's boundary.
+
+**Two pre-existing gaps the review separated out, deliberately not fixed
+here.** Both defeat the old rule and the new one equally, both are limits of
+matching tokens in text rather than of this rule, and both apply to the whole
+5,400-line script:
+
+- a `KEY=VALUE` spelling never contains the quoted token —
+  `environment.push_back("APPDATA=" + value);` contains `"APPDATA=`, not
+  `"APPDATA"`;
+- token assembly — `"XDG_" "RUNTIME_DIR"`, `std::string("XDG_RUNTIME") +
+  "_DIR"`, the raw-string form `R"(XDG_RUNTIME_DIR)"`, a stringifying macro, or
+  a `constexpr char[]` built from characters.
+
+They are recorded with their exact snippets so a future hardening starts from
+evidence rather than from imagination. Fixing them is a different piece of work
+with a different shape, and doing it under this card would have hidden it.
+
 **Noticed, not fixed, not carded.** In the same loop, the `"PATH"` arm of the
 first branch and the whole `"SystemRoot"` arm are dead: neither string is in
 `github_cli_invocation_and_environment_patterns`. Both variables are covered by
