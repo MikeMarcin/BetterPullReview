@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0915"
+  ],
+  "reserve_for": "shared-sign-in-setup",
+  "purpose": "",
+  "created": "2026-09-18T09:19:22.178881+00:00",
+  "base": "bf45f693e70d93d417e91592075cf5667ee92ecf"
+}
