@@ -26,7 +26,7 @@ The overview currently mounts `overviewBody` as a read-only `QPlainTextEdit`,
 sets its maximum height to 110 pixels and applies `setPlainText` in
 `src/adapters/qt/src/pull_request_overview_page.cpp`. Markdown alone does not
 solve that small viewport. [[BPR-0918]] separately investigates long-description
-layout under RFC-BPR-0028; neither task must wait for the other to explore or
+layout under [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md); neither task must wait for the other to explore or
 improve plain-text reading. Their final composed behavior must work together.
 
 ## Scope and reading contract

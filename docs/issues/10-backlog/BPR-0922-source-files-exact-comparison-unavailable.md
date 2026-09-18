@@ -3,12 +3,15 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0922"
 title: "Fix source files refusing to open with unavailable exact comparison"
 status: "Backlog"
-rfcs: ["RFC-BPR-0003", "RFC-BPR-0015", "RFC-BPR-0029"]
+rfcs: ["RFC-BPR-0037", "RFC-BPR-0003", "RFC-BPR-0015", "RFC-BPR-0029"]
 depends_on: []
 priority: "P1"
 ---
 
 # Fix source files refusing to open with unavailable exact comparison
+
+This work belongs to [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md),
+criterion AC-05. Earlier RFC references retain their governing contracts.
 
 ## Owner feedback
 

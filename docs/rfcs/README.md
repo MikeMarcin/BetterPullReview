@@ -92,6 +92,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0034](RFC-BPR-0034-appearance-page-and-per-theme-colours.md) | Appearance Page and Per-Theme Colour Customisation | Proposed | Imported 2026-09-13 after owner review of the Appearance page; rebuilds the page as a theme strip, one-line rows with info-glyph popovers, a labelled preview and a colours card for the theme on screen, and changes the appearance store to one customised palette per theme with a migration; RFC-BPR-0006 and RFC-BPR-0018 |
 | [RFC-BPR-0035](RFC-BPR-0035-github-release-auto-updater.md) | GitHub Release Auto-Updater | Proposed | Design/backlog only; later implementation request, RFC-BPR-0002 and RFC-BPR-0014; initial signed macOS scope with manual fallback elsewhere |
 | [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Design/backlog only; later implementation request; RFC-BPR-0005, RFC-BPR-0006 and RFC-BPR-0008; long-description layout investigated separately in BPR-0918 |
+| [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Consolidates BPR-0918 through BPR-0926; later implementation/design decisions; RFC-BPR-0003, RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029; Markdown remains separate under RFC-BPR-0036 |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.

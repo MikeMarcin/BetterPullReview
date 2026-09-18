@@ -3,12 +3,15 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0923"
 title: "Clarify or replace the Show review threads action"
 status: "Backlog"
-rfcs: ["RFC-BPR-0028"]
+rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 ---
 
 # Clarify or replace the Show review threads action
+
+This work belongs to [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md),
+criterion AC-06. Earlier RFC references retain their governing contracts.
 
 ## Owner feedback
 

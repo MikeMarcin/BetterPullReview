@@ -3,12 +3,15 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0925"
 title: "Investigate duplicate thread presentation below the conversation graph"
 status: "Backlog"
-rfcs: ["RFC-BPR-0028"]
+rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 ---
 
 # Investigate duplicate thread presentation below the conversation graph
+
+This work belongs to [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md),
+criterion AC-08. Earlier RFC references retain their governing contracts.
 
 ## Owner feedback
 

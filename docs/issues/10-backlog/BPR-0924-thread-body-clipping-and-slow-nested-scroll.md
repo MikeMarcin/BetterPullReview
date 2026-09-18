@@ -3,12 +3,15 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0924"
 title: "Fix clipped thread bodies and slow nested scrolling"
 status: "Backlog"
-rfcs: ["RFC-BPR-0028", "RFC-BPR-0013"]
+rfcs: ["RFC-BPR-0037", "RFC-BPR-0028", "RFC-BPR-0013"]
 depends_on: []
 priority: "P1"
 ---
 
 # Fix clipped thread bodies and slow nested scrolling
+
+This work belongs to [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md),
+criterion AC-07. Earlier RFC references retain their governing contracts.
 
 ## Owner feedback
 

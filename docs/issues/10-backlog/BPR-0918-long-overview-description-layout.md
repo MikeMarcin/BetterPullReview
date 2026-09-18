@@ -3,12 +3,15 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0918"
 title: "Investigate a larger overview description for long PR bodies"
 status: "Backlog"
-rfcs: ["RFC-BPR-0028"]
+rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 ---
 
 # Investigate a larger overview description for long PR bodies
+
+This work belongs to [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md),
+criterion AC-01. Earlier RFC references retain their governing contracts.
 
 ## Owner feedback
 
