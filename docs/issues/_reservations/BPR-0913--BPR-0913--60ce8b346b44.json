@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0913"
+  ],
+  "reserve_for": "bpr0913-require-gh296",
+  "purpose": "Require gh 2.96 and remove legacy account discovery",
+  "created": "2026-09-18T08:47:09.398472+00:00",
+  "base": "18ba7968a26ab89efdf6b1ea60d0c0c5422e1340"
+}
