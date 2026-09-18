@@ -50,8 +50,18 @@ function(bpr_run_overview_phase fixture fixture_label root phase)
         TIMEOUT ${bpr_timeout}
     )
     if(NOT probe_result EQUAL 0)
+        # [[BPR-0555]], reached by [[BPR-0901]]. The child dumps its whole
+        # marker block below and `RUN_BUDGET_EXPIRED` is in it, but a reader
+        # acts on the headline. This row ran out of clock on a busy host and
+        # said "reuse process failed", which was read as an epoch defect for a
+        # dispatch; say which it was, in the line that gets read.
+        set(bpr_budget_headline "")
+        if(probe_output MATCHES "RUN_BUDGET_EXPIRED:[^\n]*")
+            set(bpr_budget_headline "${CMAKE_MATCH_0}\n")
+        endif()
         message(FATAL_ERROR
             "overview since-review ${fixture} ${phase} process failed (${probe_result})\n"
+            "${bpr_budget_headline}"
             "stdout:\n${probe_output}\n"
             "stderr:\n${probe_error}"
         )

@@ -1874,7 +1874,23 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/overview-since-review-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        # [[BPR-0901]]. An epoch fixture phase, not a fixture render: this row
+        # drives `--epoch-fixture-phase` four times and pays the seed's Git
+        # object cache and SQLite catalog each time. On the render budget it
+        # had 40 s for a phase measured at 28 s driven directly on a quiet
+        # host, a 1.4x margin, and it has been running out of that clock for
+        # dispatches. `build/r2-logs/dsp6-0890-sweep.log:340`, the full macOS
+        # sweep, on the ghes-3.18 reuse:
+        #   RUN_BUDGET_EXPIRED:elapsed_ms=40035 budget_ms=40000 over_ms=35 stage=12
+        # and `build/r2-logs/dsp2-0818-siblings-a445866d.log:17`, on the
+        # github.com seed, `elapsed_ms=40049`. The headline the driver printed
+        # was `EPOCH_FIXTURE_REUSE_FAILED`, so it read as an epoch defect.
+        # [[BPR-0555]] moved the epoch-phase rows it knew about to this budget;
+        # this one and `application_review_behaviour_contract` were not in that
+        # sweep. 120000 ms is 4.3x the 28 s quiet measurement, which is what
+        # makes these two ordinary among the epoch-phase rows rather than a
+        # pair with a bound of their own.
+        "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_overview_since_review_contract.cmake"
 )
@@ -1884,11 +1900,15 @@ set_tests_properties(
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "OVERVIEW_SINCE_REVIEW_CONTRACT_OK"
 )
-# Seed and reuse for each of the GitHub.com and GHES fixtures.
+# Seed and reuse for each of the GitHub.com and GHES fixtures. Only the
+# timeout moves with the budget, and it has to: `bpr_bound_automated_run`
+# refuses 4 x 120000 + 4000 ms inside 240 s, and 660 s is the first round
+# number whose three-quarter share (495000 ms) covers the 484000 ms worst
+# case. The reserve is unchanged; nothing outside the budget changed.
 bpr_bound_automated_run(
     application_overview_since_review_contract
-    TIMEOUT 240
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 660
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 4
     RESERVE_MS 4000
 )
@@ -1900,7 +1920,22 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-behaviour-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        # [[BPR-0901]]. The same epoch fixture phase its sibling above drives,
+        # on the same render budget, and the clearest evidence that the budget
+        # is the fault rather than anything this dispatch changed: it expires
+        # on the github.com seed at `4a2be1b1`, four days before the data root
+        # moved. `build/r2-logs/dsp2-0818-contract-4a2be1b1.log:17`:
+        #   RUN_BUDGET_EXPIRED:elapsed_ms=40048 budget_ms=40000 over_ms=48 stage=4
+        # and again at `build/r2-logs/dsp6-merge2-ctest.log:27`,
+        # `elapsed_ms=40052`, which is the failure [[BPR-0901]] was raised for.
+        # Nine expiries of this row are on disk across four dispatches, every
+        # one of them within 53 ms of the bound. See the note above.
+        #
+        # `application_saved_server_contract` is the next one: same four
+        # epoch phases, same render budget, and already recorded expiring at
+        # `build/r2-logs/dsp2-0818-siblings-a445866d.log:162`. It is left
+        # alone here only because it is outside this card.
+        "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_review_behaviour_contract.cmake"
 )
@@ -1913,8 +1948,8 @@ set_tests_properties(
 # Seed and reuse for each of the GitHub.com and GHES fixtures.
 bpr_bound_automated_run(
     application_review_behaviour_contract
-    TIMEOUT 240
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 660
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 4
     RESERVE_MS 4000
 )

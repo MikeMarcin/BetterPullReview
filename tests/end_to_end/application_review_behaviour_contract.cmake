@@ -50,8 +50,16 @@ function(bpr_run_behaviour_phase fixture fixture_label root phase)
         TIMEOUT ${bpr_timeout}
     )
     if(NOT probe_result EQUAL 0)
+        # [[BPR-0555]], reached by [[BPR-0901]]. The budget line is in the dump
+        # below, but the headline is what a reader acts on, and "seed process
+        # failed" sent one to the epoch path instead of to the clock.
+        set(bpr_budget_headline "")
+        if(probe_output MATCHES "RUN_BUDGET_EXPIRED:[^\n]*")
+            set(bpr_budget_headline "${CMAKE_MATCH_0}\n")
+        endif()
         message(FATAL_ERROR
             "review behaviour ${fixture} ${phase} process failed (${probe_result})\n"
+            "${bpr_budget_headline}"
             "stdout:\n${probe_output}\n"
             "stderr:\n${probe_error}"
         )
