@@ -83,3 +83,63 @@ self-check. A validator that reproduces the thing it validates cannot fail.
   estimated.
 - The egress validator's real guarantee is stated accurately wherever it is
   described.
+
+## Spike checkpoint, dsp-009 (bpr-linux/int-17): the first candidate, measured, not chosen
+
+The first candidate is built as a spike on the `linux-lane` checkpoint commit
+that carries this note, so the number below can be re-derived from the diff
+that produced it. Nothing is chosen here, and [[BPR-0896]] is not fixed.
+
+**What the spike is.** `fake_transport` in
+`tests/github_contract/live_review_mutation_provider_tests.cpp` now answers by
+the request's shape: `scripted_request { Method, Path, Operation }`, where
+`Operation` is the GraphQL operation name parsed from a `{"query":"…` body
+and empty for REST. Answers live in a per-key FIFO, so a course still answers
+the same read twice with different snapshots. A request with no scripted
+answer fails the row at that request, printing
+`FAILED: unscripted request #N: <METHOD> <PATH> [<Operation>] (operation
+<enum>, body …)` and the answers the row did script. The binary gained
+`--list` and `--only <row>` because a row fails by exiting, and a count of
+failing rows needs each row alone.
+
+**Conversion rule, so the measurement is the fixture author's intent and not
+this spike's.** Every `Completions.push_back(helper())` became
+`answer(<key the helper's name denotes>, helper())`: `viewer_response` →
+`GET /user`, `target_response` → `GET /repos/MikeMarcin/BPR-Test/pulls/1`,
+`comment_list_response` → `GET …/pulls/1/comments?per_page=100`,
+`comment_response` → `POST …/pulls/1/comments`, `thread_observation_response`
+→ `POST /graphql ObserveThread`, `thread_resolution_response(r)` →
+`POST /graphql ResolveThread`/`UnresolveThread`. Ten raw inline completions
+carried no helper name and were keyed by the request their position and the
+row's own comment name; those ten are the only places the spike's judgment
+enters, and each is a `github_mutation_wire_error`/`_cancelled` at the POST
+or the first read of an `observe_target`, or the inline wrong-login viewer
+answer.
+
+**Acceptance answer: yes.** The [[BPR-0896]] defect goes red under the keyed
+transport. No existing reply row reached `reconcile` (the only one stops at
+the [[BPR-0879]] pre-flight refusal), so the spike adds
+`test_a_replys_baseline_reconciliation_is_a_request_a_server_can_answer`: a
+reply whose `ObserveThread` answer binds the designated pull request, with the
+baseline reconciliation scripted only as `POST /graphql ObserveThreadComments`
+(the shape BPR-0896 names; the envelope body is a placeholder that row will
+own). The product's second request was `GET /graphql?per_page=100`, operation
+`observe_review_comments`, empty body; the transport had no answer for it and
+the row failed there with exit status 1. ctest row `live_review_mutation_provider`
+(#239) failed on exactly that line, ctest exit 8; ctest row
+`live_review_mutation_restart_recovery` (#240) passed under the same transport.
+The red came from the transport's unscripted-request exit, not from the row's
+own assertion, which sits after it.
+
+**Cost measured so far: 0 existing rows broken in that suite.** Each of the
+17 pre-existing rows run alone with `--only` exits 0 under the keyed transport
+(16 in-process rows plus the four restart-recovery phases through row #240).
+Every positional answer in this suite was already handed to the request the
+product made, in order. The number is not yet the whole mutation surface:
+`live_review_submission_provider_tests.cpp` has its own positional transport
+(`perform_review_mutation` near line 168) that this checkpoint does not key,
+and `github_mutation_contract_tests.cpp` has no transport at all (it pins
+compiled requests directly, which is where the two path pins named above
+live). Keying the submission suite is the next bounded step before the number
+is final; the second and third scope points, and the egress-validator
+statement, remain open.
