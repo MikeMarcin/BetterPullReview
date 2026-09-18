@@ -67,3 +67,26 @@ work:
 - If the answer is (2) or (3), the resulting guard or designation step has its
   own card and its own contract row.
 - [[BPR-0879]]'s residual is updated to point at the answer.
+
+## One fact found after this card was written, dsp-007
+
+It does not answer the ask and does not narrow the three options, but the owner
+should have it, because it bounds the residual this card describes.
+
+[[BPR-0896]] has been verified: a **reply** through the live session cannot be
+submitted at all against a real server. Its pre-admission baseline
+reconciliation compiles `GET /graphql?per_page=100` with an empty body and
+fails before the POST is ever reached
+(`src/adapters/github/src/github_mutation_contract.cpp:2116`, before admission
+at `:2124`). So for the single operation a reviewer uses most, the residual
+this card worries about — someone running a release-configuration build against
+their own account — could not have produced a write. It would have produced an
+error.
+
+This says nothing about resolve, unresolve, or root comments, which take
+different paths and are not known to be broken. So it shrinks the exposure; it
+does not remove it, and it is not a reason to answer (1) by default. If
+anything it argues the opposite way about urgency: the reply path has to be
+rebuilt for [[BPR-0896]] regardless, and it is cheaper to build whatever guard
+answer (2) or (3) implies while that code is already open than to add it
+afterwards.
