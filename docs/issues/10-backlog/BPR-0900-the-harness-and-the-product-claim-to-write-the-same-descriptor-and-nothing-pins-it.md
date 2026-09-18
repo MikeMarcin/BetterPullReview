@@ -68,3 +68,50 @@ digest pins going stale without saying so.
 - The harness comment points at the row instead of asserting the equivalence
   itself.
 - [[BPR-0875]]'s thirteen rows still pass.
+
+## There are three authors, not two — dsp-008
+
+Found while answering `bpr-win`'s question about where a tests-owned Windows
+narrowing helper should live for the Python courses. The answer turned out to
+be that it already exists, and it does not agree with the CMake one.
+
+`make_root_private` is **byte-identical** in
+`tests/end_to_end/epoch_ordinary_update_public_path.py:23-44` and
+`tests/end_to_end/epoch_portable_occurrence_public_path.py:18-39`, with
+`appcontainer_sid` beside it in both. So the harness has two Windows
+descriptor authors of its own, and the product a third.
+
+The two harness authors write **different descriptors**, and the Python one is
+strictly stronger:
+
+| | `bpr_narrow_owner_private.cmake` | `make_root_private` (Python) |
+|---|---|---|
+| `icacls /inheritance:r` | yes | yes |
+| `/grant:r <user>:(OI)(CI)F` | yes | yes |
+| `/grant:r *<AppContainerSID>:(OI)(CI)F` when contained | **no** | yes |
+| `/remove:g *S-1-5-18 *S-1-5-32-544 *S-1-3-4` | **no** | yes |
+
+The Python docstring says it is matching the product's
+`make_storage_root_owner_private`, and cites [[BPR-0834]]; the CMake comment
+says `icacls` writes "exactly that" and cites [[BPR-0436]]. **Both claim to
+match the product. They cannot both be right, because they differ from each
+other.** That is this card's subject, with one more author than it was written
+against, and it is now a concrete discrepancy rather than an unpinned claim.
+
+Two consequences for the acceptance above:
+
+- The row this card asks for should compare **all three** authors, or state
+  which pair it pins and why the third is out of scope. A row pinning the
+  CMake helper against the product would leave the two Python copies free to
+  drift, and they are the ones a contained course uses.
+- The promotion this discovery triggers — both copies into
+  `tests/end_to_end/bpr_narrow_owner_private.py`, named to match the `.cmake`
+  helper — reduces three authors to two before the row is written, which makes
+  the row cheaper. It is assigned to `bpr-win`, whose scope owns those files.
+
+**Do not treat the table above as the cause of `bpr-win`'s six remaining
+container-temp rows.** It is a lead, and a cheap one, but that station measured
+`application_profile_owner_admission_public_path` failing **uncontained** as
+well, which rules the AppContainer grant out for that row specifically. If the
+container grant does turn out to be what the family needs, that belongs in its
+own commit with its own sentence rather than inside a six-row fix.
