@@ -364,6 +364,13 @@ namespace bpr::application {
 		object_unavailable,
 		malformed_output,
 		reap_failure,
+		/// \brief Git refused an object its own fsck rules call an error.
+		///
+		/// \details Distinct from `nonzero_exit`, which says only that some Git
+		/// command failed. `Detail` carries the fsck message identifier, one of
+		/// the adapter's own fixed names, so the refusal can say which object
+		/// class Git would not accept (BPR-0880).
+		unsupported_object,
 	};
 
 	/// \brief Carries one Git process failure with the subprocess explanation.

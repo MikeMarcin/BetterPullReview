@@ -3728,6 +3728,196 @@ namespace {
 			require(verify().has_value(), "an empty fsck report still verifies");
 		}
 	}
+
+	// [[BPR-0880]] The committed fixture packs and what real Git does with
+	// them. `tests/fixtures/git/fsck-severity/v1/README.md` records how they
+	// are rebuilt; `tests/scripts/fsck_severity_fixture.py` rebuilds them and
+	// proves the installed Git knows every message identifier this adapter
+	// ships.
+	// Files in one pack directory carrying index-pack's temporary name.
+	[[nodiscard]] auto index_pack_residue(
+		const std::filesystem::path& aPackDirectory) -> std::size_t
+	{
+		std::error_code error;
+		std::size_t     residue = 0U;
+		for (
+			const auto& entry :
+			std::filesystem::directory_iterator{ aPackDirectory, error }) {
+			if (entry.path().filename().string().starts_with("tmp_pack_")) {
+				++residue;
+			}
+		}
+		return residue;
+	}
+
+	auto run_fsck_severity_contract() -> void
+	{
+		const std::filesystem::path fixtures{ BPR_FSCK_SEVERITY_FIXTURE_ROOT };
+		const auto                  refused = read_text(fixtures / "error-class.pack");
+		// Both classes Git's own defaults call acceptable. The warning class
+		// exited 128 before BPR-0880; the information class exited 0 but wrote
+		// a `warning:` line, which this adapter reads as malformed output, so
+		// it dead-ended just as completely.
+		const std::array<std::pair<std::string, std::string>, 2U> accepted{ {
+			{ read_text(fixtures / "warning-class.pack"),
+			  "ab5b0be4ad29df83374b6d75335d7fcadb295a00" },
+			{ read_text(fixtures / "information-class.pack"),
+			  "e4b2c53b9d045fb126a1c1760f8f83aa6ca22e9b" },
+		} };
+		require(
+			!refused.empty()
+				&& std::ranges::none_of(
+					accepted,
+					[](const auto& aPack) { return aPack.first.empty(); }),
+			"the committed fsck-severity packs are readable");
+
+		const auto refusedPack = object<application::git_pack_id>(
+			"14222642622265351fd047f0c72eabc0c03f24e6",
+			application::git_hash_algorithm::sha1);
+
+		// Each row gets its own repository and operation so that a refusal
+		// cannot be read as a consequence of an earlier import.
+		const auto attempt = [&](
+								 application::git_process_port&  aDapter,
+								 const std::filesystem::path&    aRepository,
+								 const std::uint8_t              aOperation,
+								 const std::string&              aPack,
+								 const application::git_pack_id& aExpected,
+								 const bool                      aSparse) {
+			const auto operation = make_operation(aOperation);
+			initialize_repository(
+				aDapter,
+				aRepository,
+				application::git_hash_algorithm::sha1);
+			write_spool(
+				aDapter,
+				operation,
+				std::as_bytes(std::span{ aPack }));
+			const application::git_index_pack_request request{
+				.Repository        = aRepository,
+				.Operation         = operation,
+				.SpoolBytes        = aPack.size(),
+				.MaximumInputBytes = aPack.size(),
+				.ExpectedPack      = aExpected,
+			};
+			return aSparse
+				? aDapter.index_sparse_pack(request, { })
+				: aDapter.index_pack(request, { });
+		};
+
+		for (const auto sparse : { false, true }) {
+			// (a) The strict path and (b) the sparse path each import both
+			// classes Git accepts. A zero-padded file mode is the warning
+			// class the report reproduced; a symlinked `.gitignore` is the
+			// information class it did not notice. Before BPR-0880 the first
+			// died with `fatal: fsck error in packed object` and the second was
+			// refused as malformed output for the `warning:` line it wrote. A
+			// successful return here proves standard error stayed empty,
+			// because an accepted exit that wrote to it would still be refused.
+			temporary_root root{
+				sparse ? "git-fsck-accepted-sparse" : "git-fsck-accepted-strict"
+			};
+			auto adapter = make_adapter(
+				std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE },
+				root.Path);
+			const auto installation = adapter->installation();
+			// `--fsck-objects=<msg-id>=<severity>` arrived in Git 2.44. An
+			// older installation keeps the bare option, so its sparse path
+			// stays exactly as strict as it is today rather than being handed
+			// an argument it would reject outright.
+			const auto policyReachesGit = !sparse
+				|| installation.VersionMajor > 2U
+				|| (installation.VersionMajor == 2U
+					&& installation.VersionMinor >= 44U);
+			auto digit     = static_cast<char>(sparse ? '5' : '4');
+			auto operation = static_cast<std::uint8_t>(sparse ? 0x55U : 0x44U);
+			for (const auto& [pack, identity] : accepted) {
+				const auto expected = object<application::git_pack_id>(
+					identity,
+					application::git_hash_algorithm::sha1);
+				const auto repository = repository_path(root.Path, digit);
+				const auto indexed    = attempt(
+					*adapter,
+					repository,
+					operation,
+					pack,
+					expected,
+					sparse);
+				++digit;
+				++operation;
+				if (!policyReachesGit) {
+					// Exactly today's behaviour, by class: the warning dies
+					// inside Git and is named, the information finding is
+					// accepted by Git and refused here for the line it wrote.
+					require(
+						!indexed.has_value()
+							&& indexed.error()
+								== (identity == accepted.front().second
+										? application::git_process_failure::unsupported_object
+										: application::git_process_failure::malformed_output),
+						"a sparse path older than Git 2.44 refuses exactly as it does today");
+					continue;
+				}
+				require(
+					indexed.has_value() && indexed->Pack == expected,
+					sparse
+						? "the sparse path imports what Git's own fsck accepts"
+						: "the strict path imports what Git's own fsck accepts");
+				require(
+					std::filesystem::is_regular_file(
+						repository / "objects" / "pack"
+						/ ("pack-" + identity + ".idx")),
+					"the accepted import installs a matching pack index");
+				require(
+					index_pack_residue(repository / "objects" / "pack") == 0U,
+					"the accepted import leaves no temporary file");
+			}
+		}
+
+		{
+			// (c) An error-class object is still refused, on both paths, and
+			// the refusal names the class instead of reporting that some Git
+			// command exited nonzero.
+			temporary_root root{ "git-fsck-error" };
+			auto           adapter = make_adapter(
+				std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE },
+				root.Path);
+			for (const auto sparse : { false, true }) {
+				const auto repository = repository_path(
+					root.Path,
+					sparse ? '7' : '6');
+				const auto indexed = attempt(
+					*adapter,
+					repository,
+					sparse ? 0x77U : 0x66U,
+					refused,
+					refusedPack,
+					sparse);
+				require(
+					!indexed.has_value(),
+					"an error-class fsck object is still refused");
+				require(
+					indexed.error()
+						== application::git_process_failure::unsupported_object,
+					"the refusal is an unsupported object, not a bare process failure");
+				require(
+					indexed.error().Detail == "duplicateEntries",
+					"the refusal names the exact fsck message class");
+				// [[BPR-0880]]. No residue claim here, deliberately. Removing
+				// Git's `tmp_pack_XXXXXX` after a refusal is the *cache's*
+				// guarantee, not this layer's: `installed_git_cache.cpp` owns
+				// the exact removal ([[BPR-0851]]) and
+				// `git_cache_contract_tests.cpp` pins it on the refused strict
+				// import. Asserting it here passed on Git 2.53 and failed on
+				// Apple Git 2.50.1, which leaves the temporary behind on an
+				// error-class refusal exactly as this card's original
+				// reproduction recorded -- so the assertion was reading a Git
+				// version difference as a product promise. What this layer does
+				// promise is the refusal itself, which the three requirements
+				// above pin.
+			}
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -3767,6 +3957,7 @@ auto main(int argc, char** argv) -> int
 	run_isolation_policy_file_contract();
 	run_agent_workspace_parent_cleanup_contract();
 	run_process_error_detail_contract();
+	run_fsck_severity_contract();
 	std::cout << "Git process contract passed\n";
 	return 0;
 }

@@ -67,6 +67,7 @@ namespace bpr::adapters::logging {
 			case application::git_cache_failure::ref_conflict:           return "ref_conflict";
 			case application::git_cache_failure::repair_required:        return "repair_required";
 			case application::git_cache_failure::cancelled:              return "cancelled";
+			case application::git_cache_failure::unsupported_object:     return "unsupported_object";
 			}
 			return "unknown";
 		}
@@ -135,6 +136,7 @@ namespace bpr::adapters::logging {
 			case core::epoch_failure::ordinal_exhausted:     return "ordinal_exhausted";
 			case core::epoch_failure::repair_required:       return "repair_required";
 			case core::epoch_failure::process_failure:       return "process_failure";
+			case core::epoch_failure::unsupported_object:    return "unsupported_object";
 			}
 			return "unknown";
 		}

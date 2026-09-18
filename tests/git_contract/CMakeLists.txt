@@ -28,6 +28,30 @@ bpr_add_network_isolated_test(
 set_tests_properties(profile_window_restoration_fixture_contract PROPERTIES
     PASS_REGULAR_EXPRESSION "PROFILE_WINDOW_RESTORATION_FIXTURE_OK" TIMEOUT 30)
 
+# [[BPR-0880]] Rebuilds the fsck-severity packs from their recipe, checks the
+# frozen bytes against it, and proves the installed Git accepts every fsck
+# message identifier the adapter ships. A Git that refuses one would fail every
+# import, so this row fails on the station whose Git is too old instead.
+bpr_add_network_isolated_test(
+    NAME fsck_severity_fixture_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/fsck_severity_fixture.py"
+        --fixture
+        "${PROJECT_SOURCE_DIR}/tests/fixtures/git/fsck-severity/v1"
+        --git
+        "$<TARGET_FILE:Git::Git>"
+        --source
+        "${PROJECT_SOURCE_DIR}/src/adapters/git/src/installed_git_process.cpp"
+)
+set_tests_properties(
+    fsck_severity_fixture_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "FSCK_SEVERITY_FIXTURE_OK"
+        TIMEOUT 60
+)
+
 bpr_add_executable(
     test_better_pull_review_git_process_contract_tests
     git_process_contract_tests.cpp
@@ -51,6 +75,7 @@ target_compile_definitions(
     PRIVATE
         BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION=1
         BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
+        BPR_FSCK_SEVERITY_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/git/fsck-severity/v1"
 )
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(

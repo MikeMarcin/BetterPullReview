@@ -7352,6 +7352,31 @@ namespace {
 				"an unavailable lock is not reported as a Git subprocess "
 				"failure, so the process-failure code means what it says");
 		}
+
+		// BPR-0880 continues the same division. Git refusing an object its own
+		// fsck rules class as an error is not a command that failed and not a
+		// cache that needs rebuilding, and being told either sends a reviewer
+		// somewhere there is nothing to find.
+		{
+			fixture value;
+			value.State.PrepareCacheFailures.emplace_back(
+				"cache.prepare-revision",
+				application::git_cache_failure::unsupported_object);
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(
+				has_diagnostic(
+					value.State, core::epoch_reason_code::unsupported_object),
+				"an object Git refuses reaches presentation as an unsupported "
+				"object rather than as a bare process failure");
+			expect(
+				!has_diagnostic(
+					value.State, core::epoch_reason_code::process_failure)
+					&& !has_diagnostic(
+						value.State, core::epoch_reason_code::repair_required),
+				"and is neither a failed command nor a local repair, because "
+				"neither a retry nor a rebuild can change the answer");
+		}
 	}
 
 	/// BPR-0459. `start_comparison_resolution` separates a cancellation from a

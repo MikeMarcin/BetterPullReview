@@ -97,6 +97,12 @@ namespace bpr::qt {
 				// ran it (BPR-0348); putting a subprocess message in front of a
 				// reviewer here would be quoting a stranger.
 				return QStringLiteral("A Git command failed while reading the review history.");
+			case core::epoch_reason_code::unsupported_object:
+				// Says what is wrong rather than that something failed, and
+				// still does not quote Git: the message class it named is in
+				// the adapter's log, not in front of the reviewer (BPR-0880).
+				return QStringLiteral(
+					"This pull request contains a Git object the installed Git refuses to read.");
 			case core::epoch_reason_code::cancelled:
 				return QStringLiteral("Review-history work was canceled.");
 			case core::epoch_reason_code::cancellation_after_point_of_no_return:

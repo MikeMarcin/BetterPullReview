@@ -237,6 +237,8 @@ namespace bpr::core {
 			return epoch_reason_code::repair_required;
 		case epoch_failure::process_failure:
 			return epoch_reason_code::process_failure;
+		case epoch_failure::unsupported_object:
+			return epoch_reason_code::unsupported_object;
 		}
 		return epoch_reason_code::invalid_observation;
 	}

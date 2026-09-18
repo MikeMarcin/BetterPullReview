@@ -2890,7 +2890,14 @@ set(
     "\"--git-dir=\""
     "\"index-pack\""
     "\"--stdin\""
-    "\"--strict\""
+    # [[BPR-0880]] The strict path carries Git's own severity list, so the
+    # option is spelled `--strict=<msg-id>=ignore`. The list itself is pinned
+    # by its table marker below, and the sparse path's option is pinned here
+    # too now that it is part of the same fixed contract.
+    "\"--strict=\""
+    "\"--fsck-objects\""
+    "BPR_0880_FSCK_MESSAGE_TABLE_BEGIN"
+    "\"=ignore\""
     "\"--check-self-contained-and-connected\""
     "\"--max-input-size=\""
     "\"--threads=1\""

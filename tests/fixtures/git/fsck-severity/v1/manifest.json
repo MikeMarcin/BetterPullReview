@@ -1,0 +1,39 @@
+{
+  "object_format": "sha1",
+  "packs": {
+    "error-class": {
+      "blob": "ee8c1ee49b4799bbd170233915a897c19e3b55e1",
+      "bytes": 251,
+      "commit": "d986ec2d86b29e915269add0c86624a18fe16e0f",
+      "file": "error-class.pack",
+      "message_id": "duplicateEntries",
+      "pack": "14222642622265351fd047f0c72eabc0c03f24e6",
+      "severity": "ERROR",
+      "sha256": "67ab8b3739d9efb45d1a2462dc26a69dd2cd1a80a022ab982c4b80c9d973c834",
+      "tree": "3afe771c6dd626043899dd37d8f5d5216da99309"
+    },
+    "information-class": {
+      "blob": "ee8c1ee49b4799bbd170233915a897c19e3b55e1",
+      "bytes": 249,
+      "commit": "08c3b2b75ce2c254c9c53acc3b719da1d91324ae",
+      "file": "information-class.pack",
+      "message_id": "gitignoreSymlink",
+      "pack": "e4b2c53b9d045fb126a1c1760f8f83aa6ca22e9b",
+      "severity": "INFO",
+      "sha256": "3b95749df4ac75cda3d9c43ce5c756382b94b7e369ceb338c58e980cf98744c0",
+      "tree": "a48cc1ac893e206ae5e1a7f0f9b601c5ea368c77"
+    },
+    "warning-class": {
+      "blob": "ee8c1ee49b4799bbd170233915a897c19e3b55e1",
+      "bytes": 249,
+      "commit": "bbb369338bc205e234091733b822ca2904fe43ce",
+      "file": "warning-class.pack",
+      "message_id": "zeroPaddedFilemode",
+      "pack": "ab5b0be4ad29df83374b6d75335d7fcadb295a00",
+      "severity": "WARN",
+      "sha256": "685d1c3be2b6bf4aa2168d51049bc7aa55de56d5b39128787bb4b3a04efc6658",
+      "tree": "2acdd073a94af06206cba6bdb0957ad2423f7bfc"
+    }
+  },
+  "schema": "betterpullreview.git-fsck-severity-fixture.v1"
+}

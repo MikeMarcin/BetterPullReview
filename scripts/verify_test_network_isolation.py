@@ -232,6 +232,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # beside the transport fixture above and uncontained for the same reason.
     "native_https_device_authorization_fixture": "dos-volume-name",
     "epoch_history_fixture_contract": "dos-volume-name",
+    # [[BPR-0880]]. Rebuilds the fsck-severity packs from their recipe and asks
+    # the installed Git about every message identifier the adapter ships, so it
+    # needs a Git child.
+    "fsck_severity_fixture_contract": "child-process-denied",
     # [[BPR-0872]]. Eleven tooling rows measured uncontained on the Windows
     # station on 2026-09-17: each launches Git or another interpreter, and the
     # container refuses the child before the tool runs at all.

@@ -1646,6 +1646,11 @@ namespace bpr::adapters::git {
 					aError.Code
 					== application::git_process_failure::invalid_repository) {
 					failure = application::git_cache_failure::invalid_repository;
+				} else if (
+					aError.Code
+					== application::git_process_failure::unsupported_object) {
+					// [[BPR-0880]] The fsck message class travels with it.
+					failure = application::git_cache_failure::unsupported_object;
 				}
 				return { failure, aError.Detail };
 			}
