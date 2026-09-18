@@ -13,9 +13,10 @@
   `reconcile` solely because completion changed the live card fingerprints
   captured before those cards moved to Done; no contradicting source,
   acceptance record or active writer was found.
-- Current candidate: integrated design working tree after allocation commit
-  `f021c138`. BPR-0928 and BPR-0929 are now canonical linked backlog cards;
-  all four design cards remain In Progress pending verification and finish.
+- Accepted design candidate:
+  `fe6ac3633a61bf5fc4abab0057f6546d412c6446`. BPR-0928 and BPR-0929 are
+  canonical linked backlog cards; BPR-0918, BPR-0920, BPR-0923 and BPR-0926
+  are Done at `d2282aba`, `5cec3bbf`, `969b8a60` and `3b442317`.
 - Owned paths: the four bound design cards, this evidence/assignment location,
   canonical ID reservation artifacts, necessary linked follow-up cards, and
   scoped source/tests/docs selected after investigation.
@@ -26,8 +27,10 @@
   committed. The first thin Qt pass passed the Overview, conversation panel,
   conversation cards, workbench, review editor and review-submission public
   path selectors. `qt_composed_github_scale_100` failed at an existing
-  native-host/CLI-warning assertion; a read-only scout owns classification of
-  that negative result.
+  native-host/CLI-warning assertion. A read-only scout reproduced it three
+  times and traced it to pre-RFC-0037 BPR-0915 shared-sign-in expectation drift;
+  because the monolithic test aborts before later assertions it is not counted
+  as passing integration evidence.
 - Selected Overview decision: a retained expanded reader inside the central
   Overview surface, with a natural compact preview, one scroll owner, a fixed
   Return to Files control and source-anchor rather than raw-scroll retention.
@@ -61,10 +64,17 @@
   quiescent. The independent reviewer accepted corrected candidate
   `fe6ac3633a61bf5fc4abab0057f6546d412c6446` with no blocking or non-blocking
   finding; review commands are complete.
-- Pending obligations: finish BPR-0918/BPR-0920/BPR-0923/BPR-0926 and publish the
-  milestone return while leaving BPR-0928/BPR-0929 runtime work open.
-- Next discriminating step: record per-card revision-bound acceptance and verify
-  the final board/documentation state.
+- Verification: the focused Overview, conversation panel/cards, workbench,
+  review-editor and review-submission public-path selectors passed; both native
+  synthetic probes passed their stated positive checks, and the Overview
+  retention negative control failed as intended. `DOCUMENTATION_OK`, 64
+  documentation self-tests, RFC-scoped board validation (921 cards) and
+  `git diff --check` pass at the accepted boundary.
+- Pending obligations: publish the milestone return while leaving BPR-0928,
+  BPR-0929, BPR-0924 and BPR-0925 runtime work and target-native observations
+  open for `thread-reading-integration`.
+- Next discriminating step: bind the next authored milestone and implement its
+  thread reading plus exit-bound BPR-0928/BPR-0929 runtime obligations.
 
 Historical source/update/entry evidence remains in
 `milestone-source-update-review-entry-evidence.md`; this milestone does not
