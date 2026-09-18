@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0928",
+    "BPR-0929"
+  ],
+  "reserve_for": "rfc0037-run-20260918-dispatch-002",
+  "purpose": "",
+  "created": "2026-09-18T11:51:37.307077+00:00",
+  "base": "4384e20982f6ed736a3845f1fd8e6f346b8a9ae3"
+}
