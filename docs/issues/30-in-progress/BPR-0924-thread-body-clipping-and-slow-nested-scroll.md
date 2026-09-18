@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0924"
 title: "Fix clipped thread bodies and slow nested scrolling"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028", "RFC-BPR-0013"]
 depends_on: []
 priority: "P1"
