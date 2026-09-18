@@ -310,11 +310,24 @@ namespace {
 			fail_win32("launch", ::GetLastError());
 		}
 		static_cast<void>(::CloseHandle(process.hThread));
+		// [[BPR-0890]]. These two failures happen after the child has run, so it
+		// may already have printed the marker its row passes on. Exiting here
+		// with only `BPR_NETWORK_ISOLATION_UNAVAILABLE`, which is not one of the
+		// inherited failure expressions, would leave such a row green over a
+		// child whose status nobody could read -- the same silent green the
+		// Linux launcher reached through an auto-reaped child and `ECHILD`. The
+		// statement is "no status", which is a failure like any other.
+		const auto no_status = [] {
+			std::printf("TEST_RUNNER_CHILD_EXIT_FAILED:no-status\n");
+			static_cast<void>(std::fflush(stdout));
+		};
 		if (::WaitForSingleObject(process.hProcess, INFINITE) != WAIT_OBJECT_0) {
+			no_status();
 			fail_win32("wait", ::GetLastError());
 		}
 		auto exitCode = DWORD{ 0 };
 		if (::GetExitCodeProcess(process.hProcess, &exitCode) == FALSE) {
+			no_status();
 			fail_win32("exit-code", ::GetLastError());
 		}
 		// [[BPR-0890]]. The launcher already knows what the child returned, and
