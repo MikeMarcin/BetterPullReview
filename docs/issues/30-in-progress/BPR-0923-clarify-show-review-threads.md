@@ -40,5 +40,11 @@ Starting point: `src/adapters/qt/src/github_conversation_panel.cpp`.
 
 ## Status
 
-Not started. This intake records feedback and investigation/repair scope only;
-no reproduction, root cause, runtime fix or live-service verification is claimed.
+The action is now traced: it focuses, selects, expands and centers the first
+currently filtered review-thread root; it neither fetches conversations, clears
+filters nor opens a collapsed drawer, and can silently focus an empty model.
+The selected design removes this drawer action, makes Discuss automatically
+show accepted results and permits only a clearly labelled Open discussions
+shortcut to the same state. Evidence is in
+[`conversation-surface-layout-study.md`](../../rfcs/plans/rfc-bpr-0037-first-pr-workflow/conversation-surface-layout-study.md);
+[[BPR-0929]] owns runtime implementation. AC-06 remains pending there.

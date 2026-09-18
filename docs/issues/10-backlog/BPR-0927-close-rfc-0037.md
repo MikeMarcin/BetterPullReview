@@ -4,7 +4,7 @@ id: "BPR-0927"
 title: "Verify and close RFC-BPR-0037"
 status: "Backlog"
 rfcs: ["RFC-BPR-0037"]
-depends_on: ["BPR-0918", "BPR-0919", "BPR-0920", "BPR-0921", "BPR-0922", "BPR-0923", "BPR-0924", "BPR-0925", "BPR-0926"]
+depends_on: ["BPR-0918", "BPR-0919", "BPR-0920", "BPR-0921", "BPR-0922", "BPR-0923", "BPR-0924", "BPR-0925", "BPR-0926", "BPR-0928", "BPR-0929"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0037"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
@@ -14,8 +14,9 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/
 
 RFC base: `9bd2002b859ce4c5599d86dcc51771aa365fa90b`.
 
-Planned cards: BPR-0918 through BPR-0927. Add implementation follow-ups from the
-investigation/design cards to this ledger and dependency list before closeout.
+Planned cards: BPR-0918 through BPR-0927, plus the canonically allocated
+implementation follow-ups BPR-0928 and BPR-0929. Those follow-ups remain in
+this ledger and dependency list until their runtime acceptance is complete.
 Markdown cards BPR-0916 and BPR-0917 remain outside this RFC.
 
 [RFC-BPR-0037](../../rfcs/RFC-BPR-0037-first-pr-review-workflow.md) is Proposed.
@@ -23,29 +24,28 @@ This registration consolidates owner feedback; no runtime evidence exists yet.
 
 ## Current frontier
 
-- Run/dispatch: `rfc0037-run-20260918` / `rfc0037-dispatch-001`; mandate revision `1`; producer `/root/rfc0037_m1`.
-- Adopted plan: `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json`; current milestone `source-update-review-entry` is bound by `assignment-rfc0037-dispatch-001.json` in the same directory.
-- Outcome: source candidate `5b95485c9432cd365e8cedffc3aee0ea7d52b164` preserves Start/Continue as a typed overview dispatch, makes Start select its projected file and enter Review, keeps file rows in Read, and maps an absent exact comparison to an actionable comparison-unavailable failure rather than falsely claiming that the file changed. Genuine stale selected-diff terminals retain the stale guard.
-- Composed evidence: a confirmed CLI-typed GHES fixture records the exact unavailable acquisition boundary without source or credentials; supported single/reuse launches over one durable store retain two actual epochs and render both recorded files. Natural Start and Continue enter Review without publication. Evidence is in `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-source-update-review-entry-evidence.md`.
-- Investigation boundary: the course establishes current behavior and one shared recorded acquisition boundary, not the owner run's cause. The exact owner build, CLI/Git versions and live target remain unobserved; no live target was contacted.
-- Verification/review: focused host, Qt, composed application, CLI/Git, GHES, history, multi-window, formatting and fixture checks passed. The critical correction review accepted the candidate with no remaining finding.
-- Acceptance: BPR-0922, BPR-0921 and BPR-0919 are Done at `ae881081`, `e34649d6` and `34760e13` respectively. Documentation and RFC-scoped board validation pass.
-- Ownership: both read-only scouts and the critical reviewer completed without edits; all test commands are complete, and no child writer or long-running command is active.
-- Next bounded objective after this milestone: begin `overview-conversation-decisions` in a fresh integration context; RFC closeout remains blocked on that milestone, `thread-reading-integration`, combined evidence and any required human/native observations.
+- Run/dispatch: `rfc0037-run-20260918` / `rfc0037-dispatch-002`; mandate revision `1`; producer `/root/rfc0037_m2`.
+- Adopted plan: `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json`; current milestone `overview-conversation-decisions` is bound by `assignment-rfc0037-dispatch-002.json` in the same directory. The prior accepted milestone was reconciled without reopening its engineering.
+- Selected Overview design: a retained expanded central reader with a compact preview, one scroll owner, fixed Return to Files and source-anchor retention across reflow. Synthetic body/layout/input evidence is in `overview-description-layout-study.md`; BPR-0928 owns runtime AC-01.
+- Selected conversation design: a dedicated in-window Compose review page plus PR-wide Discuss with explicit optional file/Unread/Unresolved filters and distinct loading/empty/filtered/failure states. Synthetic geometry and hidden-page evidence is in `conversation-surface-layout-study.md`; BPR-0929 owns runtime AC-03/06/09.
+- Allocation/linkage: BPR-0928 and BPR-0929 were reserved at `f021c138`, link every design-only card to bounded runtime acceptance and are dependencies of this closeout. The authored complete plan remains byte-unchanged after its amendment checker refused new work atoms; its existing current/future exits already require and carry these follow-ups.
+- Verification boundary: focused Overview, conversation panel/cards, workbench, review-editor and review-submission public-path checks pass. `qt_composed_github_scale_100` deterministically aborts before conversation assertions on unrelated BPR-0915 shared-sign-in expectation drift; it is not passing integration evidence. Native trackpad, accessibility/appearance and the owner's original two clipped-box identities remain unobserved.
+- Ownership: both workers and the read-only failure scout are complete; their disposable probes were removed and all commands are quiescent.
+- Next bounded objective after this milestone: execute `thread-reading-integration`, including BPR-0924/BPR-0925 and the linked BPR-0928/BPR-0929 runtime obligations. RFC closeout remains blocked on those implementations, the combined course and required native observations.
 
 ## Closeout checklist
 
 | Criterion | Owning card and direct evidence | Result |
 |---|---|---|
-| AC-01: Long PR descriptions have a demonstrated reading layout that exposes the complete admitted body, retains place and keeps Files reachable across representative window sizes and font scales. | [[BPR-0918]]: composed long overview descriptions course and applicable native layout/input evidence | Not run |
+| AC-01: Long PR descriptions have a demonstrated reading layout that exposes the complete admitted body, retains place and keeps Files reachable across representative window sizes and font scales. | [[BPR-0918]] design evidence; [[BPR-0928]] composed runtime and applicable native layout/input evidence | Design selected; runtime pending |
 | AC-02: Overview Start review enters Review rather than empty Read; Continue review preserves the intended position, and navigation publishes nothing. | [[BPR-0919]]: composed start review navigation course and applicable native layout/input evidence | Not run |
-| AC-03: Review composition has an agreed, implemented placement with usable input space, no unexplained large gaps or clipping, and preserved drafts and explicit submission semantics. | [[BPR-0920]]: composed review composition and drawer redesign course and applicable native layout/input evidence | Not run |
+| AC-03: Review composition has an agreed, implemented placement with usable input space, no unexplained large gaps or clipping, and preserved drafts and explicit submission semantics. | [[BPR-0920]] design evidence; [[BPR-0929]] composed review composition course and applicable native layout/input evidence | Design selected; runtime pending |
 | AC-04: Available update history appears for the loaded PR; loading, empty, unavailable and failed states are distinct, and stale history cannot replace another PR’s updates. | [[BPR-0921]]: composed missing updates course and applicable native layout/input evidence | Not run |
 | AC-05: Supported stable comparisons open the intended source for multiple files; genuine stale selections remain rejected and unavailable comparisons explain the actual cause and recovery path. | [[BPR-0922]]: composed source-loading blocker course and applicable native layout/input evidence | Not run |
-| AC-06: The thread action has an understandable visible effect or is replaced by a clear automatic/reachable flow; loading, filtering, empty results and failures are explicit. | [[BPR-0923]]: composed show review threads course and applicable native layout/input evidence | Not run |
+| AC-06: The thread action has an understandable visible effect or is replaced by a clear automatic/reachable flow; loading, filtering, empty results and failures are explicit. | [[BPR-0923]] design evidence; [[BPR-0929]] composed Discuss entry/state course | Design selected; runtime pending |
 | AC-07: Full admitted thread bodies are reachable without accidental nested scroll traps; wheel, trackpad and keyboard behavior is responsive and supported by observed or measured evidence. | [[BPR-0924]]: composed clipped threads and slow nested scrolling course and applicable native layout/input evidence | Not run |
 | AC-08: The graph and thread detail form one understandable reading path with consistent body presentation and no unexplained duplicate full thread, while preserving identity and navigation. | [[BPR-0925]]: composed apparent duplicate thread rendering course and applicable native layout/input evidence | Not run |
-| AC-09: Discuss displays known PR conversations without requiring a source file to load; its default scope and optional file filtering are decided explicitly, with clear thread-to-code navigation and loading/error states. | [[BPR-0926]]: composed empty discuss and file-independent reading course and applicable native layout/input evidence | Not run |
+| AC-09: Discuss displays known PR conversations without requiring a source file to load; its default scope and optional file filtering are decided explicitly, with clear thread-to-code navigation and loading/error states. | [[BPR-0926]] design evidence; [[BPR-0929]] composed PR-wide Discuss and applicable native layout/input evidence | Design selected; runtime pending |
 
 ## Completion rules
 

@@ -53,5 +53,12 @@ Starting points: `src/adapters/qt/src/github_conversation_panel.cpp`,
 
 ## Status
 
-Not started. This intake records feedback and investigation/repair scope only;
-no reproduction, root cause, runtime fix or live-service verification is claimed.
+Selected design recorded in
+[`conversation-surface-layout-study.md`](../../rfcs/plans/rfc-bpr-0037-first-pr-workflow/conversation-surface-layout-study.md):
+move the existing whole-review workflow to a dedicated in-window Compose review
+page and open inline/reply drafting explicitly, leaving the drawer contextual.
+The synthetic composed layout confirms a 220-pixel inline editor against a
+429/453-pixel minimum hint and 23-pixel body/workshop fields. The owner's two
+reported boxes remain unidentified; the whole-review target did not clip in the
+probe. [[BPR-0929]] owns the coupled runtime implementation while preserving
+draft and publication authority. AC-03 runtime acceptance remains pending.

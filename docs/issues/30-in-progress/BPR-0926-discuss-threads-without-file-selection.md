@@ -50,5 +50,11 @@ and host projections. Coordinate the overall arrangement with [[BPR-0920]].
 
 ## Status
 
-Not started. This intake records feedback and investigation/repair scope only;
-no reproduction, root cause, runtime fix or live-service verification is claimed.
+The synthetic composed probe reproduced known retained conversation content
+behind an empty page: an inherited absent-file anchor produced zero visible
+roots while one whole-PR card remained retained; clearing file and line anchors
+revealed the loaded page. The selected design makes Discuss PR-wide by default,
+with an explicit optional file scope and distinct loading, empty, filtered,
+refreshing, failure and unavailable states. Evidence is in
+[`conversation-surface-layout-study.md`](../../rfcs/plans/rfc-bpr-0037-first-pr-workflow/conversation-surface-layout-study.md);
+[[BPR-0929]] owns runtime implementation. AC-09 remains pending there.

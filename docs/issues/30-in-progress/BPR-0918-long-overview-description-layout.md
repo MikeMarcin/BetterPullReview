@@ -58,5 +58,11 @@ dependency. Do not copy the owner's private PR description into fixtures.
 
 ## Status
 
-Not started. This is investigation/design work; implementation follows the
-resulting scoped task and owner direction.
+Selected design recorded in
+[`overview-description-layout-study.md`](../../rfcs/plans/rfc-bpr-0037-first-pr-workflow/overview-description-layout-study.md):
+a retained expanded central description reader with one scroll owner and a
+fixed Return to Files control. Synthetic Qt evidence distinguishes the
+262,144-byte admission boundary from the 110-pixel viewport, reaches the full
+body across the width/font/scale matrix and demonstrates why raw scrollbar
+replay cannot retain place after reflow. [[BPR-0928]] is the linked runtime
+follow-up. This investigation does not claim AC-01 runtime acceptance.
