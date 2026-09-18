@@ -32,7 +32,7 @@ process is running. Logs are `build/r2-logs/dsp7-*`.
 | macOS dev | **380/383** | this dispatch at `22023667`, `dsp7-0901-full-sweep.log` |
 | macOS, merged head | the sweep's one non-[[BPR-0893]] failure **re-run green** | `dsp7-merge-ctest.log`, 8/8 |
 | Windows | **338/364** | this dispatch at `86b04901`, `docs/verification/dsp7-windows-full-sweep.md` |
-| Linux | in flight from `271bb452` | dsp-005's 367/367 at `2b2e5549` is the last completed one |
+| Linux | **368/369** | this dispatch at `88dc42fc`, 484.61 s at `-j10` |
 
 macOS's three failures were `test_network_isolation_structure_contract` —
 **fixed by merging `bpr-win`, and verified green here at the merged head** —
@@ -42,7 +42,15 @@ instability showing again.
 
 Windows went from 309/362 to **338/364: twenty-seven rows green, and no row
 that was green at `2b2e5549` is red**, compared by name against the recorded
-sweep rather than from memory.
+sweep rather than from memory. Linux went from 367/367 to 368/369 with two more
+rows configured and 4.88 s more wall clock — **supervising every row costs
+nothing measurable**. Its one red row is the exemption-cause tripwire, already
+fixed on main by `bpr-win`'s merge and verified green here.
+
+**Every platform's sweep is now from this dispatch, and they are not
+comparable to each other by design:** macOS and Windows ran with BPR-0901's
+fix, Linux ran deliberately on the defect side because its clone had never
+fetched main. That was the more useful side to measure from.
 
 ### The first thing dsp-007 found, because it blocked both stations
 
@@ -195,8 +203,21 @@ the timeout, so 240 s would not configure at all. `RESERVE_MS` stays 4000.
 Both drivers now lift `RUN_BUDGET_EXPIRED` into the headline, which is the half
 of [[BPR-0555]] these two never got.
 
-Windows measured both rows passing at 44 s with **no expiry anywhere** in its
-sweep, so the margin holds on that host. Linux's datapoint is still owed.
+**All three platforms measured, and only macOS crosses the line.** Windows
+passed both rows at 44 s. Linux, measured deliberately on the **unfixed** bound
+with a fresh configure, passed at 10.53 s and 11.59 s under `-j10` sweep load —
+whole row, all four runs, against a 40 s *per-run* bound, so roughly fourfold
+clear. All **sixteen** Linux rows carrying that bound passed, including
+`application_saved_server_contract`, which is recorded expiring elsewhere at a
+1.7x margin. So the bounds are not uniformly thin; they are thin **on one
+host**, and which host crosses first differs by row.
+
+**A limitation worth carrying forward:** this dispatch asked all three
+platforms for an exact `elapsed_ms` and the request was unanswerable wherever
+the rows passed. `src/app/main.cpp:4379` prints the elapsed figure **only
+inside the failing-verdict block**, so a healthy run reports no margin at all.
+Row wall time is the only proxy. That is on [[BPR-0905]], because a margin
+invisible until it is breached is a margin nobody maintains.
 
 ### [[BPR-0894]] survived a review that was told to defeat it, but not on the first try
 
@@ -244,24 +265,19 @@ tight enough to fail.
 
 ### Next objectives, in order
 
-1. **Label `7dc78341`.** `bpr-linux` owes CHECKPOINT or RETURN. Do not merge it
-   until it says. Then merge, then fast-forward `origin/linux-lane` — in that
-   order.
-2. **The rest of `bpr-linux`'s envelope:** [[BPR-0881]]'s Linux criterion and
-   [[BPR-0875]]'s twelve courses on Linux, both criteria this run created and
-   neither measured, then its chained full sweep. Reconfigure first.
-3. **`bpr-win`'s five-row family** — the store refusing a root whose parent
+1. **`bpr-win`'s five-row family** — the store refusing a root whose parent
    lacks the private descriptor — then [[BPR-0902]], whose cause is now read
    and whose first step is one marker line and one run.
-4. **[[BPR-0896]]**, now **P1**: a live reply cannot be submitted at all. It is
+2. **[[BPR-0896]]**, now **P1**: a live reply cannot be submitted at all. It is
    blocked on two server-behaviour questions this repository cannot answer by
    reading; they decide the fix's shape and neither shape should be built
    before they are answered. [[BPR-0904]] is its companion and explains the
    silence.
-5. **[[BPR-0905]]**, then [[BPR-0893]] — settle whether the footprint rows
+3. **[[BPR-0905]]**, then [[BPR-0893]] — settle whether the footprint rows
    measure the product or the machine, now that its sibling question has been
    settled the other way.
-6. Then [[BPR-0874]], [[BPR-0898]], [[BPR-0899]], [[BPR-0900]], [[BPR-0903]],
+4. Then [[BPR-0906]], [[BPR-0895]] — decide them together, they are the same
+   relocation seen from opposite ends — and [[BPR-0874]], [[BPR-0898]], [[BPR-0899]], [[BPR-0900]], [[BPR-0903]],
    and finally [[BPR-0854]] and [[BPR-0861]], still In Progress for Windows
    alone.
 
@@ -300,17 +316,15 @@ tight enough to fail.
   `git_cache_contract_tests.cpp:1405`, which passes. The writer's own first
   draft made dsp-006's mistake in the other direction and its row caught it on
   2.53.0, independently.
-- **`bpr-linux` is ACTIVE and `origin/linux-lane` is at `7dc78341`, ahead of
-  main and UNLABELLED** ("Measure what the Linux guard was hiding: nothing,
-  across all 369 rows"). It has been asked whether that is a CHECKPOINT or a
-  RETURN and **it has not been merged**. The lane ref was deliberately **not**
-  advanced toward main, because the station's tip is ahead of what is merged
-  and forcing it would destroy work — the lane stays the station's until it
-  returns it, and only then does it fast-forward. That order is the whole
-  lesson of this dispatch's opening.
-- Still owed by `bpr-linux`: [[BPR-0881]]'s Linux criterion, [[BPR-0875]]'s
-  twelve courses on Linux, [[BPR-0890]]'s Linux half (apparently the commit
-  above), and the chained full sweep. Envelope expiry `2026-09-18T18:00:00Z`.
+- **`bpr-linux` returned its whole envelope and is idle.** `ef630436` is
+  merged; its tree is clean and nothing is queued for it. [[BPR-0881]]'s Linux
+  criterion, [[BPR-0875]]'s thirteen Linux rows, [[BPR-0890]]'s Linux launcher
+  and the full sweep are all in.
+- **It then corrected two of its own claims, unprompted**, which is worth more
+  than either claim was: "no `RUN_BUDGET_EXPIRED` anywhere" was false (one
+  appears, on the row whose subject *is* an expired run), and "roughly
+  fivefold" compared serial times against sweep conditions. The merge commit
+  that landed the sweep still says fivefold; this section is the correction.
 - **Both stations must reconfigure** before their next sweep: [[BPR-0901]]'s
   budget is a configure-time argument to the course script.
 

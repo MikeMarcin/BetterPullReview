@@ -67,6 +67,40 @@ while, in the same run, a row on the 120 s epoch budget also expired
 survives no bound in this file, and a rule has to say what it does about that
 rather than pretend it cannot happen.
 
+## A margin cannot be read from a green run, and that is half the reason these persist
+
+`src/app/main.cpp:4379` prints `PUBLIC_PATH_BUDGET:… elapsed_ms=…` **only
+inside the failing-verdict block**. A run that stays inside its budget emits no
+elapsed figure at all.
+
+So there is no way to ask a healthy host how close it came. This dispatch asked
+all three platforms for an exact `elapsed_ms` on the two [[BPR-0901]] rows and
+the request was unanswerable everywhere they passed; row wall time is the only
+proxy, and it covers all four runs rather than the worst one. **A bound whose
+margin is invisible until it is breached is a bound nobody can maintain** —
+which is exactly how four of these accumulated. Printing the elapsed figure
+unconditionally is a small product change and it belongs with this card's third
+option, because the two together make a thin bound both visible and
+self-naming.
+
+## The exposure is not uniform, and nobody should raise a bound without that
+
+Linux carries **sixteen** rows on the 40000 ms fixture-run bound and **all
+sixteen passed** under `-j10` sweep load. The extremes are
+`uiforetw_selected_diff` at 18.36 s and
+`anonymous_public_preview_ghes_refusal` at 0.43 s. Critically,
+`application_saved_server_contract` — the row named above as already recorded
+expiring at a 1.7x margin — **passed here at 11.21 s**.
+
+The two [[BPR-0901]] rows took 10.53 s and 11.59 s under that same load, whole
+row, against a 40 s *per-run* bound: roughly fourfold clear on Linux, while
+macOS crossed the line by 35 and 52 ms and Windows passed at 44 s a row.
+
+That is the shape of the problem. These bounds are not uniformly thin — they
+are thin **on one host**, and the host that crosses first is not the same for
+every row. A survey that measures one platform will conclude there is nothing
+here.
+
 ## Scope
 
 - Fix the four rows, and for each say what the new bound is **derived from** —
