@@ -434,8 +434,58 @@ Passed, 164.62 s.** It timed out at 180.03 s in both of that writer's
 full-suite runs and passed in 122.65 s alone. Here it passes *inside the full
 suite*, but with only **15.4 s of margin** against its 180 s budget, and it is
 42 s slower than it is alone. So the row is not fixed, it is load-sensitive and
-this sweep happened to land on the right side of the budget; it stays worth
-watching rather than being called resolved.
+this sweep happened to land on the right side of the budget. **It is
+[[BPR-0905]]'s fourth row** — recorded here, not adjusted here, and no budget was
+touched.
+
+### Which side of [[BPR-0901]] this sweep measured, and the whole 40 s population
+
+**The defect side.** [[BPR-0901]]'s budget fix is on `main` at `026e87cc` and is
+**not** on this lane; it was not fetched and that object does not exist in this
+clone. The `--fresh` configure is still what makes the measurement honest — it
+guarantees the bound measured is the one in *this* tree — but it cannot pick up
+a fix the tree does not contain. At HEAD,
+`tests/end_to_end/CMakeLists.txt:1888-1893` and `:1914-1919` still carry
+`BUDGET_MS ${bpr_fixture_run_budget_ms}` (**40000**), `RUNS 4`,
+`RESERVE_MS 4000`, and this station never edited that file.
+
+**Exactly one `RUN_BUDGET_EXPIRED` appears in all 369 rows, and it is the row
+whose subject is an expired run** — `application_automated_run_budget`
+(`bpr_expects_failed_run`), on a 5000 ms budget, verbatim:
+
+```text
+RUN_BUDGET_EXPIRED:elapsed_ms=5018 budget_ms=5000 over_ms=18 stage=2 status="Pull request ready."
+PUBLIC_PATH_BUDGET:expired=1 budget_ms=5000 elapsed_ms=5018 stage_ticks=433
+```
+
+**No row on the 40000 ms bound expired.** Sixteen rows carry it, and all
+sixteen passed under `-j10` sweep load — which is the population
+[[BPR-0905]] is about, so it is given whole rather than sampled:
+
+| Row | Sweep |
+| --- | --- |
+| `application_uiforetw_selected_diff_contract` | 18.36 s |
+| `application_epoch_portable_occurrence_two_catalogues` | 17.44 s |
+| `application_review_behaviour_contract` | 11.59 s |
+| `application_saved_server_contract` | 11.21 s |
+| `application_overview_since_review_contract` | 10.53 s |
+| `application_defect_composition_contract` | 7.86 s |
+| `application_review_ledger_composition_contract` | 5.55 s |
+| `application_workbench_composition_contract` | 4.44 s |
+| `application_diff_workbench_public_path` | 3.99 s |
+| `application_threaded_reply_contract` | 3.80 s |
+| `application_review_round_trip_composition_contract` | 2.21 s |
+| `application_github_public_path_uiforetw_74` | 1.93 s |
+| `application_github_public_path_ghes_3_18` | 1.87 s |
+| `application_diff_workbench_shutdown_public_path` | 1.81 s |
+| `application_github_public_path_github_com` | 1.79 s |
+| `application_anonymous_public_preview_ghes_refusal` | 0.43 s |
+
+Those are whole-row times covering every run the row makes, so the per-run
+elapsed each budget actually bounds is lower still. `application_saved_server_contract`,
+which [[BPR-0905]] records as already expiring elsewhere at a 1.7x margin,
+passed here at 11.21 s. None of [[BPR-0905]]'s rows failed or timed out in this
+sweep; none was fixed and no budget was adjusted.
 
 ### The one red row is not this card's, and not new work by this station
 
