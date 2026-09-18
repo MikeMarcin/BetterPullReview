@@ -114,10 +114,15 @@ namespace bpr::adapters::sqlite {
 		/// \details The candidates are the per-user runtime directories the platforms already
 		/// keep owner-private, which is why the endpoint can leave the data root without losing
 		/// an ownership guarantee: Linux's `/run/user/<uid>` first, then `$TMPDIR`, which is what
-		/// macOS gives each user. Linux names that directory in an environment variable this
-		/// adapter is not the owner of -- `cmake/VerifyArchitectureBoundaries.cmake` reserves the
-		/// name to the GitHub CLI transport -- so its standard location is probed directly and
-		/// verified like any other candidate; a system that puts it elsewhere falls through.
+		/// macOS gives each user. Linux also names that directory in an environment variable.
+		/// This adapter once could not read it at all, because the boundary rule reserved the
+		/// name itself to the GitHub CLI transport; BPR-0894 narrowed that rule to what it meant
+		/// -- the transport owns *constructing* a child's environment, not the act of reading a
+		/// variable to find a directory -- so the read is now permitted here. The standard
+		/// location is still probed directly, because probing verifies ownership rather than
+		/// trusting a value and works on a system that sets no such variable. Adopting the
+		/// variable as a further candidate is deliberate future work and is recorded on
+		/// BPR-0894; until then a system that puts the directory elsewhere falls through.
 		/// Each candidate is verified owner-private rather than assumed, and a shared candidate
 		/// such as `/tmp` earns one owner-private child instead, verified as a real directory so
 		/// a planted symlink is refused rather than followed. No existing permissions are widened.

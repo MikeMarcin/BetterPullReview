@@ -4802,6 +4802,61 @@ auto finish_background_reap(
                     },
                 )
 
+    def test_platform_directory_variables_may_be_read_for_discovery(
+        self,
+    ) -> None:
+        # BPR-0894. The transport owns *constructing* the child process
+        # environment. Reading one of these variables to find the directory the
+        # platform documents for the purpose is discovery, not construction, and
+        # the rule used to forbid it because it matched the bare token. BPR-0881
+        # hit this and probed /run/user/<uid> directly instead.
+        for variable in (
+            "XDG_RUNTIME_DIR",
+            "USERPROFILE",
+            "APPDATA",
+            "LOCALAPPDATA",
+        ):
+            with self.subTest(variable=variable):
+                result = self.run_check(
+                    {
+                        "src/adapters/sqlite/src/discovery.cpp":
+                            "const auto runtime = "
+                            f'environment_directory("{variable}");\n'
+                    }
+                )
+                self.assertEqual(
+                    result.returncode, 0, result.stdout + result.stderr
+                )
+
+    def test_platform_directory_variables_stay_owned_for_construction(
+        self,
+    ) -> None:
+        # The other half of BPR-0894: narrowing the rule must not stop it
+        # failing a real leak of the transport's environment construction. A
+        # bare literal, an assignment and a name appended to a child
+        # environment are all still the transport's alone -- including in a file
+        # that legitimately reads the same variable for discovery elsewhere.
+        for variable in (
+            "XDG_RUNTIME_DIR",
+            "USERPROFILE",
+            "APPDATA",
+            "LOCALAPPDATA",
+        ):
+            for hostile_form in (
+                f'const char* hostile = "{variable}";\n',
+                f'setenv("{variable}", value, 1);\n',
+                f'append_environment(environment, "{variable}", value);\n',
+                f'const auto found = environment_directory("{variable}");\n'
+                f'append_environment(environment, "{variable}", *found);\n',
+            ):
+                with self.subTest(variable=variable, form=hostile_form):
+                    self.assert_failure(
+                        "environment construction ownership violation",
+                        {
+                            "src/adapters/github/src/other.cpp": hostile_form
+                        },
+                    )
+
     def test_cli_transport_rejects_credential_status_cache_and_debug(
         self,
     ) -> None:

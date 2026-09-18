@@ -5056,6 +5056,79 @@ foreach(source_file IN LISTS source_files)
     endforeach()
 endforeach()
 
+# BPR-0894: four of the variables reserved below are also the standard way a
+# platform publishes a per-user directory, and reserving the *token* stopped
+# any other component from reading one to find that directory. The boundary
+# this rule means to defend is narrower: the GitHub CLI transport owns
+# *constructing* the child process environment, including the decision about
+# which variables are passed through to the child. Reading one as a directory
+# path -- through the `environment_directory("NAME")` accessor, which yields an
+# absolute path or nothing -- is discovery, not construction, and is permitted
+# anywhere. Every other spelling is still the transport's alone: a bare
+# literal, an assignment, or a name appended to a child environment all still
+# fail, which is the property worth defending.
+#
+# The remaining reserved names are deliberately not in this set. HOME and PATH
+# already have three named owners and are more than directories -- they
+# redirect a child tool's whole notion of state. DBUS_SESSION_BUS_ADDRESS is a
+# bus address rather than a directory, and the Linux Secret Service adapter is
+# separately forbidden from naming it on purpose. HTTPS_PROXY, NO_PROXY,
+# SSL_CERT_FILE and SSL_CERT_DIR are network and TLS-trust policy: a component
+# that read SSL_CERT_DIR would be making a trust decision, not finding a
+# directory, which is exactly the leak this rule exists to catch.
+set(
+    platform_directory_environment_variables
+    "XDG_RUNTIME_DIR"
+    "USERPROFILE"
+    "APPDATA"
+    "LOCALAPPDATA"
+)
+
+function(
+    verify_environment_construction_owner
+    variable_name
+    effect_name
+    allowed_relative_file
+)
+    set(allowed_relative_files "${allowed_relative_file}" ${ARGN})
+    set(allowed_files "")
+    foreach(current_allowed_relative IN LISTS allowed_relative_files)
+        get_filename_component(
+            current_allowed
+            "${BPR_ROOT}/${current_allowed_relative}"
+            ABSOLUTE
+        )
+        list(APPEND allowed_files "${current_allowed}")
+    endforeach()
+
+    foreach(source_file IN LISTS source_files)
+        get_filename_component(normalized_source_file "${source_file}" ABSOLUTE)
+        if(normalized_source_file IN_LIST allowed_files)
+            continue()
+        endif()
+
+        file(READ "${source_file}" contents)
+        string(
+            REGEX REPLACE
+            "environment_directory[ \t\r\n]*\\([ \t\r\n]*\"${variable_name}\"[ \t\r\n]*\\)"
+            ""
+            contents
+            "${contents}"
+        )
+        if(contents MATCHES "\"${variable_name}\"")
+            file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
+            message(
+                FATAL_ERROR
+                "${effect_name} ownership violation in ${relative_file}; "
+                "only ${allowed_relative_files} may use it. Reading "
+                "${variable_name} as a directory through "
+                "environment_directory(\"${variable_name}\") is discovery "
+                "rather than construction and is allowed anywhere"
+            )
+        endif()
+    endforeach()
+endfunction()
+
 set(
     github_cli_invocation_and_environment_patterns
     "\"api\""
@@ -5083,6 +5156,16 @@ foreach(
     cli_construction_pattern
     IN LISTS github_cli_invocation_and_environment_patterns
 )
+    set(platform_directory_variable "")
+    foreach(
+        candidate_directory_variable
+        IN LISTS platform_directory_environment_variables
+    )
+        if(cli_construction_pattern STREQUAL "\"${candidate_directory_variable}\"")
+            set(platform_directory_variable "${candidate_directory_variable}")
+        endif()
+    endforeach()
+
     if(
         cli_construction_pattern STREQUAL "\"HOME\""
         OR cli_construction_pattern STREQUAL "\"PATH\""
@@ -5100,6 +5183,12 @@ foreach(
             "process environment construction"
             "${github_cli_transport_relative}"
             "${git_process_runner_relative}"
+        )
+    elseif(NOT platform_directory_variable STREQUAL "")
+        verify_environment_construction_owner(
+            "${platform_directory_variable}"
+            "GitHub CLI invocation/environment construction"
+            "${github_cli_transport_relative}"
         )
     else()
         verify_effect_owner(
