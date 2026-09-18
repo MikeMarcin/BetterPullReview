@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0922"
 title: "Fix source files refusing to open with unavailable exact comparison"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0003", "RFC-BPR-0015", "RFC-BPR-0029"]
 depends_on: []
 priority: "P1"
