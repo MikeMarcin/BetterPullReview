@@ -238,3 +238,37 @@ Noted so nobody rediscovers it as a swallow: three scripts use
 `scripts/verification/rfc0016_attended_contract/`). That is deliberate,
 explicit tolerance stated at the call site, which is exactly the shape this
 card asks for, so it was left alone.
+
+## The Windows criterion is closed, on a real leak (dsp-006, `bpr-win`)
+
+The acceptance line only the Windows station could close asked for "a
+deliberately held handle ... shown to be reported". It was answered better than
+that: **the report came from a real leak, not a planted one.**
+
+Before [[BPR-0876]]'s `mkdir` guard landed, the device-binding relaunch course
+was leaving a directory behind, and the helper named it instead of swallowing
+it:
+
+    scripts.contained_temporary_support.RemovalFailed: contained temporary:
+    could not remove C:\Users\...\Packages\bprautomatedtest\AC\Temp\
+    bpr-0644-relaunch-eedb824449576f0e\application: [WinError 5] Access is denied
+
+That is exactly the behaviour this card existed to create: a leak that used to
+be invisible now stops the row and names its path. No held handle was needed.
+
+The leak's own cause was found and fixed in the same pass, and it took **two**
+guards rather than one: guarding only `os.chmod` left the course failing at
+removal, because `root.mkdir(mode=0o700)` stamps CPython's protected owner-only
+descriptor on Windows — which **excludes the AppContainer the course runs in**,
+so the course had created a directory it could neither narrow nor delete.
+
+What remains is not this card's: the relaunch row now gets past both guards and
+fails at a named startup refusal, `registry_unavailable`, which is the same
+value [[BPR-0875]]'s benchmark measured and [[BPR-0856]]'s rows hit. That family
+is tracked on [[BPR-0876]] and the station has named it rather than guessed at
+it.
+
+So all three acceptance lines are now met in substance. The card is left In
+Progress only because "the five Windows contained courses run without leaking"
+was demonstrated on one of the five; the other four root under the container
+temp and wait on the same startup-refusal fix.
