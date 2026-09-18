@@ -13,23 +13,26 @@
   `reconcile` solely because completion changed the live card fingerprints
   captured before those cards moved to Done; no contradicting source,
   acceptance record or active writer was found.
-- Current candidate: starting HEAD
-  `700753b3c94026e2683117d271053f6e6b82af72`; no owned implementation change
-  has started.
+- Current candidate: allocation commit `f021c138`; BPR-0928 and BPR-0929 are
+  reserved canonically for the two expected runtime follow-ups. All four
+  design cards are In Progress.
 - Owned paths: the four bound design cards, this evidence/assignment location,
   canonical ID reservation artifacts, necessary linked follow-up cards, and
   scoped source/tests/docs selected after investigation.
 - Completed checks: live RFC queue inspected; prior assignment, return,
   acceptance JSON and evidence reconciled; the new assignment binds valid,
-  resolved source obligations and the accepted prerequisite milestone.
-- Active owners/commands: only this integrator; no child or long-running
-  command is active.
-- Pending obligations: claim the four cards; trace and demonstrate the
-  Overview and conversation layouts; select designs; reserve canonical
-  runtime-follow-up IDs; record direct evidence and complete each design card.
-- Next discriminating step: inspect the composed Qt surfaces and their tests,
-  then delegate independent Overview and conversation investigations with
-  exclusive paths.
+  resolved source obligations and the accepted prerequisite milestone; the
+  four cards were promoted and claimed; ID reservation history/counter were
+  committed.
+- Active owners/commands: `/root/rfc0037_m2/overview_layout` owns only
+  `overview-description-layout-study.md`; `/root/rfc0037_m2/conversation_design`
+  owns only `conversation-surface-layout-study.md`. No long-running command is
+  known outside those bounded investigations.
+- Pending obligations: consume both investigations; adjudicate the selected
+  designs; create and link BPR-0928/BPR-0929 with runtime acceptance; record
+  integrated direct evidence and complete the four design cards.
+- Next discriminating step: exercise the existing composed Qt selectors while
+  the bounded workers trace their independent surfaces.
 
 Historical source/update/entry evidence remains in
 `milestone-source-update-review-entry-evidence.md`; this milestone does not
