@@ -36,10 +36,16 @@ endforeach()
 
 math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 
+# [[BPR-0875]]. `file(CHMOD)` says "only me" on POSIX and only clears the
+# read-only attribute on Windows, so the root was never owner-private there
+# and the stores refused it. The shared helper writes the descriptor each
+# platform actually needs.
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+
 function(bpr_prepare_private_root root)
     file(REMOVE_RECURSE "${root}")
     file(MAKE_DIRECTORY "${root}")
-    file(CHMOD "${root}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
+    bpr_narrow_owner_private("${root}")
 endfunction()
 
 function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence)
@@ -98,6 +104,10 @@ function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence)
     endif()
 endfunction()
 
+# [[BPR-0875]]. The data root gains an owned parent: the build directory it
+# was given is shared and the stores refuse a parent another principal can
+# write.
+bpr_private_data_root(BPR_ROOT)
 bpr_prepare_private_root("${BPR_ROOT}")
 bpr_run_review_ledger_probe(seed seed "${BPR_ROOT}" 111111011111011)
 bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011)
@@ -109,7 +119,6 @@ file(MAKE_DIRECTORY
     "${bpr_unavailable_root}/state/v1"
     "${bpr_unavailable_root}/state/v1/review-ledger.sqlite3"
 )
-include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 bpr_narrow_owner_private(
     "${bpr_unavailable_root}/state"
     "${bpr_unavailable_root}/state/v1"

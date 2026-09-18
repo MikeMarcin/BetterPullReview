@@ -147,3 +147,96 @@ If the first is yes, the fix is a thread-scoped GraphQL observation. If it is
 no and the second is yes, the fix is to keep a REST reconciliation but derive
 its path from the **thread's pull request** rather than from the mutation's own
 GraphQL path. Answer them before building either.
+
+## Both questions answered from GitHub's published schema, dsp-008 — the answer is yes, and the shape is settled
+
+Answered read-only from the published public schema
+(`https://docs.github.com/public/fpt/schema.docs.graphql`, fetched
+2026-09-17), against `comment_observation`
+(`src/adapters/github/src/github_mutation_contract.cpp:1045-1076`) field by
+field. No live GitHub or GHES request was made, and none is needed: **question
+1 is yes, so question 2 is moot for choosing the shape.** The fix is a
+thread-scoped GraphQL observation. Nobody has to wait for the owner or for a
+named safe target to start it.
+
+`PullRequestReviewThread.comments(first/last/after/before/skip)` returns
+`PullRequestReviewCommentConnection!`, and `PullRequestReviewComment` carries
+every field the exactness check consumes. The mapping, which is the part worth
+having:
+
+| `comment_observation` reads | GraphQL source |
+|---|---|
+| `aResponse.Id` (`std::uint64_t`, must be nonzero) | **`fullDatabaseId: BigInt`, not `databaseId: Int`** |
+| `aResponse.NodeId` | `id: ID!` |
+| `aResponse.CommitId` → `core::parse_git_commit_oid` | `commit { oid }`, `GitObjectID` |
+| `aResponse.Line` (1-based, nonzero) | `line: Int` |
+| `aResponse.Path` | `path: String!` |
+| `aResponse.Side`, compared to `"LEFT"`/`"RIGHT"` | **not on the comment** — `PullRequestReviewThread.diffSide: DiffSide!` |
+| `aResponse.Body` | `body: String!` |
+| `aResponse.User.Id` | `author { ... on User { databaseId } }` |
+| `aResponse.User.NodeId` | `author { ... on User { id } }` |
+| `aResponse.User.Login` | `author { login }` |
+| `viewerDidAuthor` (named in the question) | `viewerDidAuthor: Boolean!`, present |
+
+**Three of those rows are not what an implementer would guess, and each one
+would have been found only after building the wrong thing.**
+
+1. **Use `fullDatabaseId`, not `databaseId`.** `databaseId: Int` is a GraphQL
+   32-bit signed `Int`; the schema documents `BigInt` as "Since the value may
+   exceed the size of a 32-bit integer, it's encoded as a string". The check
+   stores it in a `std::uint64_t` and refuses zero, so the parser must read a
+   **string-encoded** integer here, not a JSON number. This is the opposite of
+   the REST shape's `id`.
+2. **The side comes from the thread, not the comment.** `PullRequestReviewComment`
+   has no side or `diffSide` field at all. The enclosing thread has
+   `diffSide: DiffSide!` (and `startDiffSide: DiffSide`), and `enum DiffSide`
+   is spelled exactly `LEFT` and `RIGHT` — the same two strings the check
+   compares against. This costs nothing here because the thread is already the
+   object being observed, but a fix written from the comment's fields alone
+   cannot satisfy the check.
+3. **The author's ids need an inline fragment.** `author: Actor`, and
+   `interface Actor` exposes only `avatarUrl`, `login`, `resourcePath` and
+   `url`. `login` is reachable directly; `databaseId` and `id` are not, and
+   require `... on User { databaseId id }`. An author that is a Bot,
+   Mannequin or Organization satisfies neither fragment, and the check demands
+   a nonzero `User.Id`.
+
+### The constraint that actually shapes the fix, found while checking the above
+
+`parse_review_comment_observations` (`:1738-1753`) treats a comment that fails
+the exactness check in two different ways. `identity_mismatch` is tolerated —
+the comment is projected and simply not counted as an exact receipt. **Every
+other failure aborts the whole reconciliation.** And `comment_observation`
+returns `malformed_response`, not `identity_mismatch`, when `Id == 0`,
+`User.Id == 0`, the commit fails to parse, or `Line == 0`.
+
+In the REST shape that rarely bites: GitHub always sends a numeric line and a
+`commit_id`. **In the GraphQL shape it does.** `line: Int` is genuinely
+nullable — it is null for an outdated comment, where `originalLine` carries
+the value — and `commit: Commit` is nullable too, with `originalCommit`
+beside it. So a thread containing one outdated comment would abort the
+reconciliation with `malformed_response`, and that thread is exactly what a
+baseline observation walks *before* the reply is written
+(`submit_and_reconcile` `:2116`).
+
+That is a decision the fix has to make deliberately rather than discover:
+either map null `line`/`commit` to `originalLine`/`originalCommit`, or treat
+an outdated comment as a tolerated non-match rather than a malformed response.
+Whichever is chosen, it needs a row, because a fixture author writing a happy
+thread will never produce the case.
+
+### What remains open on this card, and what does not
+
+- **Not open:** which shape to build. Thread-scoped GraphQL observation.
+- **Not open:** whether to wait for the owner. The blocking question is
+  answered from published documentation, which is what the card asked for.
+- **Still open, and unchanged:** the CLI transport decision. `gh_cli_transport.cpp:1476-1479`
+  refuses all four GraphQL-rooted operations by design, so a new GraphQL-rooted
+  observation is refused there and that path needs its own answer.
+- **Still open:** the third acceptance point (restart recovery for an
+  interrupted reply), which [[BPR-0904]] gates — a reply restart fixture
+  passes today under a transport that ignores method and path.
+- **Question 2 is moot but not refuted.** Nothing here establishes whether the
+  REST `/comments` collection would satisfy the check; it was not pursued once
+  question 1 came back yes. If the CLI-transport decision forces a REST
+  fallback, that question becomes live again and is unanswered.

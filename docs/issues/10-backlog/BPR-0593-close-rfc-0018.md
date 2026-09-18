@@ -12,6 +12,265 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-008, mandate r6): a P1's blocking question is answered from the published schema, and the Windows lane is collected
+
+Dispatch dsp-008 ends here. The dsp-007 section below still holds except where
+this one corrects it. It was a short dispatch: mandate **r6** arrived a few
+minutes in and directed a close at the next clean integrated boundary, so this
+is a collection-and-unblock dispatch rather than an implementation one.
+
+**Heads.** Main `f413907cf425653a1ae8b4d1a8c1413634767e78`, pushed.
+`origin/linux-lane` and `origin/windows-lane` are fast-forwarded to **exactly
+that same commit**, verified by `git ls-remote`, and both stations have been
+told. The `project-integrator` lease is **released**. On the Mac no worker,
+scout, reviewer, test process or scratch worktree remains, and no
+BetterPullReview process is running. Logs are `build/r2-logs/dsp8-*`.
+
+### Mandate r6, and what it means for the next dispatch
+
+Owner, verbatim: *"Okay. Use only fable from here on out we're hitting limits
+and going to have unused fable"*. Reason given: usage limits on the current
+route with unused Fable capacity. **Every agent dispatched from here routes to
+Fable** — workers, scouts, reviewers, test runners, utilities — regardless of
+what a role's configured route says, and each is told to route its own children
+the same way. Both stations have accepted it and are enforcing it station-side.
+`bpr-linux`'s live BPR-0906 writer keeps its existing route and finishes rather
+than being restarted to change models.
+
+It is a **resource-routing instruction and not an authority change**: nothing
+moves on scope, ownership, or what may be touched. Both stations reached that
+reading independently. `bpr-linux` additionally flagged to its own user that it
+is acting on a *relayed* mandate rather than one its user typed, and kept that
+flag standing after the coordinator confirmed the quotation — which is the
+right instinct and is recorded here so the next dispatch does not re-litigate
+it.
+
+One cost it priced honestly, worth carrying: BPR-0904's spike has a
+judgement-heavy classification step, and `bpr-linux` has said that if a
+classification comes back without evidence it can point at, it will **re-run
+that step and say it did** rather than ship a table that reads as authoritative
+and is not. That is the same shape as the defect BPR-0904 exists to fix.
+
+### [[BPR-0896]] is unblocked. The answer is yes, and no owner decision is needed
+
+The P1's two blocking server-behaviour questions were answered **read-only from
+GitHub's published public schema** (`https://docs.github.com/public/fpt/schema.docs.graphql`),
+checked field by field against `comment_observation`
+(`github_mutation_contract.cpp:1045-1076`). No live GitHub or GHES request was
+made and none is needed.
+
+**Question 1 is yes**, so question 2 is moot for choosing the shape: the fix is
+a **thread-scoped GraphQL observation**. `PullRequestReviewThread.comments`
+returns `PullRequestReviewCommentConnection!` and the comment type carries
+every field the exactness check consumes. The full mapping is on the card. Three
+rows of it are not what an implementer would guess:
+
+- **`fullDatabaseId`, not `databaseId`.** `databaseId: Int` is a 32-bit signed
+  GraphQL `Int`; `BigInt` is documented as string-encoded because the value may
+  exceed it. The check stores a `std::uint64_t` and refuses zero, so the parser
+  reads a *string*, the opposite of the REST shape.
+- **The side is not on the comment.** `PullRequestReviewComment` has no side
+  field at all; `PullRequestReviewThread.diffSide: DiffSide!` supplies it, and
+  `enum DiffSide` is spelled exactly `LEFT`/`RIGHT` — the two strings the check
+  compares against.
+- **The author's ids need an inline fragment.** `interface Actor` exposes only
+  `avatarUrl`, `login`, `resourcePath`, `url`; `databaseId` and `id` require
+  `... on User { ... }`, and the check demands a nonzero `User.Id`.
+
+**The constraint found on the way is worth more than the answer.**
+`parse_review_comment_observations` (`:1738-1753`) tolerates `identity_mismatch`
+per comment but **aborts the whole reconciliation on anything else**, and
+`comment_observation` returns `malformed_response` — not `identity_mismatch` —
+when `Line == 0` or the commit fails to parse. REST always sends a numeric line
+and a `commit_id`. **GraphQL does not:** `line: Int` is null for an outdated
+comment (`originalLine` carries it) and `commit: Commit` is nullable. So one
+outdated comment in a thread would abort the baseline reconciliation that runs
+*before* the reply is written. The fix has to decide that deliberately and pin
+it, because a fixture author writing a happy thread will never produce the case.
+
+Still open on that card and unchanged: the CLI-transport decision
+(`gh_cli_transport.cpp:1476-1479` refuses all four GraphQL-rooted operations by
+design), and the third acceptance point, which [[BPR-0904]] gates.
+
+### Done on main in dsp-008: both of `bpr-win`'s RETURNs
+
+**`df54d00b` — two composition courses were refused for a descriptor, not a
+budget.** Both narrowed their data root with `file(CHMOD ... OWNER_READ
+OWNER_WRITE OWNER_EXECUTE)`, which is 0700 on POSIX and only clears the
+read-only attribute on Windows, so the root never carried the protected DACL the
+stores demand and both rows died at `STARTUP_FAILED`. They now call
+`bpr_narrow_owner_private` and take the owned parent [[BPR-0875]] gave the other
+twelve courses. **Verified here on macOS at the merged head**, which is the
+point of merging it centrally: `application_review_ledger_composition_contract`
+PASS 35.78 s and `application_defect_composition_contract` PASS 57.13 s, ctest
+exit 0 (`build/r2-logs/dsp8-merge-ctest.log`).
+
+**`3c8f25c0` — Windows had the same silent green as Linux, by a different
+route.** [[BPR-0890]]'s Linux half closed a row that stayed green over an
+auto-reaped child when `waitpid` returned `ECHILD`. The station was asked to
+take *one look* for a Windows analogue rather than assume the shapes matched,
+and there is one: the launcher's `fail()` prints only
+`BPR_NETWORK_ISOLATION_UNAVAILABLE` and exits 125, which matches neither
+inherited failure expression, and two of its call sites — `fail_win32("wait")`
+and `fail_win32("exit-code")` — run *after* the child has already printed the
+marker its row passes on. Both now print
+`TEST_RUNNER_CHILD_EXIT_FAILED:no-status` first. The pre-launch failures are
+deliberately untouched, and the reasoning is the keeper: the child never ran
+there, so a child-exit marker would claim something untrue.
+`test_network_isolation_structure_contract` and `test_network_isolation_manifest`
+both PASS here, ctest exit 0 (`build/r2-logs/dsp8-isolation-ctest.log`); the
+changed file compiles on Windows only, so that half is taken on the station's
+evidence by design.
+
+**Asking for one look paid twice in two dispatches.** Both times the answer was
+"yes, and by a different mechanism". That is worth a habit: when a defect is
+fixed on one platform, ask the other station for a *look*, not a port.
+
+### [[BPR-0900]] has three authors, not two, and they disagree
+
+Found while answering `bpr-win`'s question about where a tests-owned Windows
+narrowing helper should live. **It already exists, twice.** `make_root_private`
+is byte-identical in `tests/end_to_end/epoch_ordinary_update_public_path.py` and
+`tests/end_to_end/epoch_portable_occurrence_public_path.py`.
+
+The two harness authors write **different descriptors**. The Python one adds the
+process's own AppContainer SID grant when contained, and removes SYSTEM,
+Administrators and OWNER RIGHTS; the CMake one does neither. Both docstrings
+claim to match the product's `make_storage_root_owner_private`. They cannot both
+be right. The card now carries the table and the consequence for its acceptance
+row: pin all three, or say which pair is pinned and why the third is out of
+scope.
+
+The decision given to `bpr-win`: the helper's home is
+`tests/end_to_end/bpr_narrow_owner_private.py`, named to match the `.cmake`
+helper, and the job is **promotion of the existing copies, not authorship** — a
+third spelling of this descriptor is the one outcome to avoid. Not
+`scripts/contained_temporary_support.py`, for a reason beyond ownership: that
+module's subject is a temporary root usable after containment, and a test-only
+descriptor definition would be handed to about twenty importers that do not want
+it.
+
+The AppContainer grant is a **cheap lead** on `bpr-win`'s six remaining
+container-temp rows and explicitly **not** a diagnosis: that station measured
+`application_profile_owner_admission_public_path` failing *uncontained* too,
+which rules the container grant out for that row.
+
+### Sweep status — no new full sweep was taken in dsp-008
+
+| Platform | Result | When |
+|---|---|---|
+| macOS dev | **380/383** | carried from dsp-007 at `22023667` |
+| macOS, this dispatch | four rows at the merged head, all PASS, ctest exit 0 | `build/r2-logs/dsp8-merge-ctest.log`, `dsp8-isolation-ctest.log` |
+| Windows | **338/364** | carried from dsp-007 at `86b04901` |
+| Linux | **368/369** | carried from dsp-007 at `88dc42fc` |
+
+The three full-sweep figures are dsp-007's and are **not** re-measured here.
+dsp-008 ran four targeted rows, chosen as the ones the merge could have broken.
+A successor wanting a current macOS number must run the sweep; r6 arrived before
+there was room for one.
+
+### Station state — read this before dispatching
+
+- **`bpr-win` returned twice and both are merged.** No writer live, tree clean,
+  nothing in flight. `origin/windows-lane` is at `f413907c`. Its next work,
+  unless redirected: the **six remaining container-temp rows** of the five-row
+  family (diagnosed down to the exact refusal — the row fails uncontained too,
+  the refusal is `detail::open_state_directory(Root)`, an `icacls` narrowing
+  gets the store to *accept* the root and strands the course on a later,
+  unmeasured "bounded public course condition" assertion), then [[BPR-0902]]
+  with its rewritten card and the one-line `RefreshRetrieveAttempts` marker
+  first. It has the helper-home decision and the BPR-0900 lead.
+- **A correction it made about itself, worth keeping:** its first probe passed
+  forward slashes, which `canonical_windows_root` refuses outright
+  (`catalog_database.cpp` ~2571), so that probe measured the probe. It found
+  that and re-measured with native paths.
+- **`bpr-linux` has a live writer and nothing pushed this task.** Its local HEAD
+  is `1ec82785`, tree clean, lane ref `f413907c` **recorded but deliberately not
+  fetched** — it does not move the tree under a live writer, which is the rule
+  dsp-006 paid to learn. Queue, in order: BPR-0906 writer RETURN → sync,
+  reporting before-and-after SHAs → [[BPR-0904]] spike → [[BPR-0905]] survey.
+- **The [[BPR-0904]] spike, confirmed not superseded**, scoped to
+  `tests/github_contract/**` only so it cannot collide with `bpr-win` in
+  `tests/end_to_end/**`. Two conditions added in dsp-008 and accepted: the keyed
+  transport is **pushed on a labelled CHECKPOINT rather than reverted**, because
+  a number without the diff that produced it cannot be re-derived; and if the
+  acceptance test comes back **negative** — BPR-0896's `GET /graphql?per_page=100`
+  does *not* go red under the keyed transport — the station **stops there and
+  reports the negative**, with no strengthening of the transport until it turns
+  red. A measurement you tune until it catches the case is not a measurement.
+- **The BPR-0906 measurement's shape**, so nobody re-asks for it: paths not a
+  count (orderly quit, crash, SIGKILL, harness termination, data root removed
+  under a live owner), each with survives yes/no and the unlinking code by
+  file:line; and at the **top** of the return, whether a survivor is
+  **reclaimed or refused** on the next start with the same root, with an
+  explicit statement of whether that was established by a real start or only by
+  reading. Reclaimed means BPR-0906 is close to inert and [[BPR-0895]] decides
+  almost alone; refused means BPR-0906 is the serious one and the decision
+  inverts.
+- **The Windows-adjacent offer stays declined.** `bpr-linux` offered a POSIX
+  analogue of the private-descriptor family; dsp-007 declined it and dsp-008 did
+  not revive it. `bpr-win` is inside that work with the mechanism in hand, and
+  two stations reasoning about the same rule from opposite sides is how you get
+  two answers. Handover condition if it becomes portable: files named.
+  `bpr-linux`'s stated limits: no Windows, no MSVC; it can read a diff, reason
+  about a POSIX/Windows split, or reproduce a portable half.
+
+### Next objectives, in order
+
+1. **[[BPR-0896]]**, now unblocked and still P1 — a live reply cannot be
+   submitted at all. Build the thread-scoped GraphQL observation using the
+   mapping on the card, and decide the outdated-comment case deliberately. The
+   CLI-transport question still needs an answer and is not a reason to wait.
+2. **Collect `bpr-linux`**: the BPR-0906 measurement, then the [[BPR-0904]]
+   spike's number and its acceptance test. The spike lands in
+   `tests/github_contract/**`, which BPR-0896's rows also want — sequence them,
+   do not run both.
+3. **`bpr-win`'s six container-temp rows**, then [[BPR-0902]].
+4. **[[BPR-0905]]**, then [[BPR-0893]] — and a current macOS sweep, which
+   dsp-008 did not take.
+5. Then [[BPR-0906]]/[[BPR-0895]] decided together, [[BPR-0874]],
+   [[BPR-0898]], [[BPR-0899]], [[BPR-0900]], [[BPR-0903]], and finally
+   [[BPR-0854]] and [[BPR-0861]], still In Progress for Windows alone.
+
+### Open owner asks
+
+**[[BPR-0896]]'s two questions are removed from this list** — answered from
+published documentation in dsp-008, no owner decision required. The rest are
+unchanged and none was decided here: [[BPR-0897]] (the release-build mutation
+boundary, three answers offered, now carrying the fact that a reply could never
+have been written against a real server anyway); [[BPR-0653]]'s private Qt API
+in a shipped target (integrator recommends accepting, with a recheck obliged on
+every Qt upgrade) and its criterion-4 capture; [[BPR-0825]] item 3 (recommend
+(c)); [[BPR-0644]]; [[BPR-0817]]; [[BPR-0824]]; [[BPR-0803]]; [[BPR-0800]];
+[[BPR-0801]]; [[BPR-0604]]; [[BPR-0905]]'s question of whether the tree wants a
+stated rule for sizing bounds; and the [[BPR-0794]]/[[BPR-0795]] attended
+packet, intact.
+
+### Hazards learned in dsp-008
+
+- **A published schema can retire a "needs a live target" blocker.** BPR-0896 sat
+  blocked across two dispatches on two questions about GitHub's server. Both were
+  answerable in one fetch of the public schema file. Before parking a question as
+  requiring a live system, check whether the vendor publishes the answer.
+- **`git fetch` followed by reading remote-tracking refs is a snapshot, not the
+  truth.** Main moved twice inside this dispatch's first ten minutes while
+  `refs/remotes/origin/*` still read the old SHA from a fetch taken seconds
+  earlier. Resolve lane and base SHAs with `git ls-remote` when another writer
+  may be live, and with `git rev-parse --verify` before quoting one.
+- **A predecessor that has "returned" may still be committing.** Two commits
+  landed on main between this dispatch's first `git log` and its second. They
+  were dsp-007's supplementary work and entirely legitimate; the hazard is
+  assuming a handoff SHA is final because a return said so. Re-resolve before
+  merging or pushing.
+- **The station-writer lease is per-process, not per-session.** The
+  `project-integrator` lock is held by a wrapped process and released when that
+  process exits; a lease "held" at orientation may belong to the predecessor and
+  free itself minutes later. Check `station_lease.py status` and re-acquire
+  rather than inheriting an assumption.
+- **Ask for a look, not a port.** Two dispatches running, asking the other
+  platform's station to look for an analogue of a just-fixed defect has found a
+  real one both times, by a different mechanism each time.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-007, mandate r5): both stations were blocked by a lane ref, and one reply has never worked
 
 Dispatch dsp-007 ends here. The dsp-006 section below still holds except where
@@ -283,8 +542,13 @@ tight enough to fail.
 
 ### Station state — read this before dispatching
 
-- **`bpr-win` returned and is merged.** Its RETURN `2fc69fc1` is in main and
-  `origin/windows-lane` has been fast-forwarded to `026e87cc`. It has been
+- **`bpr-win` is working again and `origin/windows-lane` is at `df54d00b`,
+  ahead of main and UNLABELLED.** It has been asked for CHECKPOINT or RETURN;
+  it is **not merged**, and the lane ref is deliberately **not** advanced even
+  though main and `origin/linux-lane` are both at `7fe5811a`. Its tip is ahead
+  of what is merged and forcing the ref would destroy work.
+- Its earlier RETURN `2fc69fc1` is in main and
+  `origin/windows-lane` was fast-forwarded at that point. It has been
   given two tasks and is **not** blocked: the five-row family it named (a store
   refusing a root whose parent lacks the private descriptor, for rows rooted
   under the container temp rather than a course-owned parent — it has the
@@ -316,7 +580,52 @@ tight enough to fail.
   `git_cache_contract_tests.cpp:1405`, which passes. The writer's own first
   draft made dsp-006's mistake in the other direction and its row caught it on
   2.53.0, independently.
-- **`bpr-linux` returned its whole envelope and is idle.** `ef630436` is
+- **`bpr-linux` returned its whole envelope and now holds two tasks**, both
+  measurements, neither authorised to fix anything.
+  1. [[BPR-0906]]'s first scope item — which exit paths skip the endpoint
+     unlink — instructed to measure and not fix, because the choice is
+     entangled with [[BPR-0895]] and must be made once for both. **The station
+     added the question that was missing from my scope text and it is the
+     important one:** is a survivor *reclaimed or refused* on the next start
+     with the same root? The endpoint name is a digest of the normalised root,
+     so that answer decides whether the accumulation is inert or harmful — and
+     it decides which of the pair is the serious one.
+  2. **[[BPR-0904]]'s central measurement**, because the station had spare
+     capacity and said so rather than expanding task 1. It is building the
+     keyed `fake_transport` as a **spike** — not as the fix — to produce the
+     number the card says must be measured rather than estimated: how many
+     rows break when the fixture queue stops ignoring method and path, and for
+     each, whether it is a fixture that never declared its path or a row where
+     the *product* asks for something nobody intended. **It is also the
+     acceptance test for the approach:** does [[BPR-0896]]'s live
+     `GET /graphql?per_page=100` become a red row under it? If not, the keyed
+     transport is weaker than BPR-0904 assumes, and that must be known before
+     anyone builds it. Scoped to `tests/github_contract/**` only, so it cannot
+     collide with `bpr-win` in `tests/end_to_end/**`.
+- **A Windows-adjacent offer from `bpr-linux` was declined on purpose.** It
+  correctly guessed that `bpr-win`'s five-row private-descriptor family may
+  have a POSIX analogue — both clauses say "nobody but me can write here" in
+  different dialects. But `bpr-win` is inside that work with the mechanism in
+  hand, and a second station reasoning about the same rule from the other side
+  is how two stations produce two answers. Hand it the analogue *after*
+  `bpr-win` returns, with the files named.
+- The station also asked whether to re-run
+  `test_network_isolation_structure_contract` just to confirm it green on
+  Linux. Told not to: it is green on macOS at the merged head, the fix is in a
+  file with nothing platform-conditional about it, and it will be observed on
+  the next run that has another reason to exist.
+- **Two card dispositions were made here, not by the station.** [[BPR-0881]] is
+  **Done** (`90c40e49`): the Linux criterion closed it, and the number that did
+  so is the in-root endpoint measuring 108 against a `sun_path` of 108.
+  [[BPR-0875]] **stays In Progress** for the Windows remainder alone; its
+  macOS-and-Linux line is closed by the 13/13.
+- **One of the two defects `bpr-linux` reported needed no card**: its red
+  `test_network_isolation_structure_contract` is the same tripwire `bpr-win`
+  had already fixed, and the same one my macOS sweep hit. Three platforms met
+  it, one station fixed it, and it is green at the merged head. The station was
+  right to refuse to paste the expected strings in rather than confirm the
+  measurements.
+- **`bpr-linux` returned its whole envelope.** `ef630436` is
   merged; its tree is clean and nothing is queued for it. [[BPR-0881]]'s Linux
   criterion, [[BPR-0875]]'s thirteen Linux rows, [[BPR-0890]]'s Linux launcher
   and the full sweep are all in.
@@ -395,6 +704,15 @@ answer is to make an expiry name itself in the failure headline, which
   one, correct it in a new section and say what was missed; do not rewrite it.
 - **`git stash push` cannot take an untracked path.** Commit the finished
   independent thing instead of trying to park it.
+- **In zsh, `$H:refs/heads/x` is not what you wrote.** `:r` is a parameter
+  modifier, so the expansion silently became
+  `<sha>efs/heads/linux-lane` and the push failed with a refspec that matched
+  nothing. Write `"${H}:refs/heads/x"`. A literal SHA followed by `:refs/...`
+  is unaffected, which is why this only appeared once a variable was used.
+- **`cmd | tail` inside an `&&` chain masks the failure and the chain keeps
+  going.** AGENTS.md already says not to pipe a gate; the chained form is the
+  same bug wearing a different hat. Two lane pushes failed in one command and
+  the command reported success. Redirect to a file and test `$?`.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-006, mandate r5): the three P1 review findings are answered, and one was answered by being overturned
 
