@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0929"
 title: "Implement dedicated review composition and PR-wide Discuss"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028", "RFC-BPR-0008"]
 depends_on: ["BPR-0920", "BPR-0923", "BPR-0926"]
 priority: "P1"

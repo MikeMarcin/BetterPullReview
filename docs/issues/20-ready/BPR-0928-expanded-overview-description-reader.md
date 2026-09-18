@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0928"
 title: "Expand Overview descriptions into a retained central reader"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: ["BPR-0918"]
 priority: "P1"
