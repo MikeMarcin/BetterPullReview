@@ -271,3 +271,201 @@ measurement above than by a permanent second code path on the isolation seam.
 
 Both isolation gates pass at this tip: `test_network_isolation_structure_contract`
 3.53 s and `test_network_isolation_manifest` 6.48 s.
+## The Linux launcher now supervises instead of dissolving (bpr-linux, dsp-007)
+
+Base `019bab8f`. One file changed,
+`tests/network_isolation/linux_network_sandbox.cpp`. No CMake and no gate
+change: `cmake/BprTestIsolation.cmake` already appends
+`TEST_RUNNER_CHILD_EXIT_FAILED` to every Linux row, where it has been inert
+because `::execvp` left nothing to report.
+
+After `enable_loopback()` succeeds the launcher forks. The child sets
+`prctl(PR_SET_PDEATHSIG, SIGKILL)`, re-checks `getppid()` to close the window
+between the fork and that call, and then `execvp`s exactly as before. The parent
+installs forwarding handlers for SIGINT, SIGTERM and SIGHUP, `waitpid`s,
+translates the status the way the macOS runner does, prints
+`TEST_RUNNER_CHILD_EXIT:<n>` always and `TEST_RUNNER_CHILD_EXIT_FAILED:<n>` when
+non-zero, `fflush`es and `_exit`s with the child's own number.
+
+**The two platforms now print the same number for the same event.** `_exit`
+keeps only the low eight bits, so passing the negative signal number through
+reproduces macOS's status exactly: a SIGABRT prints `-6` and exits **250** on
+both. Measured here — `-6`/250, `-15`/241 (forwarded SIGTERM), `-2`/254
+(forwarded SIGINT), `3`/3, `0`/0.
+
+**The boundary did not move.** Namespaces are inherited across `fork`, so the
+child runs in the same `CLONE_NEWUSER|CLONE_NEWNET` pair; the identity mapping
+argued at lines 47-55 is written *before* the fork and is untouched. Verified
+from inside the child: one interface (`lo`, up, 127.0.0.1), `uid_map`
+`1000 1000 1`, uid/gid 1000 — self-mapped, not root.
+
+### Evidence, through the real seam
+
+Three rows were registered temporarily through `bpr_add_network_isolated_test`
+in `tests/CMakeLists.txt`, each given a `PASS_REGULAR_EXPRESSION` the child
+does print, run, and then **reverted before the commit**. All three inherited
+`FAIL_REGULAR_EXPRESSION = ['PUBLIC_PATH_FAILED', 'TEST_RUNNER_CHILD_EXIT_FAILED']`,
+confirmed against `ctest --show-only=json-v1`.
+
+- **A row that prints its marker and then aborts now fails**
+  (`build/r2-logs/dsp7-0890-seam-proof.log`):
+
+  ```text
+  1/2 Test #54: dsp7_probe_abort_after_marker ....***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]  0.00 sec
+  PUBLIC_PATH_OK
+  TEST_RUNNER_CHILD_EXIT:-6
+  TEST_RUNNER_CHILD_EXIT_FAILED:-6
+  ```
+
+- **The control separates the guard from the fixture.**
+  `dsp7_probe_clean_after_marker` — same seam, same pass expression, clean exit
+  — **Passed**. So the difference is the guard.
+
+- **A CTest TIMEOUT still kills the child and leaves no orphan**
+  (`build/r2-logs/dsp7-0890-timeout-orphan.log`). This is the single regression
+  forking can introduce, so it was measured rather than argued.
+  `dsp7_probe_timeout_orphan` (`TIMEOUT 5`, child `exec sleep 313`) reports
+  `***Timeout 5.01 sec`; the census of live `sleep 313` processes is empty
+  before the run, immediately after it, and again three seconds later. CTest
+  SIGKILLs the launcher pid only, and `PR_SET_PDEATHSIG` takes the child down
+  with it. Killing the launcher with SIGKILL by hand gives the same result
+  (`dsp7-0890-signal-probe.log`).
+
+- **Signal forwarding works** (`dsp7-0890-signal-probe.log`,
+  `dsp7-0890-sigint-probe.log`): SIGTERM to the launcher reaches the child,
+  which dies of it — `TEST_RUNNER_CHILD_EXIT:-15`, launcher exit 241; SIGINT
+  likewise, `-2` and 254.
+
+- **The four isolation rows and both declared exemptions are green**
+  (`build/r2-logs/dsp7-0890-isolation-rows.log`):
+  `test_network_isolation_identity` 0.03 s, `_external` 0.03 s, `_child`
+  0.06 s, `_loopback` 0.04 s, plus `_manifest` 1.28 s and `_application`
+  0.08 s. `rfc0017_release_absence_negative_control` (the
+  `EXPECTS_NONZERO_EXIT` row, child exit 1) **Passed, 1.63 s** — so macOS's
+  exemption carries on Linux — and `application_automated_run_budget` (the
+  `EXPECTS_FAILED_RUN` row) **Passed, 5.32 s**.
+
+### Independent review, and what it changed
+
+An independent reviewer worked the diff for process and signal handling and
+returned **no critical and no major findings**, clearing signal safety, wait
+correctness, exit fidelity, orphan/timeout behaviour, boundary preservation,
+stdio and verdict effects. Three of its findings were taken:
+
+1. **The reaped pid was still forwardable.** Between `waitpid` returning and
+   `_exit`, a signal would have `kill`ed a pid already released and possibly
+   reassigned. `ChildPid` is now cleared at the reap — the same window the
+   macOS runner guards with `child.poll() is None`.
+2. **An inherited `SIGCHLD = SIG_IGN` produced no exit line at all.** Ignored
+   dispositions survive `execve`; under one, the child is auto-reaped,
+   `waitpid` fails with `ECHILD`, and the launcher exited 125 having printed
+   neither line — a row with a pass expression would have been green again with
+   no exit evidence, which is precisely this card's defect. The launcher now
+   sets `SIGCHLD` back to `SIG_DFL` before forking and is self-sufficient
+   rather than relying on CTest resetting dispositions. Verified: the same case
+   now prints `TEST_RUNNER_CHILD_EXIT:7` / `..._FAILED:7`.
+3. **A comment misstated `PR_SET_PDEATHSIG`'s clearing rule** (dumpability
+   rather than set-id / file capabilities / credential change, and about the
+   wrong process). Corrected.
+
+One finding was adjudicated and **not** taken: the reviewer called `extern "C"`
+on a handler inside an unnamed namespace odd. It is kept, because a signal
+handler is entered from outside the program and C linkage is what the language
+guarantees for that; a comment now says so. One observation is recorded rather
+than fixed: a **grandchild** the test spawns still outlives the timeout kill.
+That is unchanged from the `execvp` launcher rather than newly introduced, and
+the comment no longer implies otherwise.
+
+### The census: Linux's shutdown tail is clean, and every row was measured
+
+Full stock sweep at **`88dc42fc4ecbe4a683994b07f22fba6fad7304c5`** — the pushed
+lane tip — with `cmake --preset dev --fresh` (exit 0), `cmake --build --preset
+dev --clean-first` (exit 0, 140.35 s) and `ctest --preset dev -V -j10`
+(`build/r2-logs/dsp7-sweep-ctest.log`, 756 KB; census in
+`dsp7-0890-census.log`).
+
+**Every one of the 369 rows printed a `TEST_RUNNER_CHILD_EXIT` line. No row was
+left unmeasured, and no second pass was needed** — on Linux every configured row
+is registered through `bpr_add_network_isolated_test`, so every one goes through
+the launcher. The macOS measurement needed a follow-up run for 144 rows; this
+one did not need one at all.
+
+The population that matters: **198 of the 369 rows carry a
+`PASS_REGULAR_EXPRESSION`**, which is exactly the set where CTest ignores the
+child's exit status outright. Property distribution at this tree: 367 rows carry
+both fail entries, `rfc0017_release_absence_negative_control` carries the run
+verdict alone (`EXPECTS_NONZERO_EXIT`), and `application_automated_run_budget`
+carries neither (`EXPECTS_FAILED_RUN`). Linux has no equivalent of macOS's
+enumerated `gh_cli_git_smart_transport` exception, so it is 367/1/1 against
+macOS's 379/1/2.
+
+**Two green rows carry a non-zero child exit, and both were already declared:**
+
+| Row | Child exit | Why it is green |
+| --- | --- | --- |
+| `application_automated_run_budget` | **1** | `bpr_expects_failed_run` — the row whose subject is a failed run |
+| `rfc0017_release_absence_negative_control` | **1** | `bpr_expects_nonzero_exit` — macOS found this one and declared it; the declaration carries to Linux unchanged |
+
+**366 green rows exited 0. Zero green rows were hiding an undeclared non-zero
+exit, and no row died of a signal.** That is the same measured zero macOS got,
+reached here in one pass, and it is what makes this guard a regression net
+rather than a bug fix on this platform too. The acceptance line "the card
+records how many previously green rows were hiding a non-zero exit, on each
+platform" now reads: macOS **one** (`rfc0017_release_absence_negative_control`,
+by design, now declared), Linux **zero**.
+
+### Sweep totals against the baseline
+
+| | dsp-005 at `2b2e5549` | dsp-007 at `88dc42fc` |
+| --- | --- | --- |
+| Rows configured | 367 | **369** |
+| Passed | 367 | **368** |
+| Failed | 0 | **1** |
+| Wall at `-j10` | 479.73 s | **484.61 s** |
+
+Two rows were added to the graph between the two commits, and the wall time is
+**+4.88 s** — so supervising every row instead of `execvp`ing costs nothing
+measurable. The `fork`, `waitpid` and two `printf`s are lost in the noise of a
+484-second suite. `application_composition_contract` at 471.69 s is the critical
+path and essentially sets the wall time by itself.
+
+**`sqlite_epoch_catalog_behavior_contract`, which the previous writer flagged:
+Passed, 164.62 s.** It timed out at 180.03 s in both of that writer's
+full-suite runs and passed in 122.65 s alone. Here it passes *inside the full
+suite*, but with only **15.4 s of margin** against its 180 s budget, and it is
+42 s slower than it is alone. So the row is not fixed, it is load-sensitive and
+this sweep happened to land on the right side of the budget; it stays worth
+watching rather than being called resolved.
+
+### The one red row is not this card's, and not new work by this station
+
+`test_network_isolation_structure_contract` fails, **deterministically and for a
+reason that predates this change**. It carries no `PASS_REGULAR_EXPRESSION`
+(confirmed against `ctest --show-only=json-v1`), so CTest has always decided it
+on the child's exit status; running
+`tests/scripts/verify_test_network_isolation_tests.py` directly, with no
+launcher in the picture at all, exits **1** with the same assertion. It was
+green at the `2b2e5549` baseline.
+
+```text
+FAIL: test_every_pinned_exemption_names_a_measured_cause (__main__.ConfiguredManifestTests.test_every_pinned_exemption_names_a_measured_cause)
+AssertionError: Items in the first set but not the second:
+'child-process-denied'
+'repository-content-outside-checkout'
+```
+
+`scripts/verify_test_network_isolation.py` gained two new
+`WINDOWS_UNCONTAINED_TESTS` causes — `child-process-denied` on twelve rows
+(`:238-251`) and `repository-content-outside-checkout` on two (`:254-255`),
+both documented at `:60` and `:66` — when bpr-win's containment measurements
+merged at `d3b5a3ef`, and the expected set pinned at
+`tests/scripts/verify_test_network_isolation_tests.py:573-583` was never
+extended to match. The tripwire is doing its job: it exists so that a new
+exemption cannot be added without someone recording that its cause was
+measured.
+
+**Not fixed here, deliberately.** It is outside this dispatch's three cards; the
+gate half lives under `scripts/**`, which this station may not edit; and
+mechanically pasting the two strings into the expected set would defeat the
+assertion's whole purpose without anyone confirming bpr-win's measurements.
+Reported to `bpr-main-mac` as an uncarded defect needing an ID.
