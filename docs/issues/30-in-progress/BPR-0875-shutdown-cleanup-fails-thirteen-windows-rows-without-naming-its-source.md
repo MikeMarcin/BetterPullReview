@@ -399,3 +399,56 @@ Carded out of this work: [[BPR-0899]] (the layout port's `write_failed()` reads
 true while a write is in flight) and [[BPR-0900]] (the harness and the product
 both write the owner-private descriptor and nothing pins that they agree —
 which thirteen rows now depend on).
+
+## The second outstanding measurement is done: Linux is unaffected (bpr-linux, dsp-007)
+
+Base `271bb452`. `bpr_private_data_root(BPR_ROOT)` moves the data root down one
+level on **every** platform, so this was a real question on Linux and not a
+formality. **Thirteen rows from twelve course scripts, 13/13 Passed, `ctest`
+exit 0, 76.17 s** (`build/r2-logs/dsp7-0875-twelve-courses.log`).
+
+The twelve were identified from the tree rather than from prose — `grep -l
+bpr_private_data_root tests/end_to_end/*.cmake` returns thirteen files, of which
+`bpr_narrow_owner_private.cmake` is the definition and the other twelve are the
+callers — and every row name below was resolved against `ctest -N`, not against
+a card:
+
+| # | Course script | Row (`ctest -N`) | Result |
+| --- | --- | --- | --- |
+| 1 | `appearance_gesture_contract.cmake` | `application_appearance_gesture_contract` | Passed, 6.22 s |
+| 2 | `appearance_store_fallback_contract.cmake` | `application_appearance_store_fallback_contract` | Passed, 3.34 s |
+| 3 | `application_appearance_theme_customization_contract.cmake` | `application_appearance_theme_customization_contract` | Passed, 5.13 s |
+| 4 | `application_native_notification_attended_contract.cmake` | `application_native_notification_attended_contract` | Passed, 3.76 s |
+| 5 | `application_overview_since_review_contract.cmake` | `application_overview_since_review_contract` | Passed, 8.16 s |
+| 6 | `application_review_behaviour_contract.cmake` | `application_review_behaviour_contract` | Passed, 8.23 s |
+| 7 | `application_review_round_trip_composition_contract.cmake` | `application_review_round_trip_composition_contract` | Passed, 1.64 s |
+| 8 | `application_saved_server_contract.cmake` | `application_saved_server_contract` | Passed, 8.27 s |
+| 9 | `application_uiforetw_selected_diff_contract.cmake` | `application_uiforetw_selected_diff_contract` | Passed, 15.06 s |
+| 10 | `application_workbench_composition_contract.cmake` | `application_workbench_composition_contract` | Passed, 2.86 s |
+| 11 | `epoch_maintenance_public_path_contract.cmake` | `application_epoch_maintenance_public_path` | Passed, 5.54 s |
+| 12 | `epoch_persistence_contract.cmake` | `application_epoch_persistence_github-com` | Passed, 3.90 s |
+| 12 | `epoch_persistence_contract.cmake` | `application_epoch_persistence_ghes-3_18` | Passed, 4.05 s |
+
+Twelve scripts, thirteen rows: `epoch_persistence_contract.cmake` is registered
+twice by a `foreach` over the GitHub.com and GHES fixtures, which is where the
+card's "thirteen rows" and this dispatch's "twelve courses" meet.
+
+Row 7 is worth calling out: `application_review_round_trip_composition_contract`
+passes here, so [[BPR-0881]]'s whole-file digest reseal — the one Windows was
+still failing on before it fast-forwarded — is correct at this tree.
+
+So the card's fourth acceptance line now reads: macOS verified at the merged
+tree, **Linux verified here**, and neither is affected by moving the data root
+down a level.
+
+### The [[BPR-0901]] margin holds on this host, and it is not close
+
+Rows 5 and 6 are the two that carry `bpr_fixture_run_budget_ms` (40000) with
+`RUNS 4` rather than `bpr_epoch_phase_budget_ms` (120000), and that macOS failed
+at `elapsed_ms=40035` and `40052`. **Neither failed here**, and no
+`RUN_BUDGET_EXPIRED` was emitted: the whole row took 8.16 s and 8.23 s
+respectively, for all four of its runs together, against a 40 s budget for each
+one. That is roughly a fivefold margin rather than a marginal pass, so this host
+says nothing about whether macOS's failures are a path-length or 0700-parent
+effect — it says the two rows are nowhere near the budget on Linux. Not
+investigated and not changed here; the registration is untouched.
