@@ -23,11 +23,16 @@
   acceptance JSON and evidence reconciled; the new assignment binds valid,
   resolved source obligations and the accepted prerequisite milestone; the
   four cards were promoted and claimed; ID reservation history/counter were
-  committed.
+  committed. The first thin Qt pass passed the Overview, conversation panel,
+  conversation cards, workbench, review editor and review-submission public
+  path selectors. `qt_composed_github_scale_100` failed at an existing
+  native-host/CLI-warning assertion; a read-only scout owns classification of
+  that negative result.
 - Active owners/commands: `/root/rfc0037_m2/overview_layout` owns only
   `overview-description-layout-study.md`; `/root/rfc0037_m2/conversation_design`
   owns only `conversation-surface-layout-study.md`. No long-running command is
-  known outside those bounded investigations.
+  known outside their disposable probes. `/root/rfc0037_m2/composed_qt_failure`
+  is read-only and owns the composed-test failure diagnosis.
 - Pending obligations: consume both investigations; adjudicate the selected
   designs; create and link BPR-0928/BPR-0929 with runtime acceptance; record
   integrated direct evidence and complete the four design cards.
