@@ -1,0 +1,17 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0919",
+    "BPR-0920",
+    "BPR-0921",
+    "BPR-0922",
+    "BPR-0923",
+    "BPR-0924",
+    "BPR-0925",
+    "BPR-0926"
+  ],
+  "reserve_for": "first-pr-review-feedback",
+  "purpose": "Capture first PR review navigation, layout, update, source and conversation feedback",
+  "created": "2026-09-18T10:16:57.279569+00:00",
+  "base": "39f0d326d40659f3af2fbbb72902f4624c84bde3"
+}
