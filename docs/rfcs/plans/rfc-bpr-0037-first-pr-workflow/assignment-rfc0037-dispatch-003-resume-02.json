@@ -1,0 +1,61 @@
+{
+  "schema": "implement-rfc.milestone-assignment.v1",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-003-resume-02",
+  "producer_id": "/root/rfc0037_m3",
+  "mandate_revision": "1",
+  "milestone": "thread-reading-integration",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "thread-reading-integration",
+    "definition_fingerprint": "sha256:f583b9ee18522775751ec2739ebe62327bdb1d3e2e7c29268379f98b8d73a40b",
+    "obligations": [
+      {
+        "id": "BPR-0924:*",
+        "source": "BPR-0924",
+        "selector": null,
+        "source_fingerprint": "sha256:aa2509e67b8d70c276db0f17db9ebdd54cf4c197fb3683d64addb74c4dff67b8"
+      },
+      {
+        "id": "BPR-0925:*",
+        "source": "BPR-0925",
+        "selector": null,
+        "source_fingerprint": "sha256:129a31948c01c4d4b8bf62bc014197b68b31321dffd67b23a27f700be56824d8"
+      }
+    ],
+    "obligation_fingerprint": "sha256:9f808a9294a72e842f45d319a115c5bc9c631e031a654790a4342cbba3142d47",
+    "exit_criteria": [
+      {
+        "id": "thread-reading-integration:exit:1",
+        "text": "Synthetic long threads identify the clipping and scroll owners, and complete admitted bodies are reachable without accidental nested scroll traps at representative widths, fonts and display scales."
+      },
+      {
+        "id": "thread-reading-integration:exit:2",
+        "text": "Wheel, trackpad and keyboard behavior has observed or measured responsive evidence, with sensible focus and reading-position behavior across selection, expansion and refresh."
+      },
+      {
+        "id": "thread-reading-integration:exit:3",
+        "text": "The graph and selected-thread detail preserve comment/thread identity and navigation while exposing one understandable body-reading path with consistent presentation and no unexplained duplicate full content."
+      },
+      {
+        "id": "thread-reading-integration:exit:4",
+        "text": "All implementation follow-ups allocated by the preceding design milestone are completed or remain explicitly bound as unsatisfied obligations before this milestone can be accepted."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:4fd9aad14b240953032e16f863d2d74a17211d505e1dd0b81651507084e120c7",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "source-update-review-entry",
+    "overview-conversation-decisions",
+    "thread-reading-integration",
+    "combined-first-pr-closeout"
+  ]
+}

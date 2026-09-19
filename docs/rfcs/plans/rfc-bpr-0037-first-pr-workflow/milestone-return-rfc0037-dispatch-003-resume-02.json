@@ -1,0 +1,137 @@
+{
+  "schema": "implement-rfc.milestone-return.v2",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-003-resume-02",
+  "producer_id": "/root/rfc0037_m3",
+  "mandate_revision": "1",
+  "milestone": "thread-reading-integration",
+  "disposition": "milestone-complete",
+  "summary": "The thread-reading milestone is accepted. BPR-0924/BPR-0925 provide one complete long-thread graph/detail path; BPR-0928 provides the retained Overview reader; BPR-0929 provides dedicated composition and PR-wide Discuss. Three native candidates received explicit accept verdicts, and the Discuss navigation issue named in the accepted note was corrected and re-reviewed before all four cards moved to Done.",
+  "candidate_revision": "bd3976750dd4db8cd070b6766413c32093c8cfeb",
+  "handoff_ref": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-return-rfc0037-dispatch-003-resume-02.json",
+  "ownership": "quiescent",
+  "next_objective": "Integrate combined-first-pr-closeout from the accepted RFC-BPR-0037 milestone evidence without reopening accepted engineering unless a concrete contradiction appears.",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/assignment-rfc0037-dispatch-003.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/assignment-rfc0037-dispatch-003-resume-02.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-thread-reading-integration-evidence.md",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0924.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0925.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0928.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0929.json",
+    "docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json",
+    "docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/operator-packet.md",
+    "cc03874861abd658cce11812f15d887607919d1b",
+    "8939de7195c7de6c2dc4299c3f5e1f0d342bf115",
+    "e3258509dace4ea0b8cda7ff9e87cfa0ea183b56",
+    "bd3976750dd4db8cd070b6766413c32093c8cfeb",
+    "6c604a6634925a077edfd9108f6ff971c0afeb0e",
+    "9d660a4879ccddfa1507e8e3a810967b62c42a44",
+    "c4c5289a8ef23cc20220d0e70606451cd7e34a29",
+    "2135a6b95324d8dc3321f34b0174f5c8fa03af4a"
+  ],
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "thread-reading-integration",
+    "definition_fingerprint": "sha256:f583b9ee18522775751ec2739ebe62327bdb1d3e2e7c29268379f98b8d73a40b",
+    "obligations": [
+      {
+        "id": "BPR-0924:*",
+        "source": "BPR-0924",
+        "selector": null,
+        "source_fingerprint": "sha256:aa2509e67b8d70c276db0f17db9ebdd54cf4c197fb3683d64addb74c4dff67b8"
+      },
+      {
+        "id": "BPR-0925:*",
+        "source": "BPR-0925",
+        "selector": null,
+        "source_fingerprint": "sha256:129a31948c01c4d4b8bf62bc014197b68b31321dffd67b23a27f700be56824d8"
+      }
+    ],
+    "obligation_fingerprint": "sha256:9f808a9294a72e842f45d319a115c5bc9c631e031a654790a4342cbba3142d47",
+    "exit_criteria": [
+      {
+        "id": "thread-reading-integration:exit:1",
+        "text": "Synthetic long threads identify the clipping and scroll owners, and complete admitted bodies are reachable without accidental nested scroll traps at representative widths, fonts and display scales."
+      },
+      {
+        "id": "thread-reading-integration:exit:2",
+        "text": "Wheel, trackpad and keyboard behavior has observed or measured responsive evidence, with sensible focus and reading-position behavior across selection, expansion and refresh."
+      },
+      {
+        "id": "thread-reading-integration:exit:3",
+        "text": "The graph and selected-thread detail preserve comment/thread identity and navigation while exposing one understandable body-reading path with consistent presentation and no unexplained duplicate full content."
+      },
+      {
+        "id": "thread-reading-integration:exit:4",
+        "text": "All implementation follow-ups allocated by the preceding design milestone are completed or remain explicitly bound as unsatisfied obligations before this milestone can be accepted."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:4fd9aad14b240953032e16f863d2d74a17211d505e1dd0b81651507084e120c7",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "combined-first-pr-closeout",
+    "reason": "integrated-boundary",
+    "detail": "Thread reading, the two allocated runtime follow-ups, attended verdicts, correction review and board transitions are integrated; closeout should begin in a fresh context and must not be reported as already complete."
+  },
+  "acceptance_records": [
+    {
+      "id": "BPR-0924:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0924.json",
+        "9d660a4879ccddfa1507e8e3a810967b62c42a44"
+      ]
+    },
+    {
+      "id": "BPR-0925:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0925.json",
+        "6c604a6634925a077edfd9108f6ff971c0afeb0e"
+      ]
+    },
+    {
+      "id": "thread-reading-integration:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0924.json",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-thread-reading-integration-evidence.md"
+      ]
+    },
+    {
+      "id": "thread-reading-integration:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0924.json",
+        "docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json"
+      ]
+    },
+    {
+      "id": "thread-reading-integration:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0925.json",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-thread-reading-integration-evidence.md"
+      ]
+    },
+    {
+      "id": "thread-reading-integration:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0928.json",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0929.json",
+        "c4c5289a8ef23cc20220d0e70606451cd7e34a29",
+        "2135a6b95324d8dc3321f34b0174f5c8fa03af4a"
+      ]
+    }
+  ]
+}
