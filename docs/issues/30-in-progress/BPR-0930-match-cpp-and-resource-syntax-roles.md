@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0930"
 title: "Match C++ and Windows resource syntax roles to the Visual Studio reference"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P1"
