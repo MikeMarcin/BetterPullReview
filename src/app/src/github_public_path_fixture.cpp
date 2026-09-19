@@ -1620,10 +1620,10 @@ namespace bpr::app::detail {
 					: Role == fixture_transport_role::anonymous
 					? State->AnonymousRecording
 					: State->Recording;
-				// [[BPR-0657]]. A refresh asks for the repository first; the
-				// course that asked for repeat reads is served the script again
-				// from there, replies and resolutions overlaid.
-				if (Role == fixture_transport_role::account && State->RepeatReads
+				// [[BPR-0657]], [[BPR-0932]]. Refresh and Recent reopen start at
+				// the repository on either read authority. Bootstrap stays one-shot;
+				// replay still validates the complete exact recorded request below.
+				if (Role != fixture_transport_role::bootstrap && State->RepeatReads
 					&& aRequest.Wire.Operation == read_operation::get_repository) {
 					recording.replay_from(read_operation::get_repository);
 				}

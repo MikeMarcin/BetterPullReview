@@ -2574,6 +2574,18 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "setup-destination-public-path:pass"
 )
 
+bpr_add_executable(test_attended_recent_replay attended_recent_replay_tests.cpp)
+target_link_libraries(test_attended_recent_replay PRIVATE BetterPullReview::Composition BetterPullReview::AdapterGitHub)
+target_include_directories(test_attended_recent_replay PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+target_compile_definitions(test_attended_recent_replay PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_attended_recent_replay PRIVATE cxx_std_23)
+bpr_enable_hardening(test_attended_recent_replay)
+bpr_enable_warnings(test_attended_recent_replay)
+bpr_add_network_isolated_test(NAME application_attended_recent_replay WINDOWS_UNCONTAINED COMMAND test_attended_recent_replay)
+set_tests_properties(application_attended_recent_replay PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120
+    PASS_REGULAR_EXPRESSION "ATTENDED_RECENT_REPLAY_OK")
+
 bpr_add_executable(test_profile_startup_public_path profile_startup_public_path_tests.cpp)
 target_link_libraries(test_profile_startup_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite)
 target_compile_definitions(test_profile_startup_public_path PRIVATE BPR_BUILD_TESTING=1)

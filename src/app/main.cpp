@@ -7922,8 +7922,11 @@ auto main(int argc, char** argv) -> int
 			|| fixtureOptions.SeedOrphanedRefreshMaterial;
 		// [[BPR-0657]]. The threaded-reply course refreshes the pull request
 		// after publishing, so the fixture replays its read script.
-		fixtureOptions.RepeatReadSessions = has_argument(argc, argv, "--threaded-reply-probe");
-		fixtureOptions.ResolvesThreads    = fixtureOptions.RepeatReadSessions;
+		fixtureOptions.ResolvesThreads = has_argument(argc, argv, "--threaded-reply-probe");
+		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
+		// recording through either public preview or the fixture account.
+		fixtureOptions.RepeatReadSessions = fixtureOptions.ResolvesThreads
+			|| has_argument(argc, argv, "--attended-launch");
 		// The renewal course is the registered course plus a renewal, so it
 		// composes the registered capability rather than a second one. Every
 		// stage up to the vault store is the same graph, which is what makes
