@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "Reproduce the approximately two-thirds-visible long thread with synthetic content and identify which widget/layout owns clipping and scrolling.",
+      "outcome": "pass",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "command",
+        "detail": "qt_github_conversation_panel and qt_conversation_cards_view pass with synthetic long bodies. The integrated index is compact, one selected QTreeView detail owns complete bodies, and the former competing full-card/detail presentation no longer creates two body scroll owners."
+      }
+    },
+    {
+      "criterion": "All admitted thread text is reachable through a deliberate reading interaction at representative widths, fonts and display scales.",
+      "outcome": "pass",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "command",
+        "detail": "Focused panel tests pass at 900/1400 pixel widths and 13/20 point fonts, with workbench and graph coverage at 1x, 1.25x and 2x. A network-isolated Cocoa run passed at DPR 2 with nonzero complete-detail ranges for all four width/font pairs."
+      }
+    },
+    {
+      "criterion": "Wheel, trackpad and keyboard scrolling remain responsive; record before/after observations or measurements and prevent unintended competing scroll regions.",
+      "outcome": "pending",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Angle-wheel, pixel-wheel, Home, End and PageUp assertions pass against the single detail owner, including native Cocoa DPR 2. Physical trackpad judgment remains queued as candidate rfc0037-discuss-thread-reading in docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json."
+      }
+    },
+    {
+      "criterion": "Expansion, refresh and thread selection preserve sensible focus and reading position; distinguish resolved/collapsed state from body truncation.",
+      "outcome": "pass",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "command",
+        "detail": "Panel and workbench regressions preserve selected post/root identity and reading position across refresh, reflow and Discuss round trips. Narrow Up/Down remains in the index until explicit Return, and resolved/outdated state remains metadata rather than truncation."
+      }
+    }
+  ]
+}

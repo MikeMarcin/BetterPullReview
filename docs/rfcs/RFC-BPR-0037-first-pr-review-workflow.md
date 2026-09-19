@@ -54,7 +54,7 @@ new wording or weakened exact-comparison guards.
 | [BPR-0921](../issues/60-done/BPR-0921-loaded-pr-update-history-empty.md) | Missing updates | AC-04 |
 | [BPR-0922](../issues/60-done/BPR-0922-source-files-exact-comparison-unavailable.md) | Source-loading blocker | AC-05 |
 | [BPR-0923](../issues/60-done/BPR-0923-clarify-show-review-threads.md) | Show review threads | AC-06 |
-| [BPR-0924](../issues/30-in-progress/BPR-0924-thread-body-clipping-and-slow-nested-scroll.md) | Clipped threads and slow nested scrolling | AC-07 |
+| [BPR-0924](../issues/40-parked/BPR-0924-thread-body-clipping-and-slow-nested-scroll.md) | Clipped threads and slow nested scrolling | AC-07 |
 | [BPR-0925](../issues/60-done/BPR-0925-duplicate-thread-below-conversation-graph.md) | Apparent duplicate thread rendering | AC-08 |
 | [BPR-0926](../issues/60-done/BPR-0926-discuss-threads-without-file-selection.md) | Empty Discuss and file-independent reading | AC-09 |
 | [BPR-0928](../issues/30-in-progress/BPR-0928-expanded-overview-description-reader.md) | Implement retained full-body Overview reader | AC-01 runtime follow-up |
