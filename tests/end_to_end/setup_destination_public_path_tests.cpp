@@ -1,8 +1,10 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -27,6 +29,8 @@
 #include <QTextBlock>
 #include <QThread>
 #include <QTimer>
+#include <QToolButton>
+#include <QTreeView>
 
 #include <algorithm>
 #include <cstdlib>
@@ -322,9 +326,45 @@ namespace {
 		wait_for([&] { return application->status().ShutdownComplete; }, "connected CLI work quiesces");
 	}
 
+	/// \brief Reads the recorded PR-wide discussion without selecting code.
+	void read_cli_source_update_discussion(qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1440, 900);
+		aWindow.modality()->action(qt::review_modality::discuss)->trigger();
+		auto* const panel = aWindow.conversation_panel();
+		wait_for([&] { return panel->isVisible() && panel->discuss(); },
+				 "Discuss opens independently of a comparison");
+		expect(panel->scope_whole_pull_request_button()->isChecked(),
+			   "Discuss defaults to the whole PR");
+		const auto expectConversation = [&](const std::string_view                      aId,
+											const application::github_conversation_kind aKind,
+											const QString& aPath, const QString& aBody) {
+			const auto index = panel->model()->index_for_id(aId);
+			expect(index.isValid()
+					   && index.data(qt::github_conversation_model::kind_role).toInt() == static_cast<int>(aKind)
+					   && index.data(qt::github_conversation_model::path_role).toString() == aPath
+					   && index.data(qt::github_conversation_model::body_role).toString() == aBody,
+				   "Discuss admits the exact recorded conversation identity, kind, path and body");
+			panel->view()->setCurrentIndex(index);
+			panel->view()->expandAll();
+			panel->view()->scrollTo(index);
+			QApplication::processEvents();
+			expect(panel->view()->isVisible() && !panel->view()->isRowHidden(index.row(), index.parent())
+					   && panel->view()->viewport()->rect().intersects(panel->view()->visualRect(index)),
+				   "recorded conversation body is reachable in the visible selected detail");
+		};
+		expectConversation("issue-comment:IC_fixture_1", application::github_conversation_kind::issue_comment,
+						   { }, QStringLiteral("Fixture follow-up: validation is complete."));
+		expectConversation("review:PRR_fixture_1", application::github_conversation_kind::review,
+						   { }, QStringLiteral("Please preserve snapshot identity across refreshes."));
+		expectConversation("review-comment:PRRC_fixture_reading_review.cpp", application::github_conversation_kind::review_comment,
+						   QStringLiteral("review.cpp"), QStringLiteral("Check the exact retained reading position."));
+	}
+
 	void run_cli_source_update_course()
 	{
-		auto temporary = QTemporaryDir{ };
+		auto reviewServer = std::make_shared<app::detail::review_submission_fixture_state>();
+		auto temporary    = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated CLI source/update root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot = app::native_filesystem_path(
@@ -335,6 +375,7 @@ namespace {
 			"private CLI source/update root");
 		options.EpochPhase                = app::detail::github_epoch_fixture_phase::single;
 		options.GhesCliSourceUpdateCourse = true;
+		options.ReviewSubmissionServer    = reviewServer;
 		options.RefuseFirstSmartAcquire   = true;
 		options.IndependentWindowReads    = true;
 		options.GithubCliDiscoveryAccounts
@@ -433,6 +474,10 @@ namespace {
 					|| status == core::epoch_status::failed;
 			},
 			"one-shot smart-Git refusal reaches a settled update state");
+		expect(!window.files_drawer()->contents_view()->currentIndex().isValid()
+				   && window.comparison_surface()->current_result() == nullptr,
+			   "refused PR has neither a selected file nor comparison before Discuss");
+		read_cli_source_update_discussion(window);
 		window.modality()->action(qt::review_modality::read)->trigger();
 		auto* const files  = window.files_drawer()->contents_view();
 		const auto  review = window.files_drawer()->contents()->index_for_file(
@@ -620,7 +665,20 @@ namespace {
 					== recoveredEvidence.HeadTwoOid,
 			"relaunch recovers the second exact update through the same CLI authority");
 
-		updatedWindow.modality()->action(qt::review_modality::read)->trigger();
+		expect(!updatedWindow.files_drawer()->contents_view()->currentIndex().isValid()
+				   && updatedWindow.comparison_surface()->current_result() == nullptr,
+			   "recovered PR opens without a source selection");
+		read_cli_source_update_discussion(updatedWindow);
+		expect(!updatedWindow.files_drawer()->contents_view()->currentIndex().isValid()
+				   && updatedWindow.comparison_surface()->current_result() == nullptr,
+			   "reading PR-wide discussion does not require or select code");
+		updatedWindow.modality()->action(qt::review_modality::overview)->trigger();
+		expect(updatedWindow.overview_page()->entry_button()->isEnabled()
+				   && updatedWindow.overview_page()->entry_button()->text() == QStringLiteral("Start review"),
+			   "Overview offers Start review for the first visit");
+		updatedWindow.overview_page()->entry_button()->click();
+		expect(updatedWindow.current_modality() == qt::review_modality::review,
+			   "Overview entry reaches Review");
 		auto* const recoveredFiles     = updatedWindow.files_drawer()->contents_view();
 		const auto  recoveredReview    = updatedWindow.files_drawer()
 											 ->contents()
@@ -632,6 +690,13 @@ namespace {
 			recoveredReview.isValid() && recoveredSecondary.isValid(),
 			"recovered history presents both exact recorded file identities");
 		auto* const recoveredSurface = updatedWindow.comparison_surface();
+		wait_for([&] {
+			return recoveredSurface->current_context().has_value()
+				&& recoveredSurface->current_context()->Key.File == core::file_identity_of("review.cpp")
+				&& recoveredSurface->left_pane()->document()->firstBlock().text() == QStringLiteral("int review_line_1 = 11;")
+				&& recoveredSurface->right_pane()->document()->firstBlock().text() == QStringLiteral("int review_line_1 = 31;");
+		},
+				 "Overview entry loads the exact recorded review source without a file-row gesture");
 
 		const auto selectExact = [&](const QModelIndex&     aIndex,
 									 const std::string_view aPath,
@@ -664,6 +729,29 @@ namespace {
 			"secondary.cpp",
 			QStringLiteral("int secondary_line_1 = 111;"),
 			QStringLiteral("int secondary_line_1 = 131;"));
+		auto* const compose = updatedWindow.findChild<QAction*>(QStringLiteral("composeReviewAction"));
+		expect(compose && compose->isEnabled(), "dedicated Compose review action is reachable");
+		compose->trigger();
+		auto* const editor = updatedWindow.review_submission_editor_view();
+		wait_for([&] { return editor->isVisible() && editor->shown_draft().has_value(); },
+				 "Compose review presents a local draft");
+		const auto draftBody = QStringLiteral("Combined GHES course local review draft.");
+		editor->body_editor()->setPlainText(draftBody);
+		const auto draftId = editor->shown_draft()->Id;
+		button(updatedWindow, "composeReviewPageBack")->click();
+		read_cli_source_update_discussion(updatedWindow);
+		updatedWindow.modality()->action(qt::review_modality::review)->trigger();
+		expect(recoveredSurface->current_context().has_value()
+				   && recoveredSurface->current_context()->Key.File == core::file_identity_of("secondary.cpp")
+				   && recoveredSurface->right_pane()->document()->firstBlock().text() == QStringLiteral("int secondary_line_1 = 131;"),
+			   "Compose and Discuss navigation retain the exact secondary source");
+		selectExact(recoveredReview, "review.cpp", QStringLiteral("int review_line_1 = 11;"), QStringLiteral("int review_line_1 = 31;"));
+		selectExact(recoveredSecondary, "secondary.cpp", QStringLiteral("int secondary_line_1 = 111;"), QStringLiteral("int secondary_line_1 = 131;"));
+		compose->trigger();
+		expect(editor->isVisible() && editor->shown_draft()->Id == draftId
+				   && editor->shown_draft()->Body == draftBody.toStdString()
+				   && editor->body_editor()->toPlainText() == draftBody,
+			   "local review draft survives modality and file navigation");
 		recoveredEvidence = github_application_fixture_access::evidence(*application);
 		expect(
 			recoveredEvidence.SmartAcquireRefusalCount == 0
@@ -675,6 +763,12 @@ namespace {
 		wait_for(
 			[&] { return application->status().ShutdownComplete; },
 			"CLI source/update work quiesces");
+		const auto mutation = github_application_fixture_access::review_mutation_evidence(*application);
+		const auto lock     = std::lock_guard{ reviewServer->Mutex };
+		expect(reviewServer->Submissions == 0U && reviewServer->Reviews.empty()
+				   && mutation.Submissions == 0U && mutation.StoredComments == 0U
+				   && mutation.Replies == 0U && mutation.Resolutions == 0U,
+			   "combined navigation and local drafting submit and publish nothing");
 	}
 
 	void run_github_cli_discovery_course()
