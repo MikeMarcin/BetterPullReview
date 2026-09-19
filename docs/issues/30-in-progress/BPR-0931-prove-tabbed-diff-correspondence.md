@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0931"
 title: "Prove exact tabbed diff text correspondence and pane alignment"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0004", "RFC-BPR-0005", "RFC-BPR-0006"]
 depends_on: []
 priority: "P1"
