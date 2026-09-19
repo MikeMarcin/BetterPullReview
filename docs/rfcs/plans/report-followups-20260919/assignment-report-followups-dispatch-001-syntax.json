@@ -1,0 +1,19 @@
+{
+  "schema": "implement-rfc.assignment.v1",
+  "run": "report-followups-run-20260919",
+  "dispatch": "report-followups-dispatch-001",
+  "producer": "/root/report_followups",
+  "mandate_revision": 1,
+  "plan_id": "report-followups-20260919",
+  "plan_path": "docs/rfcs/plans/report-followups-20260919/milestone-plan.json",
+  "milestone_id": "syntax-and-text-presentation",
+  "definition_fingerprint": "sha256:8d7c1da354ee7c2af75aa702ec6a103d733ab68f1e5af091a217325fecc9bc7a",
+  "obligations": [
+    {"id":"BPR-0930:*","source":"BPR-0930","selector":null,"source_fingerprint":"sha256:ebf27bbcdf94aa45aba7d31e70245e5fd0c03b3de75045446f213db441ca8543"},
+    {"id":"BPR-0931:*","source":"BPR-0931","selector":null,"source_fingerprint":"sha256:26de4635f2f135162ba6d2664a8da411bf7699a9d81d53a7689b8f8f7ce5debc"}
+  ],
+  "obligation_fingerprint": "sha256:be42b5c35f6b30a354a96a75d707be41482a77c8bd4d8da4bb8a32703da5d5b6",
+  "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "references": "resolved"
+}
+

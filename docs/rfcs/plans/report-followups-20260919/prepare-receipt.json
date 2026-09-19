@@ -1,0 +1,53 @@
+{
+  "state": "prepared",
+  "origin": "absent",
+  "source_evidence": null,
+  "plan": {
+    "schema": "implement-rfc.milestone-plan.v1",
+    "id": "report-followups-20260919",
+    "scope": {
+      "issues": [
+        "BPR-0930",
+        "BPR-0931",
+        "BPR-0932"
+      ]
+    },
+    "coverage": "complete",
+    "milestones": [
+      {
+        "id": "syntax-and-text-presentation",
+        "outcome": "C++ and Windows-resource syntax use differentiated Visual Studio-like semantic roles while exact tabbed left/right source text and natural diff correspondence remain demonstrably intact.",
+        "work": [
+          {"issue": "BPR-0930"},
+          {"issue": "BPR-0931"}
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "C/C++ built-in types are blue built-ins while inferred user types remain yellow types, with exact source ranges and directive subroles preserved.",
+          "Windows resource files never select TOML and expose distinct directives, macro operands, resource keywords, strings, comments and ordinary identifiers on a representative fixture.",
+          "Executable Qt evidence proves source-text identity and equal pane-relative tab geometry for corresponding lines; the reported apparent misalignment is resolved without synthetic rows or rewritten whitespace.",
+          "Focused syntax, diff, measured-axis and appearance/composition checks pass, and the screenshot/source provenance and limitations remain durable."
+        ],
+        "boundary": "One coupled syntax-and-code-presentation boundary. It does not redesign the natural diff model, add whitespace guides, change provider data or reopen RFC-BPR-0037 acceptance."
+      },
+      {
+        "id": "attended-recent-resume",
+        "outcome": "The strict attended UIforETW fixture can reopen an exact public or account recording from Recently viewed while retaining fail-closed request and authority checks.",
+        "work": [
+          {"issue": "BPR-0932"}
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "Attended launch explicitly enables repeat read sessions, and only anonymous/account cursors rewind at an exact get_repository session boundary.",
+          "A synthetic public-preview Home-to-Resume course reopens google/UIforETW#74 at its saved position without accepting another destination or malformed provider data.",
+          "Negative strict-transport and restoration-authority cases remain fail closed, and production persistence, normalization, credentials and publication paths are unchanged.",
+          "Focused restoration, anonymous-preview and UIforETW contracts pass without live GitHub/GHES access."
+        ],
+        "boundary": "One test-fixture lifecycle boundary. It does not weaken production identity, authority or provider normalization and performs no remote mutation."
+      }
+    ],
+    "unplanned_work": []
+  },
+  "semantic_coverage": "unknown",
+  "next": "engineer reconciles intent, retains this receipt, adopts and implements"
+}
