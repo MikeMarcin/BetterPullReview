@@ -1,0 +1,60 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "Empty and short descriptions remain compact; admitted long, Unicode and 262144-byte bodies are complete and over-limit bodies refuse.",
+      "outcome": "pass",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "command",
+        "detail": "qt_pull_request_overview_page passes compact empty/short cases, long and very-long Unicode bodies, the admitted boundary, copy/selection and explicit over-limit refusal."
+      }
+    },
+    {
+      "criterion": "Composed activation opens the uncapped reader at required window, font and display-scale combinations.",
+      "outcome": "pass",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "command",
+        "detail": "Overview and workbench tests exercise mouse/keyboard activation, 800x800 and 1400x800, 13/20 point fonts, short-height fallback and 1x/1.25x/2x scale without a fixed expanded-height cap."
+      }
+    },
+    {
+      "criterion": "Page/document navigation, selection/copy, tab traversal and supported native wheel/trackpad input use the single reader viewport.",
+      "outcome": "pending",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Deterministic keyboard, selection, copy and single-scroll-owner assertions pass. Physical macOS wheel/trackpad and focus traversal remain queued as candidate rfc0037-overview-reader in docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json."
+      }
+    },
+    {
+      "criterion": "Return and Escape restore summary, focus, files and the logical source reading anchor without extra intents.",
+      "outcome": "pass",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "command",
+        "detail": "Overview/workbench regressions preserve stable file indices, selection/order, logical source anchor and selection while emitting no file activation, modality or publication intent on Return/Escape."
+      }
+    },
+    {
+      "criterion": "Same-body refresh and reflow retain place; body edits clamp and announce; document-end geometry remains legal.",
+      "outcome": "pass",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "command",
+        "detail": "Focused tests preserve document identity and source-anchor position through title/receipt/history refresh, width/font/DPR reflow and clamp changed bodies and end-of-document positions without synthetic padding."
+      }
+    },
+    {
+      "criterion": "Authority replacement clears retained text and state; inherited appearance, focus and accessibility remain usable without implementing Markdown.",
+      "outcome": "pending",
+      "revision": "8939de71",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Authority-clear and stale-projection regressions pass and the reader remains plain text, preserving RFC-BPR-0036 ownership. Native VoiceOver and subjective light/dark/high-contrast judgment remain queued as candidate rfc0037-overview-reader."
+      }
+    }
+  ]
+}
