@@ -1,0 +1,51 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC-01 through AC-09 have direct revision-bound implementation, deterministic and applicable target-native evidence",
+      "outcome": "pass",
+      "revision": "e4096e050b856eed1f103c215701d3cf289d159f",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "acceptance-BPR-0918.json through acceptance-BPR-0929.json bind every RFC criterion to 5b95485c, fe6ac363, cc038748, 8939de71 and e3258509; all cited commits resolve, every implementation follow-up is Done, and no prior accepted milestone has a concrete unresolved engineering contradiction."
+      }
+    },
+    {
+      "criterion": "Every criterion and linked implementation follow-up covers initial load, failures, empty content, refresh, authority replacement, head changes and retained selection/drafts",
+      "outcome": "pass",
+      "revision": "e4096e050b856eed1f103c215701d3cf289d159f",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The accepted source and thread milestones jointly cover the complete state matrix; e4096e05 joins their success path in one composed course. Recovery is a healthy relaunch over the same durable store, not claimed as successful in-process Refresh recovery."
+      }
+    },
+    {
+      "criterion": "The combined recorded-fixture course loads a PR, reaches update history and multiple exact source files, enters Review correctly and reads conversations without a file-selection prerequisite",
+      "outcome": "pass",
+      "revision": "e4096e050b856eed1f103c215701d3cf289d159f",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_setup_destination_public_path passed after continuously exercising refused GHES/CLI acquisition, durable recovery, two retained updates, Overview Start review, exact review.cpp and secondary.cpp contents, no-file PR-wide Discuss with exact pathless/inline identities, retained Compose draft/source selection, and zero publication counters. The five-selector integration boundary passed 5/5 in 145.31 seconds."
+      }
+    },
+    {
+      "criterion": "Applicable target-native accessibility, responsive-layout and scrolling observations are separate from deterministic tests and unavailable evidence is explicit",
+      "outcome": "pass",
+      "revision": "e4096e050b856eed1f103c215701d3cf289d159f",
+      "evidence": {
+        "kind": "observation",
+        "detail": "macOS attended session c44d1fe1c8245aa53959afc9fc9f4b27 explicitly accepted Overview, Discuss and Compose against source 8939de71 and app SHA-256 5b8b23dc...362a; native Cocoa long-detail evidence ran at DPR 2. Windows, Linux, live GitHub/GHES, literal gh, private-service and in-process Refresh recovery remain unclaimed."
+      }
+    },
+    {
+      "criterion": "Documentation and board validation pass and RFC/index status changes only when canonical dependencies permit",
+      "outcome": "pass",
+      "revision": "e4096e050b856eed1f103c215701d3cf289d159f",
+      "evidence": {
+        "kind": "command",
+        "detail": "DOCUMENTATION_OK, 64/64 documentation verifier tests, RFC-scoped board validation valid with 921 cards and zero errors, and git diff --check passed. RFC-BPR-0037 and its index row remain Proposed because RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 are not all Auto-Verified."
+      }
+    }
+  ]
+}

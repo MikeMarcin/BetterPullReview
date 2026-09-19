@@ -16,9 +16,14 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/
 The owner requested one RFC for their first-PR review feedback, with everything
 except Markdown rendering linked to it. This proposal owns the long-description
 work and all eight subsequent feedback cards, BPR-0918 through BPR-0926.
-Registration baseline: `9bd2002b859ce4c5599d86dcc51771aa365fa90b`. Closeout is [[BPR-0927]]. All work remains in
-Backlog; authoring this RFC implements nothing and does not approve a final
-redesign. Preserve the original observations and detailed acceptance on each card.
+Registration baseline: `9bd2002b859ce4c5599d86dcc51771aa365fa90b`.
+Closeout is [[BPR-0927]].
+The implementation, design follow-ups and target-native macOS review are now
+technically accepted through BPR-0918 through BPR-0929. BPR-0927 records the
+combined closeout candidate `e4096e05`. This RFC remains `Proposed`, because
+RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 are
+not all `Auto-Verified`; technical completion does not waive dependency-ordered
+status.
 
 Markdown rendering remains independently owned by RFC-BPR-0036 and BPR-0916/
 BPR-0917. It is neither part of this RFC's delivery nor a prerequisite for fixing
@@ -189,3 +194,31 @@ Documentation and board validation must pass. Record target-native observations
 for accessibility, layout and scrolling separately from deterministic host tests.
 Do not declare unobserved platforms or private-service paths verified. Markdown
 RFC status and its implementation/closeout cards remain separate.
+
+## Technical closeout result
+
+Candidate `e4096e050b856eed1f103c215701d3cf289d159f` completes the missing
+combined recorded-fixture course. One network-isolated GHES/CLI composition now
+loads the pull request, distinguishes refused acquisition from stale selection,
+recovers two retained updates through the same durable store, enters Review from
+Overview, renders exact content for `review.cpp` and `secondary.cpp`, reads exact
+pathless and inline conversation identities in PR-wide Discuss before any source
+selection, retains a local Compose-review draft and exact source selection across
+navigation, and records zero publication effects. The focused five-selector
+closeout batch passed 5/5 in 145.31 seconds.
+
+AC-01 through AC-09 remain bound to their accepted per-card records and producing
+revisions under
+`docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/`. Target-native evidence is
+macOS-only: attended session `c44d1fe1c8245aa53959afc9fc9f4b27` explicitly
+accepted the Overview, Discuss and Compose candidates, and the native Cocoa
+long-detail course ran at DPR 2. Windows and Linux, a live GitHub/GHES service,
+a literal `gh` subprocess and private-repository behavior were not observed.
+Successful in-process Refresh recovery was also not claimed; the recorded course
+demonstrates healthy relaunch over the same durable store. RFC-BPR-0036 Markdown
+rendering remains outside this result.
+
+The technical criteria and BPR-0927 may close while the RFC status remains
+`Proposed`. A later status-only reconciliation may move this RFC and its index row
+to `Auto-Verified` only after every listed dependency is `Auto-Verified`; it does
+not require re-running unchanged RFC-BPR-0037 engineering evidence.

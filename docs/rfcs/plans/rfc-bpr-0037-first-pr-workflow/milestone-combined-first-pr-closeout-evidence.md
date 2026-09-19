@@ -32,15 +32,101 @@
   owns the criterion/evidence inventory, and
   `/root/rfc0037_closeout/rfc_scout_combined_course` owns composed-test surface
   discovery. Their generated `rfc-scout` configuration is
-  `gpt-5.6-sol` / `low`; returned banners and independent serving telemetry are
-  not yet observed and are not inferred from those dispatch arguments.
-- Commands and writers: no delegated writer is active. The two scouts are
-  active and read-only. The promotion/claim commands are complete; no build or
-  test command is active.
-- Pending obligations: inventory direct evidence for AC-01 through AC-09 and
-  every closeout exit; identify one composed recorded-fixture selector that can
-  fail on a broken cross-surface journey; classify target-native and unavailable
-  evidence; run the proportional closeout, documentation, and board gates; then
-  independently review the exact candidate before acceptance.
-- Next discriminating step: map all accepted evidence to the combined exits and
-  inspect the composed public-path test surface for missing combined coverage.
+  `gpt-5.6-sol` / `low`; both returned that configured banner. Independent
+  serving telemetry is unavailable and is not inferred from those banners.
+  `/root/rfc0037_closeout/rfc_worker_combined_course` was subsequently
+  dispatched with generated role `rfc-worker`, a fresh non-history context,
+  no per-call model/effort override, and exclusive ownership of
+  `tests/end_to_end/setup_destination_public_path_tests.cpp`. Its generated
+  configuration is `gpt-6-astra` / `low`; it returned that configured banner.
+  Independent serving telemetry is unavailable. The integrator then dispatched
+  `/root/rfc0037_closeout/rfc_test_runner_closeout_batch` with generated role
+  `rfc-test-runner`, a fresh non-history context and no per-call model/effort
+  override to run the exact five-selector integration batch at `e4096e05`.
+  Its generated configuration is `gpt-5.6-luna` / `xhigh`; it returned that
+  configured banner. Independent serving telemetry is unavailable.
+- Commands and writers: both scouts, the combined-course worker and the test
+  runner are complete and quiescent. They own no remaining edit or command.
+  The promotion/claim and integrator verification commands are also complete.
+- Pending obligation: independently review the exact combined closeout candidate
+  and its truthful dependency-gated status before finishing BPR-0927.
+- Next discriminating step: reviewer inspection of candidate `e4096e05` plus
+  the committed closeout reconciliation.
+
+## Evidence audit before the combined course
+
+- AC-01 through AC-09 each have accepted revision-bound evidence in
+  `acceptance-BPR-0918.json` through `acceptance-BPR-0929.json`; every cited
+  producing/correction commit resolves locally. No prior milestone has a
+  concrete unresolved engineering contradiction.
+- Exit 1 is supported across the accepted source and thread milestones, not by
+  one monolithic test. Initial load, update history, two files, head change,
+  unavailable/failure and stale replacement are bound to `5b95485c`; empty,
+  filtered-empty, refresh/failure, authority replacement and retained drafts
+  are bound to `8939de71`; Discuss selection under comparison movement is
+  corrected by `e3258509`. Successful in-process Refresh recovery was not
+  observed; healthy relaunch over the same durable store is the demonstrated
+  recovery and remains an explicit limitation.
+- Exit 2 has one real gap: no existing selector continuously loads the recorded
+  PR, reaches retained history and both exact source files, enters Review and
+  then reaches PR-wide Discuss/Compose without a file-selection dependency.
+  `application_setup_destination_public_path` is the narrowest existing public
+  course to extend; the other selectors prove only partitions of that journey.
+- Exit 3 reuses the three explicit macOS attended accepts from session
+  `c44d1fe1c8245aa53959afc9fc9f4b27` at reviewed source `8939de71` and app
+  SHA-256 `5b8b23dc...362a`, plus the native Cocoa DPR-2 course. Windows, Linux,
+  live GitHub/GHES, a literal `gh` subprocess, and private-service behavior are
+  not claimed.
+- Exit 4 still requires current-candidate documentation, board and combined
+  focused gates. BPR-0927's old body is documentary drift and must be replaced
+  with the final evidence rather than treated as an engineering invalidation.
+
+## Combined recorded-fixture candidate
+
+- Candidate `e4096e050b856eed1f103c215701d3cf289d159f` extends only
+  `application_setup_destination_public_path`. Its single GHES/CLI course now
+  begins with the existing refused acquisition and explicit unavailable state,
+  recovers through the same durable store, loads two retained updates, enters
+  Review through the natural Overview **Start review** gesture, and proves the
+  exact base/head first lines for `review.cpp` and `secondary.cpp`.
+- Before any file or comparison selection, the same course opens PR-wide
+  Discuss and observes exact pathless issue-comment/review identities and an
+  inline `review.cpp` comment with their recorded bodies. Discuss leaves the
+  file and comparison unselected. After the two exact sources are exercised,
+  the course opens the retained Compose review page, types a local draft,
+  traverses Discuss and both files, returns to the same draft and exact selected
+  source, and verifies zero review submissions, inline publications, replies or
+  resolutions.
+- Continue review is not redundantly re-proven inside this new combined tail.
+  Its natural seed/reuse behavior and zero-publication result remain bound to
+  the unchanged passing `application_review_behaviour_contract` at `5b95485c`.
+  An exploratory attempt to drive its Settings preference from this fixture did
+  not reach accepted behavior and was removed without a production change; it
+  is not represented as evidence or a new defect.
+- The worker's focused build and selector passed. After a behavior-preserving
+  code-simplifier pass extracted the repeated PR-wide discussion check into a
+  named local helper, the integrator rebuilt the target and reran
+  `application_setup_destination_public_path`: 1/1 passed in 32.16 seconds;
+  `clang-format --dry-run --Werror` and `git diff --check` also passed.
+
+## Closeout verification
+
+- At candidate `e4096e05`, the independently executed integration batch selected
+  `application_setup_destination_public_path`,
+  `application_review_behaviour_contract`,
+  `application_review_submission_composition_public_path`,
+  `qt_github_conversation_panel` and `qt_workbench_window_scale_100`: 5/5 passed
+  in 145.31 seconds. The command exited zero and is quiescent.
+- `python3 scripts/verify_documentation.py --root .` returned
+  `DOCUMENTATION_OK`; all 64 documentation verifier tests passed; RFC-scoped
+  board validation reported 921 cards, `valid: true`, zero errors; and
+  `git diff --check` passed.
+- The historical BPR-0915 shared-sign-in expectation drift is not present in
+  the selected current boundary and was not used as passing closeout evidence.
+  BPR-0797's protected executable digest mismatch remains owned by that separate
+  workflow; this closeout neither touches its candidate/registry nor interprets
+  an automated fixture as unrestricted browser or live-CLI capability.
+- RFC-BPR-0037 remains `Proposed`: RFC-BPR-0003 is `Auto-Verified`, while
+  RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015 and RFC-BPR-0028 are `Proposed`, and
+  RFC-BPR-0029 is `Accepted`. Finishing the technical closeout without changing
+  the RFC/index status is the canonical-order pass condition.
