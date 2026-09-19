@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0930"
 title: "Match C++ and Windows resource syntax roles to the Visual Studio reference"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"report-followups-20260919","path":"docs/rfcs/plans/report-followups-20260919/milestone-plan.json"},"source_report":"report-followups-run-20260919"}
+acceptance: [{"criterion":"C and C++ upstream data-type spans such as void, bool and wchar_t use the blue built-in role while heuristically identified user types such as CUIforETWDlg and NameToString remain yellow type spans.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"command","detail":"syntax_classification_contract pins void/bool/wchar_t as built-in and PascalCase plus upstream widget_t/value_type declaration/use spans as type; the corrected critical-review counterexample passes."}},{"criterion":".rc selection cannot fall through to TOML. A representative resource file has distinct directive/macro, resource-keyword, string, comment and ordinary identifier spans, with no blanket yellow treatment.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"command","detail":"syntax_classification_contract selects Windows Resource for .rc and .RC and pins exact keyword, macro, ordinary identifier, string, line-comment and block-comment roles with no syntax_type span in the fixture."}},{"criterion":"Existing directive subranges, include operands, macro roles and exact source offsets remain intact; malformed or unsupported input still fails safely.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"command","detail":"The syntax contract retains directive/include/macro assertions, checks UTF-8 byte offsets and multiline state, rejects stale definition revisions and malformed UTF-8, and enforces the span bound."}},{"criterion":"Focused syntax and Qt appearance/composition contracts pass on packaged definitions and the checked-in synthetic resource fixture.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"command","detail":"Corrected-candidate integration passed syntax_classification_contract, qt_syntax_pane_composition, core_appearance_contrast and qt_appearance_profile inside a 16/16 selector batch."}}]
 ---
 
 # Match C++ and Windows resource syntax roles to the Visual Studio reference
@@ -62,3 +63,12 @@ both reported symptoms.
 - Focused syntax and Qt appearance/composition contracts pass on packaged
   definitions and the checked-in synthetic resource fixture.
 
+## Status
+
+Accepted at source candidate
+`4e409bc967a9814e5a492f3eaf644254352e1df8`. The first implementation was
+held after critical review proved that KSyntax also emits `DataType` for
+typedef-style `*_t` and `*_type` names. The corrected classifier maps only an
+explicit language-type vocabulary to the built-in role; `widget_t` and
+`value_type` remain type spans. See
+[`milestone-syntax-and-text-presentation-evidence.md`](../../rfcs/plans/report-followups-20260919/milestone-syntax-and-text-presentation-evidence.md).
