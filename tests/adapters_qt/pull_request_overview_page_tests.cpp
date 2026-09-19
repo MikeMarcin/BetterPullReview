@@ -505,6 +505,6 @@ auto main(int argc, char** argv) -> int
 	test_compact_descriptions();
 	test_retained_description_reader();
 	test_body_edits_clamp_retained_selection();
-	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << application.platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
+	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

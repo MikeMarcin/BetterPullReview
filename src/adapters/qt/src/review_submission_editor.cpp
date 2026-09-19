@@ -36,7 +36,7 @@ namespace bpr::qt {
 		Target->setMinimumWidth(0);
 		Target->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 		connect(Target->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged,
-				this, [this](QSizeF size) { Target->setFixedHeight(static_cast<int>(std::ceil(size.height())) + 2 * Target->frameWidth()); });
+				this, [this](QSizeF aSize) { Target->setFixedHeight(static_cast<int>(std::ceil(aSize.height())) + 2 * Target->frameWidth()); });
 
 		layout->addWidget(Target);
 		Disposition = new QComboBox{ this };
@@ -57,9 +57,9 @@ namespace bpr::qt {
 		Discard        = new QAction{ tr("Discard"), this };
 		Reconcile      = new QAction{ tr("Check status"), this };
 		NewReview      = new QAction{ tr("New review"), this };
-		const auto row = [this, layout](QAction* first, QAction* second) {
+		const auto row = [this, layout](QAction* aFirst, QAction* aSecond) {
 			auto* actions = new QHBoxLayout;
-			for (auto* action : { first, second }) {
+			for (auto* action : { aFirst, aSecond }) {
 				auto* button = new QToolButton{ this };
 				button->setDefaultAction(action);
 				button->setFocusPolicy(Qt::StrongFocus);

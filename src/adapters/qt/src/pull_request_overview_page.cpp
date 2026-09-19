@@ -197,11 +197,11 @@ namespace bpr::qt {
 			// centerCursor has laid out this visible neighbourhood. Count actual
 			// wrapped lines, including fallback-font metrics, without polling or
 			// laying out the whole body. The scrollbar owns the legal end clamp.
-			const auto top         = cursorForPosition(QPoint{ 0, 0 });
-			const auto line_number = [](const QTextCursor& aCursor) {
+			const auto top        = cursorForPosition(QPoint{ 0, 0 });
+			const auto lineNumber = [](const QTextCursor& aCursor) {
 				return aCursor.block().layout()->lineForTextPosition(aCursor.positionInBlock()).lineNumber();
 			};
-			auto lines = line_number(aSource) - line_number(top);
+			auto lines = lineNumber(aSource) - lineNumber(top);
 			for (auto block = top.block(); block.isValid() && block.position() < aSource.block().position(); block = block.next()) {
 				lines += block.layout()->lineCount();
 			}
