@@ -28,7 +28,8 @@
   `24c9e90c` for BPR-0924, BPR-0925, BPR-0928 and BPR-0929 respectively.
   BPR-0925's fully mechanical graph/detail acceptance is Done in `6c604a66`;
   the three cards with required native judgment retain human-pending
-  acceptance records and will be parked against the attended queue.
+  acceptance records and are parked against the attended queue in `60c5166b`
+  (BPR-0924), `d772ed92` (BPR-0928) and `ee6d355e` (BPR-0929).
 - Owned paths: BPR-0924/BPR-0925/BPR-0928/BPR-0929 cards; this assignment,
   evidence, acceptance and eventual return; necessary scoped source/tests/docs.
 - Completed checks: consumer configuration, governing instructions, RFC,
@@ -111,6 +112,7 @@
   `5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a`.
   The offline queue and operator packet are under
   `docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/`.
+  Their durable handoff commit is `06a2a915`.
 - Unrelated protected-resource incident: the first preparation correctly
   refused the mutable `build/dev` app because prior candidate
   `bpr-0797-device-browser-opens` still protects that resource at expected
@@ -129,6 +131,9 @@
 - Next discriminating step: capture and import explicit human verdicts for the
   three protected candidates, then reconcile the parked card acceptance
   records. Do not begin combined-first-pr-closeout while they remain pending.
+- The native coordinator handoff checker accepts the renewed assignment/return
+  identity and reports action `pending` with reason `pending-obligation` under
+  quiescent execution; it does not infer engineering acceptance.
 
 Historical accepted milestone evidence remains in the earlier evidence files;
 this milestone does not reopen those engineering outcomes.

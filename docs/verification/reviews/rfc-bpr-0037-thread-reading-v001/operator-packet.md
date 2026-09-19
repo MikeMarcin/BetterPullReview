@@ -1,5 +1,8 @@
 # RFC-BPR-0037 thread-reading native review
 
+Status: **ready for native review; three protected candidates are awaiting
+explicit human verdicts**.
+
 This queue contains the three remaining human judgments for the
 `thread-reading-integration` milestone. The implementation revision is
 `8939de7195c7de6c2dc4299c3f5e1f0d342bf115`; the exact development executable
