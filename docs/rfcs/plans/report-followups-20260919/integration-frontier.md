@@ -38,3 +38,21 @@ Each source slice must retain its focused positive and negative tests. Complete
 cards only from revision-bound evidence, run the documentation gate and one
 integration-focused pass, obtain independent review for exact identity and
 fail-closed behavior, then record milestone evidence and quiesce every writer.
+
+## Completed frontier
+
+Integrated source candidate
+`4e409bc967a9814e5a492f3eaf644254352e1df8`; BPR-0930 finish
+`6c438bd55c76c4956f621f0a13e5af0be0a6ef2c`; BPR-0931 finish
+`228c279e9962b873f2c489e61b4503541da2f092`; BPR-0932 finish
+`04da7ca2748487bb09f4e75891bd3ef021e8517d`.
+
+Both milestone bindings re-resolve to their original obligation fingerprints.
+Corrected-candidate integration passed 16/16, format checked 700 files, and the
+documentation gate plus 64 documentation tests passed. Critical review found
+and caused correction of the `*_t`/`*_type` user-type regression, then reported
+no remaining blocker. Every delegated writer, reviewer and test command is
+quiescent. No human/native verdict or live service is required for these
+deterministic fixture fixes. The unrelated UIforETW capture geometry,
+threaded-reply draft timeout and queued restoration-notice failures remain
+disclosed in the milestone evidence and are not part of this completed scope.

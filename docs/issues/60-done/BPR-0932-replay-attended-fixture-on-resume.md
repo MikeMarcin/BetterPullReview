@@ -49,7 +49,7 @@ the capture. No production Recent identity or authorization defect was found.
   and publication behavior are unchanged. Focused restoration, anonymous
   preview and UIforETW selected-diff contracts pass with no live service use.
 
-## Status
+## Verification and execution record
 
 Accepted at source candidate
 `4e409bc967a9814e5a492f3eaf644254352e1df8`. The defect was the one-shot

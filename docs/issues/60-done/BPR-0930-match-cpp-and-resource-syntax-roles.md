@@ -63,7 +63,7 @@ both reported symptoms.
 - Focused syntax and Qt appearance/composition contracts pass on packaged
   definitions and the checked-in synthetic resource fixture.
 
-## Status
+## Verification and execution record
 
 Accepted at source candidate
 `4e409bc967a9814e5a492f3eaf644254352e1df8`. The first implementation was

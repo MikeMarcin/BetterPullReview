@@ -1,0 +1,71 @@
+{
+  "schema": "implement-rfc.milestone-return.v2",
+  "run_id": "report-followups-run-20260919",
+  "dispatch_id": "report-followups-dispatch-001",
+  "producer_id": "/root/report_followups",
+  "mandate_revision": "1",
+  "milestone": "report-followups-20260919",
+  "disposition": "plan-complete",
+  "summary": "BPR-0930, BPR-0931 and BPR-0932 are accepted Done: C/C++ and Windows-resource roles are differentiated without collapsing typedef-style user types, exact tabbed source correspondence is executable evidence rather than rewritten layout, and attended UIforETW Recent Resume replays strict public/account recordings without weakening fail-closed identity.",
+  "candidate_revision": "4e409bc967a9814e5a492f3eaf644254352e1df8",
+  "handoff_ref": "docs/rfcs/plans/report-followups-20260919/milestone-return-report-followups-dispatch-001.json",
+  "ownership": "quiescent",
+  "next_objective": "None in the selected plan; any repair of the disclosed UIforETW capture geometry, threaded-reply draft timeout or restoration notice-order failure requires a separate fresh mandate.",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/report-followups-20260919/milestone-syntax-and-text-presentation-evidence.md",
+    "docs/rfcs/plans/report-followups-20260919/milestone-attended-recent-resume-evidence.md",
+    "docs/rfcs/plans/report-followups-20260919/acceptance-BPR-0930.json",
+    "docs/rfcs/plans/report-followups-20260919/acceptance-BPR-0931.json",
+    "docs/rfcs/plans/report-followups-20260919/acceptance-BPR-0932.json",
+    "docs/rfcs/plans/report-followups-20260919/assignment-report-followups-dispatch-001-syntax.json",
+    "docs/rfcs/plans/report-followups-20260919/assignment-report-followups-dispatch-001-recent.json",
+    "4e409bc967a9814e5a492f3eaf644254352e1df8",
+    "6c438bd55c76c4956f621f0a13e5af0be0a6ef2c",
+    "228c279e9962b873f2c489e61b4503541da2f092",
+    "04da7ca2748487bb09f4e75891bd3ef021e8517d"
+  ],
+  "bindings": [
+    {
+      "plan_id": "report-followups-20260919",
+      "milestone_id": "syntax-and-text-presentation",
+      "definition_fingerprint": "sha256:8d7c1da354ee7c2af75aa702ec6a103d733ab68f1e5af091a217325fecc9bc7a",
+      "obligation_fingerprint": "sha256:be42b5c35f6b30a354a96a75d707be41482a77c8bd4d8da4bb8a32703da5d5b6",
+      "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "references": "resolved"
+    },
+    {
+      "plan_id": "report-followups-20260919",
+      "milestone_id": "attended-recent-resume",
+      "definition_fingerprint": "sha256:9d1e3c0a4660eb9b78b96a4132431dcc1554b8138db6d9412b81a2322646c1d7",
+      "obligation_fingerprint": "sha256:498d9ca9532b0423f8f5f33a8d0855efad45ea6f935d8b94efee2913c129687c",
+      "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "references": "resolved"
+    }
+  ],
+  "acceptance_records": [
+    {"id":"BPR-0930:*","outcome":"pass","evidence_refs":["docs/rfcs/plans/report-followups-20260919/acceptance-BPR-0930.json"]},
+    {"id":"BPR-0931:*","outcome":"pass","evidence_refs":["docs/rfcs/plans/report-followups-20260919/acceptance-BPR-0931.json"]},
+    {"id":"BPR-0932:*","outcome":"pass","evidence_refs":["docs/rfcs/plans/report-followups-20260919/acceptance-BPR-0932.json"]}
+  ],
+  "verification": {
+    "corrected_candidate_ctest": "16/16 passed in 97.67 seconds",
+    "coding_format_check": "700 files passed in 16.972 seconds",
+    "documentation_gate": "DOCUMENTATION_OK",
+    "documentation_tests": "64 passed",
+    "board": "924 cards; valid; no errors",
+    "critical_review": "no remaining blocker after corrected packaged-classifier counterexample",
+    "live_service": "not used"
+  },
+  "limitations": [
+    "The resource classifier is a bounded lexical refinement rather than a complete Windows resource grammar.",
+    "The Resume harness sets RepeatReadSessions directly; main's attended-launch option binding is covered by direct source/build inspection.",
+    "Three broader failing selectors are disclosed in milestone-attended-recent-resume-evidence.md and were proven unrelated or before the changed boundary; none is claimed as passing evidence."
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "selected-plan-complete",
+    "detail": "All three canonical follow-up cards and both bound milestones are accepted and committed; no authorized actionable obligation remains."
+  }
+}

@@ -57,7 +57,7 @@ RFC-BPR-0004 design; synthetic alignment rows would corrupt line identity.
   pass; any real discrepancy uncovered by the executable contract is fixed at
   its owning boundary before the card closes.
 
-## Status
+## Verification and execution record
 
 Accepted at source candidate
 `4e409bc967a9814e5a492f3eaf644254352e1df8`. The captures contain authored
