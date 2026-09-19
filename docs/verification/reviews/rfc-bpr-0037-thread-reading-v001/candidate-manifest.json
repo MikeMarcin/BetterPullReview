@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "rfc0037-overview-reader",
+      "title": "RFC-BPR-0037: retained pull-request description reader",
+      "revision": "8939de71-5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a-2026-09-19.2",
+      "criteria": [
+        "On native macOS, the retained Overview description reader has one predictable scroll and focus owner, returns to the same source place after Back and reflow, and remains legible and correctly announced across the requested appearance and font changes"
+      ],
+      "content": "This is an offline recorded-fixture review; it makes no live GitHub or GHES request and cannot publish. Quit any running BetterPullReview first, confirm the pgrep command below prints nothing, then use the launch command for this item. On Home enter google/UIforETW#74 and press Return. In Settings > Appearance, set the interface font size to 20 pt, then make the window narrow enough that the three-paragraph description preview overflows. In Overview, activate Read full description. Scroll with a physical trackpad, use Page Down, Home and End, select a distinctive phrase, then press Back or Escape. Reopen the reader: the same source anchor or selected phrase should remain visible. Resize the window and switch light/dark plus Increase contrast; the reader should retain a sensible place with one scroll owner, complete text, no horizontal clipping and no nested scroll trap. With VoiceOver, the reader title, full description and Back action should be understandable. Accept only if that one coherent reading path holds. Otherwise reject and identify the focus, place, scrolling, clipping or announcement problem; do not include any private content.",
+      "paths": [
+        "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+        "src/adapters/qt/src/pull_request_overview_page.cpp",
+        "tests/adapters_qt/pull_request_overview_page_tests.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app": "5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a"
+      },
+      "launch": {
+        "label": "Launch the network-isolated UIforETW recorded fixture",
+        "command": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --attended-launch"
+      },
+      "copy": [
+        {
+          "label": "Confirm no BetterPullReview is running (prints nothing)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Recorded pull request for Home",
+          "value": "google/UIforETW#74"
+        }
+      ],
+      "metadata": {
+        "source_commit": "8939de7195c7de6c2dc4299c3f5e1f0d342bf115",
+        "run": "rfc0037-run-20260918",
+        "dispatch": "rfc0037-dispatch-003-resume-01",
+        "mandate": "1",
+        "cards": "BPR-0924,BPR-0928",
+        "fixture": "recorded uiforetw-74; network isolated"
+      }
+    },
+    {
+      "id": "rfc0037-discuss-thread-reading",
+      "title": "RFC-BPR-0037: pull-request-wide Discuss reading path",
+      "revision": "8939de71-5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a-2026-09-19.2",
+      "criteria": [
+        "On native macOS, PR-wide Discuss provides one understandable index-to-graph-to-detail path whose physical-trackpad and keyboard scrolling, focus, identities and Open in code return remain coherent without duplicate full bodies"
+      ],
+      "content": "This is an offline synthetic-fixture review; it makes no live GitHub or GHES request and cannot publish. Quit the previous fixture, confirm the pgrep command below prints nothing, and launch this item. On Home enter octo-org/review-repository#17 and press Return. Open Discuss. Verify the index includes the PR-wide comment/review material and inline threads independently of which file is selected. Exercise All/File, Unread and Unresolved; select rows with Up/Down, then press Return to open one detail. In a normal width, the index, compact graph and exactly one complete selected body should form one reading path; no second full body should be unexplained. In a narrow width, the detail should become a retained page with a clear Back route. Use a physical trackpad plus Page Up/Down, Home and End, then Open in code for an inline row: the exact thread identity should remain selected and the destination line should match it. Switch files, return to Discuss and confirm the selected identity and a sensible reading position survive. Repeat at 20 pt and in light/dark plus Increase contrast; use VoiceOver to confirm the index, graph summary, detail and actions are understandable. Accept only if the path remains coherent and responsive. Otherwise reject and identify the row, identity, scroll, focus, duplication or announcement problem; do not include private content. The automated native-Cocoa course separately exercises a complete multi-kilobyte detail body at 900/1400 widths and 13/20 pt, so this item is the physical-input and subjective native check.",
+      "paths": [
+        "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
+        "src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp",
+        "src/adapters/qt/src/conversation_cards_view.cpp",
+        "src/adapters/qt/src/github_conversation_delegate.cpp",
+        "src/adapters/qt/src/github_conversation_panel.cpp",
+        "tests/adapters_qt/conversation_cards_view_tests.cpp",
+        "tests/adapters_qt/github_conversation_panel_tests.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app": "5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a"
+      },
+      "launch": {
+        "label": "Launch the network-isolated synthetic GitHub fixture",
+        "command": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app/Contents/MacOS/better_pull_review --github-fixture github-com --attended-launch"
+      },
+      "copy": [
+        {
+          "label": "Confirm no BetterPullReview is running (prints nothing)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Synthetic pull request for Home",
+          "value": "octo-org/review-repository#17"
+        }
+      ],
+      "metadata": {
+        "source_commit": "8939de7195c7de6c2dc4299c3f5e1f0d342bf115",
+        "run": "rfc0037-run-20260918",
+        "dispatch": "rfc0037-dispatch-003-resume-01",
+        "mandate": "1",
+        "cards": "BPR-0924,BPR-0925,BPR-0929",
+        "fixture": "synthetic github-com; network isolated"
+      }
+    },
+    {
+      "id": "rfc0037-compose-pages",
+      "title": "RFC-BPR-0037: dedicated Compose review and inline draft pages",
+      "revision": "8939de71-5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a-2026-09-19.2",
+      "criteria": [
+        "On native macOS, the Compose review and inline-draft pages remain usable, legible and correctly announced through narrow and short layouts, appearance and 13/20 pt changes while preserving drafts and focus and never submitting through navigation"
+      ],
+      "content": "Use the already open network-isolated github-com fixture from the Discuss item, or quit it, confirm pgrep prints nothing and use this item's launch command. On Home enter octo-org/review-repository#17. Open Compose review, enter distinctive temporary draft text, move through the available review modes and resize to a narrow/short window. Use only Back or another navigation control to leave and return: the draft and a sensible focus target should remain, and no navigation action may submit. Open an inline thread in Discuss and choose Reply, or select a reviewable diff line and choose Draft comment; enter separate temporary text and repeat the Back/return check. The central page should own scrolling, keep the target identity visible, and expose explicit Add draft/Submit-type authority only where intended. Confirm the old focus-only Show review threads action is absent. Repeat at 13 and 20 pt in light/dark plus Increase contrast, and use VoiceOver to check the target, editor, mode, authority and Back action. Accept only if both pages are usable and drafts remain local until an explicit publication action. Otherwise reject and identify the clipping, focus, draft, identity, authority or announcement problem; do not include private content and do not activate a publication action.",
+      "paths": [
+        "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+        "src/adapters/qt/src/review_submission_editor.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/app/src/github_application.cpp",
+        "tests/adapters_qt/review_submission_editor_tests.cpp",
+        "tests/adapters_qt/workbench_window_tests.cpp",
+        "tests/end_to_end/review_submission_composition_public_path.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app": "5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a"
+      },
+      "launch": {
+        "label": "Launch the network-isolated synthetic GitHub fixture",
+        "command": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app/Contents/MacOS/better_pull_review --github-fixture github-com --attended-launch"
+      },
+      "copy": [
+        {
+          "label": "Confirm no BetterPullReview is running (prints nothing)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Synthetic pull request for Home",
+          "value": "octo-org/review-repository#17"
+        }
+      ],
+      "metadata": {
+        "source_commit": "8939de7195c7de6c2dc4299c3f5e1f0d342bf115",
+        "run": "rfc0037-run-20260918",
+        "dispatch": "rfc0037-dispatch-003-resume-01",
+        "mandate": "1",
+        "cards": "BPR-0929",
+        "fixture": "synthetic github-com; network isolated"
+      }
+    }
+  ]
+}

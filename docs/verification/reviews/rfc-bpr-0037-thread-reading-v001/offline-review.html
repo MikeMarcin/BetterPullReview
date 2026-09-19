@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attended review</title>
+<style>
+/* Chalk on slate. Colour is spent only on verdicts: green accepts, red rejects,
+   amber is what still needs an answer. Everything else is chalk and slate. */
+:root{
+  color-scheme:dark;
+  --slate:#20272b;--slate-deep:#191f23;--slate-raised:#272f34;--slate-hover:#2e373d;
+  --line:#3b454b;--line-strong:#56636b;
+  --chalk:#e9e4d8;--chalk-dim:#b9b2a4;--chalk-faint:#8a8478;
+  --blue:#9cc3df;--green:#8fcaa0;--red:#e09a8e;--amber:#e4c27a;
+  --green-ink:#12271a;--red-ink:#2d1512;
+  --serif:Charter,"Iowan Old Style","Bitstream Charter",Cambria,Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --measure:68ch;
+  font:15px/1.45 var(--sans);color:var(--chalk);background:var(--slate);
+}
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:1240px;padding:20px 24px 48px}
+h1,h2,h3,p,ul,dl,figure{margin:0}
+a{color:var(--blue)}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){button,.row{transition:background-color 120ms,border-color 120ms}}
+
+/* Masthead and the session */
+.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 24px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.top h1{font:600 22px/1.2 var(--sans);letter-spacing:-.01em}
+#checkout{font:14px var(--mono);color:var(--chalk-dim);overflow-wrap:anywhere}
+#mode{margin-left:auto;color:var(--chalk-dim)}
+.session{display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:14px 0}
+.tally{flex:1 1 260px;min-width:0}
+.meter{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--line);margin-bottom:8px}
+.meter i{display:block;height:100%}
+.meter .answered{background:var(--chalk-faint)}.meter .ready{background:var(--amber)}.meter .waiting{background:var(--line-strong)}
+#progress{color:var(--chalk-dim)}
+#progress b{color:var(--chalk);font-weight:600}
+#progress .due{color:var(--amber)}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.group{color:var(--chalk-faint);margin-right:4px}
+#notice{min-height:1.45em;margin:0 0 6px;padding:0;color:var(--amber);white-space:pre-wrap}
+#notice:empty{margin:0}
+
+/* Buttons: outlined chalk by default, filled only for the action that matters */
+button,textarea,select,input{font:inherit}
+button{padding:7px 13px;border:1px solid var(--line-strong);border-radius:4px;background:transparent;color:var(--chalk);cursor:pointer}
+button:hover:not(:disabled){background:var(--slate-hover);border-color:var(--chalk-dim)}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--chalk);color:var(--slate-deep);border-color:var(--chalk);font-weight:600}
+button.primary:hover:not(:disabled){background:#fff;border-color:#fff}
+button.accept{background:var(--green);color:var(--green-ink);border-color:var(--green);font-weight:600}
+button.accept:hover:not(:disabled){background:#a6dbb5;border-color:#a6dbb5}
+button.reject{background:transparent;color:var(--red);border-color:var(--red)}
+button.reject:hover:not(:disabled){background:var(--red-ink);border-color:var(--red)}
+button.quiet{border-color:transparent;color:var(--chalk-dim)}
+button.quiet:hover:not(:disabled){border-color:var(--line-strong);color:var(--chalk)}
+
+/* The desk: the docket rail on the left, one candidate on the right */
+.desk{display:grid;grid-template-columns:272px minmax(0,1fr);gap:0 40px;align-items:start;border-top:1px solid var(--line)}
+.rail{position:sticky;top:0;max-height:100vh;overflow:auto;padding:14px 0 24px;border-right:1px solid var(--line)}
+.rail summary{display:none}
+.rail summary .count{color:var(--chalk)}
+.rail h3{font:600 12px/1.4 var(--sans);letter-spacing:.02em;color:var(--chalk-faint);margin:16px 0 4px;padding-right:16px}
+.rail h3:first-child{margin-top:0}
+.row{display:grid;grid-template-columns:20px 1fr;gap:8px;width:100%;margin:0;padding:6px 16px 6px 8px;border:0;border-left:3px solid transparent;border-radius:0;background:transparent;text-align:left;line-height:1.35;color:var(--chalk-dim)}
+.row:hover:not(:disabled){background:var(--slate-raised);border-left-color:var(--line-strong)}
+.row[aria-current="true"]{background:var(--slate-raised);border-left-color:var(--chalk);color:var(--chalk)}
+.row .mark{font-family:var(--mono);text-align:center;color:var(--chalk-faint)}
+.row[data-state="ready"]{color:var(--chalk)}
+.row[data-state="ready"] .mark{color:var(--amber)}
+.row[data-state="accept"] .mark,.row[data-state="select"] .mark{color:var(--green)}
+.row[data-state="reject"] .mark{color:var(--red)}
+main{padding:24px 0 0;min-width:0}
+.empty{max-width:var(--measure);font:17px/1.55 var(--serif);color:var(--chalk-dim)}
+
+/* One candidate */
+.identity{font:13px var(--mono);color:var(--chalk-faint);overflow-wrap:anywhere}
+.identity .id{color:var(--chalk-dim)}
+#title{margin:6px 0 22px;max-width:var(--measure);font:600 28px/1.2 var(--serif);letter-spacing:-.005em;text-wrap:balance}
+article h3{font:600 13px/1.4 var(--sans);color:var(--chalk-dim);margin:0 0 8px}
+.ask,.prose,.step,#media,.checked,.choices,.answer{max-width:var(--measure);margin-bottom:26px}
+/* The question and the recorded answer share one device: a rule at the left. */
+.ask ul{list-style:none;padding:0;border-left:3px solid var(--amber)}
+.ask li{padding:2px 0 2px 16px;font:19px/1.45 var(--serif)}
+.ask li+li{margin-top:8px}
+.prose{font:17px/1.55 var(--serif);white-space:pre-wrap}
+.step{margin-bottom:14px}
+.step .what{color:var(--chalk-dim);margin-bottom:6px}
+.copyrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border:1px solid var(--line);border-radius:4px;background:var(--slate-deep)}
+.copyrow code{display:block;padding:10px 12px;font:14px/1.5 var(--mono);overflow-wrap:anywhere;white-space:pre-wrap}
+.copyrow button{border:0;border-left:1px solid var(--line);border-radius:0 4px 4px 0;color:var(--chalk-dim);padding:0 14px}
+.copyrow button:hover:not(:disabled){color:var(--chalk);background:var(--slate-raised)}
+#wizard p{font:17px/1.55 var(--serif);margin-bottom:8px}
+#media figure{margin:0 0 14px}
+#media img,#media video{display:block;max-width:100%;max-height:60vh;border:1px solid var(--line);background-color:#4a5258;background-image:linear-gradient(45deg,#5b646a 25%,transparent 25%),linear-gradient(-45deg,#5b646a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#5b646a 75%),linear-gradient(-45deg,transparent 75%,#5b646a 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}
+#media img{cursor:zoom-in}
+#media audio{width:100%}
+#media figcaption{padding-top:6px;color:var(--chalk-dim);font:15px/1.45 var(--serif)}
+.checked ul{list-style:none;padding:0}
+.checked li{padding:6px 0;border-top:1px solid var(--line);font:15px/1.5 var(--serif);color:var(--chalk-dim)}
+.checked li:last-child{border-bottom:1px solid var(--line)}
+.checked time{display:block;font:12px var(--mono);color:var(--chalk-faint);margin-bottom:2px}
+.checked .aside{margin-top:8px;color:var(--chalk-faint)}
+.choices label{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:4px;font:17px/1.45 var(--serif);cursor:pointer}
+.choices label+label{margin-top:6px}
+.choices label:has(input:checked){border-color:var(--chalk-dim);background:var(--slate-raised)}
+.choices input{margin:5px 0 0;accent-color:var(--chalk)}
+
+/* The answer */
+.answer{padding-top:22px;border-top:1px solid var(--line)}
+#verdict{margin-bottom:16px;padding:2px 0 2px 16px;border-left:3px solid var(--chalk-faint);font:17px/1.5 var(--serif)}
+#verdict[data-outcome="accept"],#verdict[data-outcome="select"]{border-color:var(--green)}
+#verdict[data-outcome="reject"]{border-color:var(--red)}
+#verdict .said{display:block;font-weight:600}
+#verdict .chosen{display:block;margin-top:4px}
+#verdict .quote{display:block;margin-top:4px;font-style:italic;color:var(--chalk-dim)}
+#verdict .pictures{display:block;margin-top:4px;font:13px var(--sans);color:var(--chalk-faint)}
+#standing{margin-bottom:16px;font:17px/1.5 var(--serif);color:var(--chalk-dim)}
+textarea{display:block;width:100%;min-height:96px;padding:10px 12px;font:17px/1.5 var(--serif);color:var(--chalk);background:var(--slate-deep);border:1px solid var(--line-strong);border-radius:4px;resize:vertical}
+textarea::placeholder{color:var(--chalk-faint)}
+.pictures-in{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:10px 0 14px;color:var(--chalk-dim)}
+#images{max-width:100%;color:var(--chalk-dim)}
+#images::file-selector-button{font:inherit;margin-right:10px;padding:5px 11px;border:1px solid var(--line-strong);border-radius:4px;background:transparent;color:var(--chalk);cursor:pointer}
+#images:disabled::file-selector-button{cursor:default}
+#attachments{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+#attachments:empty{display:none}
+#attachments figure{width:140px}
+#attachments img{display:block;width:100%;height:90px;object-fit:cover;border:1px solid var(--line);border-radius:3px}
+#attachments figcaption{font-size:12px;color:var(--chalk-faint);overflow-wrap:anywhere;padding-top:3px}
+.answer .controls{margin-top:6px}
+.provenance{max-width:var(--measure);margin-top:8px;color:var(--chalk-dim)}
+.provenance summary{cursor:pointer;color:var(--chalk-faint)}
+.provenance dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 16px;margin-top:10px;font:13px/1.5 var(--mono)}
+.provenance dt{color:var(--chalk-faint)}
+.provenance dd{margin:0;overflow-wrap:anywhere}
+
+/* Offline fallback */
+#fallback{margin-top:36px;padding-top:14px;border-top:1px solid var(--line);color:var(--chalk-dim);max-width:var(--measure)}
+#fallback summary{cursor:pointer}
+#fallback p{margin:10px 0}
+#fallback .controls{margin:12px 0}
+#transfer{min-height:130px;font:13px/1.5 var(--mono)}
+#storage{color:var(--amber)}
+
+/* Native size, not fitted: a one-pixel judgement needs the pixels. */
+#viewer{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;background:rgba(15,19,22,.96)}
+#viewer .bar{display:flex;align-items:center;gap:16px;padding:10px 16px;color:var(--chalk-dim)}
+#viewer .bar span{flex:1;min-width:0;overflow-wrap:anywhere}
+#viewer .surface{flex:1;overflow:auto}
+#viewer img{display:block;image-rendering:pixelated}
+
+@media (max-width:899px){
+  body{padding:16px 16px 40px}
+  .desk{display:block}
+  .rail{position:static;max-height:none;padding:12px 0 4px;border-right:0;border-bottom:1px solid var(--line)}
+  .rail summary{display:list-item;cursor:pointer;padding:2px 0 10px;color:var(--chalk-dim)}
+  .rail nav{max-height:40vh;overflow:auto}
+  .row{padding-left:6px}
+  #title{font-size:24px}
+}
+</style>
+<header class="top"><h1>Attended review</h1><p id="checkout"></p><p id="mode"></p></header>
+<section class="session" aria-label="The session">
+  <div class="tally"><div class="meter" aria-hidden="true"><i class="answered"></i><i class="ready"></i><i class="waiting"></i></div><p id="progress" role="status"></p></div>
+  <div class="controls"><span class="group">This session:</span><button id="finish">Finish and hand back</button><button id="pause">Pause and come back later</button><button id="start">Start with what’s ready</button></div>
+</section>
+<p id="notice" role="alert"></p>
+<div class="desk">
+  <details id="queue" class="rail" open><summary id="queue-summary">Queue</summary><nav id="list" aria-label="Review queue"></nav></details>
+  <main>
+    <p id="empty" class="empty" hidden></p>
+    <article id="card" hidden>
+      <p id="identity" class="identity"></p>
+      <h2 id="title"></h2>
+      <section class="ask"><h3>What to check</h3><ul id="criteria"></ul></section>
+      <div id="content" class="prose"></div>
+      <div id="launch"></div><div id="copy-values"></div><div id="wizard"></div>
+      <div id="media"></div>
+      <section id="checked" class="checked" hidden><h3>Already checked by your driver</h3><ul id="observations"></ul><p class="aside">Objective evidence, not a verdict. The decision below is yours.</p></section>
+      <div id="options" class="choices"></div>
+      <section class="answer"><h3>Your answer</h3>
+        <div id="verdict" hidden></div><p id="standing" hidden></p>
+        <textarea id="note" placeholder="Why, in your own words. Optional." aria-label="Your note about this candidate"></textarea>
+        <div class="pictures-in"><label for="images">Screenshots: paste one into the note, or choose files</label><input id="images" type="file" accept="image/*" multiple aria-label="Attach screenshots to this answer"></div>
+        <div id="attachments"></div>
+        <div class="controls" aria-label="This candidate"><span class="group">This candidate:</span><button id="accept" class="accept">Accept</button><button id="reject" class="reject">Reject</button><button id="clear" class="quiet">Clear my answer</button><button id="skip" class="quiet">Answer later</button></div>
+      </section>
+      <details class="provenance"><summary>Where this candidate came from</summary><dl id="provenance"></dl></details>
+    </article>
+  </main>
+</div>
+<details id="fallback"><summary>Offline fallback and partial export</summary><p>Every completed decision can be exported now. Pending and skipped items stay pending. Copy this JSON or download it, then give it to your driver for import.</p><p id="generated"></p><div class="controls"><button id="export">Export decisions</button><button id="copy">Copy JSON</button><button id="download">Download JSON</button></div><textarea id="transfer" aria-label="Decision JSON"></textarea><p id="storage"></p></details>
+<div id="viewer" hidden role="dialog" aria-label="Image at full size"><div class="bar"><span id="viewer-label"></span><button id="viewer-close">Close</button></div><div class="surface"><img id="viewer-image" alt=""></div></div>
+<script>
+'use strict';
+const embedded={"session": "c44d1fe1c8245aa53959afc9fc9f4b27", "checkout": "/Users/jaeger/Documents/GitHub/BetterPullReview", "sequence": 15, "paused": false, "handed_back": null, "candidates": [{"id": "rfc0037-compose-pages", "title": "RFC-BPR-0037: dedicated Compose review and inline draft pages", "revision": "8939de71-5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a-2026-09-19.2", "criteria": ["On native macOS, the Compose review and inline-draft pages remain usable, legible and correctly announced through narrow and short layouts, appearance and 13/20 pt changes while preserving drafts and focus and never submitting through navigation"], "content": "Use the already open network-isolated github-com fixture from the Discuss item, or quit it, confirm pgrep prints nothing and use this item's launch command. On Home enter octo-org/review-repository#17. Open Compose review, enter distinctive temporary draft text, move through the available review modes and resize to a narrow/short window. Use only Back or another navigation control to leave and return: the draft and a sensible focus target should remain, and no navigation action may submit. Open an inline thread in Discuss and choose Reply, or select a reviewable diff line and choose Draft comment; enter separate temporary text and repeat the Back/return check. The central page should own scrolling, keep the target identity visible, and expose explicit Add draft/Submit-type authority only where intended. Confirm the old focus-only Show review threads action is absent. Repeat at 13 and 20 pt in light/dark plus Increase contrast, and use VoiceOver to check the target, editor, mode, authority and Back action. Accept only if both pages are usable and drafts remain local until an explicit publication action. Otherwise reject and identify the clipping, focus, draft, identity, authority or announcement problem; do not include private content and do not activate a publication action.", "paths": ["src/adapters/qt/include/bpr/qt/workbench_window.hpp", "src/adapters/qt/src/review_submission_editor.cpp", "src/adapters/qt/src/workbench_window.cpp", "src/app/src/github_application.cpp", "tests/adapters_qt/review_submission_editor_tests.cpp", "tests/adapters_qt/workbench_window_tests.cpp", "tests/end_to_end/review_submission_composition_public_path.cpp"], "resources": ["install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app"], "resource_versions": {"install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app": "5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a"}, "launch": {"label": "Launch the network-isolated synthetic GitHub fixture", "command": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app/Contents/MacOS/better_pull_review --github-fixture github-com --attended-launch"}, "copy": [{"label": "Confirm no BetterPullReview is running (prints nothing)", "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"}, {"label": "Synthetic pull request for Home", "value": "octo-org/review-repository#17"}], "metadata": {"source_commit": "8939de7195c7de6c2dc4299c3f5e1f0d342bf115", "run": "rfc0037-run-20260918", "dispatch": "rfc0037-dispatch-003-resume-01", "mandate": "1", "cards": "BPR-0929", "fixture": "synthetic github-com; network isolated"}, "fingerprint": "82a05cdd449e87d68b8547571421dd55a5bd74880515cc3cce44cd582d63f98a", "phase": "ready", "protected": true, "decision": null, "observations": [{"time": "2026-09-19T19:20:06.821184+00:00", "evidence": "Static review material prepared"}], "preparation_id": "6400a9b4c565fe3a"}, {"id": "rfc0037-discuss-thread-reading", "title": "RFC-BPR-0037: pull-request-wide Discuss reading path", "revision": "8939de71-5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a-2026-09-19.2", "criteria": ["On native macOS, PR-wide Discuss provides one understandable index-to-graph-to-detail path whose physical-trackpad and keyboard scrolling, focus, identities and Open in code return remain coherent without duplicate full bodies"], "content": "This is an offline synthetic-fixture review; it makes no live GitHub or GHES request and cannot publish. Quit the previous fixture, confirm the pgrep command below prints nothing, and launch this item. On Home enter octo-org/review-repository#17 and press Return. Open Discuss. Verify the index includes the PR-wide comment/review material and inline threads independently of which file is selected. Exercise All/File, Unread and Unresolved; select rows with Up/Down, then press Return to open one detail. In a normal width, the index, compact graph and exactly one complete selected body should form one reading path; no second full body should be unexplained. In a narrow width, the detail should become a retained page with a clear Back route. Use a physical trackpad plus Page Up/Down, Home and End, then Open in code for an inline row: the exact thread identity should remain selected and the destination line should match it. Switch files, return to Discuss and confirm the selected identity and a sensible reading position survive. Repeat at 20 pt and in light/dark plus Increase contrast; use VoiceOver to confirm the index, graph summary, detail and actions are understandable. Accept only if the path remains coherent and responsive. Otherwise reject and identify the row, identity, scroll, focus, duplication or announcement problem; do not include private content. The automated native-Cocoa course separately exercises a complete multi-kilobyte detail body at 900/1400 widths and 13/20 pt, so this item is the physical-input and subjective native check.", "paths": ["src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp", "src/adapters/qt/include/bpr/qt/github_conversation_panel.hpp", "src/adapters/qt/src/conversation_cards_view.cpp", "src/adapters/qt/src/github_conversation_delegate.cpp", "src/adapters/qt/src/github_conversation_panel.cpp", "tests/adapters_qt/conversation_cards_view_tests.cpp", "tests/adapters_qt/github_conversation_panel_tests.cpp"], "resources": ["install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app"], "resource_versions": {"install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app": "5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a"}, "launch": {"label": "Launch the network-isolated synthetic GitHub fixture", "command": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app/Contents/MacOS/better_pull_review --github-fixture github-com --attended-launch"}, "copy": [{"label": "Confirm no BetterPullReview is running (prints nothing)", "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"}, {"label": "Synthetic pull request for Home", "value": "octo-org/review-repository#17"}], "metadata": {"source_commit": "8939de7195c7de6c2dc4299c3f5e1f0d342bf115", "run": "rfc0037-run-20260918", "dispatch": "rfc0037-dispatch-003-resume-01", "mandate": "1", "cards": "BPR-0924,BPR-0925,BPR-0929", "fixture": "synthetic github-com; network isolated"}, "fingerprint": "42bae83a4c6b9e84b7917becc680b7d438d92fba06917af845dc0a2a81288659", "phase": "ready", "protected": true, "decision": null, "observations": [{"time": "2026-09-19T19:20:06.823599+00:00", "evidence": "Static review material prepared"}], "preparation_id": "bca6b6e64d62d8b6"}, {"id": "rfc0037-overview-reader", "title": "RFC-BPR-0037: retained pull-request description reader", "revision": "8939de71-5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a-2026-09-19.2", "criteria": ["On native macOS, the retained Overview description reader has one predictable scroll and focus owner, returns to the same source place after Back and reflow, and remains legible and correctly announced across the requested appearance and font changes"], "content": "This is an offline recorded-fixture review; it makes no live GitHub or GHES request and cannot publish. Quit any running BetterPullReview first, confirm the pgrep command below prints nothing, then use the launch command for this item. On Home enter google/UIforETW#74 and press Return. In Settings > Appearance, set the interface font size to 20 pt, then make the window narrow enough that the three-paragraph description preview overflows. In Overview, activate Read full description. Scroll with a physical trackpad, use Page Down, Home and End, select a distinctive phrase, then press Back or Escape. Reopen the reader: the same source anchor or selected phrase should remain visible. Resize the window and switch light/dark plus Increase contrast; the reader should retain a sensible place with one scroll owner, complete text, no horizontal clipping and no nested scroll trap. With VoiceOver, the reader title, full description and Back action should be understandable. Accept only if that one coherent reading path holds. Otherwise reject and identify the focus, place, scrolling, clipping or announcement problem; do not include any private content.", "paths": ["src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp", "src/adapters/qt/src/pull_request_overview_page.cpp", "tests/adapters_qt/pull_request_overview_page_tests.cpp"], "resources": ["install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app"], "resource_versions": {"install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app": "5b8b23dcd7ed735c544b7bd78d81f1404b910b4cd09e9e610a787dacd15a362a"}, "launch": {"label": "Launch the network-isolated UIforETW recorded fixture", "command": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/attended/rfc-bpr-0037-thread-reading-v001/better_pull_review.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --attended-launch"}, "copy": [{"label": "Confirm no BetterPullReview is running (prints nothing)", "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"}, {"label": "Recorded pull request for Home", "value": "google/UIforETW#74"}], "metadata": {"source_commit": "8939de7195c7de6c2dc4299c3f5e1f0d342bf115", "run": "rfc0037-run-20260918", "dispatch": "rfc0037-dispatch-003-resume-01", "mandate": "1", "cards": "BPR-0924,BPR-0928", "fixture": "recorded uiforetw-74; network isolated"}, "fingerprint": "bf935d70e3a872c388aa861aca738e32e95bd480c19b7067d33cedaa4291d244", "phase": "ready", "protected": true, "decision": null, "observations": [{"time": "2026-09-19T19:20:06.825492+00:00", "evidence": "Static review material prepared"}], "preparation_id": "9309ffd97ee8b8ce"}], "generated_at": "2026-09-19T19:20:14.152471+00:00"};
+let state=embedded, current=null, local=[], saving=false, pending=[];
+const token=new URLSearchParams(location.hash.slice(1)).get('token');
+const online=!embedded&&location.protocol==='http:';
+const el=id=>document.getElementById(id);
+const say=text=>el('notice').textContent=text;
+const cacheKey=()=>`attended-review:${state.session}`;
+function restore(){try{local=JSON.parse(localStorage.getItem(cacheKey())||'[]').filter(d=>state.candidates.some(c=>c.id===d.candidate&&c.fingerprint===d.fingerprint));}catch(e){local=[];el('storage').textContent='Browser storage is unavailable. Export decisions before closing this page.';}}
+function persist(){try{localStorage.setItem(cacheKey(),JSON.stringify(local));}catch(e){el('storage').textContent='Browser storage is unavailable. Export decisions before closing this page.';}}
+function decision(c){return c.decision||local.find(d=>d.candidate===c.id&&d.fingerprint===c.fingerprint);}
+function packet(){const byId=new Map();for(const c of state.candidates){const d=decision(c);if(d){const clean={};for(const k of ['candidate','fingerprint','decision_id','outcome','selected','note','attachments'])if(k in d)clean[k]=d[k];byId.set(c.id,clean);}}return {schema_version:1,session:state.session,decisions:[...byId.values()]};}
+async function api(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const v=await r.json();if(!r.ok)throw Error(v.error||`HTTP ${r.status}`);return v;}
+function candidate(){return state.candidates.find(c=>c.id===current);}
+function chooseNext(){const available=state.candidates.filter(c=>c.phase==='ready'&&!decision(c));const index=available.findIndex(c=>c.id===current);current=available.length?available[(index+1)%available.length].id:null;select(current);}
+// A verdict already given comes back with its own words and pictures, so a
+// reviewer can read what they said and change it rather than guess.
+function select(id){current=id;const c=candidate(),d=c?decision(c):null;el('note').value=d?.note||'';pending=(d?.attachments||[]).map(a=>({...a}));el('images').value='';el('options').replaceChildren();draw();if(!c)return;if(wide.matches)el('list').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});else{el('queue').open=false;el('card').scrollIntoView({block:'start'});}}
+const make=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
+const plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`;
+// The rail groups the queue by what the reviewer can do about each item.
+function drawRail(){
+ const list=el('list');list.replaceChildren();
+ const groups=[['Ready to answer',c=>c.phase==='ready'&&!decision(c),'ready'],['Waiting on preparation',c=>c.phase!=='ready'&&!decision(c),'waiting'],['Answered',c=>Boolean(decision(c)),'answered']];
+ for(const [name,test] of groups){const items=state.candidates.filter(test);if(!items.length)continue;list.append(make('h3',null,`${name} (${items.length})`));
+  for(const c of items){const d=decision(c),b=make('button','row');const stateName=d?d.outcome:c.phase==='ready'?'ready':'waiting';b.dataset.state=stateName;b.setAttribute('aria-current',c.id===current?'true':'false');b.append(make('span','mark',d?(d.outcome==='reject'?'✕':'✓'):c.phase==='ready'?'○':'…'),make('span','name',c.title));b.onclick=()=>select(c.id);list.append(b);}}
+}
+function copyRow(what,value,done){const step=make('div','step'),row=make('div','copyrow'),code=make('code',null,value),copy=make('button',null,'Copy');if(what)step.append(make('p','what',what));copy.onclick=async()=>{try{await navigator.clipboard.writeText(value);say(done);}catch(e){const range=document.createRange();range.selectNodeContents(code);getSelection().removeAllRanges();getSelection().addRange(range);say('Copy the selected text using your keyboard.');}};row.append(code,copy);step.append(row);return step;}
+function draw(){
+ if(!state)return;
+ const done=state.candidates.filter(decision).length,ready=state.candidates.filter(c=>c.phase==='ready'&&!decision(c)).length,waiting=state.candidates.length-done-ready,total=state.candidates.length||1;
+ el('checkout').textContent=state.checkout?state.checkout.split(/[\\/]/).filter(Boolean).pop()||'':'';
+ el('mode').textContent=state.handed_back?'Handed back. Nothing more is needed.':online?'Live. Each answer saves as you make it.':'Local file. Export your answers to your driver.';
+ el('finish').disabled=Boolean(state.handed_back);el('finish').classList.toggle('primary',!ready&&!state.handed_back&&done>0);
+ document.querySelector('.meter .answered').style.width=`${done/total*100}%`;document.querySelector('.meter .ready').style.width=`${ready/total*100}%`;document.querySelector('.meter .waiting').style.width=`${waiting/total*100}%`;
+ const progress=el('progress');progress.replaceChildren();
+ const readyText=make('span',ready?'due':null);readyText.append(make('b',null,String(ready)),` ready to answer`);progress.append(readyText,', ',make('b',null,String(done)),' answered, ',make('b',null,String(waiting)),' waiting on preparation.',state.paused?' Paused.':'');
+ el('queue-summary').replaceChildren('Queue: ',make('span','count',`${ready} ready`),`, ${done} answered, ${waiting} waiting`);
+ drawRail();
+ if(!current)current=state.candidates.find(c=>c.phase==='ready'&&!decision(c))?.id;
+ const c=candidate();el('card').hidden=!c;el('empty').hidden=Boolean(c);
+ if(!c){el('empty').textContent=!state.candidates.length?'Nothing to review yet. Your driver has not added any candidates.':ready?'Pick an item from the queue to begin.':waiting?'Nothing is ready yet. Preparation is still running; items move into the queue as they become ready.':'Every candidate is answered. Finish and hand back when you are done, or pick an answered item in the queue to change it.';return;}
+ el('identity').replaceChildren(make('span','id',c.id),`  revision ${c.revision}`);el('title').textContent=c.title;el('content').textContent=c.content||'';el('content').hidden=!c.content;
+ el('criteria').replaceChildren();for(const text of c.criteria){el('criteria').append(make('li',null,text));}
+ el('media').replaceChildren();for(const m of c.media||[]){const figure=make('figure'),node=document.createElement(m.kind==='image'?'img':m.kind);node.src=m.url;node.alt=m.label||'';if(m.kind!=='image')node.controls=true;else{node.title='Show at full size';node.onclick=()=>view(m.url,m.label||'');}figure.append(node);if(m.label)figure.append(make('figcaption',null,m.label));el('media').append(figure);}
+ const observations=(c.observations||[]).filter(o=>o.evidence);el('checked').hidden=!observations.length;el('observations').replaceChildren();
+ for(const o of observations){const li=make('li');if(o.time){const t=document.createElement('time');t.dateTime=o.time;t.textContent=o.time.replace('T',' ').replace(/\.\d+.*$/,'');li.append(t);}li.append(o.evidence);el('observations').append(li);}
+ el('wizard').replaceChildren();if(c.wizard){el('wizard').append(make('p',null,c.wizard.instructions||'Follow the companion wizard, then return here for your decision.'));if(c.wizard.url){try{const url=new URL(c.wizard.url);if(['http:','https:','file:'].includes(url.protocol)){const a=document.createElement('a');a.href=url.href;a.textContent='Open manual steps';a.target='_blank';a.rel='noopener noreferrer';el('wizard').append(a);}}catch(e){}}}
+ const oldOptions=new Set([...el('options').querySelectorAll('input:checked')].map(v=>v.value));
+ el('options').replaceChildren();for(const option of c.options||[]){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=option;input.checked=oldOptions.has(option);label.append(input,document.createTextNode(option));el('options').append(label);}
+ el('options').hidden=!(c.options||[]).length;
+ const d=decision(c),enabled=c.phase==='ready'&&c.protected&&!saving&&!state.handed_back;
+ el('accept').textContent=(c.options?'Save selection':'Accept')+(d&&d.outcome!=='accept'?' instead':'');
+ el('reject').textContent='Reject'+(d&&d.outcome!=='reject'?' instead':'');
+ el('accept').disabled=el('reject').disabled=!enabled;
+ el('clear').disabled=!enabled||!d;el('clear').hidden=!d;
+ el('images').disabled=!enabled;
+ el('attachments').replaceChildren();
+ for(const a of pending){const figure=make('figure'),image=document.createElement('img');image.src=a.data;image.alt=a.name;figure.append(image,make('figcaption',null,a.name));el('attachments').append(figure);}
+ // The note is part of the verdict, so the verdict says it back.
+ const verdict=el('verdict');verdict.replaceChildren();verdict.hidden=!d;
+ if(d){verdict.dataset.outcome=d.outcome;verdict.append(make('span','said',d.outcome==='accept'?'Accepted':d.outcome==='reject'?'Rejected':'Selected'));if(d.selected)verdict.append(make('span','chosen',d.selected.join('; ')));if(d.note)verdict.append(make('span','quote',`“${d.note}”`));if(d.attachments?.length)verdict.append(make('span','pictures',`${plural(d.attachments.length,'image')} attached`));}
+ const standing=el('standing');standing.hidden=Boolean(d)||c.phase==='ready';standing.textContent=c.phase==='ready'?'':c.error||'Preparation is pending. Other ready items are available.';
+ el('launch').replaceChildren();if(c.launch)el('launch').append(copyRow(c.launch.label||'Open what this asks you to look at:',c.launch.command,'Command copied. Paste it in a terminal.'));
+ el('copy-values').replaceChildren();for(const value of c.copy||[])el('copy-values').append(copyRow(value.label,value.value,`${value.label} copied.`));
+ const provenance=el('provenance');provenance.replaceChildren();
+ const facts=[['revision',c.revision],['fingerprint',c.fingerprint],...Object.entries(c.metadata||{}).map(([k,v])=>[k,typeof v==='string'?v:JSON.stringify(v)]),['paths',(c.paths||[]).join('\n')],['resources',(c.resources||[]).join('\n')]];
+ for(const [k,v] of facts){if(!v)continue;provenance.append(make('dt',null,k));const dd=make('dd',null,v);dd.style.whiteSpace='pre-wrap';provenance.append(dd);}
+}
+function view(url,label){el('viewer-image').src=url;el('viewer-image').alt=label;el('viewer-label').textContent=label||'Full size';el('viewer').hidden=false;el('viewer-close').focus();}
+function closeViewer(){el('viewer').hidden=true;el('viewer-image').src='';}
+el('viewer-close').onclick=closeViewer;
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!el('viewer').hidden)closeViewer();});
+async function record(outcome){
+ const c=candidate();if(!c)return;
+ const d={candidate:c.id,fingerprint:c.fingerprint,decision_id:globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`,outcome,note:el('note').value};
+ if(outcome!=='withdrawn'&&pending.length)d.attachments=pending.map(a=>({name:a.name,data:a.data}));
+ if(outcome==='select'){d.selected=[...el('options').querySelectorAll('input:checked')].map(v=>v.value);if(!d.selected.length){say('Select at least one option.');return;}}
+ saving=true;draw();
+ try{if(online){await api('/api/decisions',{schema_version:1,session:state.session,decisions:[d]});state=await api('/api/status');say(outcome==='withdrawn'?'Decision cleared. Decide again whenever you are ready.':'Decision saved. It is shown under Your answer; change or clear it whenever you like, or pick the next item.');}else{local=local.filter(v=>!(v.candidate===d.candidate&&v.fingerprint===d.fingerprint));if(outcome!=='withdrawn')local.push(d);persist();say(outcome==='withdrawn'?'Decision cleared in this browser.':'Decision retained in this browser. Export whenever you are ready to stop.');}select(c.id);}catch(e){say(`Decision was not confirmed saved: ${e.message}. Retry; a matching repeated import is safe.`);}finally{saving=false;draw();}
+}
+el('accept').onclick=()=>record(candidate()?.options?'select':'accept');el('reject').onclick=()=>record('reject');el('skip').onclick=chooseNext;
+el('clear').onclick=()=>record('withdrawn');
+el('finish').onclick=async()=>{
+ const decided=state.candidates.filter(decision),pending=state.candidates.filter(c=>!decision(c));
+ const summary=`${decided.length} answered${decided.length?': '+decided.map(c=>`${c.title} — ${decision(c).outcome}`).join('; '):''}. ${pending.length} left unanswered.`;
+ try{
+  if(online){await api('/api/hand-back',{});state=await api('/api/status');say(`Handed back. ${summary} Your answers are saved; you can close this tab.`);}
+  else{el('export').click();say(`${summary} Your answers are in the box below: copy or download it and give it to your driver, then close this tab.`);el('fallback').open=true;}
+ }catch(e){say(`Could not hand back: ${e.message}. Your saved answers are unaffected.`);}
+ draw();};
+// A screenshot is on the clipboard, not on disk. Pasting one into the note
+// attaches it, under the same bounds a chosen file has.
+async function attach(files){for(const file of files){if(pending.length>=4){say('Four images is the bound for one answer.');break;}if(file.size>3*1024*1024){say(`${file.name||'that image'} is larger than 3 MB; use a smaller one.`);continue;}try{pending.push({name:file.name||`pasted-${pending.length+1}.png`,data:await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file);})});}catch(e){say('That image could not be read.');}}draw();}
+el('note').onpaste=async event=>{const files=[...(event.clipboardData?.files||[])].filter(f=>f.type.startsWith('image/'));if(!files.length)return;event.preventDefault();await attach(files);say(`${plural(files.length,'image')} attached to this answer.`);};
+el('images').onchange=async()=>{const files=[...el('images').files];el('images').value='';await attach(files);};
+el('start').onclick=async()=>{try{if(online){await api('/api/start',{interrupt:true});state=await api('/api/status');}say('Review ready items now. Skips remain pending.');chooseNext();}catch(e){say(e.message);}};
+el('pause').onclick=async()=>{try{if(online){await api('/api/pause',{});state=await api('/api/status');}say(online?'Session paused. Prepared candidates remain protected.':'You can stop now. Export partial decisions first; undecided items remain pending.');draw();}catch(e){say(e.message);}};
+el('export').onclick=()=>{el('transfer').value=JSON.stringify(packet(),null,2);};
+el('copy').onclick=async()=>{el('export').click();try{await navigator.clipboard.writeText(el('transfer').value);say('Decision JSON copied.');}catch(e){el('transfer').select();say('Copy the selected JSON using your keyboard.');}};
+el('download').onclick=()=>{el('export').click();const blob=new Blob([el('transfer').value],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='attended-decisions.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+function stamp(){if(!state)return;const when=state.generated_at;el('generated').textContent=online?'':when?`This file was written at ${when}. Anything decided in the live session after that is not in it; ask your driver to write it again.`:'';}
+// The rail is a sidebar on a wide window and folds away beside a narrow one,
+// which is how this page usually sits next to the application under review.
+const wide=matchMedia('(min-width:900px)');
+function fold(){el('queue').open=wide.matches;}
+wide.addEventListener('change',fold);fold();
+async function boot(){try{if(online){state=await api('/api/status');history.replaceState(null,'',location.pathname+location.hash);}if(!state)throw Error('Open the complete URL printed by serve, or generate an offline HTML file.');if(!online)restore();stamp();draw();if(online)setInterval(async()=>{if(saving)return;try{const next=await api('/api/status');if(next.sequence!==state.sequence){state=next;draw();}}catch(e){say('Live host is unavailable. Reopen it with your driver; saved decisions remain on disk.');}},1500);}catch(e){say(e.message);}}
+boot();
+</script></html>
