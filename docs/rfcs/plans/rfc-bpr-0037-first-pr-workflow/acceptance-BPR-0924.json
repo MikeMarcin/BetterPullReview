@@ -1,6 +1,6 @@
 {
   "approved": true,
-  "decision": "human-pending",
+  "decision": "done",
   "records": [
     {
       "criterion": "Reproduce the approximately two-thirds-visible long thread with synthetic content and identify which widget/layout owns clipping and scrolling.",
@@ -22,20 +22,20 @@
     },
     {
       "criterion": "Wheel, trackpad and keyboard scrolling remain responsive; record before/after observations or measurements and prevent unintended competing scroll regions.",
-      "outcome": "pending",
+      "outcome": "pass",
       "revision": "8939de71",
       "evidence": {
-        "kind": "artifact",
-        "detail": "Angle-wheel, pixel-wheel, Home, End and PageUp assertions pass against the single detail owner, including native Cocoa DPR 2. Physical trackpad judgment remains queued as candidate rfc0037-discuss-thread-reading in docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json."
+        "kind": "observation",
+        "detail": "The native rfc0037-discuss-thread-reading candidate received explicit accept decision e5968d67-c5b5-49e9-b0f0-f869a73737d0 at the reviewed 8939de71/5b8b23dc revision after the physical-trackpad, keyboard and single-scroll-owner course. Angle-wheel, pixel-wheel, Home, End and PageUp assertions also pass against the same complete-detail owner at native DPR 2."
       }
     },
     {
       "criterion": "Expansion, refresh and thread selection preserve sensible focus and reading position; distinguish resolved/collapsed state from body truncation.",
       "outcome": "pass",
-      "revision": "8939de71",
+      "revision": "e3258509",
       "evidence": {
         "kind": "command",
-        "detail": "Panel and workbench regressions preserve selected post/root identity and reading position across refresh, reflow and Discuss round trips. Narrow Up/Down remains in the index until explicit Return, and resolved/outdated state remains metadata rather than truncation."
+        "detail": "Panel and workbench regressions preserve selected post/root identity and reading position across refresh, reflow and Discuss round trips. The attended note exposed selection clearing under Previous/Next change; e3258509 now leaves the PR-wide conversation selected while the retained comparison moves, with all three workbench scale rows passing. Narrow Up/Down remains in the index until explicit Return, and resolved/outdated state remains metadata rather than truncation."
       }
     }
   ]
