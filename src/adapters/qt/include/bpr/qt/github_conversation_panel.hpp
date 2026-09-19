@@ -7,12 +7,15 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 
 #include <optional>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <QWidget>
 
 #include <vector>
 
 class QAction;
+class QComboBox;
 class QLabel;
 class QSplitter;
 class QStackedWidget;
@@ -38,10 +41,9 @@ namespace bpr::qt {
 	/// this — lanes, filtering, a graph-style rendering — should take that as
 	/// given rather than handling merges that cannot occur.
 	///
-	/// Since [[BPR-0418]] it presents that forest twice: as the anchored tree a
-	/// reviewer reads, and above it as a drawn map of the same reply structure
-	/// with the branch through the current node highlighted. The map is a
-	/// presentation of the tree it sits above and never a second projection.
+	/// A compact index selects one conversation. Its structural map selects
+	/// an exact post in the single full-body detail. Discuss uses the complete
+	/// PR independently of code anchors, with an optional local file scope.
 	///
 	/// It owns no wording about GitHub capability. The availability line is
 	/// composed by whoever knows whether review threads were retrievable, which
@@ -112,10 +114,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto anchor_line() const noexcept
 			-> const std::optional<core::source_line_ref>&;
 
-		/// \brief Binds the action that reveals the threads.
-		///
-		/// \details The action stays owned by the window, which adds it for its
-		/// shortcut; this only presents the button for it.
+		/// \brief Compatibility no-op; accepted conversations reveal automatically.
 		void set_reveal_action(QAction* aAction);
 
 		/// \brief Re-lays the rows after a palette or font change.
@@ -132,8 +131,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto cards() const noexcept -> conversation_cards_view*;
 		[[nodiscard]] auto scope_this_file_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto scope_whole_pull_request_button() const noexcept -> QToolButton*;
-		/// \brief [[BPR-0649]]. Discuss: the tree and the map at the left, the
-		/// feed at the right, the filters over the feed and a summary beneath.
+		/// \brief Presents the PR-wide index beside one selected detail, or as
+		/// switchable index/detail pages at narrow widths.
 		void               set_discuss(bool aDiscuss);
 		[[nodiscard]] auto discuss() const noexcept -> bool;
 		/// \brief [[BPR-0661]]. Sets the drawer's first filter as the preference names it.
@@ -147,12 +146,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto notice_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto discuss_column() const noexcept -> QWidget*;
 
+	protected:
+		void resizeEvent(QResizeEvent* aEvent) override;
+
 	private:
 		/// \brief Puts the map and the drawer's tree on the same node.
 		void synchronize_map_focus();
 		void show_loaded_page();
 		void refresh_summary();
 		void refresh_projection();
+		void refresh_detail();
+		void arrange_discuss();
 
 		QLabel*                    AvailabilityLabel = nullptr;
 		QToolButton*               RevealButton      = nullptr;
@@ -164,29 +168,43 @@ namespace bpr::qt {
 		/// a second source of it, so it holds no selection authority: a click
 		/// on the map moves the tree's current index and the tree's selection
 		/// is what everything downstream still reads.
-		github_thread_map*       ThreadMap        = nullptr;
-		conversation_cards_view* Cards            = nullptr;
-		QToolButton*             ScopeThisFile    = nullptr;
-		QToolButton*             ScopeWholePr     = nullptr;
-		QLabel*                  ThreadMapSummary = nullptr;
-		QLabel*                  ThreadMapBranch  = nullptr;
-		QSplitter*               Loaded           = nullptr;
-		QSplitter*               DiscussSplitter  = nullptr;
-		QWidget*                 DiscussColumn    = nullptr;
-		QWidget*                 CardsPane        = nullptr;
-		QWidget*                 MapPane          = nullptr;
-		QToolButton*             FilterUnread     = nullptr;
-		QToolButton*             FilterUnresolved = nullptr;
-		QLabel*                  DiscussSummary   = nullptr;
-		QLabel*                  Notice           = nullptr;
-		bool                     Discuss          = false;
-		bool                     HasThreads       = false;
+		github_thread_map*                           ThreadMap          = nullptr;
+		conversation_cards_view*                     Cards              = nullptr;
+		QToolButton*                                 ScopeThisFile      = nullptr;
+		QToolButton*                                 ScopeWholePr       = nullptr;
+		QComboBox*                                   DiscussFileChoice  = nullptr;
+		QLabel*                                      ThreadMapSummary   = nullptr;
+		QLabel*                                      ThreadMapBranch    = nullptr;
+		QSplitter*                                   Loaded             = nullptr;
+		QSplitter*                                   DiscussSplitter    = nullptr;
+		QWidget*                                     DiscussColumn      = nullptr;
+		QWidget*                                     CardsPane          = nullptr;
+		QWidget*                                     MapPane            = nullptr;
+		QToolButton*                                 FilterUnread       = nullptr;
+		QToolButton*                                 FilterUnresolved   = nullptr;
+		QLabel*                                      DiscussSummary     = nullptr;
+		QLabel*                                      Notice             = nullptr;
+		QToolButton*                                 BackToIndex        = nullptr;
+		bool                                         DetailOpened       = false;
+		bool                                         Discuss            = false;
+		bool                                         HasThreads         = false;
+		bool                                         DiscussInitialized = false;
+		std::string                                  DetailRoot;
+		bool                                         DetailDirty    = true;
+		bool                                         DetailAdmitted = false;
+		std::unordered_map<std::string, std::size_t> ShownPositions;
+		std::unordered_set<std::string>              VisibleRoots;
+		std::string                                  DiscussSelection;
+		int                                          DiscussReadingOffset = 0;
+		cards_scope                                  DiscussScope         = cards_scope::whole_pull_request;
+		discuss_filters                              DiscussFilters;
 		/// Expanded once, on the first projection that has anything to expand.
 		/// A reviewer who then collapses a thread keeps it collapsed across the
 		/// next refresh, which re-expanding on every projection would undo.
 		bool ExpandOnNextProjection = true;
 		/// The file whose threads are shown, or nothing for all of them.
 		std::optional<core::file_identity>   AnchorFile;
+		std::optional<core::file_identity>   DiscussFile;
 		std::optional<core::source_line_ref> AnchorLine;
 		bool                                 LeftHasCurrentDiffRevision  = true;
 		bool                                 RightHasCurrentDiffRevision = true;

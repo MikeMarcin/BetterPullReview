@@ -48,6 +48,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QStatusTipEvent>
 #include <QStringList>
@@ -2380,11 +2381,12 @@ namespace {
 		rest();
 		window.choose_modality(qt::review_modality::discuss);
 		process_events();
+		expect(!handle->isVisible(), "Discuss's main page has no conversation-drawer resize seam");
 		window.choose_modality(qt::review_modality::read);
 		process_events();
+		rest();
 		expect(pointerHolds("after a drag, Discuss and Read"),
-			   "after a drag the host answered and a Discuss round trip the resting "
-			   "pointer is still on the handle with the split cursor");
+			   "after a Discuss round trip the restored drawer seam handles hover with the split cursor");
 
 		// The files handle is the same seam on the other side.
 		restOn(splitter->handle(2));
@@ -2786,10 +2788,8 @@ namespace {
 		expect(panel != nullptr, "the shell composes the conversation");
 		expect(panel != nullptr && window.review_editor() != nullptr
 				   && window.conversations_drawer()->isAncestorOf(panel)
-				   && window.conversations_drawer()->isAncestorOf(
-					   window.review_editor()),
-			   "and it lives inside the conversations drawer rather than beside "
-			   "it, together with the draft editor");
+				   && !window.conversations_drawer()->isAncestorOf(window.review_editor()),
+			   "the conversation lives in the drawer while inline drafting has a dedicated page");
 
 		// The drawer keeps every behaviour that makes it a drawer. Swapping what
 		// it shows must not have cost it collapse, which is core-owned state.
@@ -3257,11 +3257,20 @@ namespace {
 			   "removed and added threads have distinct unified rows in source order");
 		const auto& cards = window.conversation_panel()->cards()->cards();
 		expect(cards.size() == 3U
-				   && std::ranges::all_of(cards, [](const qt::thread_card& aCard) {
-						  return aCard.Placed && aCard.Rect.top() >= aCard.TargetY;
-					  })
-				   && cards[0].TargetY == cards[1].TargetY && cards[0].Rect.bottom() < cards[1].Rect.top() && cards[1].TargetY < cards[2].TargetY,
-			   "colliding old-side cards stay anchored to their row, follow document order, and push down");
+				   && cards[0].Rect.bottom() < cards[1].Rect.top() && cards[1].Rect.bottom() < cards[2].Rect.top()
+				   && window.conversation_panel()->cards()->marked_lines(core::diff_side::left) == std::vector<std::uint32_t>{ 12U }
+				   && window.conversation_panel()->cards()->marked_lines(core::diff_side::right) == std::vector<std::uint32_t>{ 12U },
+			   "compact index entries do not overlap and preserve both exact old/new-side line marks");
+		const auto selected = window.conversation_model()->index_for_id("old-thread-b");
+		window.conversation_view()->setCurrentIndex(selected);
+		process_events();
+		const auto hiddenDetail = [&](const std::string& aIdentity) {
+			const auto index = window.conversation_model()->index_for_id(aIdentity);
+			return !index.isValid() || window.conversation_view()->isRowHidden(index.row(), { });
+		};
+		expect(window.conversation_panel()->cards()->current_thread() == "old-thread-b"
+				   && !hiddenDetail("old-thread-b") && hiddenDetail("old-thread-a") && hiddenDetail("new-thread"),
+			   "the exact selected root owns the single detail while other roots have no duplicate detail");
 		const auto rendered = window.grab();
 		expect(!rendered.isNull(), "the one-pane thread state renders in the composed window");
 		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
@@ -3537,6 +3546,9 @@ namespace {
 		expect(window.conversation_model()->rowCount() == 3
 				   && window.conversation_model()->index_for_id("right-thread").isValid(),
 			   "the unanchored real panel path initially exposes all fixture threads");
+		// The compact index initially selects a detail without moving code.
+		// Exercise an actual selection change through the existing anchor route.
+		window.conversation_view()->setCurrentIndex({ });
 		window.conversation_view()->setCurrentIndex(
 			window.conversation_model()->index_for_id("right-thread"));
 		process_events();
@@ -3753,6 +3765,7 @@ namespace {
 			},
 			QStringLiteral("one conversation"));
 		const auto outside = window.conversation_model()->index_for_id("outside-thread");
+		window.conversation_view()->setCurrentIndex({ });
 		window.conversation_view()->setCurrentIndex(outside);
 		process_events();
 		const auto refused = window.conversation_model()->index_for_id("outside-thread");
@@ -3798,10 +3811,12 @@ namespace {
 		window.publish(gap);
 		process_events();
 		expect(window.conversation_panel()->anchor_file() == std::optional{ file }
-				   && window.conversation_panel()->cards()->thread_count() == 2U
-				   && window.conversation_panel()->cards()->measurements() == measurements
 				   && !window.files_drawer()->contents_view()->currentIndex().isValid(),
-			   "new-generation observation gap keeps two visual cards without retaining semantic file selection or measuring the thousand-thread forest");
+			   "new-generation observation gap keeps visual scope without retaining semantic file selection");
+		expect(window.conversation_panel()->cards()->thread_count() == 2U,
+			   "contextual refresh gap keeps the selected file's two compact index entries");
+		expect(window.conversation_panel()->cards()->measurements() == measurements,
+			   "refresh gap does not remeasure the thousand-thread forest");
 		auto observed              = selected;
 		observed.Context           = { .Request = core::request_id{ 4U }, .Session = gap.Context.Session, .Generation = gap.Context.Generation };
 		observed.Selection->Cursor = core::workbench_navigation_cursor{ .ActionableCount = 1U, .PreviousAvailable = true, .NextAvailable = true };
@@ -5397,7 +5412,119 @@ namespace {
 	// [[BPR-0649]]. Discuss widens the conversation over the code and puts
 	// its panel in the Discuss arrangement; Open in code on a card returns
 	// to Read at that thread's line.
-	void test_discuss_widens_the_conversation_and_open_in_code_returns_to_read()
+	void test_composition_pages_retain_editors_and_never_submit_on_navigation()
+	{
+		qt::workbench_window window;
+		window.publish(both_files_enabled());
+		window.show();
+		process_events();
+		auto* whole         = window.review_submission_editor_view();
+		auto* inlineEditor  = window.review_editor();
+		auto* stack         = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
+		auto* compose       = window.findChild<QAction*>(QStringLiteral("composeReviewAction"));
+		auto* inlineCompose = window.findChild<QAction*>(QStringLiteral("composeInlineDraftAction"));
+		auto* page          = window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"));
+		auto* back          = window.findChild<QPushButton*>(QStringLiteral("composeReviewPageBack"));
+		expect(compose && inlineCompose && page && back && stack, "composition pages have explicit entry and Back controls");
+		expect(!window.findChild<QAction*>(QStringLiteral("showReviewThreadsAction")) && !window.show_review_threads_action(), "the focus-only reveal action is removed");
+		auto gestures = std::vector<qt::review_submission_editor_intent>{ };
+		window.set_review_submission_dispatch([&](auto aIntent) { gestures.push_back(std::move(aIntent)); });
+		const auto head  = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01").value();
+		const auto draft = core::review_submission_draft{
+			.Id            = core::review_submission_draft_id{ 1U },
+			.Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head },
+			.ActingAccount = core::github_account_id{ 4U },
+			.Body          = "Retained review summary"
+		};
+		const auto projection = qt::review_submission_editor_projection{
+			.Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.example.test · synthetic-owner/synthetic-repository#17\nHead: abcdef0123456789abcdef0123456789abcdef01\nSubmitting as synthetic-reviewer (account 4)"), .Status = QStringLiteral("Choose a review type and enter a summary.")
+		};
+		whole->present(projection);
+		whole->body_editor()->moveCursor(QTextCursor::End);
+		const auto cursor         = whole->body_editor()->textCursor().position();
+		auto       inlineGestures = std::vector<core::revisioned_review_draft_command>{ };
+		inlineEditor->set_revisioned_dispatch([&](auto aCommand) { inlineGestures.push_back(std::move(aCommand)); });
+		auto acceptedInline = core::revisioned_review_draft{
+			{ .Id     = core::review_draft_id{ 1U },
+			  .Anchor = { .Comparison = opaque<core::file_comparison_digest>(2U), .Side = core::diff_side::right, .Line = 8U },
+			  .Body   = "Accepted inline draft" },
+			1U,
+			core::review_draft_scope_id{ 1U }
+		};
+		inlineEditor->present(acceptedInline);
+		inlineEditor->body_editor()->setPlainText(QStringLiteral("Local candidate"));
+		acceptedInline.Revision   = 2U;
+		acceptedInline.Draft.Body = "Other window's edit";
+		inlineEditor->present_conflict({ acceptedInline, core::revisioned_draft_refusal::conflict });
+		const auto candidate = inlineEditor->rejected_candidate();
+		expect(candidate.has_value(), "fixture retains an exact rejected inline candidate");
+		inlineGestures.clear();
+		for (const auto mode : { qt::review_modality::review, qt::review_modality::read, qt::review_modality::discuss }) {
+			window.choose_modality(mode);
+			process_events();
+			auto* invoking = window.modality()->button(mode);
+			invoking->setFocus();
+			compose->trigger();
+			process_events();
+			expect(stack->currentWidget() == page && whole->body_editor()->hasFocus(), "explicit entry opens and focuses retained whole-review editor");
+			whole->present(projection);
+			window.publish(both_files_enabled());
+			process_events();
+			expect(stack->currentWidget() == page && whole == window.review_submission_editor_view()
+					   && whole->shown_draft() == draft && whole->body_editor()->textCursor().position() == cursor,
+				   "same-authority projection retains page, editor identity, draft and cursor");
+			back->click();
+			process_events();
+			expect(window.current_modality() == mode && invoking->hasFocus(), "Back restores invoking mode and focus");
+			inlineCompose->trigger();
+			process_events();
+			expect(stack->currentWidget()->objectName() == QStringLiteral("composeInlineDraftPage")
+					   && inlineEditor == window.review_editor() && inlineEditor->body_editor()->height() >= 90,
+				   "inline drafting opens the same editor with an independently usable body");
+			inlineEditor->present(acceptedInline);
+			expect(inlineEditor->rejected_candidate()
+					   && inlineEditor->rejected_candidate()->Command == candidate->Command
+					   && inlineEditor->rejected_candidate()->Scope == candidate->Scope
+					   && inlineEditor->rejected_candidate()->ExpectedRevision == candidate->ExpectedRevision
+					   && inlineEditor->body_editor()->toPlainText() == QStringLiteral("Local candidate")
+					   && !inlineEditor->publish_action()->isEnabled(),
+				   "page/mode changes and same-authority refresh retain candidate and conflict refusal");
+			window.close_review_composition();
+		}
+		for (const auto points : { 13, 20 }) {
+			auto font = window.font();
+			font.setPointSize(points);
+			window.setFont(font);
+			for (const auto width : { 900, 1400 }) {
+				window.resize(width, 900);
+				compose->trigger();
+				process_events();
+				expect(page->horizontalScrollBar()->maximum() == 0 && whole->width() <= page->viewport()->width()
+						   && whole->body_editor()->height() >= 160,
+					   "narrow/wide composition at normal/large fonts has no horizontal escape or compressed summary");
+				for (auto* control : whole->findChildren<QWidget*>(QString{ }, Qt::FindDirectChildrenOnly)) {
+					expect(whole->rect().contains(control->geometry()), "target, type, summary, actions and status stay inside the full-width editor");
+				}
+				window.resize(width, 400);
+				process_events();
+				expect(page->verticalScrollBar()->maximum() > 0 && whole->body_editor()->height() >= 160,
+					   "short-height fallback scrolls the outer page and keeps summary usable");
+			}
+		}
+		expect(gestures.empty(), "opening, Back, mode changes and projections never submit or edit a review");
+		expect(inlineGestures.empty(), "inline page navigation never publishes or edits");
+		auto foreignInline  = acceptedInline;
+		foreignInline.Scope = core::review_draft_scope_id{ 2U };
+		inlineEditor->present(foreignInline);
+		expect(!inlineEditor->reapply_draft_action()->isEnabled() && !inlineEditor->publish_action()->isEnabled(),
+			   "replacement authority cannot apply or publish the retained foreign candidate");
+		whole->present({ .Status = QStringLiteral("The review target changed. Open a new review.") });
+		expect(!whole->shown_draft() && whole->body_editor()->toPlainText().isEmpty() && !whole->submit_action()->isEnabled(),
+			   "authority invalidation still clears and refuses the retained editor");
+		window.hide();
+	}
+
+	void test_discuss_uses_main_content_and_open_in_code_returns_to_read()
 	{
 		qt::workbench_window window;
 		window.resize(1'600, 820);
@@ -5418,6 +5545,9 @@ namespace {
 		}
 		const auto diff = computed_comparison(
 			text, text, 0U, core::file_identity_of("src/file.cpp"));
+		auto replies = std::vector<std::string>{ };
+		window.set_review_reply_dispatch(
+			[&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
 		window.conversation_panel()->adopt(
 			{ application::github_conversation_projection{
 				  .Id       = "review-thread:late",
@@ -5433,26 +5563,72 @@ namespace {
 				  .Kind        = application::github_conversation_kind::review_comment,
 				  .AuthorLogin = "someone",
 				  .Body        = "a post",
-				  .Path        = "src/file.cpp" } },
-			QStringLiteral("one conversation"));
+				  .Path        = "src/file.cpp" },
+			  application::github_conversation_projection{
+				  .Id       = "review-thread:off-file",
+				  .Kind     = application::github_conversation_kind::review_thread,
+				  .Path     = "src/other.cpp",
+				  .Line     = 22U,
+				  .DiffSide = application::github_conversation_diff_side::right,
+				  .AnchorAvailability
+				  = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:off-file-1",
+				  .ParentId    = "review-thread:off-file",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "another-reviewer",
+				  .Body        = "an off-file post",
+				  .Path        = "src/other.cpp" } },
+			QStringLiteral("two conversations"));
 		static_cast<void>(publish_fixture(window, diff));
 		process_events();
 		expect(window.conversations_drawer()->width() == 375 && !window.conversation_panel()->discuss(),
 			   "Review keeps the persisted conversation width and the Read arrangement");
+		window.set_conversation_endpoint_placement(false, true);
 
 		window.choose_modality(qt::review_modality::discuss);
 		process_events();
 		expect(window.current_modality() == qt::review_modality::discuss
 				   && window.conversation_panel()->discuss()
 				   && window.conversation_panel()->cards()->feed()
-				   && window.conversations_drawer()->width() >= 640,
-			   "Discuss widens the conversation to its Discuss width and arranges the panel");
-		const auto& cards = window.conversation_panel()->cards()->cards();
-		expect(cards.size() == 1U && cards.front().Excerpt == QStringLiteral("line 20\nline 21\nline 22"),
-			   "the feed's card carries the code at its line from the compared file");
-		const auto open = std::ranges::find(cards.front().Actions, qt::card_action::open_in_code,
+				   && window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->isAncestorOf(window.conversation_panel())
+				   && !window.conversations_drawer()->isVisible(),
+			   "Discuss hosts the retained conversation panel in the main-content page");
+		const auto codePosition = window.comparison_surface()->shared_scrollbar()->value();
+		window.conversation_view()->setCurrentIndex(window.conversation_model()->index_for_id("review-thread:late"));
+		process_events();
+		expect(window.comparison_surface()->shared_scrollbar()->value() == codePosition,
+			   "selecting PR-wide discussion does not navigate the retained code comparison");
+		const auto& cards    = window.conversation_panel()->cards()->cards();
+		const auto  sameFile = std::ranges::find(cards, std::string{ "review-thread:late" },
+												 &qt::thread_card::Id);
+		const auto  offFile  = std::ranges::find(cards, std::string{ "review-thread:off-file" },
+												 &qt::thread_card::Id);
+		expect(cards.size() == 2U && sameFile != cards.end() && offFile != cards.end()
+				   && sameFile->Excerpt == QStringLiteral("line 20\nline 21\nline 22")
+				   && offFile->Excerpt.isEmpty(),
+			   "the PR-wide index carries code only for the currently compared file");
+		const auto selectionBeforeReply = window.comparison_surface()->selection();
+		const auto reply                = std::ranges::find(offFile->Actions, qt::card_action::reply,
+															&std::pair<qt::card_action, QRect>::first);
+		expect(reply != offFile->Actions.end(), "the off-file conversation still offers a reply gesture");
+		const auto replyPoint = reply->second.center()
+			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
+		auto replyPress = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ replyPoint },
+									   QPointF{ replyPoint }, Qt::LeftButton, Qt::LeftButton,
+									   Qt::NoModifier };
+		QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &replyPress);
+		process_events();
+		expect(replies.empty()
+				   && window.comparison_surface()->selection() == selectionBeforeReply
+				   && window.current_modality() == qt::review_modality::discuss
+				   && window.conversation_panel()->notice_label()->text().contains(
+					   QStringLiteral("Open this thread in code")),
+			   "Reply refuses an off-file anchor without dispatching or changing the retained code selection");
+
+		const auto open = std::ranges::find(sameFile->Actions, qt::card_action::open_in_code,
 											&std::pair<qt::card_action, QRect>::first);
-		expect(open != cards.front().Actions.end(), "the feed offers Open in code");
+		expect(open != sameFile->Actions.end(), "the feed offers Open in code");
 		const auto point = open->second.center()
 			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
 		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
@@ -5462,10 +5638,18 @@ namespace {
 		expect(window.current_modality() == qt::review_modality::read
 				   && !window.conversation_panel()->discuss()
 				   && window.conversation_model()->id_for_index(window.conversation_view()->currentIndex())
-					   == "review-thread:late",
+					   == "review-thread:late"
+				   && window.comparison_surface()->conversation_anchor().has_value()
+				   && window.comparison_surface()->conversation_anchor()->Side
+					   == core::diff_side::right
+				   && window.comparison_surface()->conversation_anchor()->Line == 21U,
 			   "Open in code returns to Read with the thread current, so its line is revealed");
 		expect(window.conversations_drawer()->width() == 375,
 			   "leaving Discuss returns the conversation to its persisted width");
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		expect(window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()) == "review-thread:late",
+			   "returning from code retains the selected discussion identity");
 		window.hide();
 	}
 
@@ -7076,6 +7260,7 @@ namespace {
 				   "the epoch row holds its place and width through modality "
 					   + std::to_string(static_cast<int>(modality)));
 		}
+		window.choose_modality(qt::review_modality::review);
 
 		auto opened    = application::workbench_projection{ };
 		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
@@ -8092,6 +8277,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();
 	test_all_four_primary_actions_follow_one_core_projection();
@@ -8139,7 +8325,7 @@ auto main(int argc, char** argv) -> int
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
-	test_discuss_widens_the_conversation_and_open_in_code_returns_to_read();
+	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();

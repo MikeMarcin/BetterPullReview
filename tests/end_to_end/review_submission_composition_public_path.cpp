@@ -12,6 +12,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTextEdit>
@@ -51,9 +52,13 @@ namespace {
 		// This course is about the review surface, so it chooses Review.
 		window.choose_modality(qt::review_modality::review);
 		QApplication::processEvents();
-		if (!window.conversations_drawer_toggle_action()->isChecked()) {
-			window.conversations_drawer_toggle_action()->trigger();
-		}
+		window.open_review_composition();
+		QApplication::processEvents();
+		auto* const page = window.findChild<QScrollArea*>(
+			QStringLiteral("composeReviewPage"));
+		expect(page != nullptr && page->isVisible()
+				   && page->isAncestorOf(window.review_submission_editor_view()),
+			   "explicit Compose review opens the retained editor in the central page");
 	}
 	void shutdown(app::github_application& aApp)
 	{
@@ -185,15 +190,20 @@ auto main(int argc, char** argv) -> int
 		if (argc == 2) {
 			application->window().resize(1280, 900);
 			QApplication::processEvents();
-			for (auto* scroll : application->window().findChildren<QScrollArea*>()) {
-				if (scroll->widget() && scroll->widget()->isAncestorOf(&restored)) {
-					scroll->ensureWidgetVisible(&restored, 0, 0);
-				}
-			}
+			auto* const page = application->window().findChild<QScrollArea*>(
+				QStringLiteral("composeReviewPage"));
+			expect(page != nullptr && page->isVisible()
+					   && page->widget() != nullptr
+					   && page->widget()->isAncestorOf(&restored),
+				   "reopened review returns to the dedicated Compose review page");
+			page->ensureWidgetVisible(&restored, 0, 0);
 			QApplication::processEvents();
-			const auto visible = application->window().conversations_drawer()->contentsRect();
-			const auto topLeft = restored.mapTo(application->window().conversations_drawer(), QPoint{ });
-			expect(topLeft.x() >= visible.x() && topLeft.x() + restored.width() <= visible.right() + 1, "review identity and controls fit the narrowed drawer");
+			const auto visible = page->viewport()->contentsRect();
+			const auto topLeft = restored.mapTo(page->viewport(), QPoint{ });
+			expect(page->horizontalScrollBar()->maximum() == 0
+					   && topLeft.x() >= visible.x()
+					   && topLeft.x() + restored.width() <= visible.right() + 1,
+				   "review identity and controls fit the central composition viewport");
 			expect(application->window().grab().save(QString::fromLocal8Bit(argv[1])), "full-window render saved");
 		}
 		// A retired terminal must not complete a draft after changed authority.

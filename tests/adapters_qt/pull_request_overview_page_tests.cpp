@@ -3,14 +3,21 @@
 #include "bpr/application/pull_request_overview.hpp"
 
 #include <QApplication>
+#include <QClipboard>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollBar>
+#include <QTextDocument>
 #include <QTreeView>
+#include <QWheelEvent>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <source_location>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -234,12 +241,270 @@ namespace {
 			   "clearing empties the page");
 		page.hide();
 	}
+
+	void settle()
+	{
+		for (int pass = 0; pass < 5; ++pass) {
+			QApplication::processEvents();
+		}
+	}
+
+	auto description(const int aSections) -> QString
+	{
+		auto result = QString{ };
+		for (int section = 0; section < aSections; ++section) {
+			result += QStringLiteral("## Section %1 — 日本語 🦊\n- [x] Literal <b>markup</b>\nWide code: compare(old_revision, new_revision, exact_repository_identity, selected_file_identity, retained_comparison_identity);\n| Case | Expected result |\n\n").arg(section);
+		}
+		return result + QStringLiteral("END OF ADMITTED BODY");
+	}
+
+	void expect_anchor(QPlainTextEdit* aEdit, const int aPosition, const std::source_location aLocation = std::source_location::current())
+	{
+		auto cursor = QTextCursor{ aEdit->document() };
+		cursor.setPosition(aPosition);
+		const auto rect = aEdit->cursorRect(cursor);
+		if (rect.top() < 0 || rect.bottom() >= aEdit->viewport()->height()) {
+			std::cerr << "anchor check line=" << aLocation.line() << " source=" << aPosition << " top=" << rect.top() << " bottom=" << rect.bottom() << " viewport=" << aEdit->viewport()->height() << " scroll=" << aEdit->verticalScrollBar()->value() << '/' << aEdit->verticalScrollBar()->maximum() << '\n';
+		}
+		expect(rect.top() >= 0 && rect.bottom() < aEdit->viewport()->height(), "retained source anchor is fully visible");
+		expect(rect.top() <= rect.height() || aEdit->verticalScrollBar()->value() == aEdit->verticalScrollBar()->maximum(), "source anchor stays within one wrapped line or nearest document-end clamp");
+	}
+
+	void test_retained_description_reader()
+	{
+		for (const int width : { 800, 1400 }) {
+			for (const int points : { 13, 20 }) {
+				for (const int sections : { 20, 900 }) {
+					qt::pull_request_overview_page page;
+					page.resize(width, 800);
+					auto font = page.font();
+					font.setPointSize(points);
+					page.setFont(font);
+					auto       projected = projection();
+					const auto source    = description(sections);
+					projected.Body       = source.toStdString();
+					page.present(projected);
+					page.show();
+					page.activateWindow();
+					settle();
+					auto* edit = page.body_view();
+					auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
+					auto* back = page.findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
+					expect(read->isVisible() && !back->isVisible(), "overflow exposes the named reading action");
+					expect(edit->height() <= 4 * edit->fontMetrics().lineSpacing() + 2 * edit->document()->documentMargin(), "preview has a font-relative compact budget");
+					expect(edit->verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOff && edit->verticalScrollBar()->value() == 0, "preview has no scrolling well");
+					QWheelEvent previewWheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+					QApplication::sendEvent(edit->viewport(), &previewWheel);
+					expect(edit->verticalScrollBar()->value() == 0, "wheel cannot scroll the compact preview");
+					int dispatched = 0;
+					page.set_file_dispatch([&](const QString&) { ++dispatched; });
+					page.set_entry_dispatch([&](auto, const QString&) { ++dispatched; });
+					const auto file = page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp"));
+					page.files_view()->setCurrentIndex(file);
+					read->setFocus();
+					QKeyEvent press{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+					QKeyEvent release{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+					QApplication::sendEvent(read, &press);
+					QApplication::sendEvent(read, &release);
+					settle();
+					expect(back->isVisible() && !page.files_view()->isVisible() && edit->hasFocus(), "keyboard activation opens local reader and focuses text");
+					expect(edit->maximumHeight() == QWIDGETSIZE_MAX && edit->height() > 650, "expanded reader fills available space without a height cap");
+					QKeyEvent pageDown{ QEvent::KeyPress, Qt::Key_PageDown, Qt::NoModifier };
+					QApplication::sendEvent(edit, &pageDown);
+					expect(edit->verticalScrollBar()->value() > 0, "PageDown navigates the sole reader viewport");
+					const auto  beforeWheel = edit->verticalScrollBar()->value();
+					QWheelEvent readerWheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+					QApplication::sendEvent(edit->viewport(), &readerWheel);
+					expect(edit->verticalScrollBar()->value() > beforeWheel, "synthetic wheel input moves the reader viewport");
+					edit->selectAll();
+					edit->copy();
+					expect(QApplication::clipboard()->text() == source, "complete Unicode and literal text copies without shortening");
+					auto cursor = edit->textCursor();
+					cursor.clearSelection();
+					cursor.setPosition(static_cast<int>(source.size() / 2));
+					edit->setTextCursor(cursor);
+					edit->centerCursor();
+					settle();
+					const int anchor = edit->cursorForPosition(QPoint{ 0, 0 }).position();
+					cursor.setPosition(anchor + 31);
+					cursor.setPosition(anchor + 7, QTextCursor::KeepAnchor);
+					edit->setTextCursor(cursor);
+					const auto selection = edit->textCursor();
+					auto*      document  = edit->document();
+					const auto revision  = document->revision();
+					projected.Title += " refreshed";
+					projected.Progress.FilesRead = 2;
+					projected.Files.front().Read = core::file_read_state::read;
+					const auto retainedFile      = QPersistentModelIndex{ file };
+					int        resets            = 0;
+					QObject::connect(page.file_model(), &QAbstractItemModel::modelReset, &page, [&] { ++resets; });
+					projected.Participants.front().Signoff = application::overview_signoff::commented;
+					page.present(projected);
+					settle();
+					expect(edit->document() == document && document->revision() == revision && edit->hasFocus(), "surrounding refresh keeps document revision and focus");
+					expect(edit->textCursor().position() == selection.position() && edit->textCursor().anchor() == selection.anchor(), "unchanged refresh keeps directed selection");
+					expect_anchor(edit, anchor);
+					expect(retainedFile.isValid() && resets == 0, "receipt refresh retains Files indexes without resetting the model");
+					back->click();
+					settle();
+					expect(page.files_view()->hasFocus() && page.files_view()->currentIndex() == file && dispatched == 0, "Return to Files preserves selection and dispatches nothing");
+					page.resize(width == 800 ? 1400 : 800, 800);
+					font.setPointSize(points == 13 ? 20 : 13);
+					page.setFont(font);
+					settle();
+					read->click();
+					settle();
+					expect_anchor(edit, anchor);
+					expect(edit->textCursor().position() == selection.position() && edit->textCursor().anchor() == selection.anchor(), "reopen after reflow keeps directed selection");
+					page.resize(width, 800);
+					font.setPointSize(points);
+					page.setFont(font);
+					settle();
+					expect_anchor(edit, anchor);
+					QEvent dpr{ QEvent::DevicePixelRatioChange };
+					QApplication::sendEvent(edit, &dpr);
+					settle();
+					expect_anchor(edit, anchor);
+					QEvent style{ QEvent::StyleChange };
+					QApplication::sendEvent(edit, &style);
+					settle();
+					expect_anchor(edit, anchor);
+					QKeyEvent tab{ QEvent::KeyPress, Qt::Key_Backtab, Qt::ShiftModifier };
+					QApplication::sendEvent(edit, &tab);
+					settle();
+					expect(back->hasFocus(), "Shift+Tab reaches fixed return control");
+					QKeyEvent forwardTab{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+					QApplication::sendEvent(back, &forwardTab);
+					settle();
+					expect(edit->hasFocus(), "Tab returns from fixed control to the reader");
+					QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+					QApplication::sendEvent(back, &escape);
+					settle();
+					expect(page.files_view()->isVisible() && page.files_view()->hasFocus() && dispatched == 0, "local Escape returns to Files without semantic dispatch");
+					read->click();
+					settle();
+					cursor = edit->textCursor();
+					cursor.movePosition(QTextCursor::End);
+					edit->setTextCursor(cursor);
+					edit->ensureCursorVisible();
+					settle();
+					expect(edit->cursorRect().bottom() < edit->viewport()->height(), "last character is reachable");
+					const auto endAnchor = edit->cursorForPosition(QPoint{ 0, 0 }).position();
+					page.resize(1400, 800);
+					font.setPointSize(13);
+					page.setFont(font);
+					settle();
+					expect_anchor(edit, endAnchor);
+					page.resize(800, 300);
+					settle();
+					expect(back->isVisible() && page.height() == 300 && edit->height() > 100, "short-height page retains a fixed return and usable reader");
+					projected.Body = "Short edited body.";
+					page.present(projected);
+					settle();
+					expect(edit->textCursor().position() == static_cast<int>(projected.Body.size()) && edit->textCursor().anchor() == static_cast<int>(projected.Body.size()), "body edit clamps old directed endpoints");
+					page.clear();
+					settle();
+					expect(edit->toPlainText().isEmpty() && !back->isVisible() && !read->isVisible(), "authority clear empties text and local reader state");
+					projected.Body = source.toStdString();
+					page.present(projected);
+					settle();
+					read->click();
+					settle();
+					expect(edit->textCursor().position() == 0 && edit->verticalScrollBar()->value() == 0, "replacement starts afresh even with the old body");
+				}
+			}
+		}
+	}
+
+	void test_compact_descriptions()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(800, 800);
+		page.show();
+		auto projected = projection();
+		projected.Body.clear();
+		page.present(projected);
+		settle();
+		auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
+		expect(page.findChild<QLabel*>(QStringLiteral("overviewNoDescription"))->isVisible() && !read->isVisible() && !page.body_view()->isVisible(), "empty description has a compact explicit state");
+		projected.Body = "Short 日本語 🦊 description.";
+		page.present(projected);
+		settle();
+		expect(!read->isVisible() && page.body_view()->height() < 3 * page.body_view()->fontMetrics().lineSpacing(), "short body uses its natural height without an expansion action");
+		page.body_view()->selectAll();
+		page.body_view()->copy();
+		expect(QApplication::clipboard()->text().toStdString() == projected.Body, "short body remains selectable and copyable");
+		const auto narrowColumns = page.body_view()->viewport()->width() / page.body_view()->fontMetrics().horizontalAdvance(QLatin1Char{ 'w' });
+		projected.Body           = std::string(static_cast<std::size_t>(5 * narrowColumns), 'w');
+		page.present(projected);
+		settle();
+		expect(read->isVisible(), "a long unbroken token wraps and overflows a narrow preview");
+		page.resize(1400, 800);
+		settle();
+		expect(!read->isVisible(), "widening recomputes preview overflow");
+		const auto sentinel = std::string{ "\n日本語 🦊 END" };
+		projected.Body      = std::string(262144 - sentinel.size(), 'x') + sentinel;
+		page.present(projected);
+		settle();
+		read->click();
+		settle();
+		page.body_view()->selectAll();
+		page.body_view()->copy();
+		expect(QApplication::clipboard()->text().toStdString() == projected.Body, "complete admitted byte-boundary text remains copyable");
+	}
+
+	void test_body_edits_clamp_retained_selection()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(800, 800);
+		auto       projected = projection();
+		const auto source    = description(100);
+		projected.Body       = source.toStdString();
+		page.present(projected);
+		page.show();
+		settle();
+		auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
+		auto* back = page.findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
+		auto* edit = page.body_view();
+		read->click();
+		settle();
+		auto selection = QTextCursor{ edit->document() };
+		selection.setPosition(300);
+		selection.setPosition(100, QTextCursor::KeepAnchor);
+		edit->setTextCursor(selection);
+		projected.Body = source.left(200).toStdString();
+		page.present(projected);
+		settle();
+		expect(edit->textCursor().anchor() == 200 && edit->textCursor().position() == 100, "editing clamps endpoints independently and preserves selection direction");
+		back->click();
+		settle();
+		projected.Body.clear();
+		page.present(projected);
+		settle();
+		projected.Body = source.toStdString();
+		page.present(projected);
+		settle();
+		read->click();
+		settle();
+		expect(edit->textCursor().position() == 0 && edit->textCursor().anchor() == 0 && edit->verticalScrollBar()->value() == 0, "edits clamp retained state even while the reader is collapsed");
+		projected.Body.clear();
+		page.present(projected);
+		settle();
+		expect(!back->isVisible() && page.files_view()->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewNoDescription"))->isVisible(), "removing an expanded body returns to compact empty description");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	const auto   scale = qEnvironmentVariable("QT_SCALE_FACTOR").toDouble();
+	if (scale > 0) {
+		expect(qFuzzyCompare(application.devicePixelRatio(), scale), "the requested display scale is effective");
+	}
 	test_page_presents_the_projection_and_reports_its_gestures();
-	std::cout << "pull-request-overview-page-tests:pass\n";
+	test_compact_descriptions();
+	test_retained_description_reader();
+	test_body_edits_clamp_retained_selection();
+	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << application.platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

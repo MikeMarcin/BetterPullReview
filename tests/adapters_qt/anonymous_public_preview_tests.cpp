@@ -459,8 +459,9 @@ namespace {
 		expect(refused(window->accept_action()), "triage accept is refused");
 		expect(refused(window->exclude_action()), "triage exclude is refused");
 		expect(
-			refused(window->show_review_threads_action()),
-			"review-thread resolution is refused");
+			!window->show_review_threads_action()
+				&& !window->findChild<QAction*>(QStringLiteral("showReviewThreadsAction")),
+			"the removed focus-only review-thread action is absent in public preview too");
 		auto* const role = window->queue_role_filter();
 		expect(
 			role != nullptr && !role->isEnabled()

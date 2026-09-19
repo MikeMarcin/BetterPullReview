@@ -37,6 +37,8 @@ auto main(int argc, char** argv) -> int
 	editor.show();
 	QApplication::processEvents();
 	expect(intents.empty(), "projection emits no gesture");
+	expect(editor.body_editor()->height() >= 160 && editor.body_editor()->maximumHeight() == QWIDGETSIZE_MAX,
+		   "summary keeps a usable viewport and can grow with its dedicated page");
 	expect(editor.target_editor()->isReadOnly() && !editor.target_editor()->acceptRichText()
 			   && editor.target_editor()->wordWrapMode() == QTextOption::WrapAtWordBoundaryOrAnywhere
 			   && editor.target_editor()->toPlainText() == projection.TargetDescription,

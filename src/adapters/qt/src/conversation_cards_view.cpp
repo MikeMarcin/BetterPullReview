@@ -37,6 +37,31 @@ namespace bpr::qt {
 		constexpr int path_row_height = 20;
 		constexpr int excerpt_padding = 6;
 
+		[[nodiscard]] auto has_code_anchor(const thread_card& aCard) -> bool
+		{
+			return !aCard.Path.isEmpty() && !aCard.Outdated && !aCard.AnchorUnavailable
+				&& aCard.Side.has_value() && aCard.Line.has_value() && *aCard.Line > 0U;
+		}
+
+		[[nodiscard]] auto compact_label(const thread_card& aCard) -> QString
+		{
+			auto label = aCard.Draft ? QStringLiteral("Your unpublished draft") : aCard.Kind;
+			if (!aCard.Posts.empty()) {
+				label += QStringLiteral(" · @%1").arg(aCard.Posts.front().Author);
+			}
+			label += QStringLiteral("\n%1 posts · %2 unread").arg(aCard.Posts.size()).arg(aCard.UnreadCount);
+			if (aCard.Resolved) {
+				label += QStringLiteral(" · Resolved");
+			}
+			if (aCard.Outdated) {
+				label += QStringLiteral(" · Outdated");
+			}
+			if (aCard.AnchorUnavailable) {
+				label += QStringLiteral("\nCode anchor unavailable");
+			}
+			return label;
+		}
+
 		/// \brief The code font the excerpt is set in.
 		[[nodiscard]] auto code_font(const QFont& aFont) -> QFont
 		{
@@ -168,6 +193,8 @@ namespace bpr::qt {
 		RetainedFiles.clear();
 		Draft.reset();
 		Current.clear();
+		ReadState.clear();
+		ReadStateKnown = false;
 		relayout();
 	}
 
@@ -243,6 +270,16 @@ namespace bpr::qt {
 		relayout();
 	}
 
+	void conversation_cards_view::set_compact(const bool aCompact)
+	{
+		if (Compact == aCompact) {
+			return;
+		}
+		Compact = aCompact;
+		clear_measurements();
+		relayout();
+	}
+
 	auto conversation_cards_view::feed() const noexcept -> bool
 	{
 		return Feed;
@@ -309,7 +346,7 @@ namespace bpr::qt {
 	{
 		auto count = std::size_t{ 0U };
 		for (const auto& card : Cards) {
-			count += !card.Draft && !card.Resolved ? 1U : 0U;
+			count += !card.Draft && !card.Resolved && (!Compact || card.Kind == QStringLiteral("Inline thread")) ? 1U : 0U;
 		}
 		return count;
 	}
@@ -483,16 +520,23 @@ namespace bpr::qt {
 		const auto metrics   = QFontMetrics{ font() };
 		const auto bodyWidth = std::max(40, aWidth - 2 * card_padding - avatar_column);
 		auto       y         = card_padding;
-		if (aCard.Resolved || aCard.Outdated || aCard.Draft) {
+		if (Compact) {
+			y += metrics.boundingRect(QRect{ 0, 0, std::max(1, aWidth - 2 * card_padding), 100'000 }, Qt::TextWordWrap | Qt::TextWrapAnywhere, compact_label(aCard)).height() + post_gap;
+		}
+		if (!Compact && (aCard.Resolved || aCard.Outdated || aCard.Draft)) {
 			y += header_height;
 		}
 		// [[BPR-0649]]. The code at the thread's line, one line each side,
 		// in the code font on the code background.
-		if (Feed && !aCard.Excerpt.isEmpty()) {
+		if (!Compact && Feed && !aCard.Excerpt.isEmpty()) {
 			const auto lines = static_cast<int>(aCard.Excerpt.count(QLatin1Char{ '\n' })) + 1;
 			y += lines * QFontMetrics{ code_font(font()) }.height() + 2 * excerpt_padding + post_gap;
 		}
 		for (auto& post : aCard.Posts) {
+			if (Compact) {
+				post.Rect = { };
+				continue;
+			}
 			// In the feed the header line carries role and "replying to"
 			// beside the author; the small font keeps it on one line.
 			const auto authorHeight = metrics.height();
@@ -508,15 +552,18 @@ namespace bpr::qt {
 		auto actions = aCard.Draft
 			? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }
 			: std::vector{ Feed ? card_action::reply : card_action::comment_here };
+		if (!aCard.Draft && Compact && !has_code_anchor(aCard)) {
+			actions.clear();
+		}
 		if (!aCard.Draft && aCard.UnreadCount > 0U) {
 			actions.push_back(card_action::mark_read);
 		}
 		// [[BPR-0657]]. Resolve, or Unresolve on a resolved thread, once the
 		// provider and the server both resolve threads.
-		if (!aCard.Draft && ResolutionOffered) {
+		if (!aCard.Draft && ResolutionOffered && (!Compact || aCard.Kind == QStringLiteral("Inline thread"))) {
 			actions.push_back(aCard.Resolved ? card_action::unresolve : card_action::resolve);
 		}
-		if (!aCard.Draft && Feed) {
+		if (!aCard.Draft && Feed && (!Compact || has_code_anchor(aCard))) {
 			actions.push_back(card_action::open_in_code);
 		}
 		const auto actionMetrics = QFontMetrics{ small_font(font()) };
@@ -581,7 +628,10 @@ namespace bpr::qt {
 		}
 		const auto cached = Measurements.Cards.find(aCard.Id);
 		const auto header = aCard.Resolved || aCard.Outdated || aCard.Draft;
+		const auto label  = Compact ? compact_label(aCard) : QString{ };
 		if (cached != Measurements.Cards.end() && cached->second.Excerpt == aCard.Excerpt
+			&& cached->second.Label == label
+			&& cached->second.AnchorAvailable == has_code_anchor(aCard)
 			&& cached->second.Header == header && cached->second.Draft == aCard.Draft
 			&& cached->second.Resolved == aCard.Resolved && cached->second.Unread == (aCard.UnreadCount > 0U)
 			&& std::ranges::equal(cached->second.Bodies, aCard.Posts, { }, std::identity{ }, &card_post::Body)) {
@@ -595,13 +645,15 @@ namespace bpr::qt {
 		measure(aCard, aWidth);
 		++MeasurementCount;
 		auto measured = measured_card{
-			.Excerpt  = aCard.Excerpt,
-			.Header   = header,
-			.Draft    = aCard.Draft,
-			.Resolved = aCard.Resolved,
-			.Unread   = aCard.UnreadCount > 0U,
-			.Height   = aCard.Rect.height(),
-			.Actions  = aCard.Actions,
+			.Label           = label,
+			.Excerpt         = aCard.Excerpt,
+			.Header          = header,
+			.Draft           = aCard.Draft,
+			.Resolved        = aCard.Resolved,
+			.Unread          = aCard.UnreadCount > 0U,
+			.AnchorAvailable = has_code_anchor(aCard),
+			.Height          = aCard.Rect.height(),
+			.Actions         = aCard.Actions,
 		};
 		for (const auto& post : aCard.Posts) {
 			measured.Bodies.push_back(post.Body);
@@ -614,9 +666,8 @@ namespace bpr::qt {
 	{
 		++Layouts;
 		Cards.clear();
-		// The forest: review threads are roots, their comments hang beneath
-		// by ParentId. Reviews and pull request comments are not threads on
-		// a line and are not cards.
+		// Compact navigation admits every top-level conversation kind;
+		// the legacy full-card mode admits only anchored review threads.
 		// Keyed by views of the retained identities, which outlive this call.
 		auto byId = std::unordered_map<std::string_view, const application::github_conversation_projection*>{ };
 		byId.reserve(Retained.size());
@@ -631,7 +682,7 @@ namespace bpr::qt {
 			while (current->ParentId.has_value() && seen < byId.size()) {
 				const auto parent = byId.find(*current->ParentId);
 				if (parent == byId.end()) {
-					return { nullptr, 0U };
+					return { current, depth };
 				}
 				current = parent->second;
 				++depth;
@@ -642,23 +693,29 @@ namespace bpr::qt {
 		auto cardsById = std::unordered_map<std::string_view, std::size_t>{ };
 		for (std::size_t index = 0U; index < Retained.size(); ++index) {
 			const auto& node = Retained[index];
-			if (node.Kind != application::github_conversation_kind::review_thread
-				|| node.ParentId.has_value()) {
+			if ((!Compact && node.Kind != application::github_conversation_kind::review_thread)
+				|| (node.ParentId.has_value() && (!Compact || byId.contains(*node.ParentId)))) {
 				continue;
 			}
 			if (Scope == cards_scope::this_file && AnchorFile.has_value()
 				&& RetainedFiles[index] != *AnchorFile) {
 				continue;
 			}
-			auto card     = thread_card{ };
-			card.Id       = node.Id;
-			card.Path     = text(node.Path);
-			card.Side     = side_of(node);
-			card.Line     = node.Line;
-			card.Resolved = node.Resolved;
-			card.Outdated = node.Outdated
-				|| node.AnchorAvailability
-					!= application::github_conversation_anchor_availability::current;
+			auto card              = thread_card{ };
+			card.Id                = node.Id;
+			card.Kind              = node.Kind == application::github_conversation_kind::review_thread
+				? QStringLiteral("Inline thread")
+				: node.Kind == application::github_conversation_kind::review
+				? QStringLiteral("Review summary")
+				: node.Kind == application::github_conversation_kind::review_comment
+				? QStringLiteral("Inline comment")
+				: QStringLiteral("PR comment");
+			card.Path              = text(node.Path);
+			card.Side              = side_of(node);
+			card.Line              = node.Line;
+			card.Resolved          = node.Resolved;
+			card.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;
+			card.Outdated          = node.Outdated || (!Compact && card.AnchorUnavailable);
 			cardsById.emplace(node.Id, Cards.size());
 			Cards.push_back(std::move(card));
 		}
@@ -671,7 +728,7 @@ namespace bpr::qt {
 		}
 		for (const auto& node : Retained) {
 			if (node.Kind == application::github_conversation_kind::review_thread
-				|| !node.ParentId.has_value() || node.Deleted) {
+				|| (!Compact && !node.ParentId.has_value()) || node.Deleted) {
 				continue;
 			}
 			const auto [root, depth] = rootOf(node);
@@ -722,7 +779,7 @@ namespace bpr::qt {
 			std::erase_if(Cards, [this](const thread_card& aCard) {
 				return !aCard.Draft
 					&& ((Filters.UnreadOnly && aCard.UnreadCount == 0U)
-						|| (Filters.UnresolvedOnly && aCard.Resolved));
+						|| (Filters.UnresolvedOnly && (aCard.Resolved || (Compact && aCard.Kind != QStringLiteral("Inline thread")))));
 			});
 		}
 		if (Feed && ExcerptLocator) {
@@ -764,9 +821,10 @@ namespace bpr::qt {
 		if (LayoutObserver) {
 			LayoutObserver();
 		}
-		setAccessibleDescription(QStringLiteral(
-									 "%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line")
-									 .arg(Cards.size() - (Draft.has_value() ? 1U : 0U))
+		setAccessibleDescription((Compact
+									  ? QStringLiteral("%1 conversations, %2 posts, %3 unread; Up and Down move between conversations, Return opens the selected detail")
+									  : QStringLiteral("%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line"))
+									 .arg(thread_count())
 									 .arg(post_count())
 									 .arg(unread_post_count()));
 	}
@@ -903,6 +961,18 @@ namespace bpr::qt {
 			painter.setPen(pen);
 			painter.setBrush(surface);
 			painter.drawRoundedRect(QRectF{ card.Rect }.adjusted(0.5, 0.5, -0.5, -0.5), 7.0, 7.0);
+			if (Compact) {
+				painter.setFont(font());
+				painter.setPen(ink);
+				painter.drawText(card.Rect.adjusted(card_padding, card_padding, -card_padding, -card_padding),
+								 Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap | Qt::TextWrapAnywhere, compact_label(card));
+				painter.setFont(small);
+				painter.setPen(Accent);
+				for (const auto& [action, rect] : card.Actions) {
+					painter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));
+				}
+				continue;
+			}
 			const auto dim  = card.Resolved;
 			auto       tagY = card.Rect.top() + card_padding;
 			if (card.Resolved || card.Outdated || card.Draft) {
@@ -1007,15 +1077,23 @@ namespace bpr::qt {
 		relayout();
 	}
 
-	void conversation_cards_view::choose(const std::size_t aCard)
+	void conversation_cards_view::choose(
+		const std::size_t aCard, const bool aOpenDetail)
 	{
 		if (aCard >= Cards.size() || Cards[aCard].Draft) {
 			return;
 		}
-		Current = Cards[aCard].Id;
+		Current           = Cards[aCard].Id;
+		const auto top    = Cards[aCard].Rect.top();
+		const auto bottom = Cards[aCard].Rect.bottom();
+		if (top < verticalScrollBar()->value()) {
+			verticalScrollBar()->setValue(top);
+		} else if (bottom > verticalScrollBar()->value() + viewport()->height()) {
+			verticalScrollBar()->setValue(bottom - viewport()->height());
+		}
 		viewport()->update();
 		if (ThreadDispatch) {
-			ThreadDispatch(Current);
+			ThreadDispatch(Current, aOpenDetail);
 		}
 	}
 
@@ -1043,7 +1121,7 @@ namespace bpr::qt {
 			aEvent->accept();
 			return;
 		}
-		choose(index);
+		choose(index, true);
 		aEvent->accept();
 	}
 
@@ -1063,7 +1141,8 @@ namespace bpr::qt {
 			if (!threads.empty()) {
 				choose(position == threads.end() || std::next(position) == threads.end()
 						   ? threads.front()
-						   : *std::next(position));
+						   : *std::next(position),
+					   false);
 			}
 			aEvent->accept();
 			return;
@@ -1071,14 +1150,15 @@ namespace bpr::qt {
 			if (!threads.empty()) {
 				choose(position == threads.end() || position == threads.begin()
 						   ? threads.back()
-						   : *std::prev(position));
+						   : *std::prev(position),
+					   false);
 			}
 			aEvent->accept();
 			return;
 		case Qt::Key_Return:
 		case Qt::Key_Enter:
 			if (position != threads.end()) {
-				choose(*position);
+				choose(*position, true);
 			}
 			aEvent->accept();
 			return;

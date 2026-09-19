@@ -599,10 +599,10 @@ namespace {
 					intents.back()),
 			"Refresh emits only refresh_pull_request_intent");
 
-		window.show_review_threads_action()->trigger();
 		expect(
-			intents.size() == 2U,
-			"Show Review Threads remains a local presentation action");
+			intents.size() == 2U && !window.show_review_threads_action()
+				&& !window.findChild<QAction*>(QStringLiteral("showReviewThreadsAction")),
+			"the removed focus-only review-thread action emits nothing and leaves no silent control");
 
 		expect(
 			!window.github_connect_action()->shortcut().isEmpty()
@@ -1802,15 +1802,16 @@ namespace {
 
 		window.show();
 		QApplication::processEvents();
-		window.show_review_threads_action()->trigger();
+		window.choose_modality(qt::review_modality::discuss);
 		QApplication::processEvents();
 		const auto focusedThread = window.conversation_model()->index_for_id("review-thread:t1");
 		expect(
 			focusedThread.isValid()
-				&& window.conversation_view()->currentIndex() == focusedThread
-				&& window.conversation_view()->isExpanded(focusedThread)
-				&& QApplication::focusWidget() == window.conversation_view(),
-			"Show Review Threads focuses, selects, and expands a review thread");
+				&& window.conversation_panel()->discuss()
+				&& window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))
+					   ->isAncestorOf(window.conversation_panel())
+				&& window.conversation_panel()->cards()->thread_count() > 0U,
+			"Discuss automatically reveals accepted PR-wide conversations without a focus-only action");
 
 		const auto selectedComment = window.conversation_model()->index_for_id("issue-comment:i1");
 		window.conversation_view()->setCurrentIndex(selectedComment);
@@ -1952,9 +1953,8 @@ namespace {
 				},
 			},
 		});
-		expect(
-			!window.show_review_threads_action()->isEnabled(),
-			"capability display cannot override command-disabled action state");
+		expect(!window.show_review_threads_action(),
+			   "legacy command projection cannot recreate the removed focus-only action");
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Commands = {
@@ -1969,9 +1969,8 @@ namespace {
 				},
 			},
 		});
-		expect(
-			window.show_review_threads_action()->isEnabled(),
-			"command projection remains the sole action-legality authority");
+		expect(!window.show_review_threads_action(),
+			   "an enabled legacy command projection still cannot recreate the removed action");
 
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
@@ -3883,14 +3882,15 @@ namespace {
 				&& columnTop(sideChat) < columnTop(findingQueue),
 			"the agent launcher, the side chat, and the finding queue stack down one visible column");
 
-		// The workshop a promotion opens is the draft editor's own, and that
-		// editor is already in this drawer. There is no second workshop, and
-		// no window of its own for one to appear in.
+		// The workshop a promotion opens is the retained draft editor's own, on
+		// its dedicated in-window page. There is no second editor or top-level window.
+		auto* const composePage = window.findChild<QScrollArea*>(
+			QStringLiteral("composeInlineDraftPage"));
 		expect(
-			drawer->isAncestorOf(editor)
-				&& drawer->isAncestorOf(editor->workshop_original_editor())
-				&& drawer->isAncestorOf(editor->workshop_proposal_editor()),
-			"the comment workshop a finding promotion reaches is in this drawer already");
+			composePage != nullptr && composePage->isAncestorOf(editor)
+				&& composePage->isAncestorOf(editor->workshop_original_editor())
+				&& composePage->isAncestorOf(editor->workshop_proposal_editor()),
+			"the comment workshop a finding promotion reaches is the retained editor on its dedicated page");
 
 		auto* const convert = window.finding_queue()->action(
 			qt::finding_queue_action::convert_to_draft_comment);
@@ -4265,10 +4265,7 @@ namespace {
 		// this list is what the drawer is supposed to hold, so a renamed or
 		// dropped action fails here rather than passing as an absence.
 		for (const auto* const name :
-			 { // The conversation panel's own row, at the top of the column
-			   // (RFC-BPR-0009, RFC-BPR-0010).
-			   "showReviewThreadsAction",
-			   // The agent launcher's run controls (RFC-BPR-0011).
+			 { // The agent launcher's run controls (RFC-BPR-0011).
 			   "agentExistingCheckoutAction", "startAgentAction",
 			   "cancelAgentAction",
 			   // The side chat's row (RFC-BPR-0012, placed by BPR-0513).
@@ -4337,9 +4334,8 @@ namespace {
 		expect(
 			availability != nullptr && availability->isVisible(),
 			"the open drawer shows the review-thread availability sentence");
-		expect(
-			stackedUnder(availability, offered(QStringLiteral("showReviewThreadsAction"))),
-			"the reveal action is stacked under the availability sentence rather than beside it: showReviewThreadsAction");
+		expect(!offered(QStringLiteral("showReviewThreadsAction")),
+			   "the conversation drawer has no focus-only reveal action below its availability sentence");
 		expect(
 			stackedUnder(
 				offered(QStringLiteral("agentExistingCheckoutAction")),

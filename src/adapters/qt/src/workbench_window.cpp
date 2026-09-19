@@ -190,8 +190,6 @@ namespace bpr::qt {
 		/// What holds at those narrower widths is that every row is a column, so
 		/// a row cannot put its last control out of reach.
 		constexpr int conversation_drawer_default_width = 375;
-		/// \brief The least width the conversation takes in Discuss ([[BPR-0649]]).
-		constexpr int discuss_conversation_width = 640;
 		/// \brief Narrowest width a drawer is ever presented at when expanded.
 		///
 		/// \details [[BPR-0662]]. The host's floor is 64 pixels, the least it
@@ -1138,9 +1136,11 @@ namespace bpr::qt {
 					if (index.isValid()) {
 						ConversationPanel->view()->setCurrentIndex(index);
 					}
-					static_cast<void>(select_thread_line(aIdentity));
-					if (ReviewEditor != nullptr) {
-						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
+					if (select_thread_line(aIdentity) && ReviewEditor != nullptr) {
+						open_review_composition(true);
+					} else {
+						ConversationPanel->present_notice(
+							tr("Open this thread in code before drafting on its line."));
 					}
 					break;
 				}
@@ -1151,7 +1151,7 @@ namespace bpr::qt {
 					break;
 				case card_action::edit_draft:
 					if (ReviewEditor != nullptr) {
-						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
+						open_review_composition(true);
 					}
 					break;
 				case card_action::delete_draft:
@@ -1193,16 +1193,17 @@ namespace bpr::qt {
 					// is named to the composition first, so the draft that
 					// follows the selection answers it; then the thread becomes
 					// current and the draft editor takes focus.
-					if (ReviewReplyDispatch) {
-						ReviewReplyDispatch(aIdentity);
-					}
 					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
 					if (index.isValid()) {
 						ConversationPanel->view()->setCurrentIndex(index);
 					}
-					static_cast<void>(select_thread_line(aIdentity));
-					if (ReviewEditor != nullptr) {
-						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
+					if (select_thread_line(aIdentity) && ReviewReplyDispatch
+						&& ReviewEditor != nullptr) {
+						ReviewReplyDispatch(aIdentity);
+						open_review_composition(true);
+					} else {
+						ConversationPanel->present_notice(
+							tr("Open this thread in code before replying."));
 					}
 					break;
 				}
@@ -1213,8 +1214,9 @@ namespace bpr::qt {
 					// thread made current so the line is revealed.
 					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
 					if (index.isValid()) {
-						enter_read_at(index.data(github_conversation_model::path_role).toString());
 						ConversationPanel->view()->setCurrentIndex(index);
+						enter_read_at(index.data(github_conversation_model::path_role).toString());
+						synchronize_selected_conversation(index);
 					}
 					break;
 				}
@@ -1299,7 +1301,6 @@ namespace bpr::qt {
 			Drawers[1].Panel,
 		};
 		ReviewEditor->setObjectName(QStringLiteral("workbenchReviewDraftEditor"));
-		ReviewEditor->setMaximumHeight(220);
 		DefectCard = new defect_card_view{
 			[this](core::defect_command aCommand) {
 				++Statistics.DefectIntents;
@@ -1329,22 +1330,57 @@ namespace bpr::qt {
 		});
 		auto* const conversationContents = new QWidget{ Drawers[1].Panel };
 		auto* const conversationLayout   = new QVBoxLayout{ conversationContents };
+		ConversationLayout               = conversationLayout;
 		conversationLayout->setContentsMargins(0, 0, 0, 0);
 		conversationLayout->addWidget(ConversationPanel, 1);
-		conversationLayout->addWidget(ReviewSubmissionEditor, 0, Qt::AlignLeft);
-		conversationLayout->addWidget(ReviewEditor);
+		DiscussPage = new QWidget{ CentreStack };
+		DiscussPage->setObjectName(QStringLiteral("workbenchDiscussPage"));
+		auto* discussLayout = new QVBoxLayout{ DiscussPage };
+		discussLayout->setContentsMargins(0, 0, 0, 0);
+		CentreStack->addWidget(DiscussPage);
+		const auto makeCompositionPage = [this](QWidget* aEditor, const QString& aName) {
+			auto* scroll = new QScrollArea{ CentreStack };
+			scroll->setObjectName(aName);
+			scroll->setWidgetResizable(true);
+			scroll->setFrameShape(QFrame::NoFrame);
+			scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			auto* page   = new QWidget{ scroll };
+			auto* column = new QVBoxLayout{ page };
+			auto* back   = new QPushButton{ tr("Back"), page };
+			back->setObjectName(aName + QStringLiteral("Back"));
+			back->setAccessibleDescription(tr("Return to the previous surface without submitting"));
+			connect(back, &QPushButton::clicked, this, [this] { close_review_composition(); });
+			column->addWidget(back, 0, Qt::AlignLeft);
+			column->addWidget(aEditor, 1);
+			scroll->setWidget(page);
+			CentreStack->addWidget(scroll);
+			return scroll;
+		};
+		ComposeReviewPage        = makeCompositionPage(ReviewSubmissionEditor, QStringLiteral("composeReviewPage"));
+		ComposeInlinePage        = makeCompositionPage(ReviewEditor, QStringLiteral("composeInlineDraftPage"));
+		auto* compositionEntries = new QHBoxLayout;
+		review->insertLayout(1, compositionEntries);
+		const auto addCompositionEntry = [this, compositionEntries](const QString& aText, const QString& aName, bool aInline) {
+			auto* action = new QAction{ aText, this };
+			action->setObjectName(aName);
+			action->setToolTip(tr("Open the retained draft without submitting"));
+			auto* button = new QToolButton{ ReviewSurface };
+			button->setObjectName(aName + QStringLiteral("Button"));
+			button->setDefaultAction(action);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setAccessibleName(aText);
+			button->setAccessibleDescription(action->toolTip());
+			connect(action, &QAction::triggered, this, [this, aInline] { open_review_composition(aInline); });
+			compositionEntries->addWidget(button);
+		};
+		addCompositionEntry(tr("Compose review"), QStringLiteral("composeReviewAction"), false);
+		addCompositionEntry(tr("Draft comment or reply"), QStringLiteral("composeInlineDraftAction"), true);
+		compositionEntries->addStretch();
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
 		conversationLayout->addWidget(AgentPanel);
-		// BPR-0513. RFC-BPR-0012's two agent surfaces go where the launcher
-		// that produces their content already is, in the order the work runs:
-		// ask the agent, watch the chat, read what it found, and promote a
-		// finding into the draft editor above — whose comment workshop is the
-		// view a promotion opens, and which is already in this drawer.
-		//
-		// Placement only. Neither panel is given a dispatch here, so a window
-		// nobody has composed emits nothing from either, and neither gains a
-		// member, an action, or a field by being laid out.
+		// The agent surfaces remain beside their launcher. The same retained
+		// draft editor and its workshop now have their own composition page.
 		SideChat = new side_chat_panel{ { }, conversationContents };
 		conversationLayout->addWidget(SideChat);
 		// Stacked, as the finding queue's actions are: the drawer never scrolls
@@ -1430,9 +1466,8 @@ namespace bpr::qt {
 			defectActions->addWidget(button);
 		}
 		conversationLayout->addLayout(defectActions);
-		// BPR-0513. The column now stacks the conversation tree, the draft
-		// editor with its comment workshop, the agent launcher, the side chat,
-		// and the finding queue. That is more than a short drawer can show at
+		// The column holds contextual conversations, agent tools and findings.
+		// That is more than a short drawer can show at
 		// once, and a column that simply squeezed would show each panel with
 		// its own fields overlapping — which is showing a reviewer nothing.
 		// So the content scrolls. Collapse, width reporting, and the toggle
@@ -1769,11 +1804,6 @@ namespace bpr::qt {
 		GithubRefreshAction->setShortcut(QKeySequence::Refresh);
 		GithubRefreshAction->setShortcutContext(Qt::ApplicationShortcut);
 		addAction(GithubRefreshAction);
-		ShowReviewThreadsAction = new QAction{
-			QStringLiteral("Show review &threads"), this
-		};
-		ShowReviewThreadsAction->setObjectName(
-			QStringLiteral("showReviewThreadsAction"));
 
 		SessionPanel = new github_session_panel{
 			GithubProfiles,
@@ -2115,10 +2145,6 @@ namespace bpr::qt {
 		// exists; a default that is never applied is a default in name only.
 		apply_review_details_visibility();
 
-		ConversationPanel->set_reveal_action(ShowReviewThreadsAction);
-		connect(ShowReviewThreadsAction, &QAction::triggered, this, [this] {
-			focus_review_threads();
-		});
 		SessionPanel->apply_capabilities({ });
 		SessionPanel->apply_rate_limits({ });
 		clear_github_pull_request();
@@ -2138,12 +2164,6 @@ namespace bpr::qt {
 			.Enabled        = false,
 			.DisabledReason = core::github_reason_code::no_active_pull_request,
 		});
-		detail::apply_action_state(
-			ShowReviewThreadsAction,
-			ConversationPanel->reveal_button(),
-			false,
-			core::github_reason_code::no_active_pull_request,
-			QStringLiteral("Focus the review-thread conversations"));
 		PullRequestPanel->refresh_native_appearance();
 		update_github_presentation_state();
 		apply_focus_order();
@@ -4209,7 +4229,9 @@ namespace bpr::qt {
 	void workbench_window::synchronize_selected_conversation(
 		const QModelIndex& aIndex)
 	{
-		if (ComparisonSurface == nullptr) {
+		// A PR-wide selection reads discussion. Only Open in code may move
+		// the retained comparison; an off-file row must not reveal a same-number line.
+		if (ComparisonSurface == nullptr || (Modality != nullptr && Modality->current() == review_modality::discuss)) {
 			return;
 		}
 		auto root = aIndex;
@@ -4220,6 +4242,15 @@ namespace bpr::qt {
 			|| root.data(github_conversation_model::anchor_availability_role).toInt()
 				!= static_cast<int>(
 					application::github_conversation_anchor_availability::current)) {
+			ComparisonSurface->clear_conversation_anchor();
+			return;
+		}
+		const auto context = ComparisonSurface->current_context();
+		const auto path    = root.data(
+									 github_conversation_model::path_role)
+								 .toString();
+		if (!context.has_value() || path.isEmpty()
+			|| context->Key.File != core::file_identity_of(path.toStdString())) {
 			ComparisonSurface->clear_conversation_anchor();
 			return;
 		}
@@ -4364,6 +4395,7 @@ namespace bpr::qt {
 
 	void workbench_window::choose_modality(const review_modality aModality)
 	{
+		CompositionPage = nullptr;
 		if (Modality != nullptr) {
 			Modality->adopt(aModality);
 		}
@@ -4778,20 +4810,60 @@ namespace bpr::qt {
 		if (CentreStack == nullptr || OverviewPage == nullptr) {
 			return;
 		}
-		// The overview is shown for the Overview modality once the host has
-		// decided one; before that, and in every other modality, the centre
-		// is the comparison. An empty overview would say less than the panes.
+		// Composition covers the invoking page without replacing its mode or
+		// selection. Discuss borrows the same panel used beside the code.
 		const auto overview = Modality != nullptr
 			&& Modality->current() == review_modality::overview
 			&& OverviewPage->presented();
-		CentreStack->setCurrentWidget(overview ? static_cast<QWidget*>(OverviewPage) : ComparisonPage);
-		// [[BPR-0649]]. Discuss widens the conversation over the code: the
-		// drawer takes its Discuss width and its panel the Discuss arrangement.
+		const auto discuss         = Modality != nullptr && Modality->current() == review_modality::discuss;
+		const auto enteringDiscuss = discuss && ConversationPanel != nullptr && ConversationPanel->parentWidget() != DiscussPage;
 		if (ConversationPanel != nullptr) {
-			ConversationPanel->set_discuss(
-				Modality != nullptr && Modality->current() == review_modality::discuss);
+			if (discuss && ConversationPanel->parentWidget() != DiscussPage) {
+				DiscussPage->layout()->addWidget(ConversationPanel);
+				ConversationPanel->show();
+			} else if (!discuss && ConversationPanel->parentWidget() == DiscussPage) {
+				if (ConversationPanel->isAncestorOf(QApplication::focusWidget())) {
+					DiscussReturnFocus = QApplication::focusWidget();
+				}
+				ConversationLayout->insertWidget(0, ConversationPanel, 1);
+				ConversationPanel->show();
+			}
+			ConversationPanel->set_discuss(discuss);
 		}
-		apply_drawer_widths();
+		auto* page = ComparisonPage;
+		if (overview) {
+			page = OverviewPage;
+		}
+		if (discuss) {
+			page = DiscussPage;
+		}
+		if (CompositionPage != nullptr) {
+			page = CompositionPage;
+		}
+		CentreStack->setCurrentWidget(page);
+		apply_drawer_layout();
+		if (enteringDiscuss && CompositionPage == nullptr && DiscussReturnFocus) {
+			DiscussReturnFocus->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::open_review_composition(const bool aInline)
+	{
+		if (CompositionPage == nullptr) {
+			CompositionReturnFocus = QApplication::focusWidget();
+		}
+		CompositionPage = aInline ? ComposeInlinePage : ComposeReviewPage;
+		apply_modality_surface();
+		(aInline ? ReviewEditor->body_editor() : ReviewSubmissionEditor->body_editor())->setFocus(Qt::OtherFocusReason);
+	}
+
+	void workbench_window::close_review_composition()
+	{
+		CompositionPage = nullptr;
+		apply_modality_surface();
+		if (CompositionReturnFocus && CompositionReturnFocus->isVisible()) {
+			CompositionReturnFocus->setFocus(Qt::OtherFocusReason);
+		}
 	}
 
 	void workbench_window::enter_overview_at(
@@ -4832,6 +4904,14 @@ namespace bpr::qt {
 				!= static_cast<int>(application::github_conversation_anchor_availability::current)) {
 			return false;
 		}
+		const auto context = ComparisonSurface->current_context();
+		const auto path    = root.data(
+									 github_conversation_model::path_role)
+								 .toString();
+		if (!context.has_value() || path.isEmpty()
+			|| context->Key.File != core::file_identity_of(path.toStdString())) {
+			return false;
+		}
 		bool       validLine = false;
 		const auto oneBased  = root.data(github_conversation_model::line_role).toULongLong(&validLine);
 		const auto sideValue = root.data(github_conversation_model::diff_side_role);
@@ -4840,7 +4920,10 @@ namespace bpr::qt {
 			return false;
 		}
 		const auto side = github_conversation_source_side(sideValue.toInt());
-		if (!side.has_value()) {
+		if (!side.has_value()
+			|| (*side == core::diff_side::left
+					? !LeftConversationEndpointCurrent
+					: !RightConversationEndpointCurrent)) {
 			return false;
 		}
 		return ComparisonSurface->select_conversation_line(*side, static_cast<std::uint32_t>(oneBased - 1U));
@@ -6055,15 +6138,8 @@ namespace bpr::qt {
 	void workbench_window::apply_github_content_command(
 		const core::github_command_projection& aCommand)
 	{
-		if (aCommand.Id != core::github_command_id::show_review_threads) {
-			return;
-		}
-		detail::apply_action_state(
-			ShowReviewThreadsAction,
-			ConversationPanel->reveal_button(),
-			aCommand.Enabled,
-			aCommand.DisabledReason,
-			QStringLiteral("Focus the review-thread conversations"));
+		// Conversation loading is automatic; no focus-only reveal command remains.
+		static_cast<void>(aCommand);
 	}
 
 	void workbench_window::apply_github_host_diagnostic(
@@ -6189,13 +6265,6 @@ namespace bpr::qt {
 		for (auto* const action : ReceiptActions) {
 			refuseAction(action, QStringLiteral("Private review progress"));
 		}
-		refuseAction(
-			ShowReviewThreadsAction,
-			QStringLiteral("Review-thread resolution"));
-		refuseWidget(
-			ConversationPanel != nullptr ? ConversationPanel->reveal_button()
-										 : nullptr,
-			QStringLiteral("Review-thread resolution"));
 		refuseWidget(QueueRoleFilter, QStringLiteral("Queue role"));
 		refuseWidget(ReviewEditor, QStringLiteral("Publishing a review"));
 	}
@@ -6397,24 +6466,6 @@ namespace bpr::qt {
 		PullRequestStack->setProperty("githubPresentationState", state);
 
 		update_home_open_notice();
-	}
-
-	void workbench_window::focus_review_threads()
-	{
-		for (auto row = 0; row < ConversationPanel->model()->rowCount(); ++row) {
-			const auto modelIndex = ConversationPanel->model()->index(row, 0);
-			if (
-				modelIndex.data(github_conversation_model::kind_role).toInt()
-				== static_cast<int>(
-					application::github_conversation_kind::review_thread)) {
-				ConversationPanel->view()->expand(modelIndex);
-				ConversationPanel->view()->setCurrentIndex(modelIndex);
-				ConversationPanel->view()->scrollTo(
-					modelIndex, QAbstractItemView::PositionAtCenter);
-				break;
-			}
-		}
-		ConversationPanel->view()->setFocus(Qt::ShortcutFocusReason);
 	}
 
 	auto workbench_window::appearance_settings() const noexcept
@@ -6753,7 +6804,7 @@ namespace bpr::qt {
 
 	auto workbench_window::show_review_threads_action() const noexcept -> QAction*
 	{
-		return ShowReviewThreadsAction;
+		return nullptr;
 	}
 
 	auto workbench_window::conversation_panel() const noexcept
@@ -7356,6 +7407,8 @@ namespace bpr::qt {
 		append(EpochSelectors->right_selector());
 		append(EpochSelectors->left_oid_editor());
 		append(EpochSelectors->right_oid_editor());
+		append(findChild<QToolButton*>(QStringLiteral("composeReviewActionButton")));
+		append(findChild<QToolButton*>(QStringLiteral("composeInlineDraftActionButton")));
 		// One stop stands for the whole composed comparison surface: its last.
 		// Everything before it inside that surface is RFC-BPR-0004's declared
 		// order, which the shell reports through that card rather than restating
@@ -8146,12 +8199,6 @@ namespace bpr::qt {
 		const core::workbench_drawer aDrawer,
 		const std::uint32_t          aWidth)
 	{
-		// The scroll column can be wider than a manually narrowed drawer.
-		// Keep the exact review identity and controls inside its visible width.
-		if (aDrawer == core::workbench_drawer::conversations && ReviewSubmissionEditor != nullptr) {
-			ReviewSubmissionEditor->setMaximumWidth(std::max(1, Drawers[1].Panel->contentsRect().width()));
-		}
-
 		// Geometry this window just applied is not a user resize. Reporting it
 		// would let a width the window could merely grant overwrite the width the
 		// host persisted.
@@ -8205,6 +8252,18 @@ namespace bpr::qt {
 		Drawers[0].Panel->adopt(presented_files_state());
 		Drawers[1].Panel->adopt(DrawerStates.Conversations);
 		Drawers[2].Panel->adopt(presented_repositories_state());
+		// These full-content pages borrow the center width without changing the
+		// retained drawer choices. Returning restores the same code arrangement.
+		const auto fullPage = CompositionPage != nullptr
+			|| (Modality != nullptr
+				&& Modality->current() == review_modality::discuss);
+		for (auto& entry : Drawers) {
+			entry.Panel->setVisible(
+				!fullPage
+				&& (controls
+					|| entry.Panel->state()
+						== core::workbench_drawer_state::expanded));
+		}
 		ApplyingLayout = false;
 		apply_drawer_widths();
 		update_dif_presentation();
@@ -8308,6 +8367,11 @@ namespace bpr::qt {
 
 	auto workbench_window::central_sizes() const -> QList<int>
 	{
+		if (CompositionPage != nullptr
+			|| (Modality != nullptr
+				&& Modality->current() == review_modality::discuss)) {
+			return { 0, 0, CentralSplitter->width(), 0 };
+		}
 		const auto granted = [](const std::uint32_t aWidth, const std::uint32_t aDefault) {
 			// An arithmetic guard on a host-owned value, not a second clamp: the
 			// host already refuses to retain a width outside its own bound. A
@@ -8331,13 +8395,9 @@ namespace bpr::qt {
 		const auto files          = presented_files_state() == core::workbench_drawer_state::expanded
 			? granted(widths.FilesWidth, defaults.FilesWidth)
 			: collapsedWidth;
-		// [[BPR-0649]]. In Discuss the conversation is at least its Discuss
-		// width; the persisted width is not changed by it.
-		const auto discuss = Modality != nullptr && Modality->current() == review_modality::discuss;
 		const auto conversations
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
-			? std::max(granted(widths.ConversationsWidth, conversation_drawer_default_width),
-					   discuss ? discuss_conversation_width : 0)
+			? granted(widths.ConversationsWidth, conversation_drawer_default_width)
 			: collapsedWidth;
 		const auto repositories
 			= presented_repositories_state() == core::workbench_drawer_state::expanded

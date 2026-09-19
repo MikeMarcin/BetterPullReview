@@ -660,7 +660,11 @@ namespace {
 		// the action reports the action.
 		auto chosen  = std::vector<std::string>{ };
 		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
-		view.set_thread_dispatch([&chosen](const std::string& aId) { chosen.push_back(aId); });
+		view.set_thread_dispatch([&chosen](const std::string& aId, const bool aOpenDetail) {
+			if (aOpenDetail) {
+				chosen.push_back(aId);
+			}
+		});
 		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) {
 			actions.emplace_back(aAction, aId);
 		});
@@ -670,6 +674,16 @@ namespace {
 		QApplication::sendEvent(view.viewport(), &press);
 		expect(chosen == std::vector<std::string>{ "t-near" } && view.current_thread() == "t-near",
 			   "a press on a card makes its thread current and reports it");
+		auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
+		QApplication::sendEvent(&view, &down);
+		const auto afterArrow = view.current_thread();
+		expect(chosen == std::vector<std::string>{ "t-near" }
+				   && !afterArrow.empty() && afterArrow != "t-near",
+			   "an arrow changes index selection without explicitly opening detail");
+		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(&view, &enter);
+		expect(chosen == std::vector<std::string>{ "t-near", afterArrow },
+			   "Return explicitly opens the currently selected index entry");
 		const auto action      = view.cards()[0].Actions.front().second.center();
 		auto       pressAction = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ action }, QPointF{ action },
 											  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };

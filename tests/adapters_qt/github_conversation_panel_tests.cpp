@@ -4,10 +4,14 @@
 #include "bpr/qt/github_thread_map.hpp"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QScrollBar>
 #include <QToolButton>
 #include <QTreeView>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <cstdlib>
@@ -141,7 +145,7 @@ namespace {
 	auto test_discuss_widens_into_list_map_and_feed() -> void
 	{
 		auto panel = qt::github_conversation_panel{ };
-		panel.resize(720, 600);
+		panel.resize(1400, 900);
 		panel.show();
 		process_events();
 		panel.adopt({ root("thread", "src/file.cpp"), reply("c1", "thread") },
@@ -163,7 +167,7 @@ namespace {
 				   && panel.cards()->isVisibleTo(&panel) && panel.view()->isVisibleTo(&panel),
 			   "Discuss puts the tree and the map in the left column and the feed beside them");
 		expect(panel.discuss_summary()->isVisibleTo(&panel)
-				   && panel.discuss_summary()->text() == QStringLiteral("1 threads, 1 unresolved, 0 new"),
+				   && panel.discuss_summary()->text() == QStringLiteral("1 conversations, 1 unresolved, 0 new"),
 			   "the summary restates the feed's counts");
 		panel.filter_unread_button()->setChecked(true);
 		process_events();
@@ -493,6 +497,189 @@ namespace {
 		expect(panel.model()->rowCount() == 0,
 			   "an invalid projected side cannot match a right-side source selection");
 	}
+
+	void test_pr_wide_index_and_selected_detail()
+	{
+		qt::github_conversation_panel panel;
+		panel.resize(1400, 900);
+		panel.set_anchor_file(core::file_identity_of("absent.cpp"));
+		panel.set_anchor_line(core::source_line_ref{ .Side = core::diff_side::right, .Line = 99U });
+		panel.set_current_endpoint_placement(false, false);
+		auto data = two_files();
+		data.push_back(conversation{ .Id = "issue", .Kind = application::github_conversation_kind::issue_comment, .Body = "PR-wide comment" });
+		data.push_back(conversation{ .Id = "review", .Kind = application::github_conversation_kind::review, .Body = "Review summary" });
+		panel.adopt(data, QStringLiteral("Accepted conversations"));
+		panel.set_discuss(true);
+		panel.show();
+		process_events();
+		expect(shown(panel).size() == data.size() && panel.cards()->thread_count() == 4U,
+			   "Discuss includes both files, PR comments and reviews despite unavailable comparison and absent code anchor");
+		expect(panel.reveal_button() == nullptr, "focus-only reveal control is removed");
+		panel.view()->setCurrentIndex(panel.model()->index_for_id("right-reply"));
+		process_events();
+		expect(panel.cards()->current_thread() == "right-root" && panel.thread_map()->focus_identity() == "right-reply",
+			   "exact post selection highlights its owning compact index entry and graph node");
+		for (auto row = 0; row < panel.model()->rowCount(); ++row) {
+			const auto id = panel.model()->id_for_index(panel.model()->index(row, 0));
+			expect(panel.view()->isRowHidden(row, { }) == (id != "right-root"), "only selected conversation has full bodies in detail");
+		}
+		for (const auto& card : panel.cards()->cards()) {
+			expect(std::ranges::none_of(card.Actions, [](const auto& aAction) { return aAction.first == qt::card_action::open_in_code; }),
+				   "unavailable exact endpoints never offer open in code");
+		}
+		panel.set_current_endpoint_placement(true, true);
+		expect(std::ranges::any_of(panel.cards()->cards(), [](const qt::thread_card& aCard) {
+				   return aCard.Id == "right-root" && std::ranges::any_of(aCard.Actions, [](const auto& aAction) { return aAction.first == qt::card_action::open_in_code; });
+			   }),
+			   "restored exact endpoints invalidate cached action geometry and offer open in code");
+		panel.set_current_endpoint_placement(false, false);
+		expect(std::ranges::all_of(panel.cards()->cards(), [](const qt::thread_card& aCard) {
+				   return std::ranges::none_of(aCard.Actions, [](const auto& aAction) { return aAction.first == qt::card_action::open_in_code; });
+			   }),
+			   "losing exact endpoint facts removes cached open-in-code actions");
+		panel.scope_this_file_button()->setChecked(true);
+		process_events();
+		expect(panel.cards()->thread_count() == 1U && panel.discuss_summary()->text().contains(QStringLiteral("pathless")),
+			   "explicit file scope excludes and explains pathless content");
+		panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters"))->click();
+		expect(panel.cards()->thread_count() == 4U && panel.anchor_file() == core::file_identity_of("absent.cpp"),
+			   "clear filters restores all content without changing code anchor");
+		panel.set_discuss(false);
+		panel.set_discuss(true);
+		expect(panel.model()->id_for_index(panel.view()->currentIndex()) == "right-reply", "Discuss round trip restores exact selected post");
+		panel.clear(QStringLiteral("Loading replacement"));
+		expect(panel.model()->rowCount() == 0 && panel.cards()->cards().empty() && panel.thread_map()->focus_identity().empty(),
+			   "authority clear removes every prior conversation identity");
+	}
+
+	void test_contextual_scope_survives_clear_and_refresh()
+	{
+		qt::github_conversation_panel panel;
+		panel.set_anchor_file(core::file_identity_of("src/left.cpp"));
+		panel.adopt(two_files(), QStringLiteral("Accepted"));
+		expect(panel.cards()->scope() == qt::cards_scope::this_file && panel.cards()->thread_count() == 1U,
+			   "Read begins with contextual cards");
+		panel.clear(QStringLiteral("Refreshing"));
+		panel.adopt(two_files(), QStringLiteral("Accepted replacement observation"));
+		expect(panel.cards()->scope() == qt::cards_scope::this_file && panel.cards()->thread_count() == 1U,
+			   "refresh gap does not expose whole-PR cards in contextual Read");
+		panel.set_discuss(true);
+		expect(panel.cards()->thread_count() == 2U, "entering Discuss establishes PR-wide scope");
+		panel.set_discuss(false);
+		expect(panel.cards()->thread_count() == 1U, "returning to Read restores contextual scope");
+		panel.set_discuss(true);
+		expect(panel.cards()->thread_count() == 2U, "returning to Discuss preserves independent PR-wide scope");
+	}
+
+	void test_index_arrows_retain_focus_until_explicit_activation()
+	{
+		qt::github_conversation_panel panel;
+		panel.resize(500, 900);
+		panel.adopt(two_files(), QStringLiteral("Accepted conversations"));
+		panel.set_discuss(true);
+		panel.show();
+		panel.activateWindow();
+		panel.cards()->setFocus(Qt::OtherFocusReason);
+		panel.cards()->set_current_thread("left-root");
+		process_events();
+
+		expect(panel.cards()->isVisible() && !panel.discuss_column()->isVisible()
+				   && panel.cards()->hasFocus(),
+			   "narrow Discuss begins in the focused conversation index");
+		auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
+		QApplication::sendEvent(panel.cards(), &down);
+		process_events();
+		expect(panel.cards()->current_thread() == "right-root"
+				   && panel.cards()->isVisible() && !panel.discuss_column()->isVisible()
+				   && panel.cards()->hasFocus(),
+			   "Down advances the index without stealing focus or opening detail");
+		QApplication::sendEvent(panel.cards(), &down);
+		process_events();
+		expect(panel.cards()->current_thread() == "left-root"
+				   && panel.cards()->isVisible() && !panel.discuss_column()->isVisible()
+				   && panel.cards()->hasFocus(),
+			   "repeated arrow navigation remains in the index and wraps by identity");
+
+		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(panel.cards(), &enter);
+		process_events();
+		expect(!panel.cards()->isVisible() && panel.discuss_column()->isVisible()
+				   && panel.view()->hasFocus(),
+			   "Return explicitly opens the selected full-body detail and moves focus once");
+	}
+
+	void test_long_detail_scroll_routes()
+	{
+		for (const auto points : { 13, 20 }) {
+			for (const auto width : { 900, 1400 }) {
+				qt::github_conversation_panel panel;
+				auto                          font = panel.font();
+				font.setPointSize(points);
+				panel.setFont(font);
+				panel.resize(width, 900);
+				auto data = two_files();
+				data[1].Body.clear();
+				for (auto line = 0; line < 120; ++line) {
+					data[1].Body += "A complete long comment line with a stable reading position.\n";
+				}
+				data[1].Body += "FINAL SENTINEL";
+				panel.adopt(data, QStringLiteral("Accepted"));
+				panel.set_discuss(true);
+				panel.show();
+				process_events();
+				// Enter detail through the index, including the narrow page route.
+				auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+				QApplication::sendEvent(panel.cards(), &enter);
+				panel.view()->setCurrentIndex(panel.model()->index_for_id("left-reply"));
+				process_events();
+				auto* const view = panel.view();
+				auto* const bar  = view->verticalScrollBar();
+				expect(view->verticalScrollMode() == QAbstractItemView::ScrollPerPixel && bar->maximum() > view->viewport()->height(),
+					   "one long post has a pixel reading range beyond a viewport");
+				const auto compactHeight = panel.cards()->cards().front().Rect.height();
+				expect(compactHeight < 400, "compact index height is independent of long body length");
+				bar->setValue(0);
+				for (const auto key : { Qt::Key_PageDown, Qt::Key_Space }) {
+					const auto before = bar->value();
+					auto       event  = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
+					QApplication::sendEvent(view, &event);
+					expect(bar->value() > before, "paging scrolls within the same long comment");
+				}
+				const auto saved = bar->value();
+				data.back().Body += " refreshed";
+				panel.adopt(data, QStringLiteral("Refreshed"));
+				process_events();
+				expect(bar->value() == saved && panel.model()->id_for_index(view->currentIndex()) == "left-reply", "refresh preserves reading offset and exact post");
+				panel.set_discuss(false);
+				panel.set_discuss(true);
+				process_events();
+				expect(bar->value() == saved && panel.model()->id_for_index(view->currentIndex()) == "left-reply", "mode round trip preserves reading offset and exact post");
+				const auto readingPost = panel.model()->id_for_index(view->indexAt(QPoint{ 1, 1 }));
+				panel.resize(width + 100, 900);
+				process_events();
+				expect(panel.model()->id_for_index(view->indexAt(QPoint{ 1, 1 })) == readingPost, "resize retains the logical post being read");
+				auto end = QKeyEvent{ QEvent::KeyPress, Qt::Key_End, Qt::NoModifier };
+				QApplication::sendEvent(view, &end);
+				expect(bar->value() == bar->maximum(), "End reaches the final full-body extent");
+				expect(view->visualRect(panel.model()->index_for_id("left-deep")).bottom() <= view->viewport()->height(), "the final reply fits at the end of the reading range");
+				auto boundary = QWheelEvent{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, QPoint{ 0, -45 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+				QApplication::sendEvent(view->viewport(), &boundary);
+				expect(boundary.isAccepted() && bar->value() == bar->maximum(), "the detail consumes boundary wheel input without transferring ownership");
+				auto pageUp = QKeyEvent{ QEvent::KeyPress, Qt::Key_PageUp, Qt::NoModifier };
+				QApplication::sendEvent(view, &pageUp);
+				expect(bar->value() < bar->maximum(), "PageUp moves backward inside the long post");
+				auto home = QKeyEvent{ QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier };
+				QApplication::sendEvent(view, &home);
+				for (const auto pixels : { false, true }) {
+					const auto before = bar->value();
+					auto       wheel  = QWheelEvent{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, pixels ? QPoint{ 0, -45 } : QPoint{ }, pixels ? QPoint{ } : QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+					QApplication::sendEvent(view->viewport(), &wheel);
+					expect(wheel.isAccepted() && bar->value() > before, "angle and pixel wheel events advance the detail owner");
+				}
+				std::cout << "long-detail width=" << width << " font=" << points << " scale=" << panel.devicePixelRatioF() << " range=" << bar->maximum() << '\n';
+			}
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -512,6 +699,10 @@ auto main(int argc, char** argv) -> int
 	test_exact_source_anchor_filters_file_side_and_line();
 	test_unplaced_anchor_wording_is_explicit();
 	test_invalid_projected_side_is_never_guessed_as_right();
+	test_pr_wide_index_and_selected_detail();
+	test_contextual_scope_survives_clear_and_refresh();
+	test_index_arrows_retain_focus_until_explicit_activation();
+	test_long_detail_scroll_routes();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

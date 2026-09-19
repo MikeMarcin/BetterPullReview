@@ -138,6 +138,11 @@ namespace bpr::qt {
 			if (aIndex.data(github_conversation_model::deleted_role).toBool()) {
 				facts.push_back(QStringLiteral("Deleted"));
 			}
+			const auto description = aIndex.data(Qt::AccessibleDescriptionRole).toString();
+			const auto anchor      = description.indexOf(QStringLiteral("Anchor unavailable:"));
+			if (anchor >= 0) {
+				facts.push_back(description.mid(anchor));
+			}
 
 			result.Facts = facts.join(QStringLiteral("  ·  "));
 			return result;
@@ -183,7 +188,9 @@ namespace bpr::qt {
 				return 0.0;
 			}
 
-			QTextLayout layout{ aText, aFont, aDevice };
+			auto paragraphs = aText;
+			paragraphs.replace(QLatin1Char('\n'), QChar::LineSeparator);
+			QTextLayout layout{ paragraphs, aFont, aDevice };
 			QTextOption textOption;
 			textOption.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 			layout.setTextOption(textOption);

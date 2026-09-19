@@ -10916,6 +10916,7 @@ namespace bpr::app {
 					&& Window != nullptr && Window->review_editor() != nullptr
 					&& LatestAgentSession.has_value()
 					&& LatestAgentSession->Id == aOutcome.Session) {
+					Window->open_review_composition(true);
 					Window->present_dif_workshop(
 						*LatestAgentSession,
 						aOutcome.ActionGeneration,

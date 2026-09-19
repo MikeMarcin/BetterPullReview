@@ -634,6 +634,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto finding_queue() const noexcept -> finding_queue_view*;
 		[[nodiscard]] auto review_submission_editor_view() const noexcept -> review_submission_editor*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
+		/// \brief Opens a retained editor page without changing or publishing its draft.
+		void open_review_composition(bool aInline = false);
+		/// \brief Returns to the invoking surface and focus without submitting.
+		void               close_review_composition();
 		[[nodiscard]] auto defect_card() const noexcept -> defect_card_view*;
 		[[nodiscard]] auto classify_defect_action() const noexcept -> QAction*;
 		[[nodiscard]] auto previous_defect_action() const noexcept -> QAction*;
@@ -918,7 +922,6 @@ namespace bpr::qt {
 		/// \brief Presents the observed inline conversation, or says it was not.
 		void apply_public_preview_conversation();
 		void update_public_preview_title();
-		void focus_review_threads();
 		void announce_github_presentation_update();
 		void dispatch_navigation(std::size_t aIndex);
 		void dispatch_drawer_toggle(std::size_t aIndex);
@@ -1198,6 +1201,13 @@ namespace bpr::qt {
 		bool                                                         OverviewFileFactsDirty = true;
 		QStackedWidget*                                              CentreStack            = nullptr;
 		QWidget*                                                     ComparisonPage         = nullptr;
+		QWidget*                                                     DiscussPage            = nullptr;
+		QVBoxLayout*                                                 ConversationLayout     = nullptr;
+		QScrollArea*                                                 ComposeReviewPage      = nullptr;
+		QScrollArea*                                                 ComposeInlinePage      = nullptr;
+		QWidget*                                                     CompositionPage        = nullptr;
+		QPointer<QWidget>                                            CompositionReturnFocus;
+		QPointer<QWidget>                                            DiscussReturnFocus;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 
@@ -1357,10 +1367,9 @@ namespace bpr::qt {
 		QLabel*                                            EmptyStateTitleLabel = nullptr;
 		QLabel*                                            EmptyStateBodyLabel  = nullptr;
 		QString                                            LastGithubAnnouncement;
-		QAction*                                           GithubConnectAction     = nullptr;
-		QAction*                                           GithubOpenAction        = nullptr;
-		QAction*                                           GithubRefreshAction     = nullptr;
-		QAction*                                           ShowReviewThreadsAction = nullptr;
+		QAction*                                           GithubConnectAction = nullptr;
+		QAction*                                           GithubOpenAction    = nullptr;
+		QAction*                                           GithubRefreshAction = nullptr;
 		application::setup_destination_dispatch            SetupDestinationDispatch;
 		std::optional<core::setup_request_id>              SetupDestinationRequest;
 		QPushButton*                                       SetupContinueButton     = nullptr;

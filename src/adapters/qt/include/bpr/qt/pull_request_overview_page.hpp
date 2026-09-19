@@ -27,6 +27,7 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	class appearance_profile;
+	class overview_description_view;
 
 	/// \brief The colours the overview's marks are drawn in.
 	///
@@ -167,14 +168,15 @@ namespace bpr::qt {
 	/// column is the pull request's identity, description and the files
 	/// table; the side column is the participants, what happened since my
 	/// last review, my review progress, and the one action. Every gesture
-	/// leaves through a semantic dispatch: the window turns it into the core's
-	/// file selection and the entry or file-row modality.
+	/// for review navigation leaves through a semantic dispatch. Description
+	/// expansion, focus and reading position remain local to this page.
 	class pull_request_overview_page final : public QWidget
 	{
 	public:
 		explicit pull_request_overview_page(QWidget* aParent = nullptr);
 
-		void               present(const application::pull_request_overview_projection& aProjection);
+		void present(const application::pull_request_overview_projection& aProjection);
+		/// \brief Clears text and local reading state on the owner's exact authority invalidation.
 		void               clear();
 		[[nodiscard]] auto presented() const noexcept -> bool;
 		/// \brief [[BPR-0671]]. Takes the commit-oid disclosure the drawer's
@@ -206,6 +208,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 	private:
+		void set_description_expanded(bool aExpanded);
 		void set_value(overview_value aValue, const QString& aText, bool aHighlight);
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
 
@@ -213,15 +216,20 @@ namespace bpr::qt {
 		overview_colours                                             Colours;
 		overview_entry_dispatch                                      EntryDispatch;
 		overview_path_dispatch                                       FileDispatch;
-		QHBoxLayout*                                                 TechnicalRow = nullptr;
-		QLabel*                                                      Title        = nullptr;
-		QLabel*                                                      Summary      = nullptr;
-		QPlainTextEdit*                                              Body         = nullptr;
-		QLabel*                                                      FilesHeading = nullptr;
-		QTreeView*                                                   Files        = nullptr;
-		overview_file_model*                                         Model        = nullptr;
-		QVBoxLayout*                                                 Participants = nullptr;
-		QLabel*                                                      SinceHeading = nullptr;
+		QHBoxLayout*                                                 TechnicalRow    = nullptr;
+		QLabel*                                                      Title           = nullptr;
+		QLabel*                                                      Summary         = nullptr;
+		overview_description_view*                                   Body            = nullptr;
+		QWidget*                                                     Header          = nullptr;
+		QWidget*                                                     Side            = nullptr;
+		QLabel*                                                      EmptyBody       = nullptr;
+		QPushButton*                                                 ReadDescription = nullptr;
+		QPushButton*                                                 ReturnToFiles   = nullptr;
+		QLabel*                                                      FilesHeading    = nullptr;
+		QTreeView*                                                   Files           = nullptr;
+		overview_file_model*                                         Model           = nullptr;
+		QVBoxLayout*                                                 Participants    = nullptr;
+		QLabel*                                                      SinceHeading    = nullptr;
 		QLabel*                                                      Values[overview_value_count]{ };
 		QPushButton*                                                 Entry = nullptr;
 	};

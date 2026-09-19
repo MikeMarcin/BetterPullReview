@@ -100,13 +100,15 @@ namespace bpr::qt {
 	{
 		/// The thread root's identity; empty for the draft card.
 		std::string                    Id;
+		QString                        Kind;
 		QString                        Path;
 		std::optional<core::diff_side> Side;
 		/// The one-based line the thread sits on, when it has one.
 		std::optional<std::uint32_t> Line;
-		bool                         Resolved = false;
-		bool                         Outdated = false;
-		bool                         Draft    = false;
+		bool                         Resolved          = false;
+		bool                         Outdated          = false;
+		bool                         AnchorUnavailable = false;
+		bool                         Draft             = false;
 		/// How many of the posts are unread; the first post unread makes the
 		/// thread new.
 		std::size_t UnreadCount = 0U;
@@ -127,8 +129,9 @@ namespace bpr::qt {
 	};
 
 	/// \brief Answers where a one-based line is, in this view's viewport.
-	using card_line_locator    = std::function<std::optional<int>(core::diff_side, std::uint32_t)>;
-	using card_thread_dispatch = std::function<void(const std::string&)>;
+	using card_line_locator = std::function<std::optional<int>(core::diff_side, std::uint32_t)>;
+	/// \brief Reports an index selection and whether the gesture explicitly opens detail.
+	using card_thread_dispatch = std::function<void(const std::string&, bool)>;
 	using card_action_dispatch = std::function<void(card_action, const std::string&)>;
 	/// \brief Answers the code around a one-based line of a path, for the feed.
 	using card_excerpt_locator
@@ -175,7 +178,9 @@ namespace bpr::qt {
 		/// \brief Discuss's feed ([[BPR-0649]]): every thread as a card in
 		/// file order with its code excerpt, each post headed by author,
 		/// role and "replying to", and Reply, Mark read and Open in code.
-		void               set_feed(bool aFeed);
+		void set_feed(bool aFeed);
+		/// Compact navigation entries; complete bodies belong to the selected detail.
+		void               set_compact(bool aCompact);
 		[[nodiscard]] auto feed() const noexcept -> bool;
 		void               set_filters(discuss_filters aFilters);
 		[[nodiscard]] auto filters() const noexcept -> discuss_filters;
@@ -231,13 +236,15 @@ namespace bpr::qt {
 	private:
 		struct measured_card
 		{
+			QString                                    Label;
 			QString                                    Excerpt;
 			std::vector<QString>                       Bodies;
-			bool                                       Header   = false;
-			bool                                       Draft    = false;
-			bool                                       Resolved = false;
-			bool                                       Unread   = false;
-			int                                        Height   = 0;
+			bool                                       Header          = false;
+			bool                                       Draft           = false;
+			bool                                       Resolved        = false;
+			bool                                       Unread          = false;
+			bool                                       AnchorAvailable = false;
+			int                                        Height          = 0;
 			std::vector<QRect>                         Posts;
 			std::vector<std::pair<card_action, QRect>> Actions;
 		};
@@ -253,7 +260,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto card_height(const thread_card& aCard, int aWidth) const -> int;
 		void               measure(thread_card& aCard, int aWidth) const;
 		[[nodiscard]] auto to_content(QPoint aViewportPoint) const -> QPoint;
-		void               choose(std::size_t aCard);
+		void               choose(std::size_t aCard, bool aOpenDetail);
 		void               place_cards(bool aForce);
 
 		std::vector<application::github_conversation_projection> Retained;
@@ -272,6 +279,7 @@ namespace bpr::qt {
 		std::vector<thread_read_state>              ReadState;
 		bool                                        ReadStateKnown    = false;
 		bool                                        Feed              = false;
+		bool                                        Compact           = false;
 		bool                                        ResolutionOffered = false;
 		discuss_filters                             Filters;
 		QString                                     PullRequestAuthor;

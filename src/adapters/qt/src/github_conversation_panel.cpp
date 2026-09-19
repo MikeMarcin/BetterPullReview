@@ -6,19 +6,24 @@
 
 #include "github_presentation_text.hpp"
 
-#include <QAction>
-#include <QHBoxLayout>
+#include <QApplication>
+#include <QComboBox>
 #include <QHeaderView>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QResizeEvent>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <algorithm>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -27,6 +32,62 @@
 
 namespace bpr::qt {
 	namespace {
+		/// A long post may exceed a page: keyboard navigation must scroll inside it.
+		class conversation_detail_view final : public QTreeView
+		{
+		public:
+			using QTreeView::QTreeView;
+
+		protected:
+			void updateGeometries() override
+			{
+				QTreeView::updateGeometries();
+				verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				auto* const bar = verticalScrollBar();
+				switch (aEvent->key()) {
+				case Qt::Key_PageDown: bar->setValue(bar->value() + bar->pageStep()); break;
+				case Qt::Key_PageUp:   bar->setValue(bar->value() - bar->pageStep()); break;
+				case Qt::Key_Home:     bar->setValue(bar->minimum()); break;
+				case Qt::Key_End:      bar->setValue(bar->maximum()); break;
+				case Qt::Key_Space:
+					bar->setValue(bar->value() + (aEvent->modifiers().testFlag(Qt::ShiftModifier) ? -1 : 1) * bar->pageStep());
+					break;
+				default: QTreeView::keyPressEvent(aEvent); return;
+				}
+				aEvent->accept();
+			}
+			void wheelEvent(QWheelEvent* aEvent) override
+			{
+				const auto delta = !aEvent->pixelDelta().isNull()
+					? static_cast<double>(aEvent->pixelDelta().y())
+					: static_cast<double>(aEvent->angleDelta().y()) * QApplication::wheelScrollLines() * fontMetrics().lineSpacing() / 120.0;
+				WheelRemainder += delta;
+				const auto pixels = static_cast<int>(WheelRemainder);
+				WheelRemainder -= pixels;
+				verticalScrollBar()->setValue(verticalScrollBar()->value() - pixels);
+				// This viewport owns reading even at its boundary; a surrounding
+				// drawer must not unexpectedly move when the final post is reached.
+				aEvent->accept();
+			}
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				const auto first    = indexAt(QPoint{ 1, 1 });
+				const auto before   = visualRect(first);
+				const auto fraction = before.height() > 0 ? static_cast<double>(-before.top()) / before.height() : 0.0;
+				QTreeView::resizeEvent(aEvent);
+				doItemsLayout();
+				if (first.isValid()) {
+					scrollTo(first, QAbstractItemView::PositionAtTop);
+					verticalScrollBar()->setValue(verticalScrollBar()->value() + static_cast<int>(fraction * visualRect(first).height()));
+				}
+			}
+
+		private:
+			double WheelRemainder = 0.0;
+		};
 		[[nodiscard]] auto endpoint_is_current(
 			const application::github_conversation_projection& aNode,
 			const bool                                         aLeftHasCurrentDiffRevision,
@@ -173,34 +234,9 @@ namespace bpr::qt {
 		AvailabilityLabel->setWordWrap(true);
 		detail::set_plain_text_label(AvailabilityLabel);
 
-		// BPR-0527. Stacked, for the reason BPR-0506 stacked the finding
-		// actions and BPR-0520 the defect rows. This panel is the top of the
-		// conversations drawer's column, which scrolls down and never
-		// sideways, so a row wider than the drawer loses its last control
-		// rather than pushing it offscreen. *Show review threads* was
-		// measured 17 px past the right edge at the drawer's default width.
-		//
-		// Not because of this row, as it turned out. The sentence wraps, so
-		// horizontal it asked for 198 px, and what put the button past the
-		// edge was the widest row elsewhere in the column stretching every
-		// panel beside it. Stacked anyway: the default width is the only
-		// width that measurement was about, and the drawer drags down to
-		// `minimum_workbench_drawer_width`. A column cannot clip - the
-		// sentence wraps to whatever width there is and the button is as wide
-		// as its own label - so this row holds at every width, not one.
-		//
-		// The stretch goes with the row. It gave the sentence the width the
-		// button did not take, and a column has nothing to divide. The action,
-		// its label, its object name, its accessible name, and the order it is
-		// read and tabbed in are untouched.
+		// Accepted content is shown automatically; there is no focus-only reveal action.
 		auto* const header = new QVBoxLayout;
 		header->addWidget(AvailabilityLabel);
-		RevealButton = new QToolButton{ this };
-		RevealButton->setObjectName(QStringLiteral("showReviewThreadsButton"));
-		RevealButton->setAccessibleName(QStringLiteral("Show review threads"));
-		RevealButton->setFocusPolicy(Qt::StrongFocus);
-		RevealButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-		header->addWidget(RevealButton);
 		layout->addLayout(header);
 
 		Stack = new QStackedWidget{ this };
@@ -211,11 +247,8 @@ namespace bpr::qt {
 
 		Model = new github_conversation_model{ this };
 
-		// The loaded state shows the same forest twice. The map answers "where
-		// am I in this thread" - the question BPR-0211 recorded a reviewer
-		// losing the answer to at depth - and the tree below it answers "what
-		// does this comment say". A splitter, because which of those a reviewer
-		// wants more is not a decision this panel gets to make for them.
+		// The index selects a conversation, the graph locates a post, and
+		// only the selected detail paints complete bodies.
 		auto* const loaded = new QSplitter{ Qt::Vertical, Stack };
 		Loaded             = loaded;
 		loaded->setObjectName(QStringLiteral("githubConversationLoaded"));
@@ -231,7 +264,7 @@ namespace bpr::qt {
 		auto* const cardsLayout = new QVBoxLayout{ cardsPane };
 		cardsLayout->setContentsMargins(0, 0, 0, 0);
 		cardsLayout->setSpacing(2);
-		auto* const scopeRow = new QHBoxLayout;
+		auto* const scopeRow = new QVBoxLayout;
 		scopeRow->setContentsMargins(4, 0, 4, 0);
 		scopeRow->setSpacing(4);
 		ScopeThisFile = new QToolButton{ cardsPane };
@@ -246,7 +279,7 @@ namespace bpr::qt {
 		ScopeThisFile->setFocusPolicy(Qt::StrongFocus);
 		ScopeWholePr = new QToolButton{ cardsPane };
 		ScopeWholePr->setObjectName(QStringLiteral("conversationScopeWholePullRequest"));
-		ScopeWholePr->setText(QStringLiteral("Whole PR"));
+		ScopeWholePr->setText(QStringLiteral("All PR conversations"));
 		ScopeWholePr->setAccessibleName(QStringLiteral("Whole pull request"));
 		ScopeWholePr->setAccessibleDescription(QStringLiteral(
 			"Lists every thread of the pull request in file order"));
@@ -255,6 +288,19 @@ namespace bpr::qt {
 		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
 		scopeRow->addWidget(ScopeThisFile);
 		scopeRow->addWidget(ScopeWholePr);
+		DiscussFileChoice = new QComboBox{ cardsPane };
+		DiscussFileChoice->setObjectName(QStringLiteral("conversationFileScope"));
+		DiscussFileChoice->setAccessibleName(QStringLiteral("Conversation file scope"));
+		DiscussFileChoice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+		DiscussFileChoice->setMinimumContentsLength(12);
+		DiscussFileChoice->hide();
+		scopeRow->addWidget(DiscussFileChoice);
+		connect(DiscussFileChoice, &QComboBox::currentTextChanged, this, [this](const QString& aPath) {
+			DiscussFile = aPath.isEmpty() ? std::nullopt : std::optional{ core::file_identity_of(aPath.toStdString()) };
+			if (Discuss) {
+				refresh_projection();
+			}
+		});
 		// [[BPR-0649]]. Discuss's two other filters, over the same feed.
 		FilterUnread = new QToolButton{ cardsPane };
 		FilterUnread->setObjectName(QStringLiteral("conversationFilterUnread"));
@@ -274,8 +320,20 @@ namespace bpr::qt {
 		scopeRow->addWidget(FilterUnread);
 		scopeRow->addWidget(FilterUnresolved);
 		scopeRow->addStretch(1);
+		auto* const clearFilters = new QToolButton{ cardsPane };
+		clearFilters->setObjectName(QStringLiteral("conversationClearFilters"));
+		clearFilters->setText(QStringLiteral("Clear filters"));
+		clearFilters->setFocusPolicy(Qt::StrongFocus);
+		connect(clearFilters, &QToolButton::clicked, this, [this] {
+			ScopeWholePr->setChecked(true);
+			FilterUnread->setChecked(false);
+			FilterUnresolved->setChecked(false);
+		});
+		scopeRow->addWidget(clearFilters);
 		cardsLayout->addLayout(scopeRow);
 		Cards = new conversation_cards_view{ cardsPane };
+		Cards->set_compact(true);
+		Cards->setAccessibleName(QStringLiteral("Conversation index"));
 		cardsLayout->addWidget(Cards, 1);
 		Notice = new QLabel{ cardsPane };
 		Notice->setObjectName(QStringLiteral("conversationNotice"));
@@ -285,6 +343,7 @@ namespace bpr::qt {
 		DiscussSummary = new QLabel{ cardsPane };
 		DiscussSummary->setObjectName(QStringLiteral("conversationDiscussSummary"));
 		DiscussSummary->setAccessibleName(QStringLiteral("Threads summary"));
+		DiscussSummary->setWordWrap(true);
 		detail::set_plain_text_label(DiscussSummary);
 		DiscussSummary->hide();
 		cardsLayout->addWidget(Notice);
@@ -297,7 +356,16 @@ namespace bpr::qt {
 		};
 		connect(FilterUnread, &QToolButton::toggled, this, [applyFilters](bool) { applyFilters(); });
 		connect(FilterUnresolved, &QToolButton::toggled, this, [applyFilters](bool) { applyFilters(); });
-		Cards->set_layout_observer([this] { refresh_summary(); });
+		Cards->set_layout_observer([this] {
+			VisibleRoots.clear();
+			for (const auto& card : Cards->cards()) {
+				VisibleRoots.insert(card.Id);
+			}
+			refresh_summary();
+			if (View != nullptr) {
+				refresh_detail();
+			}
+		});
 		connect(ScopeThisFile, &QToolButton::toggled, this, [this](const bool aChecked) {
 			if (aChecked) {
 				Cards->set_scope(cards_scope::this_file);
@@ -308,10 +376,15 @@ namespace bpr::qt {
 				Cards->set_scope(cards_scope::whole_pull_request);
 			}
 		});
-		Cards->set_thread_dispatch([this](const std::string& aIdentity) {
+		Cards->set_thread_dispatch([this](const std::string& aIdentity, const bool aOpenDetail) {
 			const auto target = Model->index_for_id(aIdentity);
 			if (target.isValid()) {
 				View->setCurrentIndex(target);
+				if (aOpenDetail) {
+					DetailOpened = true;
+					arrange_discuss();
+					View->setFocus(Qt::OtherFocusReason);
+				}
 			}
 		});
 		loaded->addWidget(cardsPane);
@@ -336,9 +409,9 @@ namespace bpr::qt {
 		mapLayout->addWidget(ThreadMapBranch);
 		loaded->addWidget(mapPane);
 
-		View = new QTreeView{ loaded };
+		View = new conversation_detail_view{ loaded };
 		View->setObjectName(QStringLiteral("githubConversationView"));
-		View->setAccessibleName(QStringLiteral("Read-only GitHub conversations"));
+		View->setAccessibleName(QStringLiteral("Selected conversation detail"));
 		View->setAccessibleDescription(
 			QStringLiteral("Reviews, review threads, and pull request comments"));
 		View->setModel(Model);
@@ -357,6 +430,9 @@ namespace bpr::qt {
 		// Rows are as tall as their comment, so no two are alike and none of
 		// them can be assumed uniform.
 		View->setUniformRowHeights(false);
+		View->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+		View->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		View->header()->setSectionResizeMode(QHeaderView::Stretch);
 		View->setTextElideMode(Qt::ElideNone);
 		View->header()->hide();
 		View->setItemDelegate(new github_conversation_delegate{ View });
@@ -366,7 +442,7 @@ namespace bpr::qt {
 		// minimum in an ordinary window, which showed a highlighted branch
 		// whose end was off-screen - the exact failure the owner's
 		// "show the full branch" direction is about.
-		loaded->setStretchFactor(0, 2);
+		loaded->setStretchFactor(0, 0);
 		loaded->setStretchFactor(1, 0);
 		loaded->setStretchFactor(2, 1);
 		Stack->addWidget(loaded);
@@ -380,6 +456,16 @@ namespace bpr::qt {
 		DiscussColumn->setObjectName(QStringLiteral("conversationDiscussColumn"));
 		auto* const column = new QVBoxLayout{ DiscussColumn };
 		column->setContentsMargins(0, 0, 0, 0);
+		BackToIndex = new QToolButton{ DiscussColumn };
+		BackToIndex->setObjectName(QStringLiteral("conversationBackToIndex"));
+		BackToIndex->setText(QStringLiteral("Back to conversations"));
+		BackToIndex->setFocusPolicy(Qt::StrongFocus);
+		column->addWidget(BackToIndex);
+		connect(BackToIndex, &QToolButton::clicked, this, [this] {
+			DetailOpened = false;
+			arrange_discuss();
+			Cards->setFocus(Qt::OtherFocusReason);
+		});
 		DiscussSplitter->addWidget(DiscussColumn);
 		Stack->addWidget(DiscussSplitter);
 		layout->addWidget(Stack, 1);
@@ -398,23 +484,98 @@ namespace bpr::qt {
 			View->selectionModel(),
 			&QItemSelectionModel::currentChanged,
 			this,
-			[this](const QModelIndex&) { synchronize_map_focus(); });
+			[this](const QModelIndex& aIndex) {
+				synchronize_map_focus();
+				View->expandAll();
+				View->scrollTo(aIndex, QAbstractItemView::PositionAtTop);
+			});
 
-		setTabOrder(RevealButton, ScopeThisFile);
 		setTabOrder(ScopeThisFile, ScopeWholePr);
-		setTabOrder(ScopeWholePr, Cards);
-		setTabOrder(Cards, ThreadMap);
+		setTabOrder(ScopeWholePr, DiscussFileChoice);
+		setTabOrder(DiscussFileChoice, FilterUnread);
+		setTabOrder(FilterUnread, FilterUnresolved);
+		setTabOrder(FilterUnresolved, clearFilters);
+		setTabOrder(clearFilters, Cards);
+		setTabOrder(Cards, BackToIndex);
+		setTabOrder(BackToIndex, ThreadMap);
 		setTabOrder(ThreadMap, View);
 	}
 
 	void github_conversation_panel::synchronize_map_focus()
 	{
+		refresh_detail();
 		// Not announced: the tree the reviewer moved in has already said what
 		// is now selected, and the map echoing it makes one gesture speak twice.
 		ThreadMap->set_focus_identity(
 			Model->id_for_index(View->currentIndex()), false);
 		ThreadMapBranch->setText(ThreadMap->branch_text());
-		Cards->set_current_thread(Model->id_for_index(View->currentIndex()));
+		Cards->set_current_thread(DetailRoot);
+	}
+
+	void github_conversation_panel::arrange_discuss()
+	{
+		if (!Discuss) {
+			CardsPane->show();
+			return;
+		}
+		const auto narrow = width() < fontMetrics().averageCharWidth() * 85;
+		BackToIndex->setVisible(narrow);
+		CardsPane->setVisible(!narrow || !DetailOpened);
+		DiscussColumn->setVisible(!narrow || DetailOpened);
+		MapPane->setMaximumHeight(fontMetrics().lineSpacing() * 10);
+	}
+
+	void github_conversation_panel::resizeEvent(QResizeEvent* aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		arrange_discuss();
+	}
+
+	void github_conversation_panel::refresh_detail()
+	{
+		auto root = View->currentIndex();
+		while (root.parent().isValid()) {
+			root = root.parent();
+		}
+		const auto rootId   = Model->id_for_index(root);
+		const auto admitted = !Discuss || VisibleRoots.contains(rootId);
+		if (Discuss) {
+			DiscussSelection = Model->id_for_index(View->currentIndex());
+		}
+		if (!DetailDirty && DetailRoot == rootId && DetailAdmitted == admitted) {
+			return;
+		}
+		if (DetailDirty) {
+			for (auto row = 0; row < Model->rowCount(); ++row) {
+				View->setRowHidden(row, { }, !admitted || Model->index(row, 0) != root);
+			}
+		} else {
+			const auto previousRoot = Model->index_for_id(DetailRoot);
+			if (previousRoot.isValid()) {
+				View->setRowHidden(previousRoot.row(), { }, true);
+			}
+			if (root.isValid()) {
+				View->setRowHidden(root.row(), { }, !admitted);
+			}
+		}
+		DetailDirty        = false;
+		DetailAdmitted     = admitted;
+		DetailRoot         = rootId;
+		auto       thread  = std::vector<application::github_conversation_projection>{ };
+		const auto collect = [&](const QModelIndex& aIndex, auto& aSelf) -> void {
+			const auto found = ShownPositions.find(Model->id_for_index(aIndex));
+			if (found != ShownPositions.end()) {
+				thread.push_back(Shown[found->second]);
+			}
+			for (auto row = 0; row < Model->rowCount(aIndex); ++row) {
+				aSelf(Model->index(row, 0, aIndex), aSelf);
+			}
+		};
+		if (admitted && root.isValid()) {
+			collect(root, collect);
+		}
+		ThreadMap->adopt(thread);
+		ThreadMapSummary->setText(ThreadMap->summary_text());
 	}
 
 	void github_conversation_panel::adopt(
@@ -428,7 +589,27 @@ namespace bpr::qt {
 			synchronize_map_focus();
 			return;
 		}
-		Retained = aConversations;
+		Retained            = aConversations;
+		const auto filePath = DiscussFileChoice->currentText();
+		{
+			const QSignalBlocker blocker{ DiscussFileChoice };
+			DiscussFileChoice->clear();
+			auto paths = std::set<std::string>{ };
+			for (const auto& node : Retained) {
+				if (!node.ParentId && !node.Path.empty()) {
+					paths.insert(node.Path);
+				}
+			}
+			for (const auto& path : paths) {
+				DiscussFileChoice->addItem(QString::fromStdString(path));
+			}
+			const auto restored = DiscussFileChoice->findText(filePath);
+			if (restored >= 0) {
+				DiscussFileChoice->setCurrentIndex(restored);
+			}
+		}
+		DiscussFile = DiscussFileChoice->currentText().isEmpty() ? std::nullopt
+																 : std::optional{ core::file_identity_of(DiscussFileChoice->currentText().toStdString()) };
 		RetainedFiles.clear();
 		RetainedFiles.reserve(Retained.size());
 		for (const auto& node : Retained) {
@@ -440,8 +621,12 @@ namespace bpr::qt {
 	void github_conversation_panel::refresh_projection()
 	{
 		// Restoring by identity keeps the reviewer on the same reply.
-		const auto selected = Model->id_for_index(View->currentIndex());
-		auto       shown    = AnchorFile.has_value() || AnchorLine.has_value()
+		const auto selected      = Model->id_for_index(View->currentIndex());
+		const auto readingOffset = View->verticalScrollBar()->value();
+		const auto readingIndex  = View->indexAt(QPoint{ 1, 1 });
+		const auto readingPost   = Model->id_for_index(readingIndex);
+		const auto postOffset    = -View->visualRect(readingIndex).top();
+		auto       shown         = !Discuss && (AnchorFile.has_value() || AnchorLine.has_value())
 			? anchored_to(
 				  Retained,
 				  RetainedFiles,
@@ -450,27 +635,27 @@ namespace bpr::qt {
 				  LeftHasCurrentDiffRevision,
 				  RightHasCurrentDiffRevision)
 			: Retained;
-		shown               = with_endpoint_placement(
+		shown                    = with_endpoint_placement(
 			std::move(shown),
 			LeftHasCurrentDiffRevision,
 			RightHasCurrentDiffRevision);
-		Cards->adopt(Retained, AnchorFile);
+		Cards->adopt(with_endpoint_placement(Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision), Discuss ? DiscussFile : AnchorFile);
 		if (Shown == shown) {
 			show_loaded_page();
 			synchronize_map_focus();
 			return;
 		}
 		Shown = std::move(shown);
+		ShownPositions.clear();
+		for (std::size_t index = 0; index < Shown.size(); ++index) {
+			ShownPositions.emplace(Shown[index].Id, index);
+		}
+		DetailDirty = true;
+		const QSignalBlocker selectionBlocker{ View->selectionModel() };
 		Model->apply(Shown);
-		ThreadMap->adopt(Shown);
-		ThreadMapSummary->setText(ThreadMap->summary_text());
 		HasThreads = !Shown.empty();
 		show_loaded_page();
 		View->doItemsLayout();
-		if (ExpandOnNextProjection && !Shown.empty()) {
-			View->expandAll();
-			ExpandOnNextProjection = false;
-		}
 		if (!selected.empty()) {
 			const auto restored = Model->index_for_id(selected);
 			if (restored.isValid()) {
@@ -480,18 +665,48 @@ namespace bpr::qt {
 				View->setCurrentIndex(restored);
 			}
 		}
+		if (!View->currentIndex().isValid() && Model->rowCount() > 0) {
+			const QSignalBlocker blocker{ View->selectionModel() };
+			View->setCurrentIndex(Model->index(0, 0));
+		}
 		// Set explicitly rather than through the signal, which the restore
 		// above deliberately blocks: the map has to end an adopt showing the
 		// branch the reviewer was reading, not the one before the refresh.
 		synchronize_map_focus();
+		if (ExpandOnNextProjection && !Shown.empty()) {
+			View->expandAll();
+			ExpandOnNextProjection = false;
+		}
+		View->doItemsLayout();
+		const auto restoredReading = Model->index_for_id(readingPost);
+		View->verticalScrollBar()->setValue(restoredReading.isValid()
+												? View->verticalScrollBar()->value() + View->visualRect(restoredReading).top() + postOffset
+												: readingOffset);
 	}
 
 	void github_conversation_panel::clear(QString aAvailabilityText)
 	{
 		ExpandOnNextProjection = true;
+		DetailRoot.clear();
+		DiscussSelection.clear();
+		DiscussReadingOffset = 0;
+		DiscussScope         = cards_scope::whole_pull_request;
+		DiscussFilters       = { };
+		DiscussInitialized   = false;
+		DetailOpened         = false;
+		DiscussFile.reset();
+		{
+			const QSignalBlocker blocker{ DiscussFileChoice };
+			DiscussFileChoice->clear();
+		}
+		FilterUnread->setChecked(false);
+		FilterUnresolved->setChecked(false);
+		(Discuss ? ScopeWholePr : ScopeThisFile)->setChecked(true);
 		Retained.clear();
 		RetainedFiles.clear();
 		Shown.clear();
+		ShownPositions.clear();
+		DetailDirty = true;
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		Model->clear();
 		ThreadMap->clear();
@@ -513,10 +728,16 @@ namespace bpr::qt {
 		if (DiscussSummary == nullptr || Cards == nullptr) {
 			return;
 		}
-		DiscussSummary->setText(QStringLiteral("%1 threads, %2 unresolved, %3 new")
+		DiscussSummary->setText(QStringLiteral("%1 conversations, %2 unresolved, %3 new")
 									.arg(Cards->thread_count())
 									.arg(Cards->unresolved_count())
 									.arg(Cards->unread_thread_count()));
+		if (Cards->cards().empty() && !Retained.empty()) {
+			DiscussSummary->setText(QStringLiteral("No conversations match these filters. Clear filters to show all PR conversations."));
+		}
+		if (Cards->scope() == cards_scope::this_file && (Discuss ? DiscussFile : AnchorFile)) {
+			DiscussSummary->setText(DiscussSummary->text() + QStringLiteral(" · File scope excludes pathless PR comments and review summaries."));
+		}
 	}
 
 	void github_conversation_panel::set_discuss(const bool aDiscuss)
@@ -524,24 +745,59 @@ namespace bpr::qt {
 		if (Discuss == aDiscuss) {
 			return;
 		}
-		Discuss = aDiscuss;
+		const auto remembered = DiscussSelection;
 		if (Discuss) {
+			DiscussReadingOffset = View->verticalScrollBar()->value();
+			DiscussScope         = Cards->scope();
+			DiscussFilters       = Cards->filters();
+		}
+		Discuss = aDiscuss;
+		DiscussFileChoice->setVisible(Discuss);
+		ScopeThisFile->setText(Discuss ? QStringLiteral("File scope") : QStringLiteral("This file"));
+		ScopeThisFile->setAccessibleName(ScopeThisFile->text());
+		ScopeThisFile->setAccessibleDescription(Discuss
+													? QStringLiteral("Use the selected conversation file; excludes pathless PR comments and review summaries")
+													: QStringLiteral("Shows conversations of the file the comparison shows"));
+		if (Discuss) {
+			if (!DiscussInitialized) {
+				ScopeWholePr->setChecked(true);
+				FilterUnread->setChecked(false);
+				FilterUnresolved->setChecked(false);
+				DiscussInitialized = true;
+			} else {
+				(DiscussScope == cards_scope::whole_pull_request ? ScopeWholePr : ScopeThisFile)->setChecked(true);
+				FilterUnread->setChecked(DiscussFilters.UnreadOnly);
+				FilterUnresolved->setChecked(DiscussFilters.UnresolvedOnly);
+			}
 			auto* const column = qobject_cast<QVBoxLayout*>(DiscussColumn->layout());
 			column->addWidget(View, 1);
 			column->addWidget(MapPane, 0);
-			DiscussSplitter->insertWidget(1, CardsPane);
+			DiscussSplitter->insertWidget(0, CardsPane);
 			DiscussSplitter->setStretchFactor(0, 0);
 			DiscussSplitter->setStretchFactor(1, 1);
 			DiscussSummary->show();
 			Cards->set_feed(true);
 		} else {
+			ScopeThisFile->setChecked(true);
 			Loaded->insertWidget(0, CardsPane);
 			Loaded->insertWidget(1, MapPane);
 			Loaded->insertWidget(2, View);
 			DiscussSummary->hide();
 			Cards->set_feed(false);
 		}
+		refresh_projection();
+		if (Discuss && !remembered.empty()) {
+			const auto selected = Model->index_for_id(remembered);
+			if (selected.isValid()) {
+				View->setCurrentIndex(selected);
+			}
+		}
 		show_loaded_page();
+		arrange_discuss();
+		if (Discuss) {
+			View->doItemsLayout();
+			View->verticalScrollBar()->setValue(DiscussReadingOffset);
+		}
 	}
 
 	auto github_conversation_panel::discuss() const noexcept -> bool
@@ -636,16 +892,13 @@ namespace bpr::qt {
 
 	void github_conversation_panel::set_reveal_action(QAction* const aAction)
 	{
-		RevealButton->setDefaultAction(aAction);
-		// setDefaultAction adopts the action's name, and the action names the
-		// gesture while the button names the control. Restored so the two do
-		// not answer to one accessible name between them.
-		RevealButton->setAccessibleName(QStringLiteral("Show review threads"));
+		static_cast<void>(aAction);
 	}
 
 	void github_conversation_panel::relayout()
 	{
 		View->doItemsLayout();
+		arrange_discuss();
 	}
 
 	auto github_conversation_panel::view() const noexcept -> QTreeView*

@@ -51,9 +51,8 @@ namespace bpr::qt {
 		Body->setAccessibleName(tr("Review summary"));
 		Body->setPlaceholderText(tr("Write a review summary…"));
 		Body->setTabChangesFocus(true);
-		Body->setMinimumHeight(80);
-		Body->setMaximumHeight(160);
-		layout->addWidget(Body);
+		Body->setMinimumHeight(160);
+		layout->addWidget(Body, 1);
 		Submit         = new QAction{ tr("Submit review"), this };
 		Discard        = new QAction{ tr("Discard"), this };
 		Reconcile      = new QAction{ tr("Check status"), this };

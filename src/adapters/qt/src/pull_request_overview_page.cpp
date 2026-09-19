@@ -3,6 +3,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QAbstractItemView>
+#include <QAccessible>
 #include <QApplication>
 #include <QDateTime>
 #include <QFont>
@@ -18,14 +19,22 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRectF>
+#include <QScrollBar>
+#include <QShortcut>
 #include <QSizePolicy>
 #include <QStyle>
 #include <QStyleOptionViewItem>
+#include <QTextBlock>
+#include <QTextLayout>
+#include <QTextOption>
 #include <QTimeZone>
+#include <QTimer>
 #include <QTreeView>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -33,6 +42,197 @@
 #include <vector>
 
 namespace bpr::qt {
+	// One document serves both presentations. Only the expanded presentation
+	// owns scrolling; its source offsets survive the compact preview's layout.
+	class overview_description_view final : public QPlainTextEdit
+	{
+	public:
+		explicit overview_description_view(QWidget* aParent)
+			: QPlainTextEdit{ aParent }
+		{
+			connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { remember(true); });
+			connect(this, &QPlainTextEdit::selectionChanged, this, [this] { remember(false); });
+			connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this] { remember(false); });
+		}
+
+		std::function<void(bool)> OverflowChanged;
+
+		void present_body(const QString& aText)
+		{
+			Adjusting = true;
+			setPlainText(aText);
+			clamp_place();
+			Adjusting = false;
+			queue_layout();
+		}
+
+		void reset_reader()
+		{
+			Expanded  = false;
+			Saved     = { };
+			Adjusting = true;
+			clear();
+			Adjusting = false;
+			queue_layout();
+		}
+
+		void set_expanded(const bool aExpanded)
+		{
+			Expanded = aExpanded;
+			Pending  = true;
+			setVerticalScrollBarPolicy(aExpanded ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+			setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			setMinimumHeight(0);
+			setMaximumHeight(QWIDGETSIZE_MAX);
+			setSizePolicy(QSizePolicy::Expanding, aExpanded ? QSizePolicy::Expanding : QSizePolicy::Fixed);
+			if (aExpanded) {
+				setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+				setFocusPolicy(Qt::StrongFocus);
+				setAccessibleDescription(QStringLiteral("Full pull request description. Escape returns to Files."));
+			}
+			queue_layout();
+		}
+
+	protected:
+		bool event(QEvent* aEvent) override
+		{
+			const auto reflow = aEvent->type() == QEvent::Resize
+				|| aEvent->type() == QEvent::FontChange
+				|| aEvent->type() == QEvent::ApplicationFontChange
+				|| aEvent->type() == QEvent::StyleChange
+				|| aEvent->type() == QEvent::DevicePixelRatioChange;
+			if (reflow) {
+				queue_layout();
+			}
+			return QPlainTextEdit::event(aEvent);
+		}
+
+		void wheelEvent(QWheelEvent* aEvent) override
+		{
+			if (Expanded) {
+				QPlainTextEdit::wheelEvent(aEvent);
+			} else {
+				aEvent->ignore();
+			}
+		}
+
+		void scrollContentsBy(int aDx, int aDy) override
+		{
+			QPlainTextEdit::scrollContentsBy(aDx, aDy);
+			if (!Expanded && !Adjusting && verticalScrollBar()->value() != 0) {
+				verticalScrollBar()->setValue(0);
+			}
+		}
+
+	private:
+		struct reading_place
+		{
+			int Source   = 0;
+			int Anchor   = 0;
+			int Position = 0;
+		};
+
+		void remember(const bool aScrolled)
+		{
+			if (!Expanded || Adjusting || Pending) {
+				return;
+			}
+			const auto selection = textCursor();
+			Saved.Anchor         = selection.anchor();
+			Saved.Position       = selection.position();
+			if (aScrolled) {
+				Saved.Source = cursorForPosition(QPoint{ 0, 0 }).position();
+			}
+		}
+
+		void queue_layout()
+		{
+			Pending = true;
+			if (Queued) {
+				return;
+			}
+			Queued = true;
+			QTimer::singleShot(0, this, [this] {
+				Queued    = false;
+				Adjusting = true;
+				if (Expanded) {
+					restore_place();
+				} else {
+					layout_preview();
+				}
+				Adjusting = false;
+				Pending   = false;
+			});
+		}
+
+		void clamp_place()
+		{
+			const auto last = document()->characterCount() - 1;
+			Saved.Source    = std::clamp(Saved.Source, 0, last);
+			Saved.Anchor    = std::clamp(Saved.Anchor, 0, last);
+			Saved.Position  = std::clamp(Saved.Position, 0, last);
+		}
+
+		void restore_place()
+		{
+			auto source = QTextCursor{ document() };
+			source.setPosition(Saved.Source);
+			setTextCursor(source);
+			centerCursor();
+			const auto scroll    = source_scroll_position(source);
+			auto       selection = QTextCursor{ document() };
+			selection.setPosition(Saved.Anchor);
+			selection.setPosition(Saved.Position, QTextCursor::KeepAnchor);
+			setTextCursor(selection);
+			verticalScrollBar()->setValue(scroll);
+			// A cursor exactly on a soft-wrap boundary can paint on the preceding
+			// line. Resolve that one-line ambiguity against actual cursor geometry.
+			if (cursorRect(source).top() < 0) {
+				verticalScrollBar()->setValue(verticalScrollBar()->value() - 1);
+			}
+		}
+
+		int source_scroll_position(const QTextCursor& aSource)
+		{
+			// centerCursor has laid out this visible neighbourhood. Count actual
+			// wrapped lines, including fallback-font metrics, without polling or
+			// laying out the whole body. The scrollbar owns the legal end clamp.
+			const auto top         = cursorForPosition(QPoint{ 0, 0 });
+			const auto line_number = [](const QTextCursor& aCursor) {
+				return aCursor.block().layout()->lineForTextPosition(aCursor.positionInBlock()).lineNumber();
+			};
+			auto lines = line_number(aSource) - line_number(top);
+			for (auto block = top.block(); block.isValid() && block.position() < aSource.block().position(); block = block.next()) {
+				lines += block.layout()->lineCount();
+			}
+			return verticalScrollBar()->value() + lines;
+		}
+
+		void layout_preview()
+		{
+			const auto budget  = 4 * fontMetrics().lineSpacing() + 2 * document()->documentMargin();
+			qreal      natural = 2 * document()->documentMargin();
+			for (auto block = document()->begin(); block.isValid() && natural <= budget; block = block.next()) {
+				natural += blockBoundingRect(block).height();
+			}
+			const auto overflow = natural > budget;
+			setFixedHeight(static_cast<int>(std::ceil(std::min(natural, budget))));
+			setTextInteractionFlags(overflow ? Qt::NoTextInteraction : Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+			setFocusPolicy(overflow ? Qt::NoFocus : Qt::StrongFocus);
+			setAccessibleDescription(overflow ? QStringLiteral("Description preview. Use Read full description to read and copy the complete text.") : QStringLiteral("Complete pull request description."));
+			verticalScrollBar()->setValue(0);
+			if (OverflowChanged) {
+				OverflowChanged(overflow);
+			}
+		}
+
+		reading_place Saved;
+		bool          Expanded  = false;
+		bool          Adjusting = false;
+		bool          Pending   = false;
+		bool          Queued    = false;
+	};
+
 	namespace {
 		[[nodiscard]] auto text(const std::string& aValue) -> QString
 		{
@@ -260,6 +460,30 @@ namespace bpr::qt {
 
 	void overview_file_model::apply(const std::vector<application::overview_file_row>& aRows)
 	{
+		// Receipt and surrounding metadata refreshes must not replace Files'
+		// stable indexes while its reader temporarily hides the table.
+		auto       offset    = std::size_t{ 0 };
+		const auto sameOrder = std::ranges::all_of(Folders, [&](const folder& aFolder) {
+								   return std::ranges::all_of(aFolder.Files, [&](const application::overview_file_row& aRow) {
+									   return offset < aRows.size() && aRow.Path == aRows[offset].Path
+										   && aRow.Folder == aRows[offset++].Folder;
+								   });
+							   })
+			&& offset == aRows.size();
+		if (sameOrder) {
+			offset = 0;
+			for (std::size_t folderIndex = 0; folderIndex < Folders.size(); ++folderIndex) {
+				auto& files = Folders[folderIndex].Files;
+				for (std::size_t row = 0; row < files.size(); ++row, ++offset) {
+					if (files[row] != aRows[offset]) {
+						files[row]             = aRows[offset];
+						const auto parentIndex = index(static_cast<int>(folderIndex), 0);
+						emit       dataChanged(index(static_cast<int>(row), 0, parentIndex), index(static_cast<int>(row), column_count - 1, parentIndex));
+					}
+				}
+			}
+			return;
+		}
 		beginResetModel();
 		Folders.clear();
 		for (const auto& row : aRows) {
@@ -755,6 +979,11 @@ namespace bpr::qt {
 		auto* const mainColumn = new QVBoxLayout{ main };
 		mainColumn->setContentsMargins(18, 12, 18, 12);
 		mainColumn->setSpacing(4);
+		Header             = new QWidget{ main };
+		auto* headerLayout = new QVBoxLayout{ Header };
+		headerLayout->setContentsMargins(0, 0, 0, 0);
+		headerLayout->setSpacing(4);
+		mainColumn->addWidget(Header);
 
 		Title = new QLabel{ main };
 		Title->setObjectName(QStringLiteral("overviewTitle"));
@@ -765,7 +994,7 @@ namespace bpr::qt {
 		titleFont.setPointSizeF(titleFont.pointSizeF() * 1.3);
 		titleFont.setWeight(QFont::DemiBold);
 		Title->setFont(titleFont);
-		mainColumn->addWidget(Title);
+		headerLayout->addWidget(Title);
 
 		Summary = new QLabel{ main };
 		Summary->setObjectName(QStringLiteral("overviewSummary"));
@@ -773,25 +1002,46 @@ namespace bpr::qt {
 		Summary->setTextFormat(Qt::PlainText);
 		Summary->setWordWrap(true);
 		Summary->setForegroundRole(QPalette::PlaceholderText);
-		mainColumn->addWidget(Summary);
+		headerLayout->addWidget(Summary);
 		// [[BPR-0671]]. The commit oids behind the branches, disclosed. They
 		// were in the files drawer's summary box, which the overview replaces;
 		// they belong beside the branches they identify.
 		TechnicalRow = new QHBoxLayout;
 		TechnicalRow->setContentsMargins(0, 0, 0, 0);
 		TechnicalRow->setSpacing(6);
-		mainColumn->addLayout(TechnicalRow);
+		headerLayout->addLayout(TechnicalRow);
 
-		Body = new QPlainTextEdit{ main };
+		ReturnToFiles = new QPushButton{ QStringLiteral("Return to Files"), main };
+		ReturnToFiles->setObjectName(QStringLiteral("overviewReturnToFiles"));
+		ReturnToFiles->setAccessibleName(ReturnToFiles->text());
+		mainColumn->addWidget(ReturnToFiles, 0, Qt::AlignLeft);
+		connect(ReturnToFiles, &QPushButton::clicked, this, [this] { set_description_expanded(false); });
+
+		Body = new overview_description_view{ main };
 		Body->setObjectName(QStringLiteral("overviewBody"));
 		Body->setAccessibleName(QStringLiteral("Pull request description"));
 		Body->setReadOnly(true);
 		Body->setTabChangesFocus(true);
 		Body->setFrameShape(QFrame::NoFrame);
-		Body->setMaximumHeight(110);
-		Body->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+		Body->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 		mainColumn->addSpacing(4);
 		mainColumn->addWidget(Body);
+		EmptyBody = new QLabel{ QStringLiteral("No description"), main };
+		EmptyBody->setObjectName(QStringLiteral("overviewNoDescription"));
+		mainColumn->addWidget(EmptyBody);
+		ReadDescription = new QPushButton{ QStringLiteral("Read full description"), main };
+		ReadDescription->setObjectName(QStringLiteral("overviewReadDescription"));
+		ReadDescription->setAccessibleName(ReadDescription->text());
+		mainColumn->addWidget(ReadDescription, 0, Qt::AlignLeft);
+		connect(ReadDescription, &QPushButton::clicked, this, [this] { set_description_expanded(true); });
+		Body->OverflowChanged = [this](const bool aOverflow) {
+			ReadDescription->setVisible(aOverflow && Projection.has_value() && !Projection->Body.empty());
+		};
+		auto* escape = new QShortcut{ QKeySequence{ Qt::Key_Escape }, this };
+		escape->setContext(Qt::WidgetWithChildrenShortcut);
+		escape->setEnabled(false);
+		connect(escape, &QShortcut::activated, this, [this] { set_description_expanded(false); });
+		escape->setObjectName(QStringLiteral("overviewDescriptionEscape"));
 
 		FilesHeading = make_heading(QStringLiteral("Files"), QStringLiteral("overviewFilesHeading"), main);
 		FilesHeading->setAccessibleName(QStringLiteral("Files in the pull request"));
@@ -831,6 +1081,7 @@ namespace bpr::qt {
 		mainColumn->addWidget(Files, 1);
 
 		auto* const side = new QWidget{ this };
+		Side             = side;
 		side->setObjectName(QStringLiteral("overviewSideColumn"));
 		side->setFixedWidth(side_width);
 		side->setAutoFillBackground(true);
@@ -912,7 +1163,9 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present(const application::pull_request_overview_projection& aProjection)
 	{
-		Projection = aProjection;
+		const auto bodyChanged = Projection.has_value() && Projection->Body != aProjection.Body;
+		const auto updateBody  = !Projection.has_value() || bodyChanged;
+		Projection             = aProjection;
 		Title->setText(text(aProjection.Title));
 		auto state = QString{ };
 		switch (aProjection.State) {
@@ -939,8 +1192,19 @@ namespace bpr::qt {
 								  text(aProjection.BaseRef),
 								  text(aProjection.HeadRef),
 								  state));
-		Body->setPlainText(text(aProjection.Body));
+		if (updateBody) {
+			Body->present_body(text(aProjection.Body));
+		}
 		Body->setVisible(!aProjection.Body.empty());
+		EmptyBody->setVisible(aProjection.Body.empty());
+		if (aProjection.Body.empty() && !ReturnToFiles->isHidden()) {
+			set_description_expanded(false);
+		}
+		if (bodyChanged) {
+			QAccessibleAnnouncementEvent event{ Body, QStringLiteral("Description updated") };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
 
 		const auto& since   = aProjection.SinceLastReview;
 		const auto  notRead = aProjection.Progress.FilesTotal - std::min(aProjection.Progress.FilesRead, aProjection.Progress.FilesTotal);
@@ -1011,11 +1275,14 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::clear()
 	{
+		set_description_expanded(false);
 		Projection.reset();
 		Title->setText(QStringLiteral("No pull request"));
 		Summary->clear();
-		Body->clear();
+		Body->reset_reader();
 		Body->setVisible(false);
+		EmptyBody->setVisible(false);
+		ReadDescription->setVisible(false);
 		FilesHeading->setText(QStringLiteral("Files"));
 		Model->apply({ });
 		rebuild_participants({ });
@@ -1028,6 +1295,25 @@ namespace bpr::qt {
 		}
 		Entry->setText(QStringLiteral("Start review"));
 		Entry->setEnabled(false);
+	}
+
+	void pull_request_overview_page::set_description_expanded(const bool aExpanded)
+	{
+		Body->set_expanded(aExpanded);
+		Header->setVisible(!aExpanded);
+		Side->setVisible(!aExpanded);
+		Files->setVisible(!aExpanded);
+		FilesHeading->setVisible(!aExpanded);
+		ReturnToFiles->setVisible(aExpanded);
+		ReadDescription->setVisible(false);
+		EmptyBody->setVisible(!aExpanded && Projection.has_value() && Projection->Body.empty());
+		findChild<QShortcut*>(QStringLiteral("overviewDescriptionEscape"))->setEnabled(aExpanded);
+		if (aExpanded) {
+			Body->setFocus(Qt::OtherFocusReason);
+		} else if (isVisible()) {
+			Files->setFocus(Qt::OtherFocusReason);
+		}
+		QWidget::setTabOrder(ReturnToFiles, Body);
 	}
 
 	void pull_request_overview_page::adopt_technical_details(
