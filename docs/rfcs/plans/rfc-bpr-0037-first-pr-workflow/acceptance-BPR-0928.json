@@ -1,6 +1,6 @@
 {
   "approved": true,
-  "decision": "human-pending",
+  "decision": "done",
   "records": [
     {
       "criterion": "Empty and short descriptions remain compact; admitted long, Unicode and 262144-byte bodies are complete and over-limit bodies refuse.",
@@ -22,11 +22,11 @@
     },
     {
       "criterion": "Page/document navigation, selection/copy, tab traversal and supported native wheel/trackpad input use the single reader viewport.",
-      "outcome": "pending",
+      "outcome": "pass",
       "revision": "8939de71",
       "evidence": {
-        "kind": "artifact",
-        "detail": "Deterministic keyboard, selection, copy and single-scroll-owner assertions pass. Physical macOS wheel/trackpad and focus traversal remain queued as candidate rfc0037-overview-reader in docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json."
+        "kind": "observation",
+        "detail": "The native rfc0037-overview-reader candidate received explicit accept decision 1c899dcc-9d2c-4868-906b-aa9fb2b1dbf6 at the reviewed 8939de71/5b8b23dc revision after the physical-trackpad, page/document navigation and focus course. Deterministic keyboard, selection, copy and single-scroll-owner assertions also pass."
       }
     },
     {
@@ -49,11 +49,11 @@
     },
     {
       "criterion": "Authority replacement clears retained text and state; inherited appearance, focus and accessibility remain usable without implementing Markdown.",
-      "outcome": "pending",
+      "outcome": "pass",
       "revision": "8939de71",
       "evidence": {
-        "kind": "artifact",
-        "detail": "Authority-clear and stale-projection regressions pass and the reader remains plain text, preserving RFC-BPR-0036 ownership. Native VoiceOver and subjective light/dark/high-contrast judgment remain queued as candidate rfc0037-overview-reader."
+        "kind": "observation",
+        "detail": "Explicit accept decision 1c899dcc-9d2c-4868-906b-aa9fb2b1dbf6 covers the native VoiceOver and light/dark/Increase contrast course for the retained reader. Authority-clear and stale-projection regressions pass and the reader remains plain text, preserving RFC-BPR-0036 ownership."
       }
     }
   ]
