@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0925"
 title: "Investigate duplicate thread presentation below the conversation graph"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0037", "RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
+acceptance: [{"criterion":"Trace both apparent copies to their source identities and record whether duplication is in data or presentation.","outcome":"pass","revision":"cc038748","evidence":{"kind":"observation","detail":"The duplication was presentation: the compact card/index, graph and tree/detail were projections of the same retained root/post identities. milestone-thread-reading-integration-evidence.md records the integrated identity model."}},{"criterion":"Present one clear thread-reading path with consistent styling, or make the graph/selected-detail relationship explicit without redundant full bodies.","outcome":"pass","revision":"cc038748","evidence":{"kind":"command","detail":"qt_github_conversation_panel passes with one compact PR-wide index, a structural graph and one selected full-body detail. Nonselected model roots are hidden in detail, while the graph carries structure rather than a second body rendering."}},{"criterion":"Long selected threads avoid unexplained fixed-height clipping; graph selection, navigation, resolution state and comment identity remain correct.","outcome":"pass","revision":"cc038748","evidence":{"kind":"command","detail":"Long-detail width/font and workbench scale tests pass; exact reply selection maps to its owning root and graph node, explicit index activation opens detail, and resolution/outdated identities remain stable. Independent correction review reported no remaining finding."}}]
 ---
 
 # Investigate duplicate thread presentation below the conversation graph
