@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0930",
+    "BPR-0931",
+    "BPR-0932"
+  ],
+  "reserve_for": "report-followups-run-20260919",
+  "purpose": "",
+  "created": "2026-09-19T20:51:08.714024+00:00",
+  "base": "e4ae6adcf8b4edd27d103a1dfe3355bc669e915d"
+}
