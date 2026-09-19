@@ -44,14 +44,22 @@
   `rfc-test-runner`, a fresh non-history context and no per-call model/effort
   override to run the exact five-selector integration batch at `e4096e05`.
   Its generated configuration is `gpt-5.6-luna` / `xhigh`; it returned that
-  configured banner. Independent serving telemetry is unavailable.
-- Commands and writers: both scouts, the combined-course worker and the test
-  runner are complete and quiescent. They own no remaining edit or command.
-  The promotion/claim and integrator verification commands are also complete.
-- Pending obligation: independently review the exact combined closeout candidate
-  and its truthful dependency-gated status before finishing BPR-0927.
-- Next discriminating step: reviewer inspection of candidate `e4096e05` plus
-  the committed closeout reconciliation.
+  configured banner. Independent serving telemetry is unavailable. The final
+  `/root/rfc0037_closeout/rfc_reviewer_final_closeout` dispatch used generated
+  role `rfc-reviewer`, a fresh non-history context and no per-call model/effort
+  override to inspect exact candidate `35195547`, including the test-producing
+  revision `e4096e05`. Its generated configuration is `gpt-6-astra` / `medium`;
+  it returned that configured banner. Independent serving telemetry is
+  unavailable.
+- Commands and writers: both scouts, the combined-course worker, the test
+  runner and the final reviewer are complete and quiescent. They own no
+  remaining edit or command. The promotion/claim and integrator verification
+  commands are also complete.
+- Pending obligation: no engineering, human or target-native obligation remains
+  for this technical closeout. The RFC status transition remains separately
+  gated by its nonterminal direct dependencies.
+- Next discriminating step: finish BPR-0927 while preserving RFC-BPR-0037 and
+  its index row as `Proposed`.
 
 ## Evidence audit before the combined course
 
@@ -121,6 +129,17 @@
   `DOCUMENTATION_OK`; all 64 documentation verifier tests passed; RFC-scoped
   board validation reported 921 cards, `valid: true`, zero errors; and
   `git diff --check` passed.
+- Independent review of exact documentation candidate `35195547` and the test
+  diff from the dispatched starting revision through `e4096e05` found no
+  blocking or non-blocking issue. The reviewer independently ran diff checking,
+  inspected the retained five-test result, and confirmed that technical card
+  completion while the RFC/index remain `Proposed` respects the explicit status
+  gate. All reviewer commands are quiescent and no files were changed.
+- The reviewer also confirmed the recorded material limits: exact source
+  identity and first-line content are asserted rather than whole-file byte
+  equality; target-native evidence is macOS-only; and live services, literal
+  `gh`, private repositories and successful in-process Refresh recovery remain
+  unclaimed.
 - The historical BPR-0915 shared-sign-in expectation drift is not present in
   the selected current boundary and was not used as passing closeout evidence.
   BPR-0797's protected executable digest mismatch remains owned by that separate
