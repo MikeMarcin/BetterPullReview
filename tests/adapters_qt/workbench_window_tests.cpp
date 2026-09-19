@@ -5530,7 +5530,7 @@ namespace {
 		window.resize(1'600, 820);
 		window.show();
 		process_events();
-		auto opened    = every_primary_command_offered(
+		auto opened = every_primary_command_offered(
 			core::change_navigation_policy::wrap);
 		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
 									   core::workbench_drawer_state::expanded);
@@ -5546,11 +5546,11 @@ namespace {
 		}
 		auto laterText = text;
 		laterText.replace(laterText.find("line 5"),
-			std::string{ "line 5" }.size(),
-			"changed line 5");
+						  std::string{ "line 5" }.size(),
+						  "changed line 5");
 		laterText.replace(laterText.find("line 12"),
-			std::string{ "line 12" }.size(),
-			"changed line 12");
+						  std::string{ "line 12" }.size(),
+						  "changed line 12");
 		const auto diff = computed_comparison(
 			text, laterText, 0U, core::file_identity_of("src/file.cpp"));
 		auto replies = std::vector<std::string>{ };
@@ -5619,8 +5619,8 @@ namespace {
 		window.previous_change_action()->trigger();
 		process_events();
 		expect(navigatedChanges
-				   == std::vector{ core::change_navigation_direction::next,
-								   core::change_navigation_direction::previous }
+					   == std::vector{ core::change_navigation_direction::next,
+									   core::change_navigation_direction::previous }
 				   && window.current_modality() == qt::review_modality::discuss
 				   && window.conversation_model()->id_for_index(
 						  window.conversation_view()->currentIndex())
