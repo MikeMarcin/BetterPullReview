@@ -1,0 +1,55 @@
+{
+  "schema": "implement-rfc.milestone-assignment.v1",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-004",
+  "producer_id": "/root/rfc0037_closeout",
+  "mandate_revision": "1",
+  "milestone": "combined-first-pr-closeout",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "combined-first-pr-closeout",
+    "definition_fingerprint": "sha256:9dc9e1e904255f6068b2594072f66d44c2ec52d1a5ed7430127c9f5d977ae540",
+    "obligations": [
+      {
+        "id": "BPR-0927:*",
+        "source": "BPR-0927",
+        "selector": null,
+        "source_fingerprint": "sha256:843272d0c547449edb1d363496e11144eab148fc41166fb0672002af1130e7c0"
+      }
+    ],
+    "obligation_fingerprint": "sha256:e944646e257d038b6034c7aa31a0655f55c56fc162096f727d5da986008d7054",
+    "exit_criteria": [
+      {
+        "id": "combined-first-pr-closeout:exit:1",
+        "text": "Every RFC-BPR-0037 criterion and linked implementation follow-up has direct revision-bound evidence, including initial load, failures, empty content, refresh, authority replacement, head changes and retained selection/drafts."
+      },
+      {
+        "id": "combined-first-pr-closeout:exit:2",
+        "text": "The combined recorded-fixture course loads a PR, reaches update history and multiple exact source files, enters Review correctly and reads conversations without an accidental file-selection prerequisite."
+      },
+      {
+        "id": "combined-first-pr-closeout:exit:3",
+        "text": "Applicable target-native accessibility, responsive-layout and scrolling observations are recorded separately from deterministic tests, and unavailable platform or live-service evidence remains explicit."
+      },
+      {
+        "id": "combined-first-pr-closeout:exit:4",
+        "text": "Documentation and board validation pass; RFC/index status changes only when canonical dependencies and every closeout obligation permit it."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:2310b4cb53af4fda99382b4994eda5bf2cbba1eb791c8df8d97706566ef4ff79",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "source-update-review-entry",
+    "overview-conversation-decisions",
+    "thread-reading-integration",
+    "combined-first-pr-closeout"
+  ]
+}
