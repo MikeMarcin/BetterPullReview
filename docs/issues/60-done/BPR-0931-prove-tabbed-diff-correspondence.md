@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0931"
 title: "Prove exact tabbed diff text correspondence and pane alignment"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0004", "RFC-BPR-0005", "RFC-BPR-0006"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"report-followups-20260919","path":"docs/rfcs/plans/report-followups-20260919/milestone-plan.json"},"source_report":"report-followups-run-20260919"}
+acceptance: [{"criterion":"A focused Qt contract publishes representative one-, two- and three-tab lines, including styled syntax spans, and proves the pane documents equal their decoded left/right sources exactly.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"command","detail":"All three qt_diff_workbench_scale variants pass the new exact toPlainText and styled-token-range contract."}},{"criterion":"Corresponding equal-depth lines have the same pane-relative first-glyph x coordinate under the same appearance profile; distinct indentation depths remain distinct and a tab-width change updates geometry without changing source text, line identity or mapping.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"command","detail":"The Qt test measures equal pane-relative positions for one/two/three tabs, distinct depths, widened geometry at eight columns and unchanged source/comparison/semantic-map identity."}},{"criterion":"The recorded epoch and UIforETW observations are documented as authored whitespace, not silently reindented. No synthetic rows, whitespace rewrite, proportional token layout or horizontal authority coupling is introduced.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"artifact","detail":"milestone-syntax-and-text-presentation-evidence.md records decoded fixture tabs and the natural-layout render path; the implementation commit changes only the Qt test, not product text/layout."}},{"criterion":"Focused diff semantics, measured-axis, diff-workbench and appearance tests pass; any real discrepancy uncovered by the executable contract is fixed at its owning boundary before the card closes.","outcome":"pass","revision":"4e409bc967a9814e5a492f3eaf644254352e1df8","evidence":{"kind":"command","detail":"Corrected-candidate integration passed core_diff_compute, core_diff_semantics, all qt_diff_workbench scales and qt_appearance_profile; no product discrepancy was found."}}]
 ---
 
 # Prove exact tabbed diff text correspondence and pane alignment
@@ -56,3 +57,13 @@ RFC-BPR-0004 design; synthetic alignment rows would corrupt line identity.
   pass; any real discrepancy uncovered by the executable contract is fixed at
   its owning boundary before the card closes.
 
+## Status
+
+Accepted at source candidate
+`4e409bc967a9814e5a492f3eaf644254352e1df8`. The captures contain authored
+tabs and natural line displacement, not a syntax-layout or correspondence
+defect. The new Qt contract proves exact documents, exact line mappings and
+equal pane-relative glyph positions through a four-to-eight-column tab-width
+change. No product source, source whitespace or synthetic row was changed.
+See
+[`milestone-syntax-and-text-presentation-evidence.md`](../../rfcs/plans/report-followups-20260919/milestone-syntax-and-text-presentation-evidence.md).
