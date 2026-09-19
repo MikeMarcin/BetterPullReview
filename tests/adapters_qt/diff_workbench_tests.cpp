@@ -1881,6 +1881,106 @@ namespace {
 		return block.layout()->formats();
 	}
 
+	[[nodiscard]] auto tabbed_glyph_x(QPlainTextEdit& aPane, const int aLine, const int aDepth) -> int
+	{
+		const auto block = aPane.document()->findBlockByNumber(aLine);
+		expect(block.isValid() && block.text().startsWith(QString(aDepth, QChar{ '\t' })),
+			   "the original line retains its authored tab prefix");
+		auto cursor = QTextCursor{ block };
+		cursor.setPosition(block.position() + aDepth);
+		return aPane.viewport()->mapTo(&aPane, aPane.cursorRect(cursor).topLeft()).x();
+	}
+
+	[[nodiscard]] auto tabbed_correspondence_geometry(qt::diff_workbench& aWorkbench) -> std::array<int, 3U>
+	{
+		auto positions = std::array<int, 3U>{ };
+		for (auto depth = 1; depth <= 3; ++depth) {
+			const auto leftX  = tabbed_glyph_x(*aWorkbench.left_pane(), depth - 1, depth);
+			const auto rightX = tabbed_glyph_x(*aWorkbench.right_pane(), depth, depth);
+			expect(leftX == rightX, "corresponding tab depths have equal pane-relative first-glyph x");
+			positions[static_cast<std::size_t>(depth - 1)] = leftX;
+		}
+		expect(positions[0] < positions[1] && positions[1] < positions[2],
+			   "one, two and three authored tabs occupy distinct indentation depths");
+		return positions;
+	}
+
+	/// \brief Syntax and tab geometry preserve exact natural source correspondence.
+	auto test_tabbed_source_correspondence_survives_syntax_and_tab_width() -> void
+	{
+		constexpr auto leftText  = "\tint one = 1;\n\t\tint two = 2;\n\t\t\tint three = 3;\n";
+		const auto     rightText = std::string{ "// right-only introduction\n" } + leftText;
+		const auto     diff      = computed(leftText, rightText, { }, 45U);
+		auto           workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		auto profile      = qt::appearance_profile{ };
+		auto codeFont     = profile.typography().Code;
+		codeFont.TabWidth = 4U;
+		expect(profile.select_code_font(codeFont).accepted(), "four-column tabs are accepted");
+		workbench.adopt_appearance(profile);
+		profile.apply_code_font_to(workbench);
+		const auto selected = context(diff, 91U, 91U);
+		workbench.set_loading(selected);
+		workbench.publish(qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		settle_geometry(workbench);
+		const auto unstyledPositions = tabbed_correspondence_geometry(workbench);
+		const auto spans             = application::token_span_list{
+			{ .Line = 0U, .Column = 1U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
+			{ .Line = 1U, .Column = 2U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
+			{ .Line = 2U, .Column = 3U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
+		};
+		auto rightSpans = spans;
+		std::ranges::for_each(rightSpans, [](auto& aSpan) { ++aSpan.Line; });
+		expect(workbench.adopt_token_spans(core::diff_side::left, std::make_shared<const application::token_span_list>(spans))
+				   && workbench.adopt_token_spans(core::diff_side::right, std::make_shared<const application::token_span_list>(rightSpans)),
+			   "both tabbed documents adopt their syntax spans");
+		process_events();
+		const auto verifySources = [&] {
+			expect(workbench.left_pane()->toPlainText() == QString::fromUtf8(leftText)
+					   && workbench.right_pane()->toPlainText() == QString::fromUtf8(rightText),
+				   "styled panes retain exact decoded source text with no synthetic rows or whitespace rewrites");
+			for (auto depth = 1; depth <= 3; ++depth) {
+				const auto leftFormats  = block_formats(*workbench.left_pane(), depth - 1);
+				const auto rightFormats = block_formats(*workbench.right_pane(), depth);
+				expect(leftFormats.size() == 1 && rightFormats.size() == 1
+						   && leftFormats.front().start == depth && rightFormats.front().start == depth
+						   && leftFormats.front().length == 3 && rightFormats.front().length == 3
+						   && leftFormats.front().format.foreground().color() == profile.color(core::appearance_role::syntax_builtin)
+						   && rightFormats.front().format == leftFormats.front().format,
+					   "syntax styles the exact first token after each tab prefix on both sides");
+				const auto mapping = core::map_line(*workbench.current_semantic_index(),
+													{ .Comparison = diff.Alignment.Digest, .Side = core::diff_side::left, .Line = static_cast<std::uint32_t>(depth - 1) });
+				expect(mapping.Kind == core::line_mapping_kind::exact_line && mapping.Counterpart
+						   && mapping.Counterpart->Side == core::diff_side::right && mapping.Counterpart->Line == static_cast<std::uint32_t>(depth),
+					   "natural source line identities map across the right-only introduction");
+			}
+		};
+		verifySources();
+		expect(tabbed_correspondence_geometry(workbench) == unstyledPositions,
+			   "syntax formatting does not move authored indentation");
+		const auto result = workbench.current_result();
+		const auto index  = workbench.current_semantic_index();
+		const auto font   = workbench.left_pane()->font();
+		codeFont.TabWidth = 8U;
+		expect(profile.select_code_font(codeFont).Changed, "eight-column tabs change presentation");
+		workbench.adopt_appearance(profile);
+		profile.apply_code_font_to(workbench);
+		settle_geometry(workbench);
+		verifySources();
+		const auto widenedPositions = tabbed_correspondence_geometry(workbench);
+		expect(widenedPositions[0] > unstyledPositions[0] && widenedPositions[1] > unstyledPositions[1]
+				   && widenedPositions[2] > unstyledPositions[2],
+			   "a tab-width-only change widens every indentation depth");
+		expect(workbench.current_result() == result && workbench.current_semantic_index() == index
+				   && workbench.current_context() == selected && workbench.left_pane()->font() == font
+				   && *workbench.current_result() == diff,
+			   "tab geometry changes preserve the source, mapping index, comparison identity and font");
+	}
+
 	/// \brief A classified blob must reach the pane's rendered formats.
 	auto test_syntax_spans_colour_the_panes() -> void
 	{
@@ -3040,6 +3140,7 @@ auto main(int argc, char** argv) -> int
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();
+	test_tabbed_source_correspondence_survives_syntax_and_tab_width();
 	test_syntax_formatting_stays_bounded_by_the_viewport();
 	test_moved_blocks_carry_the_moved_role();
 	test_intraline_ranges_match_the_model();
