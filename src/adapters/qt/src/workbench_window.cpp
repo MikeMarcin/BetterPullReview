@@ -1255,6 +1255,16 @@ namespace bpr::qt {
 				if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
 					return;
 				}
+				// [[BPR-0929]]. Discuss is a PR-wide reading surface. The change
+				// controls may continue to move the retained comparison underneath
+				// it, but that code navigation must not replace or clear the
+				// conversation identity the reviewer is reading.
+				if (Modality != nullptr
+					&& Modality->current() == review_modality::discuss) {
+					update_strip_positions();
+					update_home_landing();
+					return;
+				}
 				const auto endpointIsCurrent = aSelection.has_value()
 					&& (aSelection->PreferredLine.Side == core::diff_side::left
 							? LeftConversationEndpointCurrent

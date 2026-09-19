@@ -5530,7 +5530,8 @@ namespace {
 		window.resize(1'600, 820);
 		window.show();
 		process_events();
-		auto opened    = both_files_enabled();
+		auto opened    = every_primary_command_offered(
+			core::change_navigation_policy::wrap);
 		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
 									   core::workbench_drawer_state::expanded);
 		opened.Layout  = application::workbench_layout_delta{
@@ -5543,8 +5544,15 @@ namespace {
 		for (auto line = 0U; line < 30U; ++line) {
 			text += "line " + std::to_string(line) + '\n';
 		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 5"),
+			std::string{ "line 5" }.size(),
+			"changed line 5");
+		laterText.replace(laterText.find("line 12"),
+			std::string{ "line 12" }.size(),
+			"changed line 12");
 		const auto diff = computed_comparison(
-			text, text, 0U, core::file_identity_of("src/file.cpp"));
+			text, laterText, 0U, core::file_identity_of("src/file.cpp"));
 		auto replies = std::vector<std::string>{ };
 		window.set_review_reply_dispatch(
 			[&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
@@ -5599,6 +5607,25 @@ namespace {
 		process_events();
 		expect(window.comparison_surface()->shared_scrollbar()->value() == codePosition,
 			   "selecting PR-wide discussion does not navigate the retained code comparison");
+		auto navigatedChanges = std::vector<core::change_navigation_direction>{ };
+		window.set_change_dispatch(
+			[&window, &navigatedChanges](const core::navigate_diff_change_intent aIntent) {
+				if (window.comparison_surface()->navigate_change(
+						aIntent.Direction, aIntent.Policy)) {
+					navigatedChanges.push_back(aIntent.Direction);
+				}
+			});
+		window.next_change_action()->trigger();
+		window.previous_change_action()->trigger();
+		process_events();
+		expect(navigatedChanges
+				   == std::vector{ core::change_navigation_direction::next,
+								   core::change_navigation_direction::previous }
+				   && window.current_modality() == qt::review_modality::discuss
+				   && window.conversation_model()->id_for_index(
+						  window.conversation_view()->currentIndex())
+					   == "review-thread:late",
+			   "previous and next change navigation beneath Discuss preserve the selected conversation");
 		const auto& cards    = window.conversation_panel()->cards()->cards();
 		const auto  sameFile = std::ranges::find(cards, std::string{ "review-thread:late" },
 												 &qt::thread_card::Id);
