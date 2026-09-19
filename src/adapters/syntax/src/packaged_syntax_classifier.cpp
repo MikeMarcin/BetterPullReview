@@ -25,6 +25,9 @@ namespace bpr::adapters::syntax {
 	namespace {
 		using text_style = KSyntaxHighlighting::Theme::TextStyle;
 
+		// A separate cache identity keeps resource keywords out of ordinary C.
+		constexpr std::string_view ResourceDefinitionName = "Windows Resource";
+
 		/// Lines between two cancellation checks. A blob is classified in one
 		/// pass, so cancellation is observed at line granularity rather than
 		/// after the whole file.
@@ -132,11 +135,19 @@ namespace bpr::adapters::syntax {
 		/// than an unclassified other. All three are conventions of these two
 		/// grammars alone, so no other packaged definition sees them. The same
 		/// gate carries the comment after a null directive, which both grammars
-		/// paint as an error (BPR-0747).
+		/// paint as an error (BPR-0747). Windows Resource uses that C lexical
+		/// behavior with its own normal-identifier refinement (BPR-0930).
 		[[nodiscard]] auto uses_identifier_heuristics(const std::string_view aName) noexcept
 			-> bool
 		{
-			return aName == "C++" || aName == "C";
+			return aName == "C++" || aName == "C" || aName == ResourceDefinitionName;
+		}
+
+		[[nodiscard]] auto grammar_name(const std::string_view aName) -> QString
+		{
+			return aName == ResourceDefinitionName
+				? QStringLiteral("C")
+				: QString::fromUtf8(aName.data(), static_cast<qsizetype>(aName.size()));
 		}
 
 		/// \brief Returns the record of one packaged definition.
@@ -388,6 +399,31 @@ namespace bpr::adapters::syntax {
 			return core::appearance_role::syntax_normal;
 		}
 
+		/// \brief Refines normal resource tokens without C++ type-name inference.
+		[[nodiscard]] auto resource_identifier_role(const QStringView aWord) noexcept
+			-> core::appearance_role
+		{
+			constexpr auto words = std::array{
+				u"LANGUAGE", u"ICON", u"MENU", u"MENUEX", u"BEGIN", u"END",
+				u"POPUP", u"MENUITEM", u"SEPARATOR", u"ACCELERATORS", u"ASCII",
+				u"VIRTKEY", u"ALT", u"CONTROL", u"SHIFT", u"NOINVERT",
+				u"DIALOG", u"DIALOGEX", u"CAPTION", u"CLASS", u"STYLE", u"EXSTYLE",
+				u"FONT", u"LTEXT", u"CTEXT", u"RTEXT", u"PUSHBUTTON", u"DEFPUSHBUTTON",
+				u"EDITTEXT", u"GROUPBOX", u"CHECKBOX", u"AUTOCHECKBOX", u"RADIOBUTTON",
+				u"AUTORADIOBUTTON", u"COMBOBOX", u"LISTBOX", u"SCROLLBAR",
+				u"STRINGTABLE", u"VERSIONINFO", u"FILEVERSION", u"PRODUCTVERSION",
+				u"FILEFLAGSMASK", u"FILEFLAGS", u"FILEOS", u"FILETYPE", u"FILESUBTYPE",
+				u"BLOCK", u"VALUE", u"BITMAP", u"CURSOR", u"RCDATA", u"TEXTINCLUDE"
+			};
+			const auto keyword = std::any_of(words.begin(), words.end(), [&](const auto aKeyword) {
+				return aWord == QStringView{ aKeyword };
+			});
+			if (keyword) {
+				return core::appearance_role::syntax_keyword;
+			}
+			return is_macro_case(aWord) ? core::appearance_role::syntax_macro : core::appearance_role::syntax_normal;
+		}
+
 		/// \brief Collects semantic spans from one complete-blob pass.
 		///
 		/// \details The collector owns no theme. It reads the text style of each
@@ -396,9 +432,11 @@ namespace bpr::adapters::syntax {
 		class span_collector final : public KSyntaxHighlighting::AbstractHighlighter
 		{
 		public:
-			span_collector(const std::size_t aMaximumSpans, const bool aIdentifierHeuristics)
+			span_collector(const std::size_t aMaximumSpans, const bool aIdentifierHeuristics,
+						   const bool aResourceKeywords)
 				: MaximumSpans{ aMaximumSpans }
 				, IdentifierHeuristics{ aIdentifierHeuristics }
+				, ResourceKeywords{ aResourceKeywords }
 			{
 			}
 
@@ -625,9 +663,11 @@ namespace bpr::adapters::syntax {
 			/// \brief Applies the C and C++ corrections the packaged grammar does
 			/// not make to a whole styled run.
 			///
-			/// \details Three styles mean something narrower in C and C++ than the
-			/// role vocabulary gives them, so the two definitions that already run
+			/// \details Four styles mean something narrower in C and C++ than the
+			/// role vocabulary gives them, so the definitions that already run
 			/// the post-pass correct them at the range the grammar reported.
+			/// DataType describes language built-ins, while inferred user types
+			/// receive their role separately from normal runs (BPR-0930).
 			///
 			/// The import style is the `<…>` or `"…"` header name of an
 			/// `#include`, which the reference paints as a string rather than the
@@ -660,6 +700,11 @@ namespace bpr::adapters::syntax {
 			{
 				if (!IdentifierHeuristics) {
 					return aRole;
+				}
+				if (aRole == core::appearance_role::syntax_type) {
+					// The grammar's DataType describes language built-ins. Inferred
+					// user types are emitted separately from normal runs below.
+					return core::appearance_role::syntax_builtin;
 				}
 				if (ConditionalStart >= 0 && aBegin >= ConditionalStart && aBegin >= OperandEnd
 					&& aPredefinedMacro
@@ -699,7 +744,9 @@ namespace bpr::adapters::syntax {
 						++stop;
 					}
 					if (stop <= end) {
-						const auto role = identifier_role(Text, at, stop);
+						const auto role = ResourceKeywords
+							? resource_identifier_role(Text.mid(at, stop - at))
+							: identifier_role(Text, at, stop);
 						if (role != core::appearance_role::syntax_normal) {
 							OpenSpan = false;
 							append_units(at, stop, role);
@@ -834,6 +881,7 @@ namespace bpr::adapters::syntax {
 			application::token_span_list      Spans;
 			std::size_t                       MaximumSpans         = 0U;
 			bool                              IdentifierHeuristics = false;
+			bool                              ResourceKeywords     = false;
 			QStringView                       Text;
 			const std::vector<std::uint32_t>* ByteOffsets      = nullptr;
 			std::uint32_t                     Line             = 0U;
@@ -899,6 +947,11 @@ namespace bpr::adapters::syntax {
 		const auto path = QString::fromUtf8(
 			aPath.data(),
 			static_cast<qsizetype>(aPath.size()));
+		if (path.endsWith(QStringLiteral(".rc"), Qt::CaseInsensitive)) {
+			// Upstream TOML claims *.rc. Resource scripts instead use C lexical
+			// state plus a bounded keyword refinement under their own identity.
+			return definition_named(ResourceDefinitionName).value_or(plain_text_definition());
+		}
 		const auto definition = Implementation->Definitions.definitionForFileName(path);
 		if (!definition.isValid()) {
 			return plain_text_definition();
@@ -913,14 +966,16 @@ namespace bpr::adapters::syntax {
 		if (aName == plain_text_definition_name) {
 			return plain_text_definition();
 		}
-		const auto name = QString::fromUtf8(
-			aName.data(),
-			static_cast<qsizetype>(aName.size()));
+		const auto name       = grammar_name(aName);
 		const auto definition = Implementation->Definitions.definitionForName(name);
 		if (!definition.isValid()) {
 			return std::nullopt;
 		}
-		return record_of(definition);
+		auto record = record_of(definition);
+		if (aName == ResourceDefinitionName) {
+			record.Name = ResourceDefinitionName;
+		}
+		return record;
 	}
 
 	auto packaged_definition_catalog::packaged_definitions() const noexcept
@@ -1006,11 +1061,12 @@ namespace bpr::adapters::syntax {
 			auto collector = span_collector{
 				aRequest.MaximumSpans,
 				uses_identifier_heuristics(aDefinitionName),
+				aDefinitionName == ResourceDefinitionName,
 			};
 			if (aDefinitionName != plain_text_definition_name) {
 				collector.setDefinition(
 					Catalog.Implementation->Definitions.definitionForName(
-						QString::fromStdString(aDefinitionName)));
+						grammar_name(aDefinitionName)));
 			}
 			const auto lines = split_lines(aText);
 			auto       state = KSyntaxHighlighting::State{ };

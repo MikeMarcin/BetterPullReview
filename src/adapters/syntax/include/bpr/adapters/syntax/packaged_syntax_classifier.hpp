@@ -32,10 +32,12 @@ namespace bpr::adapters::syntax {
 	/// name (BPR-0744). Revision 3 recognizes conditional macro identifiers
 	/// independently of capitalization (BPR-0748). Revision 4 paints the `//`
 	/// comment after a null directive as a comment rather than an error
-	/// (BPR-0747). It is folded into those definitions' published version,
+	/// (BPR-0747). Revision 5 maps C-family DataType to built-in and adds the
+	/// Windows Resource identity backed by packaged C with resource keywords
+	/// (BPR-0930). It is folded into those definitions' published version,
 	/// so raising it retires every span set cached under the previous
 	/// heuristics.
-	inline constexpr std::uint32_t identifier_heuristic_revision = 4U;
+	inline constexpr std::uint32_t identifier_heuristic_revision = 5U;
 
 	/// \brief Supplies the complete bytes of one blob.
 	///
@@ -80,6 +82,8 @@ namespace bpr::adapters::syntax {
 		/// \details The selection uses the file name alone, so a path outside the
 		/// repository cannot influence it. A path no definition claims resolves to
 		/// the plain-text record, which is a decision rather than a failure.
+		/// `.rc` (case-insensitive) selects the stable `Windows Resource` identity,
+		/// backed by packaged C and the versioned resource keyword post-pass.
 		[[nodiscard]] auto definition_for_path(std::string_view aPath) const
 			-> application::syntax_definition_version;
 

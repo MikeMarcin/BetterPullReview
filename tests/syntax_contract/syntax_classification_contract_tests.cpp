@@ -191,8 +191,10 @@ namespace {
 		// superset, so a .json file selecting JSONC is the correct packaged
 		// answer. The .jsonl fixture pins the plain JSON definition, which only
 		// it claims, so both members of the family are covered.
-		const auto expectations = std::array<expectation, 7U>{ {
+		const auto expectations = std::array<expectation, 9U>{ {
 			{ "multiline_comment.cpp", "C++" },
+			{ "windows_resource.rc", "Windows Resource" },
+			{ "WINDOWS_RESOURCE.RC", "Windows Resource" },
 			{ "CMakeLists.txt", "CMake" },
 			{ "notes.md", "Markdown" },
 			{ "payload.json", "JSONC" },
@@ -773,6 +775,113 @@ namespace {
 				  "an unknown directive stays an error through its trailing comment");
 	}
 
+	void builtin_type_contract(const syntax::packaged_definition_catalog& aCatalog)
+	{
+		using role      = core::appearance_role;
+		const auto text = std::string{
+			"void CUIforETWDlg::Update() {}\n"
+			"bool enabled;\n"
+			"wchar_t character;\n"
+			"NameToString names;\n"
+		};
+		auto       blobs = fixture_blobs{ };
+		const auto oid   = blob(22U);
+		blobs.install(oid, text);
+		auto classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
+		for (const auto name : { "C", "C++" }) {
+			const auto definition = *aCatalog.definition_named(name);
+			const auto result     = classifier.classify(request(oid, definition), { });
+			expect(result.Status == app::syntax_classification_status::available, "C-family types classify");
+			for (const auto word : { "void", "bool", "wchar_t" }) {
+				expect(word_has_role(result.Spans, text, line_of(text, word), word, role::syntax_builtin),
+					   "C-family language types use exact built-in spans");
+			}
+			for (const auto word : { "CUIforETWDlg", "NameToString" }) {
+				expect(word_has_role(result.Spans, text, line_of(text, word), word, role::syntax_type),
+					   "inferred user types keep exact type spans");
+			}
+			expect(word_has_role(result.Spans, text, 0U, "Update", role::syntax_function),
+				   "function roles remain distinct from built-in and user types");
+			auto previous = definition;
+			previous.Version -= 1U << 16U;
+			expect(classifier.classify(request(oid, previous), { }).Status == app::syntax_classification_status::unavailable,
+				   "the immediately previous heuristic revision is refused");
+		}
+	}
+
+	void windows_resource_contract(const syntax::packaged_definition_catalog& aCatalog)
+	{
+		using role            = core::appearance_role;
+		const auto text       = read_fixture("windows_resource.rc");
+		const auto definition = aCatalog.definition_for_path("windows_resource.rc");
+		expect(aCatalog.definition_named("Windows Resource") == definition,
+			   "the resource identity resolves by name for classification and cache reuse");
+		expect(definition.Version == aCatalog.definition_named("C")->Version,
+			   "resource revision binds both the packaged C grammar and current heuristic revision");
+		auto       blobs = fixture_blobs{ };
+		const auto oid   = blob(23U);
+		blobs.install(oid, text);
+		auto       classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
+		const auto result     = classifier.classify(request(oid, definition), { });
+		expect(result.Status == app::syntax_classification_status::available, "resource fixture classifies");
+		const auto& spans = result.Spans;
+		expect(word_has_role(spans, text, 1U, "\"Resource.h\"", role::syntax_string)
+				   && word_inside_role(spans, text, 1U, "#include", role::syntax_preprocessor),
+			   "resource quoted include and directive preserve independent ranges");
+		expect(word_has_role(spans, text, 4U, "<windows.h>", role::syntax_string),
+			   "resource angle include is a string");
+		for (const auto line : { 2U, 3U }) {
+			expect(word_has_role(spans, text, line, "APSTUDIO_INVOKED", role::syntax_macro),
+				   "resource directive macro operands keep exact macro spans");
+		}
+		struct keyword_expectation
+		{
+			std::uint32_t    Line;
+			std::string_view Word;
+		};
+		const auto keywords = std::array<keyword_expectation, 16U>{ { { 7U, "LANGUAGE" }, { 8U, "ICON" }, { 9U, "MENU" }, { 10U, "BEGIN" }, { 11U, "POPUP" }, { 13U, "MENUITEM" }, { 14U, "END" }, { 16U, "ACCELERATORS" }, { 18U, "ASCII" }, { 18U, "ALT" }, { 20U, "DIALOGEX" }, { 21U, "STYLE" }, { 22U, "CAPTION" }, { 23U, "FONT" }, { 25U, "LTEXT" }, { 26U, "PUSHBUTTON" } } };
+		for (const auto& keyword : keywords) {
+			expect(word_has_role(spans, text, keyword.Line, keyword.Word, role::syntax_keyword), "resource keywords have exact keyword spans");
+		}
+		expect(word_has_role(spans, text, 8U, "IDI_SMALL", role::syntax_macro),
+			   "ALL_CAPS resource identifiers retain their distinct macro role");
+		for (const auto marker : { "MainMenu MENU", "MainKeys ACCELERATORS", "MainDialog DIALOGEX" }) {
+			const auto word   = std::string_view{ marker }.substr(0, std::string_view{ marker }.find(' '));
+			const auto line   = line_of(text, marker);
+			const auto column = row_of(text, line).find(word);
+			expect(std::none_of(spans.begin(), spans.end(), [&](const auto& span) {
+					   return span.Line == line && span.Column < column + word.size() && span.Column + span.Length > column;
+				   }),
+				   "ordinary mixed-case resource identifiers have no styled overlap");
+		}
+		expect(word_has_role(spans, text, 0U, row_of(text, 0U), role::syntax_comment),
+			   "resource // comment stays wholly a comment despite embedded keywords");
+		expect(word_has_role(spans, text, 11U, "\"MENU BEGIN café\"", role::syntax_string),
+			   "resource strings are not rescanned for keywords");
+		const auto utf8Line = line_of(text, "UTF-8 offset");
+		expect(word_has_role(spans, text, utf8Line, "MENUITEM", role::syntax_keyword),
+			   "resource keyword offsets remain UTF-8 byte offsets after a multibyte string");
+		expect(word_has_role(spans, text, line_of(text, "#if MENU"), "MENU", role::syntax_macro)
+				   && word_has_role(spans, text, 6U, "MENU", role::syntax_macro, 1U),
+			   "resource keywords in directives remain macro operands");
+		expect(std::none_of(spans.begin(), spans.end(), [](const auto& span) { return span.Role == role::syntax_type; }),
+			   "resource identifiers do not acquire blanket type roles");
+		const auto commentLine = line_of(text, "LANGUAGE POPUP */");
+		const auto hunk        = classifier.classify_hunk(request(oid, definition), { .First = commentLine, .Count = 1U }, { });
+		expect(line_is_wholly(hunk.Spans, commentLine, length_of_line(text, commentLine), role::syntax_comment),
+			   "a resource hunk retains preceding block comment state");
+		const auto asC = classifier.classify(request(oid, *aCatalog.definition_named("C")), { });
+		expect(word_has_role(asC.Spans, text, 7U, "LANGUAGE", role::syntax_macro),
+			   "resource keyword refinement never affects ordinary C");
+		expect(classifier.classify(request(oid, definition, 1U), { }).Status
+				   == app::syntax_classification_status::limit_exceeded,
+			   "resource refinement respects the span bound");
+		blobs.install(oid, std::string{ "\xFF", 1U });
+		const auto malformed = classifier.classify(request(oid, definition), { });
+		expect(malformed.Status == app::syntax_classification_status::unavailable && malformed.Spans.empty(),
+			   "invalid UTF-8 resource bytes fail safely without invented offsets");
+	}
+
 	void identifier_role_contract(const syntax::packaged_definition_catalog& aCatalog)
 	{
 		const auto text  = read_fixture("identifier_roles.cpp");
@@ -875,6 +984,8 @@ int main()
 	definition_selection_contract(catalog);
 	complete_blob_state_contract(catalog);
 	identifier_role_contract(catalog);
+	builtin_type_contract(catalog);
+	windows_resource_contract(catalog);
 	plain_text_and_failure_contract(catalog);
 	appearance_independence_contract(catalog);
 	packaged_resource_contract(catalog);

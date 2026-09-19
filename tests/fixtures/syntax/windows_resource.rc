@@ -1,0 +1,33 @@
+// Synthetic resource fixture: LANGUAGE MENU
+#include "Resource.h"
+#define APSTUDIO_INVOKED 1
+#ifdef APSTUDIO_INVOKED
+#include <windows.h>
+#endif
+#define MENU_ALIAS MENU
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+IDI_SMALL ICON "small.ico"
+MainMenu MENU
+BEGIN
+    POPUP "MENU BEGIN café"
+    BEGIN
+        MENUITEM "Exit", IDM_EXIT
+    END
+END
+MainKeys ACCELERATORS
+BEGIN
+    "?", IDM_ABOUT, ASCII, ALT
+END
+MainDialog DIALOGEX 0, 0, 120, 80
+STYLE WS_POPUP | WS_CAPTION
+CAPTION "Synthetic window"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT "Label", IDC_LABEL, 4, 4, 60, 10
+    PUSHBUTTON "OK", IDOK, 4, 20, 50, 14
+END
+/* ICON MENU
+LANGUAGE POPUP */
+"é" MENUITEM "UTF-8 offset", ordinaryName
+#if MENU
+#endif
