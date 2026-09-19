@@ -399,6 +399,19 @@ namespace bpr::adapters::syntax {
 			return core::appearance_role::syntax_normal;
 		}
 
+		/// \brief Distinguishes language type tokens from typedef-style DataType runs.
+		[[nodiscard]] auto is_language_type(const QStringView aWord) noexcept -> bool
+		{
+			constexpr auto words = std::array{
+				u"void", u"bool", u"char", u"char8_t", u"char16_t", u"char32_t", u"wchar_t",
+				u"short", u"int", u"long", u"signed", u"unsigned", u"float", u"double",
+				u"_Bool", u"_Complex", u"_Imaginary", u"_BitInt", u"_Decimal32", u"_Decimal64", u"_Decimal128"
+			};
+			return std::any_of(words.begin(), words.end(), [&](const auto aType) {
+				return aWord == QStringView{ aType };
+			});
+		}
+
 		/// \brief Refines normal resource tokens without C++ type-name inference.
 		[[nodiscard]] auto resource_identifier_role(const QStringView aWord) noexcept
 			-> core::appearance_role
@@ -666,8 +679,9 @@ namespace bpr::adapters::syntax {
 			/// \details Four styles mean something narrower in C and C++ than the
 			/// role vocabulary gives them, so the definitions that already run
 			/// the post-pass correct them at the range the grammar reported.
-			/// DataType describes language built-ins, while inferred user types
-			/// receive their role separately from normal runs (BPR-0930).
+			/// DataType includes both language built-ins and typedef-style names;
+			/// only explicit language type tokens receive the built-in role.
+			/// Inferred user types retain their type role (BPR-0930).
 			///
 			/// The import style is the `<…>` or `"…"` header name of an
 			/// `#include`, which the reference paints as a string rather than the
@@ -701,9 +715,8 @@ namespace bpr::adapters::syntax {
 				if (!IdentifierHeuristics) {
 					return aRole;
 				}
-				if (aRole == core::appearance_role::syntax_type) {
-					// The grammar's DataType describes language built-ins. Inferred
-					// user types are emitted separately from normal runs below.
+				if (aRole == core::appearance_role::syntax_type
+					&& is_language_type(Text.mid(aBegin, aEnd - aBegin))) {
 					return core::appearance_role::syntax_builtin;
 				}
 				if (ConditionalStart >= 0 && aBegin >= ConditionalStart && aBegin >= OperandEnd

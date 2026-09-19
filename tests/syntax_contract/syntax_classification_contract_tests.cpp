@@ -783,6 +783,10 @@ namespace {
 			"bool enabled;\n"
 			"wchar_t character;\n"
 			"NameToString names;\n"
+			"widget_t widget;\n"
+			"value_type value;\n"
+			"widget_t anotherWidget;\n"
+			"value_type anotherValue;\n"
 		};
 		auto       blobs = fixture_blobs{ };
 		const auto oid   = blob(22U);
@@ -802,6 +806,16 @@ namespace {
 			}
 			expect(word_has_role(result.Spans, text, 0U, "Update", role::syntax_function),
 				   "function roles remain distinct from built-in and user types");
+			if (std::string_view{ name } == "C++") {
+				for (const auto line : { 4U, 6U }) {
+					expect(word_has_role(result.Spans, text, line, "widget_t", role::syntax_type),
+						   "upstream *_t DataType spans remain exact user-type spans");
+				}
+				for (const auto line : { 5U, 7U }) {
+					expect(word_has_role(result.Spans, text, line, "value_type", role::syntax_type),
+						   "upstream *_type DataType spans remain exact user-type spans");
+				}
+			}
 			auto previous = definition;
 			previous.Version -= 1U << 16U;
 			expect(classifier.classify(request(oid, previous), { }).Status == app::syntax_classification_status::unavailable,

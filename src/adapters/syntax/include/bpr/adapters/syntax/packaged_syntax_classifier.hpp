@@ -32,7 +32,8 @@ namespace bpr::adapters::syntax {
 	/// name (BPR-0744). Revision 3 recognizes conditional macro identifiers
 	/// independently of capitalization (BPR-0748). Revision 4 paints the `//`
 	/// comment after a null directive as a comment rather than an error
-	/// (BPR-0747). Revision 5 maps C-family DataType to built-in and adds the
+	/// (BPR-0747). Revision 5 maps explicit C-family language type tokens to
+	/// built-in while preserving typedef-style DataType spans, and adds the
 	/// Windows Resource identity backed by packaged C with resource keywords
 	/// (BPR-0930). It is folded into those definitions' published version,
 	/// so raising it retires every span set cached under the previous
