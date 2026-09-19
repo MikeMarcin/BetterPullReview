@@ -58,7 +58,7 @@ new wording or weakened exact-comparison guards.
 | [BPR-0925](../issues/60-done/BPR-0925-duplicate-thread-below-conversation-graph.md) | Apparent duplicate thread rendering | AC-08 |
 | [BPR-0926](../issues/60-done/BPR-0926-discuss-threads-without-file-selection.md) | Empty Discuss and file-independent reading | AC-09 |
 | [BPR-0928](../issues/60-done/BPR-0928-expanded-overview-description-reader.md) | Implement retained full-body Overview reader | AC-01 runtime follow-up |
-| [BPR-0929](../issues/40-parked/BPR-0929-review-composition-and-pr-wide-discuss.md) | Implement dedicated composition and PR-wide Discuss | AC-03, AC-06 and AC-09 runtime follow-up |
+| [BPR-0929](../issues/60-done/BPR-0929-review-composition-and-pr-wide-discuss.md) | Implement dedicated composition and PR-wide Discuss | AC-03, AC-06 and AC-09 runtime follow-up |
 
 ## Source and update correctness
 

@@ -1,6 +1,6 @@
 {
   "approved": true,
-  "decision": "human-pending",
+  "decision": "done",
   "records": [
     {
       "criterion": "Compose review provides usable exact target, type, summary, actions and status at required sizes, fonts and scales with one short-height scroll owner.",
@@ -23,10 +23,10 @@
     {
       "criterion": "Discuss is PR-wide without a selected file/comparison and indexes all admitted conversation kinds with stable state and provenance.",
       "outcome": "pass",
-      "revision": "8939de71",
+      "revision": "e3258509",
       "evidence": {
         "kind": "command",
-        "detail": "Panel/workbench tests admit both files, pathless PR comments, review summaries and inline threads despite absent comparison anchors; roots/replies, kind, resolved/outdated and selected identities remain stable."
+        "detail": "Panel/workbench tests admit both files, pathless PR comments, review summaries and inline threads despite absent comparison anchors; roots/replies, kind, resolved/outdated and selected identities remain stable. After the attended note exposed Previous/Next change clearing the selected conversation, e3258509 makes comparison navigation independent of the PR-wide Discuss selection and the three scale rows pass."
       }
     },
     {
@@ -67,11 +67,11 @@
     },
     {
       "criterion": "Keyboard order, focus restoration, accessible state text and inherited native appearances are verified.",
-      "outcome": "pending",
+      "outcome": "pass",
       "revision": "8939de71",
       "evidence": {
-        "kind": "artifact",
-        "detail": "Deterministic tab/focus/accessibility and all scale rows pass; native VoiceOver and subjective light/dark/high-contrast inspection remain queued as candidates rfc0037-discuss-thread-reading and rfc0037-compose-pages in docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json."
+        "kind": "observation",
+        "detail": "Native candidates rfc0037-discuss-thread-reading and rfc0037-compose-pages received explicit accept decisions e5968d67-c5b5-49e9-b0f0-f869a73737d0 and 7e3a3b36-e1d0-417a-ba8e-7343b5f6ffbd at the reviewed 8939de71/5b8b23dc revision after the requested focus, VoiceOver and light/dark/Increase contrast course. Deterministic tab/focus/accessibility and all scale rows also pass."
       }
     }
   ]
