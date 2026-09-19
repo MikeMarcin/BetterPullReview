@@ -1,0 +1,114 @@
+{
+  "schema": "implement-rfc.milestone-return.v2",
+  "run_id": "rfc0037-run-20260918",
+  "dispatch_id": "rfc0037-dispatch-004",
+  "producer_id": "/root/rfc0037_closeout",
+  "mandate_revision": "1",
+  "milestone": "combined-first-pr-closeout",
+  "disposition": "milestone-complete",
+  "summary": "The combined first-PR technical closeout is accepted. BPR-0927 is Done after one continuous recorded-fixture course joined refused acquisition, durable recovery, retained update history, two exact sources, Overview Start review, file-independent PR-wide Discuss and retained local composition with zero publication effects. All RFC criteria and four authored exits have revision-bound deterministic and applicable macOS-native evidence. RFC-BPR-0037 and its index row remain Proposed because five direct dependencies are not Auto-Verified.",
+  "candidate_revision": "e4096e050b856eed1f103c215701d3cf289d159f",
+  "handoff_ref": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-return-rfc0037-dispatch-004.json",
+  "ownership": "quiescent",
+  "next_objective": "After RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 become Auto-Verified, reconcile RFC-BPR-0037 and its canonical index row without reopening unchanged accepted engineering.",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/assignment-rfc0037-dispatch-004.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0927.json",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-combined-first-pr-closeout-evidence.md",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-source-update-review-entry-evidence.md",
+    "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-thread-reading-integration-evidence.md",
+    "docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json",
+    "docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/operator-packet.md",
+    "e4096e050b856eed1f103c215701d3cf289d159f",
+    "351955476d898e975ce70d58c413f191446c536b",
+    "b8ff4ed70444ec7d2d419a77f367ec736f326b70"
+  ],
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "combined-first-pr-closeout",
+    "definition_fingerprint": "sha256:9dc9e1e904255f6068b2594072f66d44c2ec52d1a5ed7430127c9f5d977ae540",
+    "obligations": [
+      {
+        "id": "BPR-0927:*",
+        "source": "BPR-0927",
+        "selector": null,
+        "source_fingerprint": "sha256:843272d0c547449edb1d363496e11144eab148fc41166fb0672002af1130e7c0"
+      }
+    ],
+    "obligation_fingerprint": "sha256:e944646e257d038b6034c7aa31a0655f55c56fc162096f727d5da986008d7054",
+    "exit_criteria": [
+      {
+        "id": "combined-first-pr-closeout:exit:1",
+        "text": "Every RFC-BPR-0037 criterion and linked implementation follow-up has direct revision-bound evidence, including initial load, failures, empty content, refresh, authority replacement, head changes and retained selection/drafts."
+      },
+      {
+        "id": "combined-first-pr-closeout:exit:2",
+        "text": "The combined recorded-fixture course loads a PR, reaches update history and multiple exact source files, enters Review correctly and reads conversations without an accidental file-selection prerequisite."
+      },
+      {
+        "id": "combined-first-pr-closeout:exit:3",
+        "text": "Applicable target-native accessibility, responsive-layout and scrolling observations are recorded separately from deterministic tests, and unavailable platform or live-service evidence remains explicit."
+      },
+      {
+        "id": "combined-first-pr-closeout:exit:4",
+        "text": "Documentation and board validation pass; RFC/index status changes only when canonical dependencies and every closeout obligation permit it."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:2310b4cb53af4fda99382b4994eda5bf2cbba1eb791c8df8d97706566ef4ff79",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "The bound technical milestone and BPR-0927 are complete and no in-scope engineering remains. Stop without claiming pack completion; the separately dependency-gated RFC/index status reconciliation becomes eligible only after the five named direct dependencies are Auto-Verified."
+  },
+  "acceptance_records": [
+    {
+      "id": "BPR-0927:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0927.json",
+        "b8ff4ed70444ec7d2d419a77f367ec736f326b70"
+      ]
+    },
+    {
+      "id": "combined-first-pr-closeout:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0927.json",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-combined-first-pr-closeout-evidence.md"
+      ]
+    },
+    {
+      "id": "combined-first-pr-closeout:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "e4096e050b856eed1f103c215701d3cf289d159f",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-combined-first-pr-closeout-evidence.md"
+      ]
+    },
+    {
+      "id": "combined-first-pr-closeout:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/reviews/rfc-bpr-0037-thread-reading-v001/candidate-manifest.json",
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-combined-first-pr-closeout-evidence.md"
+      ]
+    },
+    {
+      "id": "combined-first-pr-closeout:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0927.json",
+        "b8ff4ed70444ec7d2d419a77f367ec736f326b70"
+      ]
+    }
+  ]
+}

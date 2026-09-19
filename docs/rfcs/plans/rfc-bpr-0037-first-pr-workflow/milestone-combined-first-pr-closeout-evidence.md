@@ -14,9 +14,9 @@
   accepted revision-bound evidence; live fingerprint drift is expected from
   accepted card transitions and will not reopen engineering without a concrete
   contradiction.
-- Card ownership: BPR-0927 was dependency-ready, promoted in `e8004fd8`, and
-  claimed by this integrator in `41d123ff`. No other RFC-BPR-0037 card remains
-  active.
+- Card ownership: BPR-0927 was dependency-ready, promoted in `e8004fd8`,
+  claimed by this integrator in `41d123ff`, and moved to Done in `b8ff4ed7`
+  after acceptance. No RFC-BPR-0037 card remains active.
 - Canonical status constraint: RFC-BPR-0037 is still `Proposed`; its listed
   dependencies RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015, RFC-BPR-0028 and
   RFC-BPR-0029 must be reconciled before any `Auto-Verified` transition. This
@@ -58,8 +58,9 @@
 - Pending obligation: no engineering, human or target-native obligation remains
   for this technical closeout. The RFC status transition remains separately
   gated by its nonterminal direct dependencies.
-- Next discriminating step: finish BPR-0927 while preserving RFC-BPR-0037 and
-  its index row as `Proposed`.
+- Next discriminating step: none inside this technical milestone. A later
+  status-only reconciliation becomes eligible after the five named direct
+  dependencies are `Auto-Verified`.
 
 ## Evidence audit before the combined course
 
@@ -149,3 +150,17 @@
   RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015 and RFC-BPR-0028 are `Proposed`, and
   RFC-BPR-0029 is `Accepted`. Finishing the technical closeout without changing
   the RFC/index status is the canonical-order pass condition.
+- `issue_board.py finish` accepted `acceptance-BPR-0927.json`, moved BPR-0927
+  from `30-in-progress` to `60-done`, and committed the transition as
+  `b8ff4ed70444ec7d2d419a77f367ec736f326b70`.
+- The final handoff checker validated the return structure, exact dispatch and
+  quiescent execution, then requested reconciliation because the live BPR-0927
+  fingerprint changed from assigned
+  `sha256:843272d0c547449edb1d363496e11144eab148fc41166fb0672002af1130e7c0`
+  to
+  `sha256:480f380af23290a260afe8ca63c01f0e73c63f8ccfd70f38cdac5866bb13cb0c`.
+  The milestone definition,
+  exit criteria and prerequisite fingerprint are unchanged; the sole affected
+  requirement change is the accepted card's documented In Progress-to-Done
+  transition. The designated integrator therefore reconciles that expected
+  board drift without reopening accepted engineering.
