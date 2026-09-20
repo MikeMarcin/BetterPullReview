@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Prior held real composition and coalesced exact-request progress tests remain valid; presentation is unchanged. New tests-disabled 515-file course directly shows immediate loading Overview."}},{"criterion":"AC2","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Accepted-shape policy and thresholds unchanged. Current application_epoch_host and application_github_window_read_host pass, including small/large and missing/conflicting/stale facts."}},{"criterion":"AC3","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Repaired account wrappers preserve large sparse capability and guarded exact-blob reads. Sparse-only 515-file native fixture reaches exact source without complete clone. Small-complete public course and portable current/historical course pass; bounds/refusals retained."}},{"criterion":"AC4","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Focused 5/5, integration, fixture 4/4, native synthetic source/anchors, documentation, 64 verifier tests, formatting and signed Release pass. Safety and broader limits recorded in v005 identity."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"v004 sequence433 rejected the integrated result but explicitly approved prompt transition, loading animation and status. Retain only that presentation observation; do not change the reject verdict or accept missing source. Presentation code unchanged."}},{"criterion":"shared-milestone-exit-4","outcome":"pending","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Coupled selected-diff milestone still requires BPR-0794 AC4 real-target source/anchor acceptance. Both cards remain parked until that exit is genuinely met; only the selected-diff question is refreshed."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Prior held real composition and coalesced exact-request progress tests remain valid; presentation is unchanged. New tests-disabled 515-file course directly shows immediate loading Overview."}},{"criterion":"AC2","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Accepted-shape policy and thresholds unchanged. Current application_epoch_host and application_github_window_read_host pass, including small/large and missing/conflicting/stale facts."}},{"criterion":"AC3","outcome":"pass","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"0c66306f corrects sparse import of missing special blobs without changing small/large policy or exact-blob authority. Sparse cache, host, setup composition, and portable current/historical tests pass. Real-target sparse import succeeds; repaired native source is still pending."}},{"criterion":"AC4","outcome":"pass","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"Candidate 0c66306f passes final process contract, sparse cache, 5/5 focused/integration, 4/4 external fixture, documentation/64 verifier tests, formatting and signed Release checks. Safe old-app production course reproduces failure. New native source/anchor course remains pending while the Mac is locked."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"v004 sequence433 rejected the integrated result but explicitly approved prompt transition, loading animation and status. Retain only that presentation observation; do not change the reject verdict or accept missing source. Presentation code unchanged."}},{"criterion":"shared-milestone-exit-4","outcome":"pending","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"v005 integrated rejection remains authoritative. New independent repair 0c66306f passes real-target sparse import; signed r21 native source/anchor proof is still pending while the Mac is locked. Initial accepted content still takes 48 full-snapshot pages / 76.24 seconds; prompt loading approval is retained, not a faster-content claim."}}]
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
@@ -42,7 +42,24 @@ exact-target selected-diff acceptance.
 
 ## Evidence
 
-### Current correction — v004 hand-back, v005 prepared
+### Current correction — v005 independently reproduced
+
+The v005 integrated rejection remains authoritative. The fixed-field real-target
+read took 76.24 seconds for 48 provider pages, before Git acquisition. Sixteen
+GraphQL operations include file-viewed-state continuation pages, not repeated
+reads of the 19 review threads. This is bounded full-snapshot pagination, not
+sparse tree traversal or UI-thread blocking. The loading Overview still paints
+promptly, but this round does not make accepted content arrive sooner or weaken
+the atomic complete-snapshot contract.
+
+`0c66306f` fixes the subsequent sparse special-blob import refusal; the real
+installed import now succeeds. The [independent evidence record](../../verification/rfc-bpr-0013-sparse-special-blobs-20260920.md)
+binds the failed old-app public course, repaired safety checks and remaining
+native proof. The Mac locked before the repaired signed r21 app could be driven.
+Both cards remain open for independent source/anchor verification, without a
+new attended question. [[BPR-0934]] owns the separate Overview folder-collapse request.
+
+### Historical correction — v004 hand-back, v005 prepared
 
 The owner explicitly approved the prompt transition, loading animation and
 status in v004 decision 433, while rejecting the integrated result because

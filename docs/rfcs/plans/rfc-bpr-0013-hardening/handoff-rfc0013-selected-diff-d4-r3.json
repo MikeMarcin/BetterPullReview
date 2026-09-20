@@ -16,21 +16,76 @@
     "reject_sequence": 441,
     "handback_sequence": 442,
     "release_sequence": 443,
-    "interpretation": "Authoritative failure: no readable selected diff; many pages before Overview content. No new review until independently reproduced and objectively verified in the signed tests-disabled app. Folder-collapse request tracked separately as BPR-0934."
+    "interpretation": "Authoritative failure: no readable selected diff; many pages before Overview content. No new review until independently reproduced and objectively verified in the signed tests-disabled app. Folder-collapse request tracked separately as BPR-0934.",
+    "new_candidate": "None; v005 rejection and existing decisions preserved. Do not ask owner to discover whether selected diffs work.",
+    "last_owned_event": 443
   },
-  "diagnosis": "Rejected app fixed diagnostics show protocol acquisition succeeds, then revision_prepare fails cache/unsupported_object. Loading pages precede epoch work and belong to provider pagination. Independent exact-app reproduction in progress.",
+  "diagnosis": "Exact signed v005/r20 app reproduces no pair. Sparse acquisition succeeds, but index-pack fsck requires absent .gitattributes. Git also prints absent .gitmodules identity to stdout. 0c66306f ignores only these missing-special-blob messages on sparse Git>=2.44; complete imports and present malformed objects remain strict. Production negative control and real import positive documented. Provider page wait is separate bounded atomic snapshot loading.",
   "ownership": {
     "engineering_owner": "/root/rfc0013_postreview_r3",
-    "writers": ["/root/rfc0013_postreview_r3"],
-    "unrelated": [".mask.lock.json", ".claude/worktrees/agent-a17cae88115dbbb4e"],
+    "writers": [
+      "/root/rfc0013_postreview_r3"
+    ],
+    "unrelated": [
+      ".mask.lock.json",
+      ".claude/worktrees/agent-a17cae88115dbbb4e"
+    ],
     "owner_app": "PID 15093 already absent on entry; diagnostics record normal shutdown 2026-09-20T08:48:22Z. Never signalled.",
-    "task_commands": "Signed v005 native app launched with CUA for exact-target read-only reproduction. No background build/test or child agent. Existing review host belongs to coordinator."
+    "task_commands": "All task-owned native apps quit normally and all builds/tests/probes finished. CUA twice reports Mac locked; no repaired-app launch. No own server or watcher; coordinator review host PID 12070 untouched.",
+    "cleanup": "Task-owned probe sources, object and executable plus isolated synthetic CLI/home moved recoverably to /Users/jaeger/.Trash/bpr-rfc0013-r21-temporary-20260920. Safe r21-before-synthetic.png, fixed logs and signed candidates retained under build. Private probe QTemporaryDir stores cleaned normally."
   },
   "pending_obligations": [
-    "Reproduce exact-target failure in the real signed tests-disabled app, repair, and independently demonstrate readable source and exact anchors.",
-    "Diagnose provider page latency; fix causal in-scope defects without accepting incomplete snapshots.",
-    "Focused failing-before regression through production composition, safety negatives, integration, documentation and self-review.",
-    "Preserve all wider RFC/native/human obligations and unrelated attended decisions."
+    "BPR-0794 AC4 / shared milestone exit 4: independently drive the repaired signed r21 app on the exact target and establish readable selected source with accepted pair/anchor identity; Mac unlock needed, not user testing",
+    "Repeat enhanced safe 515-file ordinary CLI-profile course on r21 and capture full-window rendered source plus exact safe anchors. Never print or save private target paths/OIDs/content",
+    "Initial provider read still waits for all 48 bounded pages (76.24 s measured); progressive accepted content requires separately specified authority/snapshot semantics, not a claim of this correction",
+    "Keep wider RFC prerequisites, prior device acceptance, other candidate protections and unrelated edits unchanged"
   ],
-  "next_action": "Complete the exact-app reproduction, inspect sanitized fsck identifier, then exercise the actual sparse import composition with a representative safe regression."
+  "next_action": "When Mac is unlocked, use CUA to launch the exact r21 bundle and drive normal CLI-profile Open for EpicGames/UnrealEngine#1773 read-only. Observe readiness without emitting private AX text; choose a text file and verify actual source/anchor identity. Run the enhanced local course with a fresh /Users/jaeger/bpr-rfc0013-r21-after root, not /private/tmp (Qt standard paths normalize that to noncanonical /tmp). No new attended candidate before objective success.",
+  "helper_observation": "build/rfc0013-resume-20260919/r21-milestone-observation.json",
+  "candidate": {
+    "source_revision": "0c66306fc7c233b0a78eef02e5b09916ad349022",
+    "bundle": "build/app-release-rfc0013-r21/src/app/BetterPullReview.app",
+    "executable_sha256": "c0fc8f508d1679b9f9bc7195fb2ecbcd943a0d3e4504a81b8c841dc4c4e7789a",
+    "build": "Release; BUILD_TESTING=OFF; macOS 26.6.2 arm64; Qt 6.10.3; Apple Git 2.50.1",
+    "signature": "Existing Developer ID; codesign --verify --deep --strict passes",
+    "protected": false,
+    "native_acceptance": "pending; Mac locked before repaired-app course; do not infer from import success"
+  },
+  "changed_paths": [
+    "src/adapters/git/src/installed_git_process.cpp",
+    "tests/git_contract/git_process_contract_tests.cpp",
+    "tests/end_to_end/rfc0015_cli_read_fixture.py",
+    "tests/end_to_end/rfc0015_cli_read_fixture_tests.py",
+    "docs/issues/30-in-progress/BPR-0794-resolve-selected-diff-epoch-pair.md",
+    "docs/issues/30-in-progress/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+    "docs/issues/10-backlog/BPR-0934-collapse-overview-folders.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-0934--BPR-0934--69339afaef80.json",
+    "docs/rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md",
+    "docs/verification/rfc-bpr-0013-sparse-special-blobs-20260920.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d4-r3.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d4-r3.json"
+  ],
+  "commits": [
+    "a82ddcd6",
+    "9613b495",
+    "9dbf4b1c",
+    "9c4a673c",
+    "843bec3d",
+    "0c66306f"
+  ],
+  "commands": [
+    "cmake --build build/r2-dev --target test_better_pull_review_git_process_contract_tests test_better_pull_review_git_cache_contract_tests -j4",
+    "ctest --test-dir build/r2-dev -R '^(git_process_contract|git_sparse_cache_contract)$' --output-on-failure: 2/2 pass, 193.51 s; final named-case process rerun passes 107.36 s",
+    "cmake --build build/r2-dev --target app_better_pull_review test_setup_destination_public_path -j4",
+    "ctest --test-dir build/r2-dev --output-on-failure -j1 -R '^(application_epoch_host|application_github_window_read_host|application_setup_destination_public_path|application_epoch_portable_occurrence_two_catalogues|fsck_severity_fixture_contract)$': 5/5 pass, 265.05 s",
+    "python3 tests/end_to_end/rfc0015_cli_read_fixture_tests.py: 4/4 pass, 5.025 s",
+    "cmake --preset app-release -B build/app-release-rfc0013-r21 -DBPR_MACOS_CODESIGN_IDENTITY=958233F9A83339D93538FAF43152DBBD582FBFFC; cmake --build build/app-release-rfc0013-r21 --target app_better_pull_review -j6: pass",
+    "codesign --verify --deep --strict build/app-release-rfc0013-r21/src/app/BetterPullReview.app: pass",
+    "python3 scripts/verify_documentation.py --root .: DOCUMENTATION_OK; python3 tests/scripts/verify_documentation_tests.py: 64/64 pass",
+    "clang-format --dry-run --Werror src/adapters/git/src/installed_git_process.cpp tests/git_contract/git_process_contract_tests.cpp; git diff --check: pass",
+    "Old signed r20 ordinary CLI-profile native real-target read: reproduced revision_prepare/cache/unsupported_object; enhanced synthetic 515-file native course also fails and is rendered",
+    "Read-only real-target production transport plus installed-Git probe: fixed gitattributesMissing before; after repair transport_success=1 bytes=9383986 elapsed_ms=5885 sparse_index_success=1"
+  ],
+  "verification": "Old implementation fails new process regression and enhanced native 515-file public composition. Repair passes final process, sparse cache, 5/5 focused/integration, 4/4 external fixture, docs/64 verifier tests, formatting, diff and signing. Exact-target installed import succeeds. Corrected native selected source/anchors not yet observed."
 }

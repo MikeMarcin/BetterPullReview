@@ -86,13 +86,15 @@ structural counters accompany latency results.
 
 ## Documentation impact
 
-The current selected-diff milestone remains human-pending after the v004
-hand-back. The [v005 evidence identity](../verification/reviews/rfc-bpr-0013-attended-v005/session-identity.json)
-binds the repaired sparse CLI account-lease path, focused and integration
-checks, and a tests-disabled native 515-file synthetic source comparison.
-Exact-target source/anchor acceptance remains open in BPR-0794; BPR-0795 retains
-the approved loading presentation. The [continuation checkpoint](plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d3-r2.json)
-preserves mandate r18 plus the v004 hand-back and the recipe-revision-2 migration.
+The selected-diff milestone remains open after the v005 rejection. The
+[independent evidence record](../verification/rfc-bpr-0013-sparse-special-blobs-20260920.md)
+binds exact old-app reproduction, the missing-special-blob sparse import repair,
+its negative control and safety checks, and the remaining signed native
+source/anchor proof. The Mac locked before that repaired-app course could run;
+the owner is not being asked to test the fix. BPR-0795 retains prompt-loading
+approval, but accepted content still waits for complete provider pagination.
+The [continuation checkpoint](plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d4-r3.json)
+binds mandate r19, the independent-verification amendment, and recipe revision 2.
 These bounded results do not close the RFC or its remaining prerequisites.
 
 Budgets, benchmark hardware, cancellation, cache policy, offline states, rate limits, recovery, fuzzing, logging, and known scale boundaries are mandatory.

@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"v005 identity binds the v004 fixed transport/unavailable diagnostic and missed sparse-capability/exact-blob wrapper path. Old provider fails the new regression; the exact signed app reaches pair-ready and readable source in a 515-file sparse-only local fixture."}},{"criterion":"AC2","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"37343abf forwards capability and exact blobs using existing guards. Tests cover false capability, exact context/OID/byte bound, pre/post account drift and revocation, before/during cancellation, retained failure and lease lifetime. Host/integration retain stale and current/historical authority checks."}},{"criterion":"AC3","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Focused 5/5 pass (65.31 s); portable two-catalogue integration passes (215.62 s); external fixture 4/4 passes. Native tests-disabled 515-file exact-pair/source course passes; documentation and 64 verifier tests, C++ formatting, diff check and signed Release pass. v005 identity records broader limits."}},{"criterion":"AC4","outcome":"pending","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"v004 accepted 0794 but later rejected the integrated read with concrete missing source/epochs. Preserve both verdicts; no readable-source acceptance inferred. Fresh v005 candidate af95465d... ready/protected at 439, observations through 440. Real-target source/anchor human acceptance remains required."}},{"criterion":"AC5","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"No live write, account switch, device-session change, credential extraction or private content retained. Real sparse-bridge prerequisite check used bounded in-memory reads and normal cleanup; native UI verification used a disposable synthetic CLI/home. Existing owner app and unrelated changes preserved."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"Exact signed r20 app independently reproduced v005 failure. Production transport/installed-Git probe names gitattributesMissing; enhanced 515-file external normal-UI course fails identically before repair. Independent evidence record binds fixed diagnostics and safe raster."}},{"criterion":"AC2","outcome":"pass","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"0c66306f changes only sparse missing-special-blob policy. Both malformed-present-object negatives and complete-path missing-blob refusals pass; sparse cache witness, authority, recovery, stale/cancellation and full current/historical composition checks remain passing. Real-target import succeeds."}},{"criterion":"AC3","outcome":"pass","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"Final git_process_contract passes 107.36 s; sparse cache contract 80.25 s; focused/integration 5/5 passes 265.05 s, including real setup composition and portable two-catalogue course; external CLI fixture 4/4, documentation/64 verifier tests, format/diff/signing pass. Repaired signed native source/anchor proof remains AC4 pending."}},{"criterion":"AC4","outcome":"pending","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"v005 was rejected at 441 and handed back at 442. Independent exact signed-r20 app reproduction confirms no pair/readable source; sparse import fails gitattributesMissing. Candidate 0c66306f repairs only sparse missing-special-blob policy and passes real import, but repaired native source/anchor proof remains pending because the Mac locked. No new attended candidate or request for user testing."}},{"criterion":"AC5","outcome":"pass","revision":"0c66306fc7c233b0a78eef02e5b09916ad349022","evidence":{"kind":"artifact","detail":"No live write, global gh account switch, credential extraction or device-session change. Real-target private pack stayed in owner-private disposable stores and was cleaned; retained native raster contains only synthetic source. Existing owner app was absent and never signalled. Unrelated .mask.lock.json preserved."}}]
 ---
 
 # Resolve the exact epoch pair for a large pull request selected diff
@@ -47,7 +47,25 @@ this card's readable selected-diff criterion.
 
 ## Evidence
 
-### Current correction — v004 hand-back, v005 prepared
+### Current correction — v005 independently reproduced
+
+The v005 rejection (441) and hand-back (442) remain authoritative. The exact
+signed r20 app independently reproduced the real failure; a narrow read-only
+probe then attributed it to `gitattributesMissing` during sparse pack import.
+The enhanced 515-file external CLI course reproduces the same failed public
+composition in r20. Its prior fixture lacked both special Git files.
+
+`0c66306f` permits only intentionally absent `.gitattributes` and `.gitmodules`
+blobs on sparse imports. Complete imports and malformed present special blobs
+still refuse. The failing-before process matrix and sparse cache checks pass;
+the real-target transport plus installed import now succeeds. See the
+[independent evidence record](../../verification/rfc-bpr-0013-sparse-special-blobs-20260920.md).
+No readable-diff verdict is inferred: the Mac locked before the repaired signed
+r21 app's source/anchor course could be driven. Resume independently once it is
+unlocked; do not ask the owner to discover whether diffs load. No new attended
+candidate has been prepared. [[BPR-0934]] tracks the separate folder-collapse ask.
+
+### Historical correction — v004 hand-back, v005 prepared
 
 The v004 BPR-0794 accept (432) is preserved alongside the later BPR-0795
 reject (433): the latter explicitly reports no readable source or epochs and
