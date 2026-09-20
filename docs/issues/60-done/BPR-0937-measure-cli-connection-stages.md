@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0937"
 title: "Measure and reduce redundant CLI connection work safely"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"},"mandate":"r20-usable-review-amendments"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ca000e79","evidence":{"kind":"artifact","detail":"Read-only production CLI probe independently measures discovery0.216/0.396s viewer0.545s capability13.078s versus direct authstatus0.38s; PR metadata3.920s/full48pages85.959s separately."}},{"criterion":"AC2","outcome":"pass","revision":"ca000e79","evidence":{"kind":"artifact","detail":"Nine capability operations and18pre/post live account checks explain most setup cost. No safe duplicate established; executable, account, sandbox, cancellation and authority checks retained. BPR0938 removes UI wait for slower independent observations."}},{"criterion":"AC3","outcome":"pass","revision":"ca000e79","evidence":{"kind":"artifact","detail":"gh_cli_transport and gh_cli_git_smart_transport tests retain identity switching, cancellation and refusal controls. Actual safe and live read-only production compositions succeed; exact timing fields and limitations committed."}}]
 ---
 
 # Measure and reduce redundant CLI connection work safely
