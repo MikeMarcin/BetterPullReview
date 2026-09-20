@@ -42,6 +42,10 @@ evidence heading to `Verification and execution record`; its five acceptance
 criteria and all milestone exits are unchanged. The original binding is retained.
 
 Accepted source candidate: `42a85cf71bfe826a76c44dfe98e982a0bdc8c76b`.
+Milestone acceptance/upkeep commit: `b6de28e2c817fd084d0a6a8a44fe9ddda438ecb1`;
+BPR-0946 is Done. BPR-0947 is promoted to Ready without being claimed. The final
+machine observation is `build/rfc0035-run/m1-observation.json`, checked against
+the refreshed binding with quiescent ownership and `fresh` continuation intent.
 Engineering commits: `64bbf9c1` (core/host/contracts), `ab5209b9` (provider
 constants moved behind the adapter boundary), `42a85cf7` (complete candidate
 identity and preference-restart coverage). Changed product paths are the

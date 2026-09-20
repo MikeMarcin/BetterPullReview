@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0947"
 title: "Compose updater download and signed staging"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0946"]
 milestone: "RFC-0035 milestone 2"
