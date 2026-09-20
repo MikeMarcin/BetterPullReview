@@ -2,7 +2,7 @@
   "schema": "implement-rfc.milestone-checkpoint.v1",
   "run_id": "rfc0013-resume-20260919",
   "segment_id": "selected-diff-d1",
-  "mandate_revision": "r16",
+  "mandate_revision": "r17",
   "selection": {
     "schema": "implement-rfc.strategy-selection.v1",
     "strategy": "coordinator-implementer-astra-max",
@@ -47,16 +47,16 @@
         "id": "BPR-0794:*",
         "source": "BPR-0794",
         "selector": null,
-        "source_fingerprint": "sha256:e8280e4b11f1df4e1a70e21d6f0bf6afeed423ccaad4216bbfdaa24f18c4cd81"
+        "source_fingerprint": "sha256:52a720d08423f7205b2af6868e1a9f074c9668240a0cfbcf5e9121f9ebadc351"
       },
       {
         "id": "BPR-0795:*",
         "source": "BPR-0795",
         "selector": null,
-        "source_fingerprint": "sha256:48e682e75e52bc27be23d30d1cd43fbdf276f485fba373427db4a1fd1f6e8de3"
+        "source_fingerprint": "sha256:e00de204ff31d493e5ec62512d4be79ef7d59678a263ea1f4872a86f6f266d01"
       }
     ],
-    "obligation_fingerprint": "sha256:06319caea8dbb2529d6ec7846f4d05b9273d5cd2e64d3498fc45741e10058daf",
+    "obligation_fingerprint": "sha256:bc4ba6a91537fe6eeeed6c668f0dbdb0c271c41569b0882390d93d39ef572cc1",
     "exit_criteria": [
       {
         "id": "selected-diff-exact-epoch-pair:exit:1",
@@ -101,8 +101,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "main",
-    "source_revision": "2deb24a13a6f276802b9902aec2a5363d5c5bd15",
+    "source_revision": "bee9a577032526b16ffd1b366cd568262f103fd7",
     "workflow_branch": "main",
-    "workflow_revision": "2deb24a13a6f276802b9902aec2a5363d5c5bd15"
+    "workflow_revision": "bee9a577032526b16ffd1b366cd568262f103fd7"
   }
 }
