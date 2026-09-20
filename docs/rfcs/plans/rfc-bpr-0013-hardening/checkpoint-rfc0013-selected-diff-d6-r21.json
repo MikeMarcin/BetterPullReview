@@ -47,13 +47,13 @@
         "id": "BPR-0794:*",
         "source": "BPR-0794",
         "selector": null,
-        "source_fingerprint": "sha256:05b86c725c4fdde490ffaa4b22d4cecf7b58ca03e32c6eafad94b04845d4cde2"
+        "source_fingerprint": "sha256:a12e93ca626f1dc4fe9004b3e73f179cf6f2a87a1cecb17ae1ad7adc6f247b0f"
       },
       {
         "id": "BPR-0795:*",
         "source": "BPR-0795",
         "selector": null,
-        "source_fingerprint": "sha256:0cab889e6c0cc9c334a11f0f7c6fca0e993420cd0943e903afbecf3b502e5fff"
+        "source_fingerprint": "sha256:076216afd286be6505ef9732dd7b4e2627baec1256141c66f603ae20799794e2"
       },
       {
         "id": "BPR-0935:*",
@@ -89,22 +89,22 @@
         "id": "BPR-0941:*",
         "source": "BPR-0941",
         "selector": null,
-        "source_fingerprint": "sha256:9ae4c08d4e85e670d83e562ff1ee55a58dd73a3d5c479419b46664fe7c034153"
+        "source_fingerprint": "sha256:f92b323307299f2cf0f5201abb17dba556dcaaaea4d681900b1dc53f88660edf"
       },
       {
         "id": "BPR-0942:*",
         "source": "BPR-0942",
         "selector": null,
-        "source_fingerprint": "sha256:5900122e97c2519aedc204095a502c22a88e14fe81c02469f488d0126c35df82"
+        "source_fingerprint": "sha256:662a2fd99e5dfaf021bdd506aa40984d1961d5cc6bb3936a7a5c513590f28163"
       },
       {
         "id": "BPR-0943:*",
         "source": "BPR-0943",
         "selector": null,
-        "source_fingerprint": "sha256:b923627ec9c5213b37c225fec6bf435be49c995af9e824148fa237b03efbb03a"
+        "source_fingerprint": "sha256:4b8d5e33ac62b57395d1bea9a43f45dbcfd96ecc36e0059ba792d22a0191b19b"
       }
     ],
-    "obligation_fingerprint": "sha256:e4b61bcc36eee8d725d071e2c025d7fe78642299b7d25692a9affb50f5afc7a4",
+    "obligation_fingerprint": "sha256:d9fb8d0f2770f4ec5b87b044216dfb35259ea945c42e2dec5dde35b272b93d14",
     "exit_criteria": [
       {
         "id": "selected-diff-exact-epoch-pair:exit:1",
@@ -181,8 +181,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "main",
-    "source_revision": "ffa0a6a7dc2b79d6ea2f908c0869b373d02027d9",
+    "source_revision": "165a65981705512ddd96b02beb6906afb5fe730a",
     "workflow_branch": "main",
-    "workflow_revision": "ffa0a6a7dc2b79d6ea2f908c0869b373d02027d9"
+    "workflow_revision": "165a65981705512ddd96b02beb6906afb5fe730a"
   }
 }

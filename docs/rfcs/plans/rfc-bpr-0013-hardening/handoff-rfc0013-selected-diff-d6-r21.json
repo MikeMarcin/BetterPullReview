@@ -5,19 +5,177 @@
   "segment_id": "selected-diff-d6-owner-defects",
   "mandate_revision": "r21-drawer-and-exact-material",
   "child": "/root/rfc0013_postreview_r3",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
   "entry_revision": "d47a6e18859bef0833ce13e2135e6139b37622b2",
+  "source_integration_revision": "165a65981705512ddd96b02beb6906afb5fe730a",
+  "product_candidate_revision": "a9492592d135c4e466240ecc654bb52e71ed4748",
   "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
   "checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d6-r21.json",
   "previous_handoff": "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d5-r20.json",
+  "evidence": "docs/verification/rfc-bpr-0013-selected-material-20260920.md",
   "assignment": "Same selected-diff-exact-epoch-pair, implement-rfc.engineering.v1, coordinator-implementer revision 2, sole non-delegating engineering writer on main.",
-  "plan_amendment": "Owner explicitly adds BPR-0941..0943 after three signed r22 screenshots. All prior work/exits retained. This is an authorized new mandate, not scope-preserving mechanical refinement. Done BPR-0939 is historical and not rewritten. BPR-0934 remains separate.",
-  "observations": "Three owner-provided screenshots directly inspected outside checkout. Normal filename text must remain neutral. A highlighted folder coexists with the prior file diff; no file semantics belong to folders. A modified file shows an empty earlier pane and a full later side with one addition group; trace exact endpoints before attributing material loss. No private pixels/content retained.",
-  "ownership": "Sole leaf. No native app, build/test command or review server active on resumption. Only unrelated CUA helper processes observed; not touched. .mask.lock.json and ignored nested worktree preserved. Review sequence 443 protects only unrelated BPR-0755.",
-  "current_work": "Allocated and claimed BPR-0941..0943. Inspect drawer delegate/model and selected-file exact Git resolution; add focused failing-before checks, then production-composed and safe native proof.",
-  "pending_obligations": [
-    "BPR-0941..0943",
-    "Original BPR-0794/0795 private-target source/anchor cross-check",
-    "Separate BPR-0934 and BPR-0940; remaining RFC closeout"
+  "plan_amendment": "Owner added BPR-0941..0943 after three signed r22 screenshots. All prior milestones, work and exits retained. Done BPR-0939 is historical and not rewritten. BPR-0934 remains separate. BPR-0944 records the newly observed comparison-basis product decision; no authority to redefine Whole PR was inferred.",
+  "disposition": "human-pending",
+  "result": [
+    {
+      "card": "BPR-0941",
+      "status": "Done",
+      "product_commit": "50bc3d9cee49f0fdaf2a6026bcaf3d5a1326fadc",
+      "board_commit": "bedb6500e2dc7657539ea3b5b96a49740111d5ff",
+      "summary": "Neutral filenames and native selected-row contrast; independent semantic operation and plus/minus details; accessible counts; real Settings-driven dark/light/high-contrast rendered tests."
+    },
+    {
+      "card": "BPR-0942",
+      "status": "Done",
+      "product_commit": "ae23c4d938511c45bcb4ddb5e75ed4217aa4b7d8",
+      "board_commit": "b1ce236f85c5a53bd1e5fbdb1a5f8427932eda7d",
+      "summary": "Folder model rows are nonselectable and cannot alias file identity. Expansion keyboard handlers do not navigate into child file selection. Mouse, branch, keyboard, filter/order/rebuild and foreign-model checks preserve exact diff in real composition."
+    },
+    {
+      "card": "BPR-0943",
+      "status": "Done",
+      "product_commit": "a9492592d135c4e466240ecc654bb52e71ed4748",
+      "board_commit": "6a3d89a8b2f521273adb695aa5ecd52c7bbbddb8",
+      "summary": "Required two-sided M/type-change/unchanged material now refuses an absent selected endpoint with existing typed failure and explicit wrapped Qt explanation. Selected anchors unchanged. Added/deleted/copied and present zero-byte material remain distinct."
+    }
   ],
-  "next_action": "First coherent slice: prove filenames incorrectly take semantic ink, then split marker and counts painting while preserving native filename/selection. Diagnose exact modified-file endpoint facts without logging private material."
+  "diagnosis": {
+    "observed": "Inspected all three owner screenshots outside checkout; no private pixels or content retained.",
+    "exact_target": "Read-only catalog and Git-tree probes confirm accepted base-tip/head equal live anchors. The selected base has no path, head has a regular 100644 blob and provider reports modified without a prior path. Sparse blob nonresidency is distinct from the missing tree path.",
+    "comparison_basis": "The GitHub merge base differs from the selected base tip; merge-base and head blobs both exist, are nonempty and different. In-memory response identity, length and canonical Git blob digests were verified. Earlier successful one-sided diff was truthful for absent/head inputs but not a truthful normal M comparison.",
+    "privacy_authority": "Bounded read-only requests with file-write-denied sandbox, identity checked before/after. No live mutation, account switching, credentials or private source/path/OID artifacts.",
+    "decision": "Bounded unavailable repair only. BPR-0944 owns whether Whole PR should compare merge base rather than current accepted base-tip/head. Parent explicitly prohibited silent semantic substitution."
+  },
+  "signed_native": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r23/src/app/BetterPullReview.app",
+    "executable_sha256": "3657186c8b65079302e639592d218a274ea939810512f2991476fbf30f37ea5c",
+    "build": "app-release preset, Release, BUILD_TESTING=OFF, stable Developer ID, deep strict signature verified",
+    "course": "External rfc0015_cli_read_fixture.py --course modified-missing-left: 515 generated safe files and 32 revisions; native Home, Use GitHub CLI, read consent, fixture URL, Start review, navigation. Data root visibly verified before connection; no product self-test/fixture switch.",
+    "before": "Signed r22 native file 4/515 M shows Diff ready, empty earlier and complete later.",
+    "after": "Signed r23 same selection shows wrapped Comparison unavailable and cleared panes; next intact file shows two-sided Diff ready.",
+    "source_anchor_proof": "Both rendered/accessibility source values and exposed selected anchor OIDs match independent local Git reads exactly on the safe recovery control. Native filter/clear retains source; folder gestures proven by widget and production-composed tests, not by the native filter keystrokes.",
+    "evidence": "Native full-window images directly inspected in tool record. Composed safe PNG evidence retained only under ignored build/rfc0013-resume-20260919/r23-rendered and r23-before-rendered.",
+    "boundary": "Private target not reopened in r23. Its read-only diagnosed absent selected path predicts explicit refusal; correct readable source under a newly chosen PR basis remains open.",
+    "shutdown": "Before PID 95528/launcher 75136 and after PID 2554/launcher 99743 quit normally; both launcher exits 0 collected."
+  },
+  "verification": [
+    {
+      "name": "Failure before repair",
+      "result": "Widget/real delegate and folder flags/key regression failures; host missing-left failure 0.54s; actual composition missing-left failure 25.71s; signed r22 native class independently reproduced."
+    },
+    {
+      "name": "Final focused ctest",
+      "result": "6/6 pass, 27.87s: application_epoch_host, application_workbench_host, qt_files_tree, qt_diff_workbench_scale_100, modified_endpoint_fixture_contract, application_selected_file_safety_public_path.",
+      "log": "build/rfc0013-resume-20260919/r23-final-focused.log"
+    },
+    {
+      "name": "Production setup and safety courses",
+      "result": "Original setup pass 39.38s. Separate selected-file safety 25.74s; both with host 3/3 65.84s. Final safety 25.01s without capture and 25.43s with capture. Separate 60-second registrations preserve existing budget.",
+      "log": "build/rfc0013-resume-20260919/r23-settled-layout.log"
+    },
+    {
+      "name": "Integration focused",
+      "result": "7/10 pass including all three diff-workbench scales, epoch/workbench host, generated fixture and selected-file safety. Three old workbench-window first-row geometry assertions fail; old non-wrapping status control also fails. Temporary control removed and binary rebuilt. BPR-0940 tracks.",
+      "log": "build/rfc0013-resume-20260919/r23-integration-ctest.log"
+    },
+    {
+      "name": "External CLI and documentation",
+      "result": "External CLI fixture 5/5; documentation verifier 64/64; documentation gate DOCUMENTATION_OK; scoped board valid 937 cards."
+    },
+    {
+      "name": "Formatting",
+      "result": "Changed C++ scoped clang-format and git diff --check pass."
+    },
+    {
+      "name": "Strict tidy",
+      "result": "Canonical SDK-aware tidy completes non-green: unchanged dif_runtime.hpp pragma-once and home_view_state.hpp signed-bitwise headers. No changed-line diagnostics. BPR-0945 tracks; first SDK-less invocation is not valid evidence.",
+      "log": "build/rfc0013-resume-20260919/r23-canonical-tidy.log"
+    },
+    {
+      "name": "Release",
+      "result": "First manual fresh configuration omitted preset dependency cache and failed; clean app-release preset configuration/build succeeds. Deep strict code signing and executable hash rechecked at handoff."
+    }
+  ],
+  "commands": {
+    "state": "quiescent",
+    "running": [],
+    "review_server": null,
+    "final_focused": "ctest --test-dir build/dev --output-on-failure -R '^(application_epoch_host|application_workbench_host|qt_files_tree|qt_diff_workbench_scale_100|modified_endpoint_fixture_contract|application_selected_file_safety_public_path)$'",
+    "release_build": "cmake --build build/app-release-rfc0013-r23",
+    "note": "Every task-owned build, test, native-launch and tidy command was collected. Final process inventory finds no task app, build/test command or review server. Preexisting CUA helpers are not task-owned and were left untouched."
+  },
+  "review": {
+    "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "sequence": 443,
+    "protected_candidates": [
+      "BPR-0755-neutral-identity-v001"
+    ],
+    "new_candidate": false,
+    "owner_retest_requested": false
+  },
+  "cleanup": {
+    "preserved": [
+      "Unrelated .mask.lock.json",
+      "Ignored .claude/worktrees/agent-a17cae88115dbbb4e",
+      "Existing protected review state",
+      "Signed r23 app and ignored safe proof logs/rasters"
+    ],
+    "recoverable_fixture_homes": [
+      "/Users/jaeger/.Trash/bpr-rfc0013-r23-before-20260920",
+      "/Users/jaeger/.Trash/bpr-rfc0013-r23-after-20260920"
+    ],
+    "owner_process": "PID 15093 absent at reconciliation and never signalled."
+  },
+  "ownership": "Sole leaf writer, no delegation. All task commands quiescent; release ownership to coordinator after final report.",
+  "pending_obligations": [
+    "Original BPR-0794 AC4 and BPR-0795 shared milestone exit 4 remain pending for the diagnosed exact-target refusal; owner r21 loading observation is preserved.",
+    "BPR-0944: explicit product authorization/decision before redefining Whole PR comparison basis; current selected anchors must remain exact.",
+    "BPR-0934 Overview folder collapse remains separate.",
+    "BPR-0940 legacy composed/window-layout verification debt and BPR-0945 existing strict-tidy warnings remain separate.",
+    "Remaining RFC milestones and RFC closeout are not complete."
+  ],
+  "next_action": "Coordinator returns the completed three-card amendment result and requests or records the BPR-0944 comparison-basis product decision before any semantic expansion. Do not ask owner to test loading again or prepare a discovery attended candidate.",
+  "acceptance_basis": "Only review-thread-null-anchor-read is supplied as accepted prerequisite to checkpoint binding, based on its recorded four exit criteria and BPR-0793 direct evidence. Board Done placement alone is not treated as milestone acceptance.",
+  "changed_paths": [
+    "docs/architecture/system-architecture.md",
+    "docs/issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md",
+    "docs/issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md",
+    "docs/issues/10-backlog/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md",
+    "docs/issues/30-in-progress/BPR-0794-resolve-selected-diff-epoch-pair.md",
+    "docs/issues/30-in-progress/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+    "docs/issues/60-done/BPR-0941-neutral-file-names-and-semantic-drawer-details.md",
+    "docs/issues/60-done/BPR-0942-folders-never-select-file-material.md",
+    "docs/issues/60-done/BPR-0943-truthful-modified-file-endpoint-material.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-0941--BPR-0943--c656003ddfef.json",
+    "docs/issues/_reservations/BPR-0944--BPR-0944--177d3eaeaa41.json",
+    "docs/issues/_reservations/BPR-0945--BPR-0945--7248ec756ccc.json",
+    "docs/rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d6-r21.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d6-r21.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "docs/verification/rfc-bpr-0013-selected-material-20260920.md",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+    "src/adapters/qt/include/bpr/qt/files_tree.hpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/files_tree.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/src/epoch_application_host.cpp",
+    "tests/adapters_qt/files_tree_tests.cpp",
+    "tests/application/epoch_application_host_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/rfc0015_cli_read_fixture.py",
+    "tests/end_to_end/rfc0015_cli_read_fixture_tests.py",
+    "tests/end_to_end/setup_destination_public_path_tests.cpp",
+    "tests/fixtures/github/pull-requests/cli-read-v1/README.md",
+    "tests/fixtures/github/pull-requests/modified-missing-endpoint-v1/README.md",
+    "tests/fixtures/github/pull-requests/modified-missing-endpoint-v1/manifest.json",
+    "tests/fixtures/github/pull-requests/modified-missing-endpoint-v1/objects.pack",
+    "tests/git_contract/CMakeLists.txt",
+    "tests/scripts/verify_modified_endpoint_fixture.py"
+  ],
+  "self_review": "Applied code-simplifier to the changed surface: reuse existing typed failures and clear/render path instead of a parallel error-state mechanism; keep folder identity checks local and explicit; retain one shared large-course predicate. No independent reviewer or new attended acceptance is claimed."
 }
