@@ -58,6 +58,15 @@ before every listed dependency is `Auto-Verified`.
 | [RFC-BPR-0013](RFC-BPR-0013-performance-resilience-resource-limits.md) | Performance, Resource Limits, Resilience, and Recovery | Proposed | RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012 |
 | [RFC-BPR-0014](RFC-BPR-0014-cross-platform-packaging-security-release.md) | Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness | Proposed | RFC-BPR-0013 |
 
+On 2026-09-20 the owner closed RFC-BPR-0013's selected-diff investigation under
+an explicit acceptance amendment: the unusual-target comparison-basis and
+partial-pane anomaly is deferred to BPR-0944, not marked fixed. BPR-0794/0795
+are Done. The [RFC-0013 reconciliation](../verification/RFC-BPR-0013.md)
+retains its original wider acceptance gaps and the Proposed 0008/0010/0012
+predecessors; BPR-0617 therefore remains Backlog and RFC-0013 remains Proposed.
+The next canonical closure frontier is RFC-BPR-0008/BPR-0242. No new attended
+review or repeat owner loading check is requested by this amendment.
+
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).
 

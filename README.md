@@ -147,6 +147,14 @@ returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that
 any particular private pull request can render.
 
+RFC-BPR-0013's selected-diff hardening is accepted with one explicitly deferred
+edge case: provider “modified” metadata can disagree with the selected base-tip
+comparison. A missing required side currently makes the comparison unavailable.
+BPR-0944 tracks preserving the readable side, explaining the missing side in
+its pane, and deciding comparison semantics; that behavior is not implemented.
+The [closeout ledger](docs/verification/RFC-BPR-0013.md) distinguishes this
+owner deferral from the RFC's remaining acceptance and canonical-order gates.
+
 Manual credentials use a Qt-owned password input and remain session-only.
 Device sign-in is remembered across orderly quits: tokens stay in the platform
 vault, while a private metadata store retains the exact binding and lifetime.

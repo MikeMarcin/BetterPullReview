@@ -86,6 +86,24 @@ structural counters accompany latency results.
 
 ## Documentation impact
 
+### Owner closeout amendment — 2026-09-20
+
+The owner accepts the completed selected-diff milestone with the unusual
+UnrealEngine#1773 comparison-basis and partial-pane anomaly explicitly deferred
+to BPR-0944. That card includes preserving the available right-side file and
+placing the missing-earlier explanation in the left pane. The current both-pane
+refusal is not accepted as a fixed anomaly. BPR-0794/0795 are Done under this
+amendment; no new target read, owner retest or attended candidate is required.
+
+The [RFC-wide closeout reconciliation](../verification/RFC-BPR-0013.md) preserves
+all original rows and classifies every follow-up. RFC status remains Proposed:
+canonical predecessors RFC-BPR-0008/0010/0012 and BPR-0507 are not closed, and
+the original full fuzz, broader native-budget and remaining composed acceptance
+gaps have not been waived or proved. BPR-0617 remains their closeout owner.
+This is the exact limit of the authorized closeout, not a terminal-status claim.
+
+### Retained implementation and review history
+
 The selected-diff milestone retains the historical v005 rejection and the
 [independent sparse-import repair](../verification/rfc-bpr-0013-sparse-special-blobs-20260920.md).
 The owner subsequently observed a rendered real-target diff in repaired r21;

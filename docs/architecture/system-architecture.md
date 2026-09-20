@@ -504,7 +504,11 @@ type-changed and unchanged facts require both selected endpoints; a mismatch
 reports the missing side explicitly, without fabricating empty source or
 substituting a merge base. Two absent endpoints and non-blob tree entries fail
 closed. A present zero-byte blob remains material, distinct from an absent tree
-entry. Qt retains the opaque file identity in its list model
+entry. The current missing-side presentation clears both panes and displays
+the typed explanation above them. BPR-0944 separately tracks the owner-deferred
+partial-pane design (retain readable right material and explain missing earlier
+material in the left pane) and comparison-basis decision. That follow-up changes
+no current source or anchor authority. Qt retains the opaque file identity in its list model
 and emits a semantic selection without parsing row text or running Git on the
 presentation lane.
 
