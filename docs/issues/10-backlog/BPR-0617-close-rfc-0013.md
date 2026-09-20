@@ -11,7 +11,37 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — bpr0643-r5 / d16 / mandate r16
+## Current frontier — rfc0013-resume-20260919 / selected-diff-d1 / mandate r16
+
+The selected `coordinator-implementer` recipe resumed with leaf owner
+`/root/rfc0013_selected_diff`; instructions enforce the no-delegation restriction.
+The current binding is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d1.json`.
+It preserves the RFC base `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`, all r14-r16
+obligations and the earlier d15 assignment as history.
+
+BPR-0794 and BPR-0795 are now Parked on `human-review`, with partial acceptance
+records tied to the frozen candidate. The existing
+[attended packet](../../verification/reviews/rfc-bpr-0013-attended-v001/operator-packet.md)
+still has no owner verdict: session `cbd48b91000b00f1e72e1ad62c7c384c` remains at
+sequence 389, with both questions ready and protected. The `94f6f885` Release
+bundle remains tests-disabled; executable SHA-256 `96fa16fea8983347303c6ce18095f147871b7d45ef51537d48097ac6004e1bfa`,
+deep strict signature verification and the offline-page digest were rechecked.
+Its source-bound logs record 13/13 focused checks and the 219.66-second portable
+two-catalogue public course. Those results do not verify later main changes.
+
+The remaining milestone exits are the exact target's readable selected diff
+with checked source/anchors and the existing prompt-loading observation.
+Neither can be inferred from fixture success or the prepared packet. No app,
+`gh`, target read, account/device-session change or private-content capture was
+started; the separate protected BPR-0644 relaunch candidate remains untouched.
+No task-owned command, app, review host or watch remains active. Resume the
+same packet, intake its exact candidate verdicts, and reconcile any later
+source changes before final acceptance. `verify-rfc-0013` remains ineligible;
+BPR-0507, native follow-ups BPR-0817/BPR-0825 and the RFC-wide matrix still
+require their own evidence. Preserve the unrelated `.mask.lock.json` change.
+
+## Previous frontier — bpr0643-r5 / d16 / mandate r16
 
 The Mac is unlocked and the signed, tests-disabled d15 candidate was reopened.
 A stale task-owned d13 app held the Default profile lease; after it was quit,

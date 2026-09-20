@@ -1,0 +1,33 @@
+{
+  "schema": "implement-rfc.strategy-selection.v1",
+  "strategy": "coordinator-implementer-astra-max",
+  "topology_id": "coordinator-implementer",
+  "recipe_revision": "1",
+  "recipe_fingerprint": "sha256:75da7caa3ac4b0af06179c1098f5866524901d8269a3a17ad0884b9c4eea3d5c",
+  "routing": {
+    "primary": {
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "effort": "low"
+    },
+    "implementer": {
+      "provider": "codex",
+      "model": "gpt-6-astra",
+      "effort": "max"
+    }
+  },
+  "requirement_profile": "coordinator-implementer",
+  "owners": {
+    "engineering": "implementer",
+    "bookkeeping": "implementer",
+    "product_edits": "implementer"
+  },
+  "delegation": "recipe",
+  "instruction_paths": [
+    "references/engineering-contract.md",
+    "references/strategies/coordinator-implementer.md"
+  ],
+  "configuration_complete": true,
+  "missing_routes": [],
+  "host_load": "not_verified"
+}
