@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0941"
 title: "Keep file names neutral and color only change details"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
