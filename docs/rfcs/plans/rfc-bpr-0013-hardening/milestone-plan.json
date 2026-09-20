@@ -97,13 +97,28 @@
     },
     {
       "id": "selected-diff-exact-epoch-pair",
-      "outcome": "The owner-retained large pull request displays its correct file list and a readable selected diff through one exact accepted epoch pair, or retains the unresolved product refusal without inventing history or object residency. Every pull request also shows loading promptly; small reviews complete asynchronously while only large reviews qualify for on-demand objects.",
+      "outcome": "The owner-retained large pull request displays its correct file list and a readable selected diff through one exact accepted epoch pair, or retains the unresolved product refusal without inventing history or object residency. Every pull request also shows loading promptly; small reviews complete asynchronously while only large reviews qualify for on-demand objects. Owner-amended usable-review scope adds legible syntax/edit layering, persisted tab geometry, measured CLI setup, early safe Overview observations and semantically consistent file status colors.",
       "work": [
         {
           "issue": "BPR-0794"
         },
         {
           "issue": "BPR-0795"
+        },
+        {
+          "issue": "BPR-0935"
+        },
+        {
+          "issue": "BPR-0936"
+        },
+        {
+          "issue": "BPR-0937"
+        },
+        {
+          "issue": "BPR-0938"
+        },
+        {
+          "issue": "BPR-0939"
         }
       ],
       "depends_on": [
@@ -114,9 +129,14 @@
         "The responsible transition or host mapping preserves exact authority, accepted anchor and Git-object checks, bounded history and stale-result rejection",
         "Focused positive and negative checks, a composed public path, documentation gate and one integration-focused check pass",
         "A tests-disabled Mac CLI-profile read of EpicGames/UnrealEngine#1773 shows the correct file list and readable selected diff with checked source and anchor identity; any remaining refusal remains open and explicit, with no live write or account change",
-        "Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition"
+        "Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition",
+        "BPR-0935 directly verifies keep dark-mode syntax legible across intraline edit emphasis, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0936 directly verifies render source tabs at the selected persisted width, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0937 directly verifies measure and reduce redundant cli connection work safely, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0938 directly verifies show useful overview observations before complete pr loading, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0939 directly verifies match file drawer added and removed colors to overview, with exact candidate, regressions and rendered or measured public-path evidence"
       ],
-      "boundary": "Separate mandate r14 follow-up to terminal BPR-0643, BPR-0792 and BPR-0793; retain all RFC-0013 predecessor, native-platform, human and closeout obligations; mandate r16 adds BPR-0795 loading and size-qualified policy without replacing BPR-0794 exact-target acceptance"
+      "boundary": "Separate mandate r14 follow-up to terminal BPR-0643, BPR-0792 and BPR-0793; retain all RFC-0013 predecessor, native-platform, human and closeout obligations; mandate r16 adds BPR-0795 loading and size-qualified policy without replacing BPR-0794 exact-target acceptance; mandate r20 explicitly adds BPR-0935 through BPR-0939 after owner-observed r21 selected-diff success, preserving prior exact source/anchor obligations and keeping BPR-0934 folder collapse separate"
     },
     {
       "id": "verify-rfc-0013",
@@ -138,7 +158,7 @@
         "selected-diff-exact-epoch-pair"
       ],
       "exit_criteria": [
-        "Reconcile the legacy plan\u2019s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
+        "Reconcile the legacy plan’s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
         "Every RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; no deferred criterion is marked passing",
         "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate",
         "BPR-0617, RFC-BPR-0013 and the canonical index agree; earlier Proposed RFC-BPR-0008/0010/0012 prevent Auto-Verified and Done until their own prerequisites close"

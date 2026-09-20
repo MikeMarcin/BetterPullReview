@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0935",
+    "BPR-0936",
+    "BPR-0937",
+    "BPR-0938",
+    "BPR-0939"
+  ],
+  "reserve_for": "rfc0013-r20-usable-review-amendments",
+  "purpose": "",
+  "created": "2026-09-20T15:46:17.893709+00:00",
+  "base": "4adc9741fe04bdef21f906c5dc4e94c497f48509"
+}
