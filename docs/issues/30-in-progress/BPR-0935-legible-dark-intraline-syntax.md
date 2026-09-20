@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0935"
 title: "Keep dark-mode syntax legible across intraline edit emphasis"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
