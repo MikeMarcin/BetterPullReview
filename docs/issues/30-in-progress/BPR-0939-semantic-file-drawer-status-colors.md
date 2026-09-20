@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0939"
 title: "Match file drawer added and removed colors to Overview"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
