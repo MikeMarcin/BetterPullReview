@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0941",
+    "BPR-0942",
+    "BPR-0943"
+  ],
+  "reserve_for": "rfc0013-selected-diff-d6",
+  "purpose": "Owner r22 observations: semantic drawer details, folder non-actionability, exact modified-file material",
+  "created": "2026-09-20T17:21:39.126108+00:00",
+  "base": "d47a6e18859bef0833ce13e2135e6139b37622b2"
+}
