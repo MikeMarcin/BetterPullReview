@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0943"
 title: "Resolve modified-file endpoints without silent missing-side diffs"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
