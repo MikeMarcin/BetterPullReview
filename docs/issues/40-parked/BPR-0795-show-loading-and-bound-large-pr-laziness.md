@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Dedicated qt_composed_loading_scale_100 passes held-provider paint, cancellation and Home-refusal assertions. Actual tests-disabled synthetic UI visibly shows PR loading and selected comparison loading before Diff ready."}},{"criterion":"AC2","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Current focused core_epoch_policy and application_epoch_host pass bounded small/large shape classification, missing/conflicting facts, exact authority and stale selection checks."}},{"criterion":"AC3","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Current focused epoch/transport/cache/storage checks and portable two-catalogue course pass exact current and historical acquisition and small-complete/large-lazy boundaries; integration took 228.69 s."}},{"criterion":"AC4","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"15 focused passes plus dedicated Qt loading pass, portable integration, documentation gate, 64 documentation tests and formatting pass. Wider Qt layout and Release stage-0 self-test failures remain explicit in v002 session-identity.json. No live write, explicit account mutation, token extraction or private-content capture. Ambient inspector auto-relaunch caveat is recorded."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"New r17 loading candidate is ready/protected with no decision at session sequence 404. The actual synthetic Release course is not the owner's prompt-loading observation for the retained large target. No new human criterion is added to the four automated card bullets."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Final qt_composed_loading_scale_100 passes held-provider paint, cancellation and refusal. Compact Updates line and accessibility/tooltip show real preparation state, with failed setup no longer replaced by empty-history wording; final public path renders an exact readable diff."}},{"criterion":"AC2","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Seven-test integration includes unchanged core_epoch_policy and application_epoch_host: bounded small/large shape classification, missing/conflicting facts, exact authority and stale selection remain covered."}},{"criterion":"AC3","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Full cache/sparse contract plus portable two-catalogue integration pass at cdfcce72. Current gh 2.101.0 bridge and installed-cache public course pass at eecdda2a, retaining exact current/historical acquisition and small-complete/large-lazy boundaries."}},{"criterion":"AC4","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Final focused 5/5 pass; integration7/7 pass; documentation,64 verifier self-tests,formatting and tests-disabled signed Release build pass. No private content retained, GitHub write, account/device-session change or credential extraction. Wider historical test limitations remain recorded in v003 identity."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"The repaired r18 loading candidate is ready/protected without a verdict at sequence416, served locally with decision watch. Owner's earlier long-load/refusal rejection is preserved as r17 evidence; current prompt-loading/responsiveness observation remains required. No new human criterion is added to the automated card bullets."}}]
+parked_on: "human-review"
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
@@ -41,6 +42,13 @@ exact-target selected-diff acceptance.
   content retention occurs.
 
 ## Evidence
+
+Current preparation is the [v003 served-review packet](../../verification/reviews/rfc-bpr-0013-attended-v003/operator-packet.md),
+source `eecdda2a`, candidate `rfc0013-r18-eecdda2a-f6db019a`, ready/protected
+without a verdict at session sequence 416. The local host and decision watch
+are active. [v003 identity](../../verification/reviews/rfc-bpr-0013-attended-v003/session-identity.json)
+binds the passing focused and integration evidence and its limits. Only the
+existing person-observable prompt-loading criterion remains pending here.
 
 ### Current correction — mandate r18, attended v002 rejected
 
