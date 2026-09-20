@@ -15,7 +15,8 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 Fresh leaf `/root/rfc0013_postreview_r2` owns the selected-diff milestone under
 mandate r18 plus the v004 hand-back. The new [checkpoint](../../rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d3-r2.json)
-preserves the prior binding and RFC base. Recipe revision 2 is a new continuation
+and [durable handoff](../../rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d3-r2.json)
+preserve the prior binding and RFC base. Recipe revision 2 is a new continuation
 segment because the installed catalog no longer contains the revision-1 preset;
 topology and configured model/effort routes are unchanged. This is not evidence
 of runtime enforcement. No other engineering writer or prior watch is active.
@@ -29,13 +30,29 @@ preparation. Both original verdicts remain intact; their contradiction means
 readable-source acceptance cannot be certified. Only these two candidates were
 released for correction (435/436); unrelated protections and BPR-0644 remain.
 
-The shortest composed setup course passes (37.39 seconds), and the direct sparse
-CLI bridge passes (9,382,814 bytes, 5,952 ms). The provider's two account-factory
-wrappers omit the sparse-capability override, and its observed Git transport
-omits exact-blob forwarding. Thus the app selects complete acquisition while
-the direct sparse probe bypasses the failure. Regressions and correction are
-the next action. Existing v004 app PID 15093 and server PID 12070 are preserved;
-`.mask.lock.json` and the unrelated nested checkout remain untouched.
+`37343abf` fixes both missing sparse-capability overrides and exact-blob
+forwarding in the provider account wrappers. The latter uses the existing
+pre/post account and cancellation guard. The old provider fails the new
+regression; focused checks pass 5/5 (65.31 seconds), the portable two-catalogue
+integration passes (215.62 seconds), and the external fixture passes 4/4.
+The signed tests-disabled r20 app was driven natively through a 515-file
+sparse-only synthetic CLI review, with exact manifest-matching anchors and
+readable selected source. Documentation, 64 verifier self-tests, formatting and
+signature checks pass. No limit, authority or small/large policy was weakened.
+
+The [v005 packet](../../verification/reviews/rfc-bpr-0013-attended-v005/operator-packet.md)
+and [identity](../../verification/reviews/rfc-bpr-0013-attended-v005/session-identity.json)
+bind source `37343abf`, executable `5f956714…` and the sole refreshed source/anchor
+question, protected at 439 with observations through 440. Loading approval is
+retained separately; device relaunch is not repeated. BPR-0794/0795 are parked
+for the shared exact-target exit, not Done. RFC closeout remains ineligible.
+
+Existing v004 app PID 15093 is untouched. Server PID 12070 is authenticated and
+attached for handoff; the coordinator arms `wait --after 440 --kind handed-back`.
+All engineering commands and task-owned synthetic apps are finished.
+`.mask.lock.json`, the unrelated nested checkout and other review candidates
+remain unchanged. Resume this milestone after the recorded v005 hand-back;
+do not carry its synthetic success across the missing real-target verdict.
 
 ## Previous frontier — resumed v004 / selected-diff-d2-resume
 

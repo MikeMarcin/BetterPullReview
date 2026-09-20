@@ -12,10 +12,11 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-Packet-pointer upkeep, 2026-09-20: the rejected RFC-0013 v003 exact-target and
-loading candidates are superseded by the [current v004 attended-review packet](../../verification/reviews/rfc-bpr-0013-attended-v004/operator-packet.md).
-Those repaired questions remain unanswered; the separate device-relaunch r17
-acceptance is preserved. This pointer changes no RFC-0018 acceptance or
+Packet-pointer upkeep, 2026-09-20: the RFC-0013 v004 hand-back is preserved in
+the [current v005 attended-review packet](../../verification/reviews/rfc-bpr-0013-attended-v005/operator-packet.md).
+Its sole refreshed source/anchor question remains unanswered; the positive v004
+loading observation and separate device-relaunch r17 acceptance are preserved.
+This pointer changes no RFC-0018 acceptance or
 historical verdict below.
 
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-009, mandate r6): in progress — checkpoint written before long work

@@ -1,0 +1,123 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d3-postreview-r2",
+  "mandate_revision": "r18-v004-handback",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d3-r2.json",
+  "child": "/root/rfc0013_postreview_r2",
+  "assignment": "Fresh post-review owner for selected-diff-exact-epoch-pair; exclusive main checkout; no delegation",
+  "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
+  "previous_checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d1.json",
+  "deviation": "After prior writer/watch quiescence and review hand-back at sequence 434, adopted coordinator-implementer recipe revision 2. Historical revision-1 preset is absent from installed catalog. Topology and primary gpt-5.6-sol/low plus implementer gpt-6-astra/max routes unchanged. Coordinator preflight passes; configuration is not proof of native serving.",
+  "review": {
+    "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "cursor": 436,
+    "revision": "rfc0013-v004-9c670d88-71117a5c",
+    "source": "9c670d8868aaa32a35d45e96e917ae7c86542c00",
+    "executable_sha256": "71117a5cac30ae45bd6a1ff04efb7d7d16cb002739349936d8e03bd1110aba23",
+    "verdicts": [
+      {
+        "candidate": "BPR-0794-cli-selected-diff",
+        "sequence": 432,
+        "outcome": "accept",
+        "note": "Explicit follow-up request for long CLI warning dialog."
+      },
+      {
+        "candidate": "BPR-0795-loading-visible",
+        "sequence": 433,
+        "outcome": "reject",
+        "note": "Prompt transition, animation and status praised; no usable file diffs or epochs. Screenshot confirms no pair."
+      }
+    ],
+    "interpretation": "Preserve both original verdicts. Later screenshot and exact-target failure contradict readable-source acceptance, so BPR-0794 AC4 and integrated exit 4 remain unsatisfied. Loading presentation approval is retained separately from acquisition failure.",
+    "protections": "Only 0794/0795 released for authorized correction at 435/436; other candidates preserved.",
+    "prepared_revision": "rfc0013-v005-37343abf-5f956714",
+    "prepared_fingerprint": "af95465d3f110907a65c082dfcb1459b1bef863f90ec33e942f4910b4479dc4b",
+    "prepared_cursor": 440,
+    "pending": "One refreshed BPR-0794 AC4 source/anchor question; retain v004 positive loading observation without changing its reject verdict. Shared milestone exit 4 leaves both cards human-pending."
+  },
+  "ownership": {
+    "writers": [],
+    "engineering_owner": "/root/rfc0013_postreview_r2 (quiescent at handoff)",
+    "commands": "All build, test, probe and synthetic native app command sessions completed and reaped. Attached existing review server PID 12070, port 50265, intentionally handed to coordinator; no leaf decision watch. Pre-existing owner app PID 15093 remains untouched.",
+    "cleanup": "Task-owned external synthetic CLI/home profiles and qpaths helper moved recoverably to /Users/jaeger/.Trash/bpr-rfc0013-r20-external-20260920. Release bundle and focused logs retained. Real bridge temporary stores used normal cleanup outside checkout.",
+    "unrelated": [
+      ".mask.lock.json",
+      "ignored .claude/worktrees/agent-a17cae88115dbbb4e"
+    ]
+  },
+  "diagnosis": "37343abf repairs omitted sparse capability on both account factory wrappers and omitted guarded exact-blob forwarding on observed Git lease. Direct bridge had bypassed that composition. No bounds, cache authority or loading policy changed.",
+  "next_action": "Coordinator opens complete attached loopback URL and arms wait --after 440 --kind handed-back. On hand-back launch a fresh engineering round for this same milestone; verify fingerprint and interpret the recorded decision. Do not close cards or RFC from synthetic success.",
+  "candidate": {
+    "source_revision": "37343abf71d53205630396045f528bba34649ed8",
+    "revision": "rfc0013-v005-37343abf-5f956714",
+    "executable_sha256": "5f956714e0ef52140ffd217a66b1f5c08f61aae646fa0082739c1014f7c18524",
+    "build": "build/app-release-rfc0013-r20/src/app/BetterPullReview.app",
+    "identity": "docs/verification/reviews/rfc-bpr-0013-attended-v005/session-identity.json"
+  },
+  "changed_paths": [
+    "src/adapters/github/src/github_provider.cpp",
+    "tests/github_contract/github_provider_tests.cpp",
+    "tests/end_to_end/rfc0015_cli_read_fixture.py",
+    "tests/end_to_end/rfc0015_cli_read_fixture_tests.py",
+    "docs/architecture/github-host-implementation.md",
+    "docs/rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md",
+    "docs/issues/40-parked/BPR-0794-resolve-selected-diff-epoch-pair.md",
+    "docs/issues/40-parked/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+    "docs/issues/10-backlog/BPR-0617-close-rfc-0013.md",
+    "docs/issues/10-backlog/BPR-0933-shorten-cli-trust-confirmation.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-0933--BPR-0933--398be11e6b56.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/execution-strategy-r2.json",
+    "docs/verification/reviews/rfc-bpr-0013-attended-v005/candidate-manifest.json",
+    "docs/verification/reviews/rfc-bpr-0013-attended-v005/session-identity.json",
+    "docs/verification/reviews/rfc-bpr-0013-attended-v005/operator-packet.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d3-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d3-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d3-r2-return.json",
+    "docs/issues/10-backlog/BPR-0593-close-rfc-0018.md",
+    "docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md"
+  ],
+  "commands": [
+    "ctest --test-dir build/r2-dev --output-on-failure -R '^github_provider$' (old-provider negative fails, repaired positive passes)",
+    "cmake --build build/r2-dev --target test_better_pull_review_github_provider_tests test_better_pull_review_application_github_window_read_host_tests test_better_pull_review_application_epoch_host_tests test_setup_destination_public_path app_better_pull_review test_better_pull_review_gh_cli_git_smart_transport_tests -j4",
+    "ctest --test-dir build/r2-dev --output-on-failure -j1 -R '^(application_epoch_host|application_github_window_read_host|github_provider|gh_cli_git_smart_transport|application_setup_destination_public_path)$' (5/5 pass, 65.31 s)",
+    "ctest --test-dir build/r2-dev --output-on-failure -j1 -R '^application_epoch_portable_occurrence_two_catalogues$' (pass, 215.62 s)",
+    "python3 tests/end_to_end/rfc0015_cli_read_fixture_tests.py (4/4 pass, 3.417 s)",
+    "cmake --preset app-release -B build/app-release-rfc0013-r20 -DBPR_MACOS_CODESIGN_IDENTITY=958233F9A83339D93538FAF43152DBBD582FBFFC; cmake --build build/app-release-rfc0013-r20 --target app_better_pull_review -j6",
+    "codesign --verify --deep --strict build/app-release-rfc0013-r20/src/app/BetterPullReview.app; shasum -a 256 build/app-release-rfc0013-r20/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+    "External large-positive fixture, canonical disposable root, normal tests-disabled launch and CUA gestures: 515 files, exact synthetic pair and selected source 0 -> 2 verified. All app runs quit and exited 0.",
+    "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py (DOCUMENTATION_OK, 64/64)",
+    "clang-format --dry-run --Werror src/adapters/github/src/github_provider.cpp tests/github_contract/github_provider_tests.cpp; git diff --check"
+  ],
+  "verification": "v005 identity binds exact revision, negative control, 5/5 focused tests, portable integration, fixture 4/4, native synthetic current-pair/source observation, documentation and signing. Historical source checked by integration, not claimed natively for the real target.",
+  "pending_obligations": [
+    "BPR-0794 AC4 / shared milestone exit 4: fresh real-target source/anchor verdict on v005.",
+    "Canonical RFC closeout, BPR-0507, platform BPR-0817/BPR-0825 and wider RFC matrix remain separate and unresolved.",
+    "BPR-0933 long CLI warning is a separately tracked follow-up, not implemented here."
+  ],
+  "return_checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d3-r2-return.json",
+  "checkpoint_reconciliation": "Entry binding is retained. Card source fingerprints changed because the new evidence and finish records were written; plan definition, all five exit criteria, dependencies and acceptance bullets are unchanged. The return checkpoint rebinds the same assignment/mandate to those evidenced card versions. CLI observation is a local current-HEAD snapshot; immutable product identity remains 37343abf/5f956714.",
+  "helper_observation": "build/rfc0013-resume-20260919/r20-milestone-observation.json",
+  "commits": {
+    "continuation": "c1d3fb75",
+    "claims": [
+      "c2d7620a",
+      "750f13d8"
+    ],
+    "implementation": "37343abf71d53205630396045f528bba34649ed8",
+    "human_pending": [
+      "ba7486d4de01037aa0bc92f44c9d1b7f8ffa3d6a",
+      "cc63504d30df564a4aa4fb6a0795da63ca470b62"
+    ]
+  },
+  "bookkeeping": "0794/0795 finished human-pending through issue_board, both Parked. BPR-0933 is allocated in Backlog for the explicit warning request. RFC remains Proposed. Only current packet pointers changed on BPR-0593/0644; their acceptance and historical verdicts remain unchanged.",
+  "helper_result": {
+    "action": "pending",
+    "engineering_acceptance": "not-evaluated",
+    "checked_against_head": "cc63504d30df564a4aa4fb6a0795da63ca470b62",
+    "meaning": "No changed milestone criteria or unresolved command ownership; exact-target human acceptance still required. Recreate the local observation at a later docs-only HEAD when checking again."
+  },
+  "final_upkeep": "Documentation gate passes after current-pointer updates; scoped board validation passes (925 cards); diff check passes. Product source and protected bundle have not changed since preparation."
+}

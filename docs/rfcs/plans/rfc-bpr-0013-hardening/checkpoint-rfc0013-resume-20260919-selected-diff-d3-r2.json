@@ -104,47 +104,5 @@
     "source_revision": "30583deb35b6fc761a8d24fce0489f7fd6f71e69",
     "workflow_branch": "main",
     "workflow_revision": "30583deb35b6fc761a8d24fce0489f7fd6f71e69"
-  },
-  "continuation": {
-    "child": "/root/rfc0013_postreview_r2",
-    "assignment": "Fresh post-review owner for selected-diff-exact-epoch-pair; exclusive main checkout; no delegation",
-    "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
-    "previous_checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d1.json",
-    "deviation": "After prior writer/watch quiescence and review hand-back at sequence 434, adopted coordinator-implementer recipe revision 2. Historical revision-1 preset is absent from installed catalog. Topology and primary gpt-5.6-sol/low plus implementer gpt-6-astra/max routes unchanged. Coordinator preflight passes; configuration is not proof of native serving.",
-    "review": {
-      "session": "cbd48b91000b00f1e72e1ad62c7c384c",
-      "cursor": 436,
-      "revision": "rfc0013-v004-9c670d88-71117a5c",
-      "source": "9c670d8868aaa32a35d45e96e917ae7c86542c00",
-      "executable_sha256": "71117a5cac30ae45bd6a1ff04efb7d7d16cb002739349936d8e03bd1110aba23",
-      "verdicts": [
-        {
-          "candidate": "BPR-0794-cli-selected-diff",
-          "sequence": 432,
-          "outcome": "accept",
-          "note": "Explicit follow-up request for long CLI warning dialog."
-        },
-        {
-          "candidate": "BPR-0795-loading-visible",
-          "sequence": 433,
-          "outcome": "reject",
-          "note": "Prompt transition, animation and status praised; no usable file diffs or epochs. Screenshot confirms no pair."
-        }
-      ],
-      "interpretation": "Preserve both original verdicts. Later screenshot and exact-target failure contradict readable-source acceptance, so BPR-0794 AC4 and integrated exit 4 remain unsatisfied. Loading presentation approval is retained separately from acquisition failure.",
-      "protections": "Only 0794/0795 released for authorized correction at 435/436; other candidates preserved."
-    },
-    "ownership": {
-      "writers": [
-        "/root/rfc0013_postreview_r2"
-      ],
-      "commands": "Initial composed public path and production sparse bridge complete. Existing attended server PID 12070 remains; owner-launched v004 app PID 15093 left untouched. No prior engineering writer/watch observed.",
-      "unrelated": [
-        ".mask.lock.json",
-        "ignored .claude/worktrees/agent-a17cae88115dbbb4e"
-      ]
-    },
-    "diagnosis": "Current public course passes but omits the large CLI wrapper path. Direct production sparse bridge passes (9382814 bytes, 5952 ms). Both provider account factory wrappers omit supports_sparse_commit_trees; CLI observed transport also omits read_exact_blob. Product therefore selects complete clone and refuses before an exact epoch pair.",
-    "next_action": "Claim BPR-0794/0795, reproduce wrapper capability/blob forwarding failure, repair with account/cancellation guards, verify through composed large-CLI current and historical selected-diff path; freeze new tests-disabled candidate if human acceptance remains."
   }
 }

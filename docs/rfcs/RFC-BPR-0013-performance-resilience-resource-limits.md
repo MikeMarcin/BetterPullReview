@@ -86,6 +86,15 @@ structural counters accompany latency results.
 
 ## Documentation impact
 
+The current selected-diff milestone remains human-pending after the v004
+hand-back. The [v005 evidence identity](../verification/reviews/rfc-bpr-0013-attended-v005/session-identity.json)
+binds the repaired sparse CLI account-lease path, focused and integration
+checks, and a tests-disabled native 515-file synthetic source comparison.
+Exact-target source/anchor acceptance remains open in BPR-0794; BPR-0795 retains
+the approved loading presentation. The [continuation checkpoint](plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d3-r2.json)
+preserves mandate r18 plus the v004 hand-back and the recipe-revision-2 migration.
+These bounded results do not close the RFC or its remaining prerequisites.
+
 Budgets, benchmark hardware, cancellation, cache policy, offline states, rate limits, recovery, fuzzing, logging, and known scale boundaries are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.

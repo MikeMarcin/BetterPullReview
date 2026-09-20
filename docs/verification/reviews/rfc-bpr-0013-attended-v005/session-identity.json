@@ -1,0 +1,141 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "rfc": "RFC-BPR-0013",
+  "source_commit": "37343abf71d53205630396045f528bba34649ed8",
+  "implementation_commits": [
+    "37343abf71d53205630396045f528bba34649ed8"
+  ],
+  "run": {
+    "id": "rfc0013-resume-20260919",
+    "segment": "selected-diff-d3-postreview-r2",
+    "mandate": "r18-v004-handback",
+    "child": "/root/rfc0013_postreview_r2",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": 2,
+    "delegation": "prohibited"
+  },
+  "milestone": "selected-diff-exact-epoch-pair",
+  "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+  "candidate_revision": "rfc0013-v005-37343abf-5f956714",
+  "bundle": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r20/src/app/BetterPullReview.app",
+    "executable_sha256": "5f956714e0ef52140ffd217a66b1f5c08f61aae646fa0082739c1014f7c18524",
+    "build_testing": false,
+    "build_type": "Release",
+    "signing": "Developer ID Application: Michael Marcin (YTQKP2V2A8)",
+    "codesign": "deep strict verification passed, exit 0",
+    "committed_rebuild": "No work to do after source commit; digest unchanged",
+    "build_logs": [
+      "build/rfc0013-resume-20260919/r20-release-configure.log",
+      "build/rfc0013-resume-20260919/r20-release-build.log"
+    ]
+  },
+  "handback": {
+    "sequence": 434,
+    "verdicts": [
+      {
+        "candidate": "BPR-0794-cli-selected-diff",
+        "sequence": 432,
+        "outcome": "accept",
+        "note": "Requests long CLI warning follow-up, now BPR-0933."
+      },
+      {
+        "candidate": "BPR-0795-loading-visible",
+        "sequence": 433,
+        "outcome": "reject",
+        "note": "Prompt transition, loading animation and status approved; no usable diffs or epochs."
+      }
+    ],
+    "interpretation": "Preserve both verdicts. Later concrete missing-source screenshot contradicts the readable-diff acceptance; exact-target AC4 stays open. Retain loading presentation approval without treating the rejected integrated result as accepted.",
+    "releases": [
+      435,
+      436
+    ]
+  },
+  "diagnosis": {
+    "product": "Fixed metadata shows cache_open success then protocol_acquire transport/unavailable before revision preparation.",
+    "boundary": "github_wire_account_transport and cli_observed_account_transport omitted supports_sparse_commit_trees. Large production requests therefore used complete acquisition; standalone sparse bridge tests bypassed these wrappers. observed_git_transport also omitted read_exact_blob.",
+    "repair": "Forward selected capability through both wrappers, revoke capability after observed mismatch, and forward exact-blob reads through the existing pre/post account, cancellation and revocation guard. No budget, cache, accepted-shape, historical identity or publication rule changed."
+  },
+  "verification": {
+    "negative_control": {
+      "log": "build/rfc0013-resume-20260919/r20-provider-negative-control.log",
+      "result": "Old implementation fails the new sparse-wrapper assertion; repaired provider passes."
+    },
+    "focused": {
+      "log": "build/rfc0013-resume-20260919/r20-focused.log",
+      "result": "5/5 passed, 65.31 seconds",
+      "tests": [
+        "application_epoch_host",
+        "application_github_window_read_host",
+        "github_provider",
+        "gh_cli_git_smart_transport",
+        "application_setup_destination_public_path"
+      ]
+    },
+    "integration": {
+      "log": "build/rfc0013-resume-20260919/r20-integration.log",
+      "test": "application_epoch_portable_occurrence_two_catalogues",
+      "result": "Passed, 215.62 seconds; current/historical source, retained events, rewritten base and unfetchable gap."
+    },
+    "fixture": {
+      "command": "python3 tests/end_to_end/rfc0015_cli_read_fixture_tests.py",
+      "result": "4/4 pass, 3.417 seconds",
+      "coverage": "515-file local-only course refuses complete clone, checks actual blobless shallow packs, serves exact-blob production JSON shape and paginates REST/GraphQL. Existing complete, malformed, process-failure, missing-process and credential-canary checks retained."
+    },
+    "native": {
+      "bundle_sha256": "5f956714e0ef52140ffd217a66b1f5c08f61aae646fa0082739c1014f7c18524",
+      "method": "External local-only gh fixture, normal tests-disabled launch, external CUA gestures; no product fixture or auto-consent argument.",
+      "course": "large-positive",
+      "file_count": 515,
+      "selected_file": "src/file_0000.cpp",
+      "left_oid": "878e9d7043aa7dcbee8ce1fecd6633e7c3eee4ff",
+      "right_oid": "3a8e16042ce05cae93fa7782aa9d013e49c71cbb",
+      "observed": "Immediate loading Overview, then pair ready. File 4 of 515 reaches Diff ready, one replacement: int fixture_0000 = 0; becomes int fixture_0000 = 2;. Both exact OIDs match the checked-in synthetic manifest. Read-only source and selected-change details inspected in AX and native screenshot.",
+      "limitations": "Synthetic current pair only, zero review threads. No real-target or native historical verdict inferred. Earlier setup iterations exposed fixture-only /tmp alias, GraphQL variables and exact-blob framing mismatches; corrected without product changes. No failed iteration is counted passing."
+    },
+    "documentation": "DOCUMENTATION_OK; 64 verifier self-tests pass; changed C++ clang-format --dry-run --Werror and git diff --check pass.",
+    "self_review": "Scoped code-simplifier pass retains the existing account guard rather than adding a parallel path. False sparse capability, mismatch before/after blob dispatch, cancellation before/during read, retained failure, byte bound and exact context are covered.",
+    "reused": "Unchanged prior loading/participant Qt evidence, core shape policy, cache and resource limits; new focused host and integration checks re-exercise small-complete and large/historical semantics.",
+    "limits": [
+      "Exact EpicGames/UnrealEngine#1773 source/anchor human acceptance remains open.",
+      "Prior unrelated nested-worktree architecture scanner failure, wider Qt layout failure and Release stage-0 CLI inventory limitation remain unclaimed, not repaired by this slice."
+    ]
+  },
+  "safety": {
+    "live_writes": false,
+    "account_switch": false,
+    "device_session_change": false,
+    "credential_extraction": false,
+    "private_content_retained": false,
+    "real_read": "One direct production sparse-bridge prerequisite check passed: 9,382,814 in-memory bytes in 5,952 ms; not the product source verdict."
+  },
+  "review": {
+    "questions": 1,
+    "criterion": "BPR-0794 AC4, readable source and exact anchors; also discharges shared selected-diff milestone exit 4 if accepted",
+    "loading": "Prior v004 positive loading observation retained; not asked again",
+    "unrelated_protections": "BPR-0644 r17 device acceptance and all unrelated protected candidates unchanged",
+    "offline": "No full-session HTML exported because durable session contains private owner attachments."
+  },
+  "prepared_at_sequence": 439,
+  "observed_at_sequence": 440,
+  "candidates": [
+    {
+      "id": "BPR-0794-cli-selected-diff",
+      "revision": "rfc0013-v005-37343abf-5f956714",
+      "fingerprint": "af95465d3f110907a65c082dfcb1459b1bef863f90ec33e942f4910b4479dc4b",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "handoff": {
+    "server": "Attached and authenticated existing loopback host PID 12070, port 50265; retained for coordinator.",
+    "event_cursor": 440,
+    "watch": "Coordinator arms wait --after 440 --kind handed-back after this leaf returns; no leaf watch.",
+    "engineering": "All builds, tests and probes complete. All three task-owned synthetic app processes exited 0 and were reaped.",
+    "owner_application": "Pre-existing v004 PID 15093 remains untouched; owner quits normally before v005.",
+    "unrelated": ".mask.lock.json and ignored nested checkout preserved."
+  }
+}

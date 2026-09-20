@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0794-cli-selected-diff",
+      "title": "BPR-0794: readable selected diff through the repaired large-PR CLI path",
+      "revision": "rfc0013-v005-37343abf-5f956714",
+      "criteria": [
+        "The current tests-disabled CLI-profile app shows the correct file list and a readable selected diff for EpicGames/UnrealEngine#1773, with source and review-thread anchors belonging to its accepted epoch pair and Right OID matching the pull request's current head."
+      ],
+      "content": "The v004 hand-back praised loading but reported no usable source or epochs. Two account wrappers silently discarded sparse capability; the observed Git lease also omitted exact-blob forwarding. Both are fixed. The signed v005 app has passed a 515-file local synthetic read with an exact pair and readable lazy-loaded source. That is not acceptance of your real target.\n\nQuit the old BetterPullReview normally, then launch the absolute-path v005 build below. Use the already opted-in GitHub CLI profile and open the exact target once. Do not sign out, repeat device sign-in, switch the global gh account or handle credentials. If that CLI account is unavailable, reject with the fixed blocker and stop.\n\nCompare the file count with GitHub (previously 1,523). Select a changed text file and require a readable diff, not just a file list or pair-ready label. In Review details, check both sides available and Right OID against the current GitHub head. Compare source lines and a review-thread anchor on that file if present. Accept only if the source and exact anchors agree. Otherwise name the failed step or fixed status, without private paths, source, OIDs, thread text or screenshots in notes. No GitHub write is requested.\n\nThis is the only refreshed question. Your loading/animation approval is retained; device relaunch is not repeated. The long CLI warning is separately tracked as BPR-0933.",
+      "paths": [
+        "src/adapters/github/src/github_cli_process_runner.cpp",
+        "src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+        "src/adapters/github/src/gh_cli_transport.cpp",
+        "src/adapters/git/src/installed_git_cache.cpp",
+        "src/app/src/github_application.cpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/application/src/github_window_read_host.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/epoch_comparison_control.cpp",
+        "src/adapters/qt/src/pull_request_overview_page.cpp",
+        "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+        "src/core/src/epoch_transition.cpp",
+        "src/adapters/github/src/github_provider.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r20/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r20/src/app/BetterPullReview.app": "5f956714e0ef52140ffd217a66b1f5c08f61aae646fa0082739c1014f7c18524"
+      },
+      "launch": {
+        "label": "After quitting the old app, open v005",
+        "command": "/usr/bin/open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r20/src/app/BetterPullReview.app"
+      },
+      "copy": [
+        {
+          "label": "Check for an old app process (no output means none)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Verify executable digest: 5f956714…",
+          "value": "/usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r20/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+        },
+        {
+          "label": "Exact target for Home",
+          "value": "https://github.com/EpicGames/UnrealEngine/pull/1773"
+        }
+      ],
+      "metadata": {
+        "source_commit": "37343abf71d53205630396045f528bba34649ed8",
+        "run": "rfc0013-resume-20260919",
+        "segment": "selected-diff-d3-postreview-r2",
+        "mandate": "r18-v004-handback",
+        "child": "/root/rfc0013_postreview_r2",
+        "card": "docs/issues/40-parked/BPR-0794-resolve-selected-diff-epoch-pair.md",
+        "acceptance": "AC4"
+      }
+    }
+  ]
+}
+

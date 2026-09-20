@@ -17,8 +17,9 @@ candidate `rfc0013-r17-7b591faa-ad50fe5d`, fingerprint
 `a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb`, at
 `2026-09-20T03:52:48.224084+00:00` (session event 405). That verdict remains
 bound to its r17 source and bundle; it is not reinitialized or re-asked by the
-[v004 attended-review packet](../../verification/reviews/rfc-bpr-0013-attended-v004/operator-packet.md),
-which replaces only the rejected RFC-0013 diff/loading candidates. The separate
+[v005 attended-review packet](../../verification/reviews/rfc-bpr-0013-attended-v005/operator-packet.md),
+which refreshes only the RFC-0013 source/anchor question and retains the positive
+v004 loading observation. The separate
 restoration/fail-closed policy observation below remains open; this card is not
 closed by unrelated RFC-0013 repairs.
 
