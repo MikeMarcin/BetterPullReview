@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0938"
 title: "Show useful Overview observations before complete PR loading"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
