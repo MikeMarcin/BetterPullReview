@@ -51,10 +51,21 @@ namespace bpr::adapters::github::detail {
 				}
 				if (iterator->is_regular_file(error)) {
 					const auto size = iterator->file_size(error);
-					if (error || size >= aLimits.MaximumFileBytes || size > aLimits.MaximumDirectoryBytes - bytes) {
+					// Git atomically replaces lock and temporary pack files while
+					// this bounded sampler runs. A vanished file consumes no bytes;
+					// file_size's failure sentinel is not an oversized file.
+					if (error == std::errc::no_such_file_or_directory) {
+						error.clear();
+					} else if (error || size >= aLimits.MaximumFileBytes || size > aLimits.MaximumDirectoryBytes - bytes) {
 						return false;
+					} else {
+						bytes += size;
 					}
-					bytes += size;
+				}
+				if (error == std::errc::no_such_file_or_directory) {
+					error.clear();
+				} else if (error) {
+					return false;
 				}
 				iterator.increment(error);
 			}

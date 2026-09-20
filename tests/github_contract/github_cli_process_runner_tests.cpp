@@ -281,6 +281,24 @@ namespace {
 			std::this_thread::sleep_for(10s);
 			return 0;
 		}
+		if (mode == QStringLiteral("churn-store")) {
+			const auto until = std::chrono::steady_clock::now() + 500ms;
+			do {
+				for (auto index = 0; index < 32; ++index) {
+					QFile file{ QStringLiteral("pack-%1.lock").arg(index) };
+					if (!file.open(QIODevice::WriteOnly) || file.write("x", 1) != 1) {
+						return 112;
+					}
+				}
+				for (auto index = 0; index < 32; ++index) {
+					if (!QFile::remove(QStringLiteral("pack-%1.lock").arg(index))) {
+						return 113;
+					}
+				}
+			} while (std::chrono::steady_clock::now() < until);
+			std::cout << "churned";
+			return 0;
+		}
 		if (mode == QStringLiteral("nonzero")) {
 			std::cout << "discard-me";
 			return 7;
@@ -774,6 +792,59 @@ namespace {
 			   "a spool over an existing file is refused");
 		expect(refused([](github_cli_process_file_limits& aLimits) { aLimits.Directory = "relative-store"; }),
 			   "a relative store is refused");
+	}
+
+	auto test_git_acquisition_store_sampling() -> void
+	{
+		QTemporaryDir store;
+		expect(store.isValid(), "sampled acquisition store is created");
+		const auto directory = std::filesystem::path{ QDir{ store.path() }.absolutePath().toStdWString() };
+		const auto limits    = github_cli_process_file_limits{
+			.MaximumFileBytes        = 1024U,
+			.Directory               = directory,
+			.MaximumDirectoryBytes   = 4096U,
+			.MaximumDirectoryEntries = 128U,
+		};
+		const auto runner = make_github_cli_git_acquisition_process_runner(limits);
+		expect(runner != nullptr, "bounded acquisition sampler is available");
+		const auto churned = runner->run(base_request(store, { "--bpr-helper", "churn-store" }), { });
+		expect(churned && churned->StandardOutput == "churned",
+			   "temporary files removed during sampling are not byte-limit violations");
+		QFile pack{ QDir{ store.path() }.filePath(QStringLiteral("oversized.pack")) };
+		expect(pack.open(QIODevice::WriteOnly) && pack.resize(1024), "per-file boundary fixture is created");
+		pack.close();
+		expect_failure(*runner, base_request(store, { "--bpr-helper", "hang" }),
+					   github_cli_process_failure::standard_output_limit,
+					   "a retained file at the acquisition limit is still refused");
+		expect(pack.remove(), "per-file fixture is removed");
+		for (auto index = 0; index < 5; ++index) {
+			QFile entry{ QDir{ store.path() }.filePath(QStringLiteral("aggregate-%1").arg(index)) };
+			expect(entry.open(QIODevice::WriteOnly) && entry.resize(900), "aggregate-cap fixture is created");
+		}
+		expect_failure(*runner, base_request(store, { "--bpr-helper", "hang" }),
+					   github_cli_process_failure::standard_output_limit,
+					   "the aggregate byte limit remains enforced");
+		for (auto index = 0; index < 5; ++index) {
+			expect(QFile::remove(QDir{ store.path() }.filePath(QStringLiteral("aggregate-%1").arg(index))),
+				   "aggregate-cap fixture is removed");
+		}
+#if defined(Q_OS_UNIX)
+		std::error_code linkError;
+		const auto      link = directory / "outside-link";
+		std::filesystem::create_symlink(directory.parent_path(), link, linkError);
+		expect(!linkError, "symlink refusal fixture is created");
+		expect_failure(*runner, base_request(store, { "--bpr-helper", "hang" }),
+					   github_cli_process_failure::standard_output_limit,
+					   "symlinks still refuse instead of being followed by the sampler");
+		expect(std::filesystem::remove(link, linkError) && !linkError, "symlink refusal fixture is removed");
+#endif
+		for (auto index = 0; index < 129; ++index) {
+			QFile entry{ QDir{ store.path() }.filePath(QStringLiteral("entry-%1").arg(index)) };
+			expect(entry.open(QIODevice::WriteOnly), "entry-cap fixture is created");
+		}
+		expect_failure(*runner, base_request(store, { "--bpr-helper", "hang" }),
+					   github_cli_process_failure::standard_output_limit,
+					   "the directory entry limit remains enforced after transient-file recovery");
 	}
 
 	auto test_stream_limits_and_redaction() -> void
@@ -1426,6 +1497,7 @@ auto main(int argc, char* argv[]) -> int
 	test_bare_repository_working_directory_is_rejected();
 	test_shape_limits_reject_without_launch();
 	test_git_acquisition_factory_refuses_unbounded_stores();
+	test_git_acquisition_store_sampling();
 	test_stream_limits_and_redaction();
 	test_completed_output_opt_in();
 #if defined(Q_OS_UNIX)
