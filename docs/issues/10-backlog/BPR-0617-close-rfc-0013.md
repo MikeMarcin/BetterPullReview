@@ -19,6 +19,9 @@ The existing checkpoint now binds segment `selected-diff-d2-resume` of
 `rfc0013-resume-20260919` under unchanged mandate r18. RFC base remains
 `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`; all existing obligations remain.
 The helper reports `pending`, without certifying engineering acceptance.
+During resume the ambient skill link changed and its new catalog refused the
+saved strategy. The preserved `d97bb0d1adb539135906ee10823e2d152d65cc7493f49610d29315308be0f0fb`
+package still checks this binding; no strategy or instruction upgrade was adopted.
 
 Reconciliation at `7e60ab43` found only the pre-existing `.mask.lock.json`
 change and no product-source change since `9c670d88`. The [v004
