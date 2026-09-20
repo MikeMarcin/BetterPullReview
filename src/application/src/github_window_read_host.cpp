@@ -775,6 +775,7 @@ namespace bpr::application {
 		void submit_pull_request(const github_pull_request_provider_request& aRequest)
 		{
 			PendingProvider  = aRequest;
+			ProgressSequence = 0U;
 			const auto token = ++ProviderOperationToken;
 			auto       weak  = weak_from_this();
 			auto*      lane  = &DecisionLane;
@@ -801,10 +802,84 @@ namespace bpr::application {
 				}
 			};
 			try {
-				pull_request_port_for(aRequest).fetch_pull_request(aRequest, callback);
+				pull_request_port_for(aRequest).fetch_pull_request_with_progress(aRequest, callback,
+																				 progress_callback(token, aRequest.Context, once));
 			} catch (...) {
 				callback(github_pull_request_error{ .Request = aRequest,
 													.Error   = { .Failure = github_provider_failure::response_limit } });
+			}
+		}
+
+		struct progress_mailbox
+		{
+			std::mutex                          Mutex;
+			std::optional<github_read_progress> Latest;
+			bool                                Posted = false;
+		};
+
+		[[nodiscard]] auto progress_callback(const std::uint64_t                       aToken,
+											 const core::pull_request_request_context& aContext,
+											 const std::shared_ptr<std::atomic_bool>&  aTerminal)
+			-> github_pull_request_progress_handler
+		{
+			auto mailbox = std::make_shared<progress_mailbox>();
+			return [weak = weak_from_this(), lane = &DecisionLane, mailbox, aToken, aContext, aTerminal](
+					   core::pull_request_request_context aObserved, github_read_progress aProgress) {
+				if (aObserved != aContext || aTerminal->load() || aProgress.Sequence == 0U
+					|| aProgress.Sequence > maximum_github_read_progress_sequence
+					|| aProgress.PagesReceived > maximum_github_read_progress_pages
+					|| aProgress.Phase > github_read_phase::update_history) {
+					return;
+				}
+				auto host = weak.lock();
+				if (!host) {
+					return;
+				}
+				const std::lock_guard lock{ mailbox->Mutex };
+				if (!mailbox->Latest || mailbox->Latest->Sequence < aProgress.Sequence) {
+					mailbox->Latest = aProgress;
+				}
+				if (mailbox->Posted) {
+					return;
+				}
+				mailbox->Posted = true;
+				++host->Outstanding;
+				try {
+					lane->post([weak, mailbox, aToken, aContext] {
+						std::optional<github_read_progress> progress;
+						{
+							const std::lock_guard mailboxLock{ mailbox->Mutex };
+							progress        = std::exchange(mailbox->Latest, std::nullopt);
+							mailbox->Posted = false;
+						}
+						if (auto current = weak.lock()) {
+							--current->Outstanding;
+							if (progress) {
+								current->publish_progress(aToken, aContext, *progress);
+							}
+						}
+					});
+				} catch (...) {
+					--host->Outstanding;
+					mailbox->Posted                = false;
+					host->ProjectionDeliveryFailed = true;
+				}
+			};
+		}
+
+		void publish_progress(const std::uint64_t                       aToken,
+							  const core::pull_request_request_context& aContext, const github_read_progress& aProgress)
+		{
+			if (Closing || !Publish || aToken != ProviderOperationToken || !PendingProvider
+				|| State.PendingPullRequest != aContext || PendingProvider->Context != aContext
+				|| aProgress.Sequence <= ProgressSequence) {
+				return;
+			}
+			ProgressSequence = aProgress.Sequence;
+			try {
+				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, github_presentation_update{ .ReadProgress = aProgress } });
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
 			}
 		}
 		void handle_pull_request_now(const std::uint64_t            aToken,
@@ -1039,6 +1114,7 @@ namespace bpr::application {
 		std::optional<github_pull_request_provider_request> PendingProvider;
 		std::uint64_t                                       ProviderOperationToken = 0;
 		std::atomic_size_t                                  Outstanding{ 0 };
+		std::uint32_t                                       ProgressSequence = 0U;
 		review_mutation_transport                           ReviewMutationTransport;
 		github_rate_limit_state                             RateLimits;
 		std::optional<github_provider_error>                LastError;

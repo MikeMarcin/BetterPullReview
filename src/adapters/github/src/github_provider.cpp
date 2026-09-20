@@ -59,14 +59,16 @@ namespace bpr::adapters::github::detail {
 		class pull_request_response_observer final : public github_paged_response_observer
 		{
 		public:
-			pull_request_response_observer(application::diagnostic_log_port* aLog, std::uint64_t aRequest, std::uint64_t aWindowSession) noexcept
+			pull_request_response_observer(application::diagnostic_log_port* aLog, core::pull_request_request_context aContext,
+										   application::github_pull_request_progress_handler aProgress) noexcept
 				: Log{ aLog }
-				, Request{ aRequest }
-				, WindowSession{ aWindowSession }
+				, Context{ std::move(aContext) }
+				, Progress{ std::move(aProgress) }
 			{ }
 			void request_started(const read_operation aOperation) noexcept override
 			{
 				LastOperation = diagnostic_operation_for(aOperation);
+				report_progress(aOperation);
 			}
 			void validation_failed(const application::github_read_validation aValidation) noexcept override
 			{
@@ -76,12 +78,16 @@ namespace bpr::adapters::github::detail {
 			void observe(const read_operation aOperation, const int aHttpStatus) noexcept override
 			{
 				LastOperation = diagnostic_operation_for(aOperation);
+				if (aHttpStatus >= 200 && aHttpStatus < 300) {
+					++PagesReceived;
+					report_progress(aOperation);
+				}
 				if (Log != nullptr) {
 					static_cast<void>(Log->record({
 						.Operation      = application::diagnostic_operation::pull_request,
 						.Outcome        = application::diagnostic_outcome::response_received,
-						.Request        = Request,
-						.WindowSession  = WindowSession,
+						.Request        = Context.Request.value(),
+						.WindowSession  = Context.ApplicationSession.value(),
 						.HttpStatus     = aHttpStatus >= 0 && aHttpStatus <= 65535 ? static_cast<std::uint16_t>(aHttpStatus) : std::uint16_t{ 0 },
 						.PagedOperation = *LastOperation,
 					}));
@@ -92,9 +98,36 @@ namespace bpr::adapters::github::detail {
 			std::optional<application::github_read_validation_error> RelationshipDetail;
 
 		private:
-			application::diagnostic_log_port* Log;
-			std::uint64_t                     Request;
-			std::uint64_t                     WindowSession;
+			void report_progress(const read_operation aOperation) noexcept
+			{
+				if (!Progress) {
+					return;
+				}
+				using phase  = application::github_read_phase;
+				auto current = phase::metadata;
+				switch (aOperation) {
+				case read_operation::list_pull_request_files:    current = phase::files; break;
+				case read_operation::list_pull_request_commits:  current = phase::commits; break;
+				case read_operation::list_reviews:               current = phase::reviews; break;
+				case read_operation::list_review_threads:
+				case read_operation::list_review_comments:       current = phase::review_threads; break;
+				case read_operation::list_issue_comments:        current = phase::comments; break;
+				case read_operation::list_checks:                current = phase::checks; break;
+				case read_operation::search_pull_requests:       current = phase::related_pull_requests; break;
+				case read_operation::list_pull_request_timeline: current = phase::update_history; break;
+				default:                                         break;
+				}
+				try {
+					Progress(Context, { .Phase = current, .PagesReceived = PagesReceived, .Sequence = ++Sequence });
+				} catch (...) {
+					// Progress is observational and cannot alter the read terminal.
+				}
+			}
+			application::diagnostic_log_port*                 Log;
+			core::pull_request_request_context                Context;
+			application::github_pull_request_progress_handler Progress;
+			std::uint32_t                                     PagesReceived = 0;
+			std::uint32_t                                     Sequence      = 0;
 		};
 
 		enum class provider_phase : std::uint8_t {
@@ -1851,6 +1884,14 @@ namespace bpr::adapters::github::detail {
 		application::github_pull_request_provider_request   aRequest,
 		application::github_pull_request_completion_handler aCompletion)
 	{
+		fetch_pull_request_with_progress(std::move(aRequest), std::move(aCompletion), { });
+	}
+
+	void github_provider::fetch_pull_request_with_progress(
+		application::github_pull_request_provider_request   aRequest,
+		application::github_pull_request_completion_handler aCompletion,
+		application::github_pull_request_progress_handler   aProgress)
+	{
 		const auto anonymous = Implementation != nullptr
 			&& Implementation->State->ReadAuthority
 				== github_provider_read_authority::anonymous_public;
@@ -1971,8 +2012,9 @@ namespace bpr::adapters::github::detail {
 				 accountTransport,
 				 readTransport,
 				 aRequest,
+				 progress = std::move(aProgress),
 				 delivery]() mutable {
-					pull_request_response_observer observer{ state->Log.get(), aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() };
+					pull_request_response_observer observer{ state->Log.get(), aRequest.Context, std::move(progress) };
 					const auto                     cancelled = [&] {
 						finish_job(state, job);
 						delivery->deliver(

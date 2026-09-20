@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROJECTION_HPP
 
 #include "bpr/application/github_capability_diagnostic.hpp"
+#include "bpr/application/github_read_progress.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_model.hpp"
 
@@ -251,6 +252,7 @@ namespace bpr::application {
 		std::optional<github_session_projection>       Session     = std::nullopt;
 		std::optional<github_pull_request_projection>  PullRequest = std::nullopt;
 		std::vector<github_host_diagnostic_projection> HostDiagnostics{ };
+		std::optional<github_read_progress>            ReadProgress = std::nullopt;
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};

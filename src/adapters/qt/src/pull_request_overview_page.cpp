@@ -26,7 +26,6 @@
 #include <QStyle>
 #include <QStyleOptionViewItem>
 #include <QTextBlock>
-#include <QTextLayout>
 #include <QTextOption>
 #include <QTimeZone>
 #include <QTimer>
@@ -451,28 +450,6 @@ namespace bpr::qt {
 		constexpr int side_width = 300;
 		constexpr int chip_width = 58;
 
-		// The same wrapped geometry drives sizing and painting. In particular,
-		// unbroken logins must not draw over the role or standing beside them.
-		auto participant_text(QPainter* aPainter, const QString& aText, const QFont& aFont,
-							  const int aWidth, const qreal aTop) -> qreal
-		{
-			auto layout = QTextLayout{ aText, aFont };
-			auto option = QTextOption{ };
-			option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-			layout.setTextOption(option);
-			layout.beginLayout();
-			auto height = qreal{ 0 };
-			for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
-				line.setLineWidth(std::max(1, aWidth - 28));
-				line.setPosition(QPointF{ 0, height });
-				height += line.height();
-			}
-			layout.endLayout();
-			if (aPainter != nullptr) {
-				layout.draw(aPainter, QPointF{ 28, aTop });
-			}
-			return height;
-		}
 	} // namespace
 
 	// ---- overview_file_model ------------------------------------------------
@@ -916,9 +893,7 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("overviewParticipant"));
 		setAccessibleName(QStringLiteral("%1, %2, %3")
 							  .arg(login(), role_text(aParticipant.Role), standing_text()));
-		auto policy = QSizePolicy{ QSizePolicy::Expanding, QSizePolicy::Preferred };
-		policy.setHeightForWidth(true);
-		setSizePolicy(policy);
+		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		setToolTip(accessibleName());
 	}
 
@@ -944,10 +919,8 @@ namespace bpr::qt {
 
 	auto overview_participant_row::heightForWidth(const int aWidth) const -> int
 	{
-		const auto details = role_text(Participant.Role) + QStringLiteral(" · ") + standing_text();
-		return static_cast<int>(std::ceil(participant_text(nullptr, login(), font(), aWidth, 0)
-										  + participant_text(nullptr, details, font(), aWidth, 0)))
-			+ 8;
+		static_cast<void>(aWidth);
+		return std::max(28, fontMetrics().height() + 10);
 	}
 
 	void overview_participant_row::paintEvent(QPaintEvent* const aEvent)
@@ -959,7 +932,7 @@ namespace bpr::qt {
 		const auto  ink     = colours.color(QPalette::Active, QPalette::WindowText);
 		const auto  faint   = colours.color(QPalette::Active, QPalette::PlaceholderText);
 		// The avatar: an initial in a circle, accented for me.
-		const auto centre = QPointF{ 11.0, 4.0 + fontMetrics().height() / 2.0 };
+		const auto centre = QPointF{ 11.0, height() / 2.0 };
 		painter.setPen(Qt::NoPen);
 		painter.setBrush(Participant.Viewer ? Colours.Unread : colours.color(QPalette::Active, QPalette::Mid));
 		painter.drawEllipse(centre, 9.0, 9.0);
@@ -970,10 +943,9 @@ namespace bpr::qt {
 		painter.setPen(Participant.Viewer ? colours.color(QPalette::Active, QPalette::Base) : ink);
 		const auto initial = login().isEmpty() ? QString{ } : login().left(1).toUpper();
 		painter.drawText(QRectF{ centre.x() - 9.0, centre.y() - 9.0, 18.0, 18.0 }, Qt::AlignCenter, initial);
-		// Login and metadata occupy separate wrapped lines.
+		// One compact line per person; full login, role and standing remain
+		// available in the tooltip and accessible name when space is tight.
 		painter.setFont(font());
-		painter.setPen(ink);
-		const auto loginHeight = participant_text(&painter, login(), font(), width(), 4);
 		// The standing is coloured by what it means.
 		auto standing = faint;
 		switch (Participant.Signoff) {
@@ -991,8 +963,14 @@ namespace bpr::qt {
 			break;
 		}
 		painter.setPen(standing);
-		participant_text(&painter, role_text(Participant.Role) + QStringLiteral(" · ") + standing_text(),
-						 font(), width(), 4 + loginHeight);
+		const auto details     = standing_text().isEmpty() ? role_text(Participant.Role) : standing_text();
+		const auto detailWidth = std::min(fontMetrics().horizontalAdvance(details), std::max(0, width() - 60));
+		painter.drawText(QRect{ width() - detailWidth - 4, 0, detailWidth, height() },
+						 Qt::AlignVCenter | Qt::AlignRight, details);
+		painter.setPen(ink);
+		const auto loginWidth = std::max(0, width() - detailWidth - 44);
+		painter.drawText(QRect{ 28, 0, loginWidth, height() }, Qt::AlignVCenter | Qt::AlignLeft,
+						 fontMetrics().elidedText(login(), Qt::ElideRight, loginWidth));
 		// The rule beneath.
 		painter.setPen(QPen{ colours.color(QPalette::Active, QPalette::Mid), 1.0 });
 		painter.drawLine(QPointF{ 0.0, height() - 0.5 }, QPointF{ static_cast<qreal>(width()), height() - 0.5 });
@@ -1338,6 +1316,16 @@ namespace bpr::qt {
 		}
 		Entry->setText(QStringLiteral("Start review"));
 		Entry->setEnabled(false);
+	}
+
+	void pull_request_overview_page::present_loading()
+	{
+		Title->setText(QStringLiteral("Loading pull request…"));
+		Summary->setText(QStringLiteral("Details, files and conversations are loading in the background."));
+		FilesHeading->setText(QStringLiteral("Files — loading…"));
+		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
+			none->setText(QStringLiteral("Loading participants…"));
+		}
 	}
 
 	void pull_request_overview_page::set_description_expanded(const bool aExpanded)

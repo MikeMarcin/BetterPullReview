@@ -773,6 +773,11 @@ namespace bpr::qt {
 		return StatusLabel->text();
 	}
 
+	auto epoch_comparison_control::comparison_available() const noexcept -> bool
+	{
+		return Comparison && Comparison->AvailableForDiff;
+	}
+
 	auto epoch_comparison_control::status() const noexcept -> core::epoch_status
 	{
 		return Status;

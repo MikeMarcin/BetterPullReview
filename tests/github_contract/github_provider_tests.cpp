@@ -1958,9 +1958,17 @@ namespace {
 				return github_wire_cancelled{ .Correlation = aWire.Correlation };
 			};
 			std::vector<application::github_pull_request_completion> reads;
-			fixture.Provider->fetch_pull_request(readRequest, [&](auto aResult) { reads.push_back(std::move(aResult)); });
+			std::vector<application::github_read_progress>           progress;
+			fixture.Provider->fetch_pull_request_with_progress(readRequest, [&](auto aResult) { reads.push_back(std::move(aResult)); }, [&](const auto& aContext, const auto aProgress) {
+					expect(aContext == readRequest.Context && reads.empty(), "progress retains exact read identity before its terminal");
+					progress.push_back(aProgress);
+					throw std::runtime_error{"observational subscriber failure"}; });
 			fixture.Effects.run_next();
 			static_cast<void>(require_one<application::github_pull_request_cancelled>(reads, "CLI PR read accepts repository success then reaches next read"));
+			expect(progress.size() == 3U && progress[0] == application::github_read_progress{ .Phase = application::github_read_phase::metadata, .PagesReceived = 0U, .Sequence = 1U }
+					   && progress[1].PagesReceived == 1U && progress[1].Sequence == 2U
+					   && progress[2].PagesReceived == 1U && progress[2].Sequence == 3U,
+				   "provider emits monotone start/received progress without counting private viewer preflights or altering completion");
 			expect(fixture.Transport->ReadRequests.size() == 24U, "repository read has preflight and postflight before next read preflight and dispatch");
 			fixture.Transport->ReadHandler       = viewerHandler;
 			const auto before                    = fixture.Transport->CapabilityRequests.size();

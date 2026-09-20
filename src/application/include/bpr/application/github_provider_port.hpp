@@ -6,12 +6,14 @@
 #include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/github_read_model.hpp"
+#include "bpr/application/github_read_progress.hpp"
 
 #include <compare>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <variant>
 
 namespace bpr::application {
@@ -393,6 +395,7 @@ namespace bpr::application {
 		github_pull_request_error,
 		github_pull_request_cancelled>;
 	using github_pull_request_completion_handler = std::function<void(github_pull_request_completion)>;
+	using github_pull_request_progress_handler   = std::function<void(core::pull_request_request_context, github_read_progress)>;
 
 	// Submission and cancellation return without waiting for a worker. A
 	// submission that returns normally has retained the operation and invokes its
@@ -442,6 +445,17 @@ namespace bpr::application {
 		virtual void fetch_pull_request(
 			github_pull_request_provider_request   aRequest,
 			github_pull_request_completion_handler aCompletion) = 0;
+		/// \brief Reports optional bounded progress before the single terminal.
+		/// Progress grants no partial-snapshot authority. Implementations without
+		/// page observations retain the ordinary asynchronous read contract.
+		virtual void fetch_pull_request_with_progress(
+			github_pull_request_provider_request   aRequest,
+			github_pull_request_completion_handler aCompletion,
+			github_pull_request_progress_handler   aProgress)
+		{
+			static_cast<void>(aProgress);
+			fetch_pull_request(std::move(aRequest), std::move(aCompletion));
+		}
 		virtual void cancel_pull_request(
 			github_pull_request_provider_request aRequest) = 0;
 	};

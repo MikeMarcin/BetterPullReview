@@ -141,9 +141,22 @@ namespace {
 			// [[BPR-0732]]. One gesture, signed out: no sign-in stop, no
 			// continuation press, no credential request, no vault write.
 			expect(!window.home_landing()->isHidden() && window.home_landing()->state() == qt::landing_state::sign_in && !window.home_list()->queue_shown(), "the signed-out Home has no queue");
+			expect(application->windows().size() == 1U, "public opening owns one window");
+			const auto context = application->windows().front();
+			github_application_fixture_access::hold_window_read_terminal(*application, context, true);
 			submit(window, url);
+			wait_for([&] { return github_application_fixture_access::held_window_read_terminals(*application, context) != 0U; },
+					 "the real provider read reaches its held decision lane");
+			auto* readiness = window.findChild<QLabel*>(QStringLiteral("reviewReadinessText"));
+			expect(!window.showing_home() && window.overview_page()->isVisible()
+					   && window.overview_page()->width() > window.width() * 3 / 4
+					   && readiness != nullptr && readiness->isVisible() && readiness->text().contains(QStringLiteral("Loading"))
+					   && window.session_panel()->status() == core::github_status::loading_pull_request
+					   && !window.overview_page()->presented(),
+				   "a real pending setup opening immediately paints the unaccepted overview and loading readiness");
+			capture(window, QStringLiteral("setup-loading-overview.png"));
+			github_application_fixture_access::hold_window_read_terminal(*application, context, false);
 			expect(button(window, "homeSetupContinue")->isHidden(), "a public host with no account offers no sign-in stop");
-			expect(window.home_open_notice()->text().contains(QStringLiteral("without signing in")) || window.session_panel()->status() == core::github_status::pull_request_ready, "the notice names the signed-out open");
 			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "a pasted public link opens signed out with no sign-in step");
 			auto evidence = github_application_fixture_access::evidence(*application);
 			expect(evidence.VaultStores == 0U && evidence.VaultRetrieveAttempts == 0U && !evidence.AccountTransportSelected && !evidence.CredentialStored && !evidence.CredentialRetrieved, "the signed-out open sends no credential and consults no vault");

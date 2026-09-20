@@ -1589,6 +1589,16 @@ namespace bpr::app {
 				Inner->cancel_pull_request(std::move(aRequest));
 			}
 
+			void fetch_pull_request_with_progress(
+				application::github_pull_request_provider_request   aRequest,
+				application::github_pull_request_completion_handler aCompletion,
+				application::github_pull_request_progress_handler   aProgress) override
+			{
+				++Reads;
+				Inner->fetch_pull_request_with_progress(
+					std::move(aRequest), std::move(aCompletion), std::move(aProgress));
+			}
+
 			[[nodiscard]] auto reads() const noexcept -> std::size_t
 			{
 				return Reads;

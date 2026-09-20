@@ -67,6 +67,7 @@ class QMessageBox;
 class QMenu;
 class QMenuBar;
 class QPlainTextEdit;
+class QProgressBar;
 class QPushButton;
 class QScrollArea;
 class QStackedWidget;
@@ -917,6 +918,7 @@ namespace bpr::qt {
 			const application::github_host_diagnostic_projection& aDiagnostic);
 		void clear_github_pull_request();
 		void update_github_presentation_state();
+		void update_review_readiness();
 		/// \brief Disables what the signed-out mode cannot do, with wording.
 		void apply_public_preview_availability();
 		/// \brief Presents the observed inline conversation, or says it was not.
@@ -1185,18 +1187,22 @@ namespace bpr::qt {
 		QAction*                                               ProfileStatusSeparator = nullptr;
 		std::optional<application::profile_management_failure> ProfileFailure;
 
-		QAction*                                                     LineNumbersAction    = nullptr;
-		QAction*                                                     OnePaneAction        = nullptr;
-		QAction*                                                     ReviewDetailsAction  = nullptr;
-		QToolButton*                                                 ReviewControlsButton = nullptr;
-		QMenu*                                                       ReviewControlsMenu   = nullptr;
-		QWidget*                                                     ToolbarSpacer        = nullptr;
-		QLabel*                                                      StatusLabel          = nullptr;
-		QWidget*                                                     ReviewSurface        = nullptr;
-		workbench_central_splitter*                                  CentralSplitter      = nullptr;
-		QWidget*                                                     CentreSurface        = nullptr;
-		diff_workbench*                                              ComparisonSurface    = nullptr;
-		pull_request_overview_page*                                  OverviewPage         = nullptr;
+		QAction*                                                     LineNumbersAction       = nullptr;
+		QAction*                                                     OnePaneAction           = nullptr;
+		QAction*                                                     ReviewDetailsAction     = nullptr;
+		QToolButton*                                                 ReviewControlsButton    = nullptr;
+		QMenu*                                                       ReviewControlsMenu      = nullptr;
+		QWidget*                                                     ToolbarSpacer           = nullptr;
+		QLabel*                                                      StatusLabel             = nullptr;
+		QWidget*                                                     ReviewSurface           = nullptr;
+		QWidget*                                                     ReviewReadiness         = nullptr;
+		QLabel*                                                      ReviewReadinessText     = nullptr;
+		QProgressBar*                                                ReviewReadinessProgress = nullptr;
+		std::optional<application::github_read_progress>             ReadProgress;
+		workbench_central_splitter*                                  CentralSplitter   = nullptr;
+		QWidget*                                                     CentreSurface     = nullptr;
+		diff_workbench*                                              ComparisonSurface = nullptr;
+		pull_request_overview_page*                                  OverviewPage      = nullptr;
 		std::optional<application::pull_request_overview_projection> PresentedOverview;
 		bool                                                         OverviewFileFactsDirty = true;
 		QStackedWidget*                                              CentreStack            = nullptr;
@@ -1372,9 +1378,10 @@ namespace bpr::qt {
 		QAction*                                           GithubRefreshAction = nullptr;
 		application::setup_destination_dispatch            SetupDestinationDispatch;
 		std::optional<core::setup_request_id>              SetupDestinationRequest;
-		QPushButton*                                       SetupContinueButton     = nullptr;
-		QPushButton*                                       SetupCancelButton       = nullptr;
-		bool                                               ApplyingSetupProjection = false;
+		bool                                               SetupDestinationNeedsHome = false;
+		QPushButton*                                       SetupContinueButton       = nullptr;
+		QPushButton*                                       SetupCancelButton         = nullptr;
+		bool                                               ApplyingSetupProjection   = false;
 		std::vector<application::github_profile_option>    GithubProfiles;
 		application::github_intent_dispatch                GithubDispatch;
 		application::public_preview_presentation           PublicPreview;

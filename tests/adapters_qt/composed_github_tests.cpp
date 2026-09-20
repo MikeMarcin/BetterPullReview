@@ -707,6 +707,7 @@ namespace {
 		{
 			std::optional<application::github_pull_request_provider_request> Request;
 			application::github_pull_request_completion_handler              Complete;
+			application::github_pull_request_progress_handler                Progress;
 			std::function<void()>                                            OnSubmit;
 			void                                                             fetch_pull_request(application::github_pull_request_provider_request   aRequest,
 																								application::github_pull_request_completion_handler aComplete) override
@@ -716,6 +717,13 @@ namespace {
 				Complete = std::move(aComplete);
 			}
 			void cancel_pull_request(application::github_pull_request_provider_request) override { }
+			void fetch_pull_request_with_progress(application::github_pull_request_provider_request   aRequest,
+												  application::github_pull_request_completion_handler aComplete,
+												  application::github_pull_request_progress_handler   aProgress) override
+			{
+				Progress = std::move(aProgress);
+				fetch_pull_request(std::move(aRequest), std::move(aComplete));
+			}
 		} provider;
 		struct paint_observer final : QObject
 		{
@@ -755,13 +763,13 @@ namespace {
 		window.resize(900, 720);
 		window.show();
 		QApplication::processEvents();
-		// [[BPR-0775]]. The stack's empty page is not Home's; a first load in
-		// progress is said under the bar, where the pull request was named.
-		auto* title = window.home_open_notice();
+		auto* title = required_child<QLabel>(window, "reviewReadinessText");
 		title->installEventFilter(&observer);
 		provider.OnSubmit = [&] {
 			expect(presentation_state(window) == QStringLiteral("loading"),
 				   "loading is projected before provider submission");
+			expect(!window.showing_home() && window.overview_page()->isVisible(),
+				   "the real overview is visible before the provider can complete");
 		};
 		// [[BPR-0771]]. The pull request is named in the Home bar. What the bar
 		// names is the application's decision, so this fixture stands in for it
@@ -780,10 +788,11 @@ namespace {
 		expect(provider.Request.has_value(), "public Open action reaches held provider");
 		QApplication::processEvents();
 		expect(presentation_state(window) == QStringLiteral("loading") && !host.accepted_snapshot()
-				   && window.showing_home(),
-			   "the held read is loading on Home");
-		expect(title->isVisible() && title->text() == QString::fromStdString(window.github_status_text()),
-			   "the loading sentence is said under the bar");
+				   && !window.showing_home() && window.overview_page()->isVisible(),
+			   "the held read immediately displays the overview with no accepted snapshot");
+		expect(title->isVisible() && title->text().contains(QStringLiteral("Loading"))
+				   && !window.overview_page()->presented() && window.overview_page()->file_model()->file_count() == 0U,
+			   "the visible loading overview does not manufacture accepted content");
 		expect(window.home_open_details_button()->isHidden(),
 			   "the loading sentence has no Copy details");
 		auto* const stack = required_child<QStackedWidget>(window, "githubViewState");
@@ -791,10 +800,27 @@ namespace {
 			   "the stack's page is not shown and is not part of Home");
 		QApplication::processEvents();
 		expect(observer.Paints > 0U, "the loading sentence paints while provider completion remains held");
+		for (std::uint32_t page = 1U; page <= 100U; ++page) {
+			provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::files, .PagesReceived = page, .Sequence = page });
+		}
+		expect(lane.pending() == 1U, "progress coalesces into one decision task");
+		lane.drain();
+		expect(title->text().contains(QStringLiteral("changed files")) && title->text().contains(QStringLiteral("100 pages")),
+			   "latest actual stage and received-page count are visible");
+		capture_layout_state(window, QStringLiteral("loading-overview-progress"));
+		const auto currentProgress = title->text();
+		provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::metadata, .PagesReceived = 1U, .Sequence = 1U });
+		auto wrongContext       = provider.Request->Context;
+		wrongContext.Generation = core::request_generation{ 999 };
+		provider.Progress(wrongContext, { .Phase = application::github_read_phase::comments, .PagesReceived = 101U, .Sequence = 101U });
+		lane.drain();
+		expect(title->text() == currentProgress, "older and foreign progress cannot replace the current read");
 		host.cancel();
+		provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::commits, .PagesReceived = 101U, .Sequence = 102U });
 		provider.Complete(application::github_pull_request_cancelled{ *provider.Request });
 		lane.drain();
 		expect(host.is_quiescent(), "held read cancellation drains its terminal");
+		expect(!title->isVisible() && window.showing_home(), "cancelled progress cannot keep a loading overview alive");
 	}
 
 	auto test_presentation_states_disclosures_and_responsive_layout() -> void

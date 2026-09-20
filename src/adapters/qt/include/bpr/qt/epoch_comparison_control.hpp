@@ -71,6 +71,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-0677]]. The state behind the wording, for a caller that
 		/// must tell work in progress from work that failed.
 		[[nodiscard]] auto status() const noexcept -> core::epoch_status;
+		/// \brief Whether the accepted comparison can serve a selected diff.
+		[[nodiscard]] auto comparison_available() const noexcept -> bool;
 		[[nodiscard]] auto comparison_text() const -> QString;
 		[[nodiscard]] auto statistics() const noexcept
 			-> epoch_comparison_control_statistics;

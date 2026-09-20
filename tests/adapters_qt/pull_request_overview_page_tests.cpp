@@ -516,9 +516,10 @@ namespace {
 			for (std::size_t index = 0; index < rows.size(); ++index) {
 				const auto* row = rows[index];
 				expect(row->height() >= row->heightForWidth(row->width())
-						   && row->height() > 2 * row->fontMetrics().height()
+						   && row->height() == std::max(28, row->fontMetrics().height() + 10)
+						   && row->toolTip().contains(row->login())
 						   && (index == 0 || rows[index - 1]->geometry().bottom() < row->geometry().top()),
-					   "wrapped login, role and standing retain their measured height without overlapping");
+					   "participants occupy one measured line without overlap and preserve full identity in the tooltip");
 			}
 			scroll->ensureWidgetVisible(rows.back());
 			settle();

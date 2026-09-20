@@ -56,6 +56,7 @@
 #include <QPen>
 #include <QPlainTextEdit>
 #include <QPointer>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRectF>
 #include <QScrollArea>
@@ -983,6 +984,25 @@ namespace bpr::qt {
 		auto* const review = new QVBoxLayout{ ReviewSurface };
 		review->setContentsMargins(0, 0, 0, 0);
 		review->setSpacing(0);
+		ReviewReadiness = new QWidget{ ReviewSurface };
+		ReviewReadiness->setObjectName(QStringLiteral("reviewReadiness"));
+		auto* readiness = new QHBoxLayout{ ReviewReadiness };
+		readiness->setContentsMargins(12, 6, 12, 6);
+		ReviewReadinessText = new QLabel{ ReviewReadiness };
+		ReviewReadinessText->setObjectName(QStringLiteral("reviewReadinessText"));
+		ReviewReadinessText->setAccessibleName(QStringLiteral("Review loading and readiness"));
+		ReviewReadinessText->setTextFormat(Qt::PlainText);
+		ReviewReadinessText->setWordWrap(true);
+		ReviewReadinessProgress = new QProgressBar{ ReviewReadiness };
+		ReviewReadinessProgress->setObjectName(QStringLiteral("reviewReadinessProgress"));
+		ReviewReadinessProgress->setAccessibleName(QStringLiteral("Loading review"));
+		ReviewReadinessProgress->setRange(0, 0);
+		ReviewReadinessProgress->setTextVisible(false);
+		ReviewReadinessProgress->setFixedWidth(100);
+		readiness->addWidget(ReviewReadinessText, 1);
+		readiness->addWidget(ReviewReadinessProgress);
+		ReviewReadiness->hide();
+		review->addWidget(ReviewReadiness);
 		review->addWidget(EpochSelectors);
 		review->addWidget(CentralSplitter, 1);
 		// RFC-BPR-0004's workbench is composed unchanged. It keeps the single
@@ -4824,7 +4844,7 @@ namespace bpr::qt {
 		// selection. Discuss borrows the same panel used beside the code.
 		const auto overview = Modality != nullptr
 			&& Modality->current() == review_modality::overview
-			&& OverviewPage->presented();
+			&& (OverviewPage->presented() || (SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request));
 		const auto discuss         = Modality != nullptr && Modality->current() == review_modality::discuss;
 		const auto enteringDiscuss = discuss && ConversationPanel != nullptr && ConversationPanel->parentWidget() != DiscussPage;
 		if (ConversationPanel != nullptr) {
@@ -4852,6 +4872,7 @@ namespace bpr::qt {
 		}
 		CentreStack->setCurrentWidget(page);
 		apply_drawer_layout();
+		update_review_readiness();
 		if (enteringDiscuss && CompositionPage == nullptr && DiscussReturnFocus) {
 			DiscussReturnFocus->setFocus(Qt::OtherFocusReason);
 		}
@@ -5278,7 +5299,7 @@ namespace bpr::qt {
 		if (HomeLanding == nullptr || SessionPanel == nullptr) {
 			return;
 		}
-		// Home hosts the empty and initial-loading states. Which way in it
+		// Home hosts the empty state. Which way in it
 		// offers follows the session: an account first, then a pull request.
 		const auto status   = SessionPanel->status();
 		const auto signedIn = session_signed_in();
@@ -5331,10 +5352,7 @@ namespace bpr::qt {
 			active                = active || (projection && projection->Enabled);
 		}
 		const auto nothing = !HasGithubPullRequest && !comparing && !loading && !active;
-		// The loading message lives on Home. Keep it on screen for a new
-		// target until its accepted snapshot can populate the review surface.
-		const auto home = nothing || (loading && !HasGithubPullRequest)
-			|| HomeRequested || SetupDestinationRequest.has_value();
+		const auto home    = nothing || HomeRequested || SetupDestinationNeedsHome;
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
 		}
@@ -5967,6 +5985,9 @@ namespace bpr::qt {
 	void workbench_window::publish(
 		const application::github_presentation_update& aUpdate)
 	{
+		if (aUpdate.ReadProgress) {
+			ReadProgress = aUpdate.ReadProgress;
+		}
 		if (aUpdate.Transition.has_value()) {
 			apply_github_transition(*aUpdate.Transition);
 		}
@@ -5993,6 +6014,7 @@ namespace bpr::qt {
 		for (const auto& diagnostic : aUpdate.HostDiagnostics) {
 			apply_github_host_diagnostic(diagnostic);
 		}
+		update_review_readiness();
 		announce_github_presentation_update();
 	}
 
@@ -6062,7 +6084,14 @@ namespace bpr::qt {
 			clear_github_pull_request();
 		}
 		if (aTransition.Status.has_value()) {
+			ReadProgress.reset();
 			SessionPanel->apply_status(aTransition.Status->Status);
+			if (aTransition.Status->Status == core::github_status::loading_pull_request && !HasGithubPullRequest) {
+				HomeRequested = false;
+				OverviewPage->present_loading();
+				choose_modality(review_modality::overview);
+			}
+			apply_modality_surface();
 		}
 		for (const auto& diagnostic : aTransition.Diagnostics) {
 			SessionPanel->apply_diagnostic(diagnostic.Code);
@@ -7117,8 +7146,11 @@ namespace bpr::qt {
 
 	void workbench_window::present_setup_destination(const application::setup_destination_projection& aProjection)
 	{
-		ApplyingSetupProjection = true;
-		SetupDestinationRequest = aProjection.Pending ? std::optional{ aProjection.Pending->Request } : std::nullopt;
+		ApplyingSetupProjection   = true;
+		SetupDestinationRequest   = aProjection.Pending ? std::optional{ aProjection.Pending->Request } : std::nullopt;
+		SetupDestinationNeedsHome = aProjection.Pending
+			&& aProjection.Pending->Stage != core::setup_destination_stage::opening
+			&& aProjection.Pending->Stage != core::setup_destination_stage::public_preview;
 		if (aProjection.Opened) {
 			OpenOnOverview = true;
 			HomeOpenBar->clear();
@@ -8687,10 +8719,56 @@ namespace bpr::qt {
 
 	void workbench_window::update_status_text()
 	{
+		update_review_readiness();
 		StatusLabel->setText(status_line());
 		update_strip_positions();
 		update_rail_summaries();
 		update_home_landing();
+	}
+
+	void workbench_window::update_review_readiness()
+	{
+		if (ReviewReadiness == nullptr || SessionPanel == nullptr) {
+			return;
+		}
+		auto wording = QString{ };
+		auto busy    = false;
+		if (SessionPanel->status() == core::github_status::loading_pull_request) {
+			busy       = true;
+			auto stage = QStringLiteral("pull request details");
+			if (ReadProgress) {
+				switch (ReadProgress->Phase) {
+				case application::github_read_phase::metadata:              break;
+				case application::github_read_phase::files:                 stage = QStringLiteral("changed files"); break;
+				case application::github_read_phase::commits:               stage = QStringLiteral("commits"); break;
+				case application::github_read_phase::reviews:               stage = QStringLiteral("reviews"); break;
+				case application::github_read_phase::review_threads:        stage = QStringLiteral("review threads"); break;
+				case application::github_read_phase::comments:              stage = QStringLiteral("comments"); break;
+				case application::github_read_phase::checks:                stage = QStringLiteral("checks"); break;
+				case application::github_read_phase::related_pull_requests: stage = QStringLiteral("related pull requests"); break;
+				case application::github_read_phase::update_history:        stage = QStringLiteral("update history"); break;
+				}
+			}
+			wording = QStringLiteral("Loading %1…").arg(stage);
+			if (ReadProgress && ReadProgress->PagesReceived != 0U) {
+				wording += QStringLiteral(" %1 pages received.").arg(ReadProgress->PagesReceived);
+			}
+		} else if (HasGithubPullRequest) {
+			const auto epochStatus = EpochSelectors->status();
+			busy                   = HasEpochState && (epochStatus == core::epoch_status::loading_catalog || epochStatus == core::epoch_status::preparing || epochStatus == core::epoch_status::committing || epochStatus == core::epoch_status::resolving || epochStatus == core::epoch_status::maintaining);
+			if (busy) {
+				wording = QStringLiteral("Pull request loaded. Preparing file comparisons… %1").arg(EpochSelectors->status_text());
+			} else if (EpochSelectors->comparison_available()) {
+				wording = QStringLiteral("Ready to review. Select a file to load its comparison.");
+			} else {
+				wording = QStringLiteral("File comparisons unavailable. %1 Refresh to try again.").arg(EpochSelectors->status_text());
+			}
+		}
+		ReviewReadinessText->setText(wording);
+		ReviewReadinessText->setAccessibleDescription(wording);
+		ReviewReadinessProgress->setVisible(busy);
+		const auto overview = Modality != nullptr && Modality->current() == review_modality::overview;
+		ReviewReadiness->setVisible(!wording.isEmpty() && (busy || overview || !EpochSelectors->comparison_available()));
 	}
 
 	auto workbench_window::status_line() const -> QString
@@ -8704,7 +8782,9 @@ namespace bpr::qt {
 		// are a workbench; neither is a pull request. Saying nothing was open
 		// while the strip, the drawer and the conversations all named one told
 		// the owner the product was broken and gave them nothing to do.
-		if (home) {
+		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
+			status = ReviewReadinessText != nullptr ? ReviewReadinessText->text() : QStringLiteral("Loading pull request…");
+		} else if (home) {
 			status = home_session_line();
 		} else if (HasGithubPullRequest && (!HasCommands || !Cursor)) {
 			// [[BPR-0677]]. Work in progress is not failure. The owner'''s
