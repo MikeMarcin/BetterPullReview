@@ -101,6 +101,16 @@ namespace {
 	public:
 		void revoke() noexcept override { Revoked = true; }
 		bool revoked() const noexcept override { return Revoked; }
+		auto read_exact_blob(const application::git_smart_exact_blob_request& aRequest, std::stop_token)
+			-> application::git_smart_transport_result<std::vector<std::byte>> override
+		{
+			++Calls;
+			BlobRequest = aRequest;
+			if (Hook) {
+				Hook();
+			}
+			return BlobResult;
+		}
 		auto discover(const application::git_smart_discovery_request&, std::stop_token) -> application::git_smart_transport_result<application::git_smart_discovery_response> override
 		{
 			++Calls;
@@ -125,18 +135,27 @@ namespace {
 			}
 			return { };
 		}
-		bool                  Revoked = false;
-		unsigned              Calls   = 0;
-		std::function<void()> Hook;
+		bool                                                            Revoked = false;
+		unsigned                                                        Calls   = 0;
+		std::function<void()>                                           Hook;
+		std::optional<application::git_smart_exact_blob_request>        BlobRequest;
+		application::git_smart_transport_result<std::vector<std::byte>> BlobResult = std::vector{ std::byte{ 'x' } };
 	};
 	class fake_wire_transport final : public github_wire_transport_port, public github_mutation_wire_transport, public application::git_smart_transport_factory_port
 	{
 	public:
-		auto                                acquire(const application::git_smart_request_context&) -> application::git_smart_transport_result<application::git_smart_transport> override { return Git; }
-		std::shared_ptr<fake_git_transport> Git = std::make_shared<fake_git_transport>();
-		using read_handler                      = std::function<github_wire_completion(
+		auto acquire(const application::git_smart_request_context& aContext) -> application::git_smart_transport_result<application::git_smart_transport> override
+		{
+			GitContext = aContext;
+			return Git;
+		}
+		auto                                                  supports_sparse_commit_trees() const noexcept -> bool override { return Sparse; }
+		bool                                                  Sparse = false;
+		std::optional<application::git_smart_request_context> GitContext;
+		std::shared_ptr<fake_git_transport>                   Git = std::make_shared<fake_git_transport>();
+		using read_handler                                        = std::function<github_wire_completion(
 			const github_wire_request&, std::stop_token)>;
-		using capability_handler                = std::function<github_capability_probe_wire_completion(
+		using capability_handler                                  = std::function<github_capability_probe_wire_completion(
 			const github_capability_probe_wire_request&, std::stop_token)>;
 
 		[[nodiscard]] auto perform(const github_wire_request& aRequest,
@@ -2005,23 +2024,83 @@ namespace {
 			auto& success = std::get<application::github_viewer_success>(viewer);
 			auto* factory = dynamic_cast<application::git_smart_transport_factory_port*>(success.AccountTransport.get());
 			expect(factory != nullptr, "CLI observed account forwards Git factory");
+			expect(!factory->supports_sparse_commit_trees(), "account wrappers do not invent sparse capability");
+			fixture.Transport->Sparse = true;
+			expect(factory->supports_sparse_commit_trees(), "both account wrappers preserve the selected CLI sparse capability");
 			application::git_smart_request_context context{ };
 			context.Authority.Account = core::github_account_id{ 1001 };
+			context.AcquisitionMode   = application::git_smart_acquisition_mode::sparse_commit_trees;
 			const auto initial        = fixture.Transport->ReadRequests.size();
 			auto       git            = factory->acquire(context);
 			expect(git.has_value() && fixture.Transport->ReadRequests.size() == initial, "Git acquisition is side-effect free");
-			success.AccountTransport.reset();
-			expect((*git)->discover({ context }, { }).has_value() && fixture.Transport->ReadRequests.size() == initial + 2, "Git lease survives account release and performs pre/post account checks");
+			expect(fixture.Transport->GitContext == context, "account factory forwards the complete sparse request unchanged");
+			expect((*git)->discover({ context }, { }).has_value() && fixture.Transport->ReadRequests.size() == initial + 2, "Git lease performs pre/post account checks");
 			expect((*git)->ls_refs({ context, { } }, { }).has_value() && fixture.Transport->ReadRequests.size() == initial + 4, "refs round retains account checks");
+			const application::git_smart_exact_blob_request blob{
+				.Context      = context,
+				.ExpectedBlob = *core::parse_git_blob_oid("1111111111111111111111111111111111111111"),
+				.MaximumBytes = 17U,
+			};
+			const auto bytes = (*git)->read_exact_blob(blob, { });
+			expect(bytes && *bytes == *fixture.Transport->Git->BlobResult
+					   && fixture.Transport->ReadRequests.size() == initial + 6,
+				   "selected blob bytes traverse the account lease with pre/post identity checks");
+			const auto& forwarded = fixture.Transport->Git->BlobRequest;
+			expect(forwarded && forwarded->Context == blob.Context && forwarded->ExpectedBlob == blob.ExpectedBlob
+					   && forwarded->MaximumBytes == blob.MaximumBytes,
+				   "exact blob identity and byte bound survive the wrapper unchanged");
 			changed                      = !postflight;
 			fixture.Transport->Git->Hook = [&] { changed = true; };
 			const auto dispatched        = fixture.Transport->Git->Calls;
-			auto       denied            = (*git)->discover({ context }, { });
+			auto       denied            = (*git)->read_exact_blob(blob, { });
 			expect(!denied && denied.error().Failure == application::git_smart_transport_failure::authentication && (*git)->revoked(), "pre/post login drift revokes Git lease");
 			expect(fixture.Transport->Git->Calls == dispatched + (postflight ? 1U : 0U), "preflight forbids dispatch and postflight discards result");
+			expect(!factory->supports_sparse_commit_trees(), "observed account mismatch revokes sparse capability");
+			success.AccountTransport.reset();
 			changed                 = false;
 			const auto observations = fixture.Transport->ReadRequests.size();
 			expect(!(*git)->discover({ context }, { }).has_value() && fixture.Transport->ReadRequests.size() == observations, "revoked Git lease cannot revive after account returns");
+			expect(!(*git)->read_exact_blob(blob, { }) && fixture.Transport->ReadRequests.size() == observations,
+				   "revoked exact blob lease cannot revive after account returns");
+		}
+	}
+
+	void test_cli_exact_blob_cancellation()
+	{
+		for (const bool duringRead : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::github_cli };
+			fixture.Factory->CliEnabled    = true;
+			fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = viewer_response() };
+			};
+			auto                                   viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+			auto&                                  success = std::get<application::github_viewer_success>(viewer);
+			auto*                                  factory = dynamic_cast<application::git_smart_transport_factory_port*>(success.AccountTransport.get());
+			application::git_smart_request_context context{ };
+			context.Authority.Account = core::github_account_id{ 1001 };
+			auto git                  = factory->acquire(context);
+			expect(git.has_value(), "CLI exact blob lease is available");
+			success.AccountTransport.reset();
+			const application::git_smart_exact_blob_request blob{ .Context = context };
+			fixture.Transport->Git->BlobResult = std::unexpected{ application::git_smart_transport_error{ application::git_smart_transport_failure::response_limit } };
+			const auto limited                 = (*git)->read_exact_blob(blob, { });
+			expect(!limited && limited.error().Failure == application::git_smart_transport_failure::response_limit,
+				   "exact blob failure survives account wrapper without partial bytes");
+			fixture.Transport->Git->BlobResult = std::vector{ std::byte{ 'x' } };
+			std::stop_source stop;
+			if (duringRead) {
+				fixture.Transport->Git->Hook = [&] { stop.request_stop(); };
+			} else {
+				stop.request_stop();
+			}
+			const auto calls        = fixture.Transport->Git->Calls;
+			const auto observations = fixture.Transport->ReadRequests.size();
+			const auto cancelled    = (*git)->read_exact_blob(blob, stop.get_token());
+			expect(!cancelled && cancelled.error().Failure == application::git_smart_transport_failure::cancelled,
+				   "cancelled exact blob cannot publish bytes");
+			expect(fixture.Transport->Git->Calls == calls + (duringRead ? 1U : 0U)
+					   && fixture.Transport->ReadRequests.size() == observations + (duringRead ? 1U : 0U),
+				   "cancellation prevents dispatch or suppresses postflight work");
 		}
 	}
 	void test_cli_mutation_lease_account_checks()
@@ -2175,6 +2254,7 @@ int main()
 	test_cli_is_categorically_unavailable();
 	test_cli_observed_account_lease();
 	test_cli_git_lease_forwarding();
+	test_cli_exact_blob_cancellation();
 	test_cli_mutation_lease_account_checks();
 	return EXIT_SUCCESS;
 }

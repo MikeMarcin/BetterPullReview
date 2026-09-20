@@ -260,6 +260,12 @@ namespace bpr::adapters::github::detail {
 			{
 			}
 
+			[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override
+			{
+				const auto* factory = dynamic_cast<const application::git_smart_transport_factory_port*>(Transport.get());
+				return factory != nullptr && factory->supports_sparse_commit_trees();
+			}
+
 			[[nodiscard]] auto acquire(
 				const application::git_smart_request_context& aContext)
 				-> application::git_smart_transport_result<
@@ -704,6 +710,11 @@ namespace bpr::adapters::github::detail {
 				{ }
 				void revoke() noexcept override { Inner->revoke(); }
 				auto revoked() const noexcept -> bool override { return Inner->revoked() || Owner->Mismatch.load(); }
+				auto read_exact_blob(const application::git_smart_exact_blob_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<std::vector<std::byte>> override
+				{
+					return perform_guarded<std::vector<std::byte>>(aStop, [&] { return Inner->read_exact_blob(aRequest, aStop); });
+				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_discovery_response> override
 				{
@@ -760,6 +771,12 @@ namespace bpr::adapters::github::detail {
 				, Account{ aAccount }
 				, Login{ std::move(aLogin) }
 			{ }
+
+			[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override
+			{
+				const auto* factory = dynamic_cast<const application::git_smart_transport_factory_port*>(Transport.get());
+				return !Mismatch.load() && factory != nullptr && factory->supports_sparse_commit_trees();
+			}
 
 			auto acquire(const application::git_smart_request_context& aContext)
 				-> application::git_smart_transport_result<application::git_smart_transport> override

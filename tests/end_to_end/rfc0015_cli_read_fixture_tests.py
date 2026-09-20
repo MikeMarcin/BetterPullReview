@@ -2,6 +2,7 @@
 """Verify external fixture framing, split routing, refusal, and object identity."""
 
 import json
+import base64
 import os
 import secrets
 import shutil
@@ -21,6 +22,59 @@ import rfc0015_cli_read_fixture as fixture  # noqa: E402
 
 
 class cli_read_fixture_tests(unittest.TestCase):
+    def test_large_course_requires_sparse_clone_and_exact_blob_read(self):
+        with contained_temporary_directory(prefix="bpr-cli-large-fixture-") as temporary:
+            directory = Path(temporary).resolve() / "large"
+            fixture.prepare(directory, "large-positive")
+            state = json.loads((directory / "fixture.json").read_text())
+            manifest = json.loads((fixture.ROOT / "tests/fixtures/github/pull-requests/large-review-v1/manifest.json").read_text())
+            root = (Path("/private/tmp") if sys.platform == "darwin" else Path("/tmp")) / ("bpr-cli-git-" + secrets.token_hex(8))
+            root.mkdir(mode=0o700)
+            self.addCleanup(shutil.rmtree, root)
+            (root / "empty").mkdir()
+            destination = root / "clone-0.git"
+            command = [str(directory / "bin/gh"), "repo", "clone",
+                       "https://github.com/octo-org/review-repository.git", str(destination),
+                       "--no-upstream", "--", "--bare", "--quiet", "--revision=" + state["head"],
+                       "--template=" + str(root / "empty"), "--config", "transfer.unpackLimit=0",
+                       "--config", "fetch.unpackLimit=0", "--config", "core.hooksPath=/dev/null",
+                       "--config", "core.fsmonitor=false"]
+            self.assertEqual(subprocess.run(command, capture_output=True, timeout=15).returncode, 64)
+            self.assertFalse(destination.exists())
+            subprocess.run([*command, "--depth=1", "--filter=blob:none"], check=True, capture_output=True, timeout=15)
+            selected = next(item for item in manifest["files"] if item["path"] == "src/file_0000.cpp")
+            missing = subprocess.run(["/usr/bin/git", "--git-dir", str(destination), "cat-file", "-e", selected["head"]["oid"]],
+                                     env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""}, capture_output=True)
+            self.assertNotEqual(missing.returncode, 0, "sparse clone must not preload the selected blob")
+            api = [str(directory / "bin/gh"), "api"]
+            suffix = ["--hostname", "github.com", "--include", "--method", "GET"]
+            blob_command = [*api, "repos/octo-org/review-repository/git/blobs/" + selected["head"]["oid"],
+                            "--hostname", "github.com", "--method", "GET",
+                            "--header", "Accept: application/vnd.github+json",
+                            "--header", "X-GitHub-Api-Version: 2022-11-28"]
+            blob = json.loads(subprocess.check_output(blob_command))
+            self.assertEqual(blob["sha"], selected["head"]["oid"])
+            self.assertEqual(len(base64.b64decode(blob["content"])), selected["head"]["bytes"])
+            files = []
+            for page in range(1, 7):
+                wire = subprocess.check_output([*api, f"repos/octo-org/review-repository/pulls/17/files?page={page}&per_page=100", *suffix])
+                headers, body = wire.split(b"\r\n\r\n", 1)
+                self.assertEqual(b' rel="next"' in headers, page < 6)
+                files.extend(json.loads(body))
+            self.assertEqual(len(files), len(manifest["files"]))
+            paths = []
+            for start in range(0, len(files), 100):
+                request = {"query": "query GetReviewFilesPage{files(first:100,after:$after){nodes{path}}}",
+                           "variables": {"after": f"fixture-files-{start}"} if start else {}}
+                wire = subprocess.check_output([*api, "graphql", "--hostname", "github.com",
+                                                "--include", "--method", "POST", "--input", "-"],
+                                               input=json.dumps(request).encode())
+                pull = json.loads(wire.split(b"\r\n\r\n", 1)[1])["data"]["repository"]["pullRequest"]
+                self.assertNotIn("reviewThreads", pull)
+                paths.extend(item["path"] for item in pull["files"]["nodes"])
+                self.assertEqual(pull["files"]["pageInfo"]["hasNextPage"], start + 100 < len(files))
+            self.assertEqual(paths, [item["filename"] for item in files])
+
     def test_denied_optional_trace_preserves_empty_stderr(self):
         output = io.StringIO()
         with patch.object(Path, "open", side_effect=PermissionError), redirect_stderr(output):

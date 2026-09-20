@@ -7,12 +7,15 @@ The structural call report is deliberately not a rendered-public-path verdict.
 """
 
 import argparse
+import base64
+import copy
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests/fixtures/github/pull-requests/cli-read-v1"
@@ -22,8 +25,12 @@ def prepare(directory, course):
     directory.mkdir(mode=0o700, parents=True, exist_ok=False)
     (directory / "home").mkdir()
     (directory / "bin").mkdir()
-    objects = json.loads((FIXTURE / "objects.json").read_text())
-    base, head = objects["commits"]["base"], objects["commits"]["head1"]
+    large = course == "large-positive"
+    object_fixture = (ROOT / "tests/fixtures/github/pull-requests/large-review-v1"
+                      if large else FIXTURE)
+    objects = json.loads((object_fixture / ("manifest.json" if large else "objects.json")).read_text())
+    base, head = ((objects["base"], objects["heads"][-1]) if large else
+                  (objects["commits"]["base"], objects["commits"]["head1"]))
     source = ROOT / "tests/fixtures/github/contracts/v1/github-com"
     manifest = json.loads((source / "manifest.json").read_text())
     routes = {}
@@ -31,15 +38,25 @@ def prepare(directory, course):
         body = (source / entry["response_file"]).read_text()
         body = body.replace("1" * 40, base).replace("2" * 40, head)
         routes[entry["path"].replace("2" * 40, head)] = json.loads(body)
-    # This small pack has two source files; expose the same exact tree in REST
-    # and GraphQL rather than retaining unrelated synthetic line anchors.
-    routes["/repos/octo-org/review-repository/pulls/17"]["changed_files"] = 2
+    # REST, GraphQL and Git describe the same stored synthetic tree.
+    paths = ([item["path"] for item in objects["files"]] if large else
+             ["review.cpp", "secondary.cpp"])
+    routes["/repos/octo-org/review-repository/pulls/17"]["changed_files"] = len(paths)
     files = [{"filename": name, "status": "modified", "additions": 1,
-              "deletions": 1} for name in ("review.cpp", "secondary.cpp")]
+              "deletions": 1} for name in paths]
     routes["/repos/octo-org/review-repository/pulls/17/files"] = files
+    if large:
+        routes["/repos/octo-org/review-repository/pulls/17"]["commits"] = len(objects["heads"])
+        prototype = routes["/repos/octo-org/review-repository/pulls/17/commits"][0]
+        commits = []
+        for index, oid in enumerate(objects["heads"]):
+            commit = copy.deepcopy(prototype)
+            commit.update(sha=oid, node_id=f"C_large_{index}")
+            commits.append(commit)
+        routes["/repos/octo-org/review-repository/pulls/17/commits"] = commits
     routes["/repos/octo-org/review-repository/pulls/17/reviews"] = []
     graph = routes["/graphql"]["data"]["repository"]["pullRequest"]
-    graph["files"] = {"totalCount": 2, "nodes": [
+    graph["files"] = {"totalCount": len(paths), "nodes": [
         {"path": item["filename"], "viewerViewedState": "UNVIEWED"}
         for item in files], "pageInfo": {"hasNextPage": False, "endCursor": "fixture-files-end"}}
     graph["reviewThreads"] = {"totalCount": 0, "nodes": [],
@@ -56,12 +73,15 @@ def prepare(directory, course):
         executable.rename(directory / "bin/gh.absent")
     subprocess.run(["/usr/bin/git", "init", "--bare", str(directory / "repository.git")],
                    check=True, capture_output=True)
-    with (FIXTURE / "objects.pack").open("rb") as pack:
+    with (object_fixture / "objects.pack").open("rb") as pack:
         subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
                         "index-pack", "--stdin"], stdin=pack, check=True, capture_output=True)
     for ref, oid in (("refs/heads/main", base), ("refs/pull/17/head", head)):
         subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
                         "update-ref", ref, oid], check=True, capture_output=True)
+    if large:
+        subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
+                        "config", "uploadpack.allowFilter", "true"], check=True, capture_output=True)
     return {"directory": str(directory), "gh": str(executable),
             "pull_request": "https://github.com/octo-org/review-repository/pull/17"}
 
@@ -79,7 +99,8 @@ def record_operation(directory, operation):
 
 def clone_fixture(directory, fixture, args):
     """Materialize only the closed production clone command, using local Git."""
-    if len(args) != 18:
+    large = fixture["course"] == "large-positive"
+    if len(args) != (20 if large else 18):
         return 64
     destination = Path(args[3])
     root = destination.parent
@@ -90,6 +111,8 @@ def clone_fixture(directory, fixture, args):
                 "--revision=" + oid, "--template=" + str(template),
                 "--config", "transfer.unpackLimit=0", "--config", "fetch.unpackLimit=0",
                 "--config", "core.hooksPath=/dev/null", "--config", "core.fsmonitor=false"]
+    if large:
+        expected.extend(["--depth=1", "--filter=blob:none"])
     if args != expected or oid not in (fixture["base"], fixture["head"]):
         return 64
     if (not destination.is_absolute() or root.resolve() != root
@@ -103,7 +126,7 @@ def clone_fixture(directory, fixture, args):
             or any(template.iterdir())):
         return 64
     record_operation(directory, "clone-base" if oid == fixture["base"] else "clone-head")
-    if fixture["course"] != "positive":
+    if fixture["course"] not in ("positive", "large-positive"):
         return 1
     # An explicitly local fixture capability: no ambient credential/config
     # environment reaches Git, and only the file protocol is enabled.
@@ -111,11 +134,14 @@ def clone_fixture(directory, fixture, args):
                    "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
                    "GIT_ATTR_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0",
                    "GIT_ALLOW_PROTOCOL": "file"}
+    fetch_source = ((directory / "repository.git").as_uri() if large else
+                    str(directory / "repository.git"))
+    fetch_options = ["--depth=1", "--filter=blob:none"] if large else []
     commands = [
         ["init", "--bare", "--quiet", "--template=" + str(template), str(destination)],
         ["--git-dir", str(destination), "-c", "fetch.unpackLimit=0",
          "-c", "core.hooksPath=/dev/null", "fetch", "--quiet", "--no-tags",
-         "--no-write-fetch-head", str(directory / "repository.git"), oid],
+         "--no-write-fetch-head", *fetch_options, fetch_source, oid],
         ["--git-dir", str(destination), "update-ref", "--no-deref", "HEAD", oid],
     ]
     try:
@@ -144,20 +170,37 @@ def fake_gh():
             "active": True, "host": "github.com", "login": "octo-reviewer",
             "state": "success"}]}}))
         return 0
+    blob_match = re.fullmatch(r"repos/octo-org/review-repository/git/blobs/([0-9a-f]{40})", args[1]) if len(args) > 1 else None
+    if blob_match:
+        expected = ["api", args[1], "--hostname", "github.com", "--method", "GET",
+                    "--header", "Accept: application/vnd.github+json",
+                    "--header", "X-GitHub-Api-Version: 2022-11-28"]
+        if args != expected or fixture["course"] != "large-positive":
+            return 64
+        record_operation(directory, "exact-blob")
+        blob = subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
+                               "cat-file", "blob", blob_match[1]], capture_output=True,
+                              timeout=5, check=True).stdout
+        print(json.dumps({"sha": blob_match[1], "size": len(blob), "encoding": "base64",
+                          "content": base64.b64encode(blob).decode()}))
+        return 0
     if len(args) < 7 or args[0] != "api" or args[2:7] not in (
             ["--hostname", "github.com", "--include", "--method", "GET"],
             ["--hostname", "github.com", "--include", "--method", "POST"]):
         return 64
-    endpoint = "/" + args[1].lstrip("/")
-    endpoint = endpoint.split("?", 1)[0]
+    request_url = urlsplit("/" + args[1].lstrip("/"))
+    endpoint = request_url.path
     document = ""
+    variables = {}
     if args[6] == "POST":
         if endpoint != "/graphql" or args[-2:] != ["--input", "-"]:
             return 64
         raw = sys.stdin.buffer.read(262145)
         if len(raw) > 262144:
             return 65
-        document = json.loads(raw)["query"]
+        request = json.loads(raw)
+        document = request["query"]
+        variables = request.get("variables", {})
         if not document.lstrip().startswith("query "):
             return 64
     part = re.search(r"BetterPullReviewCapabilityProbeV1Part([0-8])", document)
@@ -174,13 +217,31 @@ def fake_gh():
         return 0
     body = ({"message": "Resource not accessible"} if denied else
             fixture["parts"][int(part[1])] if part else fixture["routes"][endpoint])
+    continuation = ""
+    if fixture["course"] == "large-positive" and endpoint.endswith("/files"):
+        page = int(parse_qs(request_url.query).get("page", ["1"])[0])
+        start = (page - 1) * 100
+        if start + 100 < len(body):
+            continuation = (f"Link: <https://api.github.com{endpoint}?page={page + 1}&per_page=100>; rel=\"next\"\r\n")
+        body = body[start:start + 100]
+    if fixture["course"] == "large-positive" and endpoint == "/graphql" and not part:
+        body = copy.deepcopy(body)
+        connection = body["data"]["repository"]["pullRequest"]["files"]
+        cursor = re.fullmatch(r"fixture-files-([0-9]+)", variables.get("after", ""))
+        start = int(cursor[1]) if cursor else 0
+        nodes = connection["nodes"][start:start + 100]
+        connection.update(nodes=nodes, pageInfo={
+            "hasNextPage": start + 100 < connection["totalCount"],
+            "endCursor": f"fixture-files-{start + len(nodes)}"})
+        if "reviewThreads(" not in document:
+            body["data"]["repository"]["pullRequest"].pop("reviewThreads", None)
     resource = ("graphql" if endpoint == "/graphql" else
                 "search" if endpoint == "/search/issues" else "core")
     status = "403 Forbidden" if denied else "200 OK"
     wire = (f"HTTP/2.0 {status}\r\nContent-Type: application/json\r\n"
             "X-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\n"
             "X-RateLimit-Reset: 2000000000\r\n"
-            f"X-RateLimit-Resource: {resource}\r\n\r\n" + json.dumps(body))
+            f"X-RateLimit-Resource: {resource}\r\n{continuation}\r\n" + json.dumps(body))
     sys.stdout.buffer.write(wire.encode())
     return 0
 
@@ -218,7 +279,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "launch"))
     parser.add_argument("--directory", type=lambda value: Path(value).resolve(), required=True)
-    parser.add_argument("--course", choices=("positive", "missing-process", "process-failure", "malformed-response"),
+    parser.add_argument("--course", choices=("positive", "large-positive", "missing-process", "process-failure", "malformed-response"),
                         default="positive")
     parser.add_argument("--app", type=Path)
     parser.add_argument("--cmake-cache", type=Path)

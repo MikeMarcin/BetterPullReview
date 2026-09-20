@@ -1937,6 +1937,21 @@ its own account.
 
 ## Connected CLI destination routing
 
+The account lease and CLI account-observation wrapper forward the configured
+transport's sparse commit/tree capability. The epoch host combines that
+capability with the accepted review shape to select bounded on-demand objects
+for large reviews; small reviews still acquire complete objects asynchronously.
+Neither wrapper can invent support when its underlying transport lacks it.
+An observed account mismatch permanently removes the capability.
+
+Exact selected-blob reads traverse the same observed Git lease as discovery,
+refs and pack acquisition. The request retains its complete context, expected
+blob identity and byte limit. Pre/post account checks, cancellation and lease
+revocation apply before bytes can return; the underlying transport verifies
+the blob itself. A standalone sparse bridge check does not prove this account
+composition. BPR-0794/0795 regressions cover both wrappers and a blob that must
+cross their guarded read path.
+
 The setup profile observation uses the host's accepted authenticated session,
 including CLI leases that intentionally have no native credential-vault key.
 Only an accepted CLI session participates in pasted-link resolution; account
