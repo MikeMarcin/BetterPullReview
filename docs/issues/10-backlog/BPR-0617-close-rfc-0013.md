@@ -11,7 +11,54 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — rfc0013-resume-20260919 / selected-diff-d1 / mandate r18
+## Current frontier — v004 correction after attended v003 rejection
+
+Fresh Astra Max implementor `/root/rfc0013_review_round_v003_implementor_astra_max`
+owns this correction under the saved recipe, with no delegation. BPR-0794/0795
+were resumed after v003 rejection. BPR-0644's accepted r17 device relaunch was
+not reinitialized or disturbed. RFC base remains
+`d4d9e61d9224ef869ca4de9725c2bf52c5df701a`; all existing obligations remain.
+
+The latest cache open succeeded. Production protocol acquisition instead failed
+when Git removed a temporary file during a directory size sample: `file_size`
+returned ENOENT and an unsigned failure sentinel, treated as response_limit.
+`12e9bdb8` skips only vanished entries, preserving file/aggregate/entry/symlink
+and cancellation bounds. The new churn regression fails with the old scanner
+and passes with the fix. Three repaired production-bridge reads succeed with
+9,382,814-byte in-memory packs in 5.9–6.1 seconds. This is not product acceptance.
+
+`9c670d88` immediately selects the full-width Overview and its core-owned drawer
+preset, including the real pending setup continuation. Exact-request guarded,
+coalesced phase/page progress does not admit partial content. A visible strip
+distinguishes pending provider work, comparison preparation, ready and explicit
+unavailability. Participants use one measured line with full tooltip identity.
+Final serial focused checks pass 8/8 (68.12 seconds); the portable two-catalogue
+course passes (243.66 seconds). Full-window loading, preparing/participant and
+exact synthetic diff rasters were inspected. Documentation, 64 verifier tests,
+formatting, Release build and deep-strict signing verification pass.
+
+The [v004 packet](../../verification/reviews/rfc-bpr-0013-attended-v004/operator-packet.md)
+and [identity](../../verification/reviews/rfc-bpr-0013-attended-v004/session-identity.json)
+bind source `9c670d8868aaa32a35d45e96e917ae7c86542c00`, candidate
+`rfc0013-v004-9c670d88-71117a5c`, tests-disabled signed bundle
+`build/app-release-rfc0013-r19/src/app/BetterPullReview.app`, executable SHA-256
+`71117a5cac30ae45bd6a1ff04efb7d7d16cb002739349936d8e03bd1110aba23`.
+Only the two repaired questions are newly ready/protected at sequence 427,
+with observations through 429; exact-target source/anchors and human loading
+acceptance remain open. The parent owns the later served host and event watcher;
+neither was started by this implementor. Owner-launched r18 PID 24275 remains
+untouched and must be quit normally before opening v004. No live write, account
+or device change, credential extraction or private-content retention occurred.
+
+The whole-tree architecture gate encountered the existing ignored nested
+`.claude/worktrees/agent-a17cae88115dbbb4e` checkout's second target declaration;
+it is not claimed passing. The architecture gate's own contract tests pass.
+The prior broad Qt row-layout and Release stage-0 self-test limits remain
+explicit. The unrelated nested checkout and `.mask.lock.json` are preserved.
+`verify-rfc-0013` remains ineligible; BPR-0507, BPR-0817/BPR-0825 and the RFC-wide
+matrix remain separate obligations.
+
+## Previous frontier — rfc0013-resume-20260919 / selected-diff-d1 / mandate r18
 
 Same leaf owner `/root/rfc0013_selected_diff`, no delegation. The v002 owner
 verdicts rejected BPR-0794/0795 and accepted BPR-0644 device relaunch. That device

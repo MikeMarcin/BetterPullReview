@@ -1,0 +1,127 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "rfc": "RFC-BPR-0013",
+  "source_commit": "9c670d8868aaa32a35d45e96e917ae7c86542c00",
+  "implementation_commits": [
+    "12e9bdb877e248ff3a29051adf317f28509c2dd4",
+    "9c670d8868aaa32a35d45e96e917ae7c86542c00"
+  ],
+  "run": {
+    "id": "rfc0013-resume-20260919",
+    "segment": "selected-diff-d1",
+    "mandate": "r18, v003 rejection correction",
+    "child": "/root/rfc0013_review_round_v003_implementor_astra_max",
+    "delegation": "prohibited, instruction-enforced"
+  },
+  "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+  "prepared_at_sequence": 427,
+  "observed_at_sequence": 429,
+  "milestone": "selected-diff-exact-epoch-pair",
+  "bundle": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r19/src/app/BetterPullReview.app",
+    "executable_sha256": "71117a5cac30ae45bd6a1ff04efb7d7d16cb002739349936d8e03bd1110aba23",
+    "build_testing": false,
+    "build_type": "Release",
+    "designated_live_capsule": false,
+    "signing": "Developer ID Application: Michael Marcin (YTQKP2V2A8), not ad hoc",
+    "codesign": "deep strict verification passed, exit 0",
+    "build_logs": [
+      "build/rfc0013-resume-20260919/r19-release-configure.log",
+      "build/rfc0013-resume-20260919/r19-release-build.log"
+    ],
+    "note": "r19 is the build-directory iteration; this is v004 within the existing mandate, not a new scope authorization."
+  },
+  "diagnosis": {
+    "rejected_revision": "rfc0013-r18-eecdda2a-f6db019a",
+    "product_failure": "The latest fixed diagnostics show cache_open success, then protocol_acquire transport/response_limit and unavailable revision preparation. The provider snapshot exhausted its pages in approximately 75 seconds.",
+    "reproducer": "The actual production C++ CLI bridge reproduced intermittent response_limit. A temporary fixed-field sampler reported file_size ENOENT (2), unsigned failure size 18446744073709551615, and only 11-12 entries, not a genuine resource limit.",
+    "repair": "Treat only a vanished entry as a sampling race. Retained file sizes, aggregate bytes, entry limits, symlinks, other filesystem errors and cancellation remain refused. No resource ceiling was raised.",
+    "ui": "The real Overview and its core-owned collapsed-drawer preset are selected before provider submission. Opening/public-preview setup no longer pins Home. A typed phase/page/sequence observation is coalesced through the decision lane without admitting partial snapshots. The visible strip distinguishes loading, comparison preparation, exact readiness and explicit unavailability.",
+    "participants": "One measured line per person, with an elided login and right-aligned standing. Tooltip and accessible name preserve full login, role and standing."
+  },
+  "verification": {
+    "platform": "macOS 26.6.2 arm64; Qt 6.10.3; focused Qt/public courses use offscreen rendering at 1.0 scale",
+    "focused": {
+      "revision": "9c670d8868aaa32a35d45e96e917ae7c86542c00",
+      "log": "build/rfc0013-resume-20260919/r19-committed-focused.log",
+      "result": "8/8 passed, 68.12 seconds; serial after integration and Release build completed",
+      "tests": [
+        "application_github_window_read_host",
+        "qt_composed_loading_scale_100",
+        "qt_epoch_comparison_scale_100",
+        "qt_pull_request_overview_page",
+        "github_cli_process_runner",
+        "github_provider",
+        "gh_cli_git_smart_transport",
+        "application_setup_destination_public_path"
+      ]
+    },
+    "integration": {
+      "log": "build/rfc0013-resume-20260919/r19-integration.log",
+      "test": "application_epoch_portable_occurrence_two_catalogues",
+      "result": "pass, 243.66 seconds",
+      "scope": "Exact synthetic current/historical source, retained occurrences, rewritten base and unfetchable gap. No cross-machine or universal latency claim."
+    },
+    "negative_control": "The new churned-temporary-file regression linked to the old scanner failed with ENOENT and the unsigned sentinel. The repaired runner passes churn plus per-file, aggregate-byte, symlink and entry-limit negatives.",
+    "progress": "Held public setup proves full-width Overview after paint without an accepted snapshot. 100 observations coalesce to one pending decision task; stale/foreign/cancelled progress cannot replace the read. A throwing progress subscriber cannot alter the provider terminal.",
+    "rasters_inspected": [
+      "build/rfc0013-resume-20260919/r19-public-rasters/setup-loading-overview.png",
+      "build/rfc0013-resume-20260919/r19-public-rasters/setup-accepted.png",
+      "build/rfc0013-resume-20260919/r19-public-rasters/setup-cli-remount-readable.png"
+    ],
+    "participants": "64 long logins, one-line height, non-overlap, larger fonts, narrow window, full tooltip identity, last row and review-entry reachability; composed two-person Overview raster inspected.",
+    "documentation": "DOCUMENTATION_OK; 64 documentation verifier self-tests pass; changed C++ clang-format and git diff --check pass.",
+    "architecture": "architecture_boundary_contract passed. architecture_boundaries is not passing: the existing ignored .claude/worktrees/agent-a17cae88115dbbb4e contains a second GitHub target declaration, which the whole-tree scanner includes. That unrelated checkout was not modified or removed.",
+    "reused": "Unchanged small-complete/large-sparse classification, cache persistence, bounded historical import and source authority retain the earlier core/cache/host checks recorded in v003; the current portable course and exact CLI/public path were rerun.",
+    "limits": [
+      "The frozen tests-disabled app has not yet received the owner's current exact-target source/anchor or loading verdict.",
+      "The prior broad Qt wrapped-conversation layout failure was not claimed fixed or passing.",
+      "The prior Release --self-test stage-0 CLI inventory limitation was not claimed fixed or passing.",
+      "Provider pagination still requires complete validation before content acceptance; immediate Overview and progress do not promise a shorter total network read or fabricate a completion percentage."
+    ]
+  },
+  "read_only_production_bridge_probe": {
+    "target": "EpicGames/UnrealEngine#1773",
+    "implementation": "Real gh_cli_git_smart_transport and acquire_git_protocol_v2_pack; current base/head/ref read into memory through the closed CLI read shape; no private response printed or retained.",
+    "successful_runs": 3,
+    "pack_bytes_each": 9382814,
+    "elapsed_ms": [5922, 5893, 6117],
+    "scope": "Read-only sparse commit/tree acquisition prerequisite, not the full product source/anchor verdict. Uses installed gh 2.101.0 and Apple Git 2.50.1 under the unchanged production sandbox and budgets.",
+    "private_content_retained": false,
+    "cleanup": "Normal bridge temporary stores were removed outside the checkout. Six empty task-owned directories left by interrupted diagnosis were verified unused and removed with rmdir. No live cache or owner application was altered."
+  },
+  "candidates": [
+    {
+      "id": "BPR-0794-cli-selected-diff",
+      "revision": "rfc0013-v004-9c670d88-71117a5c",
+      "fingerprint": "b771cfd9858e9ff2c5d271a4f44771054d06e9eeb45d3933b6ea96db6c7748d1",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-0795-loading-visible",
+      "revision": "rfc0013-v004-9c670d88-71117a5c",
+      "fingerprint": "bce1fb6e95e90d3290b987ad0bd0aafbd8fd16932ff324e3ad523013062c4376",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "preserved_acceptance": {
+    "id": "BPR-0644-device-relaunch-8h",
+    "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+    "fingerprint": "a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb",
+    "outcome": "accept",
+    "saved_at": "2026-09-20T03:52:48.224084+00:00",
+    "not_reinitialized": true
+  },
+  "handoff": {
+    "host_and_watcher": "Not started by this implementation task. The parent task owns served review and wait --after 429.",
+    "offline": "Not exported from the durable session containing private owner attachments. Historical packets remain unchanged.",
+    "owner_application": "Existing owner-launched r18 PID 24275 was left running and untouched; quit normally before opening v004.",
+    "engineering_processes": "Builds, tests and diagnostic probes completed; no task-owned app or live diagnostic child remains.",
+    "unrelated_change": ".mask.lock.json preserved; nested .claude/worktrees checkout preserved."
+  }
+}

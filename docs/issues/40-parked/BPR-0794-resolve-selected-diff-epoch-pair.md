@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0794"
 title: "Resolve the exact epoch pair for a large pull request selected diff"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Owner v002 rejection and metadata-only diagnosis identify cache invalid_manifest after Mac mount-number drift, before Git transport. Target authority/lock inode and pristine zero-object/ref/epoch topology were unchanged. A second installed gh 2.101.0 version gate was identified and directly checked. v003 session-identity.json records fixed aggregates only."}},{"criterion":"AC2","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"UUID/inode manifest identity and narrowly preserving pristine legacy reinitialization retain exact authority, lock/topology and object/ref refusal checks. Final composed installed-cache restart course reaches readable exact diff; gh bridge covers 2.100/2.101 positives and old/future/prerelease negatives. Existing account-retention and stale-selection assertions remain passing."}},{"criterion":"AC3","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Final eecdda2a focused suite: 5/5 pass, 56.12s. Cache/core/host/portable integration at unchanged cdfcce72 cache implementation: 7/7 pass, 620.73s. Documentation, 64 verifier tests and formatting pass. Prior unrelated broad Qt row-layout and stage-0 Release self-test limitations are explicit, not counted as passing."}},{"criterion":"AC4","outcome":"pending","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Current signed tests-disabled Release f6db019a… binds rfc0013-r18-eecdda2a-f6db019a. Selected-diff question ready/protected without owner verdict at sequence416; served UI and wait watch active. Real read-only CLI commit/blob prerequisite pass and synthetic DiffReady do not establish actual product source/anchor acceptance."}},{"criterion":"AC5","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"No GitHub write, global account switch, device-session change or token extraction. Live diagnostic child filesystem writes contained, viewer/config metadata unchanged, temporary source objects outside checkout removed; fixed aggregate evidence only. Owner app left untouched. Engineering commands are quiescent; requested local review host/watch intentionally active."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"v003 fixed diagnostics show cache open succeeded, followed by protocol transport response_limit. The production bridge reproduced ENOENT between entry stat and file_size; its unsigned failure sentinel was mistaken for an oversized file. v004 identity records only fixed metadata."}},{"criterion":"AC2","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"12e9bdb8 skips only vanished temporary files; per-file/aggregate bytes, entry limit, symlink and other error refusal remain intact. Old-scanner negative control fails the new churn regression. Fixed bridge completes three exact-target sparse acquisitions; exact current/historical and stale/source tests pass without changing cache/authority policy."}},{"criterion":"AC3","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Final serial focused suite 8/8 pass in 68.12 seconds, including actual setup/CLI installed-cache source/epoch course; portable two-catalogue integration passes in 243.66 seconds. Documentation, 64 verifier tests, formatting and signature verification pass. Whole-tree architecture scan's unrelated nested .claude/worktrees duplicate target and prior wider-test limits are explicit in v004 identity."}},{"criterion":"AC4","outcome":"pending","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Tests-disabled signed Release digest 71117a5c… is bound to rfc0013-v004-9c670d88-71117a5c. Fresh selected-diff question ready/protected at sequence427, observations through429; no human verdict. Production-bridge and synthetic product evidence do not substitute for the exact-target readable source/anchor acceptance. Parent owns later server/watch."}},{"criterion":"AC5","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"No GitHub write, account switch, device-session change or credential extraction. Private read bodies/OIDs/packs were memory-only or in production-owned temporary stores outside checkout; normal cleanup completed and six empty interrupted-probe roots were removed after verifying no handles. Existing owner r18 app and unrelated .mask.lock.json/nested checkout left untouched. No task-owned app, probe, served host or watcher remains."}}]
+parked_on: "human-review"
 ---
 
 # Resolve the exact epoch pair for a large pull request selected diff
@@ -58,14 +59,38 @@ preparation. This supersedes the earlier cache-open diagnosis for this run.
 The new implementation owner is `/root/rfc0013_review_round_v003_implementor_astra_max`;
 no further agent delegation is permitted.
 
-### Current correction — mandate r18, attended v002 rejected
+`12e9bdb8` repairs the reproduced failure: Git removes or atomically renames a
+temporary file between the directory entry check and `file_size`. The failed
+sample returns `ENOENT` and the unsigned size sentinel; the supervisor treated
+it as an oversized file. Only a disappeared file is now skipped. Other errors,
+symlinks, per-file bytes, aggregate bytes, entry count and process cancellation
+still refuse under the existing limits. The new churning-file regression fails
+against the old scanner and passes against the repair, including the retained
+size/entry/symlink negatives. Three fresh exact-target reads through the repaired
+production C++ bridge succeeded in 5.9–6.1 seconds with 9,382,814-byte in-memory
+packs. This is acquisition evidence, not a product source/anchor verdict.
 
-Current preparation is the [v003 served-review packet](../../verification/reviews/rfc-bpr-0013-attended-v003/operator-packet.md),
-source `eecdda2a`, candidate `rfc0013-r18-eecdda2a-f6db019a`, ready/protected
-without a verdict at session sequence 416. Its signed tests-disabled bundle,
+`9c670d88` makes participant rows one measured line, with an elided login and
+right-aligned standing; the full identity, role and standing remain in tooltips
+and accessibility. The 64-participant long-name/narrow/larger-font regression
+and the rendered composed Overview pass. BPR-0795 owns the same source's
+immediate full-width loading Overview and bounded read-progress presentation.
+The [v004 packet](../../verification/reviews/rfc-bpr-0013-attended-v004/operator-packet.md)
+and [identity](../../verification/reviews/rfc-bpr-0013-attended-v004/session-identity.json)
+bind the signed tests-disabled candidate `rfc0013-v004-9c670d88-71117a5c`, ready
+and protected at sequence 427 with observations through 429. Human acceptance
+remains open. The parent owns the later served review and watcher; neither was
+started by this implementor. No live GitHub write, global account switch, device-session
+change, credential extraction or private-content retention was performed.
+
+### Historical correction — mandate r18, attended v002 rejected
+
+The [v003 served-review packet](../../verification/reviews/rfc-bpr-0013-attended-v003/operator-packet.md),
+source `eecdda2a`, candidate `rfc0013-r18-eecdda2a-f6db019a`, was prepared
+at session sequence 416 and then rejected. Its signed tests-disabled bundle,
 fixed-field diagnosis, live read-only probe and passing focused/integration
 results are bound in [v003 identity](../../verification/reviews/rfc-bpr-0013-attended-v003/session-identity.json).
-The host and decision watch remain active; exact-target source/anchor acceptance
+Its host and decision watch are stopped; exact-target source/anchor acceptance
 is still required. The historical v002 rejection below is not overwritten.
 
 The owner accepted the separate BPR-0644 relaunch criterion but rejected this
