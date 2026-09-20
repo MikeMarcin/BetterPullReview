@@ -133,6 +133,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto login() const -> QString;
 		[[nodiscard]] auto standing_text() const -> QString;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;

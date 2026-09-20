@@ -1720,6 +1720,74 @@ namespace {
 			"delete isolated lineage cache after direct verification");
 	}
 
+	auto verify_pristine_remount_recovery() -> void
+	{
+#if defined(Q_OS_MACOS)
+		const auto executable = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE);
+		for (const auto course : { "empty", "object", "ref", "unknown", "authority", "lock", "uuid", "cancelled" }) {
+			auto root  = temporary_root{ };
+			auto cache = git_adapter::make_installed_git_cache({ .GitExecutable = executable, .StorageRoot = root.Path });
+			require(cache.has_value(), "remount cache adapter opens");
+			const auto expected = request(0x91U, 0x92U);
+			auto       session  = (*cache)->open(expected, { });
+			require(session.has_value(), "create pristine cache before remount");
+			session->reset();
+			const auto repository = repository_path(root.Path, expected);
+			const auto path       = repository / "betterpullreview-cache-manifest-v1";
+			const auto stable     = read_file(path);
+			require(stable.size() == 141U && stable[11U] == 2U, "new Mac manifest declares durable volume identity");
+			auto legacy = stable;
+			legacy[11U] = 1U;
+			legacy.resize(legacy.size() - 24U);
+			struct stat lock{ };
+			const auto  lockPath = root.Path / "locks/v1" / (lower_hex(expected.Authority.Cache.bytes()) + ".lock");
+			require(::lstat(lockPath.c_str(), &lock) == 0, "observe owned fixture lock");
+			append_u64(legacy, static_cast<std::uint64_t>(lock.st_dev) ^ 1U);
+			append_u64(legacy, 0U);
+			append_u64(legacy, static_cast<std::uint64_t>(lock.st_ino));
+			const auto mode = std::string_view{ course };
+			if (mode == "object") {
+				write_file(repository / "objects/pack/retained-canary", "retain object");
+			} else if (mode == "ref") {
+				write_file(repository / "refs/heads/retained-canary", "retain ref");
+			} else if (mode == "unknown") {
+				write_file(repository / "unknown-canary", "retain unknown");
+			} else if (mode == "authority") {
+				legacy[13U] ^= 1U;
+			} else if (mode == "lock") {
+				legacy.back() ^= 1U;
+			} else if (mode == "uuid") {
+				legacy = stable;
+				legacy[legacy.size() - 24U] ^= 1U;
+			}
+			write_file(path, legacy);
+			auto stop = std::stop_source{ };
+			if (mode == "cancelled") {
+				stop.request_stop();
+			}
+			auto reopened = (*cache)->open(expected, stop.get_token());
+			if (mode != "empty") {
+				require(!reopened && read_file(path) == legacy,
+						"populated, unknown, substituted, mismatched or cancelled cache is preserved and refused");
+				continue;
+			}
+			require(reopened.has_value() && read_file(path) == stable,
+					"pristine same-inode old-mount cache reinitializes with exact durable authority");
+			auto retiredCount = 0U;
+			for (const auto& entry : std::filesystem::directory_iterator{ repository.parent_path() }) {
+				if (entry.path().filename().string().starts_with(".bpr-pristine-legacy-")) {
+					++retiredCount;
+					require(read_file(entry.path() / "betterpullreview-cache-manifest-v1") == legacy,
+							"recovery preserves the old empty cache metadata without rewriting or deleting it");
+				}
+			}
+			require(retiredCount == 1U, "exactly one old empty cache is retired");
+			reopened->reset();
+			require((*cache)->open(expected, { }).has_value(), "durable manifest reopens without a second recovery");
+		}
+#endif
+	}
+
 	auto run_lock_holder(
 		const std::filesystem::path& aRoot,
 		const std::filesystem::path& aExecutable,
@@ -4774,6 +4842,11 @@ auto main(int argc, char** argv) -> int
 		return 128;
 	}
 	QCoreApplication application{ argc, argv };
+	if (argc == 2 && QString::fromUtf8(argv[1]) == "--pristine-remount") {
+		verify_pristine_remount_recovery();
+		std::cout << "Git pristine remount recovery contract passed\n";
+		return 0;
+	}
 	if (
 		argc == 8
 		&& QString::fromUtf8(argv[1]) == "--hold-cache-lock") {
@@ -4804,6 +4877,7 @@ auto main(int argc, char** argv) -> int
 		return 0;
 	}
 
+	verify_pristine_remount_recovery();
 	run_cache_contract();
 	std::cout << "Git cache contract passed\n";
 	return 0;

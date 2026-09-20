@@ -19,6 +19,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRectF>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSizePolicy>
@@ -449,6 +450,29 @@ namespace bpr::qt {
 
 		constexpr int side_width = 300;
 		constexpr int chip_width = 58;
+
+		// The same wrapped geometry drives sizing and painting. In particular,
+		// unbroken logins must not draw over the role or standing beside them.
+		auto participant_text(QPainter* aPainter, const QString& aText, const QFont& aFont,
+							  const int aWidth, const qreal aTop) -> qreal
+		{
+			auto layout = QTextLayout{ aText, aFont };
+			auto option = QTextOption{ };
+			option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+			layout.setTextOption(option);
+			layout.beginLayout();
+			auto height = qreal{ 0 };
+			for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+				line.setLineWidth(std::max(1, aWidth - 28));
+				line.setPosition(QPointF{ 0, height });
+				height += line.height();
+			}
+			layout.endLayout();
+			if (aPainter != nullptr) {
+				layout.draw(aPainter, QPointF{ 28, aTop });
+			}
+			return height;
+		}
 	} // namespace
 
 	// ---- overview_file_model ------------------------------------------------
@@ -892,7 +916,9 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("overviewParticipant"));
 		setAccessibleName(QStringLiteral("%1, %2, %3")
 							  .arg(login(), role_text(aParticipant.Role), standing_text()));
-		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+		auto policy = QSizePolicy{ QSizePolicy::Expanding, QSizePolicy::Preferred };
+		policy.setHeightForWidth(true);
+		setSizePolicy(policy);
 		setToolTip(accessibleName());
 	}
 
@@ -908,7 +934,20 @@ namespace bpr::qt {
 
 	auto overview_participant_row::sizeHint() const -> QSize
 	{
-		return { 200, std::max(24, fontMetrics().height() + 8) };
+		return { 200, heightForWidth(200) };
+	}
+
+	auto overview_participant_row::minimumSizeHint() const -> QSize
+	{
+		return { 0, heightForWidth(width()) };
+	}
+
+	auto overview_participant_row::heightForWidth(const int aWidth) const -> int
+	{
+		const auto details = role_text(Participant.Role) + QStringLiteral(" · ") + standing_text();
+		return static_cast<int>(std::ceil(participant_text(nullptr, login(), font(), aWidth, 0)
+										  + participant_text(nullptr, details, font(), aWidth, 0)))
+			+ 8;
 	}
 
 	void overview_participant_row::paintEvent(QPaintEvent* const aEvent)
@@ -920,7 +959,7 @@ namespace bpr::qt {
 		const auto  ink     = colours.color(QPalette::Active, QPalette::WindowText);
 		const auto  faint   = colours.color(QPalette::Active, QPalette::PlaceholderText);
 		// The avatar: an initial in a circle, accented for me.
-		const auto centre = QPointF{ 11.0, height() / 2.0 };
+		const auto centre = QPointF{ 11.0, 4.0 + fontMetrics().height() / 2.0 };
 		painter.setPen(Qt::NoPen);
 		painter.setBrush(Participant.Viewer ? Colours.Unread : colours.color(QPalette::Active, QPalette::Mid));
 		painter.drawEllipse(centre, 9.0, 9.0);
@@ -931,16 +970,11 @@ namespace bpr::qt {
 		painter.setPen(Participant.Viewer ? colours.color(QPalette::Active, QPalette::Base) : ink);
 		const auto initial = login().isEmpty() ? QString{ } : login().left(1).toUpper();
 		painter.drawText(QRectF{ centre.x() - 9.0, centre.y() - 9.0, 18.0, 18.0 }, Qt::AlignCenter, initial);
-		// Login, then the role in the faint ink.
+		// Login and metadata occupy separate wrapped lines.
 		painter.setFont(font());
 		painter.setPen(ink);
-		const auto metrics    = QFontMetrics{ font() };
-		const auto loginWidth = metrics.horizontalAdvance(login());
-		painter.drawText(QRectF{ 28.0, 0.0, static_cast<qreal>(loginWidth + 2), static_cast<qreal>(height()) }, Qt::AlignVCenter | Qt::AlignLeft, login());
-		painter.setPen(faint);
-		painter.setFont(small);
-		painter.drawText(QRectF{ 28.0 + loginWidth + 6.0, 0.0, 90.0, static_cast<qreal>(height()) }, Qt::AlignVCenter | Qt::AlignLeft, role_text(Participant.Role));
-		// The standing at the right, coloured by what it means.
+		const auto loginHeight = participant_text(&painter, login(), font(), width(), 4);
+		// The standing is coloured by what it means.
 		auto standing = faint;
 		switch (Participant.Signoff) {
 		case application::overview_signoff::approved:
@@ -957,7 +991,8 @@ namespace bpr::qt {
 			break;
 		}
 		painter.setPen(standing);
-		painter.drawText(QRectF{ 0.0, 0.0, width() - 2.0, static_cast<qreal>(height()) }, Qt::AlignVCenter | Qt::AlignRight, standing_text());
+		participant_text(&painter, role_text(Participant.Role) + QStringLiteral(" · ") + standing_text(),
+						 font(), width(), 4 + loginHeight);
 		// The rule beneath.
 		painter.setPen(QPen{ colours.color(QPalette::Active, QPalette::Mid), 1.0 });
 		painter.drawLine(QPointF{ 0.0, height() - 0.5 }, QPointF{ static_cast<qreal>(width()), height() - 0.5 });
@@ -1080,15 +1115,22 @@ namespace bpr::qt {
 		});
 		mainColumn->addWidget(Files, 1);
 
-		auto* const side = new QWidget{ this };
-		Side             = side;
+		auto* const sideScroll = new QScrollArea{ this };
+		sideScroll->setObjectName(QStringLiteral("overviewSideScroll"));
+		sideScroll->setAccessibleName(QStringLiteral("Participants and review summary"));
+		sideScroll->setWidgetResizable(true);
+		sideScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		sideScroll->setFrameShape(QFrame::NoFrame);
+		sideScroll->setFixedWidth(side_width);
+		auto* const side = new QWidget{ sideScroll };
+		Side             = sideScroll;
 		side->setObjectName(QStringLiteral("overviewSideColumn"));
-		side->setFixedWidth(side_width);
 		side->setAutoFillBackground(true);
 		side->setBackgroundRole(QPalette::AlternateBase);
 		auto* const sideColumn = new QVBoxLayout{ side };
 		sideColumn->setContentsMargins(14, 12, 14, 12);
 		sideColumn->setSpacing(2);
+		sideColumn->setSizeConstraint(QLayout::SetMinimumSize);
 
 		auto* const participantsHeading
 			= make_heading(QStringLiteral("Participants"), QStringLiteral("overviewParticipantsHeading"), side);
@@ -1151,12 +1193,13 @@ namespace bpr::qt {
 		entryRow->addStretch(1);
 		sideColumn->addLayout(entryRow);
 		sideColumn->addStretch(1);
+		sideScroll->setWidget(side);
 
 		auto* const columns = new QHBoxLayout{ this };
 		columns->setContentsMargins(0, 0, 0, 0);
 		columns->setSpacing(0);
 		columns->addWidget(main, 1);
-		columns->addWidget(side);
+		columns->addWidget(sideScroll);
 
 		clear();
 	}

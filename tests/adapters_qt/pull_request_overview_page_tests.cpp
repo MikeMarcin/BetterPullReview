@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QTextDocument>
 #include <QTreeView>
@@ -492,6 +493,53 @@ namespace {
 		settle();
 		expect(!back->isVisible() && page.files_view()->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewNoDescription"))->isVisible(), "removing an expanded body returns to compact empty description");
 	}
+	auto test_many_participants_scroll_without_compressing_or_overpainting() -> void
+	{
+		qt::pull_request_overview_page page;
+		page.resize(900, 520);
+		auto projected = projection();
+		projected.Participants.clear();
+		for (int index = 0; index < 64; ++index) {
+			projected.Participants.push_back({ .Login   = "a-long-unbroken-participant-identifier-" + std::to_string(index),
+											   .Role    = application::overview_participant_role::reviewer,
+											   .Signoff = application::overview_signoff::changes_requested });
+		}
+		page.present(projected);
+		page.show();
+		settle();
+		auto* scroll = page.findChild<QScrollArea*>(QStringLiteral("overviewSideScroll"));
+		expect(scroll != nullptr && scroll->verticalScrollBar()->maximum() > 0,
+			   "a large participant list has a real scroll range instead of compressing rows");
+		const auto verifyRows = [&] {
+			const auto rows = page.participant_rows();
+			expect(rows.size() == 64, "all participant identities remain available");
+			for (std::size_t index = 0; index < rows.size(); ++index) {
+				const auto* row = rows[index];
+				expect(row->height() >= row->heightForWidth(row->width())
+						   && row->height() > 2 * row->fontMetrics().height()
+						   && (index == 0 || rows[index - 1]->geometry().bottom() < row->geometry().top()),
+					   "wrapped login, role and standing retain their measured height without overlapping");
+			}
+			scroll->ensureWidgetVisible(rows.back());
+			settle();
+			const auto last = rows.back()->mapTo(scroll->viewport(), QPoint{ 0, 0 });
+			expect(last.y() >= 0 && last.y() + rows.back()->height() <= scroll->viewport()->height(),
+				   "the final participant is reachable in the same bounded sidebar");
+		};
+		verifyRows();
+		auto larger = page.font();
+		larger.setPointSizeF(larger.pointSizeF() + 4);
+		page.setFont(larger);
+		settle();
+		verifyRows();
+		page.resize(700, 400);
+		settle();
+		verifyRows();
+		scroll->ensureWidgetVisible(page.entry_button());
+		settle();
+		expect(scroll->viewport()->rect().contains(page.entry_button()->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
+			   "review entry remains reachable after the complete participant list");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -505,6 +553,7 @@ auto main(int argc, char** argv) -> int
 	test_compact_descriptions();
 	test_retained_description_reader();
 	test_body_edits_clamp_retained_selection();
+	test_many_participants_scroll_without_compressing_or_overpainting();
 	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

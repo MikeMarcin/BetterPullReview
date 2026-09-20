@@ -34,10 +34,15 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <utility>
+
+#if defined(Q_OS_MACOS)
+	#include <sys/stat.h>
+#endif
 
 namespace {
 	using namespace bpr;
@@ -599,6 +604,38 @@ namespace {
 			"refused CLI source/update work quiesces");
 		application.reset();
 		startup.reset();
+
+	#if defined(Q_OS_MACOS)
+		// Reproduce the attended failure through the installed cache and real
+		// public composition, not a fake cache result. The refused acquisition
+		// above left a pristine repository and no accepted epoch.
+		auto manifestCount = 0U;
+		for (const auto& entry : std::filesystem::directory_iterator{ *options.ApplicationDataRoot / "repositories/v1" }) {
+			const auto manifestPath = entry.path() / "betterpullreview-cache-manifest-v1";
+			if (!std::filesystem::is_regular_file(manifestPath)) {
+				continue;
+			}
+			++manifestCount;
+			auto input = std::ifstream{ manifestPath, std::ios::binary };
+			auto bytes = std::vector<char>{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+			expect(bytes.size() == 141U && bytes[11U] == 2, "public CLI seed has the durable Mac cache manifest");
+			input.close();
+			bytes[11U] = 1;
+			bytes.resize(bytes.size() - 24U);
+			struct stat lock{ };
+			const auto  lockPath = *options.ApplicationDataRoot / "locks/v1" / (entry.path().stem().string() + ".lock");
+			expect(::lstat(lockPath.c_str(), &lock) == 0, "public CLI fixture observes its exact lock");
+			for (const auto value : { static_cast<std::uint64_t>(lock.st_dev) ^ 1U, std::uint64_t{ 0 }, static_cast<std::uint64_t>(lock.st_ino) }) {
+				for (int shift = 56; shift >= 0; shift -= 8) {
+					bytes.push_back(static_cast<char>(value >> shift));
+				}
+			}
+			auto output = std::ofstream{ manifestPath, std::ios::binary | std::ios::trunc };
+			output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+			expect(static_cast<bool>(output), "public CLI fixture records a legacy remounted empty cache");
+		}
+		expect(manifestCount == 1U, "public CLI remount course changes only its one empty cache");
+	#endif
 
 		options.EpochPhase              = app::detail::github_epoch_fixture_phase::single;
 		options.RefuseFirstSmartAcquire = false;

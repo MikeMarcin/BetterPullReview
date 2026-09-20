@@ -2,7 +2,7 @@
   "schema": "implement-rfc.milestone-checkpoint.v1",
   "run_id": "rfc0013-resume-20260919",
   "segment_id": "selected-diff-d1",
-  "mandate_revision": "r17",
+  "mandate_revision": "r18",
   "selection": {
     "schema": "implement-rfc.strategy-selection.v1",
     "strategy": "coordinator-implementer-astra-max",
@@ -101,8 +101,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "main",
-    "source_revision": "bee9a577032526b16ffd1b366cd568262f103fd7",
+    "source_revision": "7626c4653408e3d50e7e461fc15da9fb1f061885",
     "workflow_branch": "main",
-    "workflow_revision": "bee9a577032526b16ffd1b366cd568262f103fd7"
+    "workflow_revision": "7626c4653408e3d50e7e461fc15da9fb1f061885"
   }
 }

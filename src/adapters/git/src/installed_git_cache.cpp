@@ -44,6 +44,7 @@
 
 #if defined(Q_OS_MACOS)
 	#include <stdio.h>
+	#include <sys/attr.h>
 #endif
 
 #if defined(Q_OS_LINUX)
@@ -789,10 +790,14 @@ namespace bpr::adapters::git {
 
 		[[nodiscard]] auto manifest_bytes(
 			const application::git_cache_open_request& aRequest,
-			const exact_artifact_identity&             aLockIdentity)
+			const exact_artifact_identity&             aLockIdentity,
+			const bool                                 aDurableVolume)
 			-> std::vector<std::uint8_t>
 		{
 			auto result = manifest_authority_bytes(aRequest);
+			if (aDurableVolume) {
+				result[11U] = 2U;
+			}
 			result.reserve(result.size() + 24U);
 			append_identity(result, aLockIdentity);
 			return result;
@@ -1015,6 +1020,41 @@ namespace bpr::adapters::git {
 				return Identity;
 			}
 
+			[[nodiscard]] auto manifest_identity() const
+				-> std::optional<exact_artifact_identity>
+			{
+#if defined(Q_OS_MACOS)
+				// st_dev names a mount, not a durable volume. Keep it for live
+				// descriptor checks; persist the volume UUID and lock inode.
+				if (!Identity || exact_identity(Descriptor, exact_artifact_kind::regular_file) != Identity) {
+					return std::nullopt;
+				}
+				auto attributes        = attrlist{ };
+				attributes.bitmapcount = ATTR_BIT_MAP_COUNT;
+				attributes.volattr     = ATTR_VOL_INFO | ATTR_VOL_UUID;
+				struct volume_attributes
+				{
+					std::uint32_t                 Length = 0;
+					std::array<std::uint8_t, 16U> Uuid{ };
+				} volume;
+				static_assert(sizeof(volume) == 20U);
+				if (::fgetattrlist(Descriptor, &attributes, &volume, sizeof(volume), 0) != 0
+					|| volume.Length != sizeof(volume)
+					|| std::ranges::all_of(volume.Uuid, [](const auto aByte) { return aByte == 0U; })
+					|| exact_identity(Descriptor, exact_artifact_kind::regular_file) != Identity) {
+					return std::nullopt;
+				}
+				return exact_artifact_identity{
+					.Kind       = exact_artifact_kind::regular_file,
+					.Volume     = *read_u64(volume.Uuid, 0U),
+					.ObjectHigh = *read_u64(volume.Uuid, 8U),
+					.ObjectLow  = Identity->ObjectLow
+				};
+#else
+				return Identity;
+#endif
+			}
+
 			[[nodiscard]] auto still_names(
 				const std::filesystem::path& aPath) const -> bool
 			{
@@ -1209,6 +1249,7 @@ namespace bpr::adapters::git {
 				std::optional<exact_artifact_identity>         aRepositoryIdentity,
 				std::filesystem::path                          aLockPath,
 				exact_artifact_identity                        aLockIdentity,
+				exact_artifact_identity                        aManifestLockIdentity,
 				std::unique_ptr<cache_lock>                    aLock,
 				std::unique_ptr<application::git_process_port> aProcess)
 				: Request{ std::move(aRequest) }
@@ -1217,6 +1258,7 @@ namespace bpr::adapters::git {
 				, RepositoryIdentity{ aRepositoryIdentity }
 				, LockPath{ std::move(aLockPath) }
 				, LockIdentity{ aLockIdentity }
+				, ManifestLockIdentity{ aManifestLockIdentity }
 				, Lock{ std::move(aLock) }
 				, Process{ std::move(aProcess) }
 			{
@@ -1259,7 +1301,7 @@ namespace bpr::adapters::git {
 					&& private_regular_file(LockPath);
 			}
 
-			[[nodiscard]] auto validate_topology(
+			[[nodiscard]] auto validate_topology_without_manifest(
 				const std::stop_token aStop = { }) const -> bool
 			{
 				if (
@@ -1286,13 +1328,6 @@ namespace bpr::adapters::git {
 						"ref: refs/heads/main\n")) {
 					return false;
 				}
-				const auto expected = manifest_bytes(Request, LockIdentity);
-				const auto manifest = read_private_file(
-					Repository / manifest_name,
-					expected.size());
-				if (!manifest.has_value() || *manifest != expected) {
-					return false;
-				}
 				const std::array forbidden{
 					Repository / "objects" / "info" / "alternates",
 					Repository / "objects" / "info" / "http-alternates",
@@ -1307,6 +1342,71 @@ namespace bpr::adapters::git {
 						   forbidden.end(),
 						   missing)
 					&& active_boundary_still_owned();
+			}
+
+			[[nodiscard]] auto expected_manifest() const -> std::vector<std::uint8_t>
+			{
+#if defined(Q_OS_MACOS)
+				return manifest_bytes(Request, ManifestLockIdentity, true);
+#else
+				return manifest_bytes(Request, ManifestLockIdentity, false);
+#endif
+			}
+
+			[[nodiscard]] auto validate_topology(const std::stop_token aStop = { }) const -> bool
+			{
+				if (!validate_topology_without_manifest(aStop)) {
+					return false;
+				}
+				const auto expected = expected_manifest();
+				const auto manifest = read_private_file(Repository / manifest_name, expected.size());
+				// A legacy populated cache may still be used under its original
+				// exact mount identity. Never reinterpret its objects after drift.
+				return manifest && (*manifest == expected || *manifest == manifest_bytes(Request, LockIdentity, false))
+					&& active_boundary_still_owned();
+			}
+
+			[[nodiscard]] auto pristine_legacy_cache_after_remount(const std::stop_token aStop) const -> bool
+			{
+#if defined(Q_OS_MACOS)
+				if (!validate_topology_without_manifest(aStop)) {
+					return false;
+				}
+				const auto authority = manifest_authority_bytes(Request);
+				const auto manifest  = read_private_file(Repository / manifest_name, authority.size() + 24U);
+				if (!manifest || manifest->size() != authority.size() + 24U
+					|| !std::equal(authority.begin(), authority.end(), manifest->begin())) {
+					return false;
+				}
+				const auto prior = read_identity(*manifest, authority.size(), exact_artifact_kind::regular_file);
+				if (!prior || prior->Volume == 0U || prior->Volume == LockIdentity.Volume
+					|| prior->ObjectHigh != 0U || prior->ObjectLow != LockIdentity.ObjectLow) {
+					return false;
+				}
+				// Only the closed, freshly initialized layout is recoverable.
+				// No object, ref, worktree, unknown entry or link may be adopted.
+				std::error_code error;
+				auto            count = std::size_t{ 0 };
+				for (auto entry = std::filesystem::recursive_directory_iterator{ Repository, error };
+					 !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+					if (aStop.stop_requested() || ++count > 9U) {
+						return false;
+					}
+					const auto name      = entry->path().lexically_relative(Repository).generic_string();
+					const auto directory = name == "objects" || name == "objects/info" || name == "objects/pack"
+						|| name == "refs" || name == "refs/heads" || name == "refs/tags";
+					const auto file = name == "HEAD" || name == "config" || name == manifest_name;
+					if ((!directory && !file)
+						|| (directory && !private_directory(entry->path()))
+						|| (file && !private_regular_file(entry->path()))) {
+						return false;
+					}
+				}
+				return !error && active_boundary_still_owned();
+#else
+				static_cast<void>(aStop);
+				return false;
+#endif
 			}
 
 			[[nodiscard]] auto inventory(
@@ -1864,6 +1964,7 @@ namespace bpr::adapters::git {
 			std::optional<exact_artifact_identity>         RepositoryIdentity;
 			std::filesystem::path                          LockPath;
 			exact_artifact_identity                        LockIdentity;
+			exact_artifact_identity                        ManifestLockIdentity;
 			std::unique_ptr<cache_lock>                    Lock;
 			std::unique_ptr<application::git_process_port> Process;
 			std::recursive_mutex                           OperationMutex;
@@ -5891,9 +5992,11 @@ namespace bpr::adapters::git {
 						application::git_cache_failure::lock_unavailable
 					};
 				}
-				const auto lockIdentity = lock->identity();
+				const auto lockIdentity         = lock->identity();
+				const auto manifestLockIdentity = lock->manifest_identity();
 				if (
 					!lockIdentity.has_value()
+					|| !manifestLockIdentity.has_value()
 					|| !lock->still_names(lockPath)) {
 					return std::unexpected{
 						application::git_cache_failure::lock_unavailable
@@ -5908,8 +6011,8 @@ namespace bpr::adapters::git {
 						application::git_cache_failure::repair_required
 					};
 				}
-				const auto repositoryAbsent   = missing(repository);
-				auto       repositoryIdentity = std::optional<exact_artifact_identity>{ };
+				auto repositoryAbsent   = missing(repository);
+				auto repositoryIdentity = std::optional<exact_artifact_identity>{ };
 				if (!repositoryAbsent) {
 					repositoryIdentity = exact_identity(
 						repository,
@@ -5948,8 +6051,20 @@ namespace bpr::adapters::git {
 					repositoryIdentity,
 					lockPath,
 					*lockIdentity,
+					*manifestLockIdentity,
 					std::move(lock),
 					std::move(*process));
+				if (!repositoryAbsent && state->pristine_legacy_cache_after_remount(aStop)) {
+					// This cache never acquired objects or refs. Preserve its old
+					// metadata under an exact no-replace rename, then initialize a
+					// fresh cache. Populated/unknown layouts never enter this path.
+					const auto retired = random_quarantine_path(repository, ".bpr-pristine-legacy-");
+					if (!retired || !state->pristine_legacy_cache_after_remount(aStop)
+						|| !rename_exact_to_new_path(repository, *retired, *repositoryIdentity)) {
+						return std::unexpected{ application::git_cache_failure::repair_required };
+					}
+					repositoryAbsent = true;
+				}
 				if (repositoryAbsent) {
 					const auto algorithm = process_algorithm(aRequest.ObjectFormat);
 					if (!algorithm.has_value()) {
@@ -5999,7 +6114,7 @@ namespace bpr::adapters::git {
 								repair_required
 						};
 					}
-					const auto manifest        = manifest_bytes(aRequest, *lockIdentity);
+					const auto manifest        = state->expected_manifest();
 					auto       publishManifest = true;
 #if defined(BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION)
 					std::error_code manifestInjectionError;
@@ -6250,9 +6365,11 @@ namespace bpr::adapters::git {
 						application::git_cache_failure::lock_unavailable
 					};
 				}
-				const auto lockIdentity = lock->identity();
+				const auto lockIdentity         = lock->identity();
+				const auto manifestLockIdentity = lock->manifest_identity();
 				if (
 					!lockIdentity.has_value()
+					|| !manifestLockIdentity.has_value()
 					|| !lock->still_names(lockPath)) {
 					return std::unexpected{
 						application::git_cache_failure::lock_unavailable
@@ -6348,6 +6465,7 @@ namespace bpr::adapters::git {
 						*repositoryIdentity,
 						lockPath,
 						*lockIdentity,
+						*manifestLockIdentity,
 						nullptr,
 						nullptr);
 					const auto inventory = state->validated_inventory(aStop, false);
@@ -6471,6 +6589,7 @@ namespace bpr::adapters::git {
 						tombstoneRecord->Repository,
 						lockPath,
 						*lockIdentity,
+						*manifestLockIdentity,
 						nullptr,
 						nullptr);
 					const auto inventory = state->validated_inventory({ }, false);

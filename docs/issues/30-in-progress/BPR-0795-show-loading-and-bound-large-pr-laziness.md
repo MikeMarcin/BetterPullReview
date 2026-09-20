@@ -42,6 +42,22 @@ exact-target selected-diff acceptance.
 
 ## Evidence
 
+### Current correction — mandate r18, attended v002 rejected
+
+The owner reported a long initial load which eventually completed, then no
+updates and no usable selected file. The exact target's fixed diagnostic times
+show roughly 80 seconds for the complete paged PR snapshot, including 16 file
+pages plus conversation and timeline pages. The following local cache-open
+failure, not a continuing provider request, prevented epoch/diff readiness.
+BPR-0794 records the empty-cache mounted-device mismatch and bounded repair.
+This evidence does not establish a universal load-time guarantee; complete
+pagination, budgets, cancellation and small/large scheduling remain required.
+
+The independent BPR-0644 v002 acceptance remains bound to its old source and
+bundle. Only the rejected 0794/0795 questions were released. The next attended
+candidate must use the served local review UI with its host and watch alive;
+the previous offline v002 page and its decisions remain historical evidence.
+
 The composed window/action/read-host test held the provider effect and found
 that the new-target projection switched away from the Home loading label before
 Qt could paint it. Keeping that surface visible makes the loading state paint

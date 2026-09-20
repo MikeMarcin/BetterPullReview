@@ -47,6 +47,36 @@ this card's readable selected-diff criterion.
 
 ## Evidence
 
+### Current correction — mandate r18, attended v002 rejected
+
+The owner accepted the separate BPR-0644 relaunch criterion but rejected this
+candidate: the 1,523-file count matched; participant text overlapped and selected
+files never became readable. The fingerprint-valid verdict and screenshots stay
+in the attended session. The accepted device result remains bound to r17 and is
+not a verdict for these repairs.
+
+Fixed-field diagnostics from that run show `cache_open/cache/invalid_manifest`,
+then `revision_prepare/repair_required`, before any Git acquisition. A read-only
+metadata comparison found the target's exact authority/config/HEAD/private layout
+unchanged, and the same lock inode, but a different mounted-device number. The
+target cache contains zero objects, zero refs and zero retained epochs. This is
+not another provider permission failure and not evidence of a failed sparse
+fetch. No private source, path, object ID or screenshot is copied into this card.
+
+The current repair writes new Mac manifest lock identity as volume UUID plus inode.
+Legacy caches still require their exact original identity; only the closed,
+pristine, authority-matching empty layout with the same lock inode and changed
+mount number can be preserved under a no-replace rename and initialized afresh.
+Populated/unknown caches are never adopted or deleted. Negative checks cover
+object/ref/unknown entries, authority/lock/UUID drift and cancellation. The
+composed CLI refusal/restart course reproduces the empty old-mount manifest at
+the actual installed-cache boundary before attempting exact diff recovery.
+
+The participant sidebar now scrolls and uses measured wrapped login/metadata
+lines. A 64-participant regression checks full heights, non-overlap, long names,
+larger fonts, smaller windows and reachability of the last participant and action.
+The exact-target read is still pending; do not infer it from these repairs.
+
 The previous fixed metadata-only product observation is recorded on BPR-0793
 and BPR-0617. The append-only product diagnostic log attributes the absent
 pair to `protocol_acquire/transport/unavailable` before epoch revision

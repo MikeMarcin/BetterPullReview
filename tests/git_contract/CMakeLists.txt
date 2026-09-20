@@ -159,6 +159,14 @@ bpr_add_network_isolated_test(
 )
 set_tests_properties(git_sparse_cache_contract PROPERTIES TIMEOUT 180)
 
+if(APPLE)
+    bpr_add_network_isolated_test(
+        NAME git_pristine_remount_recovery
+        COMMAND test_better_pull_review_git_cache_contract_tests --pristine-remount
+    )
+    set_tests_properties(git_pristine_remount_recovery PROPERTIES TIMEOUT 180)
+endif()
+
 bpr_add_executable(test_better_pull_review_migrated_binding_agent migrated_binding_agent_fixture.cpp)
 target_link_libraries(test_better_pull_review_migrated_binding_agent PRIVATE BetterPullReview::AdapterMcp)
 bpr_enable_hardening(test_better_pull_review_migrated_binding_agent)
