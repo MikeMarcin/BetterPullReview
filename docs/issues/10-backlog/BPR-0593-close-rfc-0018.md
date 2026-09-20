@@ -12,6 +12,11 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+Packet-pointer upkeep, 2026-09-19: the rejected RFC-0013 dsp3 preparation is
+superseded by the [current rfc-bpr-0013-attended-v002 offline page](../../verification/reviews/rfc-bpr-0013-attended-v002/offline-package/index.html).
+Its exact-target and loading questions remain unanswered; this pointer changes
+no RFC-0018 acceptance or historical verdict below.
+
 ## Current frontier, 2026-09-17 (run-20260916-stations, dispatch dsp-009, mandate r6): in progress — checkpoint written before long work
 
 This section is a live checkpoint for dsp-009 and is rewritten at its end.

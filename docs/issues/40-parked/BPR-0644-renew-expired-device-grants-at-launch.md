@@ -12,6 +12,14 @@ acceptance: [{"criterion":"A fixture course restores a binding whose access life
 
 # Renew expired device grants at launch instead of forgetting them
 
+Current attended pointer, 2026-09-19: the owner-rejected dsp3 bundle is superseded
+by [rfc-bpr-0013-attended-v002 offline HTML](../../verification/reviews/rfc-bpr-0013-attended-v002/offline-package/index.html),
+candidate `rfc0013-r17-7b591faa-ad50fe5d`, ready/protected and unanswered at session
+sequence 404. This separate question uses only an already accepted device grant
+with known timing; skip if unavailable. The read-only r17 course does not request
+sign-out or a repeated device flow. Existing acceptance and the fail-closed policy
+question below remain unchanged.
+
 Observed on the Mac private alpha candidate (`50f364b8`): a GitHub.com device
 sign-in at 01:57 local produced a durable binding with an 8-hour access
 lifetime and a 6-month refresh lifetime. The reviewer closed the app at 12:18

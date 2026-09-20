@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app": "ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657"
+      },
+      "launch": {
+        "label": "Open the current tests-disabled r17 bundle after other BetterPullReview processes have quit",
+        "command": "/usr/bin/open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app"
+      },
+      "id": "BPR-0794-cli-selected-diff",
+      "title": "BPR-0794: readable exact-target diff through CLI in the current r17 bundle",
+      "criteria": [
+        "The current tests-disabled CLI-profile app shows the correct file list and a readable selected diff for EpicGames/UnrealEngine#1773, with source and review-thread anchors belonging to its accepted epoch pair and the Right OID matching the pull request's current head."
+      ],
+      "content": "This replaces the rejected dsp3 build. Source 7b591faae6c1a746998ade8b49f87d88145fcf6b; executable SHA-256 ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657. It includes the later CLI discovery, accepted-session routing and shared sign-in fixes. A real run of this bundle with a disposable synthetic gh account proved visible CLI discovery before device sign-in, a refused read retaining Connected, and an accessible retry reaching exact-pair Diff ready. That does not prove this private target.\n\n1. Quit your own running BetterPullReview. Check the process command below prints nothing; otherwise do not launch a competing build. Verify the digest, then open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app.\n2. On signed-out Home click Use GitHub CLI directly. If Home already has an account, Account > Accounts & hosts also has Use GitHub CLI. The shared dialog discovers your installed gh; choose the matching github.com account and accept the existing read-only trust confirmation only if you still consent. Do not sign out, repeat device flow, change the global gh account or paste a credential. If CLI is missing or a device connection is required, reject and stop.\n3. Paste the target link below into Home and press Return. Watch the separate BPR-0795 loading question during this same read.\n4. Compare the file count with GitHub's current Files changed count (1,523 was the earlier observation). Select a file you can also open on GitHub and wait for Diff ready.\n5. Open Review details to reveal Left OID and Right OID. Require Left available; right available. Ready for diff. Compare the Right OID locally with the current GitHub head, compare the selected changed source lines with GitHub, and check a review-thread anchor on that file if present.\n6. Accept only if that exact-target file list, readable diff and identity check all hold. Otherwise reject with the failed step or fixed refusal wording. Do not include private paths, source, commit IDs, thread text, tokens or screenshots in the note. A remaining refusal leaves this criterion open. Nothing here writes to GitHub.",
+      "paths": [
+        "src/app/src/github_application.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/core/src/setup_destination.cpp",
+        "src/adapters/git/src/installed_git_cache.cpp",
+        "src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+        "src/adapters/github/src/gh_cli_transport.cpp",
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/epoch_comparison_control.cpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/core/include/bpr/core/epoch_model.hpp",
+        "src/core/src/epoch_transition.cpp"
+      ],
+      "copy": [
+        {
+          "label": "Check for a running BetterPullReview first (no output means none)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Verify the exact executable digest",
+          "value": "/usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+        },
+        {
+          "label": "Exact target link for Home",
+          "value": "https://github.com/EpicGames/UnrealEngine/pull/1773"
+        },
+        {
+          "label": "Optional read-only local head/count check; do not paste its output here",
+          "value": "/opt/homebrew/bin/gh pr view 1773 --repo EpicGames/UnrealEngine --json headRefOid,changedFiles"
+        }
+      ],
+      "metadata": {
+        "source_commit": "7b591faae6c1a746998ade8b49f87d88145fcf6b",
+        "run": "rfc0013-resume-20260919",
+        "segment": "selected-diff-d1",
+        "mandate": "r17",
+        "child": "/root/rfc0013_selected_diff",
+        "card": "docs/issues/40-parked/BPR-0794-resolve-selected-diff-epoch-pair.md",
+        "acceptance": "AC4"
+      }
+    },
+    {
+      "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app": "ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657"
+      },
+      "launch": {
+        "label": "Open the current tests-disabled r17 bundle after other BetterPullReview processes have quit",
+        "command": "/usr/bin/open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app"
+      },
+      "id": "BPR-0795-loading-visible",
+      "title": "BPR-0795: prompt loading and responsiveness on that same large read",
+      "criteria": [
+        "During the BPR-0794 exact-target read, opening the pull request and selecting a file each promptly shows loading, and the window remains responsive until the review and selected diff are ready."
+      ],
+      "content": "Use the same /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app read as BPR-0794; do not start a duplicate read. The current candidate's executable digest is ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657.\n\n1. On Return from Home, watch for Loading the pull request / Loading pull request rather than an unexplained pause.\n2. On file selection, watch for Loading selected file comparison before Diff ready.\n3. Move or resize the window while each load is pending; it should respond.\nAccept only if both transitions were prompt and the window remained responsive. Otherwise reject with which transition was late or missing and approximate elapsed seconds. If account setup or the PR read fails before this can be judged, leave this item pending and report that blocker on BPR-0794. Do not retain private content.\nSmall-complete versus large-sparse acquisition and deferred historical objects are automated policy checks, not extra questions for you. The separate device-relaunch item is not a prerequisite for this read.",
+      "paths": [
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/app/src/github_application.cpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/core/src/epoch_transition.cpp"
+      ],
+      "copy": [
+        {
+          "label": "Check for a running BetterPullReview first (no output means none)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Verify the exact executable digest",
+          "value": "/usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+        },
+        {
+          "label": "Exact target link for the same read",
+          "value": "https://github.com/EpicGames/UnrealEngine/pull/1773"
+        }
+      ],
+      "metadata": {
+        "source_commit": "7b591faae6c1a746998ade8b49f87d88145fcf6b",
+        "run": "rfc0013-resume-20260919",
+        "segment": "selected-diff-d1",
+        "mandate": "r17",
+        "child": "/root/rfc0013_selected_diff",
+        "card": "docs/issues/40-parked/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+        "acceptance": "selected-diff-exact-epoch-pair exit 5: person-observable loading"
+      }
+    },
+    {
+      "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app": "ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657"
+      },
+      "launch": {
+        "label": "Open the current tests-disabled r17 bundle after other BetterPullReview processes have quit",
+        "command": "/usr/bin/open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app"
+      },
+      "id": "BPR-0644-device-relaunch-8h",
+      "title": "BPR-0644: separate existing device-grant relaunch check after eight hours",
+      "criteria": [
+        "The current tests-disabled Mac app, relaunched more than eight hours after an already accepted device sign-in, resumes that device session without a credential prompt."
+      ],
+      "content": "This is a separate RFC-BPR-0016 obligation, not a prerequisite for BPR-0794/0795. The stale dsp3 preparation is superseded by /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app, executable SHA-256 ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657.\n\nUse only an existing device grant that you already accepted and whose sign-in time you know. Do not sign out, repeat device flow or replace an account to manufacture this check during the r17 read-only course. If no such grant exists or its timing is unknown, skip this item and tell the driver that preparation is still needed.\n1. After more than eight hours from that existing sign-in, quit any running BetterPullReview. Confirm the process command prints nothing and the exact executable digest still matches. Do not judge a different or rebuilt bundle.\n2. Launch the named bundle and inspect Account > Accounts & hosts.\nAccept if the existing device session resumes with no pasted credential, device code, token or Keychain-password prompt. Otherwise reject with only the prompt/state and elapsed hours. A GitHub CLI connection is not a device-session pass. Do not put account secrets or private repository content in the note.",
+      "paths": [
+        "src/app/src/github_application.cpp",
+        "src/application/src/device_authorization_application_host.cpp",
+        "src/application/src/github_application_host.cpp"
+      ],
+      "copy": [
+        {
+          "label": "Check for a running BetterPullReview first (no output means none)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Verify the exact executable digest",
+          "value": "/usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+        }
+      ],
+      "metadata": {
+        "source_commit": "7b591faae6c1a746998ade8b49f87d88145fcf6b",
+        "run": "rfc0013-resume-20260919",
+        "segment": "selected-diff-d1",
+        "mandate": "r17",
+        "child": "/root/rfc0013_selected_diff",
+        "card": "docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md",
+        "acceptance": "AC4 attended, retained separate obligation"
+      }
+    }
+  ]
+}

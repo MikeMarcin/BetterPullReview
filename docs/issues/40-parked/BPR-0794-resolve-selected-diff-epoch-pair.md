@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0794"
 title: "Resolve the exact epoch pair for a large pull request selected diff"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Retained metadata-only diagnosis-d12.json attributes protocol_acquire/transport/unavailable before revision preparation; the card retains its external path and digest. The prepared candidate's composed and epoch checks passed in build/r2-logs/dsp3-bundle-focused-ctest.log. This is retained frozen-candidate evidence, not a new private-target observation."}},{"criterion":"AC2","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Retained exact sparse/current/historical authority and stale-selection evidence is described on this card and BPR-0795. Inspected source-bound focused log: 13/13 passed, including epoch core/host, CLI transport, Git cache/sparse cache, SQLite contracts and Qt composition. No claim is transferred to later source revisions."}},{"criterion":"AC3","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Prepared-candidate focused log passes 13/13 and portable two-catalogue public course passes 1/1 in 219.66 s; both logs explicitly bind source 94f6f8859993be4fea63c52855bab4f0144b185e. Existing documentation/format evidence remains recorded on the cards. Resume verification reconfirmed executable digest, signature, tests-disabled Release cache and offline-page digest without launching the app."}},{"criterion":"AC4","outcome":"pending","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c remains sequence 389 with BPR-0794-cli-selected-diff ready, protected and decision=null. The exact target's readable diff and source/anchor identity still require the recorded owner observation. No new target read occurred."}},{"criterion":"AC5","outcome":"pass","revision":"95a56ef965a0067cb3437d53ecf2d58a84162f32","evidence":{"kind":"observation","detail":"This resume performed only local repository/session/bundle checks. No app or gh was launched, no live PR write or account/device-session change occurred, and no credential or private content was read into the checkout. No BetterPullReview, gh, CMake, Ninja, CTest or attended-review host/watch process was present at the resume process check."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Owner rejection and the comparison against 94f6f885 attribute the renewed read refusal to a stale bundle missing BPR-0914/BPR-0915 CLI routing/sign-in fixes. Earlier metadata-only epoch-acquisition diagnosis is retained in the card; no private content was retained. Current evidence: docs/verification/reviews/rfc-bpr-0013-attended-v002/session-identity.json."}},{"criterion":"AC2","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Current-source GitHub.com composed course covers visible pre-device CLI, exact accepted-session routing with anonymous preview available, and native/CLI 403 retention plus accessible retry. Host 403/404 preserves exact transport/authentication-session identity. Focused epoch, sparse cache and stale authority checks pass without weakening object/authority rules."}},{"criterion":"AC3","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"15 focused checks pass at 8a017743, dedicated held-loading/refusal Qt gate passes at tests-only follow-up 7b591faa, and portable two-catalogue integration passes in 228.69 s. Actual tests-disabled synthetic UI reaches exact readable diff. Documentation gate, 64 self-tests and formatting pass. Broad Qt wrapped-row layout and stage-0 Release self-test failures are explicitly retained, not counted as passing."}},{"criterion":"AC4","outcome":"pending","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"New offline HTML and signed tests-disabled Release ad50fe5d… bind rfc0013-r17-7b591faa-ad50fe5d, session cbd48b91000b00f1e72e1ad62c7c384c sequence 404. Selected-diff candidate is ready/protected with no decision. Actual synthetic product success does not establish EpicGames/UnrealEngine#1773 source/anchor acceptance."}},{"criterion":"AC5","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"No live target request or GitHub write, explicit device/global-account change, token extraction or private-content capture was performed. Tested Release process used a confirmed disposable root; inspector later reopened ambient profile and it was immediately quit. Fixed diagnostics show only start/shutdown, not credential-state proof. Disposable roots were trashed; all task commands/apps are quiescent."}}]
+parked_on: "human-review"
 ---
 
 # Resolve the exact epoch pair for a large pull request selected diff
@@ -155,3 +156,39 @@ consent. The composed course passes, and its fixture self-tests pass 3/3.
 
 No new exact-target product observation or human acceptance is inferred. A fresh
 tests-disabled bundle and actual offline HTML replace dsp3 before another review.
+
+## Prepared current candidate — `7b591faa`
+
+The replacement [offline review page](../../verification/reviews/rfc-bpr-0013-attended-v002/offline-package/index.html)
+is generated at attended sequence 404. All three affected questions are ready,
+protected and unanswered under revision `rfc0013-r17-7b591faa-ad50fe5d`.
+The tests-disabled Release bundle is
+`/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app`,
+executable SHA-256
+`ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657`.
+Stable Developer ID signing and deep strict verification pass.
+
+The actual bundle, driven through the native UI with an external synthetic gh,
+offered CLI before device connection, retained Connected and the accepted account
+after a 403, and retried an accessible review without another sign-in. It showed
+two exact files, both loading messages, a readable selected diff and base/head
+identities matching the synthetic object fixture. This is product evidence for
+the repaired route, not a read of the private target.
+
+Fifteen focused tests pass, plus the dedicated held-loading/refusal Qt gate and
+the portable two-catalogue integration course (228.69 seconds). The full broad
+Qt test still fails an unrelated wrapped-row layout assertion after correcting
+its stale sign-in assertion. Release self-test retains the stage-0 CLI inventory
+failure already recorded by BPR-0915; the native UI course above, not that probe,
+is the passing product evidence. All 64 documentation tests, the documentation
+gate and changed-file formatting pass. Exact results, logs and limitations are
+in [the current evidence identity](../../verification/reviews/rfc-bpr-0013-attended-v002/session-identity.json).
+
+The tested process used a verified disposable data root. A state query after
+quitting automatically reopened the bundle against the ambient profile; it was
+immediately quit with no further interaction. Fixed diagnostics show only that
+start and shutdown, with no viewer, capability, PR or epoch operation. No claim
+about stored credential state is inferred from that log. No explicit device or
+global-account change, live target request, write, token extraction or private
+content capture occurred. Disposable fixtures were moved to Trash. No task-owned
+app remains. The exact-target readable-diff and anchor criterion is still open.

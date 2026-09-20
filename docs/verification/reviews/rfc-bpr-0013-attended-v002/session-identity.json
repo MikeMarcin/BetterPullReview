@@ -1,0 +1,145 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "rfc": "RFC-BPR-0013",
+  "source_commit": "7b591faae6c1a746998ade8b49f87d88145fcf6b",
+  "run": {
+    "id": "rfc0013-resume-20260919",
+    "segment": "selected-diff-d1",
+    "mandate": "r17",
+    "child": "/root/rfc0013_selected_diff",
+    "delegation": "prohibited, instruction-enforced"
+  },
+  "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+  "prepared_at_sequence": 404,
+  "milestone_plan": {
+    "id": "rfc-bpr-0013-hardening",
+    "path": "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "milestone": "selected-diff-exact-epoch-pair",
+    "cards": [
+      "BPR-0794",
+      "BPR-0795"
+    ]
+  },
+  "bundle": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r17/src/app/BetterPullReview.app",
+    "executable_sha256": "ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657",
+    "build_testing": false,
+    "build_type": "Release",
+    "designated_live_capsule": false,
+    "signing": "Developer ID Application: Michael Marcin (YTQKP2V2A8); stable identity, not ad hoc",
+    "codesign": "deep strict verification passed",
+    "build_logs": [
+      "build/rfc0013-resume-20260919/r17-release-build.log",
+      "build/rfc0013-resume-20260919/r17-release-final-build.log"
+    ],
+    "note": "First built with source identical to 8a017743; tests-only 7b591faa follow-up was rebuilt, producing the same executable digest."
+  },
+  "diagnosis": {
+    "rejected_source": "94f6f8859993be4fea63c52855bab4f0144b185e",
+    "missing_fixes": [
+      "BPR-0909 CLI discovery",
+      "BPR-0913 qualified discovery version",
+      "BPR-0914 accepted CLI destination routing (1a74b36d)",
+      "BPR-0915 shared sign-in (cbd50b74)"
+    ],
+    "mechanism": "Old composition excluded CLI profiles from setup observations and required native credential authority to open. An inactive native same-host choice could enter anonymous preview for the private target. Current composition routes through the accepted exact-profile session.",
+    "credential_deletion": "The owner observed apparent account loss. A permission response deleting a grant is not established; current native and CLI synthetic courses preserve identity and perform no credential-slot operation on 403."
+  },
+  "verification": {
+    "focused": {
+      "revision": "8a01774308050acf2636be93a4a423ee8a6b1b15",
+      "log": "build/rfc0013-resume-20260919/r17-focused.log",
+      "result": "15 of 16 passed. The broad qt_composed_github_scale_100 failed its stale pre-shared-dialog account action assertion; no blanket pass claimed.",
+      "passing": [
+        "core_epoch_policy",
+        "core_setup_destination",
+        "application_git_protocol_v2",
+        "application_epoch_contract",
+        "application_epoch_host",
+        "application_setup_destination",
+        "application_github_window_read_host",
+        "sqlite_epoch_catalog_storage_contract",
+        "sqlite_epoch_catalog_behavior_contract",
+        "qt_epoch_comparison_scale_100",
+        "gh_cli_git_smart_transport",
+        "git_process_contract",
+        "git_cache_contract",
+        "git_sparse_cache_contract",
+        "application_setup_destination_public_path"
+      ]
+    },
+    "loading": {
+      "revision": "7b591faae6c1a746998ade8b49f87d88145fcf6b",
+      "test": "qt_composed_loading_scale_100",
+      "result": "1/1 passed; held read paints before provider completion, cancellation and Home refusal presentation",
+      "log": "build/rfc0013-resume-20260919/r17-loading.log"
+    },
+    "integration": {
+      "test": "application_epoch_portable_occurrence_two_catalogues",
+      "result": "1/1 passed, 228.69 seconds",
+      "log": "build/rfc0013-resume-20260919/r17-portable.log"
+    },
+    "external_fixture_tests": "3/3 passed",
+    "documentation": "DOCUMENTATION_OK; all 64 documentation verifier tests passed; touched C++ clang-format and git diff --check passed",
+    "wider_limitations": [
+      "After correcting the stale shared-dialog assertion, broad qt_composed_github_scale_100 still fails the unrelated wrapped-conversation nonuniform-height/no-overlap assertion. build/rfc0013-resume-20260919/r17-composed-current-dialog.log. Not used as a passing milestone gate.",
+      "Release --self-test prints AUTOMATED_PROFILE_PRIVATE_OK but then PUBLIC_PATH_FAILED / CLI_OPT_IN_REQUIRED_FAILED at stage 0, matching the pre-existing inventory/probe limitation documented on BPR-0915. It is not a passing product test. build/rfc0013-resume-20260919/r17-release-self-test.log."
+    ]
+  },
+  "product_observation": {
+    "authority": "External local-only synthetic gh; no in-product fixture or automatic consent flag",
+    "tested_pid": 86286,
+    "isolation": "lsof confirmed the tested process's registry under a disposable canonical Library/Caches home. The initial /private/tmp launch refused because Qt resolved its data path through the /tmp alias; no isolation policy was relaxed.",
+    "visible_results": [
+      "Signed-out Home displayed enabled Use GitHub CLI before device sign-in.",
+      "One discovery and the real trust confirmation connected octo-reviewer.",
+      "Synthetic repository 403 displayed the same cannot-read wording as the owner report; Account stayed signed in and Accounts & hosts stayed Connected.",
+      "Same session retried the accessible synthetic PR with no new sign-in; two exact files appeared.",
+      "Loading the pull request and Loading selected file comparison were visible.",
+      "Diff ready displayed one semantic change and the expected synthetic earlier/later source. Left/right OIDs matched the fixture's exact base/head."
+    ],
+    "exact_target_read": false,
+    "human_acceptance_inferred": false,
+    "cleanup": "The tested app quit normally. A subsequent UI-inspector state query automatically reopened the bundle against the ambient profile; that process was immediately quit without further interactions. Fixed diagnostics show only application started/shutdown at 03:16 UTC, with no viewer, capability, PR or epoch operation. Credential state is not inferred from that log, and not every launch is claimed isolated. Both disposable fixture homes and the path-probe binary were moved to Trash; source probe removed. No task-owned app remains.",
+    "side_effects": "No live target request, GitHub write, explicit device/global-account change, token extraction or private-content capture was performed."
+  },
+  "page": {
+    "path": "offline-package/index.html",
+    "digest": "sha256:d07a911468556f294813fe3cc091836e83a781ed7e3d22ed879f017f2f1da201",
+    "mode": "offline",
+    "note": "Generated after preparation at sequence 404. No host/watch running. Browser automation inventory was empty; the HTML was generated and statically inspected, not claimed browser-rendered."
+  },
+  "candidates": [
+    {
+      "id": "BPR-0794-cli-selected-diff",
+      "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+      "fingerprint": "20be9479107be6fd828d8b88230f3496562cfdcc9e8e713c55c90ea3be50d244",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-0795-loading-visible",
+      "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+      "fingerprint": "ba5ca6db3209e2e90923e39ba84060b0b52ea6040d610871874795546f2042ec",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-0644-device-relaunch-8h",
+      "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+      "fingerprint": "a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "remaining": [
+    "Exact-target readable selected diff with source and review-thread anchor check",
+    "Person-observable prompt loading on the same large-target read",
+    "Separate existing BPR-0644 device-grant relaunch after eight hours; no new device flow is requested by this read-only course"
+  ],
+  "previous": "../rfc-bpr-0013-attended-v001/session-identity.json"
+}
