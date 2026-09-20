@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Final qt_composed_loading_scale_100 passes held-provider paint, cancellation and refusal. Compact Updates line and accessibility/tooltip show real preparation state, with failed setup no longer replaced by empty-history wording; final public path renders an exact readable diff."}},{"criterion":"AC2","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Seven-test integration includes unchanged core_epoch_policy and application_epoch_host: bounded small/large shape classification, missing/conflicting facts, exact authority and stale selection remain covered."}},{"criterion":"AC3","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Full cache/sparse contract plus portable two-catalogue integration pass at cdfcce72. Current gh 2.101.0 bridge and installed-cache public course pass at eecdda2a, retaining exact current/historical acquisition and small-complete/large-lazy boundaries."}},{"criterion":"AC4","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Final focused 5/5 pass; integration7/7 pass; documentation,64 verifier self-tests,formatting and tests-disabled signed Release build pass. No private content retained, GitHub write, account/device-session change or credential extraction. Wider historical test limitations remain recorded in v003 identity."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"The repaired r18 loading candidate is ready/protected without a verdict at sequence416, served locally with decision watch. Owner's earlier long-load/refusal rejection is preserved as r17 evidence; current prompt-loading/responsiveness observation remains required. No new human criterion is added to the automated card bullets."}}]
-parked_on: "human-review"
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
@@ -42,6 +41,16 @@ exact-target selected-diff acceptance.
   content retention occurs.
 
 ## Evidence
+
+### Current correction — attended v003 rejected
+
+The owner rejected v003 because Open remained on Home during the long read,
+then content appeared without useful progress or readiness. This round must
+enter the review overview immediately, show background-read progress, and
+distinguish comparison preparation, ready, and failed states. The latest read
+took about 75 seconds to exhaust provider pages, followed by a separate
+`transport/response_limit` Git acquisition refusal. The previous loading-label
+fixture does not establish the required immediate overview transition.
 
 Current preparation is the [v003 served-review packet](../../verification/reviews/rfc-bpr-0013-attended-v003/operator-packet.md),
 source `eecdda2a`, candidate `rfc0013-r18-eecdda2a-f6db019a`, ready/protected

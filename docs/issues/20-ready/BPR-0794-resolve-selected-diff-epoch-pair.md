@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0794"
 title: "Resolve the exact epoch pair for a large pull request selected diff"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Owner v002 rejection and metadata-only diagnosis identify cache invalid_manifest after Mac mount-number drift, before Git transport. Target authority/lock inode and pristine zero-object/ref/epoch topology were unchanged. A second installed gh 2.101.0 version gate was identified and directly checked. v003 session-identity.json records fixed aggregates only."}},{"criterion":"AC2","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"UUID/inode manifest identity and narrowly preserving pristine legacy reinitialization retain exact authority, lock/topology and object/ref refusal checks. Final composed installed-cache restart course reaches readable exact diff; gh bridge covers 2.100/2.101 positives and old/future/prerelease negatives. Existing account-retention and stale-selection assertions remain passing."}},{"criterion":"AC3","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Final eecdda2a focused suite: 5/5 pass, 56.12s. Cache/core/host/portable integration at unchanged cdfcce72 cache implementation: 7/7 pass, 620.73s. Documentation, 64 verifier tests and formatting pass. Prior unrelated broad Qt row-layout and stage-0 Release self-test limitations are explicit, not counted as passing."}},{"criterion":"AC4","outcome":"pending","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"Current signed tests-disabled Release f6db019a… binds rfc0013-r18-eecdda2a-f6db019a. Selected-diff question ready/protected without owner verdict at sequence416; served UI and wait watch active. Real read-only CLI commit/blob prerequisite pass and synthetic DiffReady do not establish actual product source/anchor acceptance."}},{"criterion":"AC5","outcome":"pass","revision":"eecdda2a0128cf092afab86b93c3cf968f0f2f3e","evidence":{"kind":"artifact","detail":"No GitHub write, global account switch, device-session change or token extraction. Live diagnostic child filesystem writes contained, viewer/config metadata unchanged, temporary source objects outside checkout removed; fixed aggregate evidence only. Owner app left untouched. Engineering commands are quiescent; requested local review host/watch intentionally active."}}]
-parked_on: "human-review"
 ---
 
 # Resolve the exact epoch pair for a large pull request selected diff
@@ -47,6 +46,17 @@ this card's readable selected-diff criterion.
   or transfer, device-session change, or private content in the checkout occurs.
 
 ## Evidence
+
+### Current correction — attended v003 rejected
+
+The owner rejected v003: selected files and epochs still did not load, and
+participant rows should use one line each. The two affected candidates have
+been released for development; the accepted BPR-0644 device result remains
+bound to r17. Fresh fixed diagnostics show cache open now succeeds, but the
+CLI protocol acquisition returns `transport/response_limit` before revision
+preparation. This supersedes the earlier cache-open diagnosis for this run.
+The new implementation owner is `/root/rfc0013_review_round_v003_implementor_astra_max`;
+no further agent delegation is permitted.
 
 ### Current correction — mandate r18, attended v002 rejected
 
