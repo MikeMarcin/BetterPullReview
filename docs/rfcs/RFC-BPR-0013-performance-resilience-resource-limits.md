@@ -102,6 +102,20 @@ loading. The [continuation checkpoint](plans/rfc-bpr-0013-hardening/checkpoint-r
 binds the expanded mandate and recipe revision 2. BPR-0934 folder collapse stays separate.
 These bounded results do not close the RFC or its remaining prerequisites.
 
+Owner follow-ups in signed r22 add mandate `r21-drawer-and-exact-material`.
+The [r23 selected-material evidence](../verification/rfc-bpr-0013-selected-material-20260920.md)
+closes BPR-0941..0943: neutral file names with independently colored details,
+non-actionable folder gestures, and explicit missing modified-file material.
+Independent live read-only diagnosis establishes provider merge-base metadata
+versus an exact selected base tip without the path. The accepted epoch contract
+is unchanged; BPR-0944 owns that separate product decision. Signed r23 proves
+the typed refusal and intact-file recovery through the safe production sparse
+CLI course. Original exact-target readable-source acceptance remains open for
+the diagnosed refusal; no owner retest or new attended candidate is requested.
+The [current checkpoint](plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d6-r21.json)
+and [handoff](plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d6-r21.json)
+retain this mandate, command quiescence and all unfinished obligations.
+
 Budgets, benchmark hardware, cancellation, cache policy, offline states, rate limits, recovery, fuzzing, logging, and known scale boundaries are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
