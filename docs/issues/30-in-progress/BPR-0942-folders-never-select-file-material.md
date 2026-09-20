@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0942"
 title: "Keep folder gestures separate from semantic file selection"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
