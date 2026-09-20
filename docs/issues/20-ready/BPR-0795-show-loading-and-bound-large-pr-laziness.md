@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Prior held real composition and coalesced exact-request progress tests remain valid; presentation is unchanged. New tests-disabled 515-file course directly shows immediate loading Overview."}},{"criterion":"AC2","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Accepted-shape policy and thresholds unchanged. Current application_epoch_host and application_github_window_read_host pass, including small/large and missing/conflicting/stale facts."}},{"criterion":"AC3","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Repaired account wrappers preserve large sparse capability and guarded exact-blob reads. Sparse-only 515-file native fixture reaches exact source without complete clone. Small-complete public course and portable current/historical course pass; bounds/refusals retained."}},{"criterion":"AC4","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Focused 5/5, integration, fixture 4/4, native synthetic source/anchors, documentation, 64 verifier tests, formatting and signed Release pass. Safety and broader limits recorded in v005 identity."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"v004 sequence433 rejected the integrated result but explicitly approved prompt transition, loading animation and status. Retain only that presentation observation; do not change the reject verdict or accept missing source. Presentation code unchanged."}},{"criterion":"shared-milestone-exit-4","outcome":"pending","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Coupled selected-diff milestone still requires BPR-0794 AC4 real-target source/anchor acceptance. Both cards remain parked until that exit is genuinely met; only the selected-diff question is refreshed."}}]
-parked_on: "human-review"
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
