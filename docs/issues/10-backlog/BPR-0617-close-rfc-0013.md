@@ -11,45 +11,48 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — rfc0013-resume-20260919 / selected-diff-d1 / mandate r17
+## Current frontier — rfc0013-resume-20260919 / selected-diff-d1 / mandate r18
 
-Same leaf owner `/root/rfc0013_selected_diff`, no delegation. The owner rejected
-dsp3: its `94f6f885` source omitted later CLI discovery, accepted-session routing
-and shared-sign-in fixes. The wrong native/anonymous route explains the private
-read refusal and apparent sign-out; deletion of a credential by that response
-is not established. New regressions verify GitHub.com CLI before device sign-in
-and native/CLI permission-refusal retention with no credential-slot operations.
+Same leaf owner `/root/rfc0013_selected_diff`, no delegation. The v002 owner
+verdicts rejected BPR-0794/0795 and accepted BPR-0644 device relaunch. That device
+verdict remains bound to r17 `7b591faa/ad50fe5d`; it was not reinitialized.
 
-Current source is `7b591faae6c1a746998ade8b49f87d88145fcf6b`, after implementation
-slice `8a017743`. The signed tests-disabled Release candidate is
-`build/app-release-rfc0013-r17/src/app/BetterPullReview.app`; executable SHA-256
-`ad50fe5d3d12b2056ded5bbbee4ccd4a9289850fe8ffa05c051b5b0408ae0657`.
-Its actual synthetic CLI UI course reached visible CLI discovery, retained the
-connected account through 403, retried without sign-in, and rendered a readable
-exact-pair diff. Fifteen focused checks, the dedicated held-loading/refusal Qt
-gate, 64 documentation tests, formatting and documentation pass; the portable
-two-catalogue integration passes in 228.69 s. Broad Qt wrapped-row layout and
-the known stage-0 Release self-test inventory probe still fail and are not
-counted as passing. Full evidence is in
-[v002 identity](../../verification/reviews/rfc-bpr-0013-attended-v002/session-identity.json).
+Fixed metadata attributes the unreadable diff to `cache_open/invalid_manifest`:
+the Mac mount number changed, although the authority and lock inode did not.
+The target cache was pristine, with zero objects/refs/epochs. `cdfcce72` adds
+volume-UUID/inode manifests and a narrowly checked, preserving reinitialization
+only for that empty legacy case; populated or unknown caches still refuse.
+It also gives participant rows measured wrapped heights and a scrolling sidebar.
+`eecdda2a` qualifies installed gh 2.101.0 under the unchanged Git/sandbox limits
+and makes the empty Updates strip expose the real loading/refusal state.
 
-Use the actual [offline attended HTML](../../verification/reviews/rfc-bpr-0013-attended-v002/offline-package/index.html).
-Session `cbd48b91000b00f1e72e1ad62c7c384c`, sequence 404, has three new ready,
-protected, unanswered candidates at `rfc0013-r17-7b591faa-ad50fe5d`. BPR-0794 and
-BPR-0795 are parked with current partial evidence for the exact-target readable
-diff/source/anchor and prompt-loading observations. The separate BPR-0644 item
-uses only an existing device grant with known timing; no fresh sign-out/device
-flow is requested. Synthetic success is not private-target acceptance.
+Current source is `eecdda2a0128cf092afab86b93c3cf968f0f2f3e`; the signed tests-disabled
+Release is `build/app-release-rfc0013-r18/src/app/BetterPullReview.app`, executable
+SHA-256 `f6db019ad98b91b3596fd44836f050ae312ad844a9b46606579c52a4d6a581b2`.
+The final five focused checks pass. Seven cache/core/host/portable integration
+checks pass at the unchanged cache implementation; documentation, 64 verifier
+tests and formatting pass. A bounded read-only real CLI probe verified two exact
+commits and two selected UTF-8 blobs, with viewer/config metadata unchanged and
+no retained private content. This is not in-product human acceptance. Prior
+unrelated broad-Qt row-layout and Release stage-0 self-test limitations remain
+explicit; no blanket full-suite pass is claimed.
 
-No live target read/write, explicit device/global-account change, token extraction
-or private-content capture occurred. The tested app used a confirmed disposable
-root. A post-quit UI-inspector query reopened the ambient profile; it was quit
-immediately, and fixed diagnostics show only start/shutdown, not credential-state
-proof. Disposable fixtures were moved to Trash. No task-owned app, test, command,
-review server or watch remains. The checkpoint retains the immutable RFC base
-`d4d9e61d9224ef869ca4de9725c2bf52c5df701a`, r14-r16 obligations and r17 correction.
-`verify-rfc-0013` remains ineligible; BPR-0507, BPR-0817/BPR-0825 and the RFC-wide
-matrix remain separate obligations. Preserve the unrelated `.mask.lock.json`.
+The [v003 served-review packet](../../verification/reviews/rfc-bpr-0013-attended-v003/operator-packet.md)
+and [identity](../../verification/reviews/rfc-bpr-0013-attended-v003/session-identity.json)
+bind `rfc0013-r18-eecdda2a-f6db019a`. Session `cbd48b91000b00f1e72e1ad62c7c384c`,
+sequence 416, has only the two repaired questions newly ready/protected. They
+remain unanswered: exact-target readable source/anchors and prompt visible
+loading/responsiveness. BPR-0794/0795 are parked on those existing human exits.
+
+The foreground loopback host and `wait --after 416` are intentionally alive;
+the full URL is supplied only in the current task. Engineering commands and
+temporary probes are quiescent. The owner-launched r17 app was not quit or
+changed; the reviewer must quit it before opening r18. No GitHub write, account
+switch, device-session change or token extraction occurred. Owner attachments
+were not copied into the packet or checkout HTML. `.mask.lock.json` is preserved.
+The checkpoint retains RFC base `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`
+and all r14-r18 obligations. `verify-rfc-0013` remains ineligible; BPR-0507,
+BPR-0817/BPR-0825 and the RFC-wide matrix remain separate obligations.
 
 ## Previous frontier — rfc0013-resume-20260919 / selected-diff-d1 / mandate r16
 

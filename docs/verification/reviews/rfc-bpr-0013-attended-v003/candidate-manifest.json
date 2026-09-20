@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "revision": "rfc0013-r18-eecdda2a-f6db019a",
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app": "f6db019ad98b91b3596fd44836f050ae312ad844a9b46606579c52a4d6a581b2"
+      },
+      "launch": {
+        "label": "Quit the old BetterPullReview, then open the current r18 build",
+        "command": "/usr/bin/open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app"
+      },
+      "id": "BPR-0794-cli-selected-diff",
+      "title": "BPR-0794: readable exact-target diff after cache and CLI repairs",
+      "criteria": [
+        "The current tests-disabled CLI-profile app shows the correct file list and a readable selected diff for EpicGames/UnrealEngine#1773, with source and review-thread anchors belonging to its accepted epoch pair and the Right OID matching the pull request's current head."
+      ],
+      "content": "Source eecdda2a0128cf092afab86b93c3cf968f0f2f3e; executable SHA-256 f6db019ad98b91b3596fd44836f050ae312ad844a9b46606579c52a4d6a581b2. This replaces the rejected v002 diff candidate, not your accepted device-relaunch result. It repairs the pristine cache's changed Mac mount identity, qualifies installed gh 2.101.0, and gives participant rows measured wrapped heights and scrolling. The real read-only CLI/backend prerequisite check and synthetic public-path diff pass; your actual application's source/anchor result is still needed.\n\n1. Quit your running BetterPullReview normally. Check the process command below prints nothing, verify the digest, then open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app.\n2. Use the already opted-in GitHub CLI profile. Use GitHub CLI is available on Home or Account > Accounts & hosts without device sign-in. Do not sign out, repeat device flow, switch the global gh account or paste credentials. If the intended CLI account is unavailable, reject with that fixed blocker and stop.\n3. Paste the exact target link into Home and press Return. Observe the separate loading question during this same read; do not start a second read.\n4. Compare the file count with GitHub's current Files changed count (your prior count was 1,523). Select a changed text file you can also open on GitHub; wait for Diff ready.\n5. Open Review details. Require Left available; right available. Ready for diff. Compare Right OID with the current head on GitHub, the selected source lines with GitHub, and a review-thread anchor on that file if one is present.\nAccept only if the file list, readable selected diff and source/anchor identity agree. Otherwise reject with the failed step or fixed status wording. Keep private paths, source, commit IDs, thread text, credentials and screenshots out of the note. This course makes no GitHub write. The separate device-relaunch acceptance remains recorded; do not repeat it.",
+      "paths": [
+        "src/app/src/github_application.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/core/src/setup_destination.cpp",
+        "src/adapters/git/src/installed_git_cache.cpp",
+        "src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+        "src/adapters/github/src/gh_cli_transport.cpp",
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/epoch_comparison_control.cpp",
+        "src/adapters/qt/src/epoch_line.cpp",
+        "src/adapters/qt/include/bpr/qt/epoch_line.hpp",
+        "src/adapters/qt/src/pull_request_overview_page.cpp",
+        "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/core/include/bpr/core/epoch_model.hpp",
+        "src/core/src/epoch_transition.cpp"
+      ],
+      "copy": [
+        {
+          "label": "Check for an old BetterPullReview process first (no output means none)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Verify this build's executable digest",
+          "value": "/usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+        },
+        {
+          "label": "Exact target link for Home",
+          "value": "https://github.com/EpicGames/UnrealEngine/pull/1773"
+        }
+      ],
+      "metadata": {
+        "source_commit": "eecdda2a0128cf092afab86b93c3cf968f0f2f3e",
+        "run": "rfc0013-resume-20260919",
+        "segment": "selected-diff-d1",
+        "mandate": "r18",
+        "child": "/root/rfc0013_selected_diff",
+        "card": "docs/issues/40-parked/BPR-0794-resolve-selected-diff-epoch-pair.md",
+        "acceptance": "AC4"
+      }
+    },
+    {
+      "revision": "rfc0013-r18-eecdda2a-f6db019a",
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app": "f6db019ad98b91b3596fd44836f050ae312ad844a9b46606579c52a4d6a581b2"
+      },
+      "launch": {
+        "label": "Quit the old BetterPullReview, then open the current r18 build",
+        "command": "/usr/bin/open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app"
+      },
+      "id": "BPR-0795-loading-visible",
+      "title": "BPR-0795: prompt loading and responsiveness on that same large read",
+      "criteria": [
+        "During the BPR-0794 exact-target read, opening the pull request and selecting a file each promptly shows loading, and the window remains responsive until the review and selected diff are ready."
+      ],
+      "content": "Use the same r18 read as BPR-0794; do not start another read or reopen the accepted device-relaunch question. Bundle: /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app. Executable SHA-256 f6db019ad98b91b3596fd44836f050ae312ad844a9b46606579c52a4d6a581b2.\n\n1. On Return from Home, watch for Loading the pull request / Loading pull request before an unexplained pause.\n2. On selecting the changed text file, watch for Loading selected file comparison before Diff ready. If comparison preparation fails, the compact Updates strip now names that state instead of saying only No updates loaded.\n3. Move or resize the window during the pending loads.\nAccept only if both loading transitions appear promptly and the window remains responsive until the review and selected diff are ready. Otherwise reject with the late/missing transition, fixed failure wording, and approximate seconds. If a failed PR read prevents judging loading, leave this item pending and report the blocker on BPR-0794. Do not retain private content.\n\nThe prior complete paginated snapshot took about 80 seconds; these repairs do not establish a short overall network duration. Small-complete versus large-sparse acquisition and deferred historical objects are automated checks, not additional questions for you.",
+      "paths": [
+        "src/app/src/github_application.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/core/src/setup_destination.cpp",
+        "src/adapters/git/src/installed_git_cache.cpp",
+        "src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+        "src/adapters/github/src/gh_cli_transport.cpp",
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/epoch_comparison_control.cpp",
+        "src/adapters/qt/src/epoch_line.cpp",
+        "src/adapters/qt/include/bpr/qt/epoch_line.hpp",
+        "src/adapters/qt/src/pull_request_overview_page.cpp",
+        "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/core/include/bpr/core/epoch_model.hpp",
+        "src/core/src/epoch_transition.cpp"
+      ],
+      "copy": [
+        {
+          "label": "Check for an old BetterPullReview process first (no output means none)",
+          "value": "/usr/bin/pgrep -il 'betterpullreview|better_pull_review'"
+        },
+        {
+          "label": "Verify this build's executable digest",
+          "value": "/usr/bin/shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+        },
+        {
+          "label": "Exact target link for Home",
+          "value": "https://github.com/EpicGames/UnrealEngine/pull/1773"
+        }
+      ],
+      "metadata": {
+        "source_commit": "eecdda2a0128cf092afab86b93c3cf968f0f2f3e",
+        "run": "rfc0013-resume-20260919",
+        "segment": "selected-diff-d1",
+        "mandate": "r18",
+        "child": "/root/rfc0013_selected_diff",
+        "card": "docs/issues/40-parked/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+        "acceptance": "selected-diff-exact-epoch-pair exit 5: person-observable loading"
+      }
+    }
+  ]
+}

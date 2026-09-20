@@ -1,0 +1,148 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "rfc": "RFC-BPR-0013",
+  "source_commit": "eecdda2a0128cf092afab86b93c3cf968f0f2f3e",
+  "run": {
+    "id": "rfc0013-resume-20260919",
+    "segment": "selected-diff-d1",
+    "mandate": "r18",
+    "child": "/root/rfc0013_selected_diff",
+    "delegation": "prohibited, instruction-enforced"
+  },
+  "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+  "prepared_at_sequence": 416,
+  "milestone_plan": {
+    "id": "rfc-bpr-0013-hardening",
+    "path": "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "milestone": "selected-diff-exact-epoch-pair",
+    "cards": [
+      "BPR-0794",
+      "BPR-0795"
+    ]
+  },
+  "bundle": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-rfc0013-r18/src/app/BetterPullReview.app",
+    "executable_sha256": "f6db019ad98b91b3596fd44836f050ae312ad844a9b46606579c52a4d6a581b2",
+    "build_testing": false,
+    "build_type": "Release",
+    "designated_live_capsule": false,
+    "signing": "Stable Developer ID Application, Team YTQKP2V2A8; not ad hoc",
+    "codesign": "deep strict verification passed",
+    "build_logs": [
+      "build/rfc0013-resume-20260919/r18-release-configure.log",
+      "build/rfc0013-resume-20260919/r18-final-release-build.log"
+    ]
+  },
+  "diagnosis": {
+    "rejected_revision": "rfc0013-r17-7b591faa-ad50fe5d",
+    "owner_verdicts": {
+      "selected_diff": "reject",
+      "loading": "reject",
+      "device_relaunch": "accept, bound to r17"
+    },
+    "cache": "Fixed diagnostics show cache_open/cache/invalid_manifest and revision_prepare/repair_required before Git acquisition. Mac mount device number changed while lock inode, exact authority, private topology and config remained valid. Target cache had zero objects, refs and epochs. No private object/path/source is retained here.",
+    "cache_repair": "New Mac manifest identity uses filesystem volume UUID plus held lock inode. A closed pristine legacy cache with exact authority, same inode and changed mount number is preserved under no-replace rename and initialized afresh. Populated, unknown, substituted or cancelled caches refuse without adoption or deletion.",
+    "cli": "Installed gh 2.101.0 passed discovery but object acquisition allowed only 2.100.0. The exact allowlist now admits directly checked 2.101.0 with unchanged Apple Git 2.50.1 (Apple Git-155), sandbox, budgets and source/authority guards.",
+    "participants": "Owner attachment showed rows compressed below text height. Rows now measure and paint the same wrapped login/metadata layout in a scrolling sidebar.",
+    "updates": "Empty compact Updates now paints and announces actual loading/refusal; an exhausted history cannot mask a later failed setup.",
+    "snapshot_duration": "The observed complete paginated PR snapshot took approximately 80 seconds. No universal or short total network-duration guarantee is made."
+  },
+  "verification": {
+    "implementation_commits": [
+      "cdfcce72",
+      "eecdda2a0128cf092afab86b93c3cf968f0f2f3e"
+    ],
+    "focused": {
+      "revision": "eecdda2a0128cf092afab86b93c3cf968f0f2f3e",
+      "log": "build/rfc0013-resume-20260919/r18-final-focused.log",
+      "result": "5/5 passed, 56.12 seconds",
+      "tests": [
+        "qt_composed_loading_scale_100",
+        "qt_epoch_comparison_scale_100",
+        "qt_pull_request_overview_page",
+        "gh_cli_git_smart_transport",
+        "application_setup_destination_public_path"
+      ]
+    },
+    "integration": {
+      "revision": "cdfcce72",
+      "log": "build/rfc0013-resume-20260919/r18-integration.log",
+      "result": "7/7 passed, 620.73 seconds",
+      "tests": [
+        "core_epoch_policy",
+        "application_epoch_contract",
+        "application_epoch_host",
+        "qt_epoch_comparison_scale_100",
+        "git_cache_contract",
+        "git_sparse_cache_contract",
+        "application_epoch_portable_occurrence_two_catalogues"
+      ],
+      "reuse": "Cache/core/host implementation unchanged by later CLI-version and compact-status slice. Final focused checks rerun both changed adapters and the composed path."
+    },
+    "cache_cases": "Pristine remount positive plus object/ref/unknown entry, authority, lock, volume UUID and cancellation negatives; included in full git_cache_contract. No live cache was altered by diagnostic checks.",
+    "participants": "64 long-name participants; measured row height/non-overlap, larger font, narrow window, last row and action reachable.",
+    "public_path": "The actual installed cache reopens from a synthetic old-mount pristine manifest, then renders exact selected earlier/later text. Synthetic raster inspected: build/rfc0013-resume-20260919/r18-public-rasters/setup-cli-remount-readable.png.",
+    "documentation": "DOCUMENTATION_OK; 64 documentation verifier self-tests passed; touched clang-format and git diff --check passed.",
+    "limits": [
+      "Prior unrelated broad qt_composed_github_scale_100 wrapped-conversation row assertion is not a passing gate and was not rerun.",
+      "Prior Release --self-test stage-0 CLI inventory/probe limitation is not claimed fixed or passing.",
+      "Current tests-disabled bundle has not yet received the owner's exact-target rendering/source/anchor or loading verdict."
+    ]
+  },
+  "live_read_only_prerequisite_probe": {
+    "result": "pass",
+    "installed_cli": "2.101.0",
+    "installed_git": "2.50.1 (Apple Git-155)",
+    "target": "EpicGames/UnrealEngine#1773",
+    "sparse_exact_commits": 2,
+    "verified_utf8_blobs": 2,
+    "selected_contents_differ": true,
+    "viewer_unchanged": true,
+    "configuration_metadata_unchanged": true,
+    "maximum_temporary_store_bytes": 10866649,
+    "private_content_retained": false,
+    "boundary": "Closed exact-commit clone and exact-blob API shapes; gh child filesystem writes denied except owned temporary Git store and /dev/null; explicit HTTPS; no direct helper, credential extraction, account switch or device action. Two temporary stores were outside checkout and removed. No raw child output retained.",
+    "limitation": "Mirrored bounded process probe establishes installed CLI/backend prerequisites, not in-product rendering or closure of the documented CLI trust gaps. The production C++ bridge is separately exercised by local contract/public-path tests.",
+    "cleanup": "Temporary objects and probe script removed; owner app left untouched."
+  },
+  "page": {
+    "mode": "served",
+    "host": "foreground checkout-local loopback host; full token-bearing URL supplied only in current conversation",
+    "watch": "wait --after 416, no timeout, ordinary long-lived command session; coordinator continues intake",
+    "offline": "Not generated from the session containing private owner attachments. The v002 file remains frozen historical evidence."
+  },
+  "candidates": [
+    {
+      "id": "BPR-0794-cli-selected-diff",
+      "revision": "rfc0013-r18-eecdda2a-f6db019a",
+      "fingerprint": "0b62e6e91977cb6d6aafa3b260f84611aff47e7de900db02c13cd08da5ae5306",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-0795-loading-visible",
+      "revision": "rfc0013-r18-eecdda2a-f6db019a",
+      "fingerprint": "e6b6e184a975286faa0767f442a89a915ce37cd5989842d5f283c5e65242d06a",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "preserved_acceptance": {
+    "id": "BPR-0644-device-relaunch-8h",
+    "revision": "rfc0013-r17-7b591faa-ad50fe5d",
+    "fingerprint": "a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb",
+    "outcome": "accept",
+    "saved_at": "2026-09-20T03:52:48.224084+00:00",
+    "not_reinitialized": true
+  },
+  "upkeep": {
+    "engineering_processes": "quiescent at preparation",
+    "review_processes": "foreground host and event watch intentionally active",
+    "owner_application": "Prior owner-launched r17 instance left untouched; reviewer must quit it before opening r18.",
+    "private_artifacts": "Owner attachments remain only in existing ignored attended runtime; not copied to packet, evidence, build logs or checkout HTML.",
+    "unrelated_change": ".mask.lock.json preserved"
+  }
+}
