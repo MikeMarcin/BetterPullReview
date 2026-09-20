@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0940"
+  ],
+  "reserve_for": "rfc0013-r22-composed-legacy-assertions",
+  "purpose": "",
+  "created": "2026-09-20T16:50:14.872471+00:00",
+  "base": "ca000e791ad54aa08f4eeca5bc62cca730be0bf4"
+}
