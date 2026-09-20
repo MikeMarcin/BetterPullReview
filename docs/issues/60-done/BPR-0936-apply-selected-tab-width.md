@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0936"
 title: "Render source tabs at the selected persisted width"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"},"mandate":"r20-usable-review-amendments"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e21476cc","evidence":{"kind":"artifact","detail":"Trace confirms accepted persisted setting was not applied to concrete workbench; apply_code_font_to now called in production composition."}},{"criterion":"AC2","outcome":"pass","revision":"e21476cc","evidence":{"kind":"artifact","detail":"Public Settings course checks 4 then2/8/4 and application recreation across source/detail/unified document tab stops; missing-call negative fails."}},{"criterion":"AC3","outcome":"pass","revision":"e21476cc","evidence":{"kind":"artifact","detail":"Actual QTextLayout cursor advances for1/2/3literal tabs equal selected2/4/8space advances; source text, syntax and mappings unchanged; final public course39.43s passes."}}]
 ---
 
 # Render source tabs at the selected persisted width
