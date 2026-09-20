@@ -191,3 +191,179 @@ evidence. Live private-service/native-vault operation, an actual mounted-image
 installation, Intel execution and a packaged upgrade were not performed here.
 No attended or independent acceptance is required by milestone 2; none is claimed.
 No release publication, developer-app replacement or live mutation occurred.
+
+## Milestone 3 implementation and pending qualification
+
+Run `rfc0035-20260920`, segment `m3-implementation`, mandate revision `r1`.
+Assigned scope: `m3-install-recovery` / [[BPR-0948]], sole engineering/bookkeeping
+writer `/root/rfc0035_m3`, on `main`. Initial HEAD was
+`f39850514b5449471fbff11b20a4998cad2560e5`; claim was
+`5ca786979432273b56303c1a7d11d66b3b363dc4`. Source candidate:
+`d1e0f46c77b02c07e6ca9ebc4d87f964f94035d3` (49 explicit paths).
+The unchanged authored plan and original M3 obligation binding remain in
+`build/rfc0035-run/m3-checkpoint.json`. Prior milestone acceptance is unchanged.
+
+This is partial evidence, **not M3 acceptance**. The native installer capability
+is unselected, so production Install and Restart remains disabled. No publication,
+notarization submission, credential inspection, live service mutation, forced
+termination or developer-app replacement was performed. The code-simplifier pass
+kept the touched helper's refusal paths explicit; self-review also tightened
+partial cleanup and true process-exit ownership. No independent review or human
+acceptance is claimed.
+
+### Direct behavior and limits
+
+The public Qt composition exercises the existing menu and General Settings,
+preferences/restart/daily checks, staging, revocation and manual fallback. An
+injected installer extends that public path through exact refreshed-candidate
+handoff and truthful recovered status. This proves composition, not native trust.
+Two actual desktop windows save different inline editor text through
+`quit_for_update`, drain orderly and expose both saved records in the read-only
+recovery dialog. Obstructing the recovery database forces save refusal and leaves
+the windows usable. SQLite tests prove append-only/deduplicated versions,
+indeterminate markers, restart, aggregate/per-field limits, atomic refusal and
+foreign/symlink refusal. The recovered text grants no publication authority.
+No native active-publication course is inferred from these text/store fixtures.
+
+The real filesystem transaction course uses fake trust/launch effects around the
+production journal/lease engine. It covers all durable prepare/rename/launch/
+receipt/rollback boundaries, wrong version/transaction, changed staged tree,
+failed launch, false or missing flush acknowledgment, and retained external state.
+Actual child processes hold kernel leases, exit cooperatively or exit without an
+acknowledgment, and prove that process disappearance alone cannot authorize a
+swap. A separate case destroys its lease object after acknowledgment but retains
+native locks until OS exit; the parent cannot replace during that interval.
+No signal or PID-reuse inference grants ownership. Helper timeout is covered as
+a typed host refusal, not claimed as an observed 30-second native helper course.
+
+Matching startup receipt is required before backup deletion. Cleanup first writes
+a durable inode inventory; an injected stop after the first unlink resumes
+idempotently. An unrecorded file added after that stop is retained, cleanup stays
+recovery-required, and the healthy replacement is not rolled back. Active
+interrupted transactions refuse normal startup until explicit helper `--recover`;
+user-facing recovery launch and a missing-receipt native package course remain
+unqualified. Terminal journals and failed candidate copies are retained; there
+is no age/name sweep. A real power-loss/filesystem-durability experiment was not
+performed.
+
+### Exact signed artifact probe
+
+Input (unchanged from M2):
+`/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/0.1.3/BetterPullReview-0.1.3-macos-universal.zip`,
+SHA-256 `72b71ebd642f83f86ff7ec889bd4e201a0586af40d32d9be9a15201e8d91a4a9`.
+The final disposable root was
+`/private/tmp/bpr-rfc0035-m3-native-final.Vr2dT7`; the earlier probe used
+`/private/tmp/bpr-rfc0035-m3-native.HNgoyF`. The course extracts two copies, uses
+actual native signature/trust validation, copies onto the target volume,
+interrupts after the old-bundle rename, restarts the journal engine and restores
+the exact original content/inode manifest. Native validation passes again.
+No application is launched. Both copies are version 0.1.3; this is rollback
+evidence, **not an older-to-newer upgrade**. The old archive's missing helper is
+explicitly refused as an installer trust source.
+
+Final command:
+
+```sh
+python3 /Users/jaeger/.agents/skills/implement-rfc/scripts/qualification_guard.py \
+  --allowed-root /private/tmp/bpr-rfc0035-m3-native-final.Vr2dT7 \
+  --target-root /private/tmp/bpr-rfc0035-m3-native-final.Vr2dT7 \
+  --live-root /Users/jaeger/Documents/GitHub/BetterPullReview \
+  --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask.json \
+  --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json \
+  --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json \
+  -- python3 -I -S /Users/jaeger/Documents/GitHub/BetterPullReview/scripts/run_network_isolated_test.py \
+  --sandbox-exec /usr/bin/sandbox-exec \
+  --profile-template /Users/jaeger/Documents/GitHub/BetterPullReview/cmake/sandbox/macos-network-deny.sb \
+  --loopback-port-count 0 -- \
+  /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/release_update_transaction \
+  --native-signed-recovery /private/tmp/bpr-rfc0035-m3-native-final.Vr2dT7 \
+  /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/0.1.3/BetterPullReview-0.1.3-macos-universal.zip
+```
+
+Result: child exit 0, `native-signed-recovery:pass;
+upgrade-and-new-helper-receipt:not-qualified`. Guard reports all three selected
+live files byte-identical. This cooperative guard compares those selected files;
+it is not a whole-repository filesystem sandbox. The nested network-denial
+harness grants no network/loopback exception. Final records:
+`build/rfc0035-run/m3-final-signed-guard.json` and
+`build/rfc0035-run/m3-final-signed-native.log`.
+
+### Builds, checks and corrections
+
+- Earliest shortest public path: `ctest --preset dev -R
+  '^application_release_update_public_path$' --output-on-failure`, 1/1 pass.
+- `cmake --preset dev` and focused builds of `test_release_update_core`,
+  `test_release_update_host`, `test_release_update_transaction`,
+  `test_release_update_recovery`, `test_release_update_public_path` and
+  `tool_bpr_update_helper`: pass. Final corrections are in
+  `m3-self-review-build.log` and `m3-lifetime-build.log` under the run directory.
+- `ctest --preset dev -R '^(core_release_update|application_release_update|release_update_transport_contract|release_update_native_https|release_update_native_staging|release_update_transaction|release_update_recovery|application_release_update_public_path)$' --output-on-failure`:
+  8/8 pass; `build/rfc0035-run/m3-integration-tests.log`. Unchanged M2 native
+  transport/staging checks are included once at this integration boundary.
+- `cmake --preset core-only`, focused core/host build and
+  `ctest --preset core-only -R '^(core_release_update|application_release_update)$' --output-on-failure`:
+  2/2 pass; `m3-core-final-build.log` and `m3-core-final-tests.log`.
+- `cmake --preset app-release -DBPR_MACOS_CODESIGN_IDENTITY=-` and
+  `cmake --build --preset app-release --target app_better_pull_review`: pass with
+  tests disabled; final output `m3-production-final-build.log`. This local
+  Apple Silicon build is ad-hoc signed, not notarized or universal release
+  evidence. Helper SHA-256:
+  `af355133d5b470ace4af4387b0580acc777e14dad412e4b9e42243708133707f`;
+  main executable SHA-256:
+  `806ba04fe243589d2276aee9e6db40b7d42b4d5e5fcfac74ab385020382b4415`.
+  The built helper runs under an empty environment and returns expected exit 1
+  for recovery from its ad-hoc trust source, without mutating the target.
+- `python3 tests/scripts/architecture_boundary_tests.py`: 139 pass;
+  `python3 tests/scripts/core_boundary_tests.py`: 4 pass. The exact helper spawn
+  owner is allowed and a neighboring source is refused. Both CMake boundary
+  scans pass on a clean Git export of `d1e0f46c` at
+  `/private/tmp/bpr-rfc0035-m3-export.OmYiXQ`. Outputs are
+  `m3-exact-architecture.log` and `m3-exact-core-boundary.log`. The ordinary
+  checkout's previously observed unrelated nested Claude worktree interference
+  is unchanged; that worktree was neither edited nor removed.
+- Canonical clang-format 23.1.1: 29 selected files plus changed ranges in nine
+  existing large files pass. `m3-format.log` records the full-file check.
+  Canonical clang-tidy passes 11 complete selected translation units
+  (`m3-tidy.log`); ten composition/Qt/adapter units pass with host SDK arguments
+  and changed-line filtering (`m3-changed-surface-tidy.log`). Existing
+  full-header `home_view_state.hpp:35` signed-bitwise evidence from M2 is
+  retained; this is not a whole-repository tidy pass.
+- `python3 scripts/verify_documentation.py --root .`: `DOCUMENTATION_OK`;
+  `python3 tests/scripts/verify_documentation_tests.py`: 64 pass, including
+  expected negative-fixture diagnostics. Scoped RFC board validation and
+  `git diff --check` pass. Logs: `m3-documentation.log` and
+  `m3-documentation-tests.log`. Live rebinding confirms the original M3
+  definition, obligation and prerequisite fingerprints are unchanged.
+
+Initial build errors (shadowed captures and optional-root unwrapping) were fixed
+before tests were used as evidence. The first two-window barrier check exposed
+that appearance `is_quiescent()` requires Closing and is not a pre-quit durability
+test; explicit durable-state queries fixed that refusal. Lazily unloaded
+preferences no longer cause false refusal. Temporary diagnostics were removed.
+The actual release artifact exposed a development-only executable-name assumption,
+corrected to `Contents/MacOS/BetterPullReview` before the native rollback probe.
+Final self-review added authority-transfer semantics, partial-cleanup recovery and
+OS-exit lock retention with their regression cases. Earlier stale-binary test
+runs after failed builds are not credited to corrected source. Build logs retain
+existing unrelated CMake warnings. A first board dry run used symbolic `blocked`
+instead of the required `50-blocked` lane and refused without a write.
+
+The required complete signed course remains blocked: an authorized participating
+baseline and newer signed/notarized target containing this exact helper and
+startup protocol are unavailable. Neither the old 0.1.3 archive nor an ad-hoc
+development build can satisfy it. Continue M3 with disposable roots, retained
+draft/publication state and exact source/artifact identities; establish native
+timeout, restart receipt, recovery and cleanup before selecting the production
+installer. Do not promote M4 or infer RFC AC-05/06/07 acceptance. Intel execution,
+live private-service/vault operation and package/security closeout remain open.
+
+### Ownership and cleanup
+
+Self-review and all independent local engineering/checks are complete for this
+candidate; native acceptance remains pending. All task-owned command sessions and
+peer/helper processes are joined. No attended session, review server or protected
+candidate exists. The two disposable native roots and exact source export named
+above were moved to `/Users/jaeger/.Trash/` (recoverable); shared build outputs and
+run evidence remain. The user's `.mask.lock.json` modification and nested Claude
+worktree were preserved. [[BPR-0948]] is Blocked with its full obligations intact;
+[[BPR-0949]] stays dependent. [[BPR-0912]] is the durable continuation checkpoint.

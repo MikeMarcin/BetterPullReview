@@ -24,6 +24,79 @@ Planned cards: BPR-0911, BPR-0912, BPR-0946, BPR-0947, BPR-0948, BPR-0949.
 
 ## Current engineering checkpoint
 
+Run `rfc0035-20260920`, segment `m3-implementation`, mandate revision `r1`
+(implement RFC-BPR-0035; no amendments). Child `/root/rfc0035_m3` owns only
+`m3-install-recovery` / [[BPR-0948]] as the sole engineering/bookkeeping writer
+on `main`. Initial HEAD: `f39850514b5449471fbff11b20a4998cad2560e5`;
+claim: `5ca786979432273b56303c1a7d11d66b3b363dc4`. The unchanged authored plan
+is bound in `build/rfc0035-run/m3-checkpoint.json`; prior accepted source and
+evidence are retained below. The unrelated `.mask.lock.json` and nested Claude
+worktree are preserved. Local source/build/test and disposable signed artifacts
+are authorized; no live-service mutation, credential inspection, release
+publication, forced process termination or developer-app replacement is allowed.
+
+Source candidate: `d1e0f46c77b02c07e6ca9ebc4d87f964f94035d3`.
+This commit implements the dormant installer/helper, exact refreshed-candidate
+handoff, inode-bound installation/process leases, same-volume journaled
+replacement/rollback and matching startup receipt. Draft snapshots use a bounded
+append-only private store and read-only recovery presentation. Desktop shutdown
+freezes admission, saves every profile's text and waits for existing lifecycle
+drains. Native startup joins before profile stores and waits for readiness before
+its receipt. Kernel lifetime locks survive desktop destruction until process exit.
+Backup cleanup uses a durable per-inode inventory and survives partial deletion
+without deleting foreign additions.
+
+Changed paths are the core/application release-update pairs and ports; native
+update transaction/helper; private SQLite/Qt recovery adapters; desktop/lifetime
+composition and durability queries; associated CMake files, tests, exact spawn
+owner gate and component/system/package notes. Exact inventory:
+`git diff --name-only 5ca786979432273b56303c1a7d11d66b3b363dc4 d1e0f46c77b02c07e6ca9ebc4d87f964f94035d3`.
+The card, this checkpoint and verification ledger contain the pending-state
+bookkeeping; the runtime observation binds final HEAD without changing the plan.
+
+Verification: shortest public path 1/1; final eight-row dev integration 8/8;
+core-only focused 2/2; tests-disabled application/helper build; actual cooperating
+peer process and full journal-boundary fixtures; private draft-store and two-window
+preservation/refusal course; 139 architecture and four core-boundary contract cases;
+clean exact-candidate architecture/core scans; 29-file and nine changed-range format
+checks; 11 full-TU and ten changed-surface tidy checks. The final genuine signed
+0.1.3 rollback probe passes under network denial and a disposable-root guard with
+all three selected live files unchanged. It launches no application and is not an
+upgrade. Exact commands, source/artifact hashes, initial failures/corrections,
+logs and preexisting environmental scanner/tidy limits are retained in the
+[verification ledger](../../verification/RFC-BPR-0035.md).
+The documentation gate, 64 documentation tests, scoped board validation and
+whitespace check pass; live plan rebinding retains the original fingerprints.
+
+[[BPR-0948]] is Blocked on `signed-helper-upgrade-qualification`, not Done;
+all native acceptance and the milestone exit remain pending. The notarized 0.1.3
+ZIP predates the helper/receipt protocol. The current tests-disabled build is
+ad-hoc signed and cannot bootstrap production trust. No existing artifact proves
+the signed older-to-newer helper/startup/draft-retention/timeout course. Production
+composition intentionally leaves the installer unselected. Explicit helper
+recovery exists; native missing-receipt behavior and the user-facing recovery
+launch course are still unqualified. No independent or attended acceptance is
+claimed; there is no session, review server or protected candidate.
+
+All source/test commands are joined and no task-owned process, installation or
+product writer remains after handoff. The two native probe roots and clean source
+export (`bpr-rfc0035-m3-native.HNgoyF`,
+`bpr-rfc0035-m3-native-final.Vr2dT7`, `bpr-rfc0035-m3-export.OmYiXQ`) were moved to
+`/Users/jaeger/.Trash/` and remain recoverable. Shared build trees and runtime
+evidence under `build/rfc0035-run/` are retained. No developer app was replaced.
+Final observation: `build/rfc0035-run/m3-observation.json` against the unchanged
+M3 binding, with pending obligations and `wait` continuation.
+
+Next action: obtain an authorized participating signed/notarized baseline and
+newer candidate containing this helper/startup protocol, then continue **M3** on
+disposable roots through native shutdown, retained state, exact startup receipt,
+timeout, rollback and cleanup. Qualification must precede installer enablement.
+The coordinator must not promote dependent [[BPR-0949]] or start M4 from these
+partial results. Artifact production requiring credentials, notarization or live
+publication needs its own authorization. Prior accepted M1/M2 evidence follows.
+
+### Prior accepted milestone 2 checkpoint
+
 Run `rfc0035-20260920`, segment `m2-implementation`, mandate revision `r1`
 (implement RFC-BPR-0035; no amendments). Child `/root/rfc0035_m2` owned the sole
 milestone-2 engineering and bookkeeping scope on `main`, starting from
@@ -148,10 +221,10 @@ Milestone 1 requires no attended or independent acceptance; it enables no update
 | AC-01: Manual and daily automatic checks, Later, Skip This Version and persisted preferences work through the shipped UI; managed and disabled installations make no automatic requests. | Composed menu/Settings, manual-clock scheduling, restart and managed-policy fixtures | Real desktop/Settings and injected-capability course, SQLite restart and automatic/manual policy pass; packaged upgrade observation remains M4 | `54535c1e` (composition) |
 | AC-02: Only a strictly newer stable release with one exact compatible asset is offered; malformed versions, drafts, prereleases, duplicate assets and stale completions are refused. | Core version/selection tables and out-of-order host completions | Core, host, adapter and menu-to-offer fixture composition pass | `42a85cf7`, `54535c1e` |
 | AC-03: Private release access uses an explicitly selected GitHub.com authority; revocation cancels work, credentials never cross redirect origins, and inaccessible releases are not reported as up to date. | Private-release fixture, sign-out/account replacement, redirect and secret-canary tests | Native release-only factory, Qt choice/revocation and 24 TLS scenarios pass; no live private-service or actual vault-credential observation | `54535c1e` (fixture transport) |
-| AC-04: Downloads and staging enforce declared bounds and reject wrong identity, version, architecture, signer, digest, unsafe archive entries and changed staged candidates before replacement. | Adapter failure fixtures plus native signed-bundle validation on disposable artifacts | Actual streaming, 17 archive refusals, genuine signed universal bundle/trust and changed-tree revalidation pass on arm64; immediately-before-replacement integration remains M3 | `54535c1e` (native staging) |
-| AC-05: Installation quiesces every window and process using the target, preserves drafts and pending publication reconciliation, and refuses timeout without forced termination. | Composed multi-window shutdown, flush failure, active publication, competing-process and timeout course | Not run; proposal only | None |
-| AC-06: Interrupted replacement and failed relaunch retain a recoverable old application; success requires a matching new-process receipt, and cleanup touches only transaction-owned resources. | Native disposable-install fault injection at each journal boundary, restart, rollback and cleanup course | Not run; proposal only | None |
-| AC-07: The packaged macOS update path upgrades an older signed version to the offered signed version, relaunches with retained user state, and reports truthful progress and terminal status. | Target-native packaged upgrade on Apple Silicon and Intel, with exact artifact digests and observed UI | Not run; proposal only | None |
+| AC-04: Downloads and staging enforce declared bounds and reject wrong identity, version, architecture, signer, digest, unsafe archive entries and changed staged candidates before replacement. | Adapter failure fixtures plus native signed-bundle validation on disposable artifacts | Actual streaming, 17 archive refusals, genuine signed universal bundle/trust and changed-tree revalidation pass on arm64; M3 signed rollback probe revalidates before rename, while complete signed upgrade remains pending | `54535c1e`, `d1e0f46c` (bounded native probes) |
+| AC-05: Installation quiesces every window and process using the target, preserves drafts and pending publication reconciliation, and refuses timeout without forced termination. | Composed multi-window shutdown, flush failure, active publication, competing-process and timeout course | Two-window draft/save refusal and actual cooperative peer/lifetime course pass; signed shutdown, native active-publication and real helper timeout remain pending | `d1e0f46c` (partial) |
+| AC-06: Interrupted replacement and failed relaunch retain a recoverable old application; success requires a matching new-process receipt, and cleanup touches only transaction-owned resources. | Native disposable-install fault injection at each journal boundary, restart, rollback and cleanup course | Journal-boundary/exact-receipt/partial-cleanup fixtures and genuine signed rollback pass; native new-process receipt/recovery course remains pending | `d1e0f46c` (partial) |
+| AC-07: The packaged macOS update path upgrades an older signed version to the offered signed version, relaunches with retained user state, and reports truthful progress and terminal status. | Target-native packaged upgrade on Apple Silicon and Intel, with exact artifact digests and observed UI | No signed older-to-newer upgrade; unavailable new-protocol artifacts block M3 enablement and M4 | None (native qualification) |
 | AC-08: Core, host, Qt and platform boundaries hold; unsupported platforms and managed packages expose truthful manual fallback; release and security documentation describe the shipped authority and network paths. | Architecture/composition cuts, unsupported capability fixtures, package inspection and documentation gates | Exact-candidate boundaries, UI fallback and native eligibility pass; component/security-path docs current; install package inspection and release-operator docs remain M4 | `54535c1e` (bounded composition) |
 
 ## Completion rules
