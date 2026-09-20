@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0937"
 title: "Measure and reduce redundant CLI connection work safely"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
