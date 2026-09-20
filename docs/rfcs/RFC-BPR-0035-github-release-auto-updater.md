@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0014"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0035: GitHub Release Auto-Updater
@@ -17,6 +18,12 @@ with AllTheThings as implementation inspiration. This is a design and backlog
 registration only. Implementation is [[BPR-0911]]; verification and closeout are
 [[BPR-0912]]. Registration baseline: `1b4c24154bd1d4f1d4bea3d84c593e2fb4c3d47f`.
 No updater is enabled by this RFC's registration.
+
+Implementation mandate, 2026-09-20: implement this RFC through its four authored
+milestones, now tracked by [[BPR-0946]] through [[BPR-0949]]. Local implementation
+and disposable verification are authorized; live private-service access, release
+publication and replacement of the developer's running application are not.
+The RFC stays Proposed until its acceptance and canonical dependencies close.
 
 The first implementation targets the existing signed, notarized macOS universal
 release. Windows and Linux expose manual update guidance until separately scoped

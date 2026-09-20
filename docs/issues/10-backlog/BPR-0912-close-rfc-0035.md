@@ -7,19 +7,36 @@ rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0911"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0035"]
+metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0035
 
 ## Scope and continuation
 
-[RFC-BPR-0035](../../rfcs/RFC-BPR-0035-github-release-auto-updater.md) is registered only.
-Next: await an implementation request, then split [[BPR-0911]] by the authored
-milestones. No runtime evidence exists and no updater is enabled.
+[RFC-BPR-0035](../../rfcs/RFC-BPR-0035-github-release-auto-updater.md) implementation
+was requested on 2026-09-20. The current assignment is milestone 1 only;
+[[BPR-0946]] owns the core and fake-host foundation. No updater is enabled.
 
 RFC base: `1b4c24154bd1d4f1d4bea3d84c593e2fb4c3d47f`.
 
-Planned cards: BPR-0911, BPR-0912; append later allocated implementation slices.
+Planned cards: BPR-0911, BPR-0912, BPR-0946, BPR-0947, BPR-0948, BPR-0949.
+
+## Current engineering checkpoint
+
+Run `rfc0035-20260920`, segment `m1-implementation`, mandate revision `r1`
+(implement RFC-BPR-0035; no amendments). Child `/root/rfc0035_m1` is the sole
+milestone-1 repository writer on `main`. Initial HEAD:
+`d06b6fb0272ce53bf452d87322c957f11f0f6cb1`; worktree was clean.
+Selected strategy is `coordinator-implementer` revision 2; resolved snapshot:
+`build/rfc0035-run/execution-strategy.json`. The installed workflow preflight
+failed because it invoked obsolete `mask ensure`; the host exposes the assigned
+native `rfc-implementer` role. This is a tooling observation, not acceptance.
+
+Allocation reserved BPR-0946 through BPR-0949 for the four authored milestones.
+Next: adopt/bind the plan, claim BPR-0946, implement and exercise its public host
+with fake ports. No background commands, live mutations or protected updater
+candidates exist. Milestones 2–4 and all full RFC acceptance remain pending.
 
 ## Closeout checklist
 

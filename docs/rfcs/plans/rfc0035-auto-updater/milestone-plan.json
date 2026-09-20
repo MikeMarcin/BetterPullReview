@@ -1,0 +1,92 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc0035-auto-updater",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0035"
+    ],
+    "issues": [
+      "BPR-0911",
+      "BPR-0912",
+      "BPR-0946",
+      "BPR-0947",
+      "BPR-0948",
+      "BPR-0949"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "m1-core-contract",
+      "outcome": "Bind the release/auth/version/asset contract and implement core policy with fake host ports, including failures and stale completion rejection.",
+      "work": [
+        {
+          "issue": "BPR-0946"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Fixed distribution, native release-access authority, version grammar, exact asset identity, bounds and redirect contract are documented and represented by narrow contracts.",
+        "Core version, selection, scheduling, command and stale-identity rules pass deterministic failure and boundary tables.",
+        "The public application host composes fake release/download/verification ports through accepted projection, cancellation and shutdown; removing its release capability prevents an offer.",
+        "Focused core-only and architecture checks pass, card acceptance and semantic documentation are current, and task-owned commands are quiescent."
+      ],
+      "boundary": "Hand back the accepted component foundation; no production updater or native install claim."
+    },
+    {
+      "id": "m2-download-staging",
+      "outcome": "Compose real check/download controls, native private-asset transport and signed macOS staging. Demonstrate the menu-to-host-to-projection path with fixtures.",
+      "work": [
+        {
+          "issue": "BPR-0947"
+        }
+      ],
+      "depends_on": [
+        "m1-core-contract"
+      ],
+      "exit_criteria": [
+        "Real UI, persistence, authority, private transport, redirect containment and signed staging pass the bounded fixture/public-path course with native limits recorded."
+      ],
+      "boundary": "Verified staging is available; replacement remains gated on milestone 3 qualification."
+    },
+    {
+      "id": "m3-install-recovery",
+      "outcome": "Add the signed helper, shutdown barrier, journal, recovery and relaunch receipt; qualify on disposable signed installations before enabling production packages.",
+      "work": [
+        {
+          "issue": "BPR-0948"
+        }
+      ],
+      "depends_on": [
+        "m2-download-staging"
+      ],
+      "exit_criteria": [
+        "Disposable signed installs prove cooperative shutdown, crash recovery, retained state, exact startup receipt and transaction-owned cleanup before production enablement."
+      ],
+      "boundary": "Return exact qualified package and failure evidence; unavailable native acceptance stays pending."
+    },
+    {
+      "id": "m4-native-closeout",
+      "outcome": "Record native upgrade evidence, package/security documentation and dependency-ordered closeout. Windows/Linux implementation remains a separate future scope.",
+      "work": [
+        {
+          "issue": "BPR-0949"
+        },
+        {
+          "issue": "BPR-0911"
+        },
+        {
+          "issue": "BPR-0912"
+        }
+      ],
+      "depends_on": [
+        "m3-install-recovery"
+      ],
+      "exit_criteria": [
+        "All RFC acceptance has exact native/public-path evidence and documentation; implementation cards are complete and canonical RFC dependency order permits closeout."
+      ],
+      "boundary": "Close only accepted, dependency-eligible scope; retain every unavailable external/native/human obligation."
+    }
+  ],
+  "unplanned_work": []
+}
