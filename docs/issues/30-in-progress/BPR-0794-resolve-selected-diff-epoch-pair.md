@@ -22,8 +22,8 @@ Mandate r15 chooses bounded on-demand selected diffs: acquire only exact current
 selected-file objects needed for an immediate comparison and defer older-epoch
 comparison objects until that epoch is selected. Lazy historical loading alone
 cannot repair the current missing exact pair. The small-versus-large loading
-policy from mandate r16 is tracked separately in BPR-0795; it does not replace
-this card's readable selected-diff criterion.
+policy from mandate r16 is tracked separately in BPR-0795. The 2026-09-20
+owner amendment below supersedes this card's remaining exact-target criterion.
 
 ## Acceptance
 
@@ -37,17 +37,31 @@ this card's readable selected-diff criterion.
   positive and negative checks must cover the failure and stale selection.
 - Focused core, host or Qt checks selected by the repair, a composed public-path
   check, documentation gate and one integration-focused check pass.
-- A tests-disabled Mac application read through the already opted-in CLI
-  profile shows the correct file list **and a readable selected diff** for the
-  exact target, with source/anchor identity checked against the accepted epoch
-  pair. A remaining explicit refusal is recorded honestly and leaves this
-  acceptance open.
+- Owner-amended AC4, 2026-09-20: retain the observed real-target loading and
+  the independent signed, tests-disabled safe production-path source/anchor
+  proof. Record the diagnosed exact-target comparison-basis/refusal anomaly
+  and defer it to BPR-0944, including useful available-right rendering and a
+  left-pane missing-earlier explanation. No repeat target read or owner retest
+  is required for this card; the anomaly itself is not accepted as fixed.
 - No live pull request write, global `gh` account change, credential extraction
   or transfer, device-session change, or private content in the checkout occurs.
 
 ## Evidence
 
-### Current r23 exact-material follow-up
+### Owner acceptance amendment — 2026-09-20
+
+The owner explicitly requested that the remaining unusual-target issue be
+filed for later investigation and that RFC-0013 work move on. This changes
+AC4's acceptance requirement; it is not a new successful source/anchor
+observation. The previous requirement for an exact-target readable comparison
+and checked source/anchor identity remained pending at `a9492592`, and the
+[r23 record](../../verification/rfc-bpr-0013-selected-material-20260920.md)
+retains that failure boundary. BPR-0944 now owns comparison semantics,
+preserving the available right file and placing the refusal in the left pane.
+The other four criteria and all historical attended decisions remain intact.
+Canonical RFC status and the broader closeout matrix are separate gates.
+
+### Historical r23 exact-material follow-up
 
 The [r23 evidence](../../verification/rfc-bpr-0013-selected-material-20260920.md)
 closes BPR-0941..0943 independently: neutral filenames and semantic details,
@@ -58,7 +72,7 @@ original readable-source criterion remains open for that refusal. BPR-0944
 tracks the separate comparison-basis decision. No further owner loading test or
 attended discovery candidate is requested.
 
-### Current owner observation and r20 amendments
+### Historical owner observation and r20 amendments
 
 The owner independently confirms repaired signed r21 loads a rendered file diff
 for the exact real target. This supersedes the earlier locked-Mac loading

@@ -17,8 +17,9 @@ milestone: opening any pull request should transition promptly to a visible
 loading state. Small pull requests should continue loading their complete Git
 comparison asynchronously in the background. Only pull requests classified as
 large from bounded accepted snapshot facts may defer selected-file or older-epoch
-objects until the user requests them. This companion work preserves BPR-0794's
-exact-target selected-diff acceptance.
+objects until the user requests them. The shared exact-target acceptance is
+amended by the owner's 2026-09-20 deferral below; the loading and size-policy
+criteria remain unchanged.
 
 ## Acceptance
 
@@ -42,7 +43,22 @@ exact-target selected-diff acceptance.
 
 ## Evidence
 
-### Current r23 exact-material follow-up
+### Owner acceptance amendment — 2026-09-20
+
+The owner explicitly asked to defer the remaining unusual-target comparison
+anomaly and move on from RFC-0013 work. Shared milestone exit 4 now accepts the
+retained real-target loading observation, independent signed safe source/anchor
+proof and explicit BPR-0944 deferral; it no longer requires another private-target
+read or owner retest. BPR-0944 includes preserving the available right file,
+moving the missing-earlier explanation into the left pane, and deciding the
+comparison basis. The anomaly remains unresolved, not marked fixed.
+
+The previous pending private-target criterion at `a9492592` remains historical
+in the [r23 record](../../verification/rfc-bpr-0013-selected-material-20260920.md).
+The four automated criteria and the earlier owner approval of prompt loading
+are unchanged. This amendment is separate from the broader RFC closeout gates.
+
+### Historical r23 exact-material follow-up
 
 The [r23 evidence](../../verification/rfc-bpr-0013-selected-material-20260920.md)
 closes BPR-0941..0943 independently: neutral filenames and semantic details,
@@ -53,7 +69,7 @@ original readable-source criterion remains open for that refusal. BPR-0944
 tracks the separate comparison-basis decision. No further owner loading test or
 attended discovery candidate is requested.
 
-### Current owner observation and r20 amendments
+### Historical owner observation and r20 amendments
 
 The owner independently confirms repaired signed r21 loads a rendered file diff
 for the exact real target. This supersedes the earlier locked-Mac loading
