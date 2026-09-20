@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"The recorded held-provider public composition and loading-paint course is part of the prepared candidate's 13/13 passing focused set. build/r2-logs/dsp3-bundle-focused-ctest.log explicitly binds source 94f6f8859993be4fea63c52855bab4f0144b185e; the result is not a live-target latency observation."}},{"criterion":"AC2","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Retained source-bound core/host checks cover the over-100-file or reported-commit policy, absent/conflicting shape and stale identity. The focused source-bound log passes 13/13; no claim is transferred to later source revisions."}},{"criterion":"AC3","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Retained focused host/Qt checks cover small complete acquisition, large selected-file acquisition and exact historical occurrence import, including stale selection and durable-completion races. The source-bound portable two-catalogue public course passed 1/1 in 219.66 s in build/r2-logs/dsp3-bundle-portable-ctest.log."}},{"criterion":"AC4","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Inspected focused and integration logs pass at the frozen source; prior documentation/format evidence is retained on the card. Resume checks preserve the exact signed tests-disabled Release bundle and page. No live PR write, account change, token extraction or private-content retention occurred in this resume."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c remains sequence 389 with BPR-0795-loading-visible ready, protected and decision=null. The existing packet's person-observable loading question remains open. This preserves the previously selected milestone exit and adds no new human criterion to the four automated card bullets."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Dedicated qt_composed_loading_scale_100 passes held-provider paint, cancellation and Home-refusal assertions. Actual tests-disabled synthetic UI visibly shows PR loading and selected comparison loading before Diff ready."}},{"criterion":"AC2","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Current focused core_epoch_policy and application_epoch_host pass bounded small/large shape classification, missing/conflicting facts, exact authority and stale selection checks."}},{"criterion":"AC3","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Current focused epoch/transport/cache/storage checks and portable two-catalogue course pass exact current and historical acquisition and small-complete/large-lazy boundaries; integration took 228.69 s."}},{"criterion":"AC4","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"15 focused passes plus dedicated Qt loading pass, portable integration, documentation gate, 64 documentation tests and formatting pass. Wider Qt layout and Release stage-0 self-test failures remain explicit in v002 session-identity.json. No live write, explicit account mutation, token extraction or private-content capture. Ambient inspector auto-relaunch caveat is recorded."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"New r17 loading candidate is ready/protected with no decision at session sequence 404. The actual synthetic Release course is not the owner's prompt-loading observation for the retained large target. No new human criterion is added to the four automated card bullets."}}]
+parked_on: "human-review"
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
@@ -145,3 +146,23 @@ fresh composed GitHub.com CLI/native refusal-retention coverage. Fixture success
 does not answer the owner's large-target loading or readable-diff criteria.
 The replacement presentation must be the actual offline attended HTML, not only
 the earlier Markdown operator packet.
+
+## Prepared current candidate — `7b591faa`
+
+The [current offline review page](../../verification/reviews/rfc-bpr-0013-attended-v002/offline-package/index.html)
+binds revision `rfc0013-r17-7b591faa-ad50fe5d` at sequence 404. The same new
+tests-disabled bundle as BPR-0794 visibly showed PR loading, selected-file loading
+and Diff ready in an actual synthetic CLI product run. The owner has not judged
+the large private target's loading; this item stays independent of readable-diff
+acceptance and the separate eight-hour device-session follow-up.
+
+Current focused core/host, exact/sparse cache, transport, storage, setup and epoch
+Qt checks pass. The dedicated `qt_composed_loading_scale_100` passes the held-read
+paint, cancellation and Home-refusal assertions. The portable two-catalogue course
+passes in 228.69 seconds. The older broad Qt suite still has an unrelated wrapped
+conversation-row layout failure, and the Release self-test retains its stage-0
+CLI inventory failure; neither is represented as passing. See
+[the evidence identity](../../verification/reviews/rfc-bpr-0013-attended-v002/session-identity.json)
+for the complete bounded results, verified executable digest, launch caveat and
+cleanup. No fresh private-target latency or historical-content observation is
+inferred from the synthetic course.
