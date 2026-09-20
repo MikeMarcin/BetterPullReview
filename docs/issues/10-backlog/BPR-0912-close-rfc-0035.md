@@ -39,7 +39,9 @@ Engineering commits: `5ed24a8c` (composition/transport/staging), `1f229029`
 (exact signing-effect owner) and `54535c1e` (writable mounted-image refusal).
 BPR-0947's four acceptance criteria and the milestone exit pass; the completed
 card and [verification ledger](../../verification/RFC-BPR-0035.md) retain the
-evidence. Runtime acceptance and final machine observation are
+evidence. Acceptance/upkeep commit: `ec3552df09267c435e55bdb3adab07b141c74623`.
+BPR-0947 is Done; BPR-0948 is promoted to Ready without being claimed.
+Runtime acceptance and final machine observation are
 `build/rfc0035-run/m2-acceptance.json` and
 `build/rfc0035-run/m2-observation.json`, against the original m2 binding.
 
