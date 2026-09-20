@@ -154,7 +154,9 @@ exceptions become typed failures. The absent installer remains explicitly disabl
 including when native validation reaches `ready`. `BPRManagedUpdates=true` in
 the application preference domain supplies the macOS managed-policy refusal.
 Read-only volumes (including mounted read-only disk images), App Translocation,
-untrusted installations and Windows/Linux receive manual fallback. Automated
+untrusted installations and Windows/Linux receive manual fallback. Writable disk
+images are identified by exact device in the bounded native `hdiutil info -plist`
+inventory; malformed or unavailable inventory refuses eligibility. Automated
 application fixtures force an unavailable native production composition; the
 explicit fixture composition supplies fake capabilities and cannot use live
 release transport or a system browser.

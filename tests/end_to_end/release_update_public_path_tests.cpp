@@ -186,7 +186,7 @@ namespace {
 	{
 		const auto binding = std::string(64U, 'a');
 		for (const auto capability : { core::release_update_capability::managed, core::release_update_capability::unsupported_platform,
-									   core::release_update_capability::untrusted_installation, core::release_update_capability::read_only, core::release_update_capability::translocated }) {
+									   core::release_update_capability::untrusted_installation, core::release_update_capability::read_only, core::release_update_capability::translocated, core::release_update_capability::mounted_image }) {
 			QTemporaryDir                        temporary;
 			const auto                           store = adapters::sqlite::make_release_update_store(root(temporary));
 			application::release_update_settings initial;

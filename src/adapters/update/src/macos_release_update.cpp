@@ -1,4 +1,5 @@
 #include "bpr/adapters/update/release_update_staging.hpp"
+#include "macos_release_update_mounts.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
@@ -418,7 +419,7 @@ namespace bpr::adapters::update {
 			}
 			return reason::none;
 		}
-		auto tool(const QString& aExecutable, const QStringList& aArguments, std::stop_token aStop, deadline aDeadline) -> reason
+		auto tool(const QString& aExecutable, const QStringList& aArguments, std::stop_token aStop, deadline aDeadline, QByteArray* aOutput = nullptr) -> reason
 		{
 			if (const auto stop = interrupted(aStop, aDeadline); stop != reason::none) {
 				return stop;
@@ -432,21 +433,28 @@ namespace bpr::adapters::update {
 			if (!process.waitForStarted(3000)) {
 				return reason::unavailable;
 			}
-			std::uint64_t bytes  = 0;
-			reason        result = reason::none;
-			while (process.state() != QProcess::NotRunning) {
-				static_cast<void>(process.waitForFinished(20));
-				bytes += static_cast<std::uint64_t>(process.readAllStandardOutput().size() + process.readAllStandardError().size());
-				result = interrupted(aStop, aDeadline);
+			std::uint64_t bytes   = 0;
+			reason        result  = reason::none;
+			auto          consume = [&] {
+				const auto output = process.readAllStandardOutput();
+				bytes += static_cast<std::uint64_t>(output.size() + process.readAllStandardError().size());
 				if (bytes > 65536U) {
 					result = reason::size_limit;
+				} else if (aOutput) {
+					aOutput->append(output);
 				}
+			};
+			while (process.state() != QProcess::NotRunning) {
+				static_cast<void>(process.waitForFinished(20));
+				result = interrupted(aStop, aDeadline);
+				consume();
 				if (result != reason::none) {
 					process.kill();
 					static_cast<void>(process.waitForFinished(3000));
 					break;
 				}
 			}
+			consume();
 			if (result != reason::none) {
 				return result;
 			}
@@ -783,6 +791,49 @@ namespace bpr::adapters::update {
 		return std::make_shared<macos_staging>(std::move(aPrivateRoot), std::move(aInstalled), aCleanup);
 	}
 
+	auto detail::release_update_volume_is_image(std::string_view aInventory, std::string_view aDevice) -> std::optional<bool>
+	{
+		if (aInventory.empty() || aInventory.size() > 65536U || aDevice.empty()) {
+			return { };
+		}
+		cf_owner<CFDataRef> data;
+		data.Value = CFDataCreate(nullptr, reinterpret_cast<const UInt8*>(aInventory.data()), static_cast<CFIndex>(aInventory.size()));
+		cf_owner<CFPropertyListRef> plist;
+		plist.Value = data.Value ? CFPropertyListCreateWithData(nullptr, data.Value, kCFPropertyListImmutable, nullptr, nullptr) : nullptr;
+		if (!plist.Value || CFGetTypeID(plist.Value) != CFDictionaryGetTypeID()) {
+			return { };
+		}
+		const auto images = CFDictionaryGetValue(static_cast<CFDictionaryRef>(plist.Value), CFSTR("images"));
+		if (!images || CFGetTypeID(images) != CFArrayGetTypeID()) {
+			return { };
+		}
+		const auto list    = static_cast<CFArrayRef>(images);
+		bool       mounted = false;
+		for (CFIndex index = 0; index < CFArrayGetCount(list); ++index) {
+			const auto image = CFArrayGetValueAtIndex(list, index);
+			if (CFGetTypeID(image) != CFDictionaryGetTypeID()) {
+				return { };
+			}
+			const auto entities = CFDictionaryGetValue(static_cast<CFDictionaryRef>(image), CFSTR("system-entities"));
+			if (!entities || CFGetTypeID(entities) != CFArrayGetTypeID()) {
+				return { };
+			}
+			const auto entries = static_cast<CFArrayRef>(entities);
+			for (CFIndex entry = 0; entry < CFArrayGetCount(entries); ++entry) {
+				const auto entity = CFArrayGetValueAtIndex(entries, entry);
+				if (CFGetTypeID(entity) != CFDictionaryGetTypeID()) {
+					return { };
+				}
+				const auto device = string_value(static_cast<CFDictionaryRef>(entity), CFSTR("dev-entry"));
+				if (device.empty()) {
+					return { };
+				}
+				mounted = mounted || device == aDevice;
+			}
+		}
+		return mounted;
+	}
+
 	auto release_update_installation_capability(const fs::path& aInstalled, std::stop_token aStop) -> core::release_update_capability
 	{
 		using capability = core::release_update_capability;
@@ -795,7 +846,10 @@ namespace bpr::adapters::update {
 			return capability::translocated;
 		}
 		struct statfs volume{ };
-		if (statfs(aInstalled.c_str(), &volume) == 0 && (volume.f_flags & MNT_RDONLY) != 0) {
+		if (statfs(aInstalled.c_str(), &volume) != 0) {
+			return capability::untrusted_installation;
+		}
+		if ((volume.f_flags & MNT_RDONLY) != 0) {
 			return capability::read_only;
 		}
 		if (!trusted_requirement(aInstalled)) {
@@ -804,7 +858,18 @@ namespace bpr::adapters::update {
 		if (access(aInstalled.parent_path().c_str(), W_OK) != 0) {
 			return capability::read_only;
 		}
-		const auto end       = std::chrono::steady_clock::now() + std::chrono::seconds{ 30 };
+		const auto end = std::chrono::steady_clock::now() + std::chrono::seconds{ 30 };
+		QByteArray inventory;
+		if (tool(QStringLiteral("/usr/bin/hdiutil"), { QStringLiteral("info"), QStringLiteral("-plist") }, aStop, end, &inventory) != reason::none) {
+			return capability::untrusted_installation;
+		}
+		const auto mounted = detail::release_update_volume_is_image({ inventory.constData(), static_cast<std::size_t>(inventory.size()) }, volume.f_mntfromname);
+		if (!mounted) {
+			return capability::untrusted_installation;
+		}
+		if (*mounted) {
+			return capability::mounted_image;
+		}
 		const auto signature = tool(QStringLiteral("/usr/bin/codesign"), { QStringLiteral("--verify"), QStringLiteral("--deep"), QStringLiteral("--strict"), QStringLiteral("--all-architectures"), QString::fromStdString(aInstalled.string()) }, aStop, end);
 		if (signature != reason::none) {
 			return capability::untrusted_installation;

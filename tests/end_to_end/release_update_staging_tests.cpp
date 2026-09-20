@@ -1,3 +1,4 @@
+#include "../../src/adapters/update/src/macos_release_update_mounts.hpp"
 #include "bpr/adapters/update/release_update_staging.hpp"
 #include "bpr/application/manual_executor.hpp"
 
@@ -25,6 +26,14 @@ namespace {
 auto main(int aArgc, char** aArgv) -> int
 {
 	QCoreApplication application{ aArgc, aArgv };
+	const auto       inventory = R"(<plist version="1.0"><dict><key>images</key><array><dict><key>system-entities</key><array><dict><key>dev-entry</key><string>/dev/disk99s1</string><key>mount-point</key><string>/Volumes/Fixture</string></dict></array></dict></array></dict></plist>)";
+	expect(adapters::update::detail::release_update_volume_is_image(inventory, "/dev/disk99s1") == true, "writable image recognized by exact device");
+	expect(adapters::update::detail::release_update_volume_is_image(inventory, "/dev/disk99s10") == false, "unrelated writable volume is not an image");
+	expect(adapters::update::detail::release_update_volume_is_image("<plist version=\"1.0\"><dict><key>images</key><array/></dict></plist>", "/dev/disk1s1") == false, "empty mounted-image inventory accepted");
+	for (const auto invalid : { "", "invalid", "<plist version=\"1.0\"><array/></plist>", "<plist version=\"1.0\"><dict><key>images</key><string>bad</string></dict></plist>", "<plist version=\"1.0\"><dict><key>images</key><array><dict/></array></dict></plist>" }) {
+		expect(!adapters::update::detail::release_update_volume_is_image(invalid, "/dev/disk1s1"), "malformed mounted-image observation refuses eligibility");
+	}
+	expect(!adapters::update::detail::release_update_volume_is_image(std::string(65537U, 'x'), "/dev/disk1s1"), "mount inventory is bounded");
 	expect(aArgc == 6, "staging fixture arguments");
 	const std::filesystem::path  root{ aArgv[1] }, installed{ aArgv[2] }, zip{ aArgv[3] };
 	const std::string            scenario{ aArgv[4] }, version{ aArgv[5] };
@@ -79,6 +88,7 @@ auto main(int aArgc, char** aArgv) -> int
 	std::cout << "staging:" << scenario << ":reason=" << static_cast<int>(result.Failure) << ":expected=" << static_cast<int>(failure) << '\n';
 	expect(result.Failure == failure, "native validation terminal matches criterion");
 	if (scenario == "signed") {
+		expect(adapters::update::release_update_installation_capability(installed, { }) == core::release_update_capability::eligible, "native signed installed copy is eligible after bounded mount inventory");
 		expect(result.Bundle && adapter->revalidate(result.Bundle, { }) == reason::none, "exact signed candidate revalidates");
 		std::ofstream changed{ transaction / "BetterPullReview.app/Contents/Resources/rfc0035-fixture-change" };
 		changed << "fixture";
