@@ -137,6 +137,13 @@ namespace {
 		const auto manual = begin(current, { 9, 173'023U });
 		static_cast<void>(transition(current, release_update_checked{ manual, release() }, { 10, 173'024U }));
 		expect(current.Candidate && current.Preferences.LastSuccess == 10, "manual ignores skip and records successful time separately");
+		static_cast<void>(transition(current, release_update_tick{ }, { 11, 259'423U }));
+		static_cast<void>(transition(current, release_update_checked{ *current.Pending, release("v3.0.0") }, { 12, 259'424U }));
+		expect(current.Candidate && current.Candidate->Version == release_update_version{ 3U, 0U, 0U }, "Skip never suppresses a newer version");
+		auto restored = state(current.Preferences, { 13, 5U });
+		expect(restored.Preferences == current.Preferences
+				   && transition(restored, release_update_tick{ }, { 13, 5U }).Requests.empty(),
+			   "a restored preference snapshot preserves skip and remaining daily interval");
 
 		auto future = state({ true, { }, 200'000, 200'000 }, { 100'000, 5U });
 		expect(future.Preferences.LastAttempt == 100'000 && !future.Preferences.LastSuccess, "future wall facts normalized");
@@ -200,6 +207,20 @@ namespace {
 		expect(transition(current, release_update_intent{ command::download, wrong }, { 100'001, 101U }).Diagnostic == reason::changed_candidate, "gesture sealed to candidate");
 		static_cast<void>(transition(current, release_update_intent{ command::download, current.Candidate }, { 100'001, 101U }));
 		const auto download = *current.Pending;
+		for (std::size_t field = 0U; field < 7U; ++field) {
+			auto changed = download;
+			switch (field) {
+			case 0U: changed.Candidate->Release = release_update_release_id{ 99U }; break;
+			case 1U: changed.Candidate->Asset = release_update_asset_id{ 99U }; break;
+			case 2U: changed.Candidate->Tag = "v2.3.4+changed"; break;
+			case 3U: changed.Candidate->AssetName += ".other"; break;
+			case 4U: ++changed.Candidate->Size; break;
+			case 5U: ++changed.Candidate->Version.Patch; break;
+			default: changed.Candidate->Sha256 = std::array<std::uint8_t, 32>{ }; break;
+			}
+			expect(transition(current, release_update_downloaded{ changed, 100U }, { 100'001, 101U }).Diagnostic == reason::stale_completion,
+				   "every selected release/asset/digest field is part of completion identity");
+		}
 		static_cast<void>(transition(current, release_update_progress{ download, 50U }, { 100'001, 101U }));
 		expect(current.Bytes == 50U, "accepted progress projected");
 		expect(transition(current, release_update_progress{ download, 101U }, { 100'001, 101U }).Diagnostic == reason::invalid_progress, "oversized progress refused");
