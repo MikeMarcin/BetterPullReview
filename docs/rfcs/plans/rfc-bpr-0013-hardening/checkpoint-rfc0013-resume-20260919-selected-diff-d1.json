@@ -1,7 +1,7 @@
 {
   "schema": "implement-rfc.milestone-checkpoint.v1",
   "run_id": "rfc0013-resume-20260919",
-  "segment_id": "selected-diff-d1",
+  "segment_id": "selected-diff-d2-resume",
   "mandate_revision": "r18",
   "selection": {
     "schema": "implement-rfc.strategy-selection.v1",
@@ -101,8 +101,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "main",
-    "source_revision": "e539e0e7c3230bbcacf56480f19610eac3040fdd",
+    "source_revision": "7e60ab432c5808958ea5ba9024a38ecb305fb764",
     "workflow_branch": "main",
-    "workflow_revision": "e539e0e7c3230bbcacf56480f19610eac3040fdd"
+    "workflow_revision": "7e60ab432c5808958ea5ba9024a38ecb305fb764"
   }
 }
