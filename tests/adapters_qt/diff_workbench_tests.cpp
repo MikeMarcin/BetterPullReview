@@ -2629,6 +2629,73 @@ namespace {
 			"no selected row keeps the unselected added or removed hue");
 	}
 
+	auto test_dark_intraline_preserves_readable_syntax_hues() -> void
+	{
+		const auto left      = std::string{ "\treturn OLD_MACRO(value);\n\tconst auto label = \"draft\";\n" };
+		const auto right     = std::string{ "\treturn NEW_MACRO(value);\n\tconst auto label = \"ready\";\n" };
+		const auto diff      = computed(left, right, { }, 151U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(1200, 600);
+		auto profile = qt::appearance_profile{ };
+		static_cast<void>(profile.select_mode(core::appearance_mode::dark));
+		profile.apply_to(workbench);
+		profile.apply_code_font_to(workbench);
+		workbench.adopt_appearance(profile);
+		workbench.show();
+		const auto selected = context(diff, 195U, 195U);
+		workbench.set_loading(selected);
+		workbench.publish(qt::test::prepare_publication({ .Context = selected, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		const auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{
+			{ .Line = 0U, .Column = 8U, .Length = 9U, .Role = core::appearance_role::syntax_macro },
+			{ .Line = 1U, .Column = 20U, .Length = 7U, .Role = core::appearance_role::syntax_string },
+		});
+		expect(workbench.adopt_token_spans(core::diff_side::left, spans) && workbench.adopt_token_spans(core::diff_side::right, spans), "classified changed macro and string reach both panes");
+		settle_geometry(workbench);
+		const auto verify = [&] {
+			expect(workbench.left_pane()->accessibleName() == QStringLiteral("Earlier source")
+					   && workbench.right_pane()->accessibleName() == QStringLiteral("Later source"),
+				   "pane identities distinguish removal and addition without colour");
+			auto checked = 0U;
+			for (auto* const pane : { workbench.left_pane(), workbench.right_pane() }) {
+				const auto selections = pane->extraSelections();
+				for (const auto& mark : selections) {
+					if (mark.format.boolProperty(QTextFormat::FullWidthSelection) || mark.format.background().style() == Qt::NoBrush) {
+						continue;
+					}
+					const auto line       = mark.cursor.blockNumber();
+					const auto column     = mark.cursor.selectionStart() - mark.cursor.block().position();
+					const auto tokenBegin = line == 0 ? 8 : 20;
+					if (column < tokenBegin) {
+						continue;
+					}
+					auto ink = profile.color(line == 0 ? core::appearance_role::syntax_macro : core::appearance_role::syntax_string);
+					for (const auto& layer : selections) {
+						if (layer.cursor.selectionStart() <= mark.cursor.selectionStart() && layer.cursor.selectionEnd() > mark.cursor.selectionStart()
+							&& layer.format.foreground().style() != Qt::NoBrush) {
+							ink = layer.format.foreground().color();
+						}
+					}
+					expect(ink.red() > ink.green() && (line != 0 || ink.blue() > ink.green()), "edited syntax retains its macro/string hue instead of turning black or white");
+					expect(core::contrast_ratio_hundredths(qt::to_appearance_color(ink), qt::to_appearance_color(mark.format.background().color()))
+							   >= core::minimum_contrast_hundredths(core::contrast_kind::emphasis_text, profile.variant()),
+						   "every painted edited token clears the published contrast floor");
+					++checked;
+				}
+			}
+			expect(checked >= 4U, "both sides expose changed macro and string emphasis");
+		};
+		verify();
+		const auto links = workbench.link_map()->visible_links();
+		expect(!links.empty(), "the changed group is selectable");
+		send_click(*workbench.link_map(), links.front().Path.boundingRect().center());
+		settle_geometry(workbench);
+		verify();
+		const auto render = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
+		if (!render.isEmpty()) {
+			expect(workbench.grab().save(render + QStringLiteral("-dark-intraline.png")), "capture layered dark syntax");
+		}
+	}
+
 	auto test_group_selection_washes_every_line() -> void
 	{
 		const auto [left, right] = representative_text();
@@ -3163,6 +3230,7 @@ auto main(int argc, char** argv) -> int
 	test_group_boundaries_are_painted();
 	test_link_map_endpoints_meet_their_blocks();
 	test_selected_rows_derive_their_intraline_fill();
+	test_dark_intraline_preserves_readable_syntax_hues();
 	test_group_selection_washes_every_line();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;

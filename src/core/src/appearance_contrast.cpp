@@ -548,16 +548,11 @@ namespace bpr::core {
 				  aPalette[index_of(aPair.Background)],
 				  selection_wash_alpha)
 			: aPalette[index_of(aPair.Background)];
-		// A fill that carries its own foreground is never painted under the
-		// profile's syntax colours, so measuring those against it would be
-		// measuring a combination the panes do not produce. Every syntax pair
-		// over such a fill collapses to the same check, which is redundant and
-		// correct rather than clever.
+		// Emphasis paints the token's readable tint or shade, not a global
+		// black/white override. Audit the same foreground the pane paints.
 		const auto foreground
 			= aPair.Kind == contrast_kind::emphasis_text
-				&& emphasis_needs_own_foreground(
-					aPalette, aPair.Background, aVariant)
-			? emphasis_foreground(background)
+			? readable_emphasis_foreground(aPalette[index_of(aPair.Foreground)], background, aVariant)
 			: aPalette[index_of(aPair.Foreground)];
 		const auto ratio   = contrast_ratio_hundredths(foreground, background);
 		const auto minimum = minimum_contrast_hundredths(aPair.Kind, aVariant);
@@ -724,6 +719,31 @@ namespace bpr::core {
 				>= contrast_ratio_hundredths(white, aFill)
 			? black
 			: white;
+	}
+
+	auto readable_emphasis_foreground(
+		const appearance_color aSyntax, const appearance_color aFill,
+		const appearance_variant aVariant) noexcept -> appearance_color
+	{
+		if (high_contrast(aVariant)) {
+			return emphasis_foreground(aFill);
+		}
+		const auto minimum = minimum_contrast_hundredths(contrast_kind::emphasis_text, aVariant);
+		if (contrast_ratio_hundredths(aSyntax, aFill) >= minimum) {
+			return aSyntax;
+		}
+		const auto     target             = emphasis_foreground(aFill);
+		constexpr auto adjustmentHeadroom = 25U;
+		const auto     adjustedMinimum    = std::min(
+			contrast_ratio_hundredths(target, aFill),
+			std::max(text_contrast_minimum_hundredths, minimum + adjustmentHeadroom));
+		for (auto alpha = std::uint16_t{ 1U }; alpha <= 255U; ++alpha) {
+			const auto candidate = composited(target, aSyntax, static_cast<std::uint8_t>(alpha));
+			if (contrast_ratio_hundredths(candidate, aFill) >= adjustedMinimum) {
+				return candidate;
+			}
+		}
+		return target;
 	}
 
 	auto emphasis_needs_own_foreground(

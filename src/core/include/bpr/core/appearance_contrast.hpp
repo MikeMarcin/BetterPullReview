@@ -420,6 +420,13 @@ namespace bpr::core {
 	[[nodiscard]] auto emphasis_foreground(appearance_color aFill) noexcept
 		-> appearance_color;
 
+	/// \brief Keeps readable syntax ink, otherwise moves it toward the nearest
+	/// readable tint or shade instead of erasing its semantic hue.
+	/// High-contrast variants retain their maximum-contrast black/white ink.
+	[[nodiscard]] auto readable_emphasis_foreground(
+		appearance_color aSyntax, appearance_color aFill, appearance_variant aVariant) noexcept
+		-> appearance_color;
+
 	/// \brief Reports whether an emphasis fill must carry its own foreground.
 	///
 	/// \details True when any syntax role fails the emphasis floor over the

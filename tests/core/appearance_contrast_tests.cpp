@@ -869,6 +869,23 @@ namespace {
 			"the override picks the extreme that contrasts");
 	}
 
+	auto test_emphasis_preserves_readable_ink_and_adjusts_only_contrast() -> void
+	{
+		constexpr auto macro  = srgb(0xCE8AD4);
+		constexpr auto gentle = srgb(0x672323);
+		expect(readable_emphasis_foreground(macro, gentle, appearance_variant::dark) == macro,
+			   "a readable token keeps its exact accepted syntax colour");
+		for (const auto variant : { appearance_variant::dark, appearance_variant::high_contrast_dark }) {
+			for (const auto fill : { srgb(0x933030), srgb(0x147B80), srgb(0xFFB400) }) {
+				const auto ink = readable_emphasis_foreground(macro, fill, variant);
+				expect(variant == appearance_variant::high_contrast_dark || (ink.Red > ink.Green && ink.Blue > ink.Green),
+					   "a low-contrast macro remains a purple tint or shade instead of becoming monochrome");
+				expect(contrast_ratio_hundredths(ink, fill) >= minimum_contrast_hundredths(contrast_kind::emphasis_text, variant),
+					   "adjusted syntax clears the variant's emphasis floor");
+			}
+		}
+	}
+
 } // namespace
 
 int main()
@@ -894,5 +911,6 @@ int main()
 	test_a_derived_mark_keeps_the_hue_of_its_fill();
 	test_a_derived_mark_brightens_a_dark_fill();
 	test_only_a_bold_fill_carries_its_own_foreground();
+	test_emphasis_preserves_readable_ink_and_adjusts_only_contrast();
 	return EXIT_SUCCESS;
 }

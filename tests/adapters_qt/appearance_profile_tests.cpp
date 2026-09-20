@@ -2483,12 +2483,12 @@ namespace {
 		color_only_obligation{ core::appearance_variant::dark,
 							   role::diff_added_background,
 							   role::diff_removed_background },
-		// The dark intraline pair used to be recorded here. BPR-0320's
-		// selected palette discharged it: pushing both dark emphases out to a
-		// separation of roughly 20 from their rows also pushed them apart from
-		// each other, and the pair now clears the dichromat floor on its own.
-		// The obligation is gone because the palette fixed it, not because the
-		// check was relaxed.
+		// BPR-0935's owner-requested quieter dark fills preserve syntax ink.
+		// The exact edit span, unified +/- prefix and earlier/later pane labels
+		// must now carry this distinction under red/green colour deficiency.
+		color_only_obligation{ core::appearance_variant::dark,
+							   role::diff_intraline_added_background,
+							   role::diff_intraline_removed_background },
 		color_only_obligation{ core::appearance_variant::high_contrast_light,
 							   role::diff_added_background,
 							   role::diff_removed_background },

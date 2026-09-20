@@ -2522,14 +2522,6 @@ namespace bpr::qt {
 			return;
 		}
 
-		const auto ownForeground = Colors.Supplied
-			&& core::emphasis_needs_own_foreground(
-									   Colors.Palette,
-									   aSide == core::diff_side::left
-										   ? core::appearance_role::diff_intraline_removed_background
-										   : core::appearance_role::diff_intraline_added_background,
-									   Colors.Variant);
-
 		// The fill a selected row's mark uses. The requirement is exact: a blue
 		// line gets a blue mark, just darker or lighter. The mark therefore
 		// derives from the band that row is actually wearing -- its own colour
@@ -2607,20 +2599,32 @@ namespace bpr::qt {
 			// fill stays exactly as accepted.
 			const auto fill = selected ? derivedFill(aSide) : color;
 			emphasis.format.setBackground(fill);
-			// A fill bright enough to be unmistakable in a high-contrast
-			// profile cannot also let that profile's own syntax colours read
-			// on it, so the core says when the mark carries its own text
-			// colour instead.
-			if ((selected || ownForeground) && fill.isValid()) {
-				const auto chosen = core::emphasis_foreground(
-					core::appearance_color{ static_cast<std::uint8_t>(fill.red()),
-											static_cast<std::uint8_t>(fill.green()),
-											static_cast<std::uint8_t>(fill.blue()),
-											255U });
-				emphasis.format.setForeground(
-					QColor{ chosen.Red, chosen.Green, chosen.Blue });
+			const auto readable = [this, fill](const QColor& aInk) {
+				return to_presentation_color(core::readable_emphasis_foreground(
+					to_appearance_color(aInk), to_appearance_color(fill), Colors.Variant));
+			};
+			if (Colors.Supplied) {
+				emphasis.format.setForeground(readable(Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)]));
 			}
 			aSelections.push_back(emphasis);
+			// Keep the exact edit range as one background layer. Foreground-only
+			// intersections preserve each classified token's hue and leave source,
+			// layout and the unedited part of the token untouched.
+			if (Colors.Supplied && block.layout() != nullptr) {
+				for (const auto& token : block.layout()->formats()) {
+					const auto begin = std::max(from, token.start);
+					const auto end   = std::min(to, token.start + token.length);
+					if (begin >= end || token.format.foreground().style() == Qt::NoBrush) {
+						continue;
+					}
+					auto syntax   = QTextEdit::ExtraSelection{ };
+					syntax.cursor = QTextCursor{ block };
+					syntax.cursor.setPosition(block.position() + begin);
+					syntax.cursor.setPosition(block.position() + end, QTextCursor::KeepAnchor);
+					syntax.format.setForeground(readable(token.format.foreground().color()));
+					aSelections.push_back(syntax);
+				}
+			}
 		}
 	}
 
