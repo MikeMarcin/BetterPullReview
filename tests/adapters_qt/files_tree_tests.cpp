@@ -3,7 +3,10 @@
 
 #include <QApplication>
 #include <QImage>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QPainter>
+#include <QPersistentModelIndex>
 #include <QStyleOptionViewItem>
 
 #include <cstdint>
@@ -269,6 +272,64 @@ namespace {
 		expect(!view.currentIndex().isValid() && chosen.size() == 1U, "clearing the selection reports nothing");
 		view.hide();
 	}
+
+	void click_row(qt::files_tree_view& aView, const QModelIndex& aIndex, const bool aBranch = false)
+	{
+		const auto  rect  = aView.visualRect(aIndex);
+		const auto  point = QPointF{ QPoint{ aBranch ? rect.left() - aView.indentation() / 2 : rect.center().x(), rect.center().y() } };
+		QMouseEvent press{ QEvent::MouseButtonPress, point, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, point, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(aView.viewport(), &press);
+		QApplication::sendEvent(aView.viewport(), &release);
+		QApplication::processEvents();
+	}
+
+	void test_folders_are_nonselectable_across_gestures_and_rebuilds()
+	{
+		qt::files_tree_view view;
+		view.resize(420, 300);
+		const auto rows = std::vector{ file("src/a.cpp"), file("src/b.cpp"), file("docs/readme.md") };
+		view.apply(rows);
+		view.show();
+		QApplication::processEvents();
+		auto chosen = std::vector<core::workbench_file_id>{ };
+		view.set_select_dispatch([&](const auto& aFile) { chosen.push_back(aFile); });
+		auto* const model    = view.tree_model();
+		const auto  selected = core::file_identity_of("src/a.cpp");
+		view.select_file(selected);
+		const auto folder = model->parent(model->index_for_file(selected));
+		expect(folder.isValid() && !(model->flags(folder) & Qt::ItemIsSelectable)
+				   && (model->flags(folder) & Qt::ItemIsEnabled),
+			   "folders are structurally nonselectable but remain expandable");
+		click_row(view, folder);
+		expect(!view.selectionModel()->isSelected(folder) && chosen.empty(), "folder mouse selection never becomes a file action or selected-file highlight");
+		for (const auto key : { Qt::Key_Left, Qt::Key_Right, Qt::Key_Return, Qt::Key_Space }) {
+			view.setCurrentIndex(folder);
+			QKeyEvent event{ QEvent::KeyPress, key, Qt::NoModifier };
+			QApplication::sendEvent(&view, &event);
+			expect(chosen.empty(), "folder keyboard expansion and activation emit no file selection");
+		}
+		view.expand(folder);
+		click_row(view, folder, true);
+		expect(!view.isExpanded(folder) && chosen.empty(), "mouse branch collapse does not select a file");
+		click_row(view, folder, true);
+		expect(view.isExpanded(folder) && chosen.empty(), "mouse branch expansion does not select a file");
+		const auto oldFolder = QPersistentModelIndex{ folder };
+		view.set_filter(QStringLiteral("b.cpp"));
+		expect(!oldFolder.isValid() && chosen.empty(), "model rebuild invalidates old folder indexes without dispatch");
+		view.set_filter({ });
+		expect(model->file_at(view.currentIndex()) == std::optional{ selected } && chosen.empty(), "clearing a filter restores the actual selected file, not a focused folder");
+		view.apply_overview({ });
+		view.apply(rows);
+		view.set_order(qt::files_order::flat);
+		view.set_order(qt::files_order::tree);
+		expect(model->file_at(view.currentIndex()) == std::optional{ selected } && chosen.empty(), "overview, row and order rebuilds preserve exact selection without emitting gestures");
+		auto foreign = qt::files_tree_model{ };
+		foreign.apply({ file("elsewhere/file.cpp") });
+		expect(!model->file_at(foreign.index_for_file(core::file_identity_of("elsewhere/file.cpp"))).has_value(), "foreign model indexes cannot alias a file");
+		click_row(view, model->index_for_file(core::file_identity_of("src/b.cpp")));
+		expect(chosen == std::vector{ core::file_identity_of("src/b.cpp") }, "a real file mouse gesture still dispatches its exact identity once");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -277,6 +338,7 @@ auto main(int argc, char** argv) -> int
 	test_the_tree_compacts_nesting_only_folders_and_counts_files();
 	test_orders_filter_and_the_overview_join();
 	test_selection_reports_files_and_only_the_reviewers_own();
+	test_folders_are_nonselectable_across_gestures_and_rebuilds();
 	test_operation_colours_and_accessible_names();
 	std::cout << "files-tree-tests:pass\n";
 	return EXIT_SUCCESS;

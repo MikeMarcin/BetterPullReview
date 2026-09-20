@@ -103,6 +103,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto rowCount(const QModelIndex& aParent = { }) const -> int override;
 		[[nodiscard]] auto columnCount(const QModelIndex& aParent = { }) const -> int override;
 		[[nodiscard]] auto data(const QModelIndex& aIndex, int aRole) const -> QVariant override;
+		[[nodiscard]] auto flags(const QModelIndex& aIndex) const -> Qt::ItemFlags override;
 
 		[[nodiscard]] auto index_for_file(const core::workbench_file_id& aFile) const -> QModelIndex;
 		[[nodiscard]] auto file_at(const QModelIndex& aIndex) const -> std::optional<core::workbench_file_id>;
@@ -162,12 +163,14 @@ namespace bpr::qt {
 
 	protected:
 		void currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious) override;
+		void keyPressEvent(QKeyEvent* aEvent) override;
 
 	private:
-		files_tree_model*          Model    = nullptr;
-		files_tree_delegate*       Delegate = nullptr;
-		files_tree_select_dispatch Dispatch;
-		bool                       Applying = false;
+		files_tree_model*                      Model    = nullptr;
+		files_tree_delegate*                   Delegate = nullptr;
+		files_tree_select_dispatch             Dispatch;
+		std::optional<core::workbench_file_id> SelectedFile;
+		bool                                   Applying = false;
 	};
 } // namespace bpr::qt
 

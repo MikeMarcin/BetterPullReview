@@ -5,9 +5,11 @@
 #include <QFontMetrics>
 #include <QHash>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QPainter>
 #include <QPalette>
 #include <QPen>
+#include <QScopedValueRollback>
 #include <QStringList>
 #include <QStyle>
 #include <QStyleOptionViewItem>
@@ -308,11 +310,20 @@ namespace bpr::qt {
 
 	auto files_tree_model::node_at(const QModelIndex& aIndex) const -> const files_tree_node*
 	{
-		if (!aIndex.isValid()) {
+		if (!aIndex.isValid() || aIndex.model() != this || aIndex.column() != 0) {
 			return nullptr;
 		}
 		const auto node = node_index(aIndex);
 		return node < Nodes.size() ? &Nodes[node] : nullptr;
+	}
+
+	auto files_tree_model::flags(const QModelIndex& aIndex) const -> Qt::ItemFlags
+	{
+		const auto* const node = node_at(aIndex);
+		if (node == nullptr) {
+			return Qt::NoItemFlags;
+		}
+		return node->Folder ? Qt::ItemIsEnabled : Qt::ItemIsEnabled | Qt::ItemIsSelectable;
 	}
 
 	auto files_tree_model::data(const QModelIndex& aIndex, const int aRole) const -> QVariant
@@ -381,7 +392,7 @@ namespace bpr::qt {
 	auto files_tree_model::file_at(const QModelIndex& aIndex) const -> std::optional<core::workbench_file_id>
 	{
 		const auto* const node = node_at(aIndex);
-		if (node == nullptr || !node->Entry.has_value()) {
+		if (node == nullptr || node->Folder || !node->Entry.has_value()) {
 			return std::nullopt;
 		}
 		return Entries[*node->Entry].File;
@@ -560,43 +571,45 @@ namespace bpr::qt {
 
 	void files_tree_view::apply(const std::vector<workbench_drawer_row>& aRows)
 	{
+		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->apply(aRows);
 		expandAll();
+		select_file(SelectedFile);
 	}
 
 	void files_tree_view::apply_overview(const std::span<const application::overview_file_row> aFiles)
 	{
-		const auto current = Model->file_at(currentIndex());
+		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->apply_overview(aFiles);
 		expandAll();
-		select_file(current);
+		select_file(SelectedFile);
 	}
 
 	void files_tree_view::set_order(const files_order aOrder)
 	{
-		const auto current = Model->file_at(currentIndex());
+		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->set_order(aOrder);
 		expandAll();
-		select_file(current);
+		select_file(SelectedFile);
 	}
 
 	void files_tree_view::set_filter(const QString& aFilter)
 	{
-		const auto current = Model->file_at(currentIndex());
+		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->set_filter(aFilter);
 		expandAll();
-		select_file(current);
+		select_file(SelectedFile);
 	}
 
 	void files_tree_view::select_file(const std::optional<core::workbench_file_id>& aFile)
 	{
-		Applying         = true;
-		const auto index = aFile.has_value() ? Model->index_for_file(*aFile) : QModelIndex{ };
+		const auto applying = QScopedValueRollback{ Applying, true };
+		SelectedFile        = aFile;
+		const auto index    = aFile.has_value() ? Model->index_for_file(*aFile) : QModelIndex{ };
 		setCurrentIndex(index);
 		if (index.isValid()) {
 			scrollTo(index);
 		}
-		Applying = false;
 	}
 
 	void files_tree_view::currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious)
@@ -606,7 +619,34 @@ namespace bpr::qt {
 			return;
 		}
 		if (const auto file = Model->file_at(aCurrent); file.has_value()) {
+			SelectedFile = file;
 			Dispatch(*file);
 		}
+	}
+
+	void files_tree_view::keyPressEvent(QKeyEvent* const aEvent)
+	{
+		const auto current = currentIndex();
+		if (current.data(files_tree_model::folder_role).toBool() && aEvent->modifiers() == Qt::NoModifier) {
+			switch (aEvent->key()) {
+			case Qt::Key_Left:
+				collapse(current);
+				break;
+			case Qt::Key_Right:
+				expand(current);
+				break;
+			case Qt::Key_Return:
+			case Qt::Key_Enter:
+			case Qt::Key_Space:
+				setExpanded(current, !isExpanded(current));
+				break;
+			default:
+				QTreeView::keyPressEvent(aEvent);
+				return;
+			}
+			aEvent->accept();
+			return;
+		}
+		QTreeView::keyPressEvent(aEvent);
 	}
 } // namespace bpr::qt

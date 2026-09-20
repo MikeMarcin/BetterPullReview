@@ -20,10 +20,12 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFontMetricsF>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QPlainTextEdit>
@@ -184,6 +186,80 @@ namespace {
 			expect(ordinaryName > 8 && addedCount > 0 && removedCount > 0,
 				   "actual composed drawer keeps names neutral and paints plus/minus counts independently");
 		}
+	}
+
+	void run_folder_selection_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated folder course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private folder course root");
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::large_review_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "folder course startup");
+		expect(owner != nullptr, "folder course application");
+		auto& window = owner->window();
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_open_action()->isEnabled(); }, "folder course connection");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/large-review/pull/17"));
+		wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready && window.files_tree()->tree_model()->file_count() == 515U; }, "folder course exact comparison");
+		window.modality()->action(qt::review_modality::read)->trigger();
+		if (!window.files_drawer_toggle_action()->isChecked()) {
+			window.files_drawer_toggle_action()->trigger();
+		}
+		auto* const tree = window.files_tree();
+		wait_for([&] { return tree->isVisible(); }, "folder course uses the visible file drawer");
+		auto* const model   = tree->tree_model();
+		auto* const surface = window.comparison_surface();
+		const auto  file    = core::file_identity_of("src/file_0000.cpp");
+		tree->setCurrentIndex(model->index_for_file(file));
+		wait_for([&] { return surface->current_result() && surface->current_context() && surface->current_context()->Key.File == file && !surface->geometry_pending(); }, "folder course selected source");
+		const auto context    = surface->current_context();
+		const auto result     = surface->current_result();
+		const auto left       = surface->left_pane()->toPlainText();
+		const auto right      = surface->right_pane()->toPlainText();
+		const auto selections = window.statistics().FileSelections;
+		expect(!left.isEmpty() && !right.isEmpty(), "installed Git supplies both source sides before folder gestures");
+		const auto unchanged = [&] {
+			QApplication::processEvents();
+			expect(window.statistics().FileSelections == selections && surface->current_context() == context
+					   && surface->current_result() == result && surface->left_pane()->toPlainText() == left
+					   && surface->right_pane()->toPlainText() == right,
+				   "folder interactions never reach file selection or replace the installed-Git diff");
+		};
+		for (auto rebuild = 0; rebuild < 2; ++rebuild) {
+			const auto folder = model->parent(model->index_for_file(file));
+			expect(folder.isValid() && !(model->flags(folder) & Qt::ItemIsSelectable), "actual composed folder is structurally nonselectable");
+			const auto  point = QPointF{ tree->visualRect(folder).center() };
+			QMouseEvent press{ QEvent::MouseButtonPress, point, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QMouseEvent release{ QEvent::MouseButtonRelease, point, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(tree->viewport(), &press);
+			QApplication::sendEvent(tree->viewport(), &release);
+			unchanged();
+			for (const auto key : { Qt::Key_Left, Qt::Key_Right, Qt::Key_Return, Qt::Key_Space }) {
+				tree->setCurrentIndex(folder);
+				QKeyEvent event{ QEvent::KeyPress, key, Qt::NoModifier };
+				QApplication::sendEvent(tree, &event);
+				unchanged();
+			}
+			expect(!tree->selectionModel()->isSelected(folder), "folder does not masquerade as the selected file");
+			window.files_filter()->setText(QStringLiteral("file_0001"));
+			unchanged();
+			window.files_filter()->clear();
+			unchanged();
+			expect(model->file_at(tree->currentIndex()) == std::optional{ file }, "composed filter restores the semantic file after folder focus");
+		}
+		capture(window, QStringLiteral("folder-retains-exact-diff.png"));
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "folder course quiescence");
 	}
 
 	void run_course(const bool aEnterprise)
@@ -1118,6 +1194,7 @@ int main(int aArgc, char** aArgv)
 	QApplication application{ aArgc, aArgv };
 	run_course(false);
 	run_course(true);
+	run_folder_selection_course();
 #if defined(__APPLE__)
 	run_github_cli_discovery_course();
 	run_connected_cli_destination_course(false);
