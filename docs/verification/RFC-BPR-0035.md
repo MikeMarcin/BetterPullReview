@@ -34,8 +34,11 @@ passed; its architecture scanner failed in the working checkout because it
 recursively found the existing unrelated
 `.claude/worktrees/agent-a17cae88115dbbb4e` target declarations. That worktree is
 preserved. `architecture_boundary_contract` and `core_boundary_contract` passed.
-An exact committed-candidate export will resolve that environmental ambiguity;
-the original workspace failure remains part of the evidence.
+The first exact candidate export at `64bbf9c1` then exposed a real boundary
+violation: provider endpoint constants were placed in the application header.
+They were moved into the GitHub adapter's private contract header; this does not
+add a transport implementation. Both failures and the corrected-candidate checks
+remain part of the evidence.
 
 ## Semantic documentation disposition
 

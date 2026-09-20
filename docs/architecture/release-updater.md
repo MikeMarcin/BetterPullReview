@@ -25,7 +25,7 @@ account. Milestone 3 must additionally refresh release/asset identity and revali
 the exact staged bundle immediately before an install gesture can take effect.
 
 The release-only transport contract is pinned in
-[release_update_port.hpp](../../src/application/include/bpr/application/release_update_port.hpp).
+[github_release_update_contract.hpp](../../src/adapters/github/src/github_release_update_contract.hpp).
 Its implementation and secret-canary fixtures remain milestone 2 work.
 
 | Fact | Bound value |
