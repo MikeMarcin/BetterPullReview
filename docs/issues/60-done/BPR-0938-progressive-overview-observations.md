@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0938"
 title: "Show useful Overview observations before complete PR loading"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"},"mandate":"r20-usable-review-amendments"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ca000e79","evidence":{"kind":"artifact","detail":"Independently bounded validated metadata observation after2providerresponses; no partial snapshot/file/epoch/mutation authority; full final audit unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"ca000e79","evidence":{"kind":"artifact","detail":"Core exact pending request and once-only admission, serialized host mapping, typed Qt provisional projection, unknown metrics and disabled review entry verified."}},{"criterion":"AC3","outcome":"pass","revision":"ca000e79","evidence":{"kind":"artifact","detail":"Core/host/provider/pager/public5/5 pass54.41s; 1000callbacks bounded to1task, foreign/relationship/oversize/stale/cancel/failure/shutdown/terminal cases covered. Disconnecting real Qt publication makes newpubliccoursefail."}},{"criterion":"AC4","outcome":"pass","revision":"ca000e79","evidence":{"kind":"artifact","detail":"Final captured local first useful paint 48 ms / terminal 63 ms; live metadata 3.920 s versus 85.959 s terminal; final signed tests-disabled r22 visibly shows useful metadata during 13 pages then exact safe source/anchors. Private-target native first paint was not timed."}}]
 ---
 
 # Show useful Overview observations before complete PR loading
