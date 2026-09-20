@@ -25,4 +25,6 @@ Overview folder collapse remains separate in [[BPR-0934]].
 
 ## Evidence
 
-Implementation and direct verification pending.
+`af4e2d38` diagnoses and repairs the monochrome intraline override. New rendered macro/string regression fails before repair and passes with per-token contrast-safe ink; exact ranges and non-color Earlier/Later cues remain. The contrast audit, dark/light/high-contrast surfaces and 1x/1.25x/2x diff tests pass. Signed tests-disabled r22 independently renders a selected safe source through the complete CLI/Git/cache/workbench path.
+
+See the [diagnosis, exact candidate and safe rendered evidence](../../verification/rfc-bpr-0013-usable-review-20260920.md).

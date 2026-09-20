@@ -86,15 +86,20 @@ structural counters accompany latency results.
 
 ## Documentation impact
 
-The selected-diff milestone remains open after the v005 rejection. The
-[independent evidence record](../verification/rfc-bpr-0013-sparse-special-blobs-20260920.md)
-binds exact old-app reproduction, the missing-special-blob sparse import repair,
-its negative control and safety checks, and the remaining signed native
-source/anchor proof. The Mac locked before that repaired-app course could run;
-the owner is not being asked to test the fix. BPR-0795 retains prompt-loading
-approval, but accepted content still waits for complete provider pagination.
-The [continuation checkpoint](plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d4-r3.json)
-binds mandate r19, the independent-verification amendment, and recipe revision 2.
+The selected-diff milestone retains the historical v005 rejection and the
+[independent sparse-import repair](../verification/rfc-bpr-0013-sparse-special-blobs-20260920.md).
+The owner subsequently observed a rendered real-target diff in repaired r21;
+no repeat owner loading test is requested. Mandate r20 adds dark intraline
+legibility, persisted tab metrics, CLI connection measurements, progressive
+Overview and semantic drawer colors. The
+[usable-review evidence](../verification/rfc-bpr-0013-usable-review-20260920.md)
+binds the four product commits, failing-before regressions, live read-only
+latency measurements, safe rasters and signed tests-disabled r22 native
+source/anchor proof through the safe identical composition. Metadata now paints
+before full pagination; authoritative snapshots still wait for complete validation.
+Private-target source/anchor cross-check remains distinct from owner-observed
+loading. The [continuation checkpoint](plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d5-r20.json)
+binds the expanded mandate and recipe revision 2. BPR-0934 folder collapse stays separate.
 These bounded results do not close the RFC or its remaining prerequisites.
 
 Budgets, benchmark hardware, cancellation, cache policy, offline states, rate limits, recovery, fuzzing, logging, and known scale boundaries are mandatory.

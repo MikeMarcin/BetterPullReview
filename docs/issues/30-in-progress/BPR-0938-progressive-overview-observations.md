@@ -26,4 +26,6 @@ Overview folder collapse remains separate in [[BPR-0934]].
 
 ## Evidence
 
-Implementation and direct verification pending.
+`ca000e79` emits bounded independently validated repository/PR metadata after two provider responses. Core permits one exact-pending-request observation; the host maps it on the serialized lane; Qt marks it provisional, keeps review entry disabled and publishes no file, snapshot or epoch authority. Complete final snapshots and existing limits remain unchanged.
+
+New deterministic tests cover 1,000 repeated callbacks, foreign identity, malformed/oversized relationships, cancellation, terminal failure, target switching, shutdown and complete promotion. Disconnecting production Qt publication fails the held-first-file-page public course; restoring it passes. Final captured controlled public-course sample: useful paint 48 ms, terminal after release 63 ms; not a GitHub latency claim. Signed tests-disabled r22 visibly paints provisional metadata while pagination continues, then renders exact selected source. See the [native, rendered and live-read evidence](../../verification/rfc-bpr-0013-usable-review-20260920.md).

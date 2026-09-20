@@ -25,4 +25,6 @@ Overview folder collapse remains separate in [[BPR-0934]].
 
 ## Evidence
 
-Implementation and direct verification pending.
+The production configured-CLI read-only probe measures discovery version/status 0.216/0.396 s, viewer/transport setup 0.545 s, and nine capability probes 13.078 s, versus direct `gh auth status` 0.38 s. Eighteen pre/post live account checks contribute roughly 7.1 s of capability setup. No duplicate was demonstrated that can safely be removed: rechecking executable support at transport construction and account continuity around each capability remains required. No authority, sandbox, cancellation or identity check was weakened.
+
+The separate PR read took 85.959 s / 48 pages, but metadata was available in 3.920 s. BPR-0938 exposes that useful metadata asynchronously. CLI and smart-Git identity/failure/refusal regressions and the real production-composed Settings/CLI course pass. See the [stage measurements and boundaries](../../verification/rfc-bpr-0013-usable-review-20260920.md).

@@ -25,4 +25,6 @@ Overview folder collapse remains separate in [[BPR-0934]].
 
 ## Evidence
 
-Implementation and direct verification pending.
+`e21476cc` repairs the omitted composed `apply_code_font_to` call. Persistence and accepted Settings were correct; Qt had retained its default 80-pixel tab stop. The new production-composition check fails before the repair, then proves default 4, gestures 2/8/4 and restart persistence for source/detail/unified panes. Actual QTextLayout cursor advances follow 2/4/8 selected space widths for one, two and three literal tabs without changing source or mappings.
+
+See the [exact candidate and verification record](../../verification/rfc-bpr-0013-usable-review-20260920.md).

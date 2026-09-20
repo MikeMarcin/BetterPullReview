@@ -25,4 +25,11 @@ Overview folder collapse remains separate in [[BPR-0934]].
 
 ## Evidence
 
-Implementation and direct verification pending.
+`10e9716d` carries a typed operation role to the drawer delegate and applies the accepted appearance profile in the concrete workbench. Added/removed names and operation/count text use Overview's semantic green/red; modified files remain neutral, selected rows retain native highlighted text, and accessible operation words do not rely on color. Pixel/role/accessibility checks pass for light, dark and both high-contrast themes.
+
+See the [dark/light rasters and exact candidate](../../verification/rfc-bpr-0013-usable-review-20260920.md).
+
+The final production-composition regression paints safe added/removed rows
+through the actual application's delegate after Settings selects each theme.
+It fails when the concrete appearance handoff is removed and passes when it is
+restored; no manual delegate profile application masks a missing wrapper call.
