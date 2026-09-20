@@ -1,3 +1,9 @@
+bpr_add_executable(test_release_update_core release_update_tests.cpp)
+target_link_libraries(test_release_update_core PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_release_update_core)
+bpr_enable_warnings(test_release_update_core)
+bpr_add_network_isolated_test(NAME core_release_update COMMAND test_release_update_core)
+
 bpr_add_executable(
     test_better_pull_review_core_tests
     foundation_tests.cpp

@@ -18,6 +18,7 @@ add_library(
         src/defect_correlation.cpp
         src/review_synchronization.cpp
         src/review_queue_refresh.cpp
+        src/release_update_application_host.cpp
         src/review_queue_enrollment.cpp
         src/setup_destination.cpp
         src/profile_registry.cpp

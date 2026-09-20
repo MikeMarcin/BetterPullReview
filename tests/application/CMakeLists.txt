@@ -1,3 +1,9 @@
+bpr_add_executable(test_release_update_host release_update_application_host_tests.cpp)
+target_link_libraries(test_release_update_host PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_release_update_host)
+bpr_enable_warnings(test_release_update_host)
+bpr_add_network_isolated_test(NAME application_release_update COMMAND test_release_update_host)
+
 bpr_add_executable(
     test_better_pull_review_application_tests
     host_tests.cpp

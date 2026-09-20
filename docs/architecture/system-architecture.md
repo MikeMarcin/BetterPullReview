@@ -1131,6 +1131,16 @@ closed to the refusal ([[BPR-0281]], [[BPR-0318]],
 `application_device_authorization_public_path`,
 `application_device_authorization_release_contract`).
 
+## Release updater foundation
+
+RFC-BPR-0035 milestone 1 adds an uncomposed updater foundation: deterministic
+stable-version/asset/scheduling policy in core and one application host with
+narrow release-access and staging ports. Fake-port checks exercise its public
+gesture-to-projection path, cancellation and stale rejection. No production
+updater, credential retrieval or installer is selected yet. The
+[release updater contract](release-updater.md) binds the fixed distribution
+source, separate native authority, limits and successor obligations.
+
 ## Performance contract
 
 Routine work must scale approximately with:

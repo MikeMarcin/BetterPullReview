@@ -34,9 +34,19 @@ failed because it invoked obsolete `mask ensure`; the host exposes the assigned
 native `rfc-implementer` role. This is a tooling observation, not acceptance.
 
 Allocation reserved BPR-0946 through BPR-0949 for the four authored milestones.
-Next: adopt/bind the plan, claim BPR-0946, implement and exercise its public host
-with fake ports. No background commands, live mutations or protected updater
-candidates exist. Milestones 2–4 and all full RFC acceptance remain pending.
+Plan commit `ae388676`; BPR-0946 claim `bb1e9bf4`. The adopted plan is
+`docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json`; exact binding is
+`build/rfc0035-run/m1-checkpoint.json`. Current source candidate is uncommitted
+on that claim: `release_update` core, application host/ports and focused core/host
+tests with their CMake registrations. The early public fake-port course passed
+`ctest --preset core-only -R '^(core_release_update|application_release_update)$'
+(2/2), including absent-release-capability negative control. Initial compile
+warnings (test range copy and lambda capture shadow) were corrected.
+
+Next: extend failure, reordering, cancellation and shutdown checks; self-review;
+run the core-only/architecture/documentation integration pass and finish BPR-0946.
+No background commands, live mutations or protected updater candidates exist.
+Milestones 2–4 and all full RFC acceptance remain pending.
 
 ## Closeout checklist
 
