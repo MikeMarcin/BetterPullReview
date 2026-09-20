@@ -3168,6 +3168,17 @@ namespace bpr::app::detail {
 				};
 			}
 			auto served = descriptor(aFixture);
+			if (aOptions.ModifiedMissingEndpointCourse) {
+				if (aFixture != github_public_path_fixture::profile_window_restoration_v1
+					|| aOptions.EpochPhase != github_epoch_fixture_phase::single) {
+					throw std::runtime_error{ "Missing endpoint course requires the single reading fixture" };
+				}
+				served.BaseOid    = "3360e4b77ededc45be518f46a428dac9cffedf85";
+				served.HeadOneOid = "523f7a961e06657890c604bce7ea86e4fef1a16a";
+				served.HeadTwoOid = "";
+				served.BaseBlob   = "";
+				served.Packs      = { .File = "modified-missing-endpoint-v1/objects.pack" };
+			}
 			if (aOptions.GhesCliSourceUpdateCourse) {
 				if (aFixture != github_public_path_fixture::ghes_3_18) {
 					throw std::runtime_error{

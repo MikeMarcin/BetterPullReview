@@ -499,8 +499,12 @@ the fixed retained-candidate bound, and unrelated records are filtered before
 the latter applies. Reverse pairs use reversed commits; multiple, malformed,
 and unbound candidate records fail closed without history traversal.
 The actor revalidates that complete selected authority before and after Git
-work; one absent endpoint is legal, while two absent endpoints and non-blob
-tree entries fail closed. Qt retains the opaque file identity in its list model
+work; one absent endpoint is legal for add/remove/copy facts. Modified,
+type-changed and unchanged facts require both selected endpoints; a mismatch
+reports the missing side explicitly, without fabricating empty source or
+substituting a merge base. Two absent endpoints and non-blob tree entries fail
+closed. A present zero-byte blob remains material, distinct from an absent tree
+entry. Qt retains the opaque file identity in its list model
 and emits a semantic selection without parsing row text or running Git on the
 presentation lane.
 

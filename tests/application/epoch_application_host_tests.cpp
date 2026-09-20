@@ -5632,6 +5632,46 @@ namespace {
 			"matching invalidation revokes selected-diff publication authority");
 	}
 
+	void modified_file_requires_both_selected_endpoints()
+	{
+		for (const auto change : { application::workbench_file_change_kind::modified,
+								   application::workbench_file_change_kind::type_changed,
+								   application::workbench_file_change_kind::unchanged }) {
+			for (const auto missingLeft : { true, false }) {
+				fixture value;
+				establish_ready_comparison(value);
+				auto request        = selected_diff_request_for(value);
+				request.File.Change = change;
+				const auto blob     = std::optional{ oid<core::git_blob_oid>(71U) };
+				value.State.TreeEntryResults.emplace_back(missingLeft ? std::nullopt : blob);
+				value.State.TreeEntryResults.emplace_back(missingLeft ? blob : std::nullopt);
+				const auto observation = resolve_selected_diff(value, request);
+				expect(observation.Status == (missingLeft ? application::workbench_selected_diff_status::missing_left : application::workbench_selected_diff_status::missing_right)
+						   && !observation.LeftEndpoint && !observation.RightEndpoint
+						   && !observation.LeftBlob && !observation.RightBlob,
+					   "modified material cannot mint a successful one-sided comparison when the selected tree lacks a required path");
+				expect(value.State.TreeEntryRequests.size() == 2U
+						   && value.State.TreeEntryRequests[0].Commit == request.Diff.Comparison.Left.Commit
+						   && value.State.TreeEntryRequests[1].Commit == request.Diff.Comparison.Right.Commit,
+					   "unavailable preserves exact selected anchors and makes no fallback history lookup");
+			}
+		}
+	}
+
+	void zero_length_modified_endpoint_is_present_material()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto request   = selected_diff_request_for(value);
+		const auto emptyBlob = core::parse_git_blob_oid("e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+		value.State.TreeEntryResults.emplace_back(emptyBlob);
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(71U));
+		const auto emptySource = resolve_selected_diff(value, request);
+		expect(emptySource.Status == application::workbench_selected_diff_status::available
+				   && emptySource.LeftBlob == emptyBlob && emptySource.LeftEndpoint,
+			   "a present zero-byte Git blob is real material, not an absent tree entry");
+	}
+
 	// [[BPR-0654]]. The overview's changed-since-review set: one lookup per
 	// path per side through the retained cache session, exactly the paths
 	// whose blob differs (an absent side counts as a difference), delivered
@@ -7864,6 +7904,8 @@ int main()
 	selected_large_occurrence_rebases_after_superseded_commit(true);
 	selected_large_occurrence_reconciles_cancel_after_commit_boundary();
 	selected_diff_resolution_reuses_and_revalidates_the_epoch_cache_actor();
+	modified_file_requires_both_selected_endpoints();
+	zero_length_modified_endpoint_is_present_material();
 	selected_diff_resolves_each_endpoint_without_provider_direction();
 	selected_diff_rename_resolution_is_directional_and_ambiguous_closed();
 	selected_diff_multi_hop_rename_uses_the_exact_selected_pair();

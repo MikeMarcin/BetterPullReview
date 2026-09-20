@@ -28,6 +28,16 @@ bpr_add_network_isolated_test(
 set_tests_properties(profile_window_restoration_fixture_contract PROPERTIES
     PASS_REGULAR_EXPRESSION "PROFILE_WINDOW_RESTORATION_FIXTURE_OK" TIMEOUT 30)
 
+bpr_add_network_isolated_test(
+    NAME modified_endpoint_fixture_contract
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_modified_endpoint_fixture.py"
+        --git "$<TARGET_FILE:Git::Git>"
+)
+set_tests_properties(modified_endpoint_fixture_contract PROPERTIES
+    PASS_REGULAR_EXPRESSION "MODIFIED_ENDPOINT_FIXTURE_OK" TIMEOUT 30)
+
 # [[BPR-0880]] Rebuilds the fsck-severity packs from their recipe, checks the
 # frozen bytes against it, and proves the installed Git accepts every fsck
 # message identifier the adapter ships. A Git that refuses one would fail every

@@ -262,6 +262,68 @@ namespace {
 		wait_for([&] { return owner->status().ShutdownComplete; }, "folder course quiescence");
 	}
 
+	void run_modified_missing_endpoint_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated missing-endpoint course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private endpoint course root");
+		options.ModifiedMissingEndpointCourse = true;
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "missing endpoint startup");
+		expect(owner != nullptr, "missing endpoint application");
+		auto& window = owner->window();
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_open_action()->isEnabled(); }, "missing endpoint connection");
+		submit(window, QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
+		wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready && window.files_tree()->tree_model()->file_count() == 2U; }, "missing endpoint exact comparison");
+		window.modality()->action(qt::review_modality::read)->trigger();
+		if (!window.files_drawer_toggle_action()->isChecked()) {
+			window.files_drawer_toggle_action()->trigger();
+		}
+		auto* const tree         = window.files_tree();
+		auto* const surface      = window.comparison_surface();
+		const auto  intact       = core::file_identity_of("secondary.cpp");
+		const auto  missing      = core::file_identity_of("review.cpp");
+		const auto  selectIntact = [&] {
+			tree->setCurrentIndex(tree->tree_model()->index_for_file(intact));
+			wait_for([&] { return surface->current_result() && surface->current_context()
+							   && surface->current_context()->Key.File == intact && !surface->geometry_pending(); }, "intact file recovers exact source");
+			expect(!surface->left_pane()->toPlainText().isEmpty() && !surface->right_pane()->toPlainText().isEmpty(), "intact source remains available at both selected revisions");
+			expect(!window.status_text().contains(QStringLiteral("Comparison unavailable")), "recovery clears the previous selected-file failure");
+		};
+		selectIntact();
+		const auto failures = window.statistics().Failures;
+		tree->setCurrentIndex(tree->tree_model()->index_for_file(missing));
+		wait_for([&] { return window.statistics().Failures > failures || (surface->current_result() && surface->current_context()->Key.File == missing); }, "missing endpoint reaches terminal instead of indefinite loading");
+		capture(window, QStringLiteral("modified-missing-endpoint.png"));
+		expect(window.statistics().Failures == failures + 1 && surface->current_result() == nullptr
+				   && !surface->current_context() && surface->left_pane()->toPlainText().isEmpty()
+				   && surface->right_pane()->toPlainText().isEmpty(),
+			   "provider M with absent selected-base path is unavailable, never a successful one-sided diff");
+		expect(surface->status_text().contains(QStringLiteral("Comparison unavailable"))
+				   && surface->status_text().contains(QStringLiteral("earlier selected revision"))
+				   && window.status_text().contains(QStringLiteral("earlier selected revision")),
+			   "visible and accessible comparison explains the missing selected material");
+		const auto* status = surface->findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"));
+		expect(status != nullptr && status->wordWrap() && status->accessibleDescription() == status->text(),
+			   "missing-material explanation wraps and remains fully accessible");
+		wait_for([&] { return status->height() >= status->heightForWidth(status->width()); },
+				 "missing-material layout settles with enough room for the complete explanation");
+		selectIntact();
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "missing endpoint course quiescence");
+	}
+
 	void run_course(const bool aEnterprise)
 	{
 		auto temporary = QTemporaryDir{ };
@@ -1192,9 +1254,14 @@ namespace {
 int main(int aArgc, char** aArgv)
 {
 	QApplication application{ aArgc, aArgv };
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--selected-file-safety")) {
+		run_folder_selection_course();
+		run_modified_missing_endpoint_course();
+		std::cout << "selected-file-safety-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
 	run_course(false);
 	run_course(true);
-	run_folder_selection_course();
 #if defined(__APPLE__)
 	run_github_cli_discovery_course();
 	run_connected_cli_destination_course(false);

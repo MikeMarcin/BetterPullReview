@@ -21,11 +21,15 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests/fixtures/github/pull-requests/cli-read-v1"
 
 
+def is_large(course):
+    return course in ("large-positive", "modified-missing-left")
+
+
 def prepare(directory, course):
     directory.mkdir(mode=0o700, parents=True, exist_ok=False)
     (directory / "home").mkdir()
     (directory / "bin").mkdir()
-    large = course == "large-positive"
+    large = is_large(course)
     object_fixture = (ROOT / "tests/fixtures/github/pull-requests/large-review-v1"
                       if large else FIXTURE)
     objects = json.loads((object_fixture / ("manifest.json" if large else "objects.json")).read_text())
@@ -55,7 +59,16 @@ def prepare(directory, course):
         modules = git("hash-object", "-w", "--stdin", data=b"").strip()
         replacements = []
         for oid in [base, *objects["heads"]]:
-            entries = git("ls-tree", oid) + b"100644 blob " + attributes + b"\t.gitattributes\n"
+            entries = git("ls-tree", oid)
+            if course == "modified-missing-left" and oid == base:
+                # Provider M uses another comparison basis; the selected exact
+                # base tip really lacks this path, not an empty source blob.
+                original_src = git("rev-parse", oid + ":src").strip()
+                src_entries = b"".join(entry + b"\n" for entry in git("ls-tree", original_src.decode()).splitlines()
+                                        if not entry.endswith(b"\tfile_0000.cpp"))
+                replacement_src = git("mktree", data=src_entries).strip()
+                entries = entries.replace(original_src + b"\tsrc\n", replacement_src + b"\tsrc\n")
+            entries += b"100644 blob " + attributes + b"\t.gitattributes\n"
             entries += b"100644 blob " + modules + b"\t.gitmodules\n"
             tree = git("mktree", data=entries).decode().strip()
             parent = ["-p", replacements[-1]] if replacements else []
@@ -125,7 +138,7 @@ def record_operation(directory, operation):
 
 def clone_fixture(directory, fixture, args):
     """Materialize only the closed production clone command, using local Git."""
-    large = fixture["course"] == "large-positive"
+    large = is_large(fixture["course"])
     if len(args) != (20 if large else 18):
         return 64
     destination = Path(args[3])
@@ -152,7 +165,7 @@ def clone_fixture(directory, fixture, args):
             or any(template.iterdir())):
         return 64
     record_operation(directory, "clone-base" if oid == fixture["base"] else "clone-head")
-    if fixture["course"] not in ("positive", "large-positive"):
+    if fixture["course"] != "positive" and not large:
         return 1
     # An explicitly local fixture capability: no ambient credential/config
     # environment reaches Git, and only the file protocol is enabled.
@@ -201,7 +214,7 @@ def fake_gh():
         expected = ["api", args[1], "--hostname", "github.com", "--method", "GET",
                     "--header", "Accept: application/vnd.github+json",
                     "--header", "X-GitHub-Api-Version: 2022-11-28"]
-        if args != expected or fixture["course"] != "large-positive":
+        if args != expected or not is_large(fixture["course"]):
             return 64
         record_operation(directory, "exact-blob")
         blob = subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
@@ -244,13 +257,13 @@ def fake_gh():
     body = ({"message": "Resource not accessible"} if denied else
             fixture["parts"][int(part[1])] if part else fixture["routes"][endpoint])
     continuation = ""
-    if fixture["course"] == "large-positive" and endpoint.endswith("/files"):
+    if is_large(fixture["course"]) and endpoint.endswith("/files"):
         page = int(parse_qs(request_url.query).get("page", ["1"])[0])
         start = (page - 1) * 100
         if start + 100 < len(body):
             continuation = (f"Link: <https://api.github.com{endpoint}?page={page + 1}&per_page=100>; rel=\"next\"\r\n")
         body = body[start:start + 100]
-    if fixture["course"] == "large-positive" and endpoint == "/graphql" and not part:
+    if is_large(fixture["course"]) and endpoint == "/graphql" and not part:
         body = copy.deepcopy(body)
         connection = body["data"]["repository"]["pullRequest"]["files"]
         cursor = re.fullmatch(r"fixture-files-([0-9]+)", variables.get("after", ""))
@@ -305,7 +318,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "launch"))
     parser.add_argument("--directory", type=lambda value: Path(value).resolve(), required=True)
-    parser.add_argument("--course", choices=("positive", "large-positive", "missing-process", "process-failure", "malformed-response"),
+    parser.add_argument("--course", choices=("positive", "large-positive", "modified-missing-left", "missing-process", "process-failure", "malformed-response"),
                         default="positive")
     parser.add_argument("--app", type=Path)
     parser.add_argument("--cmake-cache", type=Path)

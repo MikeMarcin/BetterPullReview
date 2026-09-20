@@ -791,6 +791,7 @@ namespace bpr::qt {
 		root->setContentsMargins(0, 0, 0, 0);
 		root->setSpacing(6);
 		Status = new QLabel{ QStringLiteral("Select a file comparison"), this };
+		Status->setWordWrap(true);
 		Status->setObjectName(QStringLiteral("diffWorkbenchStatus"));
 		Status->setAccessibleName(QStringLiteral("Comparison status"));
 		Status->setAccessibleDescription(QStringLiteral(
@@ -1048,11 +1049,11 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::clear()
+	void diff_workbench::clear(QString aStatus)
 	{
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
-		clear_projection(QStringLiteral("Select a file comparison"));
+		clear_projection(aStatus.isEmpty() ? QStringLiteral("Select a file comparison") : std::move(aStatus));
 		if (!hadSelection) {
 			emit_selection_observer(false);
 		}

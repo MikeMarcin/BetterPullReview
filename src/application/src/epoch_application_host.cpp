@@ -3929,6 +3929,18 @@ namespace bpr::application {
 									observation.Status = workbench_selected_diff_status::both_missing;
 									endpointsReady     = false;
 								}
+								// Provider M/type/unchanged facts require material on both
+								// selected sides. A different comparison basis may genuinely
+								// lack the path; report that instead of publishing a normal M
+								// with invented empty source or substituting another commit.
+								const auto requiresBoth = aRequest.File.Change == workbench_file_change_kind::modified
+									|| aRequest.File.Change == workbench_file_change_kind::type_changed
+									|| aRequest.File.Change == workbench_file_change_kind::unchanged;
+								if (endpointsReady && requiresBoth && (!left->Blob || !right->Blob)) {
+									observation.Status = !left->Blob ? workbench_selected_diff_status::missing_left
+																	 : workbench_selected_diff_status::missing_right;
+									endpointsReady     = false;
+								}
 								if (endpointsReady) {
 									publicationAuthorityLock = std::unique_lock{
 										actor->BlobAuthorityMutex

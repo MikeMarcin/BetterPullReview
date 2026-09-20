@@ -160,7 +160,8 @@ namespace bpr::qt {
 
 		/// \brief Clears stale geometry and presents an exact pending context.
 		void set_loading(const core::diff_request_context& aContext);
-		void clear();
+		/// \brief Clears material and optionally presents a host-supplied unavailable reason.
+		void clear(QString aStatus = { });
 		/// \brief Publishes exact semantic selections for application binding.
 		void set_selection_sink(selection_sink aSink);
 		/// \brief Reports explicit reading gestures before the accepted selection sink.

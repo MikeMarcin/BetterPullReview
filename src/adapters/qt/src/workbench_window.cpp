@@ -341,9 +341,9 @@ namespace bpr::qt {
 			case application::workbench_host_failure::selected_file_binary:
 				return QStringLiteral("The selected file is binary.");
 			case application::workbench_host_failure::selected_file_missing_left:
-				return QStringLiteral("The selected file is missing from the left revision.");
+				return QStringLiteral("Comparison unavailable: the earlier selected revision has no file at this path. Pull-request status may describe a different comparison.");
 			case application::workbench_host_failure::selected_file_missing_right:
-				return QStringLiteral("The selected file is missing from the right revision.");
+				return QStringLiteral("Comparison unavailable: the later selected revision has no file at this path. Pull-request status may describe a different comparison.");
 			case application::workbench_host_failure::selected_file_missing_both:
 				return QStringLiteral("The selected file is absent from both revisions.");
 			case application::workbench_host_failure::selected_file_ambiguous:
@@ -4081,6 +4081,11 @@ namespace bpr::qt {
 			apply_conversation_anchor();
 		}
 		Failure = aFailure.Failure;
+		if (aFailure.Failure == application::workbench_host_failure::selected_file_missing_left
+			|| aFailure.Failure == application::workbench_host_failure::selected_file_missing_right
+			|| aFailure.Failure == application::workbench_host_failure::selected_file_missing_both) {
+			ComparisonSurface->clear(failure_text(aFailure.Failure));
+		}
 		++Statistics.Failures;
 		update_status_text();
 		announce_update();

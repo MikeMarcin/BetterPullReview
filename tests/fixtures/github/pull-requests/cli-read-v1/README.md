@@ -57,6 +57,12 @@ Focused check:
 PYTHONDONTWRITEBYTECODE=1 python3 /Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture_tests.py
 ```
 
+The `modified-missing-left` course uses the same 515-file sparse acquisition as
+`large-positive`, but removes `src/file_0000.cpp` from only the exact selected
+base tree while retaining provider status M. It reproduces comparison-basis
+mismatch, not an empty blob. `src/file_0001.cpp` is the positive two-sided
+recovery control. All paths and bytes are generated safe fixture content.
+
 When the production sandbox denies trace-file writes, the fake CLI silently
 skips its optional trace and continues. Successful version/API requests require
 empty stderr, so a missing call log is not a zero-launch verdict. Keep the visible

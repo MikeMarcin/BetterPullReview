@@ -1,0 +1,11 @@
+{
+  "schema": "bpr.modified-missing-endpoint.v1",
+  "commits": {
+    "base": "3360e4b77ededc45be518f46a428dac9cffedf85",
+    "head1": "523f7a961e06657890c604bce7ea86e4fef1a16a"
+  },
+  "base_absent_path": "review.cpp",
+  "intact_path": "secondary.cpp",
+  "sha256": "d50b3f91ee920360a31e0f9c7e3ba9af00c8d8fc54e0f0d67d615912eb1deb2a",
+  "bytes": 664
+}

@@ -2573,6 +2573,14 @@ set_tests_properties(
         TIMEOUT 60
         PASS_REGULAR_EXPRESSION "setup-destination-public-path:pass"
 )
+bpr_add_network_isolated_test(
+    NAME application_selected_file_safety_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --selected-file-safety
+)
+set_tests_properties(application_selected_file_safety_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60
+    PASS_REGULAR_EXPRESSION "selected-file-safety-public-path:pass")
 
 bpr_add_executable(test_attended_recent_replay attended_recent_replay_tests.cpp)
 target_link_libraries(test_attended_recent_replay PRIVATE BetterPullReview::Composition BetterPullReview::AdapterGitHub)

@@ -22,6 +22,22 @@ import rfc0015_cli_read_fixture as fixture  # noqa: E402
 
 
 class cli_read_fixture_tests(unittest.TestCase):
+    def test_modified_missing_left_is_absence_not_empty_blob(self):
+        with contained_temporary_directory(prefix="bpr-cli-modified-fixture-") as temporary:
+            directory = Path(temporary).resolve() / "modified"
+            fixture.prepare(directory, "modified-missing-left")
+            state = json.loads((directory / "fixture.json").read_text())
+            selected = next(row for row in state["routes"]["/repos/octo-org/review-repository/pulls/17/files"]
+                            if row["filename"] == "src/file_0000.cpp")
+            self.assertEqual(selected["status"], "modified")
+            self.assertNotIn("previous_filename", selected)
+            git = ["/usr/bin/git", "--git-dir", str(directory / "repository.git")]
+            self.assertEqual(subprocess.check_output([*git, "ls-tree", state["base"], "--", selected["filename"]]), b"")
+            self.assertTrue(subprocess.check_output([*git, "ls-tree", state["head"], "--", selected["filename"]]).startswith(b"100644 blob "))
+            self.assertTrue(subprocess.check_output([*git, "cat-file", "blob", state["head"] + ":" + selected["filename"]]))
+            for revision in (state["base"], state["head"]):
+                self.assertTrue(subprocess.check_output([*git, "cat-file", "blob", revision + ":src/file_0001.cpp"]))
+
     def test_large_course_requires_sparse_clone_and_exact_blob_read(self):
         with contained_temporary_directory(prefix="bpr-cli-large-fixture-") as temporary:
             directory = Path(temporary).resolve() / "large"

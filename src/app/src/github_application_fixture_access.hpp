@@ -100,6 +100,8 @@ namespace bpr::app::detail {
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file
 		/// reading graph so the CLI-profile course can prove exact source recovery.
 		bool GhesCliSourceUpdateCourse = false;
+		/// [[BPR-0943]]. Provider M while the selected base tree lacks review.cpp.
+		bool ModifiedMissingEndpointCourse = false;
 		/// Test-owned gate before catalogue reads; absent from production builds.
 		std::function<void(std::stop_token)> BeforeFilesPage;
 		/// [[BPR-0922]]. Refuses exactly the first valid smart-Git acquisition.
