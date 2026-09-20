@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0945"
+  ],
+  "reserve_for": "rfc0013-r21-strict-tidy-debt",
+  "purpose": "Track unchanged strict clang-tidy header diagnostics exposed by focused integration",
+  "created": "2026-09-20T18:04:12.339557+00:00",
+  "base": "5b05a34cf8b875042c9ed8314aa46a8a95ffe89e"
+}

@@ -41,3 +41,13 @@ the separate owner-requested CLI warning cleanup.
 
 See the [r22 bounded evidence](../../verification/rfc-bpr-0013-usable-review-20260920.md).
 The current failure is durable and remains open; no full-suite acceptance is claimed.
+
+The r23 follow-up also reaches the related workbench-window layout assertion at
+all three existing scales: `the epoch row is the first row of the client area
+and as wide as it`. The measured row top is 72 versus client top 50. A temporary
+control restoring the old, non-wrapping comparison status still fails identically
+(2.10 seconds); that control was removed and the unchanged test rebuilt. The
+new endpoint-failure presentation is not exercised by this layout setup. Preserve
+the existing failure until the current compose/readiness/epoch-row layout
+contract is reconciled; do not count this suite as green. Include these window
+scale registrations in this card's contract reconciliation and verification.
