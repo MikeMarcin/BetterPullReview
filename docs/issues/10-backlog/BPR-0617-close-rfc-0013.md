@@ -42,7 +42,9 @@ The unchanged candidate passes 17 focused/public-path tests in 52.91 seconds
 and three queue checks in 4.92 seconds; prior signed r23 safe native source and
 anchor proof is reused. BPR-0934, BPR-0940, BPR-0944, BPR-0945 and the separate
 BPR-0817/BPR-0825 decisions stay open as classified in the ledger. The final
-checkpoint/handoff is the d7/r22 owner-closeout segment beside the live plan.
+[checkpoint](../../rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d7-r22.json)
+and [handoff](../../rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-closeout-d7-r22.json)
+bind the d7/r22 owner-closeout segment beside the live plan.
 All task-owned commands are collected; no app or review server was launched.
 Owner r23 PID 5964, `.mask.lock.json`, the ignored nested worktree and attended
 sequence 443/protected BPR-0755 remain untouched. Next canonical closure is

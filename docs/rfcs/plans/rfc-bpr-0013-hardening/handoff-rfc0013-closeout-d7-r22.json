@@ -1,0 +1,331 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d7-owner-closeout",
+  "mandate_revision": "r22-owner-closeout-deferral",
+  "child": "/root/rfc0013_postreview_r3",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "assignment": "Owner-authorized closeout reconciliation under implement-rfc.engineering.v1 and coordinator-implementer revision 2; sole non-delegating writer on main.",
+  "entry_revision": "143509c3",
+  "source_integration_revision": "3ebbceca1d8e69d525057fe4ae9012a2f9f2f76c",
+  "product_candidate_revision": "a9492592d135c4e466240ecc654bb52e71ed4748",
+  "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d7-r22.json",
+  "previous_handoff": "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d6-r21.json",
+  "ledger": "docs/verification/RFC-BPR-0013.md",
+  "owner_amendment": "Explicitly defer the unusual-target comparison-basis and partial-pane anomaly, file it for later investigation, stop spending this round on that target, and seek RFC closeout under existing sequencing. The available right file should remain useful and the missing-earlier explanation should occupy the left pane. This is an acceptance amendment, not evidence of repaired behavior.",
+  "observed": "The supplied screenshot was inspected directly outside checkout. It confirms both panes are cleared with the refusal above them. No private pixels, paths, OIDs or source were copied to committed artifacts; no new private-target read or native app launch.",
+  "implementation": "No source or test change. Exact selected anchors and current typed both-pane refusal remain unchanged. BPR-0944 explicitly owns all requested future semantics/presentation.",
+  "result": {
+    "milestone": "selected-diff-exact-epoch-pair",
+    "disposition": "milestone-complete",
+    "scope": "All ten assigned cards and thirteen owner-amended exits complete; not RFC completion.",
+    "completed_cards": [
+      "BPR-0794",
+      "BPR-0795",
+      "BPR-0935",
+      "BPR-0936",
+      "BPR-0937",
+      "BPR-0938",
+      "BPR-0939",
+      "BPR-0941",
+      "BPR-0942",
+      "BPR-0943"
+    ],
+    "rfc": "RFC-BPR-0013",
+    "rfc_status": "Proposed",
+    "closeout_card": "BPR-0617",
+    "closeout_card_status": "Backlog",
+    "terminal_blockers": [
+      "Canonical RFC-BPR-0008, RFC-BPR-0010 and RFC-BPR-0012 remain Proposed; BPR-0507 remains unfinished.",
+      "Original RFC-wide acceptance is not complete: comprehensive fuzz/corpus coverage, broader native performance budgets, rendered cached-offline/backoff and remaining pathological/structural acceptance inventory. The target-specific amendment does not waive these."
+    ],
+    "next_canonical": "RFC-BPR-0008 / BPR-0242; BPR-0143 and BPR-0144 still require designated live authority, outside this no-mutation task. BPR-0641 remains separately human-pending."
+  },
+  "commits": [
+    {
+      "revision": "a38761b4",
+      "purpose": "Owner-amended acceptance, BPR-0944 deferred pane/basis scope, live plan/generated view."
+    },
+    {
+      "revision": "4047f0728c3dc06afdbd215d900cda6a56f647ab",
+      "purpose": "Guarded Done finish for BPR-0794 under amended criterion."
+    },
+    {
+      "revision": "ef6d2d7f355877f0628ba2fce541a3f764cb8049",
+      "purpose": "Guarded Done finish for BPR-0795 under amended shared exit."
+    },
+    {
+      "revision": "3ebbceca",
+      "purpose": "RFC-wide nine-row ledger, stale frontier/platform reconciliation, RFC/index/README/architecture limitation, corrected BPR-0817 Mac acceptance."
+    }
+  ],
+  "verification": [
+    {
+      "name": "Focused/public path",
+      "result": "17/17 pass, 52.91s, source 143509c3 (product unchanged from a9492592). Includes real selected-file safety, held loading, epoch/workbench host, drawer/diff, provider/pager, composed logging/backpressure and profile management.",
+      "log": "build/rfc0013-resume-20260919/r24-closeout-focused.log"
+    },
+    {
+      "name": "Queue reuse",
+      "result": "3/3 pass, 4.92s at ef6d2d7f: application_review_queue_refresh, qt_review_queue, application_queue_composition_contract. Does not establish a full rendered cached-offline course.",
+      "log": "build/rfc0013-resume-20260919/r24-closeout-queue.log"
+    },
+    {
+      "name": "Documentation",
+      "result": "DOCUMENTATION_OK; 64/64 verifier behavior tests pass. First gate rejected a renamed closeout heading; restored exact heading and added current nine-row matrix while preserving old matrix separately. No verifier rule changed."
+    },
+    {
+      "name": "Board and plan",
+      "result": "Scoped validation valid, 937 total cards; RFC-0013 inventory 95 cards, 89 Done. Live plan structure/references valid. git diff --check passes."
+    },
+    {
+      "name": "Reused evidence",
+      "result": "Signed r23 tests-disabled safe native source/anchor proof, failure-before regressions, 5/5 external CLI fixture, scoped formatting and unchanged native resource/recovery evidence retain exact candidate limits. No private-target retest."
+    },
+    {
+      "name": "Known non-green checks",
+      "result": "Broader composed GitHub/window-layout failures remain BPR-0940; strict tidy unchanged shared-header warnings remain BPR-0945. No fresh full-suite, native-platform benchmark or fuzz pass is claimed."
+    }
+  ],
+  "accepted_prior_milestones": [
+    {
+      "id": "default-cache-byte-pressure",
+      "evidence": "BPR-0635/BPR-0751 recorded exact public byte-pressure/history checks and explicit historical-outlier owner amendment; 4a2be1b1, b1743179, 42bd1ed1."
+    },
+    {
+      "id": "durable-agent-workspace-recovery",
+      "evidence": "BPR-0622 actual native Windows c94e02b1 / 2ba02ddb, Linux 780d0a1c / 48b6422b and Mac 8a03a5be evidence. BPR-0825 is separate nonblocking hardening."
+    },
+    {
+      "id": "retained-stress-pr-read",
+      "evidence": "BPR-0643 historical explicitly accepted known-limit alternative, 8285cb4f; no readable-source inference."
+    },
+    {
+      "id": "large-pr-returned-commit-boundary",
+      "evidence": "BPR-0792 bounded total/returned distinction, negative checks and next refusal, 3cefa687 / edc59774."
+    },
+    {
+      "id": "review-thread-null-anchor-read",
+      "evidence": "BPR-0793 preserved nullable anchors and focused/composed/native next-refusal evidence, 0d9f3d71 / 17d84c90."
+    }
+  ],
+  "board_inventory": {
+    "selected_count": 95,
+    "done_count": 89,
+    "done_ids": [
+      "BPR-0719",
+      "BPR-0792",
+      "BPR-0793",
+      "BPR-0794",
+      "BPR-0795",
+      "BPR-0808",
+      "BPR-0924",
+      "BPR-0935",
+      "BPR-0936",
+      "BPR-0937",
+      "BPR-0938",
+      "BPR-0939",
+      "BPR-0941",
+      "BPR-0942",
+      "BPR-0943",
+      "BPR-0215",
+      "BPR-0217",
+      "BPR-0218",
+      "BPR-0224",
+      "BPR-0225",
+      "BPR-0234",
+      "BPR-0248",
+      "BPR-0319",
+      "BPR-0329",
+      "BPR-0331",
+      "BPR-0343",
+      "BPR-0358",
+      "BPR-0359",
+      "BPR-0361",
+      "BPR-0363",
+      "BPR-0364",
+      "BPR-0366",
+      "BPR-0367",
+      "BPR-0371",
+      "BPR-0373",
+      "BPR-0374",
+      "BPR-0379",
+      "BPR-0380",
+      "BPR-0385",
+      "BPR-0386",
+      "BPR-0394",
+      "BPR-0398",
+      "BPR-0399",
+      "BPR-0400",
+      "BPR-0402",
+      "BPR-0403",
+      "BPR-0404",
+      "BPR-0407",
+      "BPR-0411",
+      "BPR-0419",
+      "BPR-0423",
+      "BPR-0424",
+      "BPR-0426",
+      "BPR-0428",
+      "BPR-0429",
+      "BPR-0430",
+      "BPR-0431",
+      "BPR-0432",
+      "BPR-0434",
+      "BPR-0440",
+      "BPR-0454",
+      "BPR-0458",
+      "BPR-0466",
+      "BPR-0467",
+      "BPR-0471",
+      "BPR-0479",
+      "BPR-0510",
+      "BPR-0555",
+      "BPR-0616",
+      "BPR-0618",
+      "BPR-0619",
+      "BPR-0620",
+      "BPR-0621",
+      "BPR-0622",
+      "BPR-0623",
+      "BPR-0624",
+      "BPR-0625",
+      "BPR-0626",
+      "BPR-0627",
+      "BPR-0628",
+      "BPR-0629",
+      "BPR-0630",
+      "BPR-0631",
+      "BPR-0632",
+      "BPR-0633",
+      "BPR-0634",
+      "BPR-0635",
+      "BPR-0643",
+      "BPR-0751"
+    ],
+    "open": [
+      {
+        "id": "BPR-0817",
+        "status": "Parked",
+        "path": "docs/issues/40-parked/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md",
+        "unmet_dependencies": []
+      },
+      {
+        "id": "BPR-0944",
+        "status": "Backlog",
+        "path": "docs/issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md",
+        "unmet_dependencies": []
+      },
+      {
+        "id": "BPR-0617",
+        "status": "Backlog",
+        "path": "docs/issues/10-backlog/BPR-0617-close-rfc-0013.md",
+        "unmet_dependencies": [
+          "BPR-0507"
+        ]
+      },
+      {
+        "id": "BPR-0825",
+        "status": "Parked",
+        "path": "docs/issues/40-parked/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md",
+        "unmet_dependencies": []
+      },
+      {
+        "id": "BPR-0940",
+        "status": "Backlog",
+        "path": "docs/issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md",
+        "unmet_dependencies": []
+      },
+      {
+        "id": "BPR-0945",
+        "status": "Backlog",
+        "path": "docs/issues/10-backlog/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md",
+        "unmet_dependencies": []
+      }
+    ]
+  },
+  "deferred_followups": [
+    {
+      "id": "BPR-0934",
+      "state": "Backlog, RFC-0037",
+      "scope": "Overview folder collapse, unchanged and separate."
+    },
+    {
+      "id": "BPR-0944",
+      "state": "Backlog",
+      "scope": "Owner-explicit deferral: Whole PR basis; retain available right material; missing-earlier explanation in left pane. Not fixed."
+    },
+    {
+      "id": "BPR-0940",
+      "state": "Backlog",
+      "scope": "Broader pre-existing composed Qt/window-layout contract failures."
+    },
+    {
+      "id": "BPR-0945",
+      "state": "Backlog",
+      "scope": "Unchanged shared-header strict tidy warnings."
+    },
+    {
+      "id": "BPR-0817",
+      "state": "Parked",
+      "scope": "Existing writable-parent refusal visibility and orderly-exit policy; fresh-root and both-platform profile checks accepted. Stale pending Mac record reconciled."
+    },
+    {
+      "id": "BPR-0825",
+      "state": "Parked",
+      "scope": "Shared Windows descriptor ownership design; native supervisor/ACE/junction work already integrated, not reopening BPR-0622."
+    }
+  ],
+  "review": {
+    "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "sequence": 443,
+    "protected_candidates": [
+      "BPR-0755-neutral-identity-v001"
+    ],
+    "historical_packets_changed": false,
+    "new_candidate": false,
+    "server": null,
+    "owner_retest_requested": false
+  },
+  "commands": {
+    "state": "quiescent",
+    "task_owned_running": [],
+    "app_launched": false,
+    "owner_app": {
+      "pid": 5964,
+      "path": "build/app-release-rfc0013-r23/src/app/BetterPullReview.app",
+      "disposition": "Owner-launched after previous task shutdown; observed on entry, never signalled, and absent at final process inventory. No app remains active."
+    },
+    "test_sessions_collected": [
+      47245,
+      15845,
+      4633
+    ]
+  },
+  "preserved": [
+    "Unrelated .mask.lock.json",
+    "Ignored .claude/worktrees/agent-a17cae88115dbbb4e",
+    "Owner app and credentials",
+    "Protected/immutable review packets and session",
+    "All historical failed and pending observations"
+  ],
+  "continuation": "Stop this target investigation as requested. Report the amended selected milestone complete and RFC terminal closeout ineligible. Do not enter predecessor engineering, repeat owner review, silently waive original wider criteria, or change comparison semantics. A separately authorized continuation must satisfy canonical predecessor and remaining RFC acceptance boundaries.",
+  "changed_paths": [
+    "README.md",
+    "docs/architecture/system-architecture.md",
+    "docs/issues/10-backlog/BPR-0617-close-rfc-0013.md",
+    "docs/issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md",
+    "docs/issues/40-parked/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md",
+    "docs/issues/60-done/BPR-0794-resolve-selected-diff-epoch-pair.md",
+    "docs/issues/60-done/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d7-r22.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-closeout-d7-r22.json"
+  ]
+}

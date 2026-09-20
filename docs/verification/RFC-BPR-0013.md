@@ -98,6 +98,10 @@ live GitHub authority; BPR-0641 separately remains human-pending. This assignmen
 authorizes neither those mutations nor their acceptance. RFC-0014 follows 0013
 but is not the next eligible terminal closeout.
 
+The [final selected-milestone checkpoint](../rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d7-r22.json)
+and [closeout handoff](../rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-closeout-d7-r22.json)
+bind the amended result, complete card inventory and stopping boundary.
+
 ## Final verification and ownership
 
 At unchanged product source, the 17-test focused/public-path pass is green in

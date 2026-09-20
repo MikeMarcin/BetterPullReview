@@ -1,0 +1,188 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d7-owner-closeout",
+  "mandate_revision": "r22-owner-closeout-deferral",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {
+      "primary": {
+        "provider": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "implementer": {
+        "provider": "codex",
+        "model": "gpt-6-astra",
+        "effort": "max"
+      }
+    },
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0013",
+  "binding": {
+    "plan_id": "rfc-bpr-0013-hardening",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "milestone_id": "selected-diff-exact-epoch-pair",
+    "definition_fingerprint": "sha256:60781562cbdde60947c104f3132aed8cd0296757923f4acbad4dd96f68339380",
+    "obligations": [
+      {
+        "id": "BPR-0794:*",
+        "source": "BPR-0794",
+        "selector": null,
+        "source_fingerprint": "sha256:4a899ec440912773645fe1bb607da400a564f1c3631dcae5d81560fef43fdd97"
+      },
+      {
+        "id": "BPR-0795:*",
+        "source": "BPR-0795",
+        "selector": null,
+        "source_fingerprint": "sha256:e33e99855924ac14f8f05e3bdacaaa6807d7ae23b3b51fff29120bdebc996323"
+      },
+      {
+        "id": "BPR-0935:*",
+        "source": "BPR-0935",
+        "selector": null,
+        "source_fingerprint": "sha256:e49238ef8824c96a3fca261a6a872781aa0e39ff5d5c28053f79d1e47ea27402"
+      },
+      {
+        "id": "BPR-0936:*",
+        "source": "BPR-0936",
+        "selector": null,
+        "source_fingerprint": "sha256:7fdd461d380c0b0b836b78d3e93f5dc97951317523af1b848025a4e41e7c178c"
+      },
+      {
+        "id": "BPR-0937:*",
+        "source": "BPR-0937",
+        "selector": null,
+        "source_fingerprint": "sha256:53407e2774bff8ba45b3bdd0bf0f3d51c1adbeab8918069d8eebcfea1c6686c0"
+      },
+      {
+        "id": "BPR-0938:*",
+        "source": "BPR-0938",
+        "selector": null,
+        "source_fingerprint": "sha256:316eb7b3bac01dd90c82b75b2909b8dc5d44746b6cfa20b7c9b582c51c9d7738"
+      },
+      {
+        "id": "BPR-0939:*",
+        "source": "BPR-0939",
+        "selector": null,
+        "source_fingerprint": "sha256:edff8ea649946e6fecee2f5661eda4a78d2c56c502c059c8b212d53e6f0c1406"
+      },
+      {
+        "id": "BPR-0941:*",
+        "source": "BPR-0941",
+        "selector": null,
+        "source_fingerprint": "sha256:f92b323307299f2cf0f5201abb17dba556dcaaaea4d681900b1dc53f88660edf"
+      },
+      {
+        "id": "BPR-0942:*",
+        "source": "BPR-0942",
+        "selector": null,
+        "source_fingerprint": "sha256:662a2fd99e5dfaf021bdd506aa40984d1961d5cc6bb3936a7a5c513590f28163"
+      },
+      {
+        "id": "BPR-0943:*",
+        "source": "BPR-0943",
+        "selector": null,
+        "source_fingerprint": "sha256:4b8d5e33ac62b57395d1bea9a43f45dbcfd96ecc36e0059ba792d22a0191b19b"
+      }
+    ],
+    "obligation_fingerprint": "sha256:beb3fd4e5616e84e5f952ce6499b8c0272efdefa2d73be5ffd9c5955c0f588b3",
+    "exit_criteria": [
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:1",
+        "text": "BPR-0794 attributes selected_file_stale and the absent exact epoch pair with metadata-only evidence and tests the failure through the public composition"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:2",
+        "text": "The responsible transition or host mapping preserves exact authority, accepted anchor and Git-object checks, bounded history and stale-result rejection"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:3",
+        "text": "Focused positive and negative checks, a composed public path, documentation gate and one integration-focused check pass"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:4",
+        "text": "Owner-amended 2026-09-20: retain the observed real-target loading and independent signed tests-disabled safe production-path source/anchor proof; record and defer the UnrealEngine#1773 comparison-basis and partial-pane anomaly to BPR-0944 without claiming it fixed. No repeat target read or owner retest is required; no live write or account change occurs."
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:5",
+        "text": "Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:6",
+        "text": "BPR-0935 directly verifies keep dark-mode syntax legible across intraline edit emphasis, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:7",
+        "text": "BPR-0936 directly verifies render source tabs at the selected persisted width, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:8",
+        "text": "BPR-0937 directly verifies measure and reduce redundant cli connection work safely, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:9",
+        "text": "BPR-0938 directly verifies show useful overview observations before complete pr loading, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:10",
+        "text": "BPR-0939 directly verifies match file drawer added and removed colors to overview, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:11",
+        "text": "BPR-0941 keeps names neutral while operation markers and independent plus/minus counts use semantic colors, proven through rendered production composition across themes"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:12",
+        "text": "BPR-0942 makes folders structurally non-actionable for file selection and preserves the current diff across mouse, keyboard, expansion and model rebuild gestures"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:13",
+        "text": "BPR-0943 attributes the real modified-file empty-earlier observation and proves exact endpoint resolution or explicit unavailable state through a failing-before production-composed regression and safe native rendered evidence"
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:b508949581454c8c0f26b2e927bc2e79f2c510c6105761ac459fad1d545676fb",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "default-cache-byte-pressure",
+    "durable-agent-workspace-recovery",
+    "retained-stress-pr-read",
+    "large-pr-returned-commit-boundary",
+    "review-thread-null-anchor-read",
+    "selected-diff-exact-epoch-pair",
+    "verify-rfc-0013"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "3ebbceca1d8e69d525057fe4ae9012a2f9f2f76c",
+    "workflow_branch": "main",
+    "workflow_revision": "3ebbceca1d8e69d525057fe4ae9012a2f9f2f76c"
+  }
+}
