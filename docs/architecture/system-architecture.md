@@ -1131,13 +1131,18 @@ closed to the refusal ([[BPR-0281]], [[BPR-0318]],
 `application_device_authorization_public_path`,
 `application_device_authorization_release_contract`).
 
-## Release updater foundation
+## Release updater discovery and staging
 
-RFC-BPR-0035 milestone 1 adds an uncomposed updater foundation: deterministic
-stable-version/asset/scheduling policy in core and one application host with
-narrow release-access and staging ports. Fake-port checks exercise its public
-gesture-to-projection path, cancellation and stale rejection. No production
-updater, credential retrieval or installer is selected yet. The
+RFC-BPR-0035 milestones 1 and 2 add deterministic stable-version/asset/scheduling
+policy and one desktop-wide application service. Menus and General Settings
+project the same host; SQLite persists only preferences and an opaque account
+binding. Explicitly selected native GitHub.com authority supplies a release-only
+lease, the designated HTTPS adapter streams private assets, and the macOS update
+adapter performs bounded ZIP extraction and native signature/trust verification.
+Its only child commands are fixed system signature/trust tools. Core and Qt gain
+no effect APIs. LibArchive 3.8.9 is pinned by the central dependency provider for
+macOS staging, with system zlib and bundled upstream notices. The installer
+remains unavailable: no running application is replaced or relaunched. The
 [release updater contract](release-updater.md) binds the fixed distribution
 source, separate native authority, limits and successor obligations.
 

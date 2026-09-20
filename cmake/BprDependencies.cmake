@@ -4,6 +4,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/BprQtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprQuillProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprGlazeProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
 
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
@@ -70,6 +71,11 @@ endmacro()
 
 function(bpr_configure_dependencies)
     set(records)
+
+    if(BPR_BUILD_QT AND APPLE)
+        bpr_configure_release_archive()
+        list(APPEND records "LibArchive|CPM_PINNED|BetterPullReview::ReleaseArchive")
+    endif()
 
     bpr_reject_dependency_redirect(Threads)
     set(Threads_FIND_REQUIRED TRUE)

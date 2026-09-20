@@ -75,6 +75,7 @@ if(BPR_BUILD_QT)
             src/review_submission_session.cpp
 			src/review_mutation_provider_admission.cpp
             src/native_https_transport.cpp
+            src/github_release_update.cpp
     )
     add_library(
         BetterPullReview::AdapterGitHub

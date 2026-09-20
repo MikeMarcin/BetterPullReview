@@ -5,6 +5,7 @@ add_subdirectory(sqlite)
 add_subdirectory(syntax)
 add_subdirectory(agent)
 add_subdirectory(mcp)
+add_subdirectory(update)
 
 add_library(better_pull_review_adapter_ai INTERFACE)
 add_library(BetterPullReview::AdapterAI ALIAS better_pull_review_adapter_ai)

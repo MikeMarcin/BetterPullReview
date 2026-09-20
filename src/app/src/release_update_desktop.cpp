@@ -1,0 +1,305 @@
+#include "bpr/app/release_update_desktop.hpp"
+
+#include "bpr/adapters/sqlite/release_update_store.hpp"
+#include "bpr/adapters/update/release_update_staging.hpp"
+#include "bpr/app/worker_executor.hpp"
+#include "bpr/qt/event_loop_executor.hpp"
+#include "bpr/qt/release_update_panel.hpp"
+#include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/workbench_window.hpp"
+#include "github_release_update.hpp"
+#include "system_browser_opener.hpp"
+
+#include <QCoreApplication>
+#include <QPointer>
+#include <QScrollArea>
+#include <QTimer>
+#include <QVBoxLayout>
+
+#include <chrono>
+#include <limits>
+
+namespace bpr::app {
+	namespace {
+		struct update_clock final : application::release_update_clock_port
+		{
+			auto now() noexcept -> core::release_update_time override
+			{
+				return { std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count(),
+						 static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) };
+			}
+		};
+	}
+	struct release_update_desktop::implementation final : QObject, application::release_update_projection_port, std::enable_shared_from_this<implementation>
+	{
+		worker_executor                                          Effects;
+		worker_executor                                          Cleanup;
+		qt::event_loop_executor                                  Decisions;
+		release_update_components                                Components;
+		std::unique_ptr<application::release_update_service>     Service;
+		std::unique_ptr<QWidget>                                 Dialog;
+		QPointer<qt::release_update_panel>                       MainPanel;
+		std::vector<QPointer<qt::release_update_panel>>          Panels;
+		std::vector<release_update_account>                      Accounts;
+		std::shared_ptr<application::release_update_access_port> Access;
+		QTimer                                                   Timer;
+		bool                                                     Initializing = false;
+		bool                                                     Closing      = false;
+		bool                                                     Acquiring    = false;
+		bool                                                     Offered      = false;
+		std::string                                              RequestedBinding;
+		std::string                                              SelectedLabel;
+		std::optional<std::string>                               QueuedBinding;
+		std::uint64_t                                            AccessGeneration = 0;
+
+		~implementation() override
+		{
+			Timer.stop();
+			Service.reset();
+			Access.reset();
+			Effects.close_and_drain();
+			Cleanup.close_and_drain();
+		}
+		void start(release_update_components aComponents)
+		{
+			Initializing = false;
+			if (Closing) {
+				return;
+			}
+			Components = std::move(aComponents);
+			if (!Components.Clock) {
+				Components.Clock = std::make_shared<update_clock>();
+			}
+			Service = std::make_unique<application::release_update_service>(Components.Installed, Components.Capability,
+																			*Components.Clock, Decisions, Effects, Components.Settings, Components.Verifier, *this);
+			Service->start();
+			Timer.setInterval(1000);
+			QObject::connect(&Timer, &QTimer::timeout, this, [this] {
+				if (!Service || Closing) {
+					return;
+				}
+				if (Access && Access->binding().value() == 0U) {
+					Access.reset();
+					Service->revoke_access();
+					RequestedBinding.clear();
+				}
+				restore_access();
+				Service->tick();
+			});
+			Timer.start();
+		}
+		void start_native(std::filesystem::path aRoot)
+		{
+			Initializing         = true;
+			const auto installed = std::filesystem::path{ QCoreApplication::applicationDirPath().toStdString() }.parent_path().parent_path();
+			const auto version   = QCoreApplication::applicationVersion().toStdString();
+			const bool boundary  = qEnvironmentVariableIsSet("BPR_AUTOMATED_TEST_BOUNDARY");
+			auto       staging   = adapters::update::make_release_update_staging(aRoot, installed, Cleanup);
+			auto       store     = adapters::sqlite::make_release_update_store(std::move(aRoot));
+			Effects.post([self = shared_from_this(), installed, version, staging, store, boundary] {
+				const auto capability = boundary ? core::release_update_capability::untrusted_installation : adapters::update::release_update_installation_capability(installed, { });
+				self->Decisions.post([self, version, staging, store, boundary, capability] {
+					self->start({ version, capability, std::make_shared<update_clock>(), store, staging, staging,
+								  [boundary](std::string aAddress) { if (!boundary) { system_browser_opener opener; static_cast<void>(opener.open(aAddress)); } } });
+				});
+			});
+		}
+		auto dispatch() -> application::release_update_dispatch
+		{
+			const auto weak = weak_from_this();
+			return {
+				[weak](core::release_update_intent aIntent) { if (auto self = weak.lock(); self && self->Service && !self->Closing) { self->Service->dispatch(std::move(aIntent)); } },
+				[weak](bool aEnabled) { if (auto self = weak.lock(); self && self->Service) { self->Service->set_automatic_checks(aEnabled); } },
+				[weak] { if (auto self = weak.lock(); self && self->Components.Browser) {
+                    const auto current = self->Service ? self->Service->projection().Candidate : std::nullopt;
+                    self->Components.Browser(adapters::github::detail::release_update_browser_address(current ? current->Tag : std::string_view{}));
+                } },
+				[weak](std::string aBinding) { if (auto self = weak.lock(); self && self->Service && !self->Closing) { self->select(std::move(aBinding)); } },
+				{ }
+			};
+		}
+		auto add_panel(QWidget* aParent) -> qt::release_update_panel*
+		{
+			auto* panel = new qt::release_update_panel{ aParent };
+			panel->set_dispatch(dispatch());
+			Panels.emplace_back(panel);
+			if (Service) {
+				panel->adopt(Service->projection(), Service->durable());
+			}
+			refresh_accounts();
+			return panel;
+		}
+		void present()
+		{
+			if (Closing) {
+				return;
+			}
+			if (!Dialog) {
+				Dialog = std::make_unique<QWidget>(nullptr, Qt::Window);
+				Dialog->setWindowTitle(QStringLiteral("BetterPullReview Updates"));
+				Dialog->resize(580, 750);
+				auto* column = new QVBoxLayout{ Dialog.get() };
+				auto* scroll = new QScrollArea{ Dialog.get() };
+				MainPanel    = add_panel(nullptr);
+				scroll->setWidget(MainPanel);
+				scroll->setWidgetResizable(true);
+				column->addWidget(scroll);
+			}
+			Dialog->show();
+			Dialog->raise();
+			Dialog->activateWindow();
+		}
+		void publish(const application::release_update_projection& aProjection, bool) override
+		{
+			std::erase_if(Panels, [](const auto& aPanel) { return aPanel.isNull(); });
+			for (const auto& panel : Panels) {
+				panel->adopt(aProjection, Service && Service->durable());
+			}
+			refresh_accounts();
+			const auto newOffer = aProjection.OfferVisible && !Offered;
+			Offered             = aProjection.OfferVisible;
+			if (newOffer) {
+				present();
+			}
+		}
+		void refresh_accounts()
+		{
+			std::vector<std::pair<std::string, std::string>> choices;
+			choices.reserve(Accounts.size() + 1U);
+			for (const auto& account : Accounts) {
+				choices.emplace_back(account.Binding, account.Label);
+			}
+			const auto selected = Service ? Service->account_binding() : std::string{ };
+			if (!selected.empty() && std::ranges::none_of(choices, [&](const auto& aChoice) { return aChoice.first == selected; })) {
+				choices.emplace_back(selected, Access ? SelectedLabel : "Selected account unavailable — sign in again");
+			}
+			for (const auto& panel : Panels) {
+				if (panel) {
+					panel->set_accounts(choices, selected);
+				}
+			}
+		}
+		void restore_access()
+		{
+			if (!Service || !Service->ready() || !Service->projection().AutomaticAvailable || Acquiring || Access || Closing) {
+				return;
+			}
+			const auto binding = Service->account_binding();
+			if (binding.empty() || RequestedBinding == binding) {
+				return;
+			}
+			const auto found = std::ranges::find(Accounts, binding, &release_update_account::Binding);
+			if (found != Accounts.end()) {
+				select(binding);
+			}
+		}
+		void select(std::string aBinding)
+		{
+			if (!Service || !Service->ready() || !Service->projection().AutomaticAvailable || AccessGeneration == std::numeric_limits<std::uint64_t>::max()) {
+				return;
+			}
+			if (Acquiring) {
+				QueuedBinding = std::move(aBinding);
+				return;
+			}
+			const auto generation = ++AccessGeneration;
+			Access.reset();
+			Service->select_access(aBinding, { });
+			RequestedBinding    = aBinding;
+			Acquiring           = false;
+			const auto selected = std::ranges::find(Accounts, aBinding, &release_update_account::Binding);
+			if (selected == Accounts.end() || !selected->Acquire) {
+				return;
+			}
+			SelectedLabel = selected->Label;
+			Acquiring     = true;
+			try {
+				selected->Acquire(core::release_update_access_id{ generation }, Components.Archives,
+								  [weak = weak_from_this(), generation, binding = std::move(aBinding)](std::shared_ptr<application::release_update_access_port> aAccess) {
+									  if (auto self = weak.lock(); self && self->Acquiring && generation == self->AccessGeneration) {
+										  self->Acquiring = false;
+										  if (self->Closing || !self->Service) {
+											  return;
+										  }
+										  if (self->QueuedBinding) {
+											  auto next = std::move(*self->QueuedBinding);
+											  self->QueuedBinding.reset();
+											  self->select(std::move(next));
+											  return;
+										  }
+										  self->Access = std::move(aAccess);
+										  self->Service->select_access(binding, self->Access);
+										  self->refresh_accounts();
+									  }
+								  });
+			} catch (...) {
+				Acquiring = false;
+				QueuedBinding.reset();
+			}
+		}
+		void shutdown()
+		{
+			Closing = true;
+			Timer.stop();
+			if (Dialog) {
+				Dialog->hide();
+			}
+			if (Service) {
+				Service->shutdown();
+			}
+			Access.reset();
+		}
+	};
+	release_update_desktop::release_update_desktop(std::shared_ptr<implementation> aImpl)
+		: Impl{ std::move(aImpl) }
+	{ }
+	release_update_desktop::~release_update_desktop() { Impl->shutdown(); }
+	auto release_update_desktop::start_native(std::filesystem::path aRoot) -> std::unique_ptr<release_update_desktop>
+	{
+		auto impl   = std::make_shared<implementation>();
+		auto result = std::unique_ptr<release_update_desktop>{ new release_update_desktop{ impl } };
+		impl->start_native(std::move(aRoot));
+		return result;
+	}
+	auto release_update_desktop::start(release_update_components aComponents) -> std::unique_ptr<release_update_desktop>
+	{
+		auto impl   = std::make_shared<implementation>();
+		auto result = std::unique_ptr<release_update_desktop>{ new release_update_desktop{ impl } };
+		impl->start(std::move(aComponents));
+		return result;
+	}
+	void release_update_desktop::attach(qt::workbench_window& aWindow)
+	{
+		attach(*aWindow.menuBar());
+		if (auto* settings = aWindow.settings()) {
+			attach(*settings);
+		}
+	}
+	void release_update_desktop::attach(qt::settings_window& aSettings)
+	{
+		if (!aSettings.findChild<QWidget*>(QStringLiteral("releaseUpdatePanel"))) {
+			aSettings.adopt_panel(qt::settings_page::general, Impl->add_panel(nullptr));
+		}
+	}
+	void release_update_desktop::attach(QMenuBar& aMenu)
+	{
+		static_cast<void>(qt::add_release_update_action(aMenu, [weak = Impl->weak_from_this()] {
+			if (auto self = weak.lock(); self && !self->Closing) {
+				self->present();
+				if (self->Service) {
+					self->Service->dispatch({ core::release_update_command::check, { } });
+				}
+			}
+		}));
+	}
+	void release_update_desktop::set_accounts(std::vector<release_update_account> aAccounts)
+	{
+		Impl->Accounts = std::move(aAccounts);
+		Impl->refresh_accounts();
+		Impl->restore_access();
+	}
+	void release_update_desktop::shutdown() { Impl->shutdown(); }
+	auto release_update_desktop::quiescent() const -> bool { return !Impl->Initializing && !Impl->Acquiring && (!Impl->Service || Impl->Service->quiescent()) && Impl->Effects.idle() && Impl->Cleanup.idle(); }
+	auto release_update_desktop::panel() const -> qt::release_update_panel* { return Impl->MainPanel; }
+	auto release_update_desktop::projection() const -> application::release_update_projection { return Impl->Service ? Impl->Service->projection() : application::release_update_projection{ }; }
+}

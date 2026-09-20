@@ -3,31 +3,11 @@
 
 #include "bpr/application/port.hpp"
 #include "bpr/application/release_update_port.hpp"
+#include "bpr/application/release_update_projection.hpp"
 
 #include <memory>
 
 namespace bpr::application {
-	/// \brief Public presentation contains accepted facts, never authority or wire data.
-	struct release_update_projection
-	{
-		std::optional<core::release_update_version>            Installed;
-		core::release_update_phase                             Phase  = core::release_update_phase::idle;
-		core::release_update_reason                            Reason = core::release_update_reason::none;
-		std::optional<core::release_update_candidate>          Candidate;
-		core::release_update_preferences                       Preferences;
-		std::array<core::release_update_command_projection, 6> Commands;
-		std::uint64_t                                          Bytes        = 0U;
-		bool                                                   OfferVisible = false;
-	};
-	/// \brief Observational presentation boundary; exceptions cannot veto acceptance.
-	class release_update_projection_port
-	{
-	public:
-		virtual ~release_update_projection_port() = default;
-		/// \brief Preference changes supply a nonsecret snapshot for host-owned persistence.
-		virtual void publish(const release_update_projection& aProjection, bool aPreferencesChanged) = 0;
-	};
-
 	/// \brief One application-owned updater with separated decision and effect lanes.
 	/// \details Public methods and projection delivery are decision-lane confined.
 	/// A successful ingress returns true, including a core policy refusal visible in

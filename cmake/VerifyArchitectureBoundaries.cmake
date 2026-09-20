@@ -1672,6 +1672,9 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(current_allowed_relative MATCHES "^src/adapters/agent/")
             set(effect_owner_cmake "${agent_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_agent")
+        elseif(current_allowed_relative STREQUAL "src/adapters/update/src/macos_release_update.cpp")
+            file(READ "${BPR_ROOT}/src/adapters/update/CMakeLists.txt" effect_owner_cmake)
+            set(effect_owner_target "better_pull_review_adapter_update")
         elseif(current_allowed_relative MATCHES "^src/core/")
             set(effect_owner_cmake "${core_cmake_contents}")
             set(effect_owner_target "better_pull_review_core")
@@ -1695,6 +1698,7 @@ verify_effect_owner(
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
     "${agent_process_runner_relative}"
+    "src/adapters/update/src/macos_release_update.cpp"
 )
 verify_effect_owner(
     "QProcessEnvironment"
@@ -1702,6 +1706,7 @@ verify_effect_owner(
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
     "${agent_process_runner_relative}"
+    "src/adapters/update/src/macos_release_update.cpp"
 )
 verify_effect_owner(
     "CreateProcess(AsUser|WithLogon|WithToken)?[AW]?[ \t\r\n]*\\("

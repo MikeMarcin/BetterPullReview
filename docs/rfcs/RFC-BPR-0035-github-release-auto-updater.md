@@ -25,6 +25,12 @@ and disposable verification are authorized; live private-service access, release
 publication and replacement of the developer's running application are not.
 The RFC stays Proposed until its acceptance and canonical dependencies close.
 
+Milestone 2 composes check/download controls, app-wide preferences, native private
+release transport and signed macOS staging under [[BPR-0947]]. Installation stays
+disabled pending [[BPR-0948]]. The [verification ledger](../verification/RFC-BPR-0035.md)
+records fixture coverage and exact signed-artifact evidence; it makes no live
+private-service, Intel execution or complete upgrade claim.
+
 The first implementation targets the existing signed, notarized macOS universal
 release. Windows and Linux expose manual update guidance until separately scoped
 native installers and evidence exist. Corporate-managed installations retain

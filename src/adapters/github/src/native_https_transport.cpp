@@ -1,4 +1,6 @@
 #include "native_https_transport.hpp"
+#include "github_release_update.hpp"
+#include "github_release_update_contract.hpp"
 
 #include "designated_review_public_observer.hpp"
 #include "review_mutation_execution_authority.hpp"
@@ -4993,4 +4995,295 @@ namespace bpr::adapters::github::detail {
 	{
 		return std::make_unique<native_designated_review_public_observer>();
 	}
+
+	namespace {
+		using update_reason = core::release_update_reason;
+		struct release_hop_result
+		{
+			release_update_wire_result Result;
+			QUrl                       Redirect{ };
+			bool                       ProxyFailure = false;
+		};
+		auto release_redirect_valid(const QUrl& aUrl) -> bool
+		{
+			return aUrl.isValid() && aUrl.scheme() == QStringLiteral("https")
+				&& aUrl.host() == QStringLiteral("release-assets.githubusercontent.com")
+				&& (aUrl.port() == -1 || aUrl.port() == 443) && aUrl.userInfo().isEmpty()
+				&& !aUrl.hasFragment() && aUrl.path().startsWith(QLatin1Char('/'))
+				&& aUrl.toEncoded().size() <= static_cast<qsizetype>(maximum_url_bytes);
+		}
+		auto release_tls(const transport_policy& aPolicy) -> QSslConfiguration
+		{
+			auto tls = QSslConfiguration::defaultConfiguration();
+			tls.setCaCertificates(QSslConfiguration::systemCaCertificates());
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+			if (!aPolicy.TrustedCaCertificatePem.empty()) {
+				tls.addCaCertificates(QSslCertificate::fromData(QByteArray::fromStdString(aPolicy.TrustedCaCertificatePem)));
+			}
+#else
+			static_cast<void>(aPolicy);
+#endif
+			tls.setLocalCertificateChain({ });
+			tls.setPrivateKey(QSslKey{ });
+			tls.setBackendConfiguration({ });
+			tls.setSessionTicket({ });
+			tls.setPreSharedKeyIdentityHint({ });
+			tls.setAllowedNextProtocols({ QByteArray{ QSslConfiguration::NextProtocolHttp1_1 } });
+			tls.setPeerVerifyMode(QSslSocket::VerifyPeer);
+			tls.setProtocol(QSsl::TlsV1_2OrLater);
+			tls.setSslOption(QSsl::SslOptionDisableCompression, true);
+			tls.setSslOption(QSsl::SslOptionDisableSessionTickets, true);
+			tls.setSslOption(QSsl::SslOptionDisableSessionSharing, true);
+			tls.setSslOption(QSsl::SslOptionDisableSessionPersistence, true);
+			return tls;
+		}
+		auto release_hop(const QUrl& aUrl, const QNetworkProxy& aProxy, bool aMetadata,
+						 std::span<const std::byte> aCredential, std::uint64_t aLimit, std::stop_token aStop,
+						 const release_update_consumer& aConsume, const transport_policy& aPolicy,
+						 std::chrono::steady_clock::time_point aDeadline) -> release_hop_result
+		{
+			QNetworkAccessManager manager;
+			manager.setProxy(aProxy);
+			manager.setRedirectPolicy(QNetworkRequest::ManualRedirectPolicy);
+			manager.setStrictTransportSecurityEnabled(false);
+			QNetworkRequest request{ aUrl };
+			request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+			request.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
+			request.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
+			request.setAttribute(QNetworkRequest::AuthenticationReuseAttribute, QNetworkRequest::Manual);
+			request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+			request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+			request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+			request.setAttribute(QNetworkRequest::Http2DirectAttribute, false);
+			request.setAttribute(QNetworkRequest::Http2CleartextAllowedAttribute, false);
+			request.setMaximumRedirectsAllowed(0);
+			request.setDecompressedSafetyCheckThreshold(0);
+			request.setTransferTimeout(std::chrono::seconds{ 30 });
+			request.setSslConfiguration(release_tls(aPolicy));
+			request.setRawHeader("User-Agent", "BetterPullReview-release-updater");
+			request.setRawHeader("Accept", aMetadata ? "application/vnd.github+json" : "application/octet-stream");
+			request.setRawHeader("Accept-Encoding", "identity");
+			request.setRawHeader("X-GitHub-Api-Version", QByteArray::fromStdString(std::string{ release_update_api_version }));
+			if (!aCredential.empty()) {
+				QByteArray authorization{ "Bearer " };
+				authorization.append(reinterpret_cast<const char*>(aCredential.data()), static_cast<qsizetype>(aCredential.size()));
+				request.setRawHeader("Authorization", authorization);
+				wipe(authorization);
+			}
+			auto reply = std::unique_ptr<QNetworkReply>{ manager.get(request) };
+			if (!reply) {
+				return { { update_reason::unavailable } };
+			}
+			reply->setReadBufferSize(static_cast<qint64>(response_read_buffer_bytes));
+			QEventLoop loop;
+			QTimer     poll;
+			poll.setInterval(5);
+			release_hop_result result;
+			bool               encrypted    = false;
+			bool               inspected    = false;
+			int                status       = 0;
+			std::uint64_t      ignoredBytes = 0;
+			auto               refuse       = [&](update_reason aReason) { result.Result.Failure = aReason; reply->abort(); };
+			auto               inspect      = [&] {
+				if (inspected || !reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).isValid()) {
+					return;
+				}
+				inspected               = true;
+				status                  = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+				std::size_t headerBytes = 0;
+				const auto  headers     = reply->rawHeaderPairs();
+				for (const auto& [name, value] : headers) {
+					headerBytes += static_cast<std::size_t>(name.size() + value.size());
+					if (name.size() > 8192 || value.size() > 8192) {
+						refuse(update_reason::size_limit);
+						return;
+					}
+				}
+				if (headers.size() > 64 || headerBytes > native_https_maximum_response_header_bytes) {
+					refuse(update_reason::size_limit);
+					return;
+				}
+				for (const auto* critical : { "content-length", "content-encoding", "content-type", "location", "retry-after", "x-ratelimit-remaining" }) {
+					if (std::ranges::count_if(headers, [critical](const auto& aHeader) { return aHeader.first.compare(critical, Qt::CaseInsensitive) == 0; }) > 1) {
+						refuse(update_reason::malformed_release);
+						return;
+					}
+				}
+				const auto encoding = reply->rawHeader("Content-Encoding");
+				if (!encoding.isEmpty() && encoding != "identity") {
+					refuse(update_reason::malformed_release);
+					return;
+				}
+				if (status == 200) {
+					const auto type = reply->rawHeader("Content-Type").split(';').front().trimmed().toLower();
+					if (aMetadata ? (type != "application/json" && type != "application/vnd.github+json")
+								  : (type != "application/octet-stream" && type != "application/zip")) {
+						refuse(update_reason::malformed_release);
+						return;
+					}
+				}
+				bool       validLength  = false;
+				const auto lengthHeader = reply->rawHeader("Content-Length");
+				const auto length       = lengthHeader.toULongLong(&validLength);
+				if (!lengthHeader.isEmpty() && (!validLength || length > (status == 200 ? aLimit : 65536U))) {
+					refuse(update_reason::size_limit);
+					return;
+				}
+				if (status == 429 || (status == 403 && (reply->hasRawHeader("Retry-After") || reply->rawHeader("X-RateLimit-Remaining") == "0"))) {
+					bool       validRetry           = false;
+					const auto retry                = reply->rawHeader("Retry-After").toULongLong(&validRetry);
+					result.Result.RetryAfterSeconds = validRetry ? std::clamp<std::uint64_t>(retry, 1U, core::release_update_day_seconds) : core::release_update_day_seconds;
+					refuse(update_reason::rate_limited);
+				} else if (status == 401) {
+					refuse(update_reason::unauthenticated);
+				} else if (status == 403) {
+					refuse(update_reason::forbidden);
+				} else if (status == 404) {
+					refuse(update_reason::inaccessible);
+				} else if (recognized_redirect_status(status)) {
+					const auto raw    = reply->rawHeader("Location");
+					const auto target = QUrl::fromEncoded(raw, QUrl::StrictMode);
+					if (aMetadata || raw.isEmpty() || !release_redirect_valid(target)) {
+						refuse(update_reason::redirect);
+					} else {
+						result.Redirect = target;
+					}
+				} else if (status != 200) {
+					refuse(update_reason::unavailable);
+				}
+			};
+			auto read = [&] {
+				inspect();
+				while (result.Result.Failure == update_reason::none && reply->bytesAvailable() > 0) {
+					const auto bytes = reply->read(static_cast<qint64>(response_read_chunk_bytes));
+					if (bytes.isEmpty()) {
+						break;
+					}
+					const auto count = static_cast<std::uint64_t>(bytes.size());
+					if (status != 200) {
+						ignoredBytes += count;
+						if (ignoredBytes > 65536U) {
+							refuse(update_reason::size_limit);
+						}
+					} else if (!encrypted || !inspected) {
+						refuse(update_reason::certificate);
+					} else if (count > aLimit - result.Result.Bytes) {
+						refuse(update_reason::size_limit);
+					} else {
+						result.Result.Bytes += count;
+						bool consumed = false;
+						try {
+							consumed = aConsume(std::as_bytes(std::span{ bytes.constData(), static_cast<std::size_t>(bytes.size()) }));
+						} catch (...) { }
+						if (!consumed) {
+							refuse(update_reason::unavailable);
+						}
+					}
+				}
+			};
+			QObject::connect(reply.get(), &QNetworkReply::encrypted, &loop, [&] { encrypted = true; });
+			QObject::connect(reply.get(), &QNetworkReply::sslErrors, &loop, [&](const QList<QSslError>&) { refuse(update_reason::certificate); });
+			QObject::connect(&manager, &QNetworkAccessManager::authenticationRequired, &loop, [&](QNetworkReply*, QAuthenticator*) { refuse(update_reason::unauthenticated); });
+			QObject::connect(&manager, &QNetworkAccessManager::proxyAuthenticationRequired, &loop, [&](const QNetworkProxy&, QAuthenticator*) { refuse(update_reason::unavailable); });
+			QObject::connect(reply.get(), &QNetworkReply::metaDataChanged, &loop, inspect);
+			QObject::connect(reply.get(), &QNetworkReply::readyRead, &loop, read);
+			QObject::connect(reply.get(), &QNetworkReply::finished, &loop, &QEventLoop::quit);
+			QObject::connect(&poll, &QTimer::timeout, &loop, [&] {
+				if (aStop.stop_requested()) {
+					refuse(update_reason::cancelled);
+				} else if (std::chrono::steady_clock::now() >= aDeadline) {
+					refuse(update_reason::timed_out);
+				}
+			});
+			poll.start();
+			if (!reply->isFinished()) {
+				loop.exec();
+			}
+			read();
+			poll.stop();
+			if (aStop.stop_requested()) {
+				result.Result.Failure = update_reason::cancelled;
+			}
+			if (result.Result.Failure == update_reason::none && reply->error() != QNetworkReply::NoError) {
+				result.ProxyFailure = status == 0 && result.Result.Bytes == 0
+					&& (reply->error() == QNetworkReply::ProxyConnectionRefusedError || reply->error() == QNetworkReply::ProxyNotFoundError
+						|| reply->error() == QNetworkReply::ProxyTimeoutError || reply->error() == QNetworkReply::ProxyConnectionClosedError);
+				result.Result.Failure = reply->error() == QNetworkReply::SslHandshakeFailedError ? update_reason::certificate : update_reason::offline;
+			}
+			if (result.Result.Failure == update_reason::none && !tls_terminal_valid(*reply, aUrl, encrypted)) {
+				result.Result.Failure = update_reason::certificate;
+			}
+			return result;
+		}
+		auto release_https(std::span<const std::byte> aCredential, std::uint64_t aAsset, std::uint64_t aLimit,
+						   std::stop_token aStop, const release_update_consumer& aConsume, const transport_policy& aPolicy) -> release_update_wire_result
+		{
+			if (aCredential.empty() || aCredential.size() > application::maximum_github_credential_bytes || !aConsume
+				|| aLimit == 0U || aLimit > (aAsset == 0U ? application::release_update_maximum_metadata_bytes : core::release_update_maximum_archive_bytes)
+				|| !std::ranges::all_of(aCredential, [](std::byte aByte) { const auto byte = std::to_integer<unsigned char>(aByte); return ascii_alpha_numeric(byte) || byte == '-' || byte == '_' || byte == '.' || byte == '~' || byte == '+' || byte == '/' || byte == '='; })) {
+				return { update_reason::unavailable };
+			}
+			const auto path     = aAsset == 0U ? std::string{ release_update_latest_path } : std::string{ release_update_asset_path_prefix } + std::to_string(aAsset);
+			auto       url      = QUrl::fromEncoded(QByteArray::fromStdString(std::string{ release_update_api_origin } + path), QUrl::StrictMode);
+			const auto deadline = std::chrono::steady_clock::now() + (aAsset == 0U ? aPolicy.TotalTimeout : aPolicy.SmartTotalTimeout);
+			for (std::uint32_t hop = 0U; hop <= release_update_maximum_redirects; ++hop) {
+				if (aStop.stop_requested()) {
+					return { update_reason::cancelled };
+				}
+				if (std::chrono::steady_clock::now() >= deadline) {
+					return { update_reason::timed_out };
+				}
+				auto proxies = system_proxy_candidates(url);
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+				if (aPolicy.Proxy == proxy_policy::fixed_test) {
+					proxies = std::vector{ QNetworkProxy{ QNetworkProxy::HttpProxy, QString::fromStdString(aPolicy.ProxyHost), aPolicy.ProxyPort } };
+				}
+#endif
+				if (!proxies) {
+					return { update_reason::unavailable };
+				}
+				release_hop_result result;
+				for (const auto& proxy : *proxies) {
+					result = release_hop(url, proxy, aAsset == 0U, hop == 0U ? aCredential : std::span<const std::byte>{ },
+										 aLimit, aStop, aConsume, aPolicy, deadline);
+					if (!result.ProxyFailure) {
+						break;
+					}
+				}
+				if (result.Result.Failure != update_reason::none || result.Redirect.isEmpty()) {
+					return result.Result;
+				}
+				if (hop == release_update_maximum_redirects || !release_redirect_valid(result.Redirect)) {
+					return { update_reason::redirect };
+				}
+				url = std::move(result.Redirect);
+			}
+			return { update_reason::redirect };
+		}
+	}
+	auto perform_release_update_https(std::span<const std::byte> aCredential, std::uint64_t aAsset, std::uint64_t aLimit,
+									  std::stop_token aStop, const release_update_consumer& aConsume) -> release_update_wire_result
+	{
+		transport_policy policy;
+		policy.TotalTimeout      = std::chrono::seconds{ application::release_update_metadata_timeout_seconds };
+		policy.SmartTotalTimeout = std::chrono::seconds{ application::release_update_download_timeout_seconds };
+		return release_https(aCredential, aAsset, aLimit, aStop, aConsume, policy);
+	}
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+	auto perform_release_update_https_for_test(std::span<const std::byte> aCredential, std::uint64_t aAsset, std::uint64_t aLimit,
+											   std::stop_token aStop, const release_update_consumer& aConsume, const native_https_test_configuration& aConfiguration) -> release_update_wire_result
+	{
+		if (!valid_test_configuration(aConfiguration)) {
+			return { update_reason::unavailable };
+		}
+		transport_policy policy;
+		policy.Proxy                   = proxy_policy::fixed_test;
+		policy.ProxyHost               = aConfiguration.ProxyHost;
+		policy.ProxyPort               = aConfiguration.ProxyPort;
+		policy.TrustedCaCertificatePem = aConfiguration.TrustedCaCertificatePem;
+		policy.TotalTimeout            = aConfiguration.TotalTimeout;
+		policy.SmartTotalTimeout       = aConfiguration.TotalTimeout;
+		return release_https(aCredential, aAsset, aLimit, aStop, aConsume, policy);
+	}
+#endif
 } // namespace bpr::adapters::github::detail

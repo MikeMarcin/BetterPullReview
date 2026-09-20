@@ -19,6 +19,7 @@ add_library(
         src/review_synchronization.cpp
         src/review_queue_refresh.cpp
         src/release_update_application_host.cpp
+        src/release_update_service.cpp
         src/review_queue_enrollment.cpp
         src/setup_destination.cpp
         src/profile_registry.cpp

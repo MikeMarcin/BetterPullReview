@@ -23,6 +23,7 @@ namespace bpr::application {
 			core::release_update_event                            Event;
 			std::shared_ptr<const release_update_archive>         Archive;
 			std::shared_ptr<const release_update_verified_bundle> Bundle;
+			std::string                                           Notes{ };
 		};
 
 		core::release_update_state                            State;
@@ -35,6 +36,7 @@ namespace bpr::application {
 		std::shared_ptr<release_update_access_port>           PendingAccess;
 		std::shared_ptr<const release_update_archive>         Archive;
 		std::shared_ptr<const release_update_verified_bundle> Bundle;
+		std::string                                           Notes;
 		std::vector<std::shared_ptr<job>>                     Jobs;
 		std::deque<delivery>                                  Ingress;
 		std::atomic<std::size_t>                              Deliveries{ 0U };
@@ -59,8 +61,11 @@ namespace bpr::application {
 
 		[[nodiscard]] auto projection() const -> release_update_projection
 		{
-			return { State.Installed, State.Phase, State.Reason, State.Candidate, State.Preferences,
-					 core::release_update_commands(State), State.Bytes, State.OfferVisible };
+			const auto commands = core::release_update_commands(State);
+			const auto reason   = State.Reason == core::release_update_reason::none && State.Phase == core::release_update_phase::idle ? commands.front().DisabledReason : State.Reason;
+			return { State.Installed, State.Phase, reason, State.Candidate, State.Preferences,
+					 commands, State.Bytes, State.OfferVisible, Notes,
+					 State.Capability == core::release_update_capability::eligible && !State.Stopped };
 		}
 
 		void cancel_all()
@@ -78,6 +83,10 @@ namespace bpr::application {
 			if (!State.Candidate) {
 				Archive.reset();
 				Bundle.reset();
+				Notes.clear();
+			}
+			if (output.Accepted && State.Candidate && std::holds_alternative<core::release_update_checked>(aDelivery.Event)) {
+				Notes = std::move(aDelivery.Notes);
 			}
 			if (output.Accepted && aDelivery.Archive && State.Candidate) {
 				Archive = std::move(aDelivery.Archive);
@@ -85,13 +94,15 @@ namespace bpr::application {
 			if (output.Accepted && aDelivery.Bundle && State.Candidate) {
 				Bundle = std::move(aDelivery.Bundle);
 			}
-			for (const auto& request : output.Requests) {
-				execute(request);
-			}
 			if (Projection && (output.Changed || output.PreferencesChanged)) {
 				try {
 					Projection->publish(projection(), output.PreferencesChanged);
 				} catch (...) { }
+			}
+			// Publish accepted facts first so the service can enqueue preference
+			// persistence before network work on the serialized effect lane.
+			for (const auto& request : output.Requests) {
+				execute(request);
 			}
 		}
 
@@ -174,7 +185,10 @@ namespace bpr::application {
 				if (result.Failure != update_reason::none) {
 					return { core::release_update_failed{ context, result.Failure, result.RetryAfterSeconds }, { }, { } };
 				}
-				return { core::release_update_checked{ context, std::move(result.Release) }, { }, { } };
+				if (result.Notes.size() > release_update_maximum_notes_bytes) {
+					return { core::release_update_failed{ context, update_reason::size_limit }, { }, { } };
+				}
+				return { core::release_update_checked{ context, std::move(result.Release) }, { }, { }, std::move(result.Notes) };
 			}
 			case update_operation::download: {
 				if (!aAccess || !context.Candidate) {

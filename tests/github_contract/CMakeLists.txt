@@ -1,3 +1,16 @@
+bpr_add_executable(test_release_update_transport release_update_transport_tests.cpp)
+target_link_libraries(test_release_update_transport PRIVATE BetterPullReview::AdapterGitHub Qt6::Core)
+target_include_directories(test_release_update_transport PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+target_compile_definitions(test_release_update_transport PRIVATE BPR_NATIVE_HTTPS_TESTING=1)
+bpr_enable_hardening(test_release_update_transport)
+bpr_enable_warnings(test_release_update_transport)
+bpr_add_network_isolated_test(NAME release_update_transport_contract COMMAND test_release_update_transport)
+find_program(BPR_UPDATE_TEST_OPENSSL NAMES openssl REQUIRED)
+bpr_add_network_isolated_test(NAME release_update_native_https LOOPBACK_PORT_COUNT 1
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/verify_release_update_transport.py"
+    --executable "$<TARGET_FILE:test_release_update_transport>" --openssl "${BPR_UPDATE_TEST_OPENSSL}")
+set_tests_properties(release_update_native_https PROPERTIES TIMEOUT 90)
+
 bpr_add_executable(
     test_better_pull_review_native_https_transport_tests
     native_https_transport_tests.cpp

@@ -167,6 +167,9 @@ namespace bpr::app {
 				return;
 			}
 			Quitting = true;
+			if (Updater) {
+				Updater->shutdown();
+			}
 			for (auto& [profile, entry] : Runtimes) {
 				static_cast<void>(profile);
 				complete_activation(entry, application::profile_activation_outcome::refused);
@@ -193,7 +196,7 @@ namespace bpr::app {
 			}
 			finish_initial(std::unexpected(github_application_startup_failure::cancelled));
 		}
-		auto is_quiescent() const noexcept -> bool { return Quitting && Runtimes.empty() && (!Host || Host->is_quiescent()) && Effects.idle(); }
+		auto is_quiescent() const noexcept -> bool { return Quitting && Runtimes.empty() && (!Host || Host->is_quiescent()) && Effects.idle() && (!Updater || Updater->quiescent()); }
 		auto exit_code() const noexcept -> int { return ExitCode; }
 		void publish(const application::profile_management_projection& aProjection) override
 		{
@@ -464,6 +467,9 @@ namespace bpr::app {
 		{
 			if (!DesktopMenu) {
 				DesktopMenu = std::make_unique<qt::desktop_menu_bar>();
+				if (Updater) {
+					Updater->attach(*DesktopMenu);
+				}
 				DesktopMenu->set_dispatch(
 					[weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
 } },
@@ -614,6 +620,9 @@ namespace bpr::app {
 				return;
 			}
 			selected->second.Presented = presented;
+			if (Updater) {
+				Updater->attach(*presented);
+			}
 			const auto weak            = weak_from_this();
 			presented->installEventFilter(this);
 			presented->set_profile_management_dispatch(
@@ -634,6 +643,7 @@ namespace bpr::app {
 		void initialize_management(github_application& aRuntime)
 		{
 			RegistryRoot = aRuntime.desktop_registry_root();
+			Updater      = release_update_desktop::start_native(RegistryRoot);
 			Scratch      = aRuntime.desktop_scratch();
 			Registry     = adapters::sqlite::make_profile_registry_store(RegistryRoot);
 			Management   = std::make_unique<qt::profile_management_window>();
@@ -822,6 +832,19 @@ namespace bpr::app {
 		void poll()
 		{
 			const auto keepAlive = shared_from_this();
+			if (Updater && !Quitting && ++UpdateAccountPoll >= 100U) {
+				UpdateAccountPoll = 0U;
+				std::vector<release_update_account> accounts;
+				for (auto& [id, entry] : Runtimes) {
+					static_cast<void>(id);
+					if (entry.Runtime && !entry.Closing) {
+						if (auto account = entry.Runtime->desktop_release_account()) {
+							accounts.push_back(std::move(*account));
+						}
+					}
+				}
+				Updater->set_accounts(std::move(accounts));
+			}
 			for (auto position = Runtimes.begin(); position != Runtimes.end();) {
 				auto& entry = position->second;
 				poll_activation(position->first, entry);
@@ -887,6 +910,8 @@ namespace bpr::app {
 		std::unique_ptr<application::profile_management_host>                       Host;
 		std::unique_ptr<qt::profile_management_window>                              Management;
 		std::unique_ptr<qt::desktop_menu_bar>                                       DesktopMenu;
+		std::unique_ptr<release_update_desktop>                                     Updater;
+		unsigned                                                                    UpdateAccountPoll = 0U;
 		std::map<core::bpr_profile_id, runtime_entry>                               Runtimes;
 		application::profile_management_projection                                  Projection;
 		std::optional<std::pair<core::bpr_profile_id, core::profile_launch_intent>> PendingLaunch;

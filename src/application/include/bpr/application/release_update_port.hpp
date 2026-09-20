@@ -3,8 +3,10 @@
 
 #include "bpr/core/release_update.hpp"
 
+#include <expected>
 #include <functional>
 #include <memory>
+#include <span>
 #include <stop_token>
 #include <string_view>
 #include <utility>
@@ -66,14 +68,15 @@ namespace bpr::application {
 	struct release_update_check_result
 	{
 		core::release_update_reason  Failure = core::release_update_reason::none;
-		core::release_update_release Release;
+		core::release_update_release Release{ };
 		std::uint64_t                RetryAfterSeconds = 0U;
+		std::string                  Notes{ };
 	};
 	/// \brief Download terminal retains an owned archive capability and actual byte count.
 	struct release_update_download_result
 	{
 		core::release_update_reason                   Failure = core::release_update_reason::none;
-		std::shared_ptr<const release_update_archive> Archive;
+		std::shared_ptr<const release_update_archive> Archive{ };
 		std::uint64_t                                 Bytes             = 0U;
 		std::uint64_t                                 RetryAfterSeconds = 0U;
 	};
@@ -81,7 +84,7 @@ namespace bpr::application {
 	struct release_update_verification_result
 	{
 		core::release_update_reason                           Failure = core::release_update_reason::none;
-		std::shared_ptr<const release_update_verified_bundle> Bundle;
+		std::shared_ptr<const release_update_verified_bundle> Bundle{ };
 	};
 
 	/// \brief An explicitly selected native GitHub.com release read lease, not a token.
@@ -93,7 +96,8 @@ namespace bpr::application {
 	/// run only on the effect executor, are bounded/cancellable, and return one terminal.
 	/// No progress callback may outlive download(). Credentials go only to API origin;
 	/// redirects use the packaged HTTPS allowlist and strip credentials/cookies. No
-	/// private notes, URLs, wire bodies or credentials belong in results or diagnostics.
+	/// URLs, wire bodies or credentials belong in results or diagnostics. Bounded
+	/// plain-text release notes are transient projection content, never persisted.
 	class release_update_access_port
 	{
 	public:
@@ -117,6 +121,37 @@ namespace bpr::application {
 		virtual ~release_update_verification_port()                                                                                  = default;
 		[[nodiscard]] virtual auto verify(std::shared_ptr<const release_update_archive> aArchive,
 										  std::stop_token                               aStop) -> release_update_verification_result = 0;
+	};
+
+	/// \brief Effect-lane byte sink, kept separate from native HTTPS and its secrets.
+	class release_update_archive_writer
+	{
+	public:
+		virtual ~release_update_archive_writer()                                             = default;
+		[[nodiscard]] virtual auto append(std::span<const std::byte> aBytes) -> bool         = 0;
+		[[nodiscard]] virtual auto finish() -> std::shared_ptr<const release_update_archive> = 0;
+	};
+	/// \brief Creates a private, bounded archive transaction. No pathname crosses inward.
+	class release_update_archive_store
+	{
+	public:
+		virtual ~release_update_archive_store() = default;
+		[[nodiscard]] virtual auto begin(const core::release_update_candidate& aCandidate)
+			-> std::unique_ptr<release_update_archive_writer> = 0;
+	};
+	/// \brief Durable application-wide preferences and opaque selected-account binding.
+	struct release_update_settings
+	{
+		core::release_update_preferences Preferences;
+		std::string                      AccountBinding;
+		auto                             operator<=>(const release_update_settings&) const = default;
+	};
+	class release_update_settings_port
+	{
+	public:
+		virtual ~release_update_settings_port()                                                                  = default;
+		[[nodiscard]] virtual auto load() -> std::expected<release_update_settings, core::release_update_reason> = 0;
+		[[nodiscard]] virtual auto save(const release_update_settings& aSettings) -> bool                        = 0;
 	};
 }
 

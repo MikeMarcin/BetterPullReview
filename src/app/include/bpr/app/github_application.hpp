@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
+#include "bpr/app/release_update_desktop.hpp"
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/notification_delivery.hpp"
@@ -650,6 +651,7 @@ namespace bpr::app {
 		friend class github_application_startup;
 		friend class profile_desktop;
 		[[nodiscard]] auto desktop_registry_root() const -> std::filesystem::path;
+		[[nodiscard]] auto desktop_release_account() -> std::optional<release_update_account>;
 		/// \brief Borrow the admitted runtime's bounded local activation endpoint.
 		[[nodiscard]] auto        desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;
 		[[nodiscard]] auto        desktop_scratch() const -> std::shared_ptr<void>;

@@ -5,6 +5,7 @@ if(BPR_BUILD_QT)
             src/foundation_application.cpp
             src/github_application.cpp
             src/profile_desktop.cpp
+            src/release_update_desktop.cpp
             src/review_submission_workflow.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
@@ -37,6 +38,7 @@ if(BPR_BUILD_QT)
 			BetterPullReview::AdapterAgent
             BetterPullReview::AdapterMcp
             BetterPullReview::AdapterQt
+            BetterPullReview::AdapterUpdate
             Threads::Threads
     )
     target_include_directories(
@@ -307,6 +309,9 @@ if(BPR_BUILD_QT)
                     "${bpr_app_icon_root}/windows/better_pull_review.ico"
         )
     elseif(APPLE)
+        set(bpr_archive_notices "${CMAKE_BINARY_DIR}/_bpr/LibArchive-NOTICES.txt")
+        set_source_files_properties("${bpr_archive_notices}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+        target_sources(app_better_pull_review PRIVATE "${bpr_archive_notices}")
         # Both macOS graphs are application bundles. macOS Notification Center
         # registers applications by bundle identity, so an unbundled process
         # cannot request authorization, never gains a System Settings entry,
