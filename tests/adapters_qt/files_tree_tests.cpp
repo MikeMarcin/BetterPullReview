@@ -1,6 +1,10 @@
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/files_tree.hpp"
 
 #include <QApplication>
+#include <QImage>
+#include <QPainter>
+#include <QStyleOptionViewItem>
 
 #include <cstdint>
 #include <cstdlib>
@@ -157,6 +161,63 @@ namespace {
 		view.hide();
 	}
 
+	auto test_operation_colours_and_accessible_names() -> void
+	{
+		qt::files_tree_view view;
+		view.resize(480, 200);
+		view.set_order(qt::files_order::flat);
+		view.apply({ file("added.cpp"), file("removed.cpp"), file("modified.cpp") });
+		auto added        = overview("added.cpp", 12U, 0U, application::overview_change_since_review::added, { }, { });
+		added.Operation   = application::overview_file_operation::added;
+		auto removed      = overview("removed.cpp", 0U, 8U, application::overview_change_since_review::changed, { }, { });
+		removed.Operation = application::overview_file_operation::removed;
+		view.apply_overview(std::vector{ added, removed, overview("modified.cpp", 2U, 1U, application::overview_change_since_review::changed, { }, { }) });
+		view.show();
+		for (const auto mode : { core::appearance_mode::dark, core::appearance_mode::light,
+								 core::appearance_mode::high_contrast_dark, core::appearance_mode::high_contrast_light }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(view);
+			view.adopt_appearance(profile);
+			QApplication::processEvents();
+			for (const auto& row : { added, removed }) {
+				const auto index  = view.tree_model()->index_for_file(core::file_identity_of(row.Path));
+				const auto colour = profile.color(row.Operation == application::overview_file_operation::added
+													  ? core::appearance_role::state_accepted
+													  : core::appearance_role::state_defect);
+				expect(index.data(Qt::AccessibleTextRole).toString().contains(row.Operation == application::overview_file_operation::added ? QStringLiteral("added") : QStringLiteral("removed")), "operation is named without relying on colour");
+				for (const auto selected : { false, true }) {
+					auto image = QImage{ 480, 32, QImage::Format_ARGB32 };
+					image.fill(view.palette().color(QPalette::Base));
+					auto option = QStyleOptionViewItem{ };
+					option.initFrom(&view);
+					option.widget = &view;
+					option.rect   = image.rect();
+					option.font   = view.font();
+					option.state  = QStyle::State_Enabled | (selected ? QStyle::State_Selected : QStyle::State_None);
+					{
+						auto painter = QPainter{ &image };
+						view.delegate()->paint(&painter, option, index);
+					}
+					const auto expected = selected ? view.palette().color(QPalette::HighlightedText) : colour;
+					auto       matching = 0;
+					for (auto y = 0; y < image.height(); ++y) {
+						for (auto x = 0; x < image.width(); ++x) {
+							if (image.pixelColor(x, y) == expected) {
+								++matching;
+							}
+						}
+					}
+					expect(matching > 8, "rendered operation ink follows the theme while selected rows keep native contrast");
+				}
+			}
+			const auto root = qEnvironmentVariable("BPR_FILES_TREE_RENDER_ROOT");
+			if (!root.isEmpty()) {
+				expect(view.grab().save(root + QStringLiteral("/files-tree-%1.png").arg(static_cast<int>(mode))), "capture themed drawer rendering");
+			}
+		}
+	}
+
 	// [[BPR-0658]]. Choosing a file row reports its identity once; a
 	// selection the window makes reports nothing; a folder reports nothing.
 	auto test_selection_reports_files_and_only_the_reviewers_own() -> void
@@ -193,6 +254,7 @@ auto main(int argc, char** argv) -> int
 	test_the_tree_compacts_nesting_only_folders_and_counts_files();
 	test_orders_filter_and_the_overview_join();
 	test_selection_reports_files_and_only_the_reviewers_own();
+	test_operation_colours_and_accessible_names();
 	std::cout << "files-tree-tests:pass\n";
 	return EXIT_SUCCESS;
 }

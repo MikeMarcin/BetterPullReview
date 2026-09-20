@@ -1,4 +1,5 @@
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 
 #include <QFont>
 #include <QFontMetrics>
@@ -48,6 +49,20 @@ namespace bpr::qt {
 				return QStringLiteral("T");
 			case application::overview_file_operation::unchanged:
 				break;
+			}
+			return QString{ };
+		}
+
+		[[nodiscard]] auto operation_description(const application::overview_file_operation aOperation) -> QString
+		{
+			switch (aOperation) {
+			case application::overview_file_operation::added:        return QStringLiteral("added");
+			case application::overview_file_operation::modified:     return QStringLiteral("modified");
+			case application::overview_file_operation::removed:      return QStringLiteral("removed");
+			case application::overview_file_operation::renamed:      return QStringLiteral("renamed");
+			case application::overview_file_operation::copied:       return QStringLiteral("copied");
+			case application::overview_file_operation::type_changed: return QStringLiteral("type changed");
+			case application::overview_file_operation::unchanged:    return QStringLiteral("unchanged");
 			}
 			return QString{ };
 		}
@@ -311,7 +326,10 @@ namespace bpr::qt {
 		case Qt::DisplayRole:
 			return node->Label;
 		case Qt::AccessibleTextRole:
-			return node->Folder ? QStringLiteral("%1, %2 files").arg(node->Label).arg(node->FileCount) : node->Label;
+			if (node->Folder) {
+				return QStringLiteral("%1, %2 files").arg(node->Label).arg(node->FileCount);
+			}
+			return overview == nullptr ? node->Label : QStringLiteral("%1, %2").arg(node->Label, operation_description(overview->Operation));
 		case Qt::ToolTipRole:
 		case path_role:
 			return node->Path;
@@ -321,6 +339,8 @@ namespace bpr::qt {
 			return static_cast<qulonglong>(node->FileCount);
 		case operation_role:
 			return overview != nullptr ? operation_word(overview->Operation) : QString{ };
+		case operation_kind_role:
+			return overview != nullptr ? static_cast<int>(overview->Operation) : -1;
 		case additions_role:
 			return overview != nullptr ? static_cast<qulonglong>(overview->Additions) : qulonglong{ 0 };
 		case deletions_role:
@@ -383,6 +403,12 @@ namespace bpr::qt {
 		Accent = aAccent;
 	}
 
+	void files_tree_delegate::set_operation_colours(const QColor& aAdded, const QColor& aRemoved)
+	{
+		Added   = aAdded;
+		Removed = aRemoved;
+	}
+
 	void files_tree_delegate::paint(
 		QPainter* const             aPainter,
 		const QStyleOptionViewItem& aOption,
@@ -405,10 +431,22 @@ namespace bpr::qt {
 		}
 		aPainter->save();
 		aPainter->setRenderHint(QPainter::Antialiasing, true);
-		const auto selected = (option.state & QStyle::State_Selected) != 0;
-		const auto ink      = selected ? colours.color(QPalette::Active, QPalette::HighlightedText)
-									   : colours.color(QPalette::Active, QPalette::Text);
-		auto       rect     = option.rect.adjusted(4, 0, -4, 0);
+		const auto selected      = (option.state & QStyle::State_Selected) != 0;
+		auto       ink           = selected ? colours.color(QPalette::Active, QPalette::HighlightedText)
+											: colours.color(QPalette::Active, QPalette::Text);
+		const auto operationKind = aIndex.data(files_tree_model::operation_kind_role).toInt();
+		auto       operationInk  = QColor{ };
+		if (!folder && !selected) {
+			if (operationKind == static_cast<int>(application::overview_file_operation::added)) {
+				operationInk = Added;
+			} else if (operationKind == static_cast<int>(application::overview_file_operation::removed)) {
+				operationInk = Removed;
+			}
+		}
+		if (operationInk.isValid()) {
+			ink = operationInk;
+		}
+		auto rect = option.rect.adjusted(4, 0, -4, 0);
 		// [[BPR-0656]] [[BPR-0658]]. The read-state dot before a file: the
 		// accent while comments are unread, a faint ring while the file itself
 		// is unread, nothing once read.
@@ -454,7 +492,7 @@ namespace bpr::qt {
 						   QFontMetrics{ font }.elidedText(aIndex.data(Qt::DisplayRole).toString(), Qt::ElideMiddle, label.width()));
 		if (!right.isEmpty()) {
 			aPainter->setFont(small);
-			aPainter->setPen(selected ? ink : faint);
+			aPainter->setPen(selected || operationInk.isValid() ? ink : faint);
 			aPainter->drawText(QRect{ rect.right() - rightWidth, rect.top(), rightWidth, rect.height() },
 							   Qt::AlignRight | Qt::AlignVCenter, right);
 		}
@@ -462,6 +500,14 @@ namespace bpr::qt {
 	}
 
 	// ---- files_tree_view -----------------------------------------------------
+
+	void files_tree_view::adopt_appearance(const appearance_profile& aProfile)
+	{
+		Delegate->set_accent(aProfile.color(core::appearance_role::state_unread));
+		Delegate->set_operation_colours(aProfile.color(core::appearance_role::state_accepted),
+										aProfile.color(core::appearance_role::state_defect));
+		viewport()->update();
+	}
 
 	files_tree_view::files_tree_view(QWidget* const aParent)
 		: QTreeView{ aParent }

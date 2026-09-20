@@ -21,6 +21,7 @@
 #include <vector>
 
 namespace bpr::qt {
+	class appearance_profile;
 	/// \brief The files drawer's three orders ([[BPR-0658]]).
 	enum class files_order : std::uint8_t {
 		/// Folders as the paths nest, nesting-only folders compacted.
@@ -74,6 +75,8 @@ namespace bpr::qt {
 			file_count_role,
 			/// The overview's operation name, empty when the overview has not said.
 			operation_role,
+			/// -1 unknown, else `application::overview_file_operation`.
+			operation_kind_role,
 			additions_role,
 			deletions_role,
 			/// -1 unknown, else `core::file_read_state`.
@@ -126,9 +129,12 @@ namespace bpr::qt {
 		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			override;
 		void set_accent(const QColor& aAccent);
+		void set_operation_colours(const QColor& aAdded, const QColor& aRemoved);
 
 	private:
 		QColor Accent{ 0x09, 0x69, 0xDA };
+		QColor Added;
+		QColor Removed;
 	};
 
 	using files_tree_select_dispatch = std::function<void(const core::workbench_file_id&)>;
@@ -148,6 +154,7 @@ namespace bpr::qt {
 		void               set_select_dispatch(files_tree_select_dispatch aDispatch);
 		void               apply(const std::vector<workbench_drawer_row>& aRows);
 		void               apply_overview(std::span<const application::overview_file_row> aFiles);
+		void               adopt_appearance(const appearance_profile& aProfile);
 		void               set_order(files_order aOrder);
 		void               set_filter(const QString& aFilter);
 		/// \brief Makes the file's row current without reporting it.

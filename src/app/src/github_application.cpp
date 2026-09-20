@@ -11926,6 +11926,9 @@ namespace bpr::app {
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);
 			}
+			if (auto* const files = Window->files_tree(); files != nullptr) {
+				files->adopt_appearance(*AppearanceProfile);
+			}
 			// [[BPR-0776]]. Home's three state colours for the resolved variant.
 			if (auto* const home = Window->home_list(); home != nullptr) {
 				home->set_state_colours(qt::home_state_colours_for(*AppearanceProfile));
