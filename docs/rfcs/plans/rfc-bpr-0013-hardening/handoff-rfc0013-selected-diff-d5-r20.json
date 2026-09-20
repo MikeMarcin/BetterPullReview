@@ -17,8 +17,152 @@
     "privacy": "Original screenshot remains outside checkout at the owner-provided temporary clipboard path; no private source/path/OID copied into committed evidence."
   },
   "plan_amendment": "Owner explicitly adds BPR-0935..0939. Original seven milestones, original work and all five selected-diff exits are preserved. check-amendment rejects added obligations as non-refinement; this is an explicit new mandate, not a mechanically certified unchanged requirement. New binding records the authorized expanded scope. BPR-0934 stays separate.",
-  "ownership": "Sole writer child; no subagents or task commands on resumption. Prior app PIDs and review host 12070 absent. Current selected-diff protections false at session event 443; unrelated BPR-0755 protection and .mask.lock.json preserved.",
-  "current_work": "Inspecting persisted tab metric application, intraline foreground override, file delegate theme colors, configured CLI setup and safe staged Overview observation design.",
-  "pending_obligations": ["BPR-0935 dark intraline syntax", "BPR-0936 rendered tab width", "BPR-0937 CLI connection timing and bounded improvement", "BPR-0938 progressive useful Overview", "BPR-0939 semantic file-drawer colors", "Original exact source/anchor and integrated verification obligations"],
-  "next_action": "Exercise tab-stop geometry through the public workbench and add a failing-before regression; complete each coherent slice with direct evidence."
+  "ownership": "Sole leaf writer; no subagents. All task commands and native launches finished/reaped; no review server. Owner PID 15093 absent and never signaled. Task native PIDs 73360/79229/82469 ended. Unrelated protected candidate and .mask.lock.json preserved.",
+  "current_work": "BPR-0935..0939 are Done with bounded independent verification. Original BPR-0794/0795 and the selected milestone remain open for the distinct exact private-target source/anchor cross-check; owner-observed file-diff loading is accepted.",
+  "pending_obligations": [
+    "Original BPR-0794/0795 exact private-target source/anchor cross-check remains distinct from accepted owner loading and independently checked safe equivalent composition.",
+    "BPR-0934 Overview folder collapse stays separate.",
+    "BPR-0940 remaining broader composed-GitHub legacy expectation reconciliation stays separate; full suite is not claimed green.",
+    "Remaining RFC-BPR-0013 milestones and closeout requirements are not accepted by this bounded amendment round."
+  ],
+  "next_action": "Coordinator reports five completed amendments, measured latency boundaries, exact signed native proof and remaining obligations. Continue original source/anchor verification independently if still required; do not ask the owner to test file loading again or prepare another attended discovery candidate.",
+  "integration_revision": "d236d0d687f93fc2adfcd1975b4c57cb07d8c3ed",
+  "product_commits": [
+    "e21476cc",
+    "10e9716d",
+    "af4e2d38",
+    "ca000e79"
+  ],
+  "test_and_evidence_commits": [
+    "0d574bc4",
+    "e913ba02"
+  ],
+  "acceptance_commits": [
+    "65d47ee6c38ff9f7de6b5f0692cb44383aa5cb58",
+    "a130bfd586a9ee2f96250e12f59a58eff1e4b076",
+    "9a2bb59e06f61b902b5622cf721cd4e707870842",
+    "c521e8f5eebe4274d16e218dc5d49047f8f2c31c",
+    "d236d0d687f93fc2adfcd1975b4c57cb07d8c3ed"
+  ],
+  "candidate": {
+    "product_revision": "ca000e79",
+    "test_revision": "0d574bc4",
+    "app": "build/app-release-rfc0013-r22/src/app/BetterPullReview.app",
+    "executable_sha256": "859cc687765671f2a1ce0e3e314f9ffe7a92a93da3a184b69ae729ffa036e6b4",
+    "build": "Release, BUILD_TESTING=OFF, Developer ID signed; codesign --verify --deep --strict passes",
+    "platform": "macOS 26.6.2 arm64; Qt 6.10.3; Apple Git 2.50.1",
+    "native_path": "External safe large-positive CLI course, normal consent, production account wrappers/provider/sandboxed Git/cache/epoch/source/syntax/Qt; 515 files, 32 revisions; provisional Overview then complete accepted list and selected file 4 Diff ready. Both rendered source panes and exposed epoch anchors match local git show/rev-parse.",
+    "privacy_boundary": "Owner r21 observation establishes exact UnrealEngine#1773 loading. Independent exact source/anchor proof uses synthetic content through the identical shipped composition, not private source. No private content or credential persisted."
+  },
+  "latency": {
+    "direct_gh_auth_status_seconds": 0.38,
+    "discovery_version_seconds": 0.216,
+    "discovery_auth_status_seconds": 0.396,
+    "transport_and_viewer_seconds": 0.545,
+    "capability_probes_seconds": 13.078,
+    "connection_total_seconds": 14.235,
+    "live_metadata_seconds": 3.92,
+    "live_terminal_provider_seconds": 85.959,
+    "live_provider_pages": 48,
+    "composed_first_useful_paint_ms": 48,
+    "composed_terminal_after_gate_release_ms": 63,
+    "finding": "Connection includes endpoint capabilities and before/after account-continuity checks; no safe redundant check was demonstrated, so security boundaries are unchanged. The 48 pages intentionally acquire the complete snapshot. The prior UI withheld useful metadata until terminal publication. Bounded read-only metadata now paints while independent observations continue.",
+    "limit": "Live provider timing excludes Git acquisition. Local composed paint times are recorded transport evidence, not a live network promise. Private-target native first paint was not separately timed."
+  },
+  "verification": [
+    "Original missing composed tab application, monochrome intraline overlay, omitted Qt overview publication, and missing actual drawer-profile handoff each fail a new focused regression before repair.",
+    "Progressive core/host/pager/provider/public composition 5/5; visual focused 7/7 including scale 1/1.25/2; final public composition with Settings-driven actual drawer pixels 1/1; Qt loading passes.",
+    "Core-only 143/146 in owner checkout; three structural scanners see the existing ignored nested worktree. All three unchanged gates pass in a tracked-source materialization; owner worktree preserved.",
+    "CLI and smart-Git transport security/cancellation tests pass; focused clang-tidy six translation units and changed-source formatting pass.",
+    "Documentation gate and verifier 64/64 pass; scoped issue board valid; plan/checkpoint structural validation valid with semantic coverage explicitly unknown.",
+    "Broader qt_composed_github_scale_100 remains non-green at legacy CLI-card setup-mode expectations, tracked separately as BPR-0940. No full-suite green claim.",
+    "Final signed tests-disabled native candidate independently rendered safe progressive Overview and a complete exact-pair diff; normal quit reaped exit 0."
+  ],
+  "changed_paths": [
+    "docs/issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md",
+    "docs/issues/30-in-progress/BPR-0794-resolve-selected-diff-epoch-pair.md",
+    "docs/issues/30-in-progress/BPR-0795-show-loading-and-bound-large-pr-laziness.md",
+    "docs/issues/60-done/BPR-0935-legible-dark-intraline-syntax.md",
+    "docs/issues/60-done/BPR-0936-apply-selected-tab-width.md",
+    "docs/issues/60-done/BPR-0937-measure-cli-connection-stages.md",
+    "docs/issues/60-done/BPR-0938-progressive-overview-observations.md",
+    "docs/issues/60-done/BPR-0939-semantic-file-drawer-status-colors.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-0935--BPR-0939--e746ab31ea83.json",
+    "docs/issues/_reservations/BPR-0940--BPR-0940--1d9d2ebf5a57.json",
+    "docs/rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d5-r20.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d5-r20.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "docs/verification/rfc-bpr-0013-usable-review-20260920.md",
+    "docs/verification/rfc0013-r22-rendered/dark-intraline.png",
+    "docs/verification/rfc0013-r22-rendered/file-drawer-dark.png",
+    "docs/verification/rfc0013-r22-rendered/file-drawer-light.png",
+    "docs/verification/rfc0013-r22-rendered/progressive-overview.png",
+    "src/adapters/github/src/github_paged_read.cpp",
+    "src/adapters/github/src/github_paged_read.hpp",
+    "src/adapters/github/src/github_provider.cpp",
+    "src/adapters/github/src/github_provider.hpp",
+    "src/adapters/qt/include/bpr/qt/files_tree.hpp",
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+    "src/adapters/qt/src/appearance_profile.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/files_tree.cpp",
+    "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/include/bpr/application/github_projection.hpp",
+    "src/application/include/bpr/application/github_provider_port.hpp",
+    "src/application/src/github_projection_mapping.cpp",
+    "src/application/src/github_projection_mapping.hpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/core/include/bpr/core/appearance_contrast.hpp",
+    "src/core/include/bpr/core/github_window_read.hpp",
+    "src/core/src/appearance_contrast.cpp",
+    "src/core/src/github_window_read.cpp",
+    "tests/adapters_qt/appearance_profile_tests.cpp",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp",
+    "tests/adapters_qt/files_tree_tests.cpp",
+    "tests/application/github_window_read_host_tests.cpp",
+    "tests/core/appearance_contrast_tests.cpp",
+    "tests/core/github_window_read_tests.cpp",
+    "tests/end_to_end/setup_destination_public_path_tests.cpp",
+    "tests/github_contract/github_paged_read_tests.cpp"
+  ],
+  "evidence_refs": [
+    "docs/verification/rfc-bpr-0013-usable-review-20260920.md",
+    "docs/verification/rfc0013-r22-rendered/dark-intraline.png",
+    "docs/verification/rfc0013-r22-rendered/file-drawer-dark.png",
+    "docs/verification/rfc0013-r22-rendered/file-drawer-light.png",
+    "docs/verification/rfc0013-r22-rendered/progressive-overview.png"
+  ],
+  "review_state": {
+    "session_id": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "event_cursor": 443,
+    "selected_diff_protected": false,
+    "unrelated_protected_candidate": "BPR-0755-neutral-identity-v001",
+    "new_candidate": null,
+    "review_server": null,
+    "detail": "Preserved rejection at 441 and hand-back at 442. No new attended discovery test or owner repeat request."
+  },
+  "cleanup": {
+    "recoverable_trash": "/Users/jaeger/.Trash/bpr-rfc0013-r22-temporary.Axly04",
+    "moved": [
+      "task-owned external native fixture and isolated state",
+      "tracked-source verification materialization",
+      "temporary timing probe source/binary/object/helper",
+      "task-owned native sample"
+    ],
+    "preserved": [
+      "signed r21/r22 app bundles",
+      "metadata-only diagnostic logs",
+      "committed safe rasters",
+      "unrelated .mask.lock.json",
+      "ignored nested user worktree"
+    ]
+  }
 }
