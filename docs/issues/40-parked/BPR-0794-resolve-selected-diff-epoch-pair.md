@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0794"
 title: "Resolve the exact epoch pair for a large pull request selected diff"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"v003 fixed diagnostics show cache open succeeded, followed by protocol transport response_limit. The production bridge reproduced ENOENT between entry stat and file_size; its unsigned failure sentinel was mistaken for an oversized file. v004 identity records only fixed metadata."}},{"criterion":"AC2","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"12e9bdb8 skips only vanished temporary files; per-file/aggregate bytes, entry limit, symlink and other error refusal remain intact. Old-scanner negative control fails the new churn regression. Fixed bridge completes three exact-target sparse acquisitions; exact current/historical and stale/source tests pass without changing cache/authority policy."}},{"criterion":"AC3","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Final serial focused suite 8/8 pass in 68.12 seconds, including actual setup/CLI installed-cache source/epoch course; portable two-catalogue integration passes in 243.66 seconds. Documentation, 64 verifier tests, formatting and signature verification pass. Whole-tree architecture scan's unrelated nested .claude/worktrees duplicate target and prior wider-test limits are explicit in v004 identity."}},{"criterion":"AC4","outcome":"pending","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Tests-disabled signed Release digest 71117a5c… is bound to rfc0013-v004-9c670d88-71117a5c. Fresh selected-diff question ready/protected at sequence427, observations through429; no human verdict. Production-bridge and synthetic product evidence do not substitute for the exact-target readable source/anchor acceptance. Parent owns later server/watch."}},{"criterion":"AC5","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"No GitHub write, account switch, device-session change or credential extraction. Private read bodies/OIDs/packs were memory-only or in production-owned temporary stores outside checkout; normal cleanup completed and six empty interrupted-probe roots were removed after verifying no handles. Existing owner r18 app and unrelated .mask.lock.json/nested checkout left untouched. No task-owned app, probe, served host or watcher remains."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"v005 identity binds the v004 fixed transport/unavailable diagnostic and missed sparse-capability/exact-blob wrapper path. Old provider fails the new regression; the exact signed app reaches pair-ready and readable source in a 515-file sparse-only local fixture."}},{"criterion":"AC2","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"37343abf forwards capability and exact blobs using existing guards. Tests cover false capability, exact context/OID/byte bound, pre/post account drift and revocation, before/during cancellation, retained failure and lease lifetime. Host/integration retain stale and current/historical authority checks."}},{"criterion":"AC3","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Focused 5/5 pass (65.31 s); portable two-catalogue integration passes (215.62 s); external fixture 4/4 passes. Native tests-disabled 515-file exact-pair/source course passes; documentation and 64 verifier tests, C++ formatting, diff check and signed Release pass. v005 identity records broader limits."}},{"criterion":"AC4","outcome":"pending","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"v004 accepted 0794 but later rejected the integrated read with concrete missing source/epochs. Preserve both verdicts; no readable-source acceptance inferred. Fresh v005 candidate af95465d... ready/protected at 439, observations through 440. Real-target source/anchor human acceptance remains required."}},{"criterion":"AC5","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"No live write, account switch, device-session change, credential extraction or private content retained. Real sparse-bridge prerequisite check used bounded in-memory reads and normal cleanup; native UI verification used a disposable synthetic CLI/home. Existing owner app and unrelated changes preserved."}}]
+parked_on: "human-review"
 ---
 
 # Resolve the exact epoch pair for a large pull request selected diff
@@ -47,7 +48,36 @@ this card's readable selected-diff criterion.
 
 ## Evidence
 
-### Current correction — attended v003 rejected
+### Current correction — v004 hand-back, v005 prepared
+
+The v004 BPR-0794 accept (432) is preserved alongside the later BPR-0795
+reject (433): the latter explicitly reports no readable source or epochs and
+includes a confirming screenshot. Loading presentation was approved, but the
+concrete acquisition failure leaves AC4 open. The requested CLI-warning cleanup
+is tracked separately in [[BPR-0933]]. Only the affected candidates were released.
+
+`37343abf` fixes the public path missed by the direct bridge: both provider
+account-factory wrappers discarded sparse capability, so the app selected
+complete acquisition for the large target. The observed Git lease also omitted
+exact-blob forwarding. Both now preserve the selected capability and route
+blobs through the existing pre/post account, cancellation and revocation guard.
+No resource limit, cache authority or history policy changed.
+
+The old provider fails the new wrapper regression. Focused tests pass 5/5;
+the portable two-catalogue integration and four external-fixture checks pass.
+The exact signed tests-disabled r20 app was driven through a 515-file synthetic
+CLI review: sparse-only acquisition, manifest-matching exact pair and readable
+selected source `0 → 2`, with one semantic replacement. That current-pair
+observation does not replace the real-target source/anchor criterion.
+
+The [v005 packet](../../verification/reviews/rfc-bpr-0013-attended-v005/operator-packet.md)
+and [identity](../../verification/reviews/rfc-bpr-0013-attended-v005/session-identity.json)
+bind `rfc0013-v005-37343abf-5f956714`, ready/protected at 439 with evidence through
+440. Only AC4 is refreshed for human review. Loading approval and r17 device
+acceptance are retained. Builds, tests, probes and task-owned native apps are
+finished; the attached loopback host remains for the coordinator's hand-back watch.
+
+### Historical correction — attended v003 rejected
 
 The owner rejected v003: selected files and epochs still did not load, and
 participant rows should use one line each. The two affected candidates have
