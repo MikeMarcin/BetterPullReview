@@ -25,6 +25,7 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCursor>
+#include <QDialog>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFontInfo>
@@ -2235,9 +2236,14 @@ namespace {
 		pullRequest.Conversations.insert(
 			pullRequest.Conversations.begin(),
 			conversation(
-				"issue-comment:long",
-				application::github_conversation_kind::issue_comment,
+				"review-thread:long",
+				application::github_conversation_kind::review_thread,
 				longBody));
+		// The reader intentionally displays only the selected root. Measure
+		// adjacent rows within that root, not a different hidden conversation.
+		pullRequest.Conversations.insert(pullRequest.Conversations.begin() + 1,
+										 conversation("review-comment:short", application::github_conversation_kind::review_comment,
+													  "Short reply", "review-thread:long"));
 		auto acceptedRefresh  = pullRequest;
 		acceptedRefresh.Title = "Accepted refreshed title";
 		window.publish(application::github_presentation_update{
@@ -2259,8 +2265,8 @@ namespace {
 		auto* const title      = required_label(window, "pullRequestTitle");
 		auto* const view       = window.conversation_view();
 		auto* const model      = window.conversation_model();
-		const auto  longIndex  = model->index_for_id("issue-comment:long");
-		const auto  shortIndex = model->index_for_id("review:r1");
+		const auto  longIndex  = model->index_for_id("review-thread:long");
+		const auto  shortIndex = model->index_for_id("review-comment:short");
 		expect(
 			longIndex.isValid() && shortIndex.isValid(),
 			"wrapped-row fixture exposes long and short stable rows");
@@ -2324,6 +2330,7 @@ namespace {
 			model->index_for_id("review-thread:t1")
 		};
 		view->setCurrentIndex(longIndex);
+		view->expand(longIndex);
 		view->selectionModel()->select(
 			longIndex,
 			QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
@@ -2786,7 +2793,7 @@ namespace {
 	auto test_read_drawer_shows_threads_as_cards_with_scope_and_actions() -> void
 	{
 		// [[BPR-0648]]. The comments drawer's cards: this file's threads, the
-		// whole-PR scope, and Comment here landing in the draft editor.
+		// whole-PR scope, and no inline action without an exact code anchor.
 		qt::workbench_window window{
 			qt::workbench_intent_dispatch{ },
 			qt::workbench_change_dispatch{ },
@@ -2851,17 +2858,8 @@ namespace {
 		const auto placedCard = std::ranges::find_if(cards->cards(), [](const qt::thread_card& aCard) {
 			return aCard.Id == "review-thread:t-placed";
 		});
-		expect(placedCard != cards->cards().end() && placedCard->Actions.size() == 1U,
-			   "a thread's card offers one action, a comment on its line");
-		const auto action = placedCard->Actions.front().second.center();
-		auto       press  = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ action }, QPointF{ action },
-										 Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-		QApplication::sendEvent(cards->viewport(), &press);
-		QApplication::processEvents();
-		expect(window.conversation_model()->id_for_index(window.conversation_view()->currentIndex())
-					   == "review-thread:t-placed"
-				   && window.review_editor()->body_editor()->hasFocus(),
-			   "Comment here makes the thread current and moves focus to the draft editor");
+		expect(placedCard != cards->cards().end() && !placedCard->Placed && placedCard->Actions.empty(),
+			   "the compact reader offers no inline action before an exact comparison anchors the thread");
 		window.hide();
 	}
 
@@ -3223,18 +3221,17 @@ namespace {
 			   "the explicit GitHub CLI capability adds its own first-launch path");
 		landing->secondary_button()->click();
 		QApplication::processEvents();
-		expect(window.settings()->isVisible()
-				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+		expect(window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
+				   && !window.settings()->isVisible()
 				   && cliDiscoveries == 1U,
-			   "Use GitHub CLI opens Accounts and hosts and dispatches discovery once");
-		window.settings()->hide();
+			   "Use GitHub CLI opens the shared sign-in dialog and dispatches discovery once");
+		window.sign_in_dialog()->reject();
 		QApplication::processEvents();
 		landing->tertiary_button()->click();
 		QApplication::processEvents();
-		expect(window.settings()->isVisible()
-				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts,
-			   "Add enterprise server on the card opens Accounts and hosts");
-		window.settings()->hide();
+		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible(),
+			   "Add enterprise server on Home opens the shared sign-in dialog");
+		window.sign_in_dialog()->reject();
 		QApplication::processEvents();
 		// Review of BPR-0775, finding 2: once the queue that keeps servers is
 		// ready, the card's second way in opens the new card in its edit state.
@@ -3243,13 +3240,12 @@ namespace {
 		QApplication::processEvents();
 		landing->tertiary_button()->click();
 		QApplication::processEvents();
-		expect(window.settings()->isVisible()
-				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+		expect(window.sign_in_dialog()->isVisible() && !window.settings()->isVisible()
 				   && window.enterprise_server_draft() != nullptr && window.enterprise_server_draft()->isVisible()
-				   && window.settings()->focusWidget() == window.enterprise_server_hostname(),
+				   && QApplication::focusWidget() == window.enterprise_server_hostname(),
 			   "with the queue ready, Add enterprise server opens the new card in its edit state with the hostname focused");
 		window.enterprise_server_cancel()->click();
-		window.settings()->hide();
+		window.sign_in_dialog()->reject();
 		QApplication::processEvents();
 		// A public-preview session is a session with no account: the same
 		// Home, with the queue still absent.
@@ -3282,8 +3278,8 @@ namespace {
 	}
 
 	/// \brief [[BPR-0775]]. Signed in, Home's first row is the bar: labelled,
-	/// focused on arrival, reachable by Command-L from anywhere, with a first
-	/// load said under it and the session line in the status bar.
+	/// focused on arrival and reachable by Command-L from anywhere. A first
+	/// load enters the explicit loading Overview ([[BPR-0795]]).
 	auto test_home_leads_with_the_bar_signed_in() -> void
 	{
 		qt::workbench_window window{
@@ -3345,12 +3341,13 @@ namespace {
 			},
 		});
 		QApplication::processEvents();
-		expect(window.showing_home() && window.home_open_notice()->isVisible()
-				   && window.home_open_notice()->text() == QString::fromStdString(window.github_status_text())
+		expect(!window.showing_home() && window.overview_page()->isVisible()
+				   && !window.overview_page()->presented()
+				   && required_child<QLabel>(window, "overviewTitle")->text().contains(QStringLiteral("Loading"))
 				   && window.home_open_details_button()->isHidden()
 				   && required_child<QStackedWidget>(window, "githubViewState")->isHidden()
-				   && window.status_text().startsWith(QStringLiteral("Signed in as ")),
-			   "a first load in progress is said under the bar, not on the stack's page, and the line stays the session's");
+				   && required_child<QLabel>(window, "reviewReadinessText")->text().contains(QStringLiteral("Loading")),
+			   "a first load opens the provisional Overview immediately, with explicit loading and no accepted content");
 		publish_session_ready(window);
 		QApplication::processEvents();
 		expect(window.home_open_notice()->isHidden(),
@@ -4543,10 +4540,9 @@ namespace {
 		landing->primary_button()->click();
 		QApplication::processEvents();
 		expect(
-			window.settings()->isVisible()
-				&& window.settings()->current_page()
-					== qt::settings_page::accounts_and_hosts,
-			"the sign-in button opens Accounts and hosts");
+			window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
+				&& !window.settings()->isVisible(),
+			"the sign-in button opens the shared sign-in dialog");
 		expect(signInGestures.size() == 1U
 				   && std::holds_alternative<core::begin_device_authorization_intent>(signInGestures.front())
 				   && std::get<core::begin_device_authorization_intent>(signInGestures.front()).Profile == *window.session_panel()->selected_profile(),
@@ -4583,6 +4579,8 @@ namespace {
 			.Stage = core::device_authorization_stage::expired,
 		});
 		window.device_authorization()->apply(expired);
+		window.sign_in_dialog()->reject();
+		window.settings()->present(qt::settings_page::accounts_and_hosts);
 		// [[BPR-0771]]. Another host is chosen by its card's Connect, which
 		// rebinds the device sign-in to it.
 		auto* const enterpriseCard = window.server_card_for(core::host_profile_id{ 12U });
@@ -4605,6 +4603,7 @@ namespace {
 				   && std::get<core::begin_device_authorization_intent>(signInGestures.back()).Profile == core::host_profile_id{ 12U },
 			   "retry after expiry names the newly selected host rather than the old grant");
 		window.set_device_authorization_dispatch({ });
+		window.sign_in_dialog()->reject();
 		window.settings()->hide();
 
 		publish_session_ready(window);
@@ -4830,12 +4829,12 @@ namespace {
 		window.account_action()->trigger();
 		QApplication::processEvents();
 		expect(
-			window.settings()->isVisible()
-				&& window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+			window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
+				&& !window.settings()->isVisible()
 				&& gestures.size() == 1U
 				&& std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
 				&& std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == *selected,
-			"the strip's account button presents Accounts and hosts and begins exactly one device sign-in, for the chosen host");
+			"the strip's account button opens shared sign-in and begins exactly one device flow for the chosen host");
 		expect(
 			!window.focus_order().contains(panel->begin_button())
 				&& !window.focus_order().contains(panel->open_button())
@@ -6536,15 +6535,15 @@ namespace {
 			QApplication::processEvents();
 			window.account_action()->trigger();
 			QApplication::processEvents();
-			expect(window.settings()->isVisible()
-					   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+			expect(window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
+					   && !window.settings()->isVisible()
 					   && gestures.size() == 1U
 					   && std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
 					   && std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == core::host_profile_id{ 31U }
 					   && intents.empty(),
-				   "signed out on GitHub.com, the account button opens Accounts and hosts and begins one device sign-in for the chosen host");
+				   "signed out on GitHub.com, the account button opens shared sign-in and begins one device flow for the chosen host");
 
-			window.settings()->hide();
+			window.sign_in_dialog()->reject();
 			publish_session_ready(window, core::host_profile_id{ 31U });
 			QApplication::processEvents();
 			auto* const card = window.server_card_for(core::host_profile_id{ 31U });

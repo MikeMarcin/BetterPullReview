@@ -2,8 +2,10 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
@@ -22,10 +24,12 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QStyleOptionViewItem>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QThread>
@@ -125,6 +129,44 @@ namespace {
 			expect(qAbs(pane->tabStopDistance() - expected) < 0.01
 					   && qAbs(pane->document()->defaultTextOption().tabStopDistance() - expected) < 0.01,
 				   "composed source layout uses the selected code-font tab width, not Qt's default");
+		}
+	}
+
+	void verify_composed_file_operation_ink(app::github_application& aApplication, const core::appearance_mode aMode)
+	{
+		auto* const view            = aApplication.window().files_tree();
+		auto        expectedProfile = qt::appearance_profile{ };
+		static_cast<void>(expectedProfile.select_mode(aMode));
+		// Feed independent safe model rows to the actual composed delegate.
+		// Do not manually apply a profile to it: this catches a lost app handoff.
+		auto model = qt::files_tree_model{ };
+		for (const auto operation : { application::overview_file_operation::added, application::overview_file_operation::removed }) {
+			const auto path = std::string{ "synthetic.cpp" };
+			const auto id   = core::file_identity_of(path);
+			model.apply({ { .Identity = QString::fromStdString(path), .Title = QString::fromStdString(path), .File = id } });
+			const auto row = application::overview_file_row{ .Path = path, .Name = path, .Operation = operation, .Additions = 1U, .Deletions = 1U };
+			model.apply_overview(std::span{ &row, 1U });
+			const auto ink    = expectedProfile.color(operation == application::overview_file_operation::added
+														  ? core::appearance_role::state_accepted
+														  : core::appearance_role::state_defect);
+			auto       raster = QImage{ 420, 32, QImage::Format_ARGB32 };
+			raster.fill(view->palette().color(QPalette::Base));
+			auto option = QStyleOptionViewItem{ };
+			option.initFrom(view);
+			option.widget = view;
+			option.rect   = raster.rect();
+			option.state  = QStyle::State_Enabled;
+			{
+				auto painter = QPainter{ &raster };
+				view->delegate()->paint(&painter, option, model.index_for_file(id));
+			}
+			auto matching = 0;
+			for (auto y = 0; y < raster.height(); ++y) {
+				for (auto x = 0; x < raster.width(); ++x) {
+					matching += raster.pixelColor(x, y) == ink ? 1 : 0;
+				}
+			}
+			expect(matching > 8, "actual composed drawer delegate receives the selected semantic operation ink");
 		}
 	}
 
@@ -535,6 +577,13 @@ namespace {
 				   "the composed Settings control accepts each offered tab width");
 			QApplication::processEvents();
 			verify_composed_code_metrics(*application, width);
+		}
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::high_contrast_light,
+								 core::appearance_mode::high_contrast_dark, core::appearance_mode::dark }) {
+			expect(github_application_fixture_access::apply_appearance_gesture(*application, mode, 4U),
+				   "Settings applies each drawer appearance through the concrete application");
+			QApplication::processEvents();
+			verify_composed_file_operation_ink(*application, mode);
 		}
 
 		// Discard the first setup surface while the CLI inventory settles. The
