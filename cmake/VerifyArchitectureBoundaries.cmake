@@ -1749,6 +1749,9 @@ verify_effect_owner(
     # BPR-0351. The authenticated launch channel identifies its peer from the
     # kernel audit trailer, which is a code-signing question by construction.
     "${app_designated_live_provenance_relative}"
+    # BPR-0947. Installed and staged application identities are compared only
+    # by this native updater effect owner, never by core or presentation.
+    "src/adapters/update/src/macos_release_update.cpp"
 )
 verify_effect_owner(
     "(/usr/bin/curl|com\\.apple\\.curl)"

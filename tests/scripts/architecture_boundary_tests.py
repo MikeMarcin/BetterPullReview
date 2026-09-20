@@ -1523,6 +1523,26 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_native_release_staging_effect_owner_is_exact(self) -> None:
+        source = "QProcess process;\nSecStaticCodeRef code;\n"
+        target = (
+            "target_sources(better_pull_review_adapter_update PRIVATE "
+            "src/macos_release_update.cpp)\n"
+        )
+        result = self.run_check({
+            "src/adapters/update/src/macos_release_update.cpp": source,
+            "src/adapters/update/CMakeLists.txt": target,
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for expression, diagnostic in (
+            ("QProcess process;\n", "QProcess ownership violation"),
+            ("SecStaticCodeRef code;\n", "macOS code-signing API ownership violation"),
+        ):
+            with self.subTest(expression=expression):
+                self.assert_failure(diagnostic, {
+                    "src/adapters/update/src/other.cpp": expression,
+                })
+
     def test_native_windows_agent_process_owner_is_exact(self) -> None:
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
