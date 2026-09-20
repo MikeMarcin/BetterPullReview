@@ -223,6 +223,13 @@ namespace {
 					   && std::get<core::github_failure>(event.GithubFailure) == core::github_failure::permission
 					   && event.Summary.text().empty() && !host.accepted_snapshot(),
 				   "GetRepository denial retains only status/source with unchanged permission refusal");
+			expect(host.state().ActiveProfile == first.Request.Context.Profile
+					   && host.state().Host == first.Request.Context.Host && host.state().Account == first.Request.Context.Account
+					   && host.state().IdentityGeneration == first.Request.Context.IdentityGeneration
+					   && host.state().AccessMode == core::github_access_mode::authenticated
+					   && call.Request.AccountTransport == first.Request.AccountTransport
+					   && call.Request.AuthenticationSession == first.Request.AuthenticationSession,
+				   "403 and 404 refuse only the read, preserving the exact authenticated session and transport");
 		}
 		for (const auto& update : updates) {
 			expect(update.Presentation.Transition && update.Presentation.Transition->Status == update.Transition.Status

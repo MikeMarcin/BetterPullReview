@@ -123,3 +123,35 @@ The card is parked for the existing attended criterion. No application or
 capture occurred. The separate protected BPR-0644 relaunch candidate remains
 untouched. Resume from the same packet and record only the owner's exact
 candidate verdict before considering this card or its milestone complete.
+
+## Owner rejection and current-source correction — mandate r17
+
+The owner rejected the dsp3 course in practice: opening the exact target from
+Home reported that this app's connection could not read the pull request, then
+Home returned to Sign in and Accounts & hosts appeared to lose the accepted
+account. CLI was not reachable before device connection. Attended observations
+390–392 retain those reports; releases 393–395 made the three affected questions
+waiting and unprotected. The sequence-389 preparation above is historical, not
+an active acceptance claim.
+
+The supplied bundle was stale. Its source `94f6f885` predates BPR-0909/BPR-0913
+CLI discovery, BPR-0914 (`1a74b36d`) accepted-CLI destination routing, and BPR-0915
+(`cbd50b74`) shared sign-in. In the old composition, setup observations excluded
+CLI profiles and opening required native credential authority; the resolver
+could select an inactive native option and enter anonymous GitHub.com preview.
+That explains the private read refusal and apparent sign-out without proving
+that a permission response deleted a stored grant. Current main projects the
+accepted exact-profile session and prefers it over an inactive same-host option.
+
+New composed regressions cover GitHub.com with anonymous preview available,
+visible CLI discovery before device connection, an exact-host CLI open, and a
+403 read followed by an accessible retry. Both accepted CLI and synthetic device
+sessions keep their account and connected server card; the denied read performs
+no vault store/retrieve/delete, refresh-slot operation, new account construction
+or device request. The read-host check additionally pins authentication-session
+and transport identity across 403 and 404. The external tests-disabled CLI fixture
+now serves current account discovery and the same synthetic 403 without supplying
+consent. The composed course passes, and its fixture self-tests pass 3/3.
+
+No new exact-target product observation or human acceptance is inferred. A fresh
+tests-disabled bundle and actual offline HTML replace dsp3 before another review.

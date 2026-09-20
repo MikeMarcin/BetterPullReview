@@ -138,6 +138,12 @@ def fake_gh():
         record_operation(directory, "version")
         print("gh version 2.100.0 (synthetic local fixture)")
         return 0
+    if args == ["auth", "status", "--active", "--json", "hosts"]:
+        record_operation(directory, "active-account-discovery")
+        print(json.dumps({"hosts": {"github.com": [{
+            "active": True, "host": "github.com", "login": "octo-reviewer",
+            "state": "success"}]}}))
+        return 0
     if len(args) < 7 or args[0] != "api" or args[2:7] not in (
             ["--hostname", "github.com", "--include", "--method", "GET"],
             ["--hostname", "github.com", "--include", "--method", "POST"]):
@@ -157,7 +163,8 @@ def fake_gh():
     part = re.search(r"BetterPullReviewCapabilityProbeV1Part([0-8])", document)
     operation = "capability-" + part[1] if part else endpoint
     # Only sanitized structural route names are retained, never stdin/headers.
-    if endpoint not in fixture["routes"]:
+    denied = endpoint == "/repos/octo-org/inaccessible-repository"
+    if endpoint not in fixture["routes"] and not denied:
         return 64
     record_operation(directory, operation)
     if fixture["course"] == "process-failure":
@@ -165,10 +172,12 @@ def fake_gh():
     if fixture["course"] == "malformed-response":
         print("invalid HTTP framing")
         return 0
-    body = fixture["parts"][int(part[1])] if part else fixture["routes"][endpoint]
+    body = ({"message": "Resource not accessible"} if denied else
+            fixture["parts"][int(part[1])] if part else fixture["routes"][endpoint])
     resource = ("graphql" if endpoint == "/graphql" else
                 "search" if endpoint == "/search/issues" else "core")
-    wire = ("HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n"
+    status = "403 Forbidden" if denied else "200 OK"
+    wire = (f"HTTP/2.0 {status}\r\nContent-Type: application/json\r\n"
             "X-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\n"
             "X-RateLimit-Reset: 2000000000\r\n"
             f"X-RateLimit-Resource: {resource}\r\n\r\n" + json.dumps(body))

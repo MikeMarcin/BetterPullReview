@@ -260,7 +260,77 @@ namespace {
 	}
 
 #if defined(__APPLE__)
-	void run_connected_cli_destination_course(const bool aPasteFirst, const bool aUnknownHost = false)
+	void check_denied_read_retains_session(app::github_application& aApplication, const QString& aHostname)
+	{
+		auto&      window  = aApplication.window();
+		const auto session = window.session_panel()->session();
+		const auto before  = github_application_fixture_access::evidence(aApplication);
+		expect(session.has_value() && !aApplication.status().PublicPreviewSignedOut, "the refusal course begins with an accepted account");
+		const auto sameAccount = [&session](const auto& aSession) {
+			return aSession && aSession->Profile == session->Profile && aSession->Host == session->Host
+				&& aSession->Account == session->Account && aSession->Login == session->Login;
+		};
+		submit(window, QStringLiteral("https://%1/octo-org/inaccessible-repository/pull/17").arg(aHostname));
+		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "the inaccessible repository reaches a read refusal");
+		expect(window.home_open_notice()->text().contains(QStringLiteral("cannot read this pull request")), "the composed refusal is a permission denial");
+		expect(sameAccount(window.session_panel()->session()) && !aApplication.status().PublicPreviewSignedOut
+				   && window.home_landing()->state() == qt::landing_state::choose_pull_request,
+			   "a denied read preserves the accepted account and signed-in Home");
+		const auto cards = window.server_cards();
+		const auto card  = std::ranges::find_if(cards, [&](const auto* aCard) { return aCard->hostname() == aHostname.toStdString(); });
+		expect(card != cards.end() && (*card)->presentation().State == qt::server_card_state::connected
+				   && sameAccount((*card)->presentation().Session),
+			   "Accounts & hosts retains the same accepted account after the denial");
+		const auto after = github_application_fixture_access::evidence(aApplication);
+		expect(after.VaultStoreAttempts == before.VaultStoreAttempts && after.VaultRetrieveAttempts == before.VaultRetrieveAttempts
+				   && after.VaultDeleteAttempts == before.VaultDeleteAttempts && after.RefreshStoreAttempts == before.RefreshStoreAttempts
+				   && after.RefreshRetrieveAttempts == before.RefreshRetrieveAttempts && after.RefreshDeleteAttempts == before.RefreshDeleteAttempts
+				   && after.DeviceTransportSubmissions == before.DeviceTransportSubmissions && after.AccountFactoryCalls == before.AccountFactoryCalls,
+			   "a denied read neither touches credential slots nor starts another device or account session");
+		capture(window, QStringLiteral("setup-denied-%1.png").arg(session->Grant ? QStringLiteral("native") : QStringLiteral("cli")));
+		submit(window, QStringLiteral("https://%1/octo-org/review-repository/pull/17").arg(aHostname));
+		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "the same session opens an accessible review after the refusal");
+		expect(sameAccount(window.session_panel()->session()), "retrying an accessible target preserves the account");
+		expect(!window.sign_in_dialog()->isVisible(), "retrying an accessible target requires no sign-in");
+	}
+
+	void run_native_read_refusal_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated native refusal root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private native refusal root");
+		options.RegisteredDeviceCourse     = true;
+		options.PersistDeviceBindings      = true;
+		options.IndependentWindowReads     = true;
+		options.PublicPreviewEnabledCourse = true;
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "native refusal startup completes");
+		expect(application != nullptr, "native refusal startup succeeds");
+		auto& window = application->window();
+		window.show();
+		window.home_action()->trigger();
+		QApplication::processEvents();
+		expect(window.home_landing()->primary_button()->isVisible() && window.home_landing()->primary_button()->isEnabled(), "native sign-in is offered before any PR read");
+		window.home_landing()->primary_button()->click();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "synthetic device account is accepted before any PR read");
+		if (window.sign_in_dialog()->isVisible()) {
+			cancel_setup(window);
+		}
+		check_denied_read_retains_session(*application, QStringLiteral("github.com"));
+		application->begin_shutdown();
+		wait_for([&] { return application->status().ShutdownComplete; }, "native refusal course quiesces");
+	}
+
+	void run_connected_cli_destination_course(const bool aPasteFirst, const bool aUnknownHost = false, const bool aGithubCom = false)
 	{
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated connected CLI root");
@@ -269,12 +339,14 @@ namespace {
 		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private connected CLI root");
 		options.SetupUnconfiguredEnterprise = aUnknownHost;
 		options.IndependentWindowReads      = true;
+		options.PublicPreviewEnabledCourse  = aGithubCom;
+		const auto hostname                 = aGithubCom ? "github.com" : "ghe.example.invalid";
 		options.GithubCliDiscoveryAccounts  = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
-			{ .Hostname = "ghe.example.invalid", .Login = "octo-reviewer" }
+			{ .Hostname = hostname, .Login = "octo-reviewer" }
 		};
 		std::unique_ptr<bpr::app::github_application> application;
 		auto                                          terminal = false;
-		auto                                          startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::ghes_3_18, options, [&](auto aResult) {
+		auto                                          startup  = github_application_fixture_access::start(aGithubCom ? app::detail::github_public_path_fixture::github_com : app::detail::github_public_path_fixture::ghes_3_18, options, [&](auto aResult) {
 			terminal = true;
 			if (aResult) {
 				application = std::move(*aResult);
@@ -284,7 +356,9 @@ namespace {
 		expect(application != nullptr, "connected CLI startup succeeds");
 		auto& window = application->window();
 		window.show();
+		window.home_action()->trigger();
 		QApplication::processEvents();
+		expect(window.home_landing()->secondary_button()->isVisible() && window.home_landing()->secondary_button()->isEnabled(), "CLI is reachable before any device connection");
 		// A canceled inventory must not present choices or connect on late completion.
 		window.home_landing()->secondary_button()->click();
 		cancel_setup(window);
@@ -297,7 +371,7 @@ namespace {
 			}
 		});
 		consent.start(1);
-		const auto url = QStringLiteral("https://ghe.example.invalid/octo-org/review-repository/pull/17");
+		const auto url = QStringLiteral("https://%1/octo-org/review-repository/pull/17").arg(QString::fromLatin1(hostname));
 		if (aPasteFirst) {
 			submit(window, url);
 			window.use_github_cli_button()->click();
@@ -310,7 +384,7 @@ namespace {
 		expect(button(window, "homeSetupContinue")->isHidden(), "connected CLI paste does not offer native sign-in");
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "pasted Enterprise link reaches the PR through the accepted CLI session");
 		const auto cards = window.server_cards();
-		auto*      card  = *std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "ghe.example.invalid"; });
+		auto*      card  = *std::ranges::find_if(cards, [&](const auto* aCard) { return aCard->hostname() == hostname; });
 		expect(card->cli_option() != nullptr, "discovered CLI profile is installed");
 		const auto cliProfile = card->cli_option()->Profile;
 		consent.stop();
@@ -318,7 +392,11 @@ namespace {
 		const auto evidence = github_application_fixture_access::evidence(*application);
 		expect(window.session_panel()->selected_profile() == cliProfile && evidence.AccountTransportSelected, "exact CLI profile serves the recorded PR");
 		expect(evidence.VaultStores == 0U && evidence.VaultRetrieveAttempts == 0U && !evidence.BootstrapTransportSelected, "CLI link opens without native credential access");
+		expect(evidence.DeviceTransportSubmissions == 0U && !application->status().PublicPreviewSignedOut, "CLI opens through the accepted account without device sign-in or anonymous fallback");
 		capture(window, QStringLiteral("setup-connected-cli.png"));
+		if (aGithubCom) {
+			check_denied_read_retains_session(*application, QString::fromLatin1(hostname));
+		}
 		submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
 		expect(button(window, "homeSetupContinue")->text() == QStringLiteral("Add server and continue"), "another host cannot reuse CLI authentication");
 		cancel_setup(window);
@@ -865,6 +943,8 @@ int main(int aArgc, char** aArgv)
 	run_connected_cli_destination_course(false);
 	run_connected_cli_destination_course(true);
 	run_connected_cli_destination_course(true, true);
+	run_connected_cli_destination_course(false, false, true);
+	run_native_read_refusal_course();
 	run_cli_source_update_course();
 #endif
 	std::cout << "setup-destination-public-path:pass\n";

@@ -133,3 +133,15 @@ automated bullets do not acquire an additional human criterion. BPR-0794's
 exact-target selected diff remains independently required. No application,
 `gh`, target request or account/device-session change was started, and the
 separate protected BPR-0644 relaunch candidate remains untouched.
+
+## Owner rejection and current-source correction — mandate r17
+
+The owner could not reach a readable review through dsp3; that failure also
+prevents judging this loading question. Attended observations 390–392 and
+releases 393–395 supersede the sequence-389 preparation above. The stale bundle
+omitted the later connected-CLI routing and shared sign-in changes described on
+BPR-0794. Both cards are resumed for a coherent current-source candidate, with
+fresh composed GitHub.com CLI/native refusal-retention coverage. Fixture success
+does not answer the owner's large-target loading or readable-diff criteria.
+The replacement presentation must be the actual offline attended HTML, not only
+the earlier Markdown operator packet.

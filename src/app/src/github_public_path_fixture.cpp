@@ -637,7 +637,7 @@ namespace bpr::app::detail {
 			return exchanges;
 		}
 
-		/// \brief The two exact synthetic reviews available to independent windows.
+		/// \brief Two exact synthetic reviews and one inaccessible repository for independent windows.
 		[[nodiscard]] auto independent_window_recording(const fixture_descriptor& aDescriptor, std::string_view aHead)
 			-> std::vector<recorded_exchange>
 		{
@@ -679,6 +679,15 @@ namespace bpr::app::detail {
 				}
 				result.push_back(std::move(exchange));
 			}
+			const auto repository = std::ranges::find_if(result, [](const auto& aExchange) {
+				return aExchange.Request.Operation == read_operation::get_repository;
+			});
+			if (repository == result.end()) {
+				throw std::runtime_error{ "Independent review recording must contain its repository" };
+			}
+			auto denied = *repository;
+			replace_all(denied.Request.Path, "/review-repository", "/inaccessible-repository");
+			result.push_back(std::move(denied));
 			return result;
 		}
 
@@ -696,10 +705,18 @@ namespace bpr::app::detail {
 			});
 			// Keep the ordinary strict validator authoritative for headers, semantic
 			// request validity and response bounds, including unknown-request refusal.
-			auto replay = strict_recorded_transport{ found == aExchanges.end()
-														 ? std::vector<recorded_exchange>{ }
-														 : std::vector<recorded_exchange>{ *found } };
-			return replay.perform(aRequest);
+			auto replay   = strict_recorded_transport{ found == aExchanges.end()
+														   ? std::vector<recorded_exchange>{ }
+														   : std::vector<recorded_exchange>{ *found } };
+			auto response = replay.perform(aRequest);
+			// The strict recording validates successful response shapes. Overlay
+			// this refusal only after its exact outbound request has passed replay.
+			if (response && aRequest.Operation == read_operation::get_repository
+				&& aRequest.Path == "/repos/octo-org/inaccessible-repository") {
+				response->Status = 403;
+				response->Body   = R"({"message":"Resource not accessible"})";
+			}
+			return response;
 		}
 
 		/// \brief Builds the recording a signed-out read replays.

@@ -90,6 +90,14 @@ class cli_read_fixture_tests(unittest.TestCase):
                 self.assertEqual(version.returncode, 0)
                 self.assertEqual(version.stdout,
                                  b"gh version 2.100.0 (synthetic local fixture)\n")
+                discovery = subprocess.run([str(directory / "bin/gh"), "auth",
+                                            "status", "--active", "--json", "hosts"],
+                                           capture_output=True, timeout=5)
+                self.assertEqual(discovery.returncode, 0)
+                self.assertEqual(discovery.stderr, b"")
+                self.assertEqual(json.loads(discovery.stdout), {"hosts": {
+                    "github.com": [{"active": True, "host": "github.com",
+                                    "login": "octo-reviewer", "state": "success"}]}})
                 result = subprocess.run(command, capture_output=True, timeout=5)
                 if course == "process-failure":
                     self.assertEqual(result.returncode, 1)
@@ -102,6 +110,12 @@ class cli_read_fixture_tests(unittest.TestCase):
                 headers, body = result.stdout.split(b"\r\n\r\n", 1)
                 self.assertIn(b"X-RateLimit-Resource: core", headers)
                 self.assertEqual(json.loads(body)["login"], "octo-reviewer")
+                denied = command.copy()
+                denied[2] = "repos/octo-org/inaccessible-repository"
+                result = subprocess.run(denied, capture_output=True, timeout=5)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stderr, b"")
+                self.assertTrue(result.stdout.startswith(b"HTTP/2.0 403 Forbidden\r\n"))
                 search = command.copy()
                 search[2] = "search/issues"
                 result = subprocess.run(search, capture_output=True, timeout=5)
