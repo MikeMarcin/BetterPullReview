@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -64,6 +65,22 @@ namespace {
 			found.push_back(aModel.index(row, 0, aParent).data().toString());
 		}
 		return found;
+	}
+
+	[[nodiscard]] auto pixels(const QImage& aImage, const QRect& aArea, const QColor& aColour) -> int
+	{
+		auto count = 0;
+		for (auto y = aArea.top(); y <= aArea.bottom(); ++y) {
+			for (auto x = aArea.left(); x <= aArea.right(); ++x) {
+				const auto actual = aImage.pixelColor(x, y);
+				count += qAbs(actual.red() - aColour.red()) < 24
+						&& qAbs(actual.green() - aColour.green()) < 24
+						&& qAbs(actual.blue() - aColour.blue()) < 24
+					? 1
+					: 0;
+			}
+		}
+		return count;
 	}
 
 	// [[BPR-0658]]. The tree order: folders as the paths nest, nesting-only
@@ -167,11 +184,12 @@ namespace {
 		view.resize(480, 200);
 		view.set_order(qt::files_order::flat);
 		view.apply({ file("added.cpp"), file("removed.cpp"), file("modified.cpp") });
-		auto added        = overview("added.cpp", 12U, 0U, application::overview_change_since_review::added, { }, { });
-		added.Operation   = application::overview_file_operation::added;
-		auto removed      = overview("removed.cpp", 0U, 8U, application::overview_change_since_review::changed, { }, { });
-		removed.Operation = application::overview_file_operation::removed;
-		view.apply_overview(std::vector{ added, removed, overview("modified.cpp", 2U, 1U, application::overview_change_since_review::changed, { }, { }) });
+		auto added          = overview("added.cpp", 12U, 0U, application::overview_change_since_review::added, { }, { });
+		added.Operation     = application::overview_file_operation::added;
+		auto removed        = overview("removed.cpp", 0U, 8U, application::overview_change_since_review::changed, { }, { });
+		removed.Operation   = application::overview_file_operation::removed;
+		const auto modified = overview("modified.cpp", 2U, 1U, application::overview_change_since_review::changed, { }, { });
+		view.apply_overview(std::vector{ added, removed, modified });
 		view.show();
 		for (const auto mode : { core::appearance_mode::dark, core::appearance_mode::light,
 								 core::appearance_mode::high_contrast_dark, core::appearance_mode::high_contrast_light }) {
@@ -180,12 +198,13 @@ namespace {
 			profile.apply_to(view);
 			view.adopt_appearance(profile);
 			QApplication::processEvents();
-			for (const auto& row : { added, removed }) {
-				const auto index  = view.tree_model()->index_for_file(core::file_identity_of(row.Path));
-				const auto colour = profile.color(row.Operation == application::overview_file_operation::added
-													  ? core::appearance_role::state_accepted
-													  : core::appearance_role::state_defect);
-				expect(index.data(Qt::AccessibleTextRole).toString().contains(row.Operation == application::overview_file_operation::added ? QStringLiteral("added") : QStringLiteral("removed")), "operation is named without relying on colour");
+			for (const auto& row : { added, removed, modified }) {
+				const auto index     = view.tree_model()->index_for_file(core::file_identity_of(row.Path));
+				const auto operation = row.Operation == application::overview_file_operation::added ? QStringLiteral("added")
+					: row.Operation == application::overview_file_operation::removed                ? QStringLiteral("removed")
+																									: QStringLiteral("modified");
+				expect(index.data(Qt::AccessibleTextRole).toString().contains(operation), "operation is named without relying on colour");
+				expect(index.data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("%1 added lines, %2 removed lines").arg(row.Additions).arg(row.Deletions)), "line counts have accessible non-colour wording");
 				for (const auto selected : { false, true }) {
 					auto image = QImage{ 480, 32, QImage::Format_ARGB32 };
 					image.fill(view.palette().color(QPalette::Base));
@@ -199,16 +218,20 @@ namespace {
 						auto painter = QPainter{ &image };
 						view.delegate()->paint(&painter, option, index);
 					}
-					const auto expected = selected ? view.palette().color(QPalette::HighlightedText) : colour;
-					auto       matching = 0;
-					for (auto y = 0; y < image.height(); ++y) {
-						for (auto x = 0; x < image.width(); ++x) {
-							if (image.pixelColor(x, y) == expected) {
-								++matching;
-							}
+					const auto renderRoot = qEnvironmentVariable("BPR_FILES_TREE_RENDER_ROOT");
+					if (!renderRoot.isEmpty()) {
+						expect(image.save(renderRoot + QStringLiteral("/delegate-%1-%2-%3.png").arg(static_cast<int>(mode)).arg(static_cast<int>(row.Operation)).arg(selected)), "capture row ink evidence");
+					}
+					const auto normal     = view.palette().color(selected ? QPalette::HighlightedText : QPalette::Text);
+					const auto nameArea   = QRect{ 16, 0, 190, image.height() };
+					const auto detailArea = QRect{ 300, 0, 180, image.height() };
+					expect(pixels(image, nameArea, normal) > 8, "filenames keep ordinary native text instead of semantic operation ink");
+					for (const auto& [count, role] : { std::pair{ row.Additions, core::appearance_role::state_accepted }, std::pair{ row.Deletions, core::appearance_role::state_defect } }) {
+						const auto colour = selected ? normal : profile.color(role);
+						if (count != 0U) {
+							expect(pixels(image, detailArea, colour) > 0, "each nonzero line count has its own semantic ink, including modified files");
 						}
 					}
-					expect(matching > 8, "rendered operation ink follows the theme while selected rows keep native contrast");
 				}
 			}
 			const auto root = qEnvironmentVariable("BPR_FILES_TREE_RENDER_ROOT");

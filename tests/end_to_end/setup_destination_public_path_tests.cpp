@@ -160,13 +160,29 @@ namespace {
 				auto painter = QPainter{ &raster };
 				view->delegate()->paint(&painter, option, model.index_for_file(id));
 			}
-			auto matching = 0;
+			const auto nearInk = [](const QColor& aActual, const QColor& aExpected) {
+				return qAbs(aActual.red() - aExpected.red()) < 24
+					&& qAbs(aActual.green() - aExpected.green()) < 24
+					&& qAbs(aActual.blue() - aExpected.blue()) < 24;
+			};
+			auto matching     = 0;
+			auto ordinaryName = 0;
+			auto addedCount   = 0;
+			auto removedCount = 0;
 			for (auto y = 0; y < raster.height(); ++y) {
 				for (auto x = 0; x < raster.width(); ++x) {
-					matching += raster.pixelColor(x, y) == ink ? 1 : 0;
+					matching += nearInk(raster.pixelColor(x, y), ink) ? 1 : 0;
+					if (x < 210) {
+						ordinaryName += nearInk(raster.pixelColor(x, y), view->palette().color(QPalette::Text)) ? 1 : 0;
+					} else {
+						addedCount += nearInk(raster.pixelColor(x, y), expectedProfile.color(core::appearance_role::state_accepted)) ? 1 : 0;
+						removedCount += nearInk(raster.pixelColor(x, y), expectedProfile.color(core::appearance_role::state_defect)) ? 1 : 0;
+					}
 				}
 			}
-			expect(matching > 8, "actual composed drawer delegate receives the selected semantic operation ink");
+			expect(matching > 2, "actual composed drawer delegate receives the selected semantic operation ink");
+			expect(ordinaryName > 8 && addedCount > 0 && removedCount > 0,
+				   "actual composed drawer keeps names neutral and paints plus/minus counts independently");
 		}
 	}
 

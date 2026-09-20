@@ -13,7 +13,9 @@
 #include <QStyleOptionViewItem>
 
 #include <algorithm>
+#include <array>
 #include <map>
+#include <ranges>
 #include <string>
 #include <utility>
 
@@ -329,7 +331,11 @@ namespace bpr::qt {
 			if (node->Folder) {
 				return QStringLiteral("%1, %2 files").arg(node->Label).arg(node->FileCount);
 			}
-			return overview == nullptr ? node->Label : QStringLiteral("%1, %2").arg(node->Label, operation_description(overview->Operation));
+			return overview == nullptr ? node->Label
+									   : QStringLiteral("%1, %2, %3 added lines, %4 removed lines")
+											 .arg(node->Label, operation_description(overview->Operation))
+											 .arg(overview->Additions)
+											 .arg(overview->Deletions);
 		case Qt::ToolTipRole:
 		case path_role:
 			return node->Path;
@@ -432,7 +438,7 @@ namespace bpr::qt {
 		aPainter->save();
 		aPainter->setRenderHint(QPainter::Antialiasing, true);
 		const auto selected      = (option.state & QStyle::State_Selected) != 0;
-		auto       ink           = selected ? colours.color(QPalette::Active, QPalette::HighlightedText)
+		const auto ink           = selected ? colours.color(QPalette::Active, QPalette::HighlightedText)
 											: colours.color(QPalette::Active, QPalette::Text);
 		const auto operationKind = aIndex.data(files_tree_model::operation_kind_role).toInt();
 		auto       operationInk  = QColor{ };
@@ -442,9 +448,6 @@ namespace bpr::qt {
 			} else if (operationKind == static_cast<int>(application::overview_file_operation::removed)) {
 				operationInk = Removed;
 			}
-		}
-		if (operationInk.isValid()) {
-			ink = operationInk;
 		}
 		auto rect = option.rect.adjusted(4, 0, -4, 0);
 		// [[BPR-0656]] [[BPR-0658]]. The read-state dot before a file: the
@@ -466,36 +469,43 @@ namespace bpr::qt {
 		auto small = option.font;
 		small.setPointSizeF(small.pointSizeF() * 0.85);
 		const auto smallMetrics = QFontMetrics{ small };
-		auto       right        = QString{ };
+		const auto detailInk    = selected ? ink : faint;
+		struct detail final
+		{
+			QString Text;
+			QColor  Ink;
+		};
+		auto details = std::array<detail, 3>{ };
 		if (folder) {
-			right = QString::number(aIndex.data(files_tree_model::file_count_role).toULongLong());
+			details[0] = { QString::number(aIndex.data(files_tree_model::file_count_role).toULongLong()), detailInk };
 		} else {
 			const auto additions = aIndex.data(files_tree_model::additions_role).toULongLong();
 			const auto deletions = aIndex.data(files_tree_model::deletions_role).toULongLong();
-			if (additions != 0U || deletions != 0U) {
-				right = QStringLiteral("+%1 −%2").arg(additions).arg(deletions);
-			}
-			const auto operation = aIndex.data(files_tree_model::operation_role).toString();
-			if (!operation.isEmpty()) {
-				right = operation + (right.isEmpty() ? QString{ } : QStringLiteral("  ") + right);
-			}
+			details[0]           = { aIndex.data(files_tree_model::operation_role).toString(), operationInk.isValid() ? operationInk : detailInk };
+			details[1]           = { additions == 0U ? QString{ } : QStringLiteral("+%1").arg(additions), !selected && Added.isValid() ? Added : detailInk };
+			details[2]           = { deletions == 0U ? QString{ } : QStringLiteral("−%1").arg(deletions), !selected && Removed.isValid() ? Removed : detailInk };
 		}
-		const auto rightWidth = right.isEmpty() ? 0 : smallMetrics.horizontalAdvance(right) + 6;
-		auto       font       = option.font;
+		auto detailLeft = rect.right() + 1;
+		aPainter->setFont(small);
+		for (const auto& part : std::views::reverse(details)) {
+			if (part.Text.isEmpty()) {
+				continue;
+			}
+			const auto width = smallMetrics.horizontalAdvance(part.Text);
+			detailLeft -= width;
+			aPainter->setPen(part.Ink);
+			aPainter->drawText(QRect{ detailLeft, rect.top(), width, rect.height() }, Qt::AlignRight | Qt::AlignVCenter, part.Text);
+			detailLeft -= 6;
+		}
+		auto font = option.font;
 		if (folder) {
 			font.setWeight(QFont::DemiBold);
 		}
 		aPainter->setFont(font);
 		aPainter->setPen(ink);
-		const auto label = QRect{ rect.left(), rect.top(), std::max(0, rect.width() - rightWidth), rect.height() };
+		const auto label = QRect{ rect.left(), rect.top(), std::max(0, detailLeft - rect.left()), rect.height() };
 		aPainter->drawText(label, Qt::AlignLeft | Qt::AlignVCenter,
 						   QFontMetrics{ font }.elidedText(aIndex.data(Qt::DisplayRole).toString(), Qt::ElideMiddle, label.width()));
-		if (!right.isEmpty()) {
-			aPainter->setFont(small);
-			aPainter->setPen(selected || operationInk.isValid() ? ink : faint);
-			aPainter->drawText(QRect{ rect.right() - rightWidth, rect.top(), rightWidth, rect.height() },
-							   Qt::AlignRight | Qt::AlignVCenter, right);
-		}
 		aPainter->restore();
 	}
 
