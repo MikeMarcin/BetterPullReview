@@ -8,8 +8,9 @@ full RFC acceptance; this ledger describes bounded component evidence only.
 
 ## Milestone 1 candidate and checks
 
-Candidate commit and final command results are recorded at completion on
-[[BPR-0946]] and the closeout. The public fixture entry is
+Accepted source candidate: `42a85cf71bfe826a76c44dfe98e982a0bdc8c76b`, on
+macOS 26.6.2 arm64 (CMake 4.4.3, Python 3.14.7). [[BPR-0946]] and the closeout
+bind completion/upkeep to that source. The public fixture entry is
 `release_update_application_host::dispatch(check)`, followed by its accepted
 candidate-bearing Download gesture. The terminal observable is the public
 projection at `ready`, with the installer still unavailable. Removing the release
@@ -39,6 +40,17 @@ violation: provider endpoint constants were placed in the application header.
 They were moved into the GitHub adapter's private contract header; this does not
 add a transport implementation. Both failures and the corrected-candidate checks
 remain part of the evidence.
+
+Final verification at the candidate:
+
+- `cmake --preset core-only`; `cmake --build --preset core-only`: pass.
+- `ctest --preset core-only -R '^(core_release_update|application_release_update|core_dependency_boundary|application_host)$' --output-on-failure`: 4/4 pass; the final added core cases also pass their focused rerun.
+- `core_boundary_contract` and `architecture_boundary_contract`: pass; unchanged scanner-contract evidence reused after the provider-constant move.
+- Clean Git export of `42a85cf7` at `/tmp/bpr-rfc0035-m1.Dd9kcw`: `cmake -DBPR_ROOT=/tmp/bpr-rfc0035-m1.Dd9kcw -P /tmp/bpr-rfc0035-m1.Dd9kcw/cmake/VerifyArchitectureBoundaries.cmake` and the same command with `VerifyCoreBoundary.cmake`: pass. The export is disposable, not retained as evidence.
+- Eight touched C++ files pass the canonical format check. Four changed translation units pass clang-tidy with warnings-as-errors; the final expanded core test passes a focused tidy rerun. The GitHub private contract header passes `c++ -std=c++23 -x c++ -fsyntax-only`.
+- `python3 scripts/verify_documentation.py --root .`: pass. `python3 tests/scripts/verify_documentation_tests.py`: 64 tests pass. `git diff --check`: pass.
+
+No complete Qt/native/release graph is claimed by this core-only evidence.
 
 ## Semantic documentation disposition
 

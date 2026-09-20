@@ -38,5 +38,7 @@ Canonical dependency and closeout order remains unchanged.
 
 ## Current evidence
 
-Milestone 1 planning is in progress. AllTheThings remains read-only reference
-provenance. Windows/Linux self-installation is outside this card.
+Milestone 1 is accepted at source candidate `42a85cf7`: [[BPR-0946]] supplies
+core policy and the public host with fake ports. It enables no shipped updater.
+Next is [[BPR-0947]]; milestones 2–4 remain open. AllTheThings remains read-only
+reference provenance. Windows/Linux self-installation is outside this card.
