@@ -1,0 +1,24 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d5-owner-amendments",
+  "mandate_revision": "r20-usable-review-amendments",
+  "child": "/root/rfc0013_postreview_r3",
+  "assignment": "Continue selected-diff-exact-epoch-pair on exclusive main; implement-rfc.engineering.v1; coordinator-implementer recipe revision 2; no delegation",
+  "entry_revision": "4adc9741fe04bdef21f906c5dc4e94c497f48509",
+  "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d5-r20.json",
+  "previous_handoff": "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d4-r3.json",
+  "owner_observation": {
+    "candidate": "0c66306f / signed r21; executable c0fc8f508d1679b9f9bc7195fb2ecbcd943a0d3e4504a81b8c841dc4c4e7789a",
+    "detail": "Owner reports the exact UnrealEngine#1773 CLI course now loads a rendered selected file diff. Screenshot directly inspected: pair ready, Diff ready, five semantic changes, file 74 of 1523. This is accepted observed loading; do not ask owner to repeat. Exact source/anchor cross-check is a separate obligation, not inferred from the screenshot.",
+    "screenshot_sha256": "fdaa14887ac1966c75f7a5fec2b33bcafaf08125626a51d30d6024d40a83c7e3",
+    "privacy": "Original screenshot remains outside checkout at the owner-provided temporary clipboard path; no private source/path/OID copied into committed evidence."
+  },
+  "plan_amendment": "Owner explicitly adds BPR-0935..0939. Original seven milestones, original work and all five selected-diff exits are preserved. check-amendment rejects added obligations as non-refinement; this is an explicit new mandate, not a mechanically certified unchanged requirement. New binding records the authorized expanded scope. BPR-0934 stays separate.",
+  "ownership": "Sole writer child; no subagents or task commands on resumption. Prior app PIDs and review host 12070 absent. Current selected-diff protections false at session event 443; unrelated BPR-0755 protection and .mask.lock.json preserved.",
+  "current_work": "Inspecting persisted tab metric application, intraline foreground override, file delegate theme colors, configured CLI setup and safe staged Overview observation design.",
+  "pending_obligations": ["BPR-0935 dark intraline syntax", "BPR-0936 rendered tab width", "BPR-0937 CLI connection timing and bounded improvement", "BPR-0938 progressive useful Overview", "BPR-0939 semantic file-drawer colors", "Original exact source/anchor and integrated verification obligations"],
+  "next_action": "Exercise tab-stop geometry through the public workbench and add a failing-before regression; complete each coherent slice with direct evidence."
+}

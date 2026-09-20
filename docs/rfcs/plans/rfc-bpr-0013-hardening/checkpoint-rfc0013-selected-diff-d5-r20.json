@@ -1,0 +1,158 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d5-owner-amendments",
+  "mandate_revision": "r20-usable-review-amendments",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {
+      "primary": {
+        "provider": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "implementer": {
+        "provider": "codex",
+        "model": "gpt-6-astra",
+        "effort": "max"
+      }
+    },
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0013",
+  "binding": {
+    "plan_id": "rfc-bpr-0013-hardening",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "milestone_id": "selected-diff-exact-epoch-pair",
+    "definition_fingerprint": "sha256:fcb20e8f33fa02770585c6aa0516e4dc875a8c405f4b03c3bc61a60228e84e0e",
+    "obligations": [
+      {
+        "id": "BPR-0794:*",
+        "source": "BPR-0794",
+        "selector": null,
+        "source_fingerprint": "sha256:a4ad584b5e678a4c4101bc94730a86983ef4e606f3d5b71716d6bd303451f81e"
+      },
+      {
+        "id": "BPR-0795:*",
+        "source": "BPR-0795",
+        "selector": null,
+        "source_fingerprint": "sha256:de63623823b5ef7e5f59468400b72d6d39e0756ba01e1395324f0ff42c0242ab"
+      },
+      {
+        "id": "BPR-0935:*",
+        "source": "BPR-0935",
+        "selector": null,
+        "source_fingerprint": "sha256:c342f8e9067b1f6ff2a32b21275d70a677a2268778b68e0117dffef9ae615f6c"
+      },
+      {
+        "id": "BPR-0936:*",
+        "source": "BPR-0936",
+        "selector": null,
+        "source_fingerprint": "sha256:1e6495866c17c30ec7a3d1604ae95f9590af190264b8f903c46d840940310d9c"
+      },
+      {
+        "id": "BPR-0937:*",
+        "source": "BPR-0937",
+        "selector": null,
+        "source_fingerprint": "sha256:02beefad326259f094264374f46c3592690b9442dc76cb5bcdfaaae2954310be"
+      },
+      {
+        "id": "BPR-0938:*",
+        "source": "BPR-0938",
+        "selector": null,
+        "source_fingerprint": "sha256:7066a38d4c77ffc446be6f4d8c2dd3ddc6b0b04e887e49d907e9feab4d4be6b7"
+      },
+      {
+        "id": "BPR-0939:*",
+        "source": "BPR-0939",
+        "selector": null,
+        "source_fingerprint": "sha256:3a92ae824a7c781cfd2bee22f5934c5981d0204b48b65b826d0123d6cbc39458"
+      }
+    ],
+    "obligation_fingerprint": "sha256:f86f4891609d07b0dc74305ac426dbb93ed8903574da2ae4b0db252c086b4a06",
+    "exit_criteria": [
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:1",
+        "text": "BPR-0794 attributes selected_file_stale and the absent exact epoch pair with metadata-only evidence and tests the failure through the public composition"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:2",
+        "text": "The responsible transition or host mapping preserves exact authority, accepted anchor and Git-object checks, bounded history and stale-result rejection"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:3",
+        "text": "Focused positive and negative checks, a composed public path, documentation gate and one integration-focused check pass"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:4",
+        "text": "A tests-disabled Mac CLI-profile read of EpicGames/UnrealEngine#1773 shows the correct file list and readable selected diff with checked source and anchor identity; any remaining refusal remains open and explicit, with no live write or account change"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:5",
+        "text": "Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:6",
+        "text": "BPR-0935 directly verifies keep dark-mode syntax legible across intraline edit emphasis, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:7",
+        "text": "BPR-0936 directly verifies render source tabs at the selected persisted width, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:8",
+        "text": "BPR-0937 directly verifies measure and reduce redundant cli connection work safely, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:9",
+        "text": "BPR-0938 directly verifies show useful overview observations before complete pr loading, with exact candidate, regressions and rendered or measured public-path evidence"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:10",
+        "text": "BPR-0939 directly verifies match file drawer added and removed colors to overview, with exact candidate, regressions and rendered or measured public-path evidence"
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:b508949581454c8c0f26b2e927bc2e79f2c510c6105761ac459fad1d545676fb",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "default-cache-byte-pressure",
+    "durable-agent-workspace-recovery",
+    "retained-stress-pr-read",
+    "large-pr-returned-commit-boundary",
+    "review-thread-null-anchor-read",
+    "selected-diff-exact-epoch-pair",
+    "verify-rfc-0013"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "de6d94b49c35831409c229268f8f71ebb4788e97",
+    "workflow_branch": "main",
+    "workflow_revision": "de6d94b49c35831409c229268f8f71ebb4788e97"
+  }
+}
