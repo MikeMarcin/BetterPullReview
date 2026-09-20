@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"The recorded held-provider public composition and loading-paint course is part of the prepared candidate's 13/13 passing focused set. build/r2-logs/dsp3-bundle-focused-ctest.log explicitly binds source 94f6f8859993be4fea63c52855bab4f0144b185e; the result is not a live-target latency observation."}},{"criterion":"AC2","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Retained source-bound core/host checks cover the over-100-file or reported-commit policy, absent/conflicting shape and stale identity. The focused source-bound log passes 13/13; no claim is transferred to later source revisions."}},{"criterion":"AC3","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Retained focused host/Qt checks cover small complete acquisition, large selected-file acquisition and exact historical occurrence import, including stale selection and durable-completion races. The source-bound portable two-catalogue public course passed 1/1 in 219.66 s in build/r2-logs/dsp3-bundle-portable-ctest.log."}},{"criterion":"AC4","outcome":"pass","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"artifact","detail":"Inspected focused and integration logs pass at the frozen source; prior documentation/format evidence is retained on the card. Resume checks preserve the exact signed tests-disabled Release bundle and page. No live PR write, account change, token extraction or private-content retention occurred in this resume."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"94f6f8859993be4fea63c52855bab4f0144b185e","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c remains sequence 389 with BPR-0795-loading-visible ready, protected and decision=null. The existing packet's person-observable loading question remains open. This preserves the previously selected milestone exit and adds no new human criterion to the four automated card bullets."}}]
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
@@ -118,3 +120,17 @@ The BPR-0794/0795 focused set was rerun at that source and passed 13 of 13
 session: `BPR-0794-cli-selected-diff`, `BPR-0795-loading-visible` and
 `BPR-0644-device-relaunch-8h`. The human part is open. The owner must quit
 their own running BetterPullReview before launching the bundle.
+
+## Resume checkpoint — 2026-09-19
+
+The consumer session remains at sequence 389: the loading question is ready
+and protected with no decision or newer event. The frozen executable,
+signature, tests-disabled Release cache and offline-page digest were rechecked
+without launching the app. The source-bound 13-test focused and portable
+two-catalogue logs still pass at `94f6f885`; they are retained evidence for
+that build, not a fresh verification of later main changes. The card is
+parked for the existing person-observable part of milestone exit 5; its four
+automated bullets do not acquire an additional human criterion. BPR-0794's
+exact-target selected diff remains independently required. No application,
+`gh`, target request or account/device-session change was started, and the
+separate protected BPR-0644 relaunch candidate remains untouched.
