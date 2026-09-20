@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0939"
 title: "Match file drawer added and removed colors to Overview"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"},"mandate":"r20-usable-review-amendments"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"10e9716d","evidence":{"kind":"artifact","detail":"Typed operation role and profile semantic accepted/defect ink make addedgreen/removedred matchOverview, modifiedneutral."}},{"criterion":"AC2","outcome":"pass","revision":"10e9716d","evidence":{"kind":"artifact","detail":"Pixel,role and accessible operation words verified fordark/light/bothhighcontrast; selectedrows retainnativeHighlightedText."}},{"criterion":"AC3","outcome":"pass","revision":"10e9716d","evidence":{"kind":"artifact","detail":"Qt file-tree rendering passes; committed dark/light rasters inspected; production workbench appliesacceptedappearance alongside proven composedtab/fontpath."}}]
 ---
 
 # Match file drawer added and removed colors to Overview
