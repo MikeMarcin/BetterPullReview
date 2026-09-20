@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0944"
+  ],
+  "reserve_for": "rfc0013-r21-comparison-basis",
+  "purpose": "Separate Whole PR base-tip versus merge-base product decision",
+  "created": "2026-09-20T17:45:03.248827+00:00",
+  "base": "b1ce236f85c5a53bd1e5fbdb1a5f8427932eda7d"
+}
