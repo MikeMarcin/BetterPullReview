@@ -245,6 +245,31 @@ namespace {
 
 auto main() -> int
 {
+	for (const bool changed : { false, true }) {
+		auto current               = state();
+		current.InstallerAvailable = true;
+		offer(current);
+		static_cast<void>(transition(current, release_update_intent{ command::download, current.Candidate }, { 100002, 102 }));
+		static_cast<void>(transition(current, release_update_downloaded{ *current.Pending, 100U }, { 100002, 102 }));
+		static_cast<void>(transition(current, release_update_verified{ *current.Pending }, { 100002, 102 }));
+		const auto selected = current.Candidate;
+		static_cast<void>(transition(current, release_update_intent{ command::install, selected }, { 100003, 103 }));
+		expect(current.Pending && current.Pending->Operation == release_update_operation::refresh_install, "install first refreshes current authority and candidate");
+		auto metadata = release();
+		if (changed) {
+			metadata.Assets.front().Digest = "sha256:" + std::string(64U, 'a');
+		}
+		const auto refreshed = transition(current, release_update_checked{ *current.Pending, metadata }, { 100003, 103 });
+		if (changed) {
+			expect(current.Phase == phase::failed && current.Reason == reason::changed_candidate && refreshed.Requests.empty(), "changed digest cannot transfer installation");
+		} else {
+			expect(current.Pending && current.Pending->Operation == release_update_operation::install && current.Candidate == selected, "exact refreshed candidate transfers install capability");
+			const auto install = *current.Pending;
+			static_cast<void>(transition(current, release_update_handed_off{ install }, { 100004, 104 }));
+			expect(current.Phase == phase::handed_off && !current.Pending, "helper acceptance is not installation success");
+			expect(transition(current, release_update_handed_off{ install }, { 100004, 104 }).Diagnostic == reason::stale_completion, "duplicate handoff is stale");
+		}
+	}
 	test_version_grammar_and_precedence();
 	test_release_and_asset_selection();
 	test_scheduling_preferences_and_failures();

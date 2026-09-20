@@ -98,7 +98,7 @@ namespace bpr::core {
 			if (aState.Exhausted) {
 				return release_update_reason::identity_exhausted;
 			}
-			if (aState.Pending) {
+			if (aState.Pending || aState.Phase == release_update_phase::handed_off) {
 				return release_update_reason::busy;
 			}
 			if (const auto reason = capability_reason(aState.Capability); reason != release_update_reason::none) {
@@ -124,7 +124,7 @@ namespace bpr::core {
 			if (aState.Stopped) {
 				return release_update_reason::shutdown;
 			}
-			if (aCommand == release_update_command::install) {
+			if (aCommand == release_update_command::install && !aState.InstallerAvailable) {
 				return release_update_reason::installer_unavailable;
 			}
 			if (aCommand == release_update_command::cancel) {
@@ -140,6 +140,9 @@ namespace bpr::core {
 				return release_update_reason::no_candidate;
 			}
 			if (aCommand == release_update_command::download && aState.Phase != release_update_phase::available) {
+				return release_update_reason::no_candidate;
+			}
+			if (aCommand == release_update_command::install && aState.Phase != release_update_phase::ready) {
 				return release_update_reason::no_candidate;
 			}
 			if (aCommand == release_update_command::later && !aState.OfferVisible) {
@@ -239,6 +242,10 @@ namespace bpr::core {
 			aOutput.Accepted = true;
 			aOutput.Changed  = true;
 			switch (aIntent.Command) {
+			case release_update_command::install:
+				aState.Phase = release_update_phase::quiescing;
+				request(aState, aOutput, release_update_operation::refresh_install);
+				break;
 			case release_update_command::download:
 				aState.Phase = release_update_phase::downloading;
 				aState.Bytes = 0U;
@@ -272,11 +279,21 @@ namespace bpr::core {
 
 		void complete(release_update_state& aState, release_update_output& aOutput, const release_update_checked& aEvent, const release_update_time aTime)
 		{
-			if (!matches(aState, aEvent.Context, release_update_operation::check)) {
+			const auto refreshing = aEvent.Context.Operation == release_update_operation::refresh_install;
+			if (!matches(aState, aEvent.Context, refreshing ? release_update_operation::refresh_install : release_update_operation::check)) {
 				aOutput.Diagnostic = release_update_reason::stale_completion;
 				return;
 			}
 			auto selected = select_release_update(*aState.Installed, aEvent.Release);
+			if (refreshing) {
+				if (!selected.Candidate || selected.Candidate != aState.Candidate) {
+					fail(aState, aOutput, release_update_reason::changed_candidate);
+					return;
+				}
+				aState.Pending.reset();
+				request(aState, aOutput, release_update_operation::install);
+				return;
+			}
 			if (selected.Reason != release_update_reason::none && selected.Reason != release_update_reason::current) {
 				fail(aState, aOutput, selected.Reason);
 				return;
@@ -340,6 +357,19 @@ namespace bpr::core {
 				aState.RateDelay  = std::max(std::uint64_t{ 60U }, aEvent.RetryAfterSeconds);
 			}
 			fail(aState, aOutput, aEvent.Reason == release_update_reason::none ? release_update_reason::unavailable : aEvent.Reason);
+		}
+
+		void complete(release_update_state& aState, release_update_output& aOutput, const release_update_handed_off& aEvent, release_update_time)
+		{
+			if (!matches(aState, aEvent.Context, release_update_operation::install)) {
+				aOutput.Diagnostic = release_update_reason::stale_completion;
+				return;
+			}
+			aState.Pending.reset();
+			aState.Phase     = release_update_phase::handed_off;
+			aState.Reason    = release_update_reason::none;
+			aOutput.Accepted = true;
+			aOutput.Changed  = true;
 		}
 
 		void complete(release_update_state& aState, release_update_output& aOutput, const release_update_progress& aEvent, release_update_time)
@@ -483,6 +513,16 @@ namespace bpr::core {
 				if (!aState.Stopped) {
 					invalidate(aState, output, release_update_reason::shutdown);
 					aState.Stopped = true;
+				}
+			} else if constexpr (std::is_same_v<event_type, release_update_installation_result>) {
+				if (!aState.Stopped) {
+					aState.InstallationOutcome = aValue.Installed;
+					if (aState.Phase == release_update_phase::handed_off) {
+						invalidate(aState, output, aValue.Installed ? release_update_reason::none : release_update_reason::recovery_required);
+						aState.Phase = aValue.Installed ? release_update_phase::idle : release_update_phase::recovered;
+					}
+					output.Changed  = true;
+					output.Accepted = true;
 				}
 			} else {
 				complete(aState, output, aValue, aTime);

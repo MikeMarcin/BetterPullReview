@@ -22,7 +22,8 @@ namespace bpr::application {
 										std::string_view aInstalled, core::release_update_capability aCapability,
 										core::release_update_preferences aPreferences, release_update_clock_port& aClock,
 										decision_executor& aDecision, effect_executor& aEffects,
-										std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection);
+										std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection,
+										std::shared_ptr<release_update_install_port> aInstaller = { });
 		~release_update_application_host();
 		release_update_application_host(const release_update_application_host&)                    = delete;
 		auto operator=(const release_update_application_host&) -> release_update_application_host& = delete;
@@ -31,6 +32,7 @@ namespace bpr::application {
 		void               select_access(std::shared_ptr<release_update_access_port> aAccess);
 		[[nodiscard]] auto dispatch(core::release_update_intent aIntent) -> bool;
 		[[nodiscard]] auto tick() -> bool;
+		void               observe_installation_result(bool aInstalled);
 		[[nodiscard]] auto set_automatic_checks(bool aEnabled) -> bool;
 		void               shutdown();
 		[[nodiscard]] auto quiescent() const noexcept -> bool;

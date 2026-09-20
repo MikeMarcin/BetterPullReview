@@ -14,7 +14,8 @@ namespace bpr::application {
 							   release_update_clock_port& aClock, decision_executor& aDecision, effect_executor& aEffects,
 							   std::shared_ptr<release_update_settings_port>     aSettings,
 							   std::shared_ptr<release_update_verification_port> aVerifier,
-							   release_update_projection_port&                   aProjection);
+							   release_update_projection_port&                   aProjection,
+							   std::shared_ptr<release_update_install_port>      aInstaller = { });
 		~release_update_service();
 		void               start();
 		void               select_access(std::string aBinding, std::shared_ptr<release_update_access_port> aAccess);
@@ -22,6 +23,7 @@ namespace bpr::application {
 		void               dispatch(core::release_update_intent aIntent);
 		void               set_automatic_checks(bool aEnabled);
 		void               tick();
+		[[nodiscard]] auto observe_installation_result(bool aInstalled) -> bool;
 		void               shutdown();
 		[[nodiscard]] auto ready() const -> bool;
 		[[nodiscard]] auto durable() const -> bool;

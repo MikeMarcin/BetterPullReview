@@ -1672,7 +1672,8 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(current_allowed_relative MATCHES "^src/adapters/agent/")
             set(effect_owner_cmake "${agent_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_agent")
-        elseif(current_allowed_relative STREQUAL "src/adapters/update/src/macos_release_update.cpp")
+        elseif(current_allowed_relative STREQUAL "src/adapters/update/src/macos_release_update.cpp"
+            OR current_allowed_relative STREQUAL "src/adapters/update/src/macos_update_helper.cpp")
             file(READ "${BPR_ROOT}/src/adapters/update/CMakeLists.txt" effect_owner_cmake)
             set(effect_owner_target "better_pull_review_adapter_update")
         elseif(current_allowed_relative MATCHES "^src/core/")
@@ -1763,6 +1764,7 @@ verify_effect_owner(
     "posix_spawn"
     "${github_designated_live_observer_relative}"
     "${app_designated_live_supervisor_launch_relative}"
+    "src/adapters/update/src/macos_update_helper.cpp"
 )
 verify_effect_owner(
     "(wincred\\.h|Cred(Read|Write|Delete|Free|Enumerate|Rename|Protect|Unprotect|Pack|UnPack|IsProtected|FindBest|GetSessionTypes|Marshal|Unmarshal)[A-Za-z0-9_]*|P?CREDENTIAL(A|W)?([^A-Z0-9_]|$)|CRED_[A-Z0-9_]+)"

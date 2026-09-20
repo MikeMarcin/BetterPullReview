@@ -123,6 +123,20 @@ namespace bpr::application {
 										  std::stop_token                               aStop) -> release_update_verification_result = 0;
 	};
 
+	/// \brief Qualified installation transaction boundary; never a UI pathname or process handle.
+	/// \details Called on the effect lane after core accepts an exact refreshed release.
+	/// The implementation revalidates staging, coordinates every installation process,
+	/// and requires durable local-state shutdown before replacement. Cancellation before
+	/// handoff leaves the installed application intact. Success means helper ownership,
+	/// not successful installation; only its exact healthy-start receipt proves that.
+	class release_update_install_port
+	{
+	public:
+		virtual ~release_update_install_port()                                                                                             = default;
+		[[nodiscard]] virtual auto install(std::shared_ptr<const release_update_verified_bundle> aBundle,
+										   std::stop_token aStop, const std::function<bool()>& aAuthorized) -> core::release_update_reason = 0;
+	};
+
 	/// \brief Effect-lane byte sink, kept separate from native HTTPS and its secrets.
 	class release_update_archive_writer
 	{

@@ -651,6 +651,10 @@ namespace bpr::app {
 		friend class github_application_startup;
 		friend class profile_desktop;
 		[[nodiscard]] auto desktop_registry_root() const -> std::filesystem::path;
+		[[nodiscard]] auto desktop_update_recovery_root() const -> std::filesystem::path;
+		[[nodiscard]] auto desktop_update_drafts() const -> std::vector<application::release_update_saved_draft>;
+		[[nodiscard]] auto desktop_update_ready() const noexcept -> bool;
+		void               desktop_update_freeze(bool aFreeze);
 		[[nodiscard]] auto desktop_release_account() -> std::optional<release_update_account>;
 		/// \brief Borrow the admitted runtime's bounded local activation endpoint.
 		[[nodiscard]] auto        desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;

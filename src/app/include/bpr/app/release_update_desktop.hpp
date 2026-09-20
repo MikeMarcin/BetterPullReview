@@ -1,5 +1,6 @@
 #ifndef BPR_SRC_APP_INCLUDE_BPR_APP_RELEASE_UPDATE_DESKTOP_HPP
 #define BPR_SRC_APP_INCLUDE_BPR_APP_RELEASE_UPDATE_DESKTOP_HPP
+#include "bpr/application/release_update_recovery.hpp"
 #include "bpr/application/release_update_service.hpp"
 #include <filesystem>
 
@@ -29,6 +30,7 @@ namespace bpr::app {
 		std::shared_ptr<application::release_update_verification_port> Verifier;
 		std::shared_ptr<application::release_update_archive_store>     Archives;
 		std::function<void(std::string)>                               Browser;
+		std::shared_ptr<application::release_update_install_port>      Installer{ };
 	};
 	/// \brief One desktop-wide service shared by menus, windows and Settings.
 	class release_update_desktop final
@@ -43,6 +45,8 @@ namespace bpr::app {
 		void               set_accounts(std::vector<release_update_account> aAccounts);
 		void               shutdown();
 		[[nodiscard]] auto quiescent() const -> bool;
+		[[nodiscard]] auto durable() const -> bool;
+		[[nodiscard]] auto observe_installation_result(bool aInstalled) -> bool;
 		[[nodiscard]] auto panel() const -> qt::release_update_panel*;
 		[[nodiscard]] auto projection() const -> application::release_update_projection;
 

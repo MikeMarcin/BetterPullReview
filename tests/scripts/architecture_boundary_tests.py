@@ -1543,6 +1543,20 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "src/adapters/update/src/other.cpp": expression,
                 })
 
+    def test_native_release_helper_launch_owner_is_exact(self) -> None:
+        source = "posix_spawn(pid, path, actions, attr, argv, envp);\n"
+        result = self.run_check({
+            "src/adapters/update/src/macos_update_helper.cpp": source,
+            "src/adapters/update/CMakeLists.txt": (
+                "target_sources(better_pull_review_adapter_update PRIVATE "
+                "src/macos_update_helper.cpp)\n"
+            ),
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assert_failure("posix_spawn ownership violation", {
+            "src/adapters/update/src/other.cpp": source,
+        })
+
     def test_native_windows_agent_process_owner_is_exact(self) -> None:
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

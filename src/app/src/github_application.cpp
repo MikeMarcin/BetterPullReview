@@ -4220,6 +4220,7 @@ namespace bpr::app {
 			}
 		}
 		bool Closing          = false;
+		bool UpdateShutdown   = false;
 		bool ServicesClosing  = false;
 		bool ShutdownComplete = false;
 		bool CleanupFailed    = false;
@@ -4302,6 +4303,10 @@ namespace bpr::app {
 			// already says which of its three cleanups refused and why.
 			if (ReviewRestoration && ReviewRestoration->projection_delivery_failed()) {
 				note_profile_cleanup_failure("review-restoration-projection-delivery");
+				CleanupFailed = true;
+			}
+			if (UpdateShutdown && ((ReviewRestoration && !ReviewRestoration->durable()) || (AppearancePreferences && !AppearancePreferences->durable()) || (WorkbenchPreferences && WorkbenchPreferences->delivery_failed()))) {
+				note_profile_cleanup_failure("update-state-flush");
 				CleanupFailed = true;
 			}
 			if (AgentWorkspaceCleanupFailed) {
@@ -13293,6 +13298,61 @@ namespace bpr::app {
 		}
 	}
 	auto github_application::desktop_registry_root() const -> std::filesystem::path { return Profile->RegistryRoot; }
+	auto github_application::desktop_update_recovery_root() const -> std::filesystem::path { return Profile->ApplicationDataRoot; }
+	auto github_application::desktop_update_ready() const noexcept -> bool
+	{
+		return (!Profile->ReviewRestoration || Profile->ReviewRestoration->durable())
+			&& (!Profile->AppearancePreferences || Profile->AppearancePreferences->durable())
+			&& (!Profile->WorkbenchPreferences || (!Profile->WorkbenchPreferences->is_busy() && Profile->WorkbenchPreferences->is_quiescent() && !Profile->WorkbenchPreferences->delivery_failed()));
+	}
+	void github_application::desktop_update_freeze(bool aFreeze)
+	{
+		Profile->UpdateShutdown = aFreeze;
+		if (Profile->Settings) {
+			Profile->Settings->setEnabled(!aFreeze);
+		}
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (session->Window) {
+				session->Window->setEnabled(!aFreeze);
+			}
+		}
+	}
+	auto github_application::desktop_update_drafts() const -> std::vector<application::release_update_saved_draft>
+	{
+		std::vector<application::release_update_saved_draft> result;
+		for (const auto& owner : Profile->DraftOwners) {
+			const auto& authority = owner.Host->authority();
+			for (const auto& saved : owner.Host->recovery_snapshot()) {
+				const auto& draft = saved.Draft;
+				const auto  scope = std::string{ authority.ProfileAuthority.Hostname.value() } + " · account " + std::to_string(authority.Account.value())
+					+ " · repository " + std::to_string(authority.Target.Repository.value()) + " · pull request " + std::to_string(authority.Target.PullRequest.value())
+					+ " · head " + std::string{ core::canonical_hex(authority.Target.ExpectedHead).view() }
+					+ " · " + (draft.Anchor.Side == core::diff_side::right ? "right" : "left") + " line " + std::to_string(draft.Anchor.Line);
+				result.push_back({ "inline:" + std::to_string(owner.Scope.value()) + ":" + std::to_string(draft.Id.value()), scope, draft.Body,
+								   draft.State == core::review_draft_state::publishing });
+			}
+		}
+		for (const auto& [context, session] : Sessions) {
+			if (!session->Window) {
+				continue;
+			}
+			const auto identity = "window:" + std::to_string(context.Window.value());
+			if (const auto* editor = session->Window->review_editor(); editor && editor->body_editor() && !editor->body_editor()->toPlainText().isEmpty()) {
+				result.push_back({ identity + ":editor", "Unsubmitted inline editor text (including any conflicting edit)", editor->body_editor()->toPlainText().toStdString(),
+								   session->PublishingDraft.has_value() });
+			}
+			if (const auto* editor = session->Window->review_submission_editor_view(); editor && editor->shown_draft() && editor->body_editor()) {
+				const auto& draft = *editor->shown_draft();
+				const auto  body  = editor->body_editor()->toPlainText().toStdString();
+				if (!body.empty()) {
+					result.push_back({ identity + ":review", "Whole review · account " + std::to_string(draft.ActingAccount.value()) + " · pull request " + std::to_string(draft.Target.PullRequest.value()) + " · head " + std::string{ core::canonical_hex(draft.Target.ExpectedHead).view() },
+									   body, draft.State != core::review_submission_state::drafting });
+				}
+			}
+		}
+		return result;
+	}
 	auto github_application::desktop_release_account() -> std::optional<release_update_account> { return Profile->release_account(); }
 	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
 	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Profile->StartupScratch; }

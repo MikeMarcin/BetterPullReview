@@ -30,14 +30,15 @@ namespace bpr::qt {
 		application::release_update_dispatch             Dispatch;
 		application::release_update_projection           Projection;
 		std::map<core::release_update_command, QAction*> Actions;
-		QCheckBox*                                       Automatic   = nullptr;
-		QComboBox*                                       Accounts    = nullptr;
-		QLabel*                                          Status      = nullptr;
-		QLabel*                                          Versions    = nullptr;
-		QLabel*                                          Checked     = nullptr;
-		QPlainTextEdit*                                  Notes       = nullptr;
-		QLabel*                                          Persistence = nullptr;
-		QProgressBar*                                    Progress    = nullptr;
+		QCheckBox*                                       Automatic    = nullptr;
+		QComboBox*                                       Accounts     = nullptr;
+		QLabel*                                          Status       = nullptr;
+		QLabel*                                          Versions     = nullptr;
+		QLabel*                                          Checked      = nullptr;
+		QPlainTextEdit*                                  Notes        = nullptr;
+		QLabel*                                          Persistence  = nullptr;
+		QLabel*                                          Installation = nullptr;
+		QProgressBar*                                    Progress     = nullptr;
 	};
 	/// \brief Adds the same application-owned check gesture to a window or empty desktop.
 	[[nodiscard]] auto add_release_update_action(QMenuBar& aMenu, std::function<void()> aCheck) -> QAction*;

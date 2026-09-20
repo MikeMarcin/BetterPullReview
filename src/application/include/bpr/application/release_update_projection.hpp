@@ -19,6 +19,7 @@ namespace bpr::application {
 		bool                                                   OfferVisible = false;
 		std::string                                            Notes;
 		bool                                                   AutomaticAvailable = false;
+		std::optional<bool>                                    InstallationOutcome;
 	};
 
 	/// \brief Settings and release offer share the application's semantic dispatch.

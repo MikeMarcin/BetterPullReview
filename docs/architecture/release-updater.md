@@ -3,10 +3,11 @@
 RFC-BPR-0035 milestones 1 and 2 supply the deterministic policy and a desktop-wide
 check/download/staging composition. The application menu and General Settings
 share one service, including when the last review window closes on macOS.
-[[BPR-0947]] implements discovery and verified staging; [[BPR-0948]] still owns
-installation, shutdown coordination, replacement and recovery. Install and Restart
-is disabled even after a successful native staging result. No package has been
-published or upgraded as evidence for this milestone.
+[[BPR-0947]] implements discovery and verified staging. [[BPR-0948]] adds the
+helper, shutdown coordination, replacement and recovery protocol described below,
+but its signed-upgrade qualification is not complete. Native composition does not
+select the installer capability: Install and Restart remains disabled even after
+successful native staging. No package was published or upgraded in this work.
 
 ## Distribution and authority
 
@@ -23,8 +24,12 @@ The host observes that lease before and after effect execution and again on the
 serialized completion lane. Replacement/revocation cancels old jobs and advances
 core generation before replacement results may be accepted. A staged candidate
 is discarded on replacement; it cannot become installable by selecting another
-account. Milestone 3 must additionally refresh release/asset identity and revalidate
-the exact staged bundle immediately before an install gesture can take effect.
+account. Install refreshes release metadata through the same live authority and
+requires equality of the complete staged candidate, including any digest. The
+installer rechecks authority before publishing its journal and handing ownership
+to the helper. A completed handoff is a local ownership transfer, not an installed
+result; later credential revocation cannot falsely relabel it as an aborted
+handoff. Stale host observations still cannot resurrect a discarded candidate.
 
 The release-only transport contract is pinned in
 [github_release_update_contract.hpp](../../src/adapters/github/src/github_release_update_contract.hpp).
@@ -172,6 +177,83 @@ deliveries and decision ingress. Executors and clock outlive that quiescence.
 Opaque artifact destruction must be nonblocking; adapters schedule owned cleanup
 on their effect service when the host releases a stale or replaced capability.
 
-Native quiescing, helper handoff, journal recovery and healthy-start receipt states
-will be added with their actual effects in milestone 3. This component does not
-make application-level shutdown, installation or relaunch claims.
+## Dormant installation protocol
+
+The macOS build bundles `Contents/MacOS/bpr_update_helper`. Native installation
+requires the trusted production bundle and its exact helper; the helper verifies
+its enclosing bundle again. Fixed absolute executables are launched with argument
+arrays, closed inherited descriptors and an empty environment, without a shell,
+privilege elevation, remote command or forced termination. The application reaps
+only helpers it launched; stopping that bounded monitor does not kill a child.
+The release tool's existing nested-Mach-O signing and rpath normalization include
+this helper. A local ad-hoc build is compile/link evidence, never production trust.
+
+Before opening profile stores, a participating native process joins an
+installation-scoped, owner-private sibling control directory. Admission,
+transaction and shared running locks serialize startup and replacement. Each
+participant has a uniquely named, locked inode; reusable process numbers grant no
+authority. Native running and participant descriptors remain held until kernel
+process exit, including after desktop teardown. New starts are refused while an
+active transaction exists, except the exact target executable/version carrying
+its matching startup transaction. Uncooperative older releases cannot be assumed
+to participate; their upgrade eligibility remains a native qualification concern.
+
+Preparation copies the opaque verified staging capability to a uniquely owned
+target-volume transaction directory. It needs at least 4 GiB free space and uses
+a five-minute copy bound. Native trust, complete candidate identity, content/inode
+manifests and exact executable digest are checked again. The durable journal binds
+the installation, parent and transaction inodes, old/new trees, candidate and up
+to 64 live participant inodes. Journals are at most 64 KiB; the participant scan
+is bounded to 4,096 entries. No path supplied by release metadata is executable.
+
+Every participating desktop freezes new window/profile work and its editors,
+captures all profiles' draft text, then requests the existing orderly shutdown.
+Inline drafts, raw conflicting editor text and whole-review text are saved as
+inert recovery records; publishing text is marked indeterminate. Existing
+publication reconciliation remains authoritative and updating never retries a
+write. Save failure refuses quit and re-enables the windows. Each process records
+a durable acknowledgment only after profile workers, layouts, preferences,
+restoration and updater state have drained without a persistence failure.
+Disappearance without that acknowledgment cannot authorize replacement.
+
+Recovery text is append-only in the profile's private
+`state/v1/update-draft-recovery.sqlite3`, bounded to 4,096 records and 16 MiB total,
+with 64 KiB per body. Existing versions are retained, not overwritten. Startup
+opens a read-only, copyable recovery window; it grants no publication authority
+and warns that indeterminate writes must be checked on GitHub. Overflow, corrupt
+or foreign schemas and failed writes refuse the barrier. No existing store is
+migrated irreversibly, and user state is never moved with the application bundle.
+
+The helper waits at most 30 seconds for every captured acknowledgment and the
+exclusive running lock. Timeout aborts the prepared transaction and preserves the
+old app; it never signals a process. Immediately before replacement it repeats
+native trust and exact-tree checks. Same-volume exclusive renames move the old
+app to the journal-owned backup and the candidate into place. A flushed journal
+records both sides of each rename and the single exact-executable launch.
+
+A launch is not success. The new process waits for startup and state-store
+readiness, then writes a receipt bound to transaction, executable digest, exact
+version and participant inode. The helper waits at most 60 seconds for that
+receipt. Failure retains the backup; rollback requires exclusive process
+ownership and never runs alongside a live replacement. Recovery reconciles actual
+old/new/backup identities and does not retry a launch. A terminated helper can be
+resumed explicitly with its `--recover` operation using the absolute installation
+path and exact journal transaction ID. If the installed path is absent, use the
+helper inside that transaction's `backup.app`. This is a diagnostic recovery
+interface, not a qualified self-service recovery flow.
+
+Only the matching healthy receipt permits backup cleanup. Before the first unlink,
+a bounded 16 MiB inode inventory is durably written. Cleanup uses no-follow,
+descriptor-relative traversal and removes only inventoried entries; absent entries
+are already-cleaned successes. A changed inode or new file is retained and reports
+recovery-required, so partial deletion can be retried without a recursive sweep.
+Terminal journals and failed candidate copies are retained; no age/name sweep is
+authorized. The next viable desktop reports a journal-proven terminal result
+separately from current discovery state. Active interrupted transactions refuse
+normal startup until explicit helper recovery; a user-facing recovery launcher is
+not yet qualified.
+
+The [verification ledger](../verification/RFC-BPR-0035.md) distinguishes fixture
+fault courses, actual cooperating peer processes, a genuine signed rollback probe
+and the still-missing older-to-newer signed helper/startup/state-retention course.
+These limits keep [[BPR-0948]] and production enablement open.

@@ -197,4 +197,14 @@ namespace bpr::application {
 		}
 	}
 	auto shared_draft_application_host::authority() const noexcept -> const shared_draft_authority& { return Implementation->Authority; }
+	auto shared_draft_application_host::recovery_snapshot() const -> std::vector<core::revisioned_review_draft>
+	{
+		std::vector<core::revisioned_review_draft> result;
+		for (const auto& draft : Implementation->Drafts) {
+			if ((draft.Draft.State == core::review_draft_state::drafting || draft.Draft.State == core::review_draft_state::publishing) && !draft.Draft.Body.empty()) {
+				result.push_back(draft);
+			}
+		}
+		return result;
+	}
 }

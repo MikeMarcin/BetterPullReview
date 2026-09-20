@@ -100,6 +100,22 @@ namespace {
 			}
 		}
 	};
+	struct fake_installer final : application::release_update_install_port
+	{
+		unsigned              Calls   = 0U;
+		reason                Failure = reason::none;
+		std::function<void()> BeforeHandoff;
+		auto                  install(std::shared_ptr<const application::release_update_verified_bundle> aBundle, std::stop_token aStop, const std::function<bool()>& aAuthorized) -> reason override
+		{
+			++Calls;
+			expect(aBundle != nullptr && aAuthorized(), "installer receives exact opaque capability and refreshed authority");
+			if (BeforeHandoff) {
+				BeforeHandoff();
+			}
+			return aStop.stop_requested() ? reason::cancelled : !aAuthorized() ? reason::access_required
+																			   : Failure;
+		}
+	};
 	struct fixture
 	{
 		fake_clock                                   Clock;
@@ -108,7 +124,12 @@ namespace {
 		std::shared_ptr<fake_access>                 Access   = std::make_shared<fake_access>();
 		std::shared_ptr<fake_verifier>               Verifier = std::make_shared<fake_verifier>();
 		projection_sink                              Sink;
-		application::release_update_application_host Host{ core::application_session_id{ 1U }, "1.2.3", core::release_update_capability::eligible, { }, Clock, Decision, Effects, Verifier, Sink };
+		std::shared_ptr<fake_installer>              Installer;
+		application::release_update_application_host Host;
+		explicit fixture(bool aInstaller = false)
+			: Installer{ aInstaller ? std::make_shared<fake_installer>() : nullptr }
+			, Host{ core::application_session_id{ 1U }, "1.2.3", core::release_update_capability::eligible, { }, Clock, Decision, Effects, Verifier, Sink, Installer }
+		{ }
 
 		void settle()
 		{
@@ -129,6 +150,56 @@ namespace {
 			expect(Host.projection().Phase == phase::available, "public host projects offered update");
 		}
 	};
+
+	void test_install_refresh_and_handoff()
+	{
+		for (const auto failure : { reason::none, reason::changed_candidate, reason::access_required, reason::flush_failed, reason::quit_refused, reason::timed_out }) {
+			fixture course{ true };
+			course.offer();
+			expect(course.Host.dispatch({ command::download, course.Host.projection().Candidate }), "stage install course");
+			course.settle();
+			expect(course.Host.projection().Phase == phase::ready, "verified capability retained");
+			if (failure == reason::changed_candidate) {
+				++course.Access->Release.Assets.front().Size;
+			} else if (failure == reason::access_required) {
+				course.Installer->BeforeHandoff = [&] { course.Access->Binding = { }; };
+			} else {
+				course.Installer->Failure = failure;
+			}
+			expect(course.Host.dispatch({ command::install, course.Host.projection().Candidate }), "Install and Restart gesture admitted");
+			expect(course.Host.projection().Phase == phase::quiescing && course.Installer->Calls == 0U, "gesture refreshes before installer effect");
+			course.settle();
+			expect(course.Access->Checks == 2U, "each install refreshes release metadata");
+			if (failure == reason::none) {
+				expect(course.Host.projection().Phase == phase::handed_off, "success means helper ownership, not installed");
+			} else {
+				expect(course.Host.projection().Phase == phase::failed && course.Host.projection().Reason == failure, "typed refusal cannot become handoff");
+			}
+			if (failure == reason::changed_candidate) {
+				expect(course.Installer->Calls == 0U, "changed metadata cannot enter installer");
+			}
+		}
+		fixture cancelled{ true };
+		cancelled.offer();
+		static_cast<void>(cancelled.Host.dispatch({ command::download, cancelled.Host.projection().Candidate }));
+		cancelled.settle();
+		static_cast<void>(cancelled.Host.dispatch({ command::install, cancelled.Host.projection().Candidate }));
+		cancelled.Host.shutdown();
+		cancelled.settle();
+		expect(cancelled.Installer->Calls == 0U, "shutdown before refresh cannot transfer ownership");
+
+		fixture transferred{ true };
+		transferred.offer();
+		static_cast<void>(transferred.Host.dispatch({ command::download, transferred.Host.projection().Candidate }));
+		transferred.settle();
+		static_cast<void>(transferred.Host.dispatch({ command::install, transferred.Host.projection().Candidate }));
+		transferred.Effects.run_next();
+		transferred.Decision.drain();
+		transferred.Effects.run_next();
+		transferred.Access->Binding = { };
+		transferred.settle();
+		expect(transferred.Host.projection().Phase == phase::handed_off, "revocation after accepted ownership transfer cannot falsely report that installation was aborted");
+	}
 
 	void test_public_course_and_dependency_cut()
 	{
@@ -362,6 +433,7 @@ namespace {
 
 auto main() -> int
 {
+	test_install_refresh_and_handoff();
 	test_public_course_and_dependency_cut();
 	test_out_of_order_accounts_and_revoked_lease();
 	test_failures_and_staged_identity();

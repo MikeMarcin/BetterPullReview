@@ -60,10 +60,15 @@ namespace bpr::core {
 													 downloading,
 													 verifying,
 													 ready,
+													 quiescing,
+													 handed_off,
+													 recovered,
 													 failed };
 	enum class release_update_operation : std::uint8_t { check,
 														 download,
-														 verify };
+														 verify,
+														 refresh_install,
+														 install };
 	enum class release_update_check_mode : std::uint8_t { automatic,
 														  manual };
 	enum class release_update_reason : std::uint8_t {
@@ -108,6 +113,9 @@ namespace bpr::core {
 		invalid_progress,
 		identity_exhausted,
 		installer_unavailable,
+		flush_failed,
+		quit_refused,
+		recovery_required,
 		shutdown,
 	};
 
@@ -236,6 +244,16 @@ namespace bpr::core {
 	{
 		release_update_context Context;
 	};
+	/// \brief A qualified installer accepted ownership; success still needs a startup receipt.
+	struct release_update_handed_off
+	{
+		release_update_context Context;
+	};
+	/// \brief Journal-proven platform outcome, separate from release access and progress.
+	struct release_update_installation_result
+	{
+		bool Installed = false;
+	};
 	/// \brief Typed effect failure; a rate limit supplies a relative monotonic delay.
 	struct release_update_failed
 	{
@@ -246,7 +264,7 @@ namespace bpr::core {
 	using release_update_event = std::variant<release_update_intent, release_update_tick,
 											  release_update_set_automatic, release_update_access_changed, release_update_shutdown,
 											  release_update_checked, release_update_progress, release_update_downloaded,
-											  release_update_verified, release_update_failed>;
+											  release_update_verified, release_update_handed_off, release_update_failed, release_update_installation_result>;
 
 	/// \brief A semantic effect request, or cancellation of the exact previous effect.
 	struct release_update_request
@@ -276,10 +294,12 @@ namespace bpr::core {
 		release_update_reason                   Reason = release_update_reason::none;
 		std::optional<release_update_candidate> Candidate;
 		std::optional<release_update_context>   Pending;
-		release_update_check_mode               CheckMode        = release_update_check_mode::manual;
-		bool                                    OfferVisible     = false;
-		bool                                    Stopped          = false;
-		bool                                    Exhausted        = false;
+		release_update_check_mode               CheckMode          = release_update_check_mode::manual;
+		bool                                    OfferVisible       = false;
+		bool                                    Stopped            = false;
+		bool                                    Exhausted          = false;
+		bool                                    InstallerAvailable = false;
+		std::optional<bool>                     InstallationOutcome;
 		std::uint64_t                           Bytes            = 0U;
 		std::uint64_t                           MonotonicSeconds = 0U;
 		std::uint64_t                           ScheduleAnchor   = 0U;

@@ -1131,7 +1131,7 @@ closed to the refusal ([[BPR-0281]], [[BPR-0318]],
 `application_device_authorization_public_path`,
 `application_device_authorization_release_contract`).
 
-## Release updater discovery and staging
+## Release updater discovery, staging and gated installation
 
 RFC-BPR-0035 milestones 1 and 2 add deterministic stable-version/asset/scheduling
 policy and one desktop-wide application service. Menus and General Settings
@@ -1139,10 +1139,15 @@ project the same host; SQLite persists only preferences and an opaque account
 binding. Explicitly selected native GitHub.com authority supplies a release-only
 lease, the designated HTTPS adapter streams private assets, and the macOS update
 adapter performs bounded ZIP extraction and native signature/trust verification.
-Its only child commands are fixed system signature/trust tools. Core and Qt gain
-no effect APIs. LibArchive 3.8.9 is pinned by the central dependency provider for
-macOS staging, with system zlib and bundled upstream notices. The installer
-remains unavailable: no running application is replaced or relaunched. The
+Core and Qt gain no effect APIs. LibArchive 3.8.9 is pinned by the central
+dependency provider for macOS staging, with system zlib and bundled upstream
+notices. Milestone 3 adds a bundled helper, cooperative process-lifetime locks,
+desktop-wide draft preservation/shutdown, a durable replacement journal and an
+exact healthy-start receipt. Its platform adapter owns fixed signature/trust
+commands and exact helper/application launches; private SQLite stores inert draft
+recovery text and Qt presents it read-only. Cleanup is journal/inode-authorized.
+The production installer capability remains unselected pending signed-upgrade
+qualification: no developer application was replaced or relaunched. The
 [release updater contract](release-updater.md) binds the fixed distribution
 source, separate native authority, limits and successor obligations.
 

@@ -49,14 +49,18 @@ namespace bpr::app {
 		/// decided is readable rather than inferred from the process staying alive.
 		[[nodiscard]] auto last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome>;
 		/// Requests durable orderly Quit; failed admission leaves windows usable.
-		void               quit(int aExitCode = 0);
+		void quit(int aExitCode = 0);
+		/// \brief Saves all private draft text before requesting the existing orderly Quit barrier.
+		/// \details Failure leaves the windows live. Success is observed only through
+		/// quiescence plus exit_code(); this method never publishes or retries a review.
+		void               quit_for_update(std::function<void(bool)> aPrepared);
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto exit_code() const noexcept -> int;
 
 	private:
 		[[nodiscard]] static auto configuration_for_profile(const github_application_config& aConfig, core::bpr_profile_id aProfile, const std::filesystem::path& aRoot) -> github_application_config;
 		using startup_factory = std::function<std::unique_ptr<github_application_startup>(core::bpr_profile_id, const std::filesystem::path&, core::profile_launch_intent, github_application_startup_completion)>;
-		[[nodiscard]] static auto start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent = core::profile_launch_intent::activate, empty_desktop_policy aPolicy = { }) -> std::unique_ptr<profile_desktop>;
+		[[nodiscard]] static auto start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent = core::profile_launch_intent::activate, empty_desktop_policy aPolicy = { }, bool aNativeLifetime = false) -> std::unique_ptr<profile_desktop>;
 		class implementation;
 		explicit profile_desktop(std::shared_ptr<implementation> aImplementation);
 		std::shared_ptr<implementation> Implementation;

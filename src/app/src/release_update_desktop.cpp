@@ -71,7 +71,7 @@ namespace bpr::app {
 				Components.Clock = std::make_shared<update_clock>();
 			}
 			Service = std::make_unique<application::release_update_service>(Components.Installed, Components.Capability,
-																			*Components.Clock, Decisions, Effects, Components.Settings, Components.Verifier, *this);
+																			*Components.Clock, Decisions, Effects, Components.Settings, Components.Verifier, *this, Components.Installer);
 			Service->start();
 			Timer.setInterval(1000);
 			QObject::connect(&Timer, &QTimer::timeout, this, [this] {
@@ -300,6 +300,8 @@ namespace bpr::app {
 	}
 	void release_update_desktop::shutdown() { Impl->shutdown(); }
 	auto release_update_desktop::quiescent() const -> bool { return !Impl->Initializing && !Impl->Acquiring && (!Impl->Service || Impl->Service->quiescent()) && Impl->Effects.idle() && Impl->Cleanup.idle(); }
+	auto release_update_desktop::durable() const -> bool { return !Impl->Initializing && (!Impl->Service || Impl->Service->durable()); }
+	auto release_update_desktop::observe_installation_result(bool aInstalled) -> bool { return Impl->Service && Impl->Service->observe_installation_result(aInstalled); }
 	auto release_update_desktop::panel() const -> qt::release_update_panel* { return Impl->MainPanel; }
 	auto release_update_desktop::projection() const -> application::release_update_projection { return Impl->Service ? Impl->Service->projection() : application::release_update_projection{ }; }
 }

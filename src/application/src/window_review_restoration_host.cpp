@@ -350,4 +350,10 @@ namespace bpr::application {
 		return host.Closing && !host.Active && (host.Blocked || !host.Accepted || host.Accepted->Records == host.Policy.records() || !host.Orderly);
 	}
 	auto window_review_restoration_host::projection_delivery_failed() const noexcept -> bool { return Implementation->DeliveryFailed; }
+	auto window_review_restoration_host::durable() const noexcept -> bool
+	{
+		const auto& state = *Implementation;
+		return !state.Active && !state.Blocked && !state.DeliveryFailed && state.Accepted
+			&& state.Accepted->Records == state.Policy.records() && state.Accepted->Recent == state.Policy.recent();
+	}
 }

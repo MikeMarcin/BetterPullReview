@@ -13,6 +13,7 @@ namespace bpr::application {
 		effect_executor&                                  Effects;
 		std::shared_ptr<release_update_settings_port>     Store;
 		std::shared_ptr<release_update_verification_port> Verifier;
+		std::shared_ptr<release_update_install_port>      Installer;
 		release_update_projection_port*                   Sink;
 		std::unique_ptr<release_update_application_host>  Host;
 		release_update_settings                           Settings;
@@ -25,7 +26,8 @@ namespace bpr::application {
 		implementation(std::string aInstalled, core::release_update_capability aCapability,
 					   release_update_clock_port& aClock, decision_executor& aDecision, effect_executor& aEffects,
 					   std::shared_ptr<release_update_settings_port>     aStore,
-					   std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aSink)
+					   std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aSink,
+					   std::shared_ptr<release_update_install_port> aInstaller)
 			: Installed{ std::move(aInstalled) }
 			, Capability{ aCapability }
 			, Clock{ aClock }
@@ -33,6 +35,7 @@ namespace bpr::application {
 			, Effects{ aEffects }
 			, Store{ std::move(aStore) }
 			, Verifier{ std::move(aVerifier) }
+			, Installer{ std::move(aInstaller) }
 			, Sink{ &aSink }
 		{ }
 
@@ -81,7 +84,7 @@ namespace bpr::application {
 						}
 						self->Host                 = std::make_unique<release_update_application_host>(core::application_session_id{ 1U },
 																									   self->Installed, self->Capability, self->Settings.Preferences, self->Clock, self->Decision,
-																									   self->Effects, self->Verifier, *self);
+																									   self->Effects, self->Verifier, *self, self->Installer);
 						self->Settings.Preferences = self->Host->projection().Preferences;
 						self->notify(self->Host->projection());
 					});
@@ -122,9 +125,10 @@ namespace bpr::application {
 	release_update_service::release_update_service(std::string aInstalled, core::release_update_capability aCapability,
 												   release_update_clock_port& aClock, decision_executor& aDecision, effect_executor& aEffects,
 												   std::shared_ptr<release_update_settings_port> aSettings, std::shared_ptr<release_update_verification_port> aVerifier,
-												   release_update_projection_port& aProjection)
+												   release_update_projection_port&              aProjection,
+												   std::shared_ptr<release_update_install_port> aInstaller)
 		: Impl{ std::make_shared<implementation>(std::move(aInstalled), aCapability, aClock, aDecision, aEffects,
-												 std::move(aSettings), std::move(aVerifier), aProjection) }
+												 std::move(aSettings), std::move(aVerifier), aProjection, std::move(aInstaller)) }
 	{ }
 	release_update_service::~release_update_service()
 	{
@@ -167,6 +171,14 @@ namespace bpr::application {
 		if (Impl->Host && !Impl->Closing) {
 			static_cast<void>(Impl->Host->tick());
 		}
+	}
+	auto release_update_service::observe_installation_result(bool aInstalled) -> bool
+	{
+		if (!Impl->Host || Impl->Closing) {
+			return false;
+		}
+		Impl->Host->observe_installation_result(aInstalled);
+		return true;
 	}
 	void release_update_service::shutdown()
 	{

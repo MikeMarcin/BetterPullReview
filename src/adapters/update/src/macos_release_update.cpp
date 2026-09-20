@@ -1,5 +1,6 @@
 #include "bpr/adapters/update/release_update_staging.hpp"
 #include "macos_release_update_mounts.hpp"
+#include "release_update_transaction.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
@@ -789,6 +790,42 @@ namespace bpr::adapters::update {
 		-> std::shared_ptr<release_update_staging>
 	{
 		return std::make_shared<macos_staging>(std::move(aPrivateRoot), std::move(aInstalled), aCleanup);
+	}
+
+	auto detail::install_tree_identity(const fs::path& aPath) -> std::optional<std::string>
+	{
+		const auto value = manifest(aPath, { }, std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+		return value ? std::optional{ value->toHex().toStdString() } : std::nullopt;
+	}
+	auto detail::install_source(std::shared_ptr<const application::release_update_verified_bundle> aBundle,
+								std::stop_token                                                    aStop) -> std::optional<install_material>
+	{
+		const auto bundle = std::dynamic_pointer_cast<const owned_bundle>(aBundle);
+		if (aStop.stop_requested() || !bundle || !same_inode(bundle->Transaction->Path, bundle->Transaction->Directory.Value)) {
+			return { };
+		}
+		const auto path    = bundle->Transaction->Path / bundle_name;
+		const auto current = install_tree_identity(path);
+		if (!current || *current != bundle->Manifest.toHex().toStdString()) {
+			return { };
+		}
+		return install_material{ path, *current };
+	}
+	auto detail::validate_install_tree(const fs::path& aPath, const fs::path& aInstalled,
+									   const core::release_update_candidate& aCandidate, std::stop_token aStop) -> reason
+	{
+		return native_validation(aPath, aInstalled, aCandidate, aStop, std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+	}
+	auto detail::trusted_install_helper(const fs::path& aBundle, const fs::path& aHelper) -> bool
+	{
+		std::error_code error;
+		const auto      expected = aBundle / "Contents/MacOS/bpr_update_helper";
+		if (aHelper != expected || fs::canonical(aHelper, error) != expected || error || !trusted_requirement(aBundle)) {
+			return false;
+		}
+		const auto end = std::chrono::steady_clock::now() + std::chrono::seconds{ 30 };
+		return tool(QStringLiteral("/usr/bin/codesign"), { QStringLiteral("--verify"), QStringLiteral("--deep"), QStringLiteral("--strict"), QStringLiteral("--all-architectures"), QString::fromStdString(aBundle.string()) }, { }, end) == reason::none
+			&& tool(QStringLiteral("/usr/sbin/spctl"), { QStringLiteral("--assess"), QStringLiteral("--type"), QStringLiteral("execute"), QString::fromStdString(aBundle.string()) }, { }, end) == reason::none;
 	}
 
 	auto detail::release_update_volume_is_image(std::string_view aInventory, std::string_view aDevice) -> std::optional<bool>

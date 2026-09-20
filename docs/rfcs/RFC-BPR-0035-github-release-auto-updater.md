@@ -31,6 +31,12 @@ disabled pending [[BPR-0948]]. The [verification ledger](../verification/RFC-BPR
 records fixture coverage and exact signed-artifact evidence; it makes no live
 private-service, Intel execution or complete upgrade claim.
 
+Milestone 3 implements the dormant helper/journal protocol, cooperative lifetime
+locks, multi-window draft barrier and matching healthy-start receipt. Fixture
+fault courses and a genuine signed rollback probe pass, but no signed upgrade
+using the new helper and startup protocol is qualified. [[BPR-0948]] and its
+milestone exit remain open; production installation is not enabled.
+
 The first implementation targets the existing signed, notarized macOS universal
 release. Windows and Linux expose manual update guidance until separately scoped
 native installers and evidence exist. Corporate-managed installations retain

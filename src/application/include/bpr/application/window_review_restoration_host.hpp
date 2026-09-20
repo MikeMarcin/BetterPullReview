@@ -42,6 +42,8 @@ namespace bpr::application {
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+		/// \brief Every accepted reading record is durably stored, with no failed flush.
+		[[nodiscard]] auto durable() const noexcept -> bool;
 
 	private:
 		struct implementation;

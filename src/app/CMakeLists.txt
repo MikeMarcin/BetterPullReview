@@ -124,6 +124,19 @@ if(BPR_BUILD_QT)
         app_better_pull_review
         main.cpp
     )
+    if(APPLE)
+        bpr_add_executable(tool_bpr_update_helper update_helper_main.cpp)
+        set_target_properties(tool_bpr_update_helper PROPERTIES OUTPUT_NAME bpr_update_helper)
+        target_link_libraries(tool_bpr_update_helper PRIVATE BetterPullReview::AdapterUpdate Qt6::Core)
+        bpr_enable_hardening(tool_bpr_update_helper)
+        bpr_enable_warnings(tool_bpr_update_helper)
+        add_dependencies(app_better_pull_review tool_bpr_update_helper)
+        set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS "$<TARGET_FILE:tool_bpr_update_helper>")
+        add_custom_command(TARGET app_better_pull_review POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:tool_bpr_update_helper>"
+                "$<TARGET_FILE_DIR:app_better_pull_review>/bpr_update_helper"
+            VERBATIM)
+    endif()
     # The bundled agent supervisor sits beside the application image on every
     # platform that has one ([[BPR-0622]] added Windows).
     if(UNIX OR WIN32)

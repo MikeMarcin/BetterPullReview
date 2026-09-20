@@ -1,5 +1,6 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
+#include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/profile_management_host.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
@@ -7,7 +8,12 @@
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/release_update_recovery_dialog.hpp"
+#if defined(__APPLE__)
+	#include "bpr/adapters/update/release_update_installation.hpp"
+#endif
 #include <QCloseEvent>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QObject>
@@ -37,6 +43,9 @@ namespace bpr::app {
 		{
 			std::unique_ptr<github_application_startup>            Startup;
 			std::unique_ptr<github_application>                    Runtime;
+			std::unique_ptr<qt::release_update_recovery_dialog>    Recovery;
+			bool                                                   RecoveryReady     = false;
+			bool                                                   RecoveryPresented = false;
 			std::map<core::bpr_window_id, window_entry>            Windows;
 			std::vector<core::bpr_window_context>                  Order;
 			std::uint64_t                                          StartupSerial        = 0;
@@ -66,7 +75,7 @@ namespace bpr::app {
 			Poll.stop();
 			Effects.close_and_drain();
 		}
-		void begin()
+		void begin(bool aNativeLifetime)
 		{
 			Lifetime = shared_from_this();
 			// RFC-BPR-0033 B2. Activating a resident desktop with no window reopens the
@@ -77,6 +86,13 @@ namespace bpr::app {
 								 [this](const Qt::ApplicationState aState) { application_state_changed(aState); });
 			}
 			Poll.start();
+#if defined(__APPLE__)
+			if (aNativeLifetime && begin_update_lifetime()) {
+				return;
+			}
+#else
+			static_cast<void>(aNativeLifetime);
+#endif
 			start_runtime(Initial);
 		}
 		auto runtime(core::bpr_profile_id aProfile) const noexcept -> github_application*
@@ -116,7 +132,7 @@ namespace bpr::app {
 		auto current(core::bpr_window_context aContext) const noexcept -> bool
 		{
 			const auto found = Runtimes.find(aContext.Profile);
-			if (Quitting || !Host || !Host->current(aContext) || found == Runtimes.end() || found->second.Closing) {
+			if (Quitting || UpdatePreparing || !Host || !Host->current(aContext) || found == Runtimes.end() || found->second.Closing) {
 				return false;
 			}
 			const auto selected = found->second.Windows.find(aContext.Window);
@@ -130,7 +146,7 @@ namespace bpr::app {
 			if (aExitCode != 0) {
 				ExitCode = aExitCode;
 			}
-			if (Quitting) {
+			if (Quitting || UpdatePreparing) {
 				return;
 			}
 			if (!Host) {
@@ -138,6 +154,49 @@ namespace bpr::app {
 				return;
 			}
 			static_cast<void>(Host->request_quit());
+		}
+		void quit_for_update(std::function<void(bool)> aPrepared)
+		{
+			if (Quitting || UpdatePreparing || !Host || !Projection.Ready || Projection.Busy || PendingLaunch
+				|| std::ranges::any_of(Runtimes, [](const auto& aEntry) { return !aEntry.second.Runtime || !aEntry.second.RecoveryReady || aEntry.second.Closing || !aEntry.second.Runtime->desktop_update_ready(); })) {
+				if (aPrepared) {
+					aPrepared(false);
+				}
+				return;
+			}
+			UpdatePreparing = true;
+			UpdatePrepared  = std::move(aPrepared);
+			set_update_enabled(false);
+			std::vector<std::pair<std::filesystem::path, std::vector<application::release_update_saved_draft>>> snapshots;
+			try {
+				for (const auto& [profile, entry] : Runtimes) {
+					static_cast<void>(profile);
+					snapshots.emplace_back(entry.Runtime->desktop_update_recovery_root(), entry.Runtime->desktop_update_drafts());
+				}
+				Effects.post([self = shared_from_this(), pendingSnapshots = std::move(snapshots)] {
+					bool saved = true;
+					try {
+						for (const auto& [root, drafts] : pendingSnapshots) {
+							if (!adapters::sqlite::make_release_update_recovery_store(root)->save(drafts)) {
+								saved = false;
+								break;
+							}
+						}
+					} catch (...) {
+						saved = false;
+					}
+					self->Decisions.post([self, saved] {
+						if (!self->UpdatePreparing) {
+							return;
+						}
+						if (!saved || self->Quitting || !self->Host || !self->Host->request_quit()) {
+							self->complete_update_prepare(false);
+						}
+					});
+				});
+			} catch (...) {
+				complete_update_prepare(false);
+			}
 		}
 		void force_shutdown(int aExitCode)
 		{
@@ -196,11 +255,15 @@ namespace bpr::app {
 			}
 			finish_initial(std::unexpected(github_application_startup_failure::cancelled));
 		}
-		auto is_quiescent() const noexcept -> bool { return Quitting && Runtimes.empty() && (!Host || Host->is_quiescent()) && Effects.idle() && (!Updater || Updater->quiescent()); }
+		auto base_quiescent() const noexcept -> bool { return Quitting && Runtimes.empty() && (!Host || Host->is_quiescent()) && Effects.idle() && (!Updater || Updater->quiescent()); }
+		auto is_quiescent() const noexcept -> bool { return base_quiescent() && !NativeBusy && (UpdateShutdownTransaction.empty() || UpdateAcknowledged); }
 		auto exit_code() const noexcept -> int { return ExitCode; }
 		void publish(const application::profile_management_projection& aProjection) override
 		{
 			Projection = aProjection;
+			if (UpdatePreparing && aProjection.Failure && aProjection.Failure->Operation == application::profile_management_operation::quit) {
+				complete_update_prepare(false);
+			}
 			if (aProjection.Failure && aProjection.Failure->Profile) {
 				const auto failed = Runtimes.find(*aProjection.Failure->Profile);
 				if (failed != Runtimes.end() && (failed->second.ActivationSubmitting || aProjection.Failure->Reason != application::profile_management_failure::busy)
@@ -284,6 +347,7 @@ namespace bpr::app {
 		{
 			if (aCommand.Kind == application::profile_runtime_command_kind::quit) {
 				drain(ExitCode, true);
+				complete_update_prepare(true);
 				return;
 			}
 			if (aCommand.Kind == application::profile_runtime_command_kind::close) {
@@ -366,7 +430,7 @@ namespace bpr::app {
 					const auto context = selected.Context;
 					if (aEvent->type() == QEvent::Close) {
 						static_cast<QCloseEvent*>(aEvent)->ignore();
-						if (Host && !Quitting) {
+						if (Host && !Quitting && !UpdatePreparing) {
 							static_cast<void>(Host->begin_close(context));
 						}
 						return true;
@@ -392,6 +456,157 @@ namespace bpr::app {
 		}
 
 	private:
+#if defined(__APPLE__)
+		auto begin_update_lifetime() -> bool
+		{
+			const auto arguments = QCoreApplication::arguments();
+			const auto flag      = QStringLiteral("--bpr-update-transaction");
+			const auto index     = arguments.indexOf(flag);
+			const auto installed = std::filesystem::path{ QCoreApplication::applicationDirPath().toStdString() }.parent_path().parent_path();
+			if (index < 0 && (installed.filename() != "BetterPullReview.app" || qEnvironmentVariableIsSet("BPR_AUTOMATED_TEST_BOUNDARY"))) {
+				return false;
+			}
+			if ((index >= 0 && (arguments.count(flag) != 1 || index + 1 >= arguments.size())) || installed.filename() != "BetterPullReview.app") {
+				finish_initial(std::unexpected(github_application_startup_failure::unavailable));
+				force_shutdown(1);
+				return true;
+			}
+			UpdateStartupTransaction = index >= 0 ? arguments[index + 1].toStdString() : std::string{ };
+			NativeBusy               = true;
+			Effects.post([self = shared_from_this(), installed, transaction = UpdateStartupTransaction, version = QCoreApplication::applicationVersion().toStdString()] {
+				auto                                                           joined = adapters::update::release_update_installation::join(installed, transaction, version);
+				std::shared_ptr<adapters::update::release_update_installation> lease;
+				const auto                                                     failure = joined ? core::release_update_reason::none : joined.error();
+				if (joined) {
+					lease = std::move(*joined);
+					lease->keep_until_process_exit();
+				}
+				self->Decisions.post([self, failure, accepted = std::move(lease)] {
+					self->NativeBusy     = false;
+					self->UpdateLifetime = accepted;
+					if (self->Quitting) {
+						return;
+					}
+					// Read-only and managed installations retain their manual startup.
+					// They never receive an installer capability in native composition.
+					if (!accepted && (failure != core::release_update_reason::read_only || !self->UpdateStartupTransaction.empty())) {
+						self->finish_initial(std::unexpected(github_application_startup_failure::unavailable));
+						self->force_shutdown(1);
+					} else {
+						self->start_runtime(self->Initial);
+					}
+				});
+			});
+			return true;
+		}
+		void poll_update_lifetime()
+		{
+			if (!UpdateLifetime || NativeBusy) {
+				return;
+			}
+			if (PendingHealthyStart) {
+				if (HealthyStartWait.elapsed() >= 30000) {
+					UpdateReceiptAttempted = true;
+					PendingHealthyStart.reset();
+					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
+					force_shutdown(1);
+					return;
+				}
+				if (!Updater || !Updater->durable() || std::ranges::any_of(Runtimes, [](const auto& aEntry) { return !aEntry.second.Runtime || !aEntry.second.RecoveryReady || !aEntry.second.Runtime->desktop_update_ready(); })) {
+					return;
+				}
+				const auto ready       = *std::exchange(PendingHealthyStart, std::nullopt);
+				UpdateReceiptAttempted = true;
+				NativeBusy             = true;
+				Effects.post([self = shared_from_this(), lease = UpdateLifetime, version = QCoreApplication::applicationVersion().toStdString(), ready] {
+					const bool recorded = lease->healthy_start(version);
+					self->Decisions.post([self, recorded, ready] {
+						self->NativeBusy = false;
+						self->finish_initial(recorded ? ready : std::unexpected(github_application_startup_failure::unavailable));
+						if (!recorded) {
+							self->force_shutdown(1);
+						}
+					});
+				});
+				return;
+			}
+			if (!UpdateShutdownTransaction.empty() && !UpdateAcknowledged && base_quiescent()) {
+				NativeBusy         = true;
+				const bool durable = ExitCode == 0 && (!Updater || Updater->durable());
+				Effects.post([self = shared_from_this(), lease = UpdateLifetime, transaction = UpdateShutdownTransaction, durable] {
+					const bool acknowledged = lease->acknowledge_shutdown(transaction, durable);
+					self->Decisions.post([self, acknowledged, durable] {
+						self->NativeBusy         = false;
+						self->UpdateAcknowledged = true;
+						if (!acknowledged || !durable) {
+							self->ExitCode = 1;
+						}
+					});
+				});
+				return;
+			}
+			if (Quitting || UpdatePreparing || ++UpdateLifetimePoll < 20U) {
+				return;
+			}
+			UpdateLifetimePoll = 0U;
+			NativeBusy         = true;
+			Effects.post([self = shared_from_this(), lease = UpdateLifetime] {
+				const auto request = lease->shutdown_requested();
+				const auto outcome = lease->last_result();
+				self->Decisions.post([self, request, outcome] {
+					self->NativeBusy = false;
+					if (outcome && outcome->Transaction != self->LastUpdateOutcome && self->Updater && self->Updater->observe_installation_result(outcome->Installed)) {
+						self->LastUpdateOutcome = outcome->Transaction;
+					}
+					if (!request || self->LastUpdateRequest == *request || self->Quitting) {
+						return;
+					}
+					self->LastUpdateRequest = *request;
+					self->quit_for_update([self, transaction = *request](bool aAccepted) {
+						if (aAccepted) {
+							self->UpdateShutdownTransaction = transaction;
+						} else {
+							self->Effects.post([refusedLease = self->UpdateLifetime, transaction] { static_cast<void>(refusedLease->acknowledge_shutdown(transaction, false)); });
+						}
+					});
+				});
+			});
+		}
+#endif
+		void set_update_enabled(bool aEnabled)
+		{
+			if (Management) {
+				Management->setEnabled(aEnabled);
+			}
+			if (DesktopMenu) {
+				DesktopMenu->setEnabled(aEnabled);
+			}
+			for (auto& [profile, entry] : Runtimes) {
+				static_cast<void>(profile);
+				if (entry.Runtime) {
+					entry.Runtime->desktop_update_freeze(!aEnabled);
+				}
+				for (auto& [id, selected] : entry.Windows) {
+					static_cast<void>(id);
+					if (selected.Presented) {
+						selected.Presented->setEnabled(aEnabled);
+					}
+				}
+			}
+		}
+		void complete_update_prepare(bool aAccepted)
+		{
+			if (!UpdatePreparing) {
+				return;
+			}
+			UpdatePreparing = false;
+			if (!aAccepted) {
+				set_update_enabled(true);
+			}
+			if (auto callback = std::exchange(UpdatePrepared, { })) {
+				callback(aAccepted);
+			}
+		}
 		/// \brief How many windows each profile has on screen, for the chooser's rows.
 		[[nodiscard]] auto window_counts() const -> std::map<core::bpr_profile_id, int>
 		{
@@ -530,7 +745,7 @@ namespace bpr::app {
 			}
 			entry.ActivationReply  = std::move(aRequest->Reply);
 			entry.ActivationIntent = aRequest->Intent;
-			if (Quitting || entry.Closing || !entry.WindowPublished || !Host || !Projection.Ready || Projection.Busy || Projection.Closing || PendingLaunch) {
+			if (Quitting || UpdatePreparing || entry.Closing || !entry.WindowPublished || !Host || !Projection.Ready || Projection.Busy || Projection.Closing || PendingLaunch) {
 				complete_activation(entry, application::profile_activation_outcome::refused);
 				return;
 			}
@@ -564,7 +779,7 @@ namespace bpr::app {
 		}
 		void dispatch(application::profile_management_intent aIntent)
 		{
-			if (!Host || Quitting) {
+			if (!Host || Quitting || UpdatePreparing) {
 				return;
 			}
 			auto profile = std::optional<core::bpr_profile_id>{ };
@@ -602,6 +817,16 @@ namespace bpr::app {
 			if (!Completion) {
 				return;
 			}
+#if defined(__APPLE__)
+			if (aResult && UpdateLifetime && !UpdateStartupTransaction.empty() && !UpdateReceiptAttempted) {
+				if (!PendingHealthyStart) {
+					PendingHealthyStart = aResult;
+					HealthyStartWait.start();
+				}
+				return;
+			}
+			PendingHealthyStart.reset();
+#endif
 			auto completion = std::exchange(Completion, { });
 			completion(std::move(aResult));
 		}
@@ -702,6 +927,10 @@ namespace bpr::app {
 				entry.WindowPublished = true;
 				LastUsedProfile       = aContext.Profile;
 				entry.Runtime->focus_window(aContext);
+				if (entry.Recovery && !entry.RecoveryPresented) {
+					entry.RecoveryPresented = true;
+					entry.Recovery->show();
+				}
 				complete_activation(entry, application::profile_activation_outcome::queued);
 				if (aContext.Profile == Initial && Completion) {
 					if (current(aContext)) {
@@ -785,6 +1014,35 @@ namespace bpr::app {
 				return;
 			}
 			entry.Runtime   = std::move(*aResult);
+			const auto root = entry.Runtime->desktop_update_recovery_root();
+			Effects.post([self = shared_from_this(), aProfile, aSerial, root] {
+				application::release_update_saved_drafts drafts = std::unexpected(application::release_update_recovery_failure::unavailable);
+				try {
+					drafts = adapters::sqlite::make_release_update_recovery_store(root)->load();
+				} catch (...) { }
+				self->Decisions.post([self, aProfile, aSerial, loaded = std::move(drafts)]() mutable { self->runtime_ready(aProfile, aSerial, std::move(loaded)); });
+			});
+		}
+		void runtime_ready(core::bpr_profile_id aProfile, std::uint64_t aSerial, application::release_update_saved_drafts aDrafts)
+		{
+			const auto found = Runtimes.find(aProfile);
+			if (found == Runtimes.end() || found->second.StartupSerial != aSerial || !found->second.Runtime) {
+				return;
+			}
+			auto& entry         = found->second;
+			entry.RecoveryReady = aDrafts.has_value();
+			if (!aDrafts) {
+				entry.Closing = true;
+				entry.Runtime->begin_shutdown();
+				if (aProfile == Initial) {
+					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
+					force_shutdown(1);
+				}
+				return;
+			}
+			if (!aDrafts->empty()) {
+				entry.Recovery = std::make_unique<qt::release_update_recovery_dialog>(std::move(*aDrafts));
+			}
 			const auto weak = weak_from_this();
 			entry.Runtime->set_window_admission([weak](core::bpr_window_context aContext) {const auto self=weak.lock();return self && self->current(aContext); });
 			entry.Runtime->set_desktop_quit_handler([weak](int aExitCode) {if (const auto self=weak.lock()){ self->quit(aExitCode);
@@ -832,6 +1090,9 @@ namespace bpr::app {
 		void poll()
 		{
 			const auto keepAlive = shared_from_this();
+#if defined(__APPLE__)
+			poll_update_lifetime();
+#endif
 			if (Updater && !Quitting && ++UpdateAccountPoll >= 100U) {
 				UpdateAccountPoll = 0U;
 				std::vector<release_update_account> accounts;
@@ -924,6 +1185,18 @@ namespace bpr::app {
 		bool                      EmptyDesktopQuit            = false;
 		std::uint64_t             NextStartup                 = 0;
 		bool                      InitialRegistered = false, Quitting = false, Focusing = false;
+		bool                      UpdatePreparing = false;
+		std::function<void(bool)> UpdatePrepared;
+		bool                      NativeBusy = false, UpdateAcknowledged = false;
+		std::string               UpdateShutdownTransaction;
+#if defined(__APPLE__)
+		std::shared_ptr<adapters::update::release_update_installation> UpdateLifetime;
+		std::string                                                    UpdateStartupTransaction, LastUpdateRequest, LastUpdateOutcome;
+		unsigned                                                       UpdateLifetimePoll     = 0U;
+		bool                                                           UpdateReceiptAttempted = false;
+		std::optional<profile_desktop_startup_result>                  PendingHealthyStart;
+		QElapsedTimer                                                  HealthyStartWait;
+#endif
 		int                       ExitCode = 0;
 	};
 
@@ -940,11 +1213,11 @@ namespace bpr::app {
 		: Implementation{ std::move(aImplementation) }
 	{ }
 	profile_desktop::~profile_desktop() { Implementation->force_shutdown(0); }
-	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy) -> std::unique_ptr<profile_desktop>
+	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy, bool aNativeLifetime) -> std::unique_ptr<profile_desktop>
 	{
 		auto state   = std::make_shared<implementation>(aProfile, std::move(aFactory), std::move(aCompletion), aIntent, std::move(aPolicy));
 		auto desktop = std::unique_ptr<profile_desktop>{ new profile_desktop{ state } };
-		state->begin();
+		state->begin(aNativeLifetime);
 		return desktop;
 	}
 	auto profile_desktop::configuration_for_profile(const github_application_config& aConfig, core::bpr_profile_id aProfile, const std::filesystem::path& aRoot) -> github_application_config
@@ -979,7 +1252,7 @@ namespace bpr::app {
 		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = configuration_for_profile(config, aProfile, aRoot);
             next.ProfileLaunchIntent = aIntent;
-            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(aPolicy));
+            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(aPolicy), true);
 	}
 	auto profile_desktop::runtime(core::bpr_profile_id aProfile) const noexcept -> github_application* { return Implementation->runtime(aProfile); }
 	auto profile_desktop::windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context> { return Implementation->windows(aProfile); }
@@ -988,6 +1261,7 @@ namespace bpr::app {
 	auto profile_desktop::desktop_menu() const noexcept -> qt::desktop_menu_bar* { return Implementation->desktop_menu(); }
 	auto profile_desktop::last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome> { return Implementation->last_empty_desktop_outcome(); }
 	void profile_desktop::quit(int aExitCode) { Implementation->quit(aExitCode); }
+	void profile_desktop::quit_for_update(std::function<void(bool)> aPrepared) { Implementation->quit_for_update(std::move(aPrepared)); }
 	auto profile_desktop::is_quiescent() const noexcept -> bool { return Implementation->is_quiescent(); }
 	auto profile_desktop::exit_code() const noexcept -> int { return Implementation->exit_code(); }
 }

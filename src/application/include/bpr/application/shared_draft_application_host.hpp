@@ -6,6 +6,7 @@
 #include <expected>
 #include <functional>
 #include <memory>
+#include <vector>
 namespace bpr::application {
 	inline constexpr std::size_t maximum_shared_drafts          = 64;
 	inline constexpr std::size_t maximum_shared_draft_consumers = 32;
@@ -62,6 +63,8 @@ namespace bpr::application {
 		[[nodiscard]] auto complete(const shared_draft_authority& aAuthority, core::review_draft_id aDraft, std::uint64_t aPublishingRevision, bool aSuccess) -> shared_draft_result;
 		void               shutdown();
 		[[nodiscard]] auto authority() const noexcept -> const shared_draft_authority&;
+		/// \brief Captures retained private drafts for an orderly update; grants no publication authority.
+		[[nodiscard]] auto recovery_snapshot() const -> std::vector<core::revisioned_review_draft>;
 
 	private:
 		struct implementation;

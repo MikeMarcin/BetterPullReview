@@ -31,6 +31,7 @@ namespace bpr::application {
 		decision_executor&                                    Decision;
 		effect_executor&                                      Effects;
 		std::shared_ptr<release_update_verification_port>     Verifier;
+		std::shared_ptr<release_update_install_port>          Installer;
 		release_update_projection_port*                       Projection;
 		std::shared_ptr<release_update_access_port>           Access;
 		std::shared_ptr<release_update_access_port>           PendingAccess;
@@ -50,14 +51,18 @@ namespace bpr::application {
 
 		implementation(core::release_update_state aState, release_update_clock_port& aClock,
 					   decision_executor& aDecision, effect_executor& aEffects,
-					   std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection)
+					   std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection,
+					   std::shared_ptr<release_update_install_port> aInstaller)
 			: State{ std::move(aState) }
 			, Clock{ aClock }
 			, Decision{ aDecision }
 			, Effects{ aEffects }
 			, Verifier{ std::move(aVerifier) }
+			, Installer{ std::move(aInstaller) }
 			, Projection{ &aProjection }
-		{ }
+		{
+			State.InstallerAvailable = Installer != nullptr;
+		}
 
 		[[nodiscard]] auto projection() const -> release_update_projection
 		{
@@ -65,7 +70,7 @@ namespace bpr::application {
 			const auto reason   = State.Reason == core::release_update_reason::none && State.Phase == core::release_update_phase::idle ? commands.front().DisabledReason : State.Reason;
 			return { State.Installed, State.Phase, reason, State.Candidate, State.Preferences,
 					 commands, State.Bytes, State.OfferVisible, Notes,
-					 State.Capability == core::release_update_capability::eligible && !State.Stopped };
+					 State.Capability == core::release_update_capability::eligible && !State.Stopped, State.InstallationOutcome };
 		}
 
 		void cancel_all()
@@ -164,9 +169,10 @@ namespace bpr::application {
 			});
 		}
 
-		[[nodiscard]] auto perform(const std::shared_ptr<job>&                          aJob,
-								   const std::shared_ptr<release_update_access_port>&   aAccess,
-								   const std::shared_ptr<const release_update_archive>& aArchive) -> delivery
+		[[nodiscard]] auto perform(const std::shared_ptr<job>&                                  aJob,
+								   const std::shared_ptr<release_update_access_port>&           aAccess,
+								   const std::shared_ptr<const release_update_archive>&         aArchive,
+								   const std::shared_ptr<const release_update_verified_bundle>& aBundle) -> delivery
 		{
 			const auto& context = aJob->Context;
 			const auto  stop    = aJob->Stop.get_token();
@@ -177,7 +183,8 @@ namespace bpr::application {
 				return { core::release_update_failed{ context, update_reason::access_required }, { }, { } };
 			}
 			switch (context.Operation) {
-			case update_operation::check: {
+			case update_operation::refresh_install:
+			case update_operation::check:           {
 				if (!aAccess) {
 					break;
 				}
@@ -217,6 +224,16 @@ namespace bpr::application {
 				}
 				return { core::release_update_verified{ context }, { }, std::move(result.Bundle) };
 			}
+			case update_operation::install: {
+				if (!Installer || !aBundle || !context.Candidate || aBundle->candidate() != *context.Candidate) {
+					break;
+				}
+				const auto result = Installer->install(aBundle, stop, [context, aAccess, stop] { return !stop.stop_requested() && lease_matches(context, aAccess); });
+				if (result != update_reason::none) {
+					return { core::release_update_failed{ context, result }, { }, { } };
+				}
+				return { core::release_update_handed_off{ context }, { }, { } };
+			}
 			}
 			return { core::release_update_failed{ context, update_reason::unavailable }, { }, { } };
 		}
@@ -246,18 +263,20 @@ namespace bpr::application {
 			Jobs.push_back(current);
 			++RunningEffects;
 			try {
-				Effects.post([self = shared_from_this(), current, access = Access, archive = Archive] {
+				Effects.post([self = shared_from_this(), current, access = Access, archive = Archive, bundle = Bundle] {
 					delivery result{ core::release_update_failed{ current->Context, update_reason::unavailable }, { }, { } };
 					try {
-						result = self->perform(current, access, archive);
+						result = self->perform(current, access, archive, bundle);
 					} catch (...) { }
-					if (!lease_matches(current->Context, access)) {
+					// An accepted helper handoff is irreversible local ownership, not
+					// a remote result that later credential revocation can undo.
+					if (!std::holds_alternative<core::release_update_handed_off>(result.Event) && !lease_matches(current->Context, access)) {
 						result = { core::release_update_failed{ current->Context, update_reason::access_required }, { }, { } };
 					}
 					++self->Deliveries;
 					self->Decision.post([self, current, lease = access, completed = std::move(result)]() mutable {
 						std::erase(self->Jobs, current);
-						if (!lease_matches(current->Context, lease)) {
+						if (!std::holds_alternative<core::release_update_handed_off>(completed.Event) && !lease_matches(current->Context, lease)) {
 							completed = { core::release_update_failed{ current->Context, update_reason::access_required }, { }, { } };
 						}
 						self->Ingress.push_back(std::move(completed));
@@ -278,17 +297,22 @@ namespace bpr::application {
 																	 const std::string_view aInstalled, const core::release_update_capability aCapability,
 																	 core::release_update_preferences aPreferences, release_update_clock_port& aClock,
 																	 decision_executor& aDecision, effect_executor& aEffects,
-																	 std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection)
+																	 std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection,
+																	 std::shared_ptr<release_update_install_port> aInstaller)
 		: Impl{ std::make_shared<implementation>(core::make_release_update_state(aSession, aInstalled,
 																				 aCapability, std::move(aPreferences), aClock.now()),
 												 aClock, aDecision, aEffects,
-												 std::move(aVerifier), aProjection) }
+												 std::move(aVerifier), aProjection, std::move(aInstaller)) }
 	{ }
 
 	release_update_application_host::~release_update_application_host()
 	{
 		Impl->Projection = nullptr;
 		shutdown();
+	}
+	void release_update_application_host::observe_installation_result(bool aInstalled)
+	{
+		static_cast<void>(Impl->enqueue(core::release_update_installation_result{ aInstalled }));
 	}
 
 	void release_update_application_host::select_access(std::shared_ptr<release_update_access_port> aAccess)

@@ -45,6 +45,9 @@ namespace bpr::qt {
 			case reason::cancelled:              return QStringLiteral("Update cancelled. The installed application is unchanged.");
 			case reason::timed_out:              return QStringLiteral("The update operation timed out.");
 			case reason::installer_unavailable:  return QStringLiteral("The update is verified. Installation is not enabled in this build.");
+			case reason::flush_failed:           return QStringLiteral("Local changes could not be saved. Installation was stopped.");
+			case reason::quit_refused:           return QStringLiteral("The application could not quit safely. Installation was stopped.");
+			case reason::recovery_required:      return QStringLiteral("The update needs recovery. The previous application has been retained.");
 			case reason::shutdown:               return QStringLiteral("Update service is shutting down.");
 			case reason::busy:                   return QStringLiteral("An update operation is already running.");
 			case reason::not_due:                return QStringLiteral("The next automatic check is not due yet.");
@@ -66,7 +69,13 @@ namespace bpr::qt {
 			case core::release_update_phase::checking:    return QStringLiteral("Checking for updates…");
 			case core::release_update_phase::downloading: return QStringLiteral("Downloading update…");
 			case core::release_update_phase::verifying:   return QStringLiteral("Verifying archive and publisher…");
-			case core::release_update_phase::ready:       return reason_text(reason::installer_unavailable);
+			case core::release_update_phase::ready:
+				return std::ranges::any_of(aProjection.Commands, [](const auto& aCommand) { return aCommand.Command == command::install && aCommand.enabled(); })
+					? QStringLiteral("The update is verified and ready to install.")
+					: reason_text(reason::installer_unavailable);
+			case core::release_update_phase::quiescing:  return QStringLiteral("Preparing to install and restart…");
+			case core::release_update_phase::handed_off: return QStringLiteral("Restarting to finish the update…");
+			case core::release_update_phase::recovered:  return QStringLiteral("The previous application was recovered.");
 			case core::release_update_phase::available:
 				if (aProjection.OfferVisible) {
 					return QStringLiteral("An update is available.");
@@ -131,6 +140,10 @@ namespace bpr::qt {
 		connect(view, &QPushButton::clicked, this, [this] { if (Dispatch.ViewRelease) { Dispatch.ViewRelease(); } });
 		column->addWidget(view);
 		column->addWidget(Persistence);
+		Installation = new QLabel{ this };
+		Installation->setObjectName(QStringLiteral("releaseUpdateInstallationResult"));
+		Installation->setWordWrap(true);
+		column->addWidget(Installation);
 		connect(Automatic, &QCheckBox::toggled, this, [this](bool aEnabled) { if (Dispatch.Automatic) { Dispatch.Automatic(aEnabled); } });
 		connect(Accounts, &QComboBox::activated, this, [this](int aIndex) { if (Dispatch.SelectAccount) { Dispatch.SelectAccount(Accounts->itemData(aIndex).toString().toStdString()); } });
 	}
@@ -159,6 +172,8 @@ namespace bpr::qt {
 		Progress->setVisible(aProjection.Phase == core::release_update_phase::downloading);
 		Progress->setValue(aProjection.Candidate && aProjection.Candidate->Size != 0U ? static_cast<int>(aProjection.Bytes * 1000U / aProjection.Candidate->Size) : 0);
 		Persistence->setText(aDurable ? QStringLiteral("Update preferences are saved for this application.") : QStringLiteral("Update preferences are session-only because storage is unavailable."));
+		Installation->setText(!aProjection.InstallationOutcome ? QString{ } : *aProjection.InstallationOutcome ? QStringLiteral("The last update completed with a matching healthy-start receipt.")
+																											   : QStringLiteral("The last installation did not complete. The previous application was preserved or restored; no publication was retried."));
 		for (auto& [key, action] : Actions) {
 			static_cast<void>(key);
 			action->setEnabled(false);

@@ -2,6 +2,7 @@ add_library(
     better_pull_review_adapter_qt
     STATIC
         src/release_update_panel.cpp
+        src/release_update_recovery_dialog.cpp
         src/agent_launch_panel.cpp
         src/appearance_profile.cpp
         src/appearance_settings_panel.cpp

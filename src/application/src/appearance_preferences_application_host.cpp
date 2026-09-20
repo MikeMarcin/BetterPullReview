@@ -1465,4 +1465,10 @@ namespace bpr::application {
 		return consumer ? consumer->Epoch : appearance_epoch{ };
 	}
 	auto appearance_preferences_application_host::attached_consumers() const noexcept -> std::size_t { return Implementation->Consumers.size(); }
+	auto appearance_preferences_application_host::durable() const noexcept -> bool
+	{
+		const auto& state = *Implementation;
+		return state.Outstanding.empty() && state.DeferredIngress.empty() && !state.DeferredIngressScheduled
+			&& !state.TurnActive && !state.PersistenceUnavailable && !state.ProjectionDeliveryFailed;
+	}
 }

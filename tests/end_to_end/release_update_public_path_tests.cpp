@@ -1,9 +1,12 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/adapters/sqlite/release_update_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/qt/release_update_panel.hpp"
+#include "bpr/qt/release_update_recovery_dialog.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 
 #include <QAction>
@@ -80,6 +83,16 @@ namespace {
 			return { reason::none, std::make_shared<application::release_update_verified_bundle>(aArchive->candidate()) };
 		}
 	};
+	struct installer final : application::release_update_install_port
+	{
+		std::atomic<unsigned> Calls = 0U;
+		auto                  install(std::shared_ptr<const application::release_update_verified_bundle> aBundle, std::stop_token aStop, const std::function<bool()>& aAuthorized) -> reason override
+		{
+			expect(aBundle && !aStop.stop_requested() && aAuthorized(), "public Install gesture retains verified capability and authority");
+			++Calls;
+			return reason::none;
+		}
+	};
 	auto root(QTemporaryDir& aTemporary) -> std::filesystem::path
 	{
 		expect(aTemporary.isValid(), "temporary root exists");
@@ -105,8 +118,50 @@ namespace {
 		until([&] { return window->settings() && window->settings()->findChild<QWidget*>(QStringLiteral("releaseUpdatePanel")); }, "production root composes Settings");
 		auto* status = window->settings()->findChild<QLabel*>(QStringLiteral("releaseUpdateStatus"));
 		until([&] { return status && !status->text().isEmpty(); }, "native unsupported/development projection arrives");
-		desktop->quit();
+		auto* newWindow = window->findChild<QAction*>(QStringLiteral("newBprWindowAction"));
+		expect(newWindow, "public new window gesture exists");
+		newWindow->trigger();
+		until([&] { return owner->windows().size() == 2U; }, "update barrier has two real windows");
+		unsigned editor = 0U;
+		for (const auto context : owner->windows()) {
+			owner->window(context)->review_editor()->body_editor()->setPlainText(QStringLiteral("Retain update text %1").arg(++editor));
+		}
+		const auto recoveryPath = *options.ApplicationDataRoot / "state/v1/update-draft-recovery.sqlite3";
+		const auto retainedPath = *options.ApplicationDataRoot / "retained-recovery.sqlite3";
+		std::filesystem::rename(recoveryPath, retainedPath);
+		std::filesystem::create_directory(recoveryPath);
+		bool failedSave = false, faultPending = false, faultStarted = false;
+		until([&] {
+			if (!failedSave && !faultPending) {
+				faultPending = true;
+				faultStarted = false;
+				desktop->quit_for_update([&](bool aAccepted) { expect(!aAccepted, "failed draft save refuses Quit"); failedSave = faultStarted; faultPending = false; });
+				// A synchronous busy refusal is not the injected save-failure course.
+				faultStarted = !window->isEnabled();
+			}
+			return failedSave;
+		},
+			  "injected local persistence failure returns without quitting");
+		expect(!desktop->is_quiescent() && owner->windows().size() == 2U && window->isEnabled(), "failed update leaves both windows usable");
+		expect(std::filesystem::remove(recoveryPath), "remove only the task-owned empty obstruction");
+		std::filesystem::rename(retainedPath, recoveryPath);
+		bool accepted = false, pending = false;
+		until([&] {
+			if (!accepted && !pending) {
+				pending = true;
+				desktop->quit_for_update([&](bool aAccepted) { accepted = aAccepted; pending = false; });
+			}
+			return accepted;
+		},
+			  "update barrier saves text before requesting orderly Quit");
 		until([&] { return desktop->is_quiescent(); }, "root updater participates in orderly desktop drain");
+		expect(desktop->exit_code() == 0, "all update shutdown flushes succeed");
+		desktop.reset();
+		const auto recovered = adapters::sqlite::make_release_update_recovery_store(*options.ApplicationDataRoot)->load();
+		expect(recovered && recovered->size() == 2U && (*recovered)[0].Body != (*recovered)[1].Body, "both windows retain distinct text durably");
+		qt::release_update_recovery_dialog recovery{ *recovered };
+		const auto*                        text = recovery.findChild<QPlainTextEdit*>(QStringLiteral("updateRecoveryText"));
+		expect(text && text->isReadOnly() && text->toPlainText().startsWith(QStringLiteral("Retain update text")), "recovery presents inert copyable text");
 	}
 	void gestures_restart_and_staging()
 	{
@@ -116,11 +171,12 @@ namespace {
 		auto                                 time      = std::make_shared<clock>();
 		auto                                 wire      = std::make_shared<access>();
 		auto                                 validator = std::make_shared<verifier>();
+		auto                                 install   = std::make_shared<installer>();
 		application::release_update_settings initial;
 		initial.Preferences.AutomaticChecks = false;
 		expect(store->save(initial), "initial app-wide preferences saved");
 		std::string          browser;
-		auto                 start   = [&] { return app::release_update_desktop::start({ "2.3.3", core::release_update_capability::eligible, time, store, validator, { }, [&](std::string aAddress) { browser = std::move(aAddress); } }); };
+		auto                 start   = [&](bool aInstall = false) { return app::release_update_desktop::start({ "2.3.3", core::release_update_capability::eligible, time, store, validator, { }, [&](std::string aAddress) { browser = std::move(aAddress); }, aInstall ? install : nullptr }); };
 		auto                 desktop = start();
 		qt::workbench_window window;
 		qt::settings_window  settings;
@@ -181,6 +237,25 @@ namespace {
 		desktop->shutdown();
 		until([&] { return desktop->quiescent(); }, "all fixture effects drained");
 		desktop.reset();
+		wire->Revoked = false;
+		desktop       = start(true);
+		desktop->set_accounts({ account });
+		QMenuBar installMenu;
+		desktop->attach(installMenu);
+		until([&] { return desktop->projection().Installed.has_value(); }, "install composition ready");
+		until([&] { return desktop->projection().Commands.front().enabled(); }, "install release authority restored");
+		installMenu.findChild<QAction*>(QStringLiteral("checkForUpdatesAction"))->trigger();
+		until([&] { return desktop->projection().Phase == phase::available; }, "install public offer");
+		desktop->panel()->action(command::download)->trigger();
+		until([&] { return desktop->projection().Phase == phase::ready; }, "install staged public offer");
+		expect(desktop->panel()->action(command::install)->isEnabled(), "only supplied installer capability enables gesture");
+		const auto checks = wire->Checks.load();
+		desktop->panel()->action(command::install)->trigger();
+		until([&] { return desktop->projection().Phase == phase::handed_off; }, "gesture refreshes and transfers to installer");
+		expect(wire->Checks == checks + 1U && install->Calls == 1U, "one refreshed authority and exact handoff");
+		expect(desktop->observe_installation_result(false) && desktop->projection().Phase == phase::recovered, "journal-proven abort clears handoff and reports recovery");
+		desktop->shutdown();
+		until([&] { return desktop->quiescent(); }, "install public course drains");
 	}
 	void unavailable_installations()
 	{

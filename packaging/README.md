@@ -8,6 +8,14 @@ Packaging must preserve the core/application/adapters/composition dependency
 graph, restrict Qt plugin discovery to trusted installation paths, and must not
 introduce an updater, browser runtime, listener, telemetry, or remote loader.
 
+RFC-BPR-0035 development now bundles `Contents/MacOS/bpr_update_helper` on macOS.
+The existing release tool signs nested Mach-O files and normalizes their rpaths,
+including this helper. Native composition does not select its installer until
+disposable signed-upgrade qualification is complete. This dormant helper does not
+amend RFC-BPR-0014's manual-update policy or constitute signed/notarized release
+evidence; package enablement and operator/security closeout remain gated by
+[[BPR-0948]] and [[BPR-0949]].
+
 ## Application icon
 
 The unchanged supplied vector is retained as

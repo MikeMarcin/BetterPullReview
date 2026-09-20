@@ -65,6 +65,8 @@ namespace bpr::application {
 		[[nodiscard]] auto is_closing() const noexcept -> bool;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+		/// \brief No appearance persistence refusal or outstanding effect remains.
+		[[nodiscard]] auto durable() const noexcept -> bool;
 
 	private:
 		struct implementation;
