@@ -1,0 +1,150 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d3-postreview-r2",
+  "mandate_revision": "r18-v004-handback",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {
+      "primary": {
+        "provider": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "implementer": {
+        "provider": "codex",
+        "model": "gpt-6-astra",
+        "effort": "max"
+      }
+    },
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0013",
+  "binding": {
+    "plan_id": "rfc-bpr-0013-hardening",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "milestone_id": "selected-diff-exact-epoch-pair",
+    "definition_fingerprint": "sha256:d6564328d09ba7cb3b6c0ccab877c950e92508c834610fc6a6f7dd695cdfaa6a",
+    "obligations": [
+      {
+        "id": "BPR-0794:*",
+        "source": "BPR-0794",
+        "selector": null,
+        "source_fingerprint": "sha256:40483423792bf171c0eb9eb83c0aeb3feb268a0c5d4a12f29cd957db4e646e2d"
+      },
+      {
+        "id": "BPR-0795:*",
+        "source": "BPR-0795",
+        "selector": null,
+        "source_fingerprint": "sha256:2ebb641549029b9b8c0425b682086e4ecacb400dd15361613a0f47865af390c2"
+      }
+    ],
+    "obligation_fingerprint": "sha256:2ac9f507d349bcd111cc1252bb3ed32c31ccfd3f2ac1fa1315ab716308422cfb",
+    "exit_criteria": [
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:1",
+        "text": "BPR-0794 attributes selected_file_stale and the absent exact epoch pair with metadata-only evidence and tests the failure through the public composition"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:2",
+        "text": "The responsible transition or host mapping preserves exact authority, accepted anchor and Git-object checks, bounded history and stale-result rejection"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:3",
+        "text": "Focused positive and negative checks, a composed public path, documentation gate and one integration-focused check pass"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:4",
+        "text": "A tests-disabled Mac CLI-profile read of EpicGames/UnrealEngine#1773 shows the correct file list and readable selected diff with checked source and anchor identity; any remaining refusal remains open and explicit, with no live write or account change"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:5",
+        "text": "Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition"
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:b508949581454c8c0f26b2e927bc2e79f2c510c6105761ac459fad1d545676fb",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "default-cache-byte-pressure",
+    "durable-agent-workspace-recovery",
+    "retained-stress-pr-read",
+    "large-pr-returned-commit-boundary",
+    "review-thread-null-anchor-read",
+    "selected-diff-exact-epoch-pair",
+    "verify-rfc-0013"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "30583deb35b6fc761a8d24fce0489f7fd6f71e69",
+    "workflow_branch": "main",
+    "workflow_revision": "30583deb35b6fc761a8d24fce0489f7fd6f71e69"
+  },
+  "continuation": {
+    "child": "/root/rfc0013_postreview_r2",
+    "assignment": "Fresh post-review owner for selected-diff-exact-epoch-pair; exclusive main checkout; no delegation",
+    "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
+    "previous_checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d1.json",
+    "deviation": "After prior writer/watch quiescence and review hand-back at sequence 434, adopted coordinator-implementer recipe revision 2. Historical revision-1 preset is absent from installed catalog. Topology and primary gpt-5.6-sol/low plus implementer gpt-6-astra/max routes unchanged. Coordinator preflight passes; configuration is not proof of native serving.",
+    "review": {
+      "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+      "cursor": 436,
+      "revision": "rfc0013-v004-9c670d88-71117a5c",
+      "source": "9c670d8868aaa32a35d45e96e917ae7c86542c00",
+      "executable_sha256": "71117a5cac30ae45bd6a1ff04efb7d7d16cb002739349936d8e03bd1110aba23",
+      "verdicts": [
+        {
+          "candidate": "BPR-0794-cli-selected-diff",
+          "sequence": 432,
+          "outcome": "accept",
+          "note": "Explicit follow-up request for long CLI warning dialog."
+        },
+        {
+          "candidate": "BPR-0795-loading-visible",
+          "sequence": 433,
+          "outcome": "reject",
+          "note": "Prompt transition, animation and status praised; no usable file diffs or epochs. Screenshot confirms no pair."
+        }
+      ],
+      "interpretation": "Preserve both original verdicts. Later screenshot and exact-target failure contradict readable-source acceptance, so BPR-0794 AC4 and integrated exit 4 remain unsatisfied. Loading presentation approval is retained separately from acquisition failure.",
+      "protections": "Only 0794/0795 released for authorized correction at 435/436; other candidates preserved."
+    },
+    "ownership": {
+      "writers": [
+        "/root/rfc0013_postreview_r2"
+      ],
+      "commands": "Initial composed public path and production sparse bridge complete. Existing attended server PID 12070 remains; owner-launched v004 app PID 15093 left untouched. No prior engineering writer/watch observed.",
+      "unrelated": [
+        ".mask.lock.json",
+        "ignored .claude/worktrees/agent-a17cae88115dbbb4e"
+      ]
+    },
+    "diagnosis": "Current public course passes but omits the large CLI wrapper path. Direct production sparse bridge passes (9382814 bytes, 5952 ms). Both provider account factory wrappers omit supports_sparse_commit_trees; CLI observed transport also omits read_exact_blob. Product therefore selects complete clone and refuses before an exact epoch pair.",
+    "next_action": "Claim BPR-0794/0795, reproduce wrapper capability/blob forwarding failure, repair with account/cancellation guards, verify through composed large-CLI current and historical selected-diff path; freeze new tests-disabled candidate if human acceptance remains."
+  }
+}

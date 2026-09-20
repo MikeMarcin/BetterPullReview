@@ -11,7 +11,33 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — resumed v004 / selected-diff-d2-resume
+## Current frontier — v004 hand-back / selected-diff-d3-postreview-r2
+
+Fresh leaf `/root/rfc0013_postreview_r2` owns the selected-diff milestone under
+mandate r18 plus the v004 hand-back. The new [checkpoint](../../rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-resume-20260919-selected-diff-d3-r2.json)
+preserves the prior binding and RFC base. Recipe revision 2 is a new continuation
+segment because the installed catalog no longer contains the revision-1 preset;
+topology and configured model/effort routes are unchanged. This is not evidence
+of runtime enforcement. No other engineering writer or prior watch is active.
+
+Session `cbd48b91000b00f1e72e1ad62c7c384c` handed back at sequence 434.
+Decision 432 accepts BPR-0794 and requests CLI warning cleanup, now [[BPR-0933]].
+Decision 433 rejects BPR-0795 while approving its prompt transition, animation
+and status: the target still has no usable diff or epoch. Its screenshot and
+fixed diagnostics show `protocol_acquire/transport/unavailable` before revision
+preparation. Both original verdicts remain intact; their contradiction means
+readable-source acceptance cannot be certified. Only these two candidates were
+released for correction (435/436); unrelated protections and BPR-0644 remain.
+
+The shortest composed setup course passes (37.39 seconds), and the direct sparse
+CLI bridge passes (9,382,814 bytes, 5,952 ms). The provider's two account-factory
+wrappers omit the sparse-capability override, and its observed Git transport
+omits exact-blob forwarding. Thus the app selects complete acquisition while
+the direct sparse probe bypasses the failure. Regressions and correction are
+the next action. Existing v004 app PID 15093 and server PID 12070 are preserved;
+`.mask.lock.json` and the unrelated nested checkout remain untouched.
+
+## Previous frontier — resumed v004 / selected-diff-d2-resume
 
 Leaf owner `/root/rfc0013_selected_diff_r19` resumes the preserved
 coordinator-implementer recipe with delegation prohibited by instruction.

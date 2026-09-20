@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0794"
 title: "Resolve the exact epoch pair for a large pull request selected diff"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"v003 fixed diagnostics show cache open succeeded, followed by protocol transport response_limit. The production bridge reproduced ENOENT between entry stat and file_size; its unsigned failure sentinel was mistaken for an oversized file. v004 identity records only fixed metadata."}},{"criterion":"AC2","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"12e9bdb8 skips only vanished temporary files; per-file/aggregate bytes, entry limit, symlink and other error refusal remain intact. Old-scanner negative control fails the new churn regression. Fixed bridge completes three exact-target sparse acquisitions; exact current/historical and stale/source tests pass without changing cache/authority policy."}},{"criterion":"AC3","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Final serial focused suite 8/8 pass in 68.12 seconds, including actual setup/CLI installed-cache source/epoch course; portable two-catalogue integration passes in 243.66 seconds. Documentation, 64 verifier tests, formatting and signature verification pass. Whole-tree architecture scan's unrelated nested .claude/worktrees duplicate target and prior wider-test limits are explicit in v004 identity."}},{"criterion":"AC4","outcome":"pending","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Tests-disabled signed Release digest 71117a5c… is bound to rfc0013-v004-9c670d88-71117a5c. Fresh selected-diff question ready/protected at sequence427, observations through429; no human verdict. Production-bridge and synthetic product evidence do not substitute for the exact-target readable source/anchor acceptance. Parent owns later server/watch."}},{"criterion":"AC5","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"No GitHub write, account switch, device-session change or credential extraction. Private read bodies/OIDs/packs were memory-only or in production-owned temporary stores outside checkout; normal cleanup completed and six empty interrupted-probe roots were removed after verifying no handles. Existing owner r18 app and unrelated .mask.lock.json/nested checkout left untouched. No task-owned app, probe, served host or watcher remains."}}]
-parked_on: "human-review"
 ---
 
 # Resolve the exact epoch pair for a large pull request selected diff

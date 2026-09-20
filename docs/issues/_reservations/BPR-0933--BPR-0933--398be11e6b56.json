@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0933"
+  ],
+  "reserve_for": "rfc0013-v004-cli-warning-followup",
+  "purpose": "",
+  "created": "2026-09-20T08:04:32.047655+00:00",
+  "base": "30583deb35b6fc761a8d24fce0489f7fd6f71e69"
+}

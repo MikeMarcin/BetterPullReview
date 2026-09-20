@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Held real setup/public composition paints the full-width Overview before an accepted provider terminal, including the pending setup continuation. A typed phase/page/sequence stream is coalesced to one decision task and exact-request guarded. Qt tests cover latest/foreign/stale/cancelled progress; provider exceptions preserve the terminal. Rendered loading and comparison-preparing surfaces inspected."}},{"criterion":"AC2","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Bounded accepted-shape small/large policy is unchanged; reuse the core_epoch_policy/application_epoch_host positive, missing/conflicting-fact and stale-selection evidence bound in v003. Current public path and portable integration rerun the existing route."}},{"criterion":"AC3","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"No acquisition authority or small-complete/large-sparse scheduling change. Current real CLI bridge, actual installed-cache source/epoch public course and portable two-catalogue current/historical source course pass. Only vanished temporary files cease being false byte-limit failures; existing limits and explicit unavailability are preserved."}},{"criterion":"AC4","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Final serial focused 8/8 and portable integration pass; documentation, 64 verifier self-tests, formatting and tests-disabled signed Release pass. No live write/account/device change, token extraction or private content retained. v004 identity records the unrelated nested-worktree architecture failure and prior broad Qt/self-test limitations without claiming they pass."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"BPR-0795-loading-visible is ready/protected under rfc0013-v004-9c670d88-71117a5c at sequence427; objective observations through429. Owner's v003 rejection is preserved. Human judgment of immediate Overview, progress/readiness and responsiveness remains pending. No new human criterion is added to automated policy bullets; parent will own the served review/watch."}}]
-parked_on: "human-review"
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
