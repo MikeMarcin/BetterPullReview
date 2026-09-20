@@ -4126,7 +4126,13 @@ namespace bpr::adapters::git {
 						&& Installation.VersionMinor < 44U)) {
 					return "--fsck-objects";
 				}
-				return "--fsck-objects=" + ignored_fsck_message_policy(Installation);
+				// [[BPR-0794]] Blobless packs also omit these special files. Git
+				// otherwise requires .gitattributes and prints a missing
+				// .gitmodules identity on stdout, refusing a valid sparse import.
+				// Only absence is permitted here: present malformed objects keep
+				// their error severity, and complete imports retain strict fsck.
+				return "--fsck-objects=" + ignored_fsck_message_policy(Installation)
+					+ ",gitattributesMissing=ignore,gitmodulesMissing=ignore";
 			}
 
 			[[nodiscard]] auto index_pack_impl(const application::git_index_pack_request& aRequest,

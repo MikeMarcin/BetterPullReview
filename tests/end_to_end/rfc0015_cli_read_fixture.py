@@ -31,6 +31,37 @@ def prepare(directory, course):
     objects = json.loads((object_fixture / ("manifest.json" if large else "objects.json")).read_text())
     base, head = ((objects["base"], objects["heads"][-1]) if large else
                   (objects["commits"]["base"], objects["commits"]["head1"]))
+    repository = directory / "repository.git"
+    subprocess.run(["/usr/bin/git", "init", "--bare", str(repository)],
+                   check=True, capture_output=True)
+    with (object_fixture / "objects.pack").open("rb") as pack:
+        subprocess.run(["/usr/bin/git", "--git-dir", str(repository),
+                        "index-pack", "--stdin"], stdin=pack, check=True, capture_output=True)
+    if large:
+        # Real blobless clones omit these too. Without them the previous
+        # production course missed Git's special missing-blob fsck failures.
+        environment = {"PATH": "/usr/bin:/bin", "HOME": str(directory / "home"),
+                       "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+                       "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+                       "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+                       "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+0000",
+                       "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+0000"}
+
+        def git(*arguments, data=None):
+            return subprocess.check_output(["/usr/bin/git", "--git-dir", str(repository),
+                                            *arguments], input=data, env=environment)
+
+        attributes = git("hash-object", "-w", "--stdin", data=b"*.cpp text\n").strip()
+        modules = git("hash-object", "-w", "--stdin", data=b"").strip()
+        replacements = []
+        for oid in [base, *objects["heads"]]:
+            entries = git("ls-tree", oid) + b"100644 blob " + attributes + b"\t.gitattributes\n"
+            entries += b"100644 blob " + modules + b"\t.gitmodules\n"
+            tree = git("mktree", data=entries).decode().strip()
+            parent = ["-p", replacements[-1]] if replacements else []
+            replacements.append(git("commit-tree", tree, *parent, data=b"sparse special blobs\n").decode().strip())
+        base, head = replacements[0], replacements[-1]
+        objects["heads"] = replacements[1:]
     source = ROOT / "tests/fixtures/github/contracts/v1/github-com"
     manifest = json.loads((source / "manifest.json").read_text())
     routes = {}
@@ -71,11 +102,6 @@ def prepare(directory, course):
     executable.chmod(0o700)
     if course == "missing-process":
         executable.rename(directory / "bin/gh.absent")
-    subprocess.run(["/usr/bin/git", "init", "--bare", str(directory / "repository.git")],
-                   check=True, capture_output=True)
-    with (object_fixture / "objects.pack").open("rb") as pack:
-        subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
-                        "index-pack", "--stdin"], stdin=pack, check=True, capture_output=True)
     for ref, oid in (("refs/heads/main", base), ("refs/pull/17/head", head)):
         subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
                         "update-ref", ref, oid], check=True, capture_output=True)

@@ -42,6 +42,12 @@ class cli_read_fixture_tests(unittest.TestCase):
             self.assertEqual(subprocess.run(command, capture_output=True, timeout=15).returncode, 64)
             self.assertFalse(destination.exists())
             subprocess.run([*command, "--depth=1", "--filter=blob:none"], check=True, capture_output=True, timeout=15)
+            for name in (".gitattributes", ".gitmodules"):
+                oid = subprocess.check_output(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
+                                               "rev-parse", state["head"] + ":" + name]).decode().strip()
+                absent = subprocess.run(["/usr/bin/git", "--git-dir", str(destination), "cat-file", "-e", oid],
+                                        env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""}, capture_output=True)
+                self.assertNotEqual(absent.returncode, 0, "special blobs must also remain absent in the sparse course")
             selected = next(item for item in manifest["files"] if item["path"] == "src/file_0000.cpp")
             missing = subprocess.run(["/usr/bin/git", "--git-dir", str(destination), "cat-file", "-e", selected["head"]["oid"]],
                                      env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""}, capture_output=True)

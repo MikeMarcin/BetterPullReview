@@ -3750,6 +3750,64 @@ namespace {
 		return residue;
 	}
 
+	auto run_sparse_special_blob_contract() -> void
+	{
+		temporary_root root{ "git-sparse-special-blobs" };
+		auto           adapter      = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, root.Path);
+		const auto     installation = adapter->installation();
+		if (installation.VersionMajor < 2U || (installation.VersionMajor == 2U && installation.VersionMinor < 44U)) {
+			return; // Older Git cannot configure sparse fsck severities.
+		}
+		const auto source = repository_path(root.Path, '1');
+		initialize_repository(*adapter, source, application::git_hash_algorithm::sha1);
+		std::uint8_t operation = 0x80U;
+		char         digit     = '2';
+		struct special_blob_case
+		{
+			std::string Name;
+			std::string Content;
+			std::string ExpectedError; // Empty means the blob is deliberately absent.
+		};
+		const std::array<special_blob_case, 4U> cases{ {
+			{ ".gitattributes", "*.cpp text\n", "" },
+			{ ".gitmodules", "", "" },
+			{ ".gitattributes", std::string(4096U, 'a') + " text\n", "gitattributesLineLength" },
+			{ ".gitmodules", "[submodule \"bad\"]\npath = -unsafe\n", "gitmodulesPath" },
+		} };
+		for (const auto& testCase : cases) {
+			const auto malformed = !testCase.ExpectedError.empty();
+			const auto blob      = run_fixture_git(source, { "hash-object", "-w", "--stdin" }, testCase.Content);
+			const auto tree      = run_fixture_git(source, { "mktree" }, "100644 blob " + blob + "\t" + testCase.Name + "\n");
+			const auto prefix    = root.Path / ("special-" + std::to_string(operation));
+			const auto packHex   = run_fixture_git(source, { "pack-objects", prefix.string() }, tree + "\n" + (malformed ? blob + "\n" : ""));
+			const auto bytes     = read_text(prefix.string() + "-" + packHex + ".pack");
+			for (const auto sparse : { false, true }) {
+				const auto repository = repository_path(root.Path, digit++);
+				initialize_repository(*adapter, repository, application::git_hash_algorithm::sha1);
+				const auto identity = make_operation(operation++);
+				write_spool(*adapter, identity, std::as_bytes(std::span{ bytes }));
+				const application::git_index_pack_request request{
+					.Repository        = repository,
+					.Operation         = identity,
+					.SpoolBytes        = bytes.size(),
+					.MaximumInputBytes = bytes.size(),
+					.ExpectedPack      = object<application::git_pack_id>(packHex, application::git_hash_algorithm::sha1),
+				};
+				const auto result = sparse ? adapter->index_sparse_pack(request, { }) : adapter->index_pack(request, { });
+				if (sparse && !malformed) {
+					require(result.has_value(), "sparse import accepts intentionally absent special blobs without extra stdout");
+				} else {
+					require(!result, "complete imports refuse absent special blobs and both paths refuse malformed present blobs");
+					if (malformed) {
+						require(result.error() == application::git_process_failure::unsupported_object
+									&& result.error().Detail == testCase.ExpectedError,
+								"sparse import retains the exact present-object fsck error");
+					}
+				}
+			}
+		}
+	}
+
 	auto run_fsck_severity_contract() -> void
 	{
 		const std::filesystem::path fixtures{ BPR_FSCK_SEVERITY_FIXTURE_ROOT };
@@ -3958,6 +4016,7 @@ auto main(int argc, char** argv) -> int
 	run_agent_workspace_parent_cleanup_contract();
 	run_process_error_detail_contract();
 	run_fsck_severity_contract();
+	run_sparse_special_blob_contract();
 	std::cout << "Git process contract passed\n";
 	return 0;
 }
