@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0794"
 title: "Resolve the exact epoch pair for a large pull request selected diff"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"v005 identity binds the v004 fixed transport/unavailable diagnostic and missed sparse-capability/exact-blob wrapper path. Old provider fails the new regression; the exact signed app reaches pair-ready and readable source in a 515-file sparse-only local fixture."}},{"criterion":"AC2","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"37343abf forwards capability and exact blobs using existing guards. Tests cover false capability, exact context/OID/byte bound, pre/post account drift and revocation, before/during cancellation, retained failure and lease lifetime. Host/integration retain stale and current/historical authority checks."}},{"criterion":"AC3","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Focused 5/5 pass (65.31 s); portable two-catalogue integration passes (215.62 s); external fixture 4/4 passes. Native tests-disabled 515-file exact-pair/source course passes; documentation and 64 verifier tests, C++ formatting, diff check and signed Release pass. v005 identity records broader limits."}},{"criterion":"AC4","outcome":"pending","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"v004 accepted 0794 but later rejected the integrated read with concrete missing source/epochs. Preserve both verdicts; no readable-source acceptance inferred. Fresh v005 candidate af95465d... ready/protected at 439, observations through 440. Real-target source/anchor human acceptance remains required."}},{"criterion":"AC5","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"No live write, account switch, device-session change, credential extraction or private content retained. Real sparse-bridge prerequisite check used bounded in-memory reads and normal cleanup; native UI verification used a disposable synthetic CLI/home. Existing owner app and unrelated changes preserved."}}]
-parked_on: "human-review"
 ---
 
 # Resolve the exact epoch pair for a large pull request selected diff
