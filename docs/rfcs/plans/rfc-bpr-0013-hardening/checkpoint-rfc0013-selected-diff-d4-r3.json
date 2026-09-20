@@ -1,0 +1,108 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d4-postreview-r3",
+  "mandate_revision": "r19-v005-independent-verification",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {
+      "primary": {
+        "provider": "codex",
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "implementer": {
+        "provider": "codex",
+        "model": "gpt-6-astra",
+        "effort": "max"
+      }
+    },
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0013",
+  "binding": {
+    "plan_id": "rfc-bpr-0013-hardening",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "milestone_id": "selected-diff-exact-epoch-pair",
+    "definition_fingerprint": "sha256:d6564328d09ba7cb3b6c0ccab877c950e92508c834610fc6a6f7dd695cdfaa6a",
+    "obligations": [
+      {
+        "id": "BPR-0794:*",
+        "source": "BPR-0794",
+        "selector": null,
+        "source_fingerprint": "sha256:06e3725f052e45d46bc040d97f5725b9309c7f45ab9896c36eca8e07c338ad5d"
+      },
+      {
+        "id": "BPR-0795:*",
+        "source": "BPR-0795",
+        "selector": null,
+        "source_fingerprint": "sha256:bfadb8abd42ce1897e97c18acc621a01bf2f6e058e987f7ce2ef4f3f023f10a4"
+      }
+    ],
+    "obligation_fingerprint": "sha256:13913b0d2c0a9015d78260ff6b7a16d850e13444bc9550db41779e45e3bcefc7",
+    "exit_criteria": [
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:1",
+        "text": "BPR-0794 attributes selected_file_stale and the absent exact epoch pair with metadata-only evidence and tests the failure through the public composition"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:2",
+        "text": "The responsible transition or host mapping preserves exact authority, accepted anchor and Git-object checks, bounded history and stale-result rejection"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:3",
+        "text": "Focused positive and negative checks, a composed public path, documentation gate and one integration-focused check pass"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:4",
+        "text": "A tests-disabled Mac CLI-profile read of EpicGames/UnrealEngine#1773 shows the correct file list and readable selected diff with checked source and anchor identity; any remaining refusal remains open and explicit, with no live write or account change"
+      },
+      {
+        "id": "selected-diff-exact-epoch-pair:exit:5",
+        "text": "Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition"
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:b508949581454c8c0f26b2e927bc2e79f2c510c6105761ac459fad1d545676fb",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "default-cache-byte-pressure",
+    "durable-agent-workspace-recovery",
+    "retained-stress-pr-read",
+    "large-pr-returned-commit-boundary",
+    "review-thread-null-anchor-read",
+    "selected-diff-exact-epoch-pair",
+    "verify-rfc-0013"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "9c4a673ca4262a68af434ad7317167f4d4606ade",
+    "workflow_branch": "main",
+    "workflow_revision": "9c4a673ca4262a68af434ad7317167f4d4606ade"
+  }
+}

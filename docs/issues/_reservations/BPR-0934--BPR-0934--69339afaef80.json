@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0934"
+  ],
+  "reserve_for": "rfc0013-v005-overview-folder-collapse",
+  "purpose": "",
+  "created": "2026-09-20T08:53:42.885847+00:00",
+  "base": "9c4a673ca4262a68af434ad7317167f4d4606ade"
+}

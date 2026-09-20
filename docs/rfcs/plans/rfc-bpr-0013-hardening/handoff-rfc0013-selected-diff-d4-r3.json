@@ -1,0 +1,36 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d4-postreview-r3",
+  "mandate_revision": "r19-v005-independent-verification",
+  "child": "/root/rfc0013_postreview_r3",
+  "assignment": "selected-diff-exact-epoch-pair; exclusive main checkout; engineering contract v1; coordinator-implementer recipe revision 2; non-delegating",
+  "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
+  "entry_revision": "8ee27fdc",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d4-r3.json",
+  "review": {
+    "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "rejected_revision": "rfc0013-v005-37343abf-5f956714",
+    "fingerprint": "af95465d3f110907a65c082dfcb1459b1bef863f90ec33e942f4910b4479dc4b",
+    "reject_sequence": 441,
+    "handback_sequence": 442,
+    "release_sequence": 443,
+    "interpretation": "Authoritative failure: no readable selected diff; many pages before Overview content. No new review until independently reproduced and objectively verified in the signed tests-disabled app. Folder-collapse request tracked separately as BPR-0934."
+  },
+  "diagnosis": "Rejected app fixed diagnostics show protocol acquisition succeeds, then revision_prepare fails cache/unsupported_object. Loading pages precede epoch work and belong to provider pagination. Independent exact-app reproduction in progress.",
+  "ownership": {
+    "engineering_owner": "/root/rfc0013_postreview_r3",
+    "writers": ["/root/rfc0013_postreview_r3"],
+    "unrelated": [".mask.lock.json", ".claude/worktrees/agent-a17cae88115dbbb4e"],
+    "owner_app": "PID 15093 already absent on entry; diagnostics record normal shutdown 2026-09-20T08:48:22Z. Never signalled.",
+    "task_commands": "Signed v005 native app launched with CUA for exact-target read-only reproduction. No background build/test or child agent. Existing review host belongs to coordinator."
+  },
+  "pending_obligations": [
+    "Reproduce exact-target failure in the real signed tests-disabled app, repair, and independently demonstrate readable source and exact anchors.",
+    "Diagnose provider page latency; fix causal in-scope defects without accepting incomplete snapshots.",
+    "Focused failing-before regression through production composition, safety negatives, integration, documentation and self-review.",
+    "Preserve all wider RFC/native/human obligations and unrelated attended decisions."
+  ],
+  "next_action": "Complete the exact-app reproduction, inspect sanitized fsck identifier, then exercise the actual sparse import composition with a representative safe regression."
+}
