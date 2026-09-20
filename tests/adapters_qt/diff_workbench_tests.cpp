@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFont>
+#include <QFontMetricsF>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -1891,7 +1892,7 @@ namespace {
 		return aPane.viewport()->mapTo(&aPane, aPane.cursorRect(cursor).topLeft()).x();
 	}
 
-	[[nodiscard]] auto tabbed_correspondence_geometry(qt::diff_workbench& aWorkbench) -> std::array<int, 3U>
+	[[nodiscard]] auto tabbed_correspondence_geometry(qt::diff_workbench& aWorkbench, const int aTabWidth) -> std::array<int, 3U>
 	{
 		auto positions = std::array<int, 3U>{ };
 		for (auto depth = 1; depth <= 3; ++depth) {
@@ -1900,6 +1901,10 @@ namespace {
 			expect(leftX == rightX, "corresponding tab depths have equal pane-relative first-glyph x");
 			positions[static_cast<std::size_t>(depth - 1)] = leftX;
 		}
+		const auto advance = QFontMetricsF{ aWorkbench.left_pane()->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * aTabWidth;
+		expect(std::abs(positions[1] - positions[0] - advance) <= 1.0
+				   && std::abs(positions[2] - positions[1] - advance) <= 1.0,
+			   "painted tab depths advance by the selected number of code-font spaces");
 		expect(positions[0] < positions[1] && positions[1] < positions[2],
 			   "one, two and three authored tabs occupy distinct indentation depths");
 		return positions;
@@ -1927,7 +1932,7 @@ namespace {
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		}));
 		settle_geometry(workbench);
-		const auto unstyledPositions = tabbed_correspondence_geometry(workbench);
+		const auto unstyledPositions = tabbed_correspondence_geometry(workbench, 4);
 		const auto spans             = application::token_span_list{
 			{ .Line = 0U, .Column = 1U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
 			{ .Line = 1U, .Column = 2U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
@@ -1960,7 +1965,7 @@ namespace {
 			}
 		};
 		verifySources();
-		expect(tabbed_correspondence_geometry(workbench) == unstyledPositions,
+		expect(tabbed_correspondence_geometry(workbench, 4) == unstyledPositions,
 			   "syntax formatting does not move authored indentation");
 		const auto result = workbench.current_result();
 		const auto index  = workbench.current_semantic_index();
@@ -1971,7 +1976,7 @@ namespace {
 		profile.apply_code_font_to(workbench);
 		settle_geometry(workbench);
 		verifySources();
-		const auto widenedPositions = tabbed_correspondence_geometry(workbench);
+		const auto widenedPositions = tabbed_correspondence_geometry(workbench, 8);
 		expect(widenedPositions[0] > unstyledPositions[0] && widenedPositions[1] > unstyledPositions[1]
 				   && widenedPositions[2] > unstyledPositions[2],
 			   "a tab-width-only change widens every indentation depth");
@@ -1979,6 +1984,16 @@ namespace {
 				   && workbench.current_context() == selected && workbench.left_pane()->font() == font
 				   && *workbench.current_result() == diff,
 			   "tab geometry changes preserve the source, mapping index, comparison identity and font");
+		codeFont.TabWidth = 2U;
+		expect(profile.select_code_font(codeFont).Changed, "two-column tabs change presentation");
+		profile.apply_code_font_to(workbench);
+		settle_geometry(workbench);
+		verifySources();
+		const auto narrowedPositions = tabbed_correspondence_geometry(workbench, 2);
+		expect(narrowedPositions[0] < unstyledPositions[0]
+				   && narrowedPositions[1] < unstyledPositions[1]
+				   && narrowedPositions[2] < unstyledPositions[2],
+			   "two-column tab stops narrow all three authored indentation depths");
 	}
 
 	/// \brief A classified blob must reach the pane's rendered formats.

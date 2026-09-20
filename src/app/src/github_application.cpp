@@ -11920,6 +11920,7 @@ namespace bpr::app {
 			// rather than quietly wrong.
 			if (auto* const workbench = Window->comparison_surface();
 				workbench != nullptr) {
+				AppearanceProfile->apply_code_font_to(*workbench);
 				workbench->adopt_appearance(*AppearanceProfile);
 			}
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {

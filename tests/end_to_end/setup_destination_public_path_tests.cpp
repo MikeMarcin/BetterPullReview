@@ -17,6 +17,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QFontMetricsF>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -108,6 +109,19 @@ namespace {
 		QApplication::processEvents();
 		auto* surface = aWindow.sign_in_dialog() && aWindow.sign_in_dialog()->isVisible() ? static_cast<QWidget*>(aWindow.sign_in_dialog()) : &aWindow;
 		expect(surface->grab().save(root + QLatin1Char{ '/' } + aName), "public fixture window capture");
+	}
+
+	void verify_composed_code_metrics(app::github_application& aApplication, const std::uint32_t aWidth)
+	{
+		auto* const workbench = aApplication.window().comparison_surface();
+		for (auto* const pane : { workbench->left_pane(), workbench->right_pane(), workbench->detail_pane(),
+								  aApplication.window().findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) }) {
+			expect(pane != nullptr, "every composed source pane exists");
+			const auto expected = QFontMetricsF{ pane->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * aWidth;
+			expect(qAbs(pane->tabStopDistance() - expected) < 0.01
+					   && qAbs(pane->document()->defaultTextOption().tabStopDistance() - expected) < 0.01,
+				   "composed source layout uses the selected code-font tab width, not Qt's default");
+		}
 	}
 
 	void run_course(const bool aEnterprise)
@@ -497,6 +511,14 @@ namespace {
 		auto& window = application->window();
 		window.show();
 		QApplication::processEvents();
+		verify_composed_code_metrics(*application, 4U);
+		for (const auto width : { 2U, 8U, 4U }) {
+			expect(github_application_fixture_access::apply_appearance_gesture(
+					   *application, core::appearance_mode::dark, width),
+				   "the composed Settings control accepts each offered tab width");
+			QApplication::processEvents();
+			verify_composed_code_metrics(*application, width);
+		}
 
 		// Discard the first setup surface while the CLI inventory settles. The
 		// second gesture must use the discovered, explicitly confirmed profile.
@@ -672,6 +694,7 @@ namespace {
 		auto& recoveredWindow = application->window();
 		recoveredWindow.show();
 		QApplication::processEvents();
+		verify_composed_code_metrics(*application, 4U);
 		recoveredWindow.home_landing()->secondary_button()->click();
 		cancel_setup(recoveredWindow);
 		auto   recoveredConfirmations = 0U;
