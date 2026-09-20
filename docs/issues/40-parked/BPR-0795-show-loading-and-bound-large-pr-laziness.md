@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Held real setup/public composition paints the full-width Overview before an accepted provider terminal, including the pending setup continuation. A typed phase/page/sequence stream is coalesced to one decision task and exact-request guarded. Qt tests cover latest/foreign/stale/cancelled progress; provider exceptions preserve the terminal. Rendered loading and comparison-preparing surfaces inspected."}},{"criterion":"AC2","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Bounded accepted-shape small/large policy is unchanged; reuse the core_epoch_policy/application_epoch_host positive, missing/conflicting-fact and stale-selection evidence bound in v003. Current public path and portable integration rerun the existing route."}},{"criterion":"AC3","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"No acquisition authority or small-complete/large-sparse scheduling change. Current real CLI bridge, actual installed-cache source/epoch public course and portable two-catalogue current/historical source course pass. Only vanished temporary files cease being false byte-limit failures; existing limits and explicit unavailability are preserved."}},{"criterion":"AC4","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"Final serial focused 8/8 and portable integration pass; documentation, 64 verifier self-tests, formatting and tests-disabled signed Release pass. No live write/account/device change, token extraction or private content retained. v004 identity records the unrelated nested-worktree architecture failure and prior broad Qt/self-test limitations without claiming they pass."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"BPR-0795-loading-visible is ready/protected under rfc0013-v004-9c670d88-71117a5c at sequence427; objective observations through429. Owner's v003 rejection is preserved. Human judgment of immediate Overview, progress/readiness and responsiveness remains pending. No new human criterion is added to automated policy bullets; parent will own the served review/watch."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Prior held real composition and coalesced exact-request progress tests remain valid; presentation is unchanged. New tests-disabled 515-file course directly shows immediate loading Overview."}},{"criterion":"AC2","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Accepted-shape policy and thresholds unchanged. Current application_epoch_host and application_github_window_read_host pass, including small/large and missing/conflicting/stale facts."}},{"criterion":"AC3","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Repaired account wrappers preserve large sparse capability and guarded exact-blob reads. Sparse-only 515-file native fixture reaches exact source without complete clone. Small-complete public course and portable current/historical course pass; bounds/refusals retained."}},{"criterion":"AC4","outcome":"pass","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Focused 5/5, integration, fixture 4/4, native synthetic source/anchors, documentation, 64 verifier tests, formatting and signed Release pass. Safety and broader limits recorded in v005 identity."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pass","revision":"9c670d8868aaa32a35d45e96e917ae7c86542c00","evidence":{"kind":"artifact","detail":"v004 sequence433 rejected the integrated result but explicitly approved prompt transition, loading animation and status. Retain only that presentation observation; do not change the reject verdict or accept missing source. Presentation code unchanged."}},{"criterion":"shared-milestone-exit-4","outcome":"pending","revision":"37343abf71d53205630396045f528bba34649ed8","evidence":{"kind":"artifact","detail":"Coupled selected-diff milestone still requires BPR-0794 AC4 real-target source/anchor acceptance. Both cards remain parked until that exit is genuinely met; only the selected-diff question is refreshed."}}]
+parked_on: "human-review"
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
@@ -42,7 +43,30 @@ exact-target selected-diff acceptance.
 
 ## Evidence
 
-### Current correction — attended v003 rejected
+### Current correction — v004 hand-back, v005 prepared
+
+The owner explicitly approved the prompt transition, loading animation and
+status in v004 decision 433, while rejecting the integrated result because
+source and epochs were unavailable. Preserve that reject and its positive
+presentation observation separately. No loading UI changed this round, so no
+new loading question is needed.
+
+`37343abf` restores sparse-capability forwarding across both CLI account
+wrappers and guards exact-blob reads through the observed lease. The host's
+small/large scheduling policy is unchanged. Focused host/provider/bridge/public
+tests and the portable current/historical integration pass. The exact signed
+tests-disabled app displays the 515-file synthetic sparse-only course, then
+the manifest-matching pair and readable on-demand selected source. This closes
+the missing production-wrapper evidence, not the real-target human exit.
+
+The [v005 identity](../../verification/reviews/rfc-bpr-0013-attended-v005/session-identity.json)
+records the source, bundle, checks and limits. The coupled milestone still waits
+on BPR-0794 AC4; this card remains Parked for that shared exact-target exit.
+The sole refreshed question is the selected diff and its exact anchors, not a
+repeat of loading or device authorization. No private content was retained and
+all task-owned native app processes were quit normally and reaped.
+
+### Historical correction — attended v003 rejected
 
 The owner rejected v003 because Open remained on Home during the long read,
 then content appeared without useful progress or readiness. This round must
