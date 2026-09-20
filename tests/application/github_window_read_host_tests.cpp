@@ -31,12 +31,20 @@ namespace {
 		{
 			application::github_pull_request_provider_request   Request;
 			application::github_pull_request_completion_handler Complete;
+			application::github_pull_request_overview_handler   Overview{ };
 		};
 		std::vector<call> Calls;
 		std::size_t       Cancellations = 0;
 		void              fetch_pull_request(application::github_pull_request_provider_request   aRequest,
 											 application::github_pull_request_completion_handler aComplete) override { Calls.push_back({ std::move(aRequest), std::move(aComplete) }); }
 		void              cancel_pull_request(application::github_pull_request_provider_request) override { ++Cancellations; }
+		void              fetch_pull_request_with_observations(application::github_pull_request_provider_request   aRequest,
+															   application::github_pull_request_completion_handler aComplete,
+															   application::github_pull_request_progress_handler,
+															   application::github_pull_request_overview_handler aOverview) override
+		{
+			Calls.push_back({ std::move(aRequest), std::move(aComplete), std::move(aOverview) });
+		}
 	};
 	struct epoch_handoffs final : application::github_epoch_handoff_port
 	{
@@ -116,6 +124,82 @@ namespace {
 				.Search = application::github_rate_limit_record{ application::github_rate_limit_resource::search, 30U, 29U, 100U },
 			},
 		};
+	}
+
+	void test_provisional_overview_is_bounded_and_never_authority()
+	{
+		reads                                               provider;
+		application::manual_executor                        lane;
+		epoch_handoffs                                      epochs;
+		std::vector<application::github_window_read_update> updates;
+		application::github_window_read_host                host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 2U }, core::bpr_window_generation{ 1U } },
+			core::application_session_id{ 2U },
+			provider,
+			lane,
+			[&](const auto& update) { updates.push_back(update); },
+			&epochs
+		};
+		expect(host.adopt(session()), "progressive fixture accepts exact account session");
+		const auto observation = [](const reads::call& call) {
+			auto data                            = snapshot(call.Request);
+			data.PullRequest.ReportedCommitCount = 5U;
+			return application::github_pull_request_overview_observation{ call.Request.Context, data.Repository, data.PullRequest, 1523U };
+		};
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
+		const auto first           = provider.Calls.back();
+		const auto before          = updates.size();
+		auto       foreign         = observation(first);
+		foreign.Context.Generation = core::request_generation{ 999U };
+		first.Overview(foreign);
+		expect(lane.pending() == 0U, "foreign observations do not consume the current request's single publication");
+		for (auto n = 0; n < 1000; ++n) {
+			first.Overview(observation(first));
+		}
+		expect(lane.pending() == 1U && updates.size() == before, "repeated provider observations retain one bounded decision-lane task");
+		lane.drain();
+		expect(updates.size() == before + 1U && updates.back().Presentation.LoadingOverview
+				   && updates.back().Presentation.LoadingOverview->Title == "Host orchestration"
+				   && updates.back().Presentation.LoadingOverview->ReportedFiles == 1523U
+				   && !updates.back().Presentation.PullRequest && !host.accepted_snapshot() && epochs.AcceptCount == 0U,
+			   "validated useful metadata is visible without snapshot, epoch or file authority");
+		first.Complete(application::github_pull_request_error{ first.Request, { .Failure = application::github_provider_failure::unavailable } });
+		lane.drain();
+		first.Overview(observation(first));
+		expect(lane.pending() == 0U && !host.accepted_snapshot(), "terminal failure rejects late metadata and never accepts partial content");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 2U } });
+		const auto second = provider.Calls.back();
+		second.Overview(observation(second));
+		host.cancel();
+		const auto afterCancel = updates.size();
+		lane.drain();
+		expect(updates.size() == afterCancel, "queued observations cannot revive a cancelled target");
+		second.Complete(application::github_pull_request_cancelled{ second.Request });
+		lane.drain();
+		host.dispatch(core::open_pull_request_intent{ { "owner", "fresh" }, core::pull_request_number{ 3U } });
+		const auto third   = provider.Calls.back();
+		auto       invalid = observation(third);
+		invalid.PullRequest.Title.assign(1025U, 'x');
+		third.Overview(invalid);
+		const auto beforeInvalid = updates.size();
+		lane.drain();
+		expect(updates.size() == beforeInvalid, "oversized metadata cannot reach the projection");
+		third.Complete(application::github_pull_request_success{ third.Request, snapshot(third.Request) });
+		lane.drain();
+		expect(host.accepted_snapshot() && updates.back().Presentation.PullRequest && !updates.back().Presentation.LoadingOverview,
+			   "only the complete validated terminal promotes authoritative content");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "last" }, core::pull_request_number{ 4U } });
+		const auto fourth                      = provider.Calls.back();
+		auto       wrongRepository             = observation(fourth);
+		wrongRepository.PullRequest.Repository = core::repository_id{ 999U };
+		fourth.Overview(wrongRepository);
+		const auto beforeMismatch = updates.size();
+		lane.drain();
+		expect(updates.size() == beforeMismatch, "metadata cannot cross its exact repository relationship");
+		host.shutdown();
+		fourth.Complete(application::github_pull_request_cancelled{ fourth.Request });
+		lane.drain();
+		expect(host.is_quiescent(), "progressive publication accounts for all queued work");
 	}
 
 	void test_safe_read_presentation_matches_accepted_state()
@@ -421,6 +505,7 @@ namespace {
 }
 int main()
 {
+	test_provisional_overview_is_bounded_and_never_authority();
 	test_loading_budget_shape();
 	test_reentrant_read_publication();
 	test_safe_read_presentation_matches_accepted_state();

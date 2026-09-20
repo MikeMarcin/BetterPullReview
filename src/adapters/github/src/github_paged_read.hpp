@@ -92,6 +92,10 @@ namespace bpr::adapters::github::detail {
 		virtual void observe(read_operation aOperation, int aHttpStatus) noexcept                = 0;
 		virtual void request_started(read_operation aOperation) noexcept                         = 0;
 		virtual void validation_failed(application::github_read_validation aValidation) noexcept = 0;
+		virtual void overview_observed(application::github_pull_request_overview_observation aObservation) noexcept
+		{
+			static_cast<void>(aObservation);
+		}
 	};
 
 	/// \brief Reads at most ten timeline pages, 100 records each, including ignored events.

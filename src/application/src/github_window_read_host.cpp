@@ -802,11 +802,56 @@ namespace bpr::application {
 				}
 			};
 			try {
-				pull_request_port_for(aRequest).fetch_pull_request_with_progress(aRequest, callback,
-																				 progress_callback(token, aRequest.Context, once));
+				pull_request_port_for(aRequest).fetch_pull_request_with_observations(aRequest, callback,
+																					 progress_callback(token, aRequest.Context, once), overview_callback(token, aRequest.Context, once));
 			} catch (...) {
 				callback(github_pull_request_error{ .Request = aRequest,
 													.Error   = { .Failure = github_provider_failure::response_limit } });
+			}
+		}
+
+		[[nodiscard]] auto overview_callback(const std::uint64_t                       aToken,
+											 const core::pull_request_request_context& aContext, const std::shared_ptr<std::atomic_bool>& aTerminal)
+			-> github_pull_request_overview_handler
+		{
+			auto posted = std::make_shared<std::atomic_bool>(false);
+			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted](github_pull_request_overview_observation aObservation) {
+				if (aObservation.Context != aContext || aTerminal->load() || posted->exchange(true)) {
+					return;
+				}
+				auto host = weak.lock();
+				if (!host) {
+					return;
+				}
+				++host->Outstanding;
+				try {
+					lane->post([weak, aToken, observation = std::move(aObservation)] {
+						if (auto current = weak.lock()) {
+							--current->Outstanding;
+							current->publish_overview(aToken, observation);
+						}
+					});
+				} catch (...) {
+					--host->Outstanding;
+					host->ProjectionDeliveryFailed = true;
+				}
+			};
+		}
+
+		void publish_overview(const std::uint64_t aToken, const github_pull_request_overview_observation& aObservation)
+		{
+			if (Closing || !Publish || aToken != ProviderOperationToken || !PendingProvider
+				|| PendingProvider->Context != aObservation.Context) {
+				return;
+			}
+			try {
+				auto projection = project_github_loading_overview(aObservation);
+				if (!projection || !Policy.accept_overview_observation(Policy.window(), aObservation.Context)) {
+					return;
+				}
+				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, github_presentation_update{ .LoadingOverview = std::move(projection) } });
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
 			}
 		}
 

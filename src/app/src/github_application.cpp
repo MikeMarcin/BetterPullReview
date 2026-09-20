@@ -1604,6 +1604,16 @@ namespace bpr::app {
 				return Reads;
 			}
 
+			void fetch_pull_request_with_observations(
+				application::github_pull_request_provider_request   aRequest,
+				application::github_pull_request_completion_handler aCompletion,
+				application::github_pull_request_progress_handler   aProgress,
+				application::github_pull_request_overview_handler   aOverview) override
+			{
+				++Reads;
+				Inner->fetch_pull_request_with_observations(std::move(aRequest), std::move(aCompletion), std::move(aProgress), std::move(aOverview));
+			}
+
 		private:
 			application::github_pull_request_port* Inner = nullptr;
 			std::size_t                            Reads = 0U;

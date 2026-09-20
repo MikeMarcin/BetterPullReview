@@ -397,6 +397,16 @@ namespace bpr::application {
 	using github_pull_request_completion_handler = std::function<void(github_pull_request_completion)>;
 	using github_pull_request_progress_handler   = std::function<void(core::pull_request_request_context, github_read_progress)>;
 
+	/// Validated metadata, not an accepted snapshot or authority to select files.
+	struct github_pull_request_overview_observation
+	{
+		core::pull_request_request_context Context;
+		github_repository_record           Repository;
+		github_pull_request_record         PullRequest;
+		std::size_t                        ReportedFiles = 0U;
+	};
+	using github_pull_request_overview_handler = std::function<void(github_pull_request_overview_observation)>;
+
 	// Submission and cancellation return without waiting for a worker. A
 	// submission that returns normally has retained the operation and invokes its
 	// supplied completion exactly once; a submission that throws has retained
@@ -458,6 +468,17 @@ namespace bpr::application {
 		}
 		virtual void cancel_pull_request(
 			github_pull_request_provider_request aRequest) = 0;
+		/// One optional metadata observation before the single terminal. This is
+		/// independent of snapshot acceptance; older ports may omit it entirely.
+		virtual void fetch_pull_request_with_observations(
+			github_pull_request_provider_request   aRequest,
+			github_pull_request_completion_handler aCompletion,
+			github_pull_request_progress_handler   aProgress,
+			github_pull_request_overview_handler   aOverview)
+		{
+			static_cast<void>(aOverview);
+			fetch_pull_request_with_progress(std::move(aRequest), std::move(aCompletion), std::move(aProgress));
+		}
 	};
 
 	/// \brief Provides the github provider port contract.

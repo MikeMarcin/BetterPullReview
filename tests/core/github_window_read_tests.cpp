@@ -13,6 +13,27 @@ int main()
 	if (!read.Fetch || !read.Projection.Requests.empty()) {
 		return EXIT_FAILURE;
 	}
+	const auto beforeObservation = lane.state();
+	auto       wrong             = first;
+	wrong.Window                 = bpr_window_id{ 99U };
+	auto stale                   = read.Fetch->Context;
+	stale.Request                = request_id{ 99U };
+	if (lane.accept_overview_observation(wrong, read.Fetch->Context)
+		|| lane.accept_overview_observation(first, stale)
+		|| !lane.accept_overview_observation(first, read.Fetch->Context)
+		|| lane.accept_overview_observation(first, read.Fetch->Context)
+		|| lane.state() != beforeObservation) {
+		return EXIT_FAILURE;
+	}
+	static_cast<void>(lane.apply(first, pull_request_load_cancelled_event{ read.Fetch->Context }));
+	if (lane.accept_overview_observation(first, read.Fetch->Context)) {
+		return EXIT_FAILURE;
+	}
+	const auto next = lane.apply(first, open_pull_request_intent{ { "owner", "other" }, pull_request_number{ 2U } });
+	if (!next.Fetch || !lane.accept_overview_observation(first, next.Fetch->Context)
+		|| lane.accept_overview_observation(first, read.Fetch->Context)) {
+		return EXIT_FAILURE;
+	}
 	if (!lane.retire(session) || lane.adopt(session)) {
 		return EXIT_FAILURE;
 	}

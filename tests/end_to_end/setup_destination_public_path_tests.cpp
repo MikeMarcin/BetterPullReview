@@ -34,11 +34,15 @@
 #include <QTreeView>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #if defined(Q_OS_MACOS)
@@ -488,6 +492,19 @@ namespace {
 		options.ReviewSubmissionServer    = reviewServer;
 		options.RefuseFirstSmartAcquire   = true;
 		options.IndependentWindowReads    = true;
+		struct catalogue_gate
+		{
+			std::mutex                  Mutex;
+			std::condition_variable_any Changed;
+			std::atomic_bool            Reached{ false };
+			bool                        Released = false;
+		};
+		auto gate               = std::make_shared<catalogue_gate>();
+		options.BeforeFilesPage = [gate](const std::stop_token stop) {
+			gate->Reached = true;
+			std::unique_lock lock{ gate->Mutex };
+			static_cast<void>(gate->Changed.wait_for(lock, stop, std::chrono::seconds{ 20 }, [&] { return gate->Released; }));
+		};
 		options.GithubCliDiscoveryAccounts
 			= std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
 				  { .Hostname = "ghe.example.invalid", .Login = "octo-reviewer" },
@@ -564,13 +581,34 @@ namespace {
 			"CLI source/update profile connects");
 		const auto pullRequestUrl = QStringLiteral(
 			"https://ghe.example.invalid/octo-org/review-repository/pull/17");
+		auto loadElapsed = QElapsedTimer{ };
+		loadElapsed.start();
 		submit(window, pullRequestUrl);
+		wait_for([&] {
+			const auto* summary = window.findChild<QLabel*>(QStringLiteral("overviewSummary"));
+			return gate->Reached && summary != nullptr && summary->text().contains(QStringLiteral("Provisional metadata"));
+		},
+				 "composed CLI course paints useful metadata while the first file page is still held");
+		capture(window, QStringLiteral("setup-cli-progressive-overview.png"));
+		const auto firstUsefulMs = loadElapsed.elapsed();
+		expect(!window.overview_page()->presented() && !window.overview_page()->entry_button()->isEnabled()
+				   && window.overview_page()->file_model()->rowCount() == 0
+				   && window.session_panel()->status() == core::github_status::loading_pull_request
+				   && github_application_fixture_access::evidence(*application).SmartAcquireCount == 0U,
+			   "provisional paint supplies no file selection, snapshot or Git acquisition authority");
+		{
+			std::lock_guard lock{ gate->Mutex };
+			gate->Released = true;
+		}
+		gate->Changed.notify_all();
 		wait_for(
 			[&] {
 				return window.session_panel()->status()
 					== core::github_status::pull_request_ready;
 			},
 			"CLI source/update PR opens");
+		std::cout << "PROGRESSIVE_OVERVIEW first_useful_ms=" << firstUsefulMs
+				  << " terminal_ms=" << loadElapsed.elapsed() << " course=recorded_cli_first_file_page_gate\n";
 		consent.stop();
 		expect(confirmations == 1U, "CLI source/update profile asks for one confirmation");
 

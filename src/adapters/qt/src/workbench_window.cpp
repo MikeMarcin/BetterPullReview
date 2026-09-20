@@ -5991,6 +5991,10 @@ namespace bpr::qt {
 		if (aUpdate.Transition.has_value()) {
 			apply_github_transition(*aUpdate.Transition);
 		}
+		if (aUpdate.LoadingOverview && !HasGithubPullRequest
+			&& SessionPanel->status() == core::github_status::loading_pull_request) {
+			OverviewPage->present_observation(*aUpdate.LoadingOverview);
+		}
 		if (aUpdate.Session.has_value()) {
 			SessionPanel->apply_session(*aUpdate.Session);
 			update_server_cards();
@@ -6090,6 +6094,9 @@ namespace bpr::qt {
 				HomeRequested = false;
 				OverviewPage->present_loading();
 				choose_modality(review_modality::overview);
+			}
+			if (aTransition.Status->Status != core::github_status::loading_pull_request && !HasGithubPullRequest) {
+				OverviewPage->clear();
 			}
 			apply_modality_surface();
 		}

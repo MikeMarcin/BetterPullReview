@@ -1150,9 +1150,10 @@ namespace bpr::app::detail {
 			std::size_t                                     HistoryIndex = 0U;
 			std::mutex                                      HistoryCompileMutex;
 			// Set only by the deterministic standalone session-race regression.
-			std::function<void()> HistoryCompileInterleave;
-			fixture_replay        BootstrapRecording;
-			fixture_replay        Recording;
+			std::function<void()>                HistoryCompileInterleave;
+			std::function<void(std::stop_token)> BeforeFilesPage;
+			fixture_replay                       BootstrapRecording;
+			fixture_replay                       Recording;
 			// The signed-out script. A separate cursor as well as a separate
 			// order: the two authorities never share a position, so a course that
 			// ran both would not be able to advance one by driving the other.
@@ -1596,6 +1597,12 @@ namespace bpr::app::detail {
 			{
 				if (aStop.stop_requested()) {
 					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+				}
+				if (aRequest.Wire.Operation == read_operation::list_pull_request_files && State->BeforeFilesPage) {
+					State->BeforeFilesPage(aStop);
+					if (aStop.stop_requested()) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
 				}
 				std::unique_lock historyLock{ State->HistoryCompileMutex, std::defer_lock };
 				if (Role == fixture_transport_role::account && !State->HistoryHeads.empty()
@@ -3201,6 +3208,7 @@ namespace bpr::app::detail {
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
 			Recording->RepeatReads             = aOptions.RepeatReadSessions;
+			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
 			Factory                            = std::make_shared<fixture_transport_factory>(Recording);

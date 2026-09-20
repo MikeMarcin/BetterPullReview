@@ -51,8 +51,9 @@ namespace bpr::core {
 		}
 		RetiredGeneration = Session->Identity.Context.IdentityGeneration;
 		Session.reset();
-		State = github_state{ .ApplicationSession = State.ApplicationSession,
-							  .NextRequest        = State.NextRequest };
+		State            = github_state{ .ApplicationSession = State.ApplicationSession,
+										 .NextRequest        = State.NextRequest };
+		OverviewObserved = false;
 		return true;
 	}
 
@@ -64,10 +65,14 @@ namespace bpr::core {
 			result.Projection.Diagnostics.push_back({ .Code = github_reason_code::stale_completion });
 			return result;
 		}
-		auto                      output = std::visit([this](const auto& aTyped) {
+		const auto previous = State.PendingPullRequest;
+		auto       output   = std::visit([this](const auto& aTyped) {
 			return transition(State, github_event{ aTyped });
 		},
-													  aEvent);
+										 aEvent);
+		if (State.PendingPullRequest != previous) {
+			OverviewObserved = false;
+		}
 		github_window_read_output result;
 		for (const auto& request : output.Requests) {
 			if (const auto* fetch = std::get_if<fetch_pull_request_request>(&request)) {
@@ -84,6 +89,16 @@ namespace bpr::core {
 		if (aNext.value() > State.NextRequest.value()) {
 			State.NextRequest = aNext;
 		}
+	}
+	auto github_window_read::accept_overview_observation(const bpr_window_context            aWindow,
+														 const pull_request_request_context& aRequest) noexcept -> bool
+	{
+		if (aWindow != Window || !Session
+			|| State.PendingPullRequest != aRequest || OverviewObserved) {
+			return false;
+		}
+		OverviewObserved = true;
+		return true;
 	}
 	auto github_window_read::state() const noexcept -> const github_state& { return State; }
 	auto github_window_read::window() const noexcept -> bpr_window_context { return Window; }

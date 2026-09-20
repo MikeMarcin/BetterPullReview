@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_PULL_REQUEST_OVERVIEW_PAGE_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_PULL_REQUEST_OVERVIEW_PAGE_HPP
 
+#include "bpr/application/github_projection.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 
 #include <QAbstractItemModel>
@@ -182,6 +183,7 @@ namespace bpr::qt {
 		void clear();
 		/// \brief Presents a pending overview without manufacturing accepted rows.
 		void               present_loading();
+		void               present_observation(const application::github_loading_overview_projection& aObservation);
 		[[nodiscard]] auto presented() const noexcept -> bool;
 		/// \brief [[BPR-0671]]. Takes the commit-oid disclosure the drawer's
 		/// summary box used to carry, and puts it under the branches.

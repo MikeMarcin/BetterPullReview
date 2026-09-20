@@ -1,4 +1,5 @@
 #include "github_projection_mapping.hpp"
+#include "bpr/application/github_provider_port.hpp"
 
 #include <string>
 #include <string_view>
@@ -187,6 +188,39 @@ namespace bpr::application {
 			}
 			return threadRoot;
 		}
+	}
+
+	auto project_github_loading_overview(const github_pull_request_overview_observation& aObservation)
+		-> std::optional<github_loading_overview_projection>
+	{
+		const auto& context    = aObservation.Context;
+		const auto& repository = aObservation.Repository;
+		const auto& pr         = aObservation.PullRequest;
+		const auto  limits     = github_read_limits{ };
+		auto        budget     = detail::github_text_budget{ limits };
+		if (!detail::valid_context(context)
+			|| detail::validate_repository(repository, budget, limits) != github_read_validation_error::none
+			|| detail::validate_pull_request(pr, budget, limits) != github_read_validation_error::none
+			|| pr.Number != context.Number || pr.Repository != repository.Repository
+			|| !detail::ascii_equal_fold(repository.Owner, context.Repository.Owner)
+			|| !detail::ascii_equal_fold(repository.Name, context.Repository.Name)
+			|| (context.ExpectedRepository && *context.ExpectedRepository != repository.Repository)
+			|| (context.ExpectedPullRequest && *context.ExpectedPullRequest != pr.PullRequest)
+			|| !pr.ReportedCommitCount || *pr.ReportedCommitCount == 0U
+			|| aObservation.ReportedFiles > limits.MaximumFiles) {
+			return std::nullopt;
+		}
+		return github_loading_overview_projection{
+			.Title           = pr.Title,
+			.Body            = pr.Body,
+			.AuthorLogin     = pr.Author ? pr.Author->Login : std::string{ },
+			.BaseRef         = pr.BaseRef,
+			.HeadRef         = pr.HeadRef,
+			.ReportedFiles   = aObservation.ReportedFiles,
+			.ReportedCommits = *pr.ReportedCommitCount,
+			.State           = project(pr.State),
+			.Draft           = pr.Draft,
+		};
 	}
 
 	auto project_github_transition(const core::github_transition_output& aOutput)

@@ -5,6 +5,9 @@
 #include "bpr/application/github_read_model.hpp"
 
 namespace bpr::application {
+	struct github_pull_request_overview_observation;
+	[[nodiscard]] auto project_github_loading_overview(const github_pull_request_overview_observation& aObservation)
+		-> std::optional<github_loading_overview_projection>;
 	struct github_host_diagnostic
 	{
 		core::github_reason_code                Reason = core::github_reason_code::none;

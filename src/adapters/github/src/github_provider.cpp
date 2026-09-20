@@ -60,11 +60,21 @@ namespace bpr::adapters::github::detail {
 		{
 		public:
 			pull_request_response_observer(application::diagnostic_log_port* aLog, core::pull_request_request_context aContext,
-										   application::github_pull_request_progress_handler aProgress) noexcept
+										   application::github_pull_request_progress_handler aProgress,
+										   application::github_pull_request_overview_handler aOverview) noexcept
 				: Log{ aLog }
 				, Context{ std::move(aContext) }
 				, Progress{ std::move(aProgress) }
+				, Overview{ std::move(aOverview) }
 			{ }
+			void overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
+			{
+				try {
+					if (Overview) {
+						Overview(std::move(aObservation));
+					}
+				} catch (...) { }
+			}
 			void request_started(const read_operation aOperation) noexcept override
 			{
 				LastOperation = diagnostic_operation_for(aOperation);
@@ -126,6 +136,7 @@ namespace bpr::adapters::github::detail {
 			application::diagnostic_log_port*                 Log;
 			core::pull_request_request_context                Context;
 			application::github_pull_request_progress_handler Progress;
+			application::github_pull_request_overview_handler Overview;
 			std::uint32_t                                     PagesReceived = 0;
 			std::uint32_t                                     Sequence      = 0;
 		};
@@ -1909,6 +1920,15 @@ namespace bpr::adapters::github::detail {
 		application::github_pull_request_completion_handler aCompletion,
 		application::github_pull_request_progress_handler   aProgress)
 	{
+		fetch_pull_request_with_observations(std::move(aRequest), std::move(aCompletion), std::move(aProgress), { });
+	}
+
+	void github_provider::fetch_pull_request_with_observations(
+		application::github_pull_request_provider_request   aRequest,
+		application::github_pull_request_completion_handler aCompletion,
+		application::github_pull_request_progress_handler   aProgress,
+		application::github_pull_request_overview_handler   aOverview)
+	{
 		const auto anonymous = Implementation != nullptr
 			&& Implementation->State->ReadAuthority
 				== github_provider_read_authority::anonymous_public;
@@ -2030,8 +2050,9 @@ namespace bpr::adapters::github::detail {
 				 readTransport,
 				 aRequest,
 				 progress = std::move(aProgress),
+				 overview = std::move(aOverview),
 				 delivery]() mutable {
-					pull_request_response_observer observer{ state->Log.get(), aRequest.Context, std::move(progress) };
+					pull_request_response_observer observer{ state->Log.get(), aRequest.Context, std::move(progress), std::move(overview) };
 					const auto                     cancelled = [&] {
 						finish_job(state, job);
 						delivery->deliver(

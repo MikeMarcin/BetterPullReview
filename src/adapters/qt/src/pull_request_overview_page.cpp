@@ -1328,6 +1328,33 @@ namespace bpr::qt {
 		}
 	}
 
+	void pull_request_overview_page::present_observation(const application::github_loading_overview_projection& aObservation)
+	{
+		clear();
+		Title->setText(text(aObservation.Title));
+		auto state = aObservation.Draft ? QStringLiteral("Draft") : QStringLiteral("Open");
+		if (aObservation.State == application::github_pull_request_state_projection::merged) {
+			state = QStringLiteral("Merged");
+		} else if (aObservation.State == application::github_pull_request_state_projection::closed) {
+			state = QStringLiteral("Closed without merge");
+		}
+		const auto commits = aObservation.ReportedCommits == 1U ? QStringLiteral("1 commit")
+																: QStringLiteral("%1 commits").arg(count_text(aObservation.ReportedCommits));
+		Summary->setText(QStringLiteral("%1 · %2 · %3 → %4 · %5. Provisional metadata; review data is still loading.")
+							 .arg(aObservation.AuthorLogin.empty() ? QStringLiteral("Unknown author") : text(aObservation.AuthorLogin),
+								  commits, text(aObservation.HeadRef), text(aObservation.BaseRef), state));
+		Body->present_body(text(aObservation.Body));
+		Body->setVisible(!aObservation.Body.empty());
+		FilesHeading->setText(QStringLiteral("Files — %1 reported; catalogue loading…").arg(count_text(aObservation.ReportedFiles)));
+		SinceHeading->setText(QStringLiteral("Review state — loading…"));
+		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
+			none->setText(QStringLiteral("Loading participants…"));
+		}
+		Entry->setText(QStringLiteral("Review data loading…"));
+		Entry->setAccessibleName(Entry->text());
+		Entry->setEnabled(false);
+	}
+
 	void pull_request_overview_page::set_description_expanded(const bool aExpanded)
 	{
 		Body->set_expanded(aExpanded);

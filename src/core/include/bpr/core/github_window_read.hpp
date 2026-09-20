@@ -35,6 +35,10 @@ namespace bpr::core {
 		[[nodiscard]] auto apply(bpr_window_context              aWindow,
 								 const github_window_read_event& aEvent) -> github_window_read_output;
 		void               advance_request_floor(request_id aNext) noexcept;
+		/// Accept at most one provisional metadata observation for this exact
+		/// pending request, without changing command or snapshot authority.
+		[[nodiscard]] auto accept_overview_observation(bpr_window_context                  aWindow,
+													   const pull_request_request_context& aRequest) noexcept -> bool;
 		[[nodiscard]] auto state() const noexcept -> const github_state&;
 		[[nodiscard]] auto window() const noexcept -> bpr_window_context;
 
@@ -43,6 +47,7 @@ namespace bpr::core {
 		github_state                         State;
 		std::optional<github_window_session> Session;
 		github_identity_generation           RetiredGeneration{ };
+		bool                                 OverviewObserved = false;
 	};
 }
 

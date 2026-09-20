@@ -17,8 +17,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -98,6 +100,8 @@ namespace bpr::app::detail {
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file
 		/// reading graph so the CLI-profile course can prove exact source recovery.
 		bool GhesCliSourceUpdateCourse = false;
+		/// Test-owned gate before catalogue reads; absent from production builds.
+		std::function<void(std::stop_token)> BeforeFilesPage;
 		/// [[BPR-0922]]. Refuses exactly the first valid smart-Git acquisition.
 		/// The next application course is served normally, making the boundary
 		/// and the supported path independently observable.

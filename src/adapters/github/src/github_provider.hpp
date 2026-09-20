@@ -200,6 +200,11 @@ namespace bpr::adapters::github::detail {
 			application::github_pull_request_provider_request   aRequest,
 			application::github_pull_request_completion_handler aCompletion,
 			application::github_pull_request_progress_handler   aProgress) override;
+		void fetch_pull_request_with_observations(
+			application::github_pull_request_provider_request   aRequest,
+			application::github_pull_request_completion_handler aCompletion,
+			application::github_pull_request_progress_handler   aProgress,
+			application::github_pull_request_overview_handler   aOverview) override;
 
 		void shutdown() noexcept;
 

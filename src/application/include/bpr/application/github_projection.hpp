@@ -142,6 +142,22 @@ namespace bpr::application {
 		dismissed,
 	};
 
+	/// Read-only metadata while the complete snapshot is still being acquired.
+	/// Deliberately contains no snapshot, file, epoch or mutation authority.
+	struct github_loading_overview_projection
+	{
+		std::string                          Title;
+		std::string                          Body;
+		std::string                          AuthorLogin;
+		std::string                          BaseRef;
+		std::string                          HeadRef;
+		std::size_t                          ReportedFiles                                                = 0U;
+		std::size_t                          ReportedCommits                                              = 0U;
+		github_pull_request_state_projection State                                                        = github_pull_request_state_projection::open;
+		bool                                 Draft                                                        = false;
+		auto                                 operator<=>(const github_loading_overview_projection&) const = default;
+	};
+
 	enum class github_conversation_kind : std::uint8_t {
 		review,
 		review_thread,
@@ -248,11 +264,12 @@ namespace bpr::application {
 	/// \brief Describes the github presentation update record.
 	struct github_presentation_update
 	{
-		std::optional<github_transition_projection>    Transition  = std::nullopt;
-		std::optional<github_session_projection>       Session     = std::nullopt;
-		std::optional<github_pull_request_projection>  PullRequest = std::nullopt;
-		std::vector<github_host_diagnostic_projection> HostDiagnostics{ };
-		std::optional<github_read_progress>            ReadProgress = std::nullopt;
+		std::optional<github_transition_projection>       Transition  = std::nullopt;
+		std::optional<github_session_projection>          Session     = std::nullopt;
+		std::optional<github_pull_request_projection>     PullRequest = std::nullopt;
+		std::vector<github_host_diagnostic_projection>    HostDiagnostics{ };
+		std::optional<github_read_progress>               ReadProgress    = std::nullopt;
+		std::optional<github_loading_overview_projection> LoadingOverview = std::nullopt;
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};

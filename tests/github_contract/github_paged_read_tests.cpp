@@ -3028,9 +3028,17 @@ namespace {
 			ValidationError    = aValidation.Error;
 			RelationshipDetail = aValidation.Detail;
 		}
-		std::array<std::pair<read_operation, int>, 32U> Responses{ };
-		std::size_t                                     Count = 0U;
-		void                                            observe(const read_operation aOperation, const int aStatus) noexcept override
+		std::array<std::pair<read_operation, int>, 32U>                      Responses{ };
+		std::size_t                                                          Count = 0U;
+		std::optional<application::github_pull_request_overview_observation> Overview;
+		std::size_t                                                          OverviewPageCount = 0U;
+		void                                                                 overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
+		{
+			expect(!Overview, "metadata is observed once");
+			Overview          = std::move(aObservation);
+			OverviewPageCount = Count;
+		}
+		void observe(const read_operation aOperation, const int aStatus) noexcept override
 		{
 			expect(Count < Responses.size(), "response observation stays bounded");
 			Responses[Count++] = { aOperation, aStatus };
@@ -3059,6 +3067,10 @@ namespace {
 			const auto                  result = perform_paged_github_read(transport, profile(), provider_request(),
 																		   core::provider_snapshot_id{ 55U }, { }, { }, github_provider_read_authority::authenticated, &observer);
 			expect(result.has_value() == (status == 200), "response observer preserves success and final-operation refusal");
+			expect(observer.Overview && observer.OverviewPageCount == 2U
+					   && observer.Overview->Context == provider_request().Context
+					   && !observer.Overview->PullRequest.Title.empty(),
+				   "validated useful metadata arrives after two responses, before any catalogue or ancillary page");
 			expect(observer.Count == transport.Requests.size() && observer.Count == 11U, "every page produces exactly one observation");
 			for (std::size_t index = 0U; index < observer.Count; ++index) {
 				const auto expectedStatus = status == 503 && index + 1U == observer.Count ? 503 : 200;

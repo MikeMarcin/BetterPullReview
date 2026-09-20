@@ -3740,8 +3740,16 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ execution.enrich(pullRequest.error()) };
 			}
 
-			const auto                                expectedFiles   = pullRequest->ChangedFiles;
-			const auto                                expectedCommits = std::min(pullRequest->Commits, application::maximum_github_pull_request_endpoint_commits);
+			const auto expectedFiles   = pullRequest->ChangedFiles;
+			const auto expectedCommits = std::min(pullRequest->Commits, application::maximum_github_pull_request_endpoint_commits);
+			// An observation is independently bounded and validated. It grants no
+			// snapshot authority; the same complete read and final audit still run.
+			auto overviewBudget = application::detail::github_text_budget{ aLimits.Records };
+			if (aObserver != nullptr && !aStop.stop_requested()
+				&& application::detail::validate_repository(*repository, overviewBudget, aLimits.Records) == application::github_read_validation_error::none
+				&& application::detail::validate_pull_request(pullRequest->Record, overviewBudget, aLimits.Records) == application::github_read_validation_error::none) {
+				aObserver->overview_observed({ aRequest.Context, *repository, pullRequest->Record, expectedFiles });
+			}
 			application::github_pull_request_snapshot result{
 				.Profile = aRequest.ProfileAuthority.Profile,
 				.Host    = aRequest.ProfileAuthority.Host,

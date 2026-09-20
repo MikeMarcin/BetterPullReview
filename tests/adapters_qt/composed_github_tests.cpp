@@ -708,6 +708,7 @@ namespace {
 			std::optional<application::github_pull_request_provider_request> Request;
 			application::github_pull_request_completion_handler              Complete;
 			application::github_pull_request_progress_handler                Progress;
+			application::github_pull_request_overview_handler                Overview;
 			std::function<void()>                                            OnSubmit;
 			void                                                             fetch_pull_request(application::github_pull_request_provider_request   aRequest,
 																								application::github_pull_request_completion_handler aComplete) override
@@ -723,6 +724,14 @@ namespace {
 			{
 				Progress = std::move(aProgress);
 				fetch_pull_request(std::move(aRequest), std::move(aComplete));
+			}
+			void fetch_pull_request_with_observations(application::github_pull_request_provider_request   aRequest,
+													  application::github_pull_request_completion_handler aComplete,
+													  application::github_pull_request_progress_handler   aProgress,
+													  application::github_pull_request_overview_handler   aOverview) override
+			{
+				Overview = std::move(aOverview);
+				fetch_pull_request_with_progress(std::move(aRequest), std::move(aComplete), std::move(aProgress));
 			}
 		} provider;
 		struct paint_observer final : QObject
@@ -800,6 +809,23 @@ namespace {
 			   "the stack's page is not shown and is not part of Home");
 		QApplication::processEvents();
 		expect(observer.Paints > 0U, "the loading sentence paints while provider completion remains held");
+		const auto overview = application::github_pull_request_overview_observation{
+			.Context       = provider.Request->Context,
+			.Repository    = { .Repository = core::repository_id{ 1U }, .Node = application::github_node_id{ "repository" }, .Owner = "owner", .Name = "repo", .DefaultBranch = "main" },
+			.PullRequest   = { .PullRequest = core::pull_request_id{ 2U }, .Repository = core::repository_id{ 1U }, .Number = core::pull_request_number{ 1U }, .Node = application::github_node_id{ "pr" }, .Title = "<b>Literal provisional title</b>", .Body = "Description before file acquisition.", .BaseOid = application::commit_oid{ std::string(40U, '1') }, .HeadOid = application::commit_oid{ std::string(40U, '2') }, .BaseRef = "main", .HeadRef = "topic", .ReportedCommitCount = 3U },
+			.ReportedFiles = 1523U
+		};
+		provider.Overview(overview);
+		lane.drain();
+		QApplication::processEvents();
+		auto* observedTitle = required_child<QLabel>(window, "overviewTitle");
+		expect(observedTitle->text() == QStringLiteral("<b>Literal provisional title</b>")
+				   && observedTitle->textFormat() == Qt::PlainText
+				   && !window.overview_page()->entry_button()->isEnabled() && !window.overview_page()->presented(),
+			   "validated metadata paints literal useful content but grants no review authority");
+		expect(required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("3 commits"))
+				   && required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("Open. Provisional metadata")),
+			   "provisional metadata names its observed state and reported commit count");
 		for (std::uint32_t page = 1U; page <= 100U; ++page) {
 			provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::files, .PagesReceived = page, .Sequence = page });
 		}
@@ -821,6 +847,10 @@ namespace {
 		lane.drain();
 		expect(host.is_quiescent(), "held read cancellation drains its terminal");
 		expect(!title->isVisible() && window.showing_home(), "cancelled progress cannot keep a loading overview alive");
+		expect(observedTitle->text() == QStringLiteral("No pull request"), "cancel clears provisional metadata");
+		provider.Overview(overview);
+		lane.drain();
+		expect(observedTitle->text() == QStringLiteral("No pull request"), "late metadata cannot resurrect the cancelled preview");
 	}
 
 	auto test_presentation_states_disclosures_and_responsive_layout() -> void
