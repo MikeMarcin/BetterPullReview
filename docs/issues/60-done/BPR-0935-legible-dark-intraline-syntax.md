@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0935"
 title: "Keep dark-mode syntax legible across intraline edit emphasis"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"},"mandate":"r20-usable-review-amendments"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"af4e2d38","evidence":{"kind":"artifact","detail":"Owner screenshot inspected without retention; production overlay diagnosis and per-token repair recorded in docs/verification/rfc-bpr-0013-usable-review-20260920.md."}},{"criterion":"AC2","outcome":"pass","revision":"af4e2d38","evidence":{"kind":"artifact","detail":"Exact ranges, selected/unselected syntax hues, contrast headroom, customization and Earlier/Later non-color cues pass focused core and rendered Qt tests."}},{"criterion":"AC3","outcome":"pass","revision":"af4e2d38","evidence":{"kind":"artifact","detail":"Fail-before monochrome regression; 1x/1.25x/2x rendered macro/string tests and contrast audit pass. Signed tests-disabled r22 independently renders safe exact source; committed safe dark-intraline raster inspected."}}]
 ---
 
 # Keep dark-mode syntax legible across intraline edit emphasis
