@@ -12,8 +12,8 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-Packet-pointer upkeep, 2026-09-20: the rejected RFC-0013 v002 exact-target and
-loading candidates are superseded by the [current v003 served-review packet](../../verification/reviews/rfc-bpr-0013-attended-v003/operator-packet.md).
+Packet-pointer upkeep, 2026-09-20: the rejected RFC-0013 v003 exact-target and
+loading candidates are superseded by the [current v004 attended-review packet](../../verification/reviews/rfc-bpr-0013-attended-v004/operator-packet.md).
 Those repaired questions remain unanswered; the separate device-relaunch r17
 acceptance is preserved. This pointer changes no RFC-0018 acceptance or
 historical verdict below.

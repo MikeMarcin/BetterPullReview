@@ -1,5 +1,7 @@
 # RFC-BPR-0013 v004 attended candidate
 
+Status: **two refreshed questions ready and protected; human verdicts pending**.
+
 Two refreshed questions are ready and protected at sequence **427**, with
 objective observations through **429**. No verdict is inferred. The parent task
 owns the later served review and decision watcher; neither was started here.
