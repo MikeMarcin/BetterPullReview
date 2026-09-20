@@ -390,9 +390,10 @@ namespace bpr::adapters::github::detail {
 				if (!before) {
 					return std::unexpected{ before.error() };
 				}
-				const auto ghVersion  = process->run(compile_gh_cli_version_request(Configuration), aStop);
-				const auto gitVersion = process->run(local_request(root, { "--version" }), aStop);
-				if (!ghVersion || !gitVersion || !ghVersion->StandardOutput.starts_with("gh version 2.100.0 ")
+				const auto ghVersion   = process->run(compile_gh_cli_version_request(Configuration), aStop);
+				const auto gitVersion  = process->run(local_request(root, { "--version" }), aStop);
+				const auto supportedGh = ghVersion && (ghVersion->StandardOutput.starts_with("gh version 2.100.0 ") || ghVersion->StandardOutput.starts_with("gh version 2.101.0 "));
+				if (!supportedGh || !gitVersion
 					|| gitVersion->StandardOutput != "git version 2.50.1 (Apple Git-155)\n") {
 					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::unavailable } };
 				}

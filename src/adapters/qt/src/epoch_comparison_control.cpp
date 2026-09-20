@@ -1175,7 +1175,7 @@ namespace bpr::qt {
 				: QStringLiteral(
 					  "Retained history changed; load the newest epoch page.");
 		} else if (HistoryPhase == core::epoch_history_page_phase::loaded
-				   && !retained) {
+				   && !retained && Status == core::epoch_status::ready) {
 			status = QStringLiteral("No review epochs have been recorded.");
 		}
 		const auto historyReason = reason_text(HistoryReason);
@@ -1187,6 +1187,7 @@ namespace bpr::qt {
 			status.append(QStringLiteral(" %1").arg(diagnostic));
 		}
 		StatusLabel->setText(status);
+		Line->set_empty_status(status);
 
 		QString comparison;
 		if (Selection) {

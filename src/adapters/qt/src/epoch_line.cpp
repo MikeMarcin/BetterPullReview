@@ -109,6 +109,19 @@ namespace bpr::qt {
 		setAttribute(Qt::WA_Hover, true);
 	}
 
+	void epoch_line::set_empty_status(QString aStatus)
+	{
+		EmptyStatus = std::move(aStatus);
+		setAccessibleDescription(Updates.empty() ? EmptyStatus : HistoryText);
+		setToolTip(Updates.empty() ? EmptyStatus : HistoryText);
+		update();
+	}
+
+	auto epoch_line::empty_status() const -> QString
+	{
+		return EmptyStatus;
+	}
+
 	void epoch_line::set_updates(
 		std::vector<application::epoch_row_projection> aOldestFirst)
 	{
@@ -124,8 +137,8 @@ namespace bpr::qt {
 			});
 		}
 		HistoryText = QStringLiteral("Incomplete history — local records only");
-		setAccessibleDescription(HistoryText);
-		setToolTip(HistoryText);
+		setAccessibleDescription(Updates.empty() ? EmptyStatus : HistoryText);
+		setToolTip(Updates.empty() ? EmptyStatus : HistoryText);
 		Dragging.reset();
 		DragStop.reset();
 		update();
@@ -182,8 +195,8 @@ namespace bpr::qt {
 			HistoryText.append(QStringLiteral(" · unresolved local records"));
 		}
 		HistoryText.append(QStringLiteral(" · display order is not push order"));
-		setAccessibleDescription(HistoryText);
-		setToolTip(HistoryText);
+		setAccessibleDescription(Updates.empty() ? EmptyStatus : HistoryText);
+		setToolTip(Updates.empty() ? EmptyStatus : HistoryText);
 		Dragging.reset();
 		DragStop.reset();
 		update();
@@ -511,8 +524,8 @@ namespace bpr::qt {
 			painter.setPen(faint);
 			painter.drawText(
 				rect().adjusted(side_padding, 0, -side_padding, 0),
-				Qt::AlignLeft | Qt::AlignVCenter,
-				QStringLiteral("No updates loaded."));
+				Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap,
+				EmptyStatus);
 			return;
 		}
 

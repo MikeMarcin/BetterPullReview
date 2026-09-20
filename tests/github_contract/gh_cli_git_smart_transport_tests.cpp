@@ -210,7 +210,12 @@ namespace {
 		const auto executable = std::filesystem::path{ args[0].toStdString() };
 		const auto root       = executable.parent_path();
 		if (args.size() == 2 && args[1] == "--version") {
-			std::cout << "gh version 2.100.0 (fixture)\n";
+			std::ifstream version{ root / "version" };
+			if (version) {
+				std::cout << version.rdbuf();
+			} else {
+				std::cout << "gh version 2.100.0 (fixture)\n";
+			}
 			return 0;
 		}
 		if (args.size() > 2 && args[1] == "api" && args[2].contains("/git/blobs/")) {
@@ -401,6 +406,7 @@ namespace {
 		git(root, { verifyScope, "index-pack", "--strict", "--stdin" }, pack);
 		expect(git(root, { verifyScope, "cat-file", "-p", QString::fromStdString(core::canonical_hex(context.Revision.Head).view().data()) + ":file.txt" }) == "complete local contents", "pack contains verified full file contents");
 		write(root / "sparse-omitted", blob.toStdString() + "\n" + ancestor.toStdString() + "\n");
+		write(root / "version", "gh version 2.101.0 (fixture)\n");
 		auto sparseContext                  = context;
 		sparseContext.AcquisitionMode       = application::git_smart_acquisition_mode::sparse_commit_trees;
 		auto                sparseTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, sparseContext, [] { return true; });
@@ -416,6 +422,14 @@ namespace {
 		expect(git(root, { sparseScope, "cat-file", "-t", tree }) == "tree", "sparse pack contains root tree");
 		const auto inventory = git(root, { sparseScope, "cat-file", "--batch-all-objects", "--batch-check=%(objecttype)" });
 		expect(!inventory.contains("blob") && inventory.count("commit") == 2, "sparse pack excludes blobs and retains exact wants only");
+		for (const auto version : { "gh version 2.99.0 (fixture)\n", "gh version 2.102.0 (fixture)\n", "gh version 2.101.0-unsafe (fixture)\n" }) {
+			write(root / "version", version);
+			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
+			const auto          unsupported = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, refused, limits, { });
+			expect(!unsupported && refused.Received.empty() && !refused.Finished,
+				   "older, unknown future and prerelease CLI versions cannot acquire objects");
+		}
+		write(root / "version", "gh version 2.101.0 (fixture)\n");
 		write(root / "missing-sparse", "1");
 		recording_pack_sink missingSparseSink{ core::git_hash_algorithm::sha1 };
 		expect(!application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, missingSparseSink, limits, { }) && missingSparseSink.Received.empty(), "missing sparse commit/tree refuses before consumer");

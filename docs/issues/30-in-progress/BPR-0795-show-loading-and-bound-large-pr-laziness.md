@@ -58,6 +58,12 @@ bundle. Only the rejected 0794/0795 questions were released. The next attended
 candidate must use the served local review UI with its host and watch alive;
 the previous offline v002 page and its decisions remain historical evidence.
 
+The compact Updates strip now paints and announces the actual pending or failed
+comparison state while it has no nodes. An exhausted empty history no longer
+overrides a later setup failure. Focused Qt and composed public-path assertions
+cover loading, accessible/tooltip state and refused setup, so the prior generic
+"No updates loaded" text does not conceal a cache or acquisition failure.
+
 The composed window/action/read-host test held the provider effect and found
 that the new-target projection switched away from the Home loading label before
 Qt could paint it. Keeping that surface visible makes the loading state paint

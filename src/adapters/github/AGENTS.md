@@ -50,8 +50,9 @@ the functional core or Qt presentation adapter.
   may serve the bounded cloned object store through closed protocol v2
   arguments, without network, helper, hooks or repository-controlled executable
   configuration; it runs only in the GitHub CLI process runner.
-  The first macOS Git-object implementation accepts only `gh` 2.100.0 with
-  Apple Git 2.50.1 (Apple Git-155), enforces a 32 MiB per-file ceiling, and
+  The macOS Git-object implementation accepts only the directly checked
+  `gh` 2.100.0 or 2.101.0 with Apple Git 2.50.1 (Apple Git-155), enforces a
+  32 MiB per-file ceiling, and
   supervises a 96 MiB/128-entry temporary-store abort threshold. The latter
   is not a hard aggregate disk quota. Snapshot-derived local refs do not
   establish fresh remote refs; keep accepted-revision and pack verification.

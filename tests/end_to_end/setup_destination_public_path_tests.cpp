@@ -594,6 +594,9 @@ namespace {
 				&& surface->left_pane()->toPlainText().isEmpty()
 				&& surface->right_pane()->toPlainText().isEmpty(),
 			"CLI refusal is unavailable, not stale, and retains no source");
+		expect(window.epoch_selectors()->line()->empty_status() == window.epoch_selectors()->status_text()
+				   && window.epoch_selectors()->line()->empty_status() != QStringLiteral("No updates loaded."),
+			   "the compact public updates line exposes the actual comparison refusal");
 
 		expect(
 			window.github_refresh_action()->isEnabled(),
@@ -844,6 +847,7 @@ namespace {
 			"secondary.cpp",
 			QStringLiteral("int secondary_line_1 = 111;"),
 			QStringLiteral("int secondary_line_1 = 131;"));
+		capture(updatedWindow, QStringLiteral("setup-cli-remount-readable.png"));
 		auto* const compose = updatedWindow.findChild<QAction*>(QStringLiteral("composeReviewAction"));
 		expect(compose && compose->isEnabled(), "dedicated Compose review action is reachable");
 		compose->trigger();

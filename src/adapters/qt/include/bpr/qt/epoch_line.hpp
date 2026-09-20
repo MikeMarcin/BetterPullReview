@@ -69,6 +69,9 @@ namespace bpr::qt {
 										   const std::vector<application::epoch_row_projection>&   aLocalRows             = { },
 										   bool                                                    aAllowOccurrenceImport = false);
 		[[nodiscard]] auto history_text() const -> QString;
+		/// \brief Names current loading or refusal when there are no update nodes.
+		void               set_empty_status(QString aStatus);
+		[[nodiscard]] auto empty_status() const -> QString;
 		/// \brief Adopts the compared anchors the core published.
 		void set_selection(
 			std::optional<core::comparison_anchor_identity> aLeft,
@@ -136,6 +139,7 @@ namespace bpr::qt {
 		};
 		std::vector<line_row>                                                 Updates;
 		QString                                                               HistoryText;
+		QString                                                               EmptyStatus = QStringLiteral("No updates loaded.");
 		std::optional<core::comparison_anchor_identity>                       Left;
 		std::optional<core::comparison_anchor_identity>                       Right;
 		std::optional<core::git_commit_oid>                                   LastReview;

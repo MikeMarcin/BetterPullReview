@@ -1492,10 +1492,26 @@ namespace {
 		});
 		expect(control.status_text().contains(QStringLiteral("Loading")),
 			   "catalog loading has an explicit visible state");
+		expect(control.line()->empty_status() == control.status_text()
+				   && control.line()->accessibleDescription() == control.status_text()
+				   && control.line()->toolTip() == control.status_text(),
+			   "the compact empty updates line paints and announces the loading state");
 
-		control.publish(loaded_catalog_update({ }));
+		auto empty       = loaded_catalog_update({ });
+		empty.Transition = application::epoch_transition_projection{
+			.Status = core::epoch_status_delta{ .Status = core::epoch_status::ready },
+		};
+		control.publish(empty);
 		expect(control.status_text().contains(QStringLiteral("No review epochs")),
 			   "an exhausted empty catalog has an explicit visible state");
+		control.publish(application::epoch_presentation_update{
+			.Transition = application::epoch_transition_projection{
+				.Status = core::epoch_status_delta{ .Status = core::epoch_status::failed },
+			},
+		});
+		expect(control.line()->empty_status().contains(QStringLiteral("could not be updated"))
+				   && !control.line()->empty_status().contains(QStringLiteral("No review epochs")),
+			   "a failed comparison setup is not presented as an empty completed history");
 
 		auto neverObserved             = epoch_row(3, '1', '2');
 		neverObserved.HeadAvailability = core::anchor_availability::never_observed;

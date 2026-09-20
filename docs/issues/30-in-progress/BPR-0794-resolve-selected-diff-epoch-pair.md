@@ -75,7 +75,21 @@ the actual installed-cache boundary before attempting exact diff recovery.
 The participant sidebar now scrolls and uses measured wrapped login/metadata
 lines. A 64-participant regression checks full heights, non-overlap, long names,
 larger fonts, smaller windows and reachability of the last participant and action.
-The exact-target read is still pending; do not infer it from these repairs.
+The exact-target product observation is still pending; do not infer it from
+these repairs. A second latent blocker was found before preparing a candidate:
+the installed `gh` is 2.101.0, accepted by discovery, but Git-object reads still
+allowed only 2.100.0. The narrow allowlist now includes the directly checked
+2.101.0 with the unchanged Apple Git version and containment limits. Older,
+unknown future and prerelease versions still refuse before handing off objects.
+
+A bounded, write-contained live read using installed `gh` 2.101.0 and Apple Git
+2.50.1 verified two exact sparse commits and two SHA-checked UTF-8 blobs with
+different contents. Viewer and configuration metadata remained unchanged. The
+largest temporary store was 10,866,649 bytes; all temporary objects were removed
+outside the checkout. Only these fixed aggregate facts are retained. This checks
+the real CLI/backend prerequisites, not the attended application's rendering or
+source/anchor verdict. The actual composed public-path fixture does render an
+exact readable diff after the old-mount empty-cache recovery.
 
 The previous fixed metadata-only product observation is recorded on BPR-0793
 and BPR-0617. The append-only product diagnostic log attributes the absent
