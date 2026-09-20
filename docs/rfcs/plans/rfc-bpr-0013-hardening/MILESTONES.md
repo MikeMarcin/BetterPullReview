@@ -88,9 +88,9 @@ The exact owner-retained pull request either renders a truthful file list and re
 
 ## selected-diff-exact-epoch-pair
 
-The owner-retained large pull request displays its correct file list and a readable selected diff through one exact accepted epoch pair, or retains the unresolved product refusal without inventing history or object residency. Every pull request also shows loading promptly; small reviews complete asynchronously while only large reviews qualify for on-demand objects. Owner-amended usable-review scope adds legible syntax/edit layering, persisted tab geometry, measured CLI setup, early safe Overview observations and semantically consistent file status colors.
+The owner-retained large pull request displays its correct file list and a readable selected diff through one exact accepted epoch pair, or retains the unresolved product refusal without inventing history or object residency. Every pull request also shows loading promptly; small reviews complete asynchronously while only large reviews qualify for on-demand objects. Owner-amended usable-review scope adds legible syntax/edit layering, persisted tab geometry, measured CLI setup, early safe Overview observations and semantically consistent file status colors. Further owner-observed r22 defects require neutral filenames with semantic details, non-actionable folder gestures and truthful selected endpoint material.
 
-**Work:** `BPR-0794`, `BPR-0795`, `BPR-0935`, `BPR-0936`, `BPR-0937`, `BPR-0938`, `BPR-0939`
+**Work:** `BPR-0794`, `BPR-0795`, `BPR-0935`, `BPR-0936`, `BPR-0937`, `BPR-0938`, `BPR-0939`, `BPR-0941`, `BPR-0942`, `BPR-0943`
 
 **Prerequisites:** review-thread-null-anchor-read
 
@@ -106,8 +106,11 @@ The owner-retained large pull request displays its correct file list and a reada
 - BPR-0937 directly verifies measure and reduce redundant cli connection work safely, with exact candidate, regressions and rendered or measured public-path evidence
 - BPR-0938 directly verifies show useful overview observations before complete pr loading, with exact candidate, regressions and rendered or measured public-path evidence
 - BPR-0939 directly verifies match file drawer added and removed colors to overview, with exact candidate, regressions and rendered or measured public-path evidence
+- BPR-0941 keeps names neutral while operation markers and independent plus/minus counts use semantic colors, proven through rendered production composition across themes
+- BPR-0942 makes folders structurally non-actionable for file selection and preserves the current diff across mouse, keyboard, expansion and model rebuild gestures
+- BPR-0943 attributes the real modified-file empty-earlier observation and proves exact endpoint resolution or explicit unavailable state through a failing-before production-composed regression and safe native rendered evidence
 
-**Boundary:** Separate mandate r14 follow-up to terminal BPR-0643, BPR-0792 and BPR-0793; retain all RFC-0013 predecessor, native-platform, human and closeout obligations; mandate r16 adds BPR-0795 loading and size-qualified policy without replacing BPR-0794 exact-target acceptance; mandate r20 explicitly adds BPR-0935 through BPR-0939 after owner-observed r21 selected-diff success, preserving prior exact source/anchor obligations and keeping BPR-0934 folder collapse separate
+**Boundary:** Separate mandate r14 follow-up to terminal BPR-0643, BPR-0792 and BPR-0793; retain all RFC-0013 predecessor, native-platform, human and closeout obligations; mandate r16 adds BPR-0795 loading and size-qualified policy without replacing BPR-0794 exact-target acceptance; mandate r20 explicitly adds BPR-0935 through BPR-0939 after owner-observed r21 selected-diff success, preserving prior exact source/anchor obligations and keeping BPR-0934 folder collapse separate; mandate r21 adds BPR-0941..0943 after owner-observed signed r22 defects without rewriting Done-card acceptance or private-target obligations
 
 ## verify-rfc-0013
 

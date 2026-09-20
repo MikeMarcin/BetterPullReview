@@ -1,0 +1,23 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "run_id": "rfc0013-resume-20260919",
+  "segment_id": "selected-diff-d6-owner-defects",
+  "mandate_revision": "r21-drawer-and-exact-material",
+  "child": "/root/rfc0013_postreview_r3",
+  "entry_revision": "d47a6e18859bef0833ce13e2135e6139b37622b2",
+  "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-rfc0013-selected-diff-d6-r21.json",
+  "previous_handoff": "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-selected-diff-d5-r20.json",
+  "assignment": "Same selected-diff-exact-epoch-pair, implement-rfc.engineering.v1, coordinator-implementer revision 2, sole non-delegating engineering writer on main.",
+  "plan_amendment": "Owner explicitly adds BPR-0941..0943 after three signed r22 screenshots. All prior work/exits retained. This is an authorized new mandate, not scope-preserving mechanical refinement. Done BPR-0939 is historical and not rewritten. BPR-0934 remains separate.",
+  "observations": "Three owner-provided screenshots directly inspected outside checkout. Normal filename text must remain neutral. A highlighted folder coexists with the prior file diff; no file semantics belong to folders. A modified file shows an empty earlier pane and a full later side with one addition group; trace exact endpoints before attributing material loss. No private pixels/content retained.",
+  "ownership": "Sole leaf. No native app, build/test command or review server active on resumption. Only unrelated CUA helper processes observed; not touched. .mask.lock.json and ignored nested worktree preserved. Review sequence 443 protects only unrelated BPR-0755.",
+  "current_work": "Allocated and claimed BPR-0941..0943. Inspect drawer delegate/model and selected-file exact Git resolution; add focused failing-before checks, then production-composed and safe native proof.",
+  "pending_obligations": [
+    "BPR-0941..0943",
+    "Original BPR-0794/0795 private-target source/anchor cross-check",
+    "Separate BPR-0934 and BPR-0940; remaining RFC closeout"
+  ],
+  "next_action": "First coherent slice: prove filenames incorrectly take semantic ink, then split marker and counts painting while preserving native filename/selection. Diagnose exact modified-file endpoint facts without logging private material."
+}
