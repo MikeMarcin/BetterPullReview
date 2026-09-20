@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0795"
 title: "Show PR loading promptly and reserve lazy objects for large reviews"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0793"]
 priority: P1
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Dedicated qt_composed_loading_scale_100 passes held-provider paint, cancellation and Home-refusal assertions. Actual tests-disabled synthetic UI visibly shows PR loading and selected comparison loading before Diff ready."}},{"criterion":"AC2","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Current focused core_epoch_policy and application_epoch_host pass bounded small/large shape classification, missing/conflicting facts, exact authority and stale selection checks."}},{"criterion":"AC3","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"Current focused epoch/transport/cache/storage checks and portable two-catalogue course pass exact current and historical acquisition and small-complete/large-lazy boundaries; integration took 228.69 s."}},{"criterion":"AC4","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"15 focused passes plus dedicated Qt loading pass, portable integration, documentation gate, 64 documentation tests and formatting pass. Wider Qt layout and Release stage-0 self-test failures remain explicit in v002 session-identity.json. No live write, explicit account mutation, token extraction or private-content capture. Ambient inspector auto-relaunch caveat is recorded."}},{"criterion":"milestone-exit-5-attended-loading","outcome":"pending","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"artifact","detail":"New r17 loading candidate is ready/protected with no decision at session sequence 404. The actual synthetic Release course is not the owner's prompt-loading observation for the retained large target. No new human criterion is added to the four automated card bullets."}}]
-parked_on: "human-review"
 ---
 
 # Show PR loading promptly and reserve lazy objects for large reviews
