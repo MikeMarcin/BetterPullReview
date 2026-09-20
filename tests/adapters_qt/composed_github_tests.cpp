@@ -185,12 +185,14 @@ namespace {
 		expect(!host.isEmpty() && cliCard->host_label()->text() == host
 				   && !warning->text().contains(host, Qt::CaseInsensitive),
 			   "the warning says this server rather than naming the host its card's header already names");
-		nativeCard->connect_button()->click();
+		// Profile projection is independent of the shared sign-in dialog,
+		// whose native setup hides cards for unrelated hosts.
+		window.connect_github_profile(core::host_profile_id{ 12U });
 		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 12U } && !warning->isHidden()
 				   && warning->text().contains(QStringLiteral("this server"))
 				   && !warning->text().contains(host, Qt::CaseInsensitive),
 			   "choosing the native host leaves the warning on the CLI card, where the opt-in is made, still without the host");
-		cliCard->connect_button()->click();
+		window.connect_github_profile(core::host_profile_id{ 11U });
 		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 11U } && !warning->isHidden(),
 			   "choosing the CLI host again keeps its exact host warning");
 		window.publish(application::github_presentation_update{
@@ -6774,6 +6776,14 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewGitHubQtTests"));
+
+	if (QCoreApplication::arguments().contains(QStringLiteral("--loading-only"))) {
+		test_held_read_paints_loading();
+		test_cancellation_states_and_failure_layouts();
+		test_a_load_refusal_is_said_under_the_home_bar();
+		std::cout << "GitHub Qt loading and refusal tests passed\n";
+		return EXIT_SUCCESS;
+	}
 
 	test_cli_warning_lives_on_its_servers_card();
 	test_conversation_model_is_stable_and_incremental();

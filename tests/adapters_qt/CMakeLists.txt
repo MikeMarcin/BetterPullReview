@@ -77,6 +77,18 @@ set_tests_properties(
 )
 
 bpr_add_network_isolated_test(
+    NAME qt_composed_loading_scale_100
+    COMMAND test_better_pull_review_qt_github_tests --loading-only
+)
+set_tests_properties(
+    qt_composed_loading_scale_100
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+        PASS_REGULAR_EXPRESSION "GitHub Qt loading and refusal tests passed"
+        TIMEOUT 30
+)
+
+bpr_add_network_isolated_test(
     NAME qt_composed_github_scale_125
     COMMAND test_better_pull_review_qt_github_tests
 )
