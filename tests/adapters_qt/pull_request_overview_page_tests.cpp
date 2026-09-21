@@ -4,10 +4,12 @@
 
 #include "bpr/application/pull_request_overview.hpp"
 
+#include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -135,15 +137,19 @@ namespace {
 				   == QStringLiteral("Files: 3 in this pull request, 2 changed since my last review, 2 not read"),
 			   "the files heading counts the files, the changed and the not read");
 
-		auto* const model = page.file_model();
-		expect(model->folder_count() == 2U && model->file_count() == 3U
-				   && model->rowCount() == 2 && model->rowCount(model->index(0, 0)) == 2
-				   && model->rowCount(model->index(1, 0)) == 1
+		auto* const model  = page.file_model();
+		const auto  engine = model->index(0, 0);
+		expect(model->folder_count() == 3U && model->file_count() == 3U
+				   && model->rowCount() == 1 && model->rowCount(engine) == 2
+				   && model->rowCount(model->index(0, 0, engine)) == 2
+				   && model->rowCount(model->index(1, 0, engine)) == 1
 				   && model->index(0, qt::overview_file_model::file_column).data().toString()
-					   == QStringLiteral("Engine/Renderer")
-				   && model->index(1, qt::overview_file_model::file_column).data().toString()
-					   == QStringLiteral("Engine/Shaders"),
-			   "files are grouped under their folders in projection order");
+					   == QStringLiteral("Engine")
+				   && model->index(0, qt::overview_file_model::file_column, engine).data().toString()
+					   == QStringLiteral("Renderer")
+				   && model->index(1, qt::overview_file_model::file_column, engine).data().toString()
+					   == QStringLiteral("Shaders"),
+			   "files preserve projection order beneath their complete folder hierarchy");
 		const auto voxel = model->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"));
 		expect(voxel.isValid() && voxel.parent().row() == 0 && voxel.row() == 1
 				   && voxel.siblingAtColumn(qt::overview_file_model::operation_column).data().toString() == QStringLiteral("M")
@@ -250,6 +256,108 @@ namespace {
 		for (int pass = 0; pass < 5; ++pass) {
 			QApplication::processEvents();
 		}
+	}
+
+	void key(QTreeView& aView, const Qt::Key aKey)
+	{
+		QKeyEvent press{ QEvent::KeyPress, aKey, Qt::NoModifier };
+		QKeyEvent release{ QEvent::KeyRelease, aKey, Qt::NoModifier };
+		QApplication::sendEvent(&aView, &press);
+		QApplication::sendEvent(&aView, &release);
+		settle();
+	}
+
+	void test_folder_controls_preserve_identity_and_refresh_state()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1100, 700);
+		auto projected = projection();
+		page.present(projected);
+		page.show();
+		settle();
+		auto* view       = page.files_view();
+		auto* model      = page.file_model();
+		auto  dispatches = 0;
+		auto  resets     = 0;
+		auto  insertions = 0;
+		auto  removals   = 0;
+		page.set_file_dispatch([&](const QString&) { ++dispatches; });
+		QObject::connect(model, &QAbstractItemModel::modelReset, [&] { ++resets; });
+		QObject::connect(model, &QAbstractItemModel::rowsInserted, [&] { ++insertions; });
+		QObject::connect(model, &QAbstractItemModel::rowsRemoved, [&] { ++removals; });
+		const auto file     = QPersistentModelIndex{ model->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")) };
+		const auto renderer = QPersistentModelIndex{ file.parent() };
+		const auto engine   = QPersistentModelIndex{ renderer.parent() };
+		const auto shadow   = QPersistentModelIndex{ model->index_for_path(QStringLiteral("Engine/Shaders/HairStrandsDeepShadow.usf")) };
+		expect(view->isExpanded(engine) && view->isExpanded(renderer) && !view->visualRect(file).isEmpty(),
+			   "new folders initially reveal their nested files");
+		auto* accessible = QAccessible::queryAccessibleInterface(view);
+		auto* table      = accessible == nullptr ? nullptr : accessible->tableInterface();
+		expect(table != nullptr, "native Overview tree exposes an accessible table");
+		// Qt exposes a tree row's disclosure state through its first cell.
+		auto* cell = table->cellAt(0, qt::overview_file_model::operation_column);
+		expect(cell != nullptr && cell->text(QAccessible::Name).contains(QStringLiteral("Engine"))
+				   && cell->state().expandable && cell->state().expanded,
+			   "folder accessibility identifies its name and expanded disclosure state");
+		view->setFocus();
+		view->setCurrentIndex(renderer);
+		key(*view, Qt::Key_Left);
+		expect(!view->isExpanded(renderer) && view->visualRect(file).isEmpty() && !view->visualRect(shadow).isEmpty(),
+			   "keyboard collapse hides only this folder's descendants");
+		projected.Files.front().Read = core::file_read_state::read;
+		page.present(projected);
+		settle();
+		expect(!view->isExpanded(renderer) && view->currentIndex() == renderer && view->hasFocus()
+				   && file.isValid() && resets == 0 && insertions == 0,
+			   "metadata refresh retains collapse, focus and persistent file identity");
+		view->setCurrentIndex(engine);
+		key(*view, Qt::Key_Left);
+		expect(view->visualRect(file).isEmpty() && view->visualRect(shadow).isEmpty()
+				   && cell->state().expandable && !cell->state().expanded,
+			   "collapsing an ancestor hides every nested branch and updates accessibility");
+		projected.Files.insert(projected.Files.begin(), row("Docs/start.md", application::overview_file_operation::added, application::overview_change_since_review::added, std::nullopt));
+		projected.Files.push_back(row("Engine/Tests/new.cpp", application::overview_file_operation::added,
+									  application::overview_change_since_review::added, std::nullopt));
+		page.present(projected);
+		settle();
+		expect(engine.isValid() && engine.row() == 1 && renderer.isValid() && file.isValid()
+				   && !view->isExpanded(engine) && !view->isExpanded(renderer) && view->currentIndex() == engine
+				   && view->visualRect(file).isEmpty() && insertions == 2 && resets == 0,
+			   "structural refresh inserts new folders without resetting surviving identities or expansion");
+		key(*view, Qt::Key_Right);
+		expect(view->isExpanded(engine) && !view->isExpanded(renderer) && view->visualRect(file).isEmpty()
+				   && !view->visualRect(shadow).isEmpty(),
+			   "reopening an ancestor retains the nested folder's collapsed state");
+		view->setCurrentIndex(renderer);
+		key(*view, Qt::Key_Right);
+		expect(!view->visualRect(file).isEmpty() && model->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")) == file
+				   && model->index(1, qt::overview_file_model::file_column, renderer).data().toString() == QStringLiteral("HairStrandsVoxelization.cpp"),
+			   "reopening restores the same file identities and sibling order");
+		view->setCurrentIndex(file);
+		const auto  folderRect = view->visualRect(QModelIndex{ engine }.siblingAtColumn(qt::overview_file_model::file_column));
+		const auto  disclosure = QPoint{ folderRect.left() - view->indentation() / 2, folderRect.center().y() };
+		QMouseEvent press{ QEvent::MouseButtonPress, QPointF{ disclosure }, QPointF{ view->viewport()->mapToGlobal(disclosure) },
+						   Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, QPointF{ disclosure }, QPointF{ view->viewport()->mapToGlobal(disclosure) },
+							 Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(view->viewport(), &press);
+		QApplication::sendEvent(view->viewport(), &release);
+		settle();
+		expect(!view->isExpanded(engine) && view->currentIndex() == engine && view->hasFocus() && dispatches == 0,
+			   "clicking the native ancestor disclosure leaves visible folder focus without file dispatch");
+		projected.Files.erase(projected.Files.begin());
+		std::ranges::reverse(projected.Files);
+		page.present(projected);
+		settle();
+		expect(engine.isValid() && engine.row() == 0 && renderer.isValid() && file.isValid()
+				   && !view->isExpanded(engine) && removals == 1 && resets == 0 && dispatches == 0,
+			   "removal and sibling reordering preserve surviving folders without model reset or navigation");
+		page.clear();
+		expect(!engine.isValid() && !file.isValid(), "authority invalidation removes every retained folder and file identity");
+		page.present(projection());
+		settle();
+		expect(view->isExpanded(model->index(0, 0)) && !view->currentIndex().isValid() && dispatches == 0,
+			   "new authority starts expanded without inheriting the former selection");
 	}
 
 	auto description(const int aSections) -> QString
@@ -558,6 +666,7 @@ auto main(int argc, char** argv) -> int
 		expect(qFuzzyCompare(application.devicePixelRatio(), scale), "the requested display scale is effective");
 	}
 	test_page_presents_the_projection_and_reports_its_gestures();
+	test_folder_controls_preserve_identity_and_refresh_state();
 	test_compact_descriptions();
 	test_retained_description_reader();
 	test_body_edits_clamp_retained_selection();

@@ -134,6 +134,38 @@ namespace {
 		}
 	}
 
+	void verify_overview_folder_navigation(qt::workbench_window& aWindow)
+	{
+		auto*      page   = aWindow.overview_page();
+		auto*      view   = page->files_view();
+		auto*      model  = page->file_model();
+		const auto file   = model->index_for_path(QStringLiteral("review.cpp"));
+		const auto other  = model->index_for_path(QStringLiteral("secondary.cpp"));
+		const auto folder = file.parent();
+		expect(file.isValid() && other.parent() == folder && view->isExpanded(folder)
+				   && view->itemsExpandable() && view->rootIsDecorated(),
+			   "public Overview exposes native folder disclosure controls");
+		view->setCurrentIndex(folder);
+		view->setFocus();
+		QKeyEvent collapse{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };
+		QApplication::sendEvent(view, &collapse);
+		QApplication::processEvents();
+		expect(!view->isExpanded(folder) && view->visualRect(file).isEmpty() && view->visualRect(other).isEmpty(),
+			   "Overview keyboard collapse hides both exact recorded files");
+		capture(aWindow, QStringLiteral("overview-folders-collapsed.png"));
+		QKeyEvent expand{ QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier };
+		QApplication::sendEvent(view, &expand);
+		QApplication::processEvents();
+		expect(view->isExpanded(folder) && !view->visualRect(file).isEmpty() && !view->visualRect(other).isEmpty()
+				   && model->index_for_path(QStringLiteral("review.cpp")) == file
+				   && model->index_for_path(QStringLiteral("secondary.cpp")) == other
+				   && aWindow.current_modality() == qt::review_modality::overview
+				   && !aWindow.files_drawer()->contents_view()->currentIndex().isValid()
+				   && aWindow.comparison_surface()->current_result() == nullptr,
+			   "Overview expansion preserves files without choosing a comparison or leaving Overview");
+		capture(aWindow, QStringLiteral("overview-folders-expanded.png"));
+	}
+
 	void verify_composed_file_operation_ink(app::github_application& aApplication, const core::appearance_mode aMode)
 	{
 		auto* const view            = aApplication.window().files_tree();
@@ -1068,6 +1100,7 @@ namespace {
 				   && updatedWindow.comparison_surface()->current_result() == nullptr,
 			   "reading PR-wide discussion does not require or select code");
 		updatedWindow.modality()->action(qt::review_modality::overview)->trigger();
+		verify_overview_folder_navigation(updatedWindow);
 		expect(updatedWindow.overview_page()->entry_button()->isEnabled()
 				   && updatedWindow.overview_page()->entry_button()->text() == QStringLiteral("Start review"),
 			   "Overview offers Start review for the first visit");

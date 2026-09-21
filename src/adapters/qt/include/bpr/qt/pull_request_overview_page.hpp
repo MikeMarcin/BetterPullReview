@@ -6,6 +6,7 @@
 
 #include <QAbstractItemModel>
 #include <QColor>
+#include <QHash>
 #include <QModelIndex>
 #include <QString>
 #include <QStyledItemDelegate>
@@ -15,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -47,8 +49,9 @@ namespace bpr::qt {
 
 	/// \brief The overview's files, grouped by folder.
 	///
-	/// \details A two-level tree: one row per folder, its files beneath it,
-	/// in the order the projection already sorted them. Columns follow the
+	/// \details A retained folder hierarchy, including ancestors of nested
+	/// paths. Siblings keep projection order and surviving items keep their
+	/// indexes across refresh. Columns follow the
 	/// accepted table: operation, file, added, removed, changed, read,
 	/// comments, note. The model holds the projection's rows and decides
 	/// nothing about them.
@@ -99,13 +102,28 @@ namespace bpr::qt {
 			-> const application::overview_file_row*;
 
 	private:
-		struct folder
+		struct node
 		{
-			QString                                     Name;
-			std::vector<application::overview_file_row> Files;
+			QString                                       Path;
+			std::optional<application::overview_file_row> File;
+			node*                                         Parent = nullptr;
+			std::vector<std::unique_ptr<node>>            Children;
+			std::size_t                                   FileCount = 0U;
+			int                                           Row       = 0;
 		};
 
-		std::vector<folder> Folders;
+		static void        build_tree(node& aRoot, const std::vector<application::overview_file_row>& aRows);
+		static void        update_rows(node& aParent, int aFirst, int aLast);
+		void               reconcile(node& aParent, node& aDesired);
+		void               update_file(node& aNode, const application::overview_file_row& aRow);
+		void               rebuild_lookup(const std::vector<application::overview_file_row>& aRows);
+		[[nodiscard]] auto node_at(const QModelIndex& aIndex) const -> const node*;
+		[[nodiscard]] auto index_of(const node& aNode, int aColumn = 0) const -> QModelIndex;
+
+		node                  Root;
+		QHash<QString, node*> FileNodes;
+		std::vector<node*>    FileOrder;
+		std::size_t           FolderCount = 0U;
 	};
 
 	/// \brief Paints the overview table's marks: operation, changed, read, comments.
