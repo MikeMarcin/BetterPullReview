@@ -189,7 +189,10 @@ core integration, source boundary, format/tidy, standalone ASan/UBSan,
 documentation/board/discovery and preserved-acceptance checks. The
 [M3 ledger](../../verification/RFC-BPR-0014.md#milestone-3-deterministic-functional-core)
 records exact commands, prior failures and reused architecture-contract evidence.
-All BPR-0953 criteria and both M3 exits are accepted; only guarded finish and
-handoff upkeep remain. Next action is a fresh M4 owner for the actual bounded
-host effects. No review server or remote operation is active. Existing unrelated
-worktrees and every later native/security/predecessor obligation are preserved.
+All BPR-0953 criteria and both M3 exits are accepted. Guarded finish
+`b5a325423e1f11813fcc7cf9a6afd2b899ee350a` moves BPR-0953 to Done; BPR-0954
+is Ready. The [M3 handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m3.json)
+records cleanup and command quiescence. Next action is a fresh M4 owner for
+the actual bounded host effects. No review server or remote operation is active.
+Existing unrelated worktrees and every later native/security/predecessor
+obligation are preserved. This child stops at the M3 boundary.

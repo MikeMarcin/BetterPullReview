@@ -452,3 +452,14 @@ inspection and every native/package/trust criterion remain pending. There is
 no attended candidate, independent verdict or release/publication command.
 The existing MASK preflight discrepancy and `host_load: not_verified` remain
 recorded and are not acceptance evidence.
+
+Guarded finish `b5a325423e1f11813fcc7cf9a6afd2b899ee350a` accepts BPR-0953.
+BPR-0954 is Ready for the coordinator's fresh M4 owner. The
+[durable M3 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m3.json)
+preserves candidate/commit identities, paths, verification, command ownership
+and remaining work. The task-owned source archive, sanitizer executable and
+its debug-symbol directory were removed after verification; Git/compiler can
+recreate them. Runtime receipts and normal core-only build output remain
+ignored. No child, worktree, server or native app is handed off. Final local
+observation/check receipts bind the final bookkeeping HEAD; source acceptance
+stays bound to `7445b09e`.

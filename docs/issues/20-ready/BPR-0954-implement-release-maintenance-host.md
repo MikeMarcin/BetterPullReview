@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0954"
 title: "Implement release maintenance host"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0953"]
 milestone: "M4 Imperative application host"
@@ -43,3 +43,15 @@ remembered vault bindings through their existing owner before removing metadata.
 Retained Git/cache recovery and store migration remain with their existing
 ports/transactions. Test partial failure, replay, sidecars, changed root/object
 identity, profile replacement and shutdown. This is future work, not M2 acceptance.
+
+## M3 policy handoff
+
+BPR-0953 is Done at `b5a325423e1f11813fcc7cf9a6afd2b899ee350a`; its core
+candidate is `7445b09efd0f831ae0838f1eee3c430cdc248ebc`. Adopt the
+[implemented core contract](../../architecture/release-maintenance.md) and
+`release_maintenance.hpp`, including exact cancellation targets and the
+irreversible-boundary/terminal protocol. Snapshot parsing, native inventory,
+actual digest/byte fidelity, output capability, root/vault admission and durable
+recovery are host obligations; a core descriptor alone proves none of them.
+Record unavailable native Windows or credential evidence honestly. The M3
+handoff retains all G1–G9/package/native/security and predecessor obligations.
