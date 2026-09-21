@@ -68,7 +68,11 @@ class Proxy:
 
     def respond(self, channel, authority):
         scenario = self.scenario
-        if scenario in ("cancel", "timeout"):
+        if scenario == "cancel":
+            channel.sendall(b"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: application/octet-stream\r\nContent-Length: 100\r\n\r\nx")
+            self.stop.wait(1)
+            return
+        if scenario == "timeout":
             self.stop.wait(1)
             return
         body = b"{}" if scenario == "metadata" else b"x" * 100

@@ -3,8 +3,12 @@
 
 #include "bpr/application/release_update_projection.hpp"
 
+#include <QPointer>
 #include <QWidget>
+#include <functional>
 #include <map>
+#include <memory>
+#include <vector>
 
 class QAction;
 class QCheckBox;
@@ -40,7 +44,18 @@ namespace bpr::qt {
 		QLabel*                                          Installation = nullptr;
 		QProgressBar*                                    Progress     = nullptr;
 	};
-	/// \brief Adds the same application-owned check gesture to a window or empty desktop.
-	[[nodiscard]] auto add_release_update_action(QMenuBar& aMenu, std::function<void()> aCheck) -> QAction*;
+	/// \brief Keeps one visible macOS application-menu gesture across window and desktop bars.
+	class release_update_menu final : public QObject
+	{
+	public:
+		explicit release_update_menu(std::function<void()> aCheck);
+		~release_update_menu() override;
+		void attach(QMenuBar& aMenu);
+
+	private:
+		std::function<void()>           Check;
+		std::unique_ptr<QObject>        Native;
+		std::vector<QPointer<QMenuBar>> Menus;
+	};
 }
 #endif

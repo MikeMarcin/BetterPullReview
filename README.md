@@ -208,6 +208,18 @@ presentation facts. Both RFCs are `Auto-Verified` after the focused native,
 rendered, memory, resource, and core-only closeout. The selected-graph evidence
 does not certify a signed, notarized, or installable package.
 
+## Application updates
+
+On eligible production-signed macOS installations, **Check for Updates…** and
+General Settings share application-wide update preferences. Select native
+GitHub.com release access explicitly, then choose Download and Install and Restart
+for the verified version. Managed installations and other platforms use manual
+distribution. Packages predating the helper protocol need a manual bootstrap.
+[Application updates and recovery](docs/development/application-updates.md)
+explains the workflow and retained data. Apple Silicon disposable signed upgrades
+are verified; Intel and live private-release/vault evidence remain open in the
+[RFC-0035 ledger](docs/verification/RFC-BPR-0035.md).
+
 ## Architecture
 
 > The core decides. The host performs. Qt presents.

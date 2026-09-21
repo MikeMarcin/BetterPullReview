@@ -6,7 +6,6 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <thread>
 
 namespace {
 	using namespace bpr;
@@ -64,10 +63,14 @@ auto main(int aArgc, char** aArgv) -> int
 	if (scenario == "pre-cancel") {
 		stop.request_stop();
 	}
-	std::jthread  cancellation{ [&](std::stop_token aStop) { if (scenario == "cancel") { std::this_thread::sleep_for(std::chrono::milliseconds{50}); if (!aStop.stop_requested()) { stop.request_stop(); } } } };
 	std::uint64_t received = 0;
 	const bool    metadata = scenario == "metadata" || scenario == "metadata-redirect";
-	const auto    result   = perform_release_update_https_for_test(std::as_bytes(std::span{ canary.data(), canary.size() }), metadata ? 0U : 20U, 100U, stop.get_token(), [&](std::span<const std::byte> aBytes) { received += aBytes.size(); return scenario != "sink-refuses"; }, configuration);
+	const auto    result   = perform_release_update_https_for_test(std::as_bytes(std::span{ canary.data(), canary.size() }), metadata ? 0U : 20U, 100U, stop.get_token(), [&](std::span<const std::byte> aBytes) {
+		received += aBytes.size();
+		if (scenario == "cancel") {
+			stop.request_stop();
+		}
+		return scenario != "sink-refuses"; }, configuration);
 	reason        expected = reason::none;
 	if (scenario == "401") {
 		expected = reason::unauthenticated;
@@ -101,6 +104,9 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	expect(result.Failure == expected, "wire terminal classification");
 	expect(received <= 100U && result.Bytes <= 100U, "streaming bound held");
+	if (scenario == "cancel") {
+		expect(received == 1U && result.Bytes == 1U, "cancellation occurs after the first response byte");
+	}
 	if (expected == reason::none) {
 		expect(received == (metadata ? 2U : 100U), "complete bounded payload");
 	}

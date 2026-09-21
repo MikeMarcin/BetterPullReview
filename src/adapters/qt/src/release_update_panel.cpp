@@ -14,6 +14,10 @@
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
+#if defined(Q_OS_MACOS)
+	#include "release_update_menu_mac.hpp"
+#endif
+
 namespace bpr::qt {
 	namespace {
 		using reason  = core::release_update_reason;
@@ -202,17 +206,30 @@ namespace bpr::qt {
 		const auto index = Accounts->findData(QString::fromStdString(aSelected));
 		Accounts->setCurrentIndex(index >= 0 ? index : 0);
 	}
-	auto add_release_update_action(QMenuBar& aMenu, std::function<void()> aCheck) -> QAction*
+	release_update_menu::release_update_menu(std::function<void()> aCheck)
+		: Check{ std::move(aCheck) }
 	{
-		auto* menu = aMenu.findChild<QMenu*>(QStringLiteral("releaseUpdateMenu"));
-		if (!menu) {
-			menu = aMenu.addMenu(QStringLiteral("&Help"));
-			menu->setObjectName(QStringLiteral("releaseUpdateMenu"));
+#if defined(Q_OS_MACOS)
+		Native = make_release_update_native_menu(Check);
+#endif
+	}
+	release_update_menu::~release_update_menu() = default;
+	void release_update_menu::attach(QMenuBar& aMenu)
+	{
+		if (std::ranges::any_of(Menus, [&aMenu](const auto& aKnown) { return aKnown == &aMenu; })) {
+			return;
 		}
-		auto* action = menu->addAction(QStringLiteral("Check for Updates…"));
+		Menus.emplace_back(&aMenu);
+		connect(&aMenu, &QObject::destroyed, this, [this] {
+			std::erase_if(Menus, [](const auto& aKnown) { return aKnown.isNull(); });
+		});
+		auto* menu = aMenu.addMenu(QStringLiteral("&Help"));
+		menu->setObjectName(QStringLiteral("releaseUpdateMenu"));
+		auto* action = new QAction{ QStringLiteral("Check for Updates…"), menu };
 		action->setObjectName(QStringLiteral("checkForUpdatesAction"));
-		action->setMenuRole(QAction::ApplicationSpecificRole);
-		QObject::connect(action, &QAction::triggered, &aMenu, std::move(aCheck));
-		return action;
+		action->setMenuRole(QAction::NoRole);
+		action->setVisible(!Native);
+		menu->addAction(action);
+		connect(action, &QAction::triggered, this, Check);
 	}
 }

@@ -5,8 +5,9 @@ establishes the boundary; RFC-BPR-0014 will add signed Windows, macOS, and Linux
 artifacts and their release evidence.
 
 Packaging must preserve the core/application/adapters/composition dependency
-graph, restrict Qt plugin discovery to trusted installation paths, and must not
-introduce an updater, browser runtime, listener, telemetry, or remote loader.
+graph and restrict Qt plugin discovery to trusted installation paths. No browser
+runtime, listener, telemetry or general remote loader is permitted. RFC-BPR-0035
+adds only its user-confirmed, qualified macOS updater to the earlier manual policy.
 
 RFC-BPR-0035 development now bundles `Contents/MacOS/bpr_update_helper` on macOS.
 The existing release tool signs nested Mach-O files and normalizes their rpaths,
@@ -15,8 +16,11 @@ upgrade, timeout and recovery on Apple Silicon; native composition now selects
 the installer for eligible trusted macOS installations. These unpublished,
 qualification-only packages do not authorize release publication or replace the
 developer application. Intel execution, live private-service acceptance and
-operator/security closeout remain [[BPR-0949]] obligations. RFC-BPR-0035 amends
-the earlier manual-update policy only for the qualified macOS scope.
+final RFC closeout remain [[BPR-0949]] obligations. Windows/Linux and managed
+packages retain manual distribution. See [Application updates and recovery](../docs/development/application-updates.md)
+for bootstrap, operator qualification, retained data and exact helper-recovery
+commands, and the [security boundary](../docs/security/release-updater.md) for
+authority, network destinations, resource limits and process inventory.
 
 ## Application icon
 

@@ -57,7 +57,15 @@ records—not a hosted workflow name—are authoritative.
 - Per-user installation is the default and should not require administrator rights.
 - Qt dynamic linking and license obligations are handled explicitly.
 - Plugin and library search paths are restricted to trusted installation locations.
-- No automatic updater is enabled in the first release.
+- The initial release uses manual/corporate-managed updates. The 2026-09-20
+  RFC-BPR-0035 implementation mandate amends this only for eligible trusted macOS
+  packages with the qualified signed helper/startup protocol: discovery may be
+  automatic, while download and installation each require a user gesture.
+  Windows/Linux and managed packages retain manual distribution. This exception
+  changes neither this RFC's acceptance nor canonical closeout order; Intel and
+  live private-release evidence remain open under BPR-0949. See the
+  [updater security boundary](../security/release-updater.md) and
+  [operator/recovery guide](../development/application-updates.md).
 - No telemetry or crash upload occurs automatically.
 - Diagnostic bundles are user-initiated, previewable, and source/secret-free by default.
 

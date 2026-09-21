@@ -39,6 +39,7 @@ namespace bpr::app {
 		release_update_components                                Components;
 		std::unique_ptr<application::release_update_service>     Service;
 		std::unique_ptr<QWidget>                                 Dialog;
+		std::unique_ptr<qt::release_update_menu>                 Menu;
 		QPointer<qt::release_update_panel>                       MainPanel;
 		std::vector<QPointer<qt::release_update_panel>>          Panels;
 		std::vector<release_update_account>                      Accounts;
@@ -292,14 +293,17 @@ namespace bpr::app {
 	}
 	void release_update_desktop::attach(QMenuBar& aMenu)
 	{
-		static_cast<void>(qt::add_release_update_action(aMenu, [weak = Impl->weak_from_this()] {
-			if (auto self = weak.lock(); self && !self->Closing) {
-				self->present();
-				if (self->Service) {
-					self->Service->dispatch({ core::release_update_command::check, { } });
+		if (!Impl->Menu) {
+			Impl->Menu = std::make_unique<qt::release_update_menu>([weak = Impl->weak_from_this()] {
+				if (auto self = weak.lock(); self && !self->Closing) {
+					self->present();
+					if (self->Service) {
+						self->Service->dispatch({ core::release_update_command::check, { } });
+					}
 				}
-			}
-		}));
+			});
+		}
+		Impl->Menu->attach(aMenu);
 	}
 	void release_update_desktop::set_accounts(std::vector<release_update_account> aAccounts)
 	{

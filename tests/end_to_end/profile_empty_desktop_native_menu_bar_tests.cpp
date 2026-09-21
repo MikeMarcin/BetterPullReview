@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QLabel>
 #include <QMenuBar>
 #include <QTemporaryDir>
 #include <QThread>
@@ -203,6 +204,27 @@ namespace {
 		return { native::main_menu_visible_titles(), native::main_menu_items("Apple"),
 				 native::main_menu_items("View"), native::describe_main_menu() };
 	}
+	void check_update_menu()
+	{
+		wait_for([] { return native::main_menu_item_is_enabled("Apple", "Check for Updates…"); }, "the focused bar enables its native update item");
+		const auto items = native::main_menu_items("Apple");
+		expect(std::ranges::count(items, std::string{ "Check for Updates…" }) == 1,
+			   "exactly one Check for Updates item is visible in the native application menu");
+		expect(native::perform_main_menu_item("Apple", "Check for Updates…"), "native update action is enabled");
+		QWidget* offer = nullptr;
+		wait_for([&] {
+			for (auto* widget : QApplication::topLevelWidgets()) {
+				if (widget->windowTitle() == QStringLiteral("BetterPullReview Updates") && widget->isVisible()) {
+					offer              = widget;
+					const auto* status = offer->findChild<QLabel*>(QStringLiteral("releaseUpdateStatus"));
+					return status && !status->text().isEmpty();
+				}
+			}
+			return false;
+		},
+				 "native update gesture reaches the public status panel");
+		close_window(*offer);
+	}
 	/// Samples `[NSApp mainMenu]` on every event-loop turn until the condition holds,
 	/// recording each change and the longest stretch where the Profiles menu was
 	/// missing. That stretch is the defect the owner saw; zero is the contract.
@@ -325,6 +347,26 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(native::main_menu_offers("Profiles", "New Window") && native::main_menu_offers("View", "Line numbers"),
 		   "and it carries the workbench menus");
 	const auto windowed = snapshot_menu_bar();
+	check_update_menu();
+	initial->window().activateWindow();
+	focus(initial->window(), "focus returns after the update dialog");
+	expect(native::perform_main_menu_item("Profiles", "New Window"), "native New Window creates an updater sibling");
+	wait_for([&] { return initial->windows().size() == 2U; }, "two native windows are open");
+	const auto contexts = initial->windows();
+	auto*      sibling  = initial->window(contexts.back());
+	wait_for([&] { return sibling->isVisible() && sibling->windowHandle(); }, "the sibling is visible");
+	focus(*sibling, "the sibling receives focus");
+	check_update_menu();
+	initial->window().activateWindow();
+	focus(initial->window(), "the original window receives focus again");
+	check_update_menu();
+	close_window(*sibling);
+	wait_for([&] { return initial->windows().size() == 1U; }, "the sibling closes without losing the update action");
+	initial->window().activateWindow();
+	focus(initial->window(), "the original remains usable");
+	check_update_menu();
+	initial->window().activateWindow();
+	focus(initial->window(), "focus returns for the last-window course");
 	note("windowed top-level menus: " + join(windowed.Titles));
 	expect(std::ranges::find(windowed.Titles, std::string{ "Profiles" }) != windowed.Titles.end()
 			   && std::ranges::find(windowed.Titles, std::string{ "View" }) != windowed.Titles.end(),
@@ -340,6 +382,7 @@ auto main(int aArgc, char** aArgv) -> int
 	note("main menu with Settings focused: " + native::describe_main_menu());
 	expect(native::main_menu_is(initial->window().menu_bar()->toNSMenu()),
 		   "focusing the Settings window keeps the workbench menu bar");
+	check_update_menu();
 	close_window(*initial->window().settings());
 	focus(initial->window(), "focus returns to the workbench");
 
@@ -367,6 +410,7 @@ auto main(int aArgc, char** aArgv) -> int
 	// View away and the merged Preferences with it, leaving one visible menu
 	// where the RFC names four.
 	const auto resident = snapshot_menu_bar();
+	check_update_menu();
 	note("windowless top-level menus: " + join(resident.Titles));
 	expect(resident.Titles == windowed.Titles, "closing the last window takes no menu off the bar");
 	expect(resident.ApplicationItems == windowed.ApplicationItems,
@@ -405,7 +449,7 @@ auto main(int aArgc, char** aArgv) -> int
 
 	// B2. Each native reopening gesture opens the most recently used profile at Home,
 	// exactly once, and a further close returns to the same resident menu bar.
-	const auto reopened_exactly_once = [&](const char* aMessage) {
+	const auto reopenedExactlyOnce = [&](const char* aMessage) {
 		const auto  reopening = sample_until([&] { return desktop->runtime(core::default_bpr_profile_id) != nullptr; }, aMessage);
 		auto* const runtime   = desktop->runtime(core::default_bpr_profile_id);
 		QApplication::processEvents();
@@ -417,11 +461,14 @@ auto main(int aArgc, char** aArgv) -> int
 		// handover; a reviewer must not see the bar lose a menu while it happens.
 		const auto handover = sample_until([&] { return native::main_menu_is(runtime->window().menu_bar()->toNSMenu()); },
 										   "and the reopened window's menu bar takes the menu bar back");
+		check_update_menu();
+		runtime->window().activateWindow();
+		focus(runtime->window(), "focus returns after the reopened update gesture");
 		expect(reopening.LongestGapMs == 0 && !reopening.GapOpen && handover.LongestGapMs == 0 && !handover.GapOpen,
 			   "with no moment in either direction where the bar was short a menu");
 		return runtime;
 	};
-	const auto closed_again = [&](app::github_application& aRuntime) {
+	const auto closedAgain = [&](app::github_application& aRuntime) {
 		native::begin_main_menu_trace();
 		close_window(aRuntime.window());
 		const auto report = sample_until([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr; },
@@ -439,7 +486,7 @@ auto main(int aArgc, char** aArgv) -> int
 	};
 
 	expect(native::send_dock_reopen(), "AppKit's Dock reopen message reaches the application delegate");
-	auto* const byDock = reopened_exactly_once("the Dock's reopen message reopens the most recently used profile");
+	auto* const byDock = reopenedExactlyOnce("the Dock's reopen message reopens the most recently used profile");
 
 	// The arrangement the pin before the close could not reach: there, the desktop
 	// had never built its bar. Qt gives a parentless menu bar to any focused window
@@ -456,10 +503,11 @@ auto main(int aArgc, char** aArgv) -> int
 	note("main menu with Settings focused and a resident desktop bar alive: " + native::describe_main_menu());
 	expect(native::main_menu_is(byDock->window().menu_bar()->toNSMenu()),
 		   "a menubar-less Settings window keeps the workbench window's own menu bar");
+	check_update_menu();
 	close_window(*byDock->window().settings());
 	focus(byDock->window(), "focus returns to the workbench");
 
-	closed_again(*byDock);
+	closedAgain(*byDock);
 
 	if (native_key_windows) {
 		native::hide_application();
@@ -480,8 +528,8 @@ auto main(int aArgc, char** aArgv) -> int
 		// was screen-locked.
 		native::activate_application();
 		if (wait_quietly([&] { return native::application_is_active(); }, 3000)) {
-			auto* const byActivation = reopened_exactly_once("native application activation reopens the most recently used profile");
-			closed_again(*byActivation);
+			auto* const byActivation = reopenedExactlyOnce("native application activation reopens the most recently used profile");
+			closedAgain(*byActivation);
 		} else {
 			note("not run: macOS refused this process activation after unhiding (" + native::frontmost_application_name()
 				 + " holds the front), so what activation reopens stays the owner's to see; the course goes on delivering "
@@ -493,12 +541,12 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 
 	expect(native::send_command_key('n'), "Command-N is sent through the application with no key window");
-	auto* const byShortcut = reopened_exactly_once("Command-N on the resident menu bar reopens the most recently used profile");
-	closed_again(*byShortcut);
+	auto* const byShortcut = reopenedExactlyOnce("Command-N on the resident menu bar reopens the most recently used profile");
+	closedAgain(*byShortcut);
 
 	expect(native::perform_main_menu_item("Profiles", "Default"), "the Profiles menu offers the profile by name as an enabled item");
-	auto* const byMenu = reopened_exactly_once("choosing the profile from the native Profiles menu reopens it");
-	closed_again(*byMenu);
+	auto* const byMenu = reopenedExactlyOnce("choosing the profile from the native Profiles menu reopens it");
+	closedAgain(*byMenu);
 
 	// The half of the owner's sentence that `[NSApp mainMenu]` is blind to, settled
 	// over every close this course watched rather than over one of them: an

@@ -10,6 +10,12 @@ It selects no GitHub transport, credential vault, Git process, SQLite runtime,
 AI process, browser engine, listener, plugin loader, telemetry, remote content
 loader, or updater.
 
+That is the RFC-BPR-0001 foundation graph. The later RFC-BPR-0035 composition
+adds the narrowly authorized macOS updater described in the
+[release updater security boundary](release-updater.md), including its fixed
+network/process inventory and remaining qualification gaps. It adds no browser
+runtime, telemetry, privileged service or update listener.
+
 ## Enforced boundaries
 
 - The core source scan rejects Qt, SQLite, curl, thread, future, filesystem,

@@ -188,6 +188,8 @@ namespace {
 		qt::workbench_window window;
 		qt::settings_window  settings;
 		desktop->attach(window);
+		desktop->attach(window);
+		expect(window.findChildren<QAction*>(QStringLiteral("checkForUpdatesAction")).size() == 1, "menu attachment is idempotent");
 		desktop->attach(settings);
 		const auto                        binding = std::string(64U, 'a');
 		const app::release_update_account account{ binding, "Fixture account", [wire](auto, auto, auto aDone) { aDone(wire); } };

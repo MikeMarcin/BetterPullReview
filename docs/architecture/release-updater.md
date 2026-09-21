@@ -2,7 +2,11 @@
 
 RFC-BPR-0035 milestones 1 and 2 supply the deterministic policy and a desktop-wide
 check/download/staging composition. The application menu and General Settings
-share one service, including when the last review window closes on macOS.
+share one service, including when the last review window closes on macOS. The
+Qt adapter retains one native macOS application-menu item for that service's
+lifetime, independent of window and empty-desktop menu bars. Repeated
+attachment, focus changes and window teardown cannot accumulate check actions.
+Other platforms expose the corresponding Help action on each window.
 [[BPR-0947]] implements discovery and verified staging. [[BPR-0948]] adds the
 helper, shutdown coordination, replacement and recovery protocol described below.
 Disposable signed/notarized installations qualify that protocol on Apple Silicon.
@@ -245,7 +249,11 @@ old/new/backup identities and does not retry a launch. A terminated helper can b
 resumed explicitly with its `--recover` operation using the absolute installation
 path and exact journal transaction ID. If the installed path is absent, use the
 helper inside that transaction's `backup.app`. This is a diagnostic recovery
-interface, not a qualified self-service recovery flow.
+interface. The [operator/recovery guide](../development/application-updates.md)
+documents journal discovery, exact absolute arguments, ordinary cooperative Quit
+and interpretation of helper exit/result. Its signed backup-helper operation is
+qualified on Apple Silicon; there is no automatic recovery wizard or attended
+self-service usability claim.
 
 Only the matching healthy receipt permits backup cleanup. Before the first unlink,
 a bounded 16 MiB inode inventory is durably written. Cleanup uses no-follow,
@@ -262,5 +270,7 @@ The [verification ledger](../verification/RFC-BPR-0035.md) distinguishes fixture
 fault courses, real peer processes and signed older-to-newer native upgrade,
 timeout, missing-receipt and rollback courses. These use synthetic private state,
 network denial and disposable installations. Live private-release access, Intel
-execution and operator/security closeout remain [[BPR-0949]] obligations; neither
+execution and dependency-ordered closeout remain [[BPR-0949]] obligations. The
+[security boundary](../security/release-updater.md) inventories network, helper,
+storage, cleanup and trust policy; neither
 local signing authorization nor milestone acceptance authorizes publication.
