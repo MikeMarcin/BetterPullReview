@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0962"
 title: "Verify release trust and security boundaries"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M9 Security and boundary verification"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+blocked_by: "release-security-inputs"
 ---
 
 # Verify release trust and security boundaries
@@ -58,9 +59,7 @@ verification, legal disposition and the missing native courses. The attended
 licensing question is narrower than release acceptance. No tag, push, upload,
 Developer ID signing or notarization was performed.
 
-## M2 security allocation
-
-### M9 post-review correction in progress
+## M9 post-review source distribution correction
 
 Fresh sole owner `/root/rfc0014_m9_postreview` resumes only M9 at
 `6ee88ac8afdc30543c0c6ea42e2a596b7556c1c4`, mandate r3 unchanged. Session
@@ -72,14 +71,33 @@ release asset, retains exact references/notices and replacement instructions in
 the application, and requires equivalent recipient access and retention. It
 does not approve legal terms, security, trust or publication.
 
-The implementation plan is to update the existing package/release drivers,
-bind the sidecar digest and release location in installed source provenance,
-reject absent/substituted/embedded archives in audits, test the public package
-and publish preflight locally, and prepare only the affected licensing question.
-The old protected candidates remain untouched. The review server PID 49181 is
-the only inherited task command; no other writer is assigned. Grype's 21 Mac/19
-Windows failures and every M8/M9 native/independent obligation remain pending.
-Next action: implement and verify this bounded packaging correction offline.
+Commit `1c429749aff4c09c6dc88da930d3344cd2d33c36` updates the existing
+macOS and native CPack drivers. Installed provenance binds the sidecar version,
+platform, producer, exact URL and digest; notices and source offers name it.
+Audits reject absent, substituted, stale or embedded archives. The existing
+publication script verifies the actual app ZIP/SPDX/source relationship before
+remote operations and requires eight assets including source and its checksum.
+The access policy includes original-channel fallback, corporate/offline copies
+and indefinite retention until all applicable obligations end. Qt replacement
+and local resealing instructions are preserved.
+
+Offline macOS preparation, all 34 tests in four focused CTest contracts, the
+exact security audit, publication source preflight, checksum/ad-hoc seal checks,
+and guarded tests-disabled public package course pass. All prior notices and
+seven upstream source payloads are retained; installed footprint is 92,536 KiB
+versus 159,472 KiB before the correction. Windows/MSI and Linux/DEB/RPM driver
+contracts pass with fixtures; revised native artifacts remain pending.
+
+The [ledger](../../verification/RFC-BPR-0014.md#m9-post-review-source-distribution-correction)
+and handoff bind the new candidate and the separate source asset. Only licensing
+v002 is prepared for the remaining owner/legal obligation. The old rejected
+v001 and M8 candidates stay protected and unchanged. Grype's 21 Mac/19 Windows
+failures and all trust/native/privacy obligations remain pending; this card and
+both M9 exits remain unaccepted. No publication, remote release mutation,
+Developer ID signing or notarization occurred. Next action: hand back the exact
+licensing decision; the coordinator assigns a fresh M9 engineering round.
+
+## M2 security allocation
 
 The [source allocation](../../architecture/release-readiness.md) binds all nine
 canonical public checks and G1–G9. Verify exact final package/helper bytes,

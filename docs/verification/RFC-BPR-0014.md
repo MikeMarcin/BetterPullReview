@@ -1398,3 +1398,91 @@ Native cleanup guards retain unchanged live project/role declarations.
 Documentation passes, 64 documentation regressions pass, 957-card scoped board
 validation is clean, and the bound checkpoint selects fresh independent M10
 without evaluating or granting M9 acceptance.
+
+### M9 post-review source distribution correction
+
+Fresh sole implementer `/root/rfc0014_m9_postreview` resumed at clean
+`6ee88ac8afdc30543c0c6ea42e2a596b7556c1c4` under unchanged mandate r3 and
+coordinator-implementer rev2. Session `cbd48b91000b00f1e72e1ad62c7c384c`
+handed back at sequence 465. Human rejection
+`626562d7-65a5-4eb3-842b-30b2573a09e5` applies only to licensing v001,
+fingerprint `2ec3475e1eed532ab1455783ae8553b823f6f7ffb005ee8b057ce1be5119c577`.
+It requested a separate version-bound source release asset, installed exact
+references, equivalent recipient access/retention and preserved replacement
+instructions. It is a packaging disposition, not legal advice, security
+acceptance, release authorization or an amendment to M8/M9 acceptance.
+
+After explicit resume/claim commits `ce3634ca`/`819cfcc6`, implementation
+`1c429749aff4c09c6dc88da930d3344cd2d33c36` updates the existing
+`tools/release.sh`, `packaging/package.py` and shared runtime steps. Each platform
+emits `BetterPullReview-VERSION-PLATFORM-corresponding-source.zip` beside its
+binary outputs. Installed source provenance binds platform/version, producer
+commit, exact versioned GitHub URL and SHA-256. Both notices and source offers
+carry that reference; the SPDX binds their exact bytes. Package/source audits
+reject missing, renamed, substituted, stale-version/commit/URL and embedded
+archives, including incorrect archive members or upstream hashes. The existing
+private publication script verifies the references inside the app ZIP and
+requires source plus its checksum in its eight-asset set before remote work.
+
+The policy requires equivalent source access at no additional charge for every
+binary recipient, original-distribution-channel fallback after private-access
+changes, and source copies alongside corporate/offline redistribution. Assets
+and tags remain immutable; retention is indefinite until the accountable owner
+documents that every applicable obligation has ended and matching binaries are
+no longer distributed. Ongoing access/retention and practical licensing/build/
+relink completeness still require owner/legal disposition. No asset is uploaded,
+and the recorded release URL is prospective. The publish-release skill was
+updated to match the existing pipeline's eight-asset contract and validated.
+
+The new exact macOS candidate lives at `build/releases/m9-source-1c429749/`:
+
+| Artifact | SHA-256 |
+|---|---|
+| App ZIP, 40,411,580 bytes | `06c1c17e427bc1aa9a2566ccb295165faee7aa2e8b5716728b9218eaeb527b25` |
+| Separate source ZIP, 68,541,007 bytes | `37b0106584fb897a798c0cd048f46fd2051599835f399b8808774af76cfc02af` |
+| SPDX | `d47ebc072f819496fdebefe16542f00ee8b940a03f29a7535cede2123a094a74` |
+| Ad-hoc sealed application executable | `d3b06eaa1a3fbe8eaa8b6dda502dd4a639a757b0e3fc7ebf57b140f158b90a86` |
+| Source offers | `cbcaea3d62bfa278a91ee19a94a3e330b41cbf2454fd3ba1a4985fbdccdd31b8` |
+| Third-party notices | `c2a7944463e1f25f082ec926eb184b9669e944b07b52a358e701e6adf3aff8db` |
+
+The app and app ZIP contain no corresponding-source archive. App disk footprint
+is 92,536 KiB, formerly 159,472 KiB. Direct comparison confirms all seven upstream
+source payloads and all prior notice bytes remain intact. Dependency package
+records equal the prior macOS SPDX exactly; this does not turn its unresolved
+21 Grype findings or the Windows 19 findings into a pass. The historical scan
+tool/database/finding records remain unchanged. Source/archive hashes changed
+because of the deterministic archive metadata and new package disposition.
+
+| Verification against `1c429749` | Result and limit |
+|---|---|
+| Existing `tools/release.sh --version 0.1.3 --prepare-only --skip-tests --output-dir build/releases/m9-source-1c429749` | Pass, 17.222s; universal tests-disabled app, restricted deployment and real relocated launch; offline ad-hoc seal only |
+| Four focused CTest contracts: package runtime, source assets, package/security audits | 4/4 pass, 1.789s; 34 tests including all platform notice layouts, MSI/DEB/RPM driver/checksum/provenance fixtures, actual publication shell with disposable git/gh commands, and source refusal controls |
+| Exact `verify_release_security.py` | Pass, 2.193s; 42 installed files, 13 binaries, 227 first-party units, 63 Qt records and seven separate source inputs; independent trust/legal/native acceptance remains pending |
+| `packaging/verify_release_sources.py` on the actual app ZIP/SPDX/source ZIP | Pass, 0.125s; no URL fetched or remote work performed |
+| Guarded tests-disabled `release_package_course.py` | Nine groups pass, 15.675s; exact relocated audit, two native Cocoa launches, loader/refusal controls and real MCP read/stale/path boundaries; live declarations unchanged, children reaped |
+| Exact checksum file and `codesign --verify --deep --strict` | Pass; ad-hoc seal does not prove Developer ID/notarization/Gatekeeper |
+| Sidecar, prior-source and notice comparison | Pass, 0.212s; no embedded archive and unchanged dependency records; raw receipt `build/m9-source-observations.json` |
+
+A manual simplification/self-review centralized source names/provenance/reference
+checks instead of maintaining competing producer/auditor rules. Production C++
+is unchanged. Prior native/vault/crash, external-dependency hardening and
+independent security/trust findings retain their original identities and scope.
+No revised native Windows/Linux package was built in this correction; their
+shared pipeline contracts pass with fixtures, and requalification stays pending.
+
+Only [licensing v002](reviews/rfc0014-m9-licensing-v002/manifest.json) presents
+the revised exact macOS inventory for the already-required owner/legal decision.
+The rejected v001 and accepted M8 packets/installations remain unchanged and
+protected; no verdict transfers to new bytes. The current
+[handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json) records
+the new fingerprint/cursor and reused loopback server. All engineering commands
+are complete; the empty task-owned qualification scratch directory was removed.
+Preparation is ready/protected at cursor 468 in the same session, fingerprint
+`da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80`;
+no decision was present at preparation. PID 49181/port 59550 was safely reused,
+and its complete authenticated URL is handed to the coordinator without being
+committed. The coordinator arms `wait --after 468 --kind handed-back` before
+yielding; the next engineering round interprets any verdict.
+BPR-0962 remains Blocked on `release-security-inputs`, both authored M9 exits
+remain pending, and M10 was not started. No tag, push, upload, remote release
+mutation, Developer ID signature or notarization was performed.

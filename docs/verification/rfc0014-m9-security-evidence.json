@@ -8,6 +8,16 @@
   },
   "producer": "9409ff618c0e8c567fe266195ec8228852b18485",
   "verifier": "f72013b0d245c3ef5e18b65eba7f31f250838b24",
+  "source_disposition_round": {
+    "producer": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
+    "decision": "626562d7-65a5-4eb3-842b-30b2573a09e5",
+    "scope": "Packaging correction only: separate version-bound corresponding-source asset; no security or legal acceptance.",
+    "macos_sbom_sha256": "d47ebc072f819496fdebefe16542f00ee8b940a03f29a7535cede2123a094a74",
+    "macos_source_sha256": "37b0106584fb897a798c0cd048f46fd2051599835f399b8808774af76cfc02af",
+    "observations": "All dependency package records equal the prior macOS SPDX; all seven upstream archive payloads and prior license-notice bytes retained. No dependency version, applicability or suppression changed.",
+    "scan_disposition": "Previous Grype 21 macOS / 19 Windows failures remain blocking. No new scan or complete coverage claim. Windows/Linux require new native packages before applying the corrected source-delivery evidence.",
+    "receipt": "build/m9-source-observations.json"
+  },
   "secret_scan": {
     "tool": "Gitleaks 8.30.1",
     "tool_archive_sha256": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
