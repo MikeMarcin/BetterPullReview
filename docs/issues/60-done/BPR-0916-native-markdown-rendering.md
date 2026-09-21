@@ -37,7 +37,7 @@ text, nested structures, wide tables/code and hostile resource references.
   composition, route admitted navigation through host policy, preserve original
   bodies and long-description geometry, and supply AC-01 through AC-06 evidence.
 
-## Status
+## Execution record
 
 Both authored milestones are accepted. M1 source
 `4812884e3670971b1b0bdc0b6e5d12fd81ddec48` supplies the shared component and
