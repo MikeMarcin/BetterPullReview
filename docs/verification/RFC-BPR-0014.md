@@ -416,4 +416,39 @@ The new public core course then passed. Self-review added exact cancellation
 target binding and preserved recovery after retiring irreversible deletion;
 their direct counterexamples pass. An initial tidy invocation used positional
 paths; the helper required `--paths`, and the corrected invocation passed.
-Final candidate-bound evidence follows after integration.
+The code-simplifier pass kept one shared command-admission function, typed
+fixed-size values, early refusal helpers and no dynamic effect list. Exact
+cancel-target and irreversible-retirement counterexamples were retained as
+direct tests. A later status correction clears the recovery reason after valid
+host readmission; its asserted result is part of the final candidate.
+
+Source candidate: `7445b09efd0f831ae0838f1eee3c430cdc248ebc`.
+
+| Check at the candidate | Result / evidence limit |
+|---|---|
+| `cmake --build --preset core-only --target test_release_maintenance_core test_better_pull_review_epoch_core_tests test_better_pull_review_appearance_core_tests test_better_pull_review_theme_exchange_core_tests test_better_pull_review_core_profile_window_tests test_release_update_core -j 4` | Pass; Qt/provider-free core build, 0.729 seconds |
+| `ctest --test-dir build/core-only --output-on-failure -R '^(core_release_maintenance\|core_epoch_policy\|core_appearance_policy\|core_theme_exchange\|core_profile_window\|core_release_update\|core_dependency_boundary\|core_boundary_contract)$' -j 4` | 8/8 pass, 1.34 seconds; covers new policy and reused semantics |
+| Complete candidate archive followed by `cmake -DBPR_ROOT=/Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m3-candidate.a8KTWz -P /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m3-candidate.a8KTWz/cmake/VerifyArchitectureBoundaries.cmake` | Pass, 5.513 seconds; all tracked source included, unrelated ignored worktree excluded without altering it |
+| `architecture_boundary_contract` in the earlier nine-check core-only pass | Pass, 90.28 seconds; checker, fixture and relevant CMake inputs unchanged at candidate, so reused |
+| `/usr/bin/clang++ -std=c++23 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I src/core/include src/core/src/release_maintenance.cpp tests/core/release_maintenance_tests.cpp -o build/rfc0014-run/m3-policy-asan`, then run with `ASAN_OPTIONS=abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1` | Both pass; `release-maintenance-tests:pass`, no sanitizer findings; only the new pure core/test translation units, not package-wide sanitizer acceptance |
+| `python3 _coding-standard/scripts/format_check.py --root . src/core/include/bpr/core/release_maintenance.hpp src/core/src/release_maintenance.cpp tests/core/release_maintenance_tests.cpp` | Pass, three touched files, clang-format 23.1.1 |
+| `python3 _coding-standard/scripts/tidy.py --root . --build-dir build/core-only --warnings-as-errors --paths src/core/src/release_maintenance.cpp tests/core/release_maintenance_tests.cpp` | Pass, two translation units, clang-tidy 23.1.1; one non-user-code warning suppressed by the existing tooling |
+| Documentation gate, scoped board validation, target-only plan discovery, `git diff --check` | Pass; `DOCUMENTATION_OK`, 957 cards/valid, unchanged twelve-stage plan |
+| Scoped diff against M3 entry; verbatim RFC acceptance-section comparison with immutable base | Existing semantic owners, application/adapters/Qt/composition, release tools/skill/presets unchanged; all nine canonical RFC bullets unchanged |
+
+The native compiler is Apple clang 21.0.0 on arm64 macOS; Python is 3.14.7.
+`otool -L build/core-only/tests/core/release_maintenance_core` lists only
+`libc++` and `libSystem`. The new course tests safe default capabilities, all
+32 diagnostic/category bits, record/byte/entry bounds, exact snapshot and
+inventory fields, stale completions on every identity axis, irreversible
+failure, invalidation, shutdown and counter exhaustion. Local receipts are
+`build/rfc0014-run/m3-{build,core-tests,architecture,sanitizer-build,sanitizers,format,tidy,documentation,board,discovery}-evidence.json`.
+
+M3 accepts BPR-0953's three criteria and both milestone exits only. The public
+surface exercised here is the deterministic library API; real UI/host/file
+effects are intentionally M4–M6 obligations. Actual classification/redaction,
+byte/digest fidelity, private-root/vault cleanup, migration recovery, canary/crash
+inspection and every native/package/trust criterion remain pending. There is
+no attended candidate, independent verdict or release/publication command.
+The existing MASK preflight discrepancy and `host_load: not_verified` remain
+recorded and are not acceptance evidence.

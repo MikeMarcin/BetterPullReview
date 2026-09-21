@@ -183,8 +183,13 @@ M3 is bound to BPR-0953 under mandate r3, claimed at
 [core contract](../../architecture/release-maintenance.md) and
 [M3 binding](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m3.json)
 retain the exact new diagnostic/purge policy, reused semantic owners and all
-remaining host/Qt/package/native/security obligations. The source is prepared;
-focused verification and candidate integration are in progress. Next action:
-verify the exact candidate, finish BPR-0953 only if all M3 exits pass, and return
-a durable handoff for a fresh M4 owner. No review server or remote operation
-is authorized or active. Existing unrelated worktrees remain untouched.
+remaining host/Qt/package/native/security obligations. Source candidate
+`7445b09efd0f831ae0838f1eee3c430cdc248ebc` passes the exact-candidate focused
+core integration, source boundary, format/tidy, standalone ASan/UBSan,
+documentation/board/discovery and preserved-acceptance checks. The
+[M3 ledger](../../verification/RFC-BPR-0014.md#milestone-3-deterministic-functional-core)
+records exact commands, prior failures and reused architecture-contract evidence.
+All BPR-0953 criteria and both M3 exits are accepted; only guarded finish and
+handoff upkeep remain. Next action is a fresh M4 owner for the actual bounded
+host effects. No review server or remote operation is active. Existing unrelated
+worktrees and every later native/security/predecessor obligation are preserved.
