@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0948"
 title: "Implement updater install transaction and recovery"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0947"]
 milestone: "RFC-0035 milestone 3"
