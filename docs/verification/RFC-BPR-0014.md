@@ -3,9 +3,9 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m6` owns only
-`rfc-bpr-0014-release-readiness/m6-composition-public-path` on `main`.
-The M1–M5 records below retain their original child and candidate provenance.
+current child `/root/rfc0014_m7` owns only
+`rfc-bpr-0014-release-readiness/m7-focused-tests-fixtures` on `main`.
+The M1–M6 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -821,3 +821,119 @@ courses; the recorded launch command is historical evidence, not a live process.
 No unrelated worktree changed
 through this child's actions. Full RFC closeout and its predecessor gate remain
 unchanged.
+
+## Milestone 7 focused tests and hostile fixtures
+
+BPR-0957 implements only M7 under mandate r3 and coordinator-implementer rev2.
+Claim `988f2d34` precedes implementation `3da341d1`, native fixture eligibility
+correction `b5fa5246` and readability-only audit refinement
+`0b2323845a2d326da3f4b545c2a4c0f50b69d697`. The
+[bound checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m7.json)
+and [handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m7.json)
+bind all three card criteria and both M7 exits. No product, core/host/Qt policy,
+adapter effect, package producer, release skill or updater behavior changed.
+
+`verify_release_package.py` reuses the actual deployment manifest, dependency
+pins/scanner, production symbol anchors and device-flow secret/fixture policy.
+It reconciles exact installed file sets/hashes, source/version identity,
+required helpers/plugins, static dependency provenance, tests-off compile graph,
+native bytes/symbols and contained macOS load commands. Missing observations
+fail closed. It does not infer signing trust or approve licensing.
+`verify_runtime_surface.py --native-platform` uses the shipped Cocoa/Windows/XCB
+plugin instead of requiring the unshipped offscreen plugin. Development's
+offscreen default stays unchanged. Native loader inspection is process-scoped,
+requires a packaged QtCore positive control and rejects outside origins. The
+Windows TCP query now observes connected sockets as well as listeners.
+
+The guarded package course copies the unchanged M6 app into a path with spaces
+outside the checkout, launches its actual entry with a child-only disposable
+home, and confirms production profile creation. It observes 15 loaded libraries,
+no IP socket or child process, no canary output, and trusted loader origins even
+with hostile Qt plugin environment variables. It then removes every required
+helper, removes/escapes the plugin root, supplies five forbidden loader CLI
+arguments, changes bundle identity and appends four fixture/source/comment/secret
+markers to an actual helper. A real external RPATH is added to a copy with
+`install_name_tool`. Rehashed counterfeit inventories force the semantic guards
+to catch the byte/RPATH alterations themselves. Every intended refusal occurs.
+Finally the actual shipped MCP helper reads exact snapshot bytes over stdio,
+refuses traversal to a canary and rejects stale binding without source leakage.
+The restored copy and untouched original must pass the same exact audit.
+
+The real Settings course also seeds a private diagnostic log with source,
+comment and secret bodies plus a malformed legacy line. Keyboard navigation
+reaches the production preview/export and neither bodies nor markers appear.
+The unchanged selected comparison, bounded projection, two-window retirement,
+held lease, cancellation/no restart, stale inventory and populated purge/recovery
+checks remain part of that public course. This is diagnostic privacy evidence,
+not a crash-dump or actual-vault claim.
+
+### Exact candidates and focused results
+
+The verifier/test candidate is `0b2323845a2d326da3f4b545c2a4c0f50b69d697`.
+The package is still the clean tests-disabled universal `da12f556` artifact
+recorded in M6, not a relabeled M7 build. `git diff --exit-code da12f556 -- src
+cmake CMakeLists.txt CMakePresets.json packaging third_party tools/release.sh
+.codex/skills/publish-release/SKILL.md` passes. Its app SHA remains
+`d31b371b1aad6caef369bdf60212b0a156b913ee7834d1f88b7424c8d8221852` and its
+SPDX SHA remains `4fb15f0fd7ec256355fa39b6b75b096812512e4527a1e14a74eb6642360aa7fe`;
+all four M6 artifact identities above remain valid. The auditor checks 43 files,
+13 native binaries, 34 production anchors and 227 first-party compile units.
+
+| Direct check | Exact evidence and result |
+|---|---|
+| `cmake --build --preset dev --target test_release_maintenance_public_path` | Pass; the six-line diagnostic hostile fixture addition uses the existing public course |
+| Focused CTest: core/host maintenance, maintenance files, appearance/workbench stores, Qt scales 100/125/200, maintenance public path and three Python contract suites | Final `0b232384`: 12/12 in 20.801s; public path 17.03s. `build/m7-final-integration-evidence.json` records the full selector |
+| Guarded `tests/end_to_end/release_package_course.py` against the exact M6 app/build/SPDX/source revision | Final `0b232384`: pass in 17.291s; all nine check groups pass, original unchanged, child processes reaped; `build/m7-final-package-evidence.json` contains the complete absolute command |
+| `verify_composed_hosts.py --profile production` and `verify_rfc0016_test_inventory.py --release-binary` against the app | Pass, including all 34 production anchors and no test access/fixture/secret markers; unchanged established audit policies |
+| Package/runtime verifier regression | Package 11 tests, new audit 6 tests, runtime 21 tests; mutation checks reject bad identity, inventory drift/escape, missing provenance/capability, fixture graph/bytes/symbols, unsafe library origin and empty observations |
+| Focused format, Python compilation and whitespace checks | Modified C++ file passes clang-format 23.1.1; changed Python modules compile; `git diff --check` passes |
+| Documentation verifier regression | 64/64 pass; hostile-fixture ERROR lines are expected refusals, suite exit 0. Documentation gate rerun for final bookkeeping |
+
+M6's unchanged Qt/provider-free core build and tracked-source architecture scan
+are reused rather than repeated. The ignored nested worktree limitation remains;
+no unrelated checkout or verifier rule was removed. The simplification pass
+replaced nested package-path conditionals with explicit platform/origin choices;
+focused tests and the full hostile package course still pass. No abstraction,
+deployment dependency or product behavior was changed.
+
+### Actual native inspector contracts, not package qualification
+
+The standalone `runtime_surface_native_probe.py` opens only task-owned loopback
+sockets and an owned Python child. Each native run must observe its own child,
+listener and established TCP connection, exclude these sockets when querying
+the child's PID, read native loaded libraries and reap the child. These checks
+exercise the actual native APIs that unit mocks alone could not validate.
+
+| Station and immutable proof inputs | Observed result |
+|---|---|
+| macOS arm64, Python 3.14.7; probe `3da341d1` (unchanged in final candidate) | Native process/socket/library proof passes; 20 libraries; guard's live project/MASK hashes unchanged |
+| JaegAW Windows 11 `10.0.26200` AMD64, Python 3.14.7; station `bpr-win` / `stn-a5155427`; checkout `b9cf4edb` unchanged | Native proof passes, 34 loaded DLLs. Exact `b5fa5246` proof archive: package tests 10 pass/1 POSIX-path skip; audit 6/6; runtime 20 pass/1 Darwin-only skip |
+| JaegAW WSL Linux `6.18.33.2-microsoft-standard-WSL2` x86_64, Python 3.14.4; station `bpr-linux` / `stn-3f7fcc92`; checkout `1aabc2f3` unchanged | Native proof passes, 13 libraries. Same archive: package 11/11; audit 6/6; runtime 20 pass/1 Darwin-only skip |
+
+The native proof used archived committed files, not dirty remote checkouts.
+Proof archive SHA-256 is `765b3a13d28a3b7e3a82f8b4f165212479120aec0aa93bcb0740160e3cf1aadb`.
+The final refinement only makes audit path selection explicit; the native
+inspector/probe and platform eligibility inputs are unchanged. Local final
+audit mutation tests and artifact course cover that refinement. Each remote
+run used the installed qualification guard within the exclusive station-writer
+lease and disposable roots, hashing live project config and existing dirty
+MASK locks before/after. Both live files remained identical; no station source,
+branch, dependency or board changed. Windows' unresolved repository skill link
+was bypassed using its existing absolute MASK-installed helper, not repaired.
+WSL Ubuntu 26.04 is still not an accepted Ubuntu 24.04/RHEL 10 package baseline.
+
+Relevant corrections remain visible: the first MCP snapshot fixture placed its
+file outside `snapshot/files`, so the product correctly refused it; only the
+fixture layout changed. One attempted build target did not exist and was
+replaced by the actual CMake target. The initial Windows run attempted a Linux
+`ldd` POSIX-path fixture; its eligibility is now explicit, while Linux still
+runs it. An initial MSYS-converted WSL copy failed before proof execution;
+subsequent commands use encoded native PowerShell routing. No failed attempt is
+counted as a passing native/package observation.
+
+M7 has no required human/independent verdict, attended session, server or
+protected candidate. It leaves M8 native install/auth/render/remove acceptance,
+M9 trust/hardening/crash/licensing and M10 corporate packet obligations intact.
+No signing, notarization, GitHub mutation or publication occurred. The durable
+handoff records cleanup, exact commands and the next M8 action. MASK drift and
+`host_load: not_verified` remain unchanged configuration observations.

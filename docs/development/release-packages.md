@@ -127,3 +127,53 @@ The full existing macOS path emits final DMG/ZIP/SBOM checksums, and the existin
 private publication script now requires those SBOM assets too. Do not run that
 script, submit notarization, or apply release signatures without explicit
 authority for the prepared version.
+
+## Focused candidate audit and hostile course
+
+`scripts/verify_release_package.py` audits an expanded candidate without
+building, signing or publishing. Supply its actual build directory, SPDX and
+exact clean producer revision. A later verifier/documentation-only revision
+may reuse the package only while product/build/package inputs are unchanged.
+The audit requires all installed file hashes, helper/plugin capability names,
+declared static provenance, tests-disabled compile graph and native symbol/byte
+evidence. macOS also checks every packaged native library reference and RPATH.
+Native Windows/Linux loaded origins and full trust/license review are separate
+qualification evidence, not implied by the static check.
+
+For the macOS hostile course, use an external canonical disposable root and the
+installed qualification guard. Every path argument below expands absolutely;
+replace the checkout, candidate and producer revision with the exact inputs:
+
+```sh
+repo=/absolute/path/to/BetterPullReview
+candidate="$repo/build/releases/local-candidate"
+producer_revision=REPLACE_WITH_EXACT_40_CHARACTER_SOURCE_COMMIT
+scratch=$(mktemp -d /Users/your-user/bpr-package-course.XXXXXX)
+python3 "$repo/.agents/skills/implement-rfc/scripts/qualification_guard.py" \
+  --allowed-root "$scratch" --target-root "$scratch" --live-root "$repo" \
+  --live-file "$repo/.mask/skill-config/implement-rfc/project.json" \
+  --live-file "$repo/.mask.lock.json" -- \
+  python3 "$repo/tests/end_to_end/release_package_course.py" \
+  --package "$candidate/BetterPullReview.app" \
+  --build "$repo/build/macos-release" \
+  --sbom "$candidate/BetterPullReview-0.1.3-macos-universal-local.spdx.json" \
+  --source-revision "$producer_revision"
+```
+
+The course alters only a copy, isolates the child home, observes the shipped
+Cocoa plugin, sockets/processes and positive packaged Qt loading, then exercises
+missing helpers/plugins, unsafe loader overrides, identity/hash/byte/RPATH
+controls and real MCP snapshot read/traversal/stale-binding refusals. It restores
+and reaudits the copy and original, reaps children and removes its internal
+temporary directory. Remove the now-empty outer scratch root after completion.
+It does not certify install/uninstall, real authentication/vault, crash artifacts,
+signing trust or another native architecture.
+
+`verify_runtime_surface.py --native-platform /absolute/path/to/executable`
+selects Cocoa, Windows or XCB instead of development's offscreen plugin. That
+switch alone does not isolate the user's home or perform the complete package
+course; use the guarded course for an installed macOS candidate. The manual
+`runtime_surface_native_probe.py` checks the inspector against its own loopback
+listener/connected socket and child process. Run it under the station lease and
+qualification guard in a disposable root on remote stations. A passing WSL
+probe does not qualify an undeclared Linux distribution or package baseline.

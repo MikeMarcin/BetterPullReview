@@ -186,3 +186,13 @@ and checksum mechanics. Their tests-disabled runtime restricts plugin loading
 and locates the actual shipped helpers. Unavailable native matrix, attended
 acceptance, release trust and distribution-license approval remain open; local
 ad-hoc sealing is not signing/notarization acceptance or publication authority.
+
+M7 adds [exact package and hostile-boundary verification](../verification/RFC-BPR-0014.md#milestone-7-focused-tests-and-hostile-fixtures)
+without changing product or release behavior. It binds the M6 tests-disabled
+artifact to complete file hashes, required packaged capabilities, composition
+anchors, byte/symbol/graph seam checks and contained native dependencies. Its
+relocated production/MCP and diagnostic canary courses reject broken boundaries.
+Actual Windows and WSL probes verify process/socket/library inspector contracts;
+they do not qualify a native package or alter the declared platform baselines.
+Required install/authentication/removal, independent trust, crash/security and
+license/distribution acceptance remain with M8/M9; this RFC stays Proposed.
