@@ -16,7 +16,7 @@ acceptance: [{"criterion":"Inventory ownership, migration, reset, failure and se
 Inventory every adjustable value, its typed owner, projection, store/migration, reset scope, durability, capability, and secrecy class. Include direct sign-in, server configuration, remembered grants, and the existing default environment. Identify the smallest composed Settings slice and its exact focused verification selectors.
 
 Governing design: [RFC-BPR-0018](../../rfcs/RFC-BPR-0018-robust-settings-center.md).
-Closeout: [BPR-0593](../20-ready/BPR-0593-close-rfc-0018.md).
+Closeout: [BPR-0593](../30-in-progress/BPR-0593-close-rfc-0018.md).
 
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 

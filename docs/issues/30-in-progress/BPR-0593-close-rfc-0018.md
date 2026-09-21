@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0593"
 title: "Verify and close RFC-BPR-0018"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689","BPR-0730","BPR-0731"]
 milestone: "Post-Pack v2"
@@ -1705,7 +1705,7 @@ separately below. This does not close any RFC.
    Earlier rejects remain attached to their historical revisions. No bound
    owner ask remains.
 
-The [BPR-0750](../30-in-progress/BPR-0750-close-rfc-0029.md)
+The [BPR-0750](BPR-0750-close-rfc-0029.md)
 direct-check gaps in rows 2, 4, 5 and 7 remain separate from this milestone;
 RFC-BPR-0029 stays Accepted behind Proposed RFC-BPR-0008. RFC-BPR-0018 and
 RFC-BPR-0028 remain Proposed/open pending their own closeout and Windows/Linux
