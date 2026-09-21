@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "M6 Production Readiness"
 depends_on: ["RFC-BPR-0013"]
 pack_version: 2
+metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0014: Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness
@@ -103,3 +104,12 @@ runtime/dependency inspection cannot be replaced by hosted workflow output.
 Installation, supported matrix, signing, dependencies, licensing, hardening, credentials, storage, network destinations, AI subprocesses, diagnostics, retention, purge, update policy, and security review packet are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
+
+## Live implementation records
+
+The [adopted twelve-stage plan](plans/rfc-bpr-0014-release-readiness/milestone-plan.json)
+preserves the immutable pack-v2 issue-plan stages. The [planning import](assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
+records baseline, provenance and live ID mapping; the [verification ledger](../verification/RFC-BPR-0014.md)
+tracks per-criterion evidence and limits. BPR-0951 through BPR-0965 own the
+remaining work. This RFC remains Proposed until BPR-0965 satisfies the full
+package/security matrix and dependency-ordered closeout.

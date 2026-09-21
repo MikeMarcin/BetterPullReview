@@ -1,0 +1,239 @@
+{
+  "state": "prepared",
+  "origin": "needs-normalization",
+  "source_evidence": {
+    "path": "IMPLEMENTATION_ORDER.md",
+    "sha256": "970138245da8eb437a4226b2d2620ef71beef531cba938d307619676ad03632b",
+    "text": "---\nprovisional_id: PACK-ISSUE-BPR-0014\nrfc: RFC-BPR-0014\nstatus: Backlog\nlive_id: allocate-on-import\nmilestone: M6 Production Readiness\ndepends_on_rfc: [RFC-BPR-0013]\n---\n\n# Issue Plan for RFC-BPR-0014\n\n## Goal\n\nImplement and Auto-Verify **Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness** from the live repository after pack import.\n\n## RFC prerequisites\n\n- RFC-BPR-0013\n\n## Minimum live issue-card slices\n\n1. **Pack import and planning** — reconcile paths/IDs, import the normative architecture, create the live task set, and commit the planning slice.\n2. **Architecture allocation** — identify authoritative state, compact core state, bounded observations, intents/events/requests/deltas/diagnostics, host ports/effects, Qt projections, async identity, and evidence-backed no-impact regions.\n3. **Deterministic functional core** — implement semantic state, policy, transitions, planners, request identity, deltas, diagnostics, and direct tests without `QApplication`, Qt, I/O, clocks, threads, or provider libraries.\n4. **Imperative application host** — implement capability ports/adapters, authority sessions, caches, jobs, persistence, request execution, cancellation, lifecycle, and fake-port/manual-executor tests without duplicating core policy.\n5. **Qt presentation adapter** — implement or update event translation, `QAction` binding, Qt models/delegates/widgets, focus/layout/accessibility, and incremental projection application; record direct no-impact evidence when the RFC has no presentation effect.\n6. **Composition and public-path integration** — wire the concrete pieces in the composition root and prove the feature is selected and reachable through the real BetterPullReview application.\n7. **Focused tests and fixtures** — add core replay/property tests, host failure/reordering/cancellation tests, Qt adapter tests, contract tests, and hostile/edge fixtures.\n8. **UX/UI verification** — mandatory when rendering or interaction changes; use deterministic automation and actual rendered evidence rather than a static mockup.\n9. **Security and boundary verification** — verify authority, credentials, target identity, process/network boundaries, limits, secret-free evidence, and absence of provider/widget bypasses.\n10. **Agent and product documentation impact** — update architecture, state authority, ports, threading, UI, security, build, and operator documentation or record an approved no-impact result.\n11. **Simplification** — run the available code simplifier or a conservative manual pass; remove duplicated policy, broad service access, unnecessary serialization, and whole-state refreshes, then re-verify.\n12. **Verification and RFC closeout** — complete the live claim and architecture-conformance matrices, move all cards to done, update indexes, and mark Auto-Verified only when direct evidence agrees.\n\n## Suggested RFC-specific implementation slices\n\n1. Create Windows per-user installer, macOS universal app/DMG or package, and signed DEB/RPM packaging.\n2. Implement signing, notarization, checksums, SBOM, license notices, and dependency provenance.\n3. Apply and verify platform compiler/linker/runtime hardening and trusted plugin/library search paths.\n4. Implement retention, purge, uninstall, settings migration, diagnostic preview, and canary redaction.\n5. Produce the corporate security overview, data-flow, network/process inventory, and operator documentation.\n6. Run clean-machine package install/launch/auth/open/uninstall verification across the supported matrix.\n\n## Required planning artifacts\n\n- Live issue dependencies and board lanes\n- Per-acceptance-criterion verification rows\n- Affected documentation ledger entries\n- Safe GitHub fixture or designated test-target plan where mutations apply\n- Platform/build matrix for affected code\n- Architecture allocation ledger covering core, host, Qt, composition, authority, and no-impact regions\n- Typed intent/event/observation/request/delta path and asynchronous identity/generation plan\n- Incremental-projection and active-set/changed-set performance plan\n- Explicit deferred work; no hidden scope reduction\n\n## Closeout blocker examples\n\n- Qt, provider, filesystem, process, clock, thread, or persistence dependencies enter the functional core.\n- A widget/model performs GitHub, Git, SQLite, AI, or other host effects directly.\n- The application host duplicates semantic policy owned by the core or a giant service locator bypasses capability ports.\n- Asynchronous work lacks request/session/revision/generation identity, or a worker touches Qt/core state directly.\n- Routine bounded changes require a full model reset, whole-PR scan, or complete application projection rebuild.\n- A feature exists only in a helper or mock and is not selected by the application.\n- A screenshot or static mockup substitutes for deterministic UI behavior.\n- GHES/GitHub.com capability selection is assumed from a target name.\n- A test can pass while displayed line identity, review target, acting account, or credential boundary is wrong.\n- Required documentation, simplification, package, security, or live issue-board work remains open.\n"
+  },
+  "plan": {
+    "schema": "implement-rfc.milestone-plan.v1",
+    "id": "rfc-bpr-0014-release-readiness",
+    "scope": {
+      "rfcs": [
+        "RFC-BPR-0014"
+      ]
+    },
+    "coverage": "complete",
+    "unplanned_work": [],
+    "milestones": [
+      {
+        "id": "m1-pack-import-planning",
+        "outcome": "Reconcile paths/IDs, retain the normative architecture, create the live task set, and commit the planning slice.",
+        "work": [
+          {
+            "issue": "BPR-0951"
+          }
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "The immutable source, RFC base, historical associations and owner amendments are reconciled.",
+          "One discoverable adopted plan and live queue cover all authored stages and RFC acceptance obligations without hidden scope reduction.",
+          "Documentation and board checks pass; the bound milestone checkpoint and intentional planning commit identify the next eligible stage."
+        ],
+        "boundary": "Stop after planning acceptance; the coordinator dispatches a fresh implementer for architecture allocation."
+      },
+      {
+        "id": "m2-architecture-allocation",
+        "outcome": "Identify authoritative state, compact core state, bounded observations, typed transitions, host ports/effects, Qt projections, async identity and evidence-backed no-impact regions.",
+        "work": [
+          {
+            "issue": "BPR-0952"
+          }
+        ],
+        "depends_on": [
+          "m1-pack-import-planning"
+        ],
+        "exit_criteria": [
+          "The release/maintenance architecture and existing implementation gaps are mapped to exact source paths and typed ownership.",
+          "Each acceptance row has a concrete public check, native/environment requirement and owning work item."
+        ],
+        "boundary": "Finish allocation and any necessary evidence-backed future plan refinement before feature engineering."
+      },
+      {
+        "id": "m3-deterministic-functional-core",
+        "outcome": "Implement or directly qualify deterministic release-maintenance semantic policy, identity, transitions and tests without effects.",
+        "work": [
+          {
+            "issue": "BPR-0953"
+          }
+        ],
+        "depends_on": [
+          "m2-architecture-allocation"
+        ],
+        "exit_criteria": [
+          "Every required core region is implemented or has a direct evidence-backed no-impact disposition.",
+          "Deterministic policy and refusal tests pass in a Qt/provider-free graph."
+        ],
+        "boundary": "Hand off accepted core policy and explicit remaining host obligations."
+      },
+      {
+        "id": "m4-imperative-application-host",
+        "outcome": "Implement or qualify bounded maintenance, migration, diagnostic and lifecycle effects through host-owned capabilities.",
+        "work": [
+          {
+            "issue": "BPR-0954"
+          }
+        ],
+        "depends_on": [
+          "m3-deterministic-functional-core"
+        ],
+        "exit_criteria": [
+          "Required retention/purge/migration/diagnostic effects enforce exact authority and private-root boundaries.",
+          "Failure, cancellation, stale completion, restart recovery and shutdown checks pass without duplicating core policy."
+        ],
+        "boundary": "Hand off the verified host path and remaining presentation/composition obligations."
+      },
+      {
+        "id": "m5-qt-presentation-adapter",
+        "outcome": "Implement or qualify diagnostic preview and maintenance controls, typed event translation and incremental projections.",
+        "work": [
+          {
+            "issue": "BPR-0955"
+          }
+        ],
+        "depends_on": [
+          "m4-imperative-application-host"
+        ],
+        "exit_criteria": [
+          "Required user actions reach typed host policy and render truthful terminal results without Qt performing effects.",
+          "Focused rendered keyboard/accessibility/confirmation and incremental-projection checks pass, with direct no-impact evidence where applicable."
+        ],
+        "boundary": "Hand off presentation and composition requirements; platform acceptance remains separate."
+      },
+      {
+        "id": "m6-composition-public-path",
+        "outcome": "Build the cross-platform install/package graph and artifact inventory and prove the tests-disabled public application selects the required path.",
+        "work": [
+          {
+            "issue": "BPR-0956"
+          }
+        ],
+        "depends_on": [
+          "m5-qt-presentation-adapter"
+        ],
+        "exit_criteria": [
+          "Windows, universal macOS and baseline Linux package definitions, dependencies, SBOM/notices/source offers and checksum generation are implemented.",
+          "Available packaged public paths reach an exact fixture comparison through one alignment controller and DiffLinkMap; unavailable native evidence stays pending."
+        ],
+        "boundary": "Do not turn available-host package mechanics into full delivered-matrix acceptance."
+      },
+      {
+        "id": "m7-focused-tests-fixtures",
+        "outcome": "Verify core/host/Qt/package contracts through focused hostile fixtures and dependency-breaking public negative controls.",
+        "work": [
+          {
+            "issue": "BPR-0957"
+          }
+        ],
+        "depends_on": [
+          "m6-composition-public-path"
+        ],
+        "exit_criteria": [
+          "Direct checks fail when an essential packaged capability or boundary is broken.",
+          "Exact-candidate focused integration checks pass and tests-disabled package audits exclude fixture seams."
+        ],
+        "boundary": "Retain the exact candidate and useful failures for native and security qualification."
+      },
+      {
+        "id": "m8-ux-ui-native-verification",
+        "outcome": "Verify clean-target installation, real rendered interaction, authentication, fixture comparison, uninstall and explicit purge on every supported platform.",
+        "work": [
+          {
+            "issue": "BPR-0958"
+          },
+          {
+            "issue": "BPR-0959"
+          },
+          {
+            "issue": "BPR-0960"
+          },
+          {
+            "issue": "BPR-0961"
+          }
+        ],
+        "depends_on": [
+          "m7-focused-tests-fixtures"
+        ],
+        "exit_criteria": [
+          "Clean Windows 10/11 x64, macOS Intel/Apple Silicon and declared Linux x64 DEB/RPM environments satisfy their complete native card criteria.",
+          "Human decisions, where required by an actual interaction criterion, bind the exact candidate and are supplied through attended review rather than self-certified."
+        ],
+        "boundary": "Preserve partial platform evidence and exact pending candidates; after safe release, independent M9/M10 work may continue."
+      },
+      {
+        "id": "m9-security-boundary-verification",
+        "outcome": "Verify signatures/notarization, provenance, hardening, credentials, process/network limits, diagnostic privacy and packaged architecture.",
+        "work": [
+          {
+            "issue": "BPR-0962"
+          }
+        ],
+        "depends_on": [
+          "m7-focused-tests-fixtures"
+        ],
+        "exit_criteria": [
+          "Each exact delivered artifact independently verifies trust, checksums, SBOM, notices and source-offer obligations.",
+          "Release-policy hardening/analysis/sanitizer/fuzz/secret/vulnerability and native runtime/credential/privacy boundary checks pass across the supported matrix."
+        ],
+        "boundary": "Required external signing authority and native evidence stay pending; no live publication is implied."
+      },
+      {
+        "id": "m10-documentation-impact",
+        "outcome": "Complete the corporate security packet and affected architecture, UI, storage, build, installation and operator documentation.",
+        "work": [
+          {
+            "issue": "BPR-0963"
+          }
+        ],
+        "depends_on": [
+          "m7-focused-tests-fixtures"
+        ],
+        "exit_criteria": [
+          "Every affected semantic document is updated or has source-backed no-impact evidence.",
+          "The corporate security packet states actual network, storage, subprocess, credential, AI, diagnostic and removal behavior and explicit pending qualification."
+        ],
+        "boundary": "Documentation may proceed independently of unavailable native decisions while keeping claims bounded."
+      },
+      {
+        "id": "m11-simplification",
+        "outcome": "Remove avoidable duplication and broad capabilities in the changed implementation and re-verify.",
+        "work": [
+          {
+            "issue": "BPR-0964"
+          }
+        ],
+        "depends_on": [
+          "m10-documentation-impact"
+        ],
+        "exit_criteria": [
+          "A concise simplification/self-review pass is recorded against the changed scope.",
+          "Any corrections pass focused affected checks plus coherent integration evidence."
+        ],
+        "boundary": "Preserve all native, security and predecessor obligations for final closeout."
+      },
+      {
+        "id": "m12-verification-rfc-closeout",
+        "outcome": "Complete the live acceptance/conformance matrices, all required cards and dependency-ordered RFC/index closeout.",
+        "work": [
+          {
+            "issue": "BPR-0965"
+          }
+        ],
+        "depends_on": [
+          "m8-ux-ui-native-verification",
+          "m9-security-boundary-verification",
+          "m11-simplification"
+        ],
+        "exit_criteria": [
+          "Every RFC acceptance criterion has direct exact-artifact evidence and every required native/human/external obligation is satisfied.",
+          "RFC-BPR-0013 and canonical predecessors are Auto-Verified, all scoped cards are Done, and RFC/index/documentation gates agree.",
+          "The final diff against immutable RFC_BASE_SHA, integrated revision, command quiescence and cleanup are recorded."
+        ],
+        "boundary": "This is the sole RFC closeout boundary; prior milestones do not close the RFC."
+      }
+    ]
+  },
+  "semantic_coverage": "unknown",
+  "next": "engineer reconciles intent, retains this receipt, adopts and implements"
+}

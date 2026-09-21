@@ -7,6 +7,7 @@ rfcs: ["RFC-BPR-0014"]
 depends_on: []
 priority: "P1"
 milestone: "M1 Pack import and planning"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
 ---
 
 # Import and plan RFC-BPR-0014

@@ -70,6 +70,14 @@ review or repeat owner loading check is requested by this amendment.
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).
 
+RFC-BPR-0014's [live twelve-stage plan](plans/rfc-bpr-0014-release-readiness/milestone-plan.json)
+now maps the authored pack-v2 stages to BPR-0951–0965. Its
+[verification ledger](../verification/RFC-BPR-0014.md) distinguishes inherited
+icon/private-macOS-release evidence from pending clean Windows, macOS
+Intel/Apple Silicon and Linux package/security acceptance. BPR-0965 retains
+RFC-BPR-0013 and canonical closeout ordering; implementation planning changes
+no RFC status or native requirement.
+
 ## Additional RFCs
 
 The table above is the complete fourteen-RFC pack-v2 sequence. The following

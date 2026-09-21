@@ -1,0 +1,140 @@
+# RFC-BPR-0014 verification and planning ledger
+
+RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
+Mandate `r1` authorizes this run; child `/root/rfc0014_m1` owns only
+`rfc-bpr-0014-release-readiness/m1-pack-import-planning` on `main`.
+The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
+establishes the baseline and provenance. The
+[live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
+all nine canonical acceptance criteria and the predecessor gate.
+
+## Inherited evidence and limits
+
+BPR-0253 and BPR-0324–0328 are Done icon/identity prerequisites; their existing
+asset, bundle and public-icon checks remain their own evidence.
+BPR-0908's candidate `b7e92258bb6115388e1c837730bb5977cc6c4eb2` supplies
+a universal tests-disabled macOS release tool, allow-listed deployment,
+Developer ID signing, relocated launch, DMG/ZIP and checksums. Its recorded
+run explicitly skipped notarization and did not publish.
+
+RFC-0035 later supplied disposable signed/notarized Apple Silicon updater
+qualification. The current RFC-0035 ledger retains the exact
+`5db1d104a2436a2b0df811ac2e40cff0c58c2319` package source separately from
+later menu/documentation changes. None of this proves the RFC-0014 delivered
+matrix, complete SBOM/licensing, clean install/uninstall or Intel execution.
+M2 must inspect reusable inputs before carrying any evidence forward.
+The historical package README contains older foundation platform observations;
+they are not current package certification.
+
+## Acceptance and direct verification plan
+
+Every row is pending full RFC acceptance. The closeout stores the verbatim
+criteria; the row numbers below follow their existing order, not new requirements.
+
+| RFC row | Direct falsifiable check and terminal observation | Owning cards | Current disposition |
+|---|---|---|---|
+| 1 Clean installation and operation | Install the exact candidate in a clean native user account; launch, authenticate through an authorized safe route, open a fixture PR, select a file and verify both displayed source identities; uninstall and inspect residuals | BPR-0956–0961 | Not run for the delivered matrix |
+| 2 Package trust | Verify the delivered installer/app/package signature, macOS notarization/staple and checksum using native trust tools independently of package generation; reject altered/untrusted artifacts | BPR-0962 | Existing Mac evidence is bounded to its recorded candidates |
+| 3 Runtime attack surface | Inspect packaged dependency closure plus native sockets, spawned processes, Qt plugin/library resolution and network destinations under public operation; compare with explicit allow-lists | BPR-0956, BPR-0957, BPR-0962 | Not run on final packages |
+| 4 Inventory and licensing | Generate SBOM/notices/source-offer manifest from the actual shipped closure, reconcile versions/provenance and hash every delivered artifact; fail on omissions or substitutions | BPR-0956, BPR-0962 | Complete transitive inventory remains pending |
+| 5 Release hardening policy | Name platform compiler/linker/runtime flags and release policy; run relevant static analysis, sanitizer/fuzz, secret/vulnerability scans with tool/database versions and adjudicated findings | BPR-0957, BPR-0962 | Policy and exact-artifact evidence pending |
+| 6 Storage and removal | Exercise vault/file/cache permissions, retention, explicit purge, migration, crash recovery and uninstall in disposable roots; compare actual retained/deleted items with docs | BPR-0953–0955, BPR-0958–0961 | Earlier component evidence does not prove packaged lifecycle |
+| 7 Diagnostic privacy | Seed source/comment/token canaries, preview/export diagnostics and inspect crash/log artifacts; defaults omit bodies/secrets and redaction survives hostile inputs | BPR-0953–0955, BPR-0957, BPR-0962 | Required controls and package course pending |
+| 8 Corporate packet | Reconcile network/storage/process/credential/AI/logging/removal claims with observed composed effects and final threat model | BPR-0952, BPR-0963 | Existing docs are inventory inputs; final packet pending |
+| 9 Packaged architecture | Build/test core with Qt/provider unavailable; inspect install/export targets and packaged symbols/dependencies; trace real host effects and exact selected comparison through composition | BPR-0952, BPR-0956, BPR-0957, BPR-0962 | Existing architecture checks must be bound to final package inputs |
+
+A successful launch alone is insufficient for row 1: the terminal observation
+is the exact selected-file comparison through the shipped alignment controller
+and DiffLinkMap. A passing fixture cannot prove independent signing trust,
+native credential continuity, clean installation or a human verdict.
+Release policy also retains the wider [release gates](release-gates.md);
+an RFC milestone does not authorize publishing a release.
+
+## Platform and build matrix
+
+| Target | Required package/build scope | Evidence owner and unavailable dependency |
+|---|---|---|
+| Windows 10/11 x64 | Supported MSVC toolchain; signed per-user installer; native PE/dependency/vault/runtime and high-DPI checks | BPR-0960 native operator/station plus BPR-0962 signing authority; not run here |
+| macOS 13+ Apple Silicon | Universal arm64/x86_64 tests-disabled app and DMG/ZIP; hardened signature/notarization; clean native install/render/remove | BPR-0958 native operator plus BPR-0962 trust evidence; current host is arm64 but no clean package run occurred in M1 |
+| macOS 13+ Intel | Same exact universal package, actual native Intel install/launch/auth/render/remove | BPR-0959 Intel operator/hardware; updater BPR-0950 deferral does not satisfy it |
+| Linux x86_64 | Oldest supported baseline declared by M2; signed DEB/RPM, dependency/desktop/plugin/vault/render/uninstall checks and default per-user route | BPR-0961 Linux operators/stations plus BPR-0962 signing authority; exact baseline and clean environments pending |
+| Core-only | No Qt/provider discovery or link dependency; deterministic policy tests and install/export consumer check | BPR-0953, BPR-0956, BPR-0957 |
+
+No additional architecture is implied. Signing identities, clean native
+environments and any attended decisions are required external inputs when
+their cards reach them. This planning milestone discovers no current attended
+candidate and starts no review server.
+
+## Initial architecture allocation and identity plan
+
+M2 completes the source-level inventory before implementation. This ledger
+fixes the ownership obligations so a later no-impact conclusion needs evidence.
+
+| Region | Planned authority and work | Required evidence |
+|---|---|---|
+| Functional core | Compact retention/purge/diagnostic-selection policy, command legality, typed operation identity and stale decisions; no file paths as deletion authority and no effect APIs | BPR-0952/0953 exact reusable or new transitions and deterministic refusal tests |
+| Application host | Validated bounded private-root/vault/catalog observations, maintenance/migration/export jobs, effect ports, cancellation and quiescent lifecycle | BPR-0952/0954 fake-port/manual-executor failures plus disposable-root evidence |
+| Platform adapters | Native filesystem/vault/package/process mechanisms through narrow capabilities; secure signing inputs remain external | BPR-0954/0956/0962 permissions, containment, runtime and independent trust checks |
+| Qt presentation | User gesture, confirmation, preview, focus/accessibility, incremental command/model projection; no provider or storage effects | BPR-0955 public rendered interaction and bounded update checks |
+| Composition and packaging | Select first-party adapters and actual private roots, deploy only required dependencies/plugins, preserve isolated core install/export target and updater boundary | BPR-0956/0957/0962 tests-disabled relocated public path and dependency inspection |
+| GitHub/shared state | GitHub remains authoritative; packaging and local maintenance cannot mutate shared review history | Fixture/read-only paths by default; any remote mutation needs an expressly designated safe target |
+
+The intended path is Qt semantic intent → core eligibility using host-supplied
+bounded observations → typed host request → adapter effect → typed completion
+on the serialized decision lane → core acceptance → bounded delta/projection.
+Every async request carries the applicable request, profile/session, authority,
+catalog or package revision and generation. A stale/duplicate completion cannot
+choose a deletion target, publish a diagnostic or replace current UI state.
+The host captures exact root/object identity and owns cancellation/recovery
+until quiescence; a human confirmation cannot widen that captured authority.
+These are planning constraints, not claims of newly implemented types.
+
+Routine UI updates must scale with the active and changed sets. Jobs bound
+input/output, residency and outstanding operations; previews use bounded
+summaries, and status/progress changes do not reset the review model or scan
+all source/history. M2 must identify existing limits and M7 must choose direct
+counters/negative controls that would detect a violated claim.
+
+For M1 alone, core, application, adapters, composition, package scripts and
+build definitions have no behavior impact: only allocated cards, RFC metadata,
+planning/provenance and this ledger change. No source/runtime qualification is
+claimed by documentation tests.
+
+## Documentation impact ledger
+
+| Semantic obligation | Owning documents/surfaces | Disposition and owner |
+|---|---|---|
+| Core/host/Qt and typed ownership, identity, concurrency, projections | System architecture and architecture-conformance matrix | Plan recorded here; M2 allocates exact changes, M10 reconciles |
+| Build/install/export, supported baseline, dependencies and license/source offer | README, build-and-test, packaging README and release tooling/operator guide | M6 implementation; M10 final source-backed instructions |
+| Credentials, storage, retention/purge, migration and removal | Product contract, foundation security, security threat model and operator docs | M3–M5 implement/qualify; M10 reconciles |
+| Network, subprocesses, AI, diagnostics and corporate posture | Security threat model, corporate packet, diagnostic/operator docs | M9 evidence; M10 final packet |
+| Qualified macOS updater and manual managed/Windows/Linux policy | Existing release-updater architecture/security and application-updates guide | Preserve owner amendment; revalidate only affected package boundary |
+| RFC acceptance, canonical order and continuation | RFC/index, adopted plan, live cards, this ledger and BPR-0965 | M1 creates truthful records; M12 alone may close |
+| Agent guidance | Applicable AGENTS.md and consumer context | No M1 rule changed; M10 updates only newly evidenced hazards or ownership changes |
+
+## Safe fixtures and external boundaries
+
+Use deterministic local fixtures and disposable installation/profile roots.
+Authentication fixtures must exercise the selected production capability path
+with any test-only seam absent from the delivered package. When true native
+authentication cannot be proven by a fixture, preserve the native/live gate;
+do not rename the fixture as live evidence. No safe live mutation target is
+designated for this milestone. No GitHub/GHES mutation, release publication,
+credential enrollment, installed-app replacement or notarization submission
+occurred. Later signing/release work uses the configured companion skill when
+applicable and the scope then authorized by the coordinator/user.
+
+## Milestone 1 verification and continuation
+
+Shortest public workflow before changes: target-only plan discovery reported
+`absent`; the RFC queue reported seven selected/Done cards, no active card and
+no closeout. These are workflow observations, not application runtime checks.
+The final public workflow must discover the adopted plan by RFC ID and return
+the next eligible architecture card after BPR-0951 is Done.
+
+The current binding is
+[checkpoint-m1.json](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1.json).
+It binds the whole BPR-0951 acceptance section and all three milestone exits.
+Helpers report structural consistency only; the assigned implementer owns
+the completeness judgment. Focused final gate outcomes and integrated revisions
+are recorded below before handoff.
