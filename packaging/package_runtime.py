@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+from typing import BinaryIO
 import urllib.request
 import zipfile
 
@@ -36,12 +37,16 @@ def run(*arguments: str | Path, env: dict | None = None) -> str:
     return subprocess.check_output([str(arg) for arg in arguments], text=True, stderr=subprocess.STDOUT, env=env)
 
 
-def digest(path: Path, algorithm: str = "sha256") -> str:
+def stream_digest(stream: BinaryIO, algorithm: str) -> str:
     result = hashlib.new(algorithm)
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            result.update(chunk)
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        result.update(chunk)
     return result.hexdigest()
+
+
+def digest(path: Path, algorithm: str = "sha256") -> str:
+    with path.open("rb") as stream:
+        return stream_digest(stream, algorithm)
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -67,7 +72,12 @@ def components(info: dict) -> list[dict]:
 
 
 def upstream_source_name(item: dict) -> str:
-    suffix = ".zip" if item["url"].endswith(".zip") else ".tar.xz" if item["url"].endswith(".xz") else ".tar.gz"
+    if item["url"].endswith(".zip"):
+        suffix = ".zip"
+    elif item["url"].endswith(".xz"):
+        suffix = ".tar.xz"
+    else:
+        suffix = ".tar.gz"
     return f"{item['name']}-{item['version']}{suffix}"
 
 
@@ -162,11 +172,9 @@ def verify_source_asset(archive: Path, provenance: dict) -> None:
             raise ValueError("corresponding-source-inventory-mismatch")
         for name, item in expected.items():
             algorithm = "sha256" if "sha256" in item else "sha3_256"
-            checksum = hashlib.new(algorithm)
             with stream.open(name) as entry:
-                for chunk in iter(lambda: entry.read(1024 * 1024), b""):
-                    checksum.update(chunk)
-            if checksum.hexdigest() != item[algorithm]:
+                checksum = stream_digest(entry, algorithm)
+            if checksum != item[algorithm]:
                 raise ValueError("corresponding-source-digest-mismatch")
 
 

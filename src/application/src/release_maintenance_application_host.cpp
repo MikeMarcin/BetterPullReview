@@ -263,24 +263,26 @@ namespace bpr::application {
 			}
 			return Storage.erase(aJob->Context, *aJob->Preparation, aJob->Stop.get_token(), commit);
 		}
+		auto run_effect(const std::shared_ptr<job>& aJob) -> preparation_result
+		{
+			try {
+				if (aJob->Stop.stop_requested()) {
+					return std::unexpected(reason::cancelled);
+				}
+				if (preparing(aJob->Context.Operation)) {
+					return Storage.prepare(aJob->Context, aJob->Stop.get_token());
+				}
+				auto execution = execute(aJob);
+				return execution ? preparation_result{ nullptr } : std::unexpected(execution.error());
+			} catch (...) {
+				return std::unexpected(reason::io_failure);
+			}
+		}
 		void submit(const std::shared_ptr<job>& aJob)
 		{
 			try {
 				Effects.post([self = shared_from_this(), aJob] {
-					preparation_result result = std::unexpected(reason::unavailable);
-					try {
-						if (aJob->Stop.stop_requested()) {
-							result = std::unexpected(reason::cancelled);
-						} else if (preparing(aJob->Context.Operation)) {
-							result = self->Storage.prepare(aJob->Context, aJob->Stop.get_token());
-						} else {
-							auto execution = self->execute(aJob);
-							result         = execution ? preparation_result{ nullptr } : std::unexpected(execution.error());
-						}
-					} catch (...) {
-						result = std::unexpected(reason::io_failure);
-					}
-					self->post_decision([self, aJob, outcome = std::move(result)] {
+					self->post_decision([self, aJob, outcome = self->run_effect(aJob)] {
 						self->finish(aJob, outcome);
 					});
 				});

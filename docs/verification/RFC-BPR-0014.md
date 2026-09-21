@@ -1658,3 +1658,66 @@ acceptance `not-evaluated`; the helper checks structural binding, not the
 documentation's truth. All task commands are complete and no review server,
 writer or scratch installation is handed off. The final handoff preserves exact
 commands, hashes, unchanged protections and every downstream pending obligation.
+
+## Milestone 11: simplification
+
+Fresh sole implementer `/root/rfc0014_m11` owns BPR-0964 /
+`m11-simplification` under mandate r3 and coordinator-implementer rev2. Entry
+was clean `484a19807a2b9c541d45c7b0a15e924be9894ff4`; claim is
+`aed1172fdfaa46c0057c16a9bff9fa10724c41f8`. The
+[binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m11.json)
+preserves all three card criteria and both authored exits. The review uses the
+M3–M10 handoffs to distinguish RFC-0014 changes from unrelated RFC-0036 changes
+since immutable base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
+
+The code-simplifier pass changes two implementation files. In
+`release_maintenance_application_host.cpp`, `run_effect` now contains the
+cancellation check, storage preparation/execution and exception-to-terminal
+mapping. `submit` visibly owns the effect and decision posts. This removes
+callback nesting and an overwritten initial result without moving effects onto
+the decision lane, changing the commit boundary or losing job ownership.
+`package_runtime.py` uses one bounded stream-digest implementation for files and
+ZIP members, preserving SHA-256/SHA3-256 selection and every inventory/digest
+refusal. Explicit branches replace the nested archive-suffix expression.
+Source ZIP metadata, names, bytes, locations, references and notice text do not
+change.
+
+### Changed-scope review and no-change findings
+
+| Reviewed ownership | Finding and disposition |
+|---|---|
+| Core `release_maintenance.hpp/.cpp` | Command legality, authority/generation/selection equality, limits, commit/cancellation and recovery policy remain in one deterministic owner. The host's operation classification selects the already-authorized port; it does not decide legality. No new public policy API or core edit is needed. |
+| Application host, diagnostic snapshot and profile credential cleanup | One physical job, immutable prepared bytes, bounded reentrant ingress and typed terminal delivery remain necessary. Cleanup enumerates only stored exact authority keys and deletes credential slots before metadata. Preserve those boundaries; simplify only the effect callback. |
+| Native maintenance files, shared Windows private storage and Quill logger | Exact retained root/lease and object identity, allowlisted inventory, durable journal/replay and separate platform mechanisms protect destructive operations. Serialization is a durable recovery format, not an in-process message bus. Keep journal checks, credential receipt and file-before-directory deletion ordering. |
+| Qt maintenance panel and app controls/profile desktop/installed runtime | Qt consumes seven projected commands and shared immutable preview bytes; it replaces preview text only when its pointer changes and deduplicates announcements. No whole-model refresh, effect capability or duplicate policy is introduced. Separate maintenance/vault workers, retained Settings/root lease and runtime plugin restrictions remain required. The protected M8 recovery source is untouched. |
+| Package runtime, native package driver, install/hardening definitions and existing release/publish scripts | The allowlisted runtime closure and Qt producer-SBOM traversal exclude unshipped tools while retaining transitive runtime dependencies. Platform deployment stays with its existing owner. Preserve source provenance, exact artifact references, deterministic ZIP generation, eight publication assets, clean-source/private-repository checks and independent trust/legal gates. Share only stream hashing and clarify suffix selection. |
+| Release package/security verifiers and tests | Independent installed file/digest/dependency checks and hostile fixtures provide useful negative controls. Do not merge producer assertions with verifier acceptance or weaken source-drift checks to reuse an older binary after product changes. Existing tests cover the changed behavior; no redundant mirror tests added. |
+
+M10's product/architecture/UX/security/build/operator documents have no semantic
+impact from these local extractions. Public APIs, ports, data schemas, messages,
+network/process authority, persistence, threading, package dependencies and
+release actions are unchanged. Their source-backed facts and pending acceptance
+remain valid; only this ledger and the live RFC/card/checkpoint/handoff need
+upkeep. No dependency upgrade, vulnerability disposition or native qualification
+is included in this pass.
+
+### Verification and remaining acceptance
+
+The shortest real composition,
+`ctest --test-dir build/dev --output-on-failure -R '^application_release_maintenance_public_path$'`,
+passed before edits (16.87s). The changed host and focused consumers build;
+the touched translation unit passes canonical format and clang-tidy with
+warnings as errors. Thirteen package-runtime tests and six source-asset tests
+pass, including actual publication-script execution using only fixture
+Git/gh executables. No real tag, push or release operation occurred.
+
+Final candidate-bound verification and acceptance are recorded after this
+implementation commit. The earlier source-asset candidate remains
+`1c429749aff4c09c6dc88da930d3344cd2d33c36`; read-only validation of its bytes
+tests the refactored tool, not a newly built or newly approved M11 package.
+All six review protections remain in force, with session
+`cbd48b91000b00f1e72e1ad62c7c384c` handed back at cursor 470 and no host.
+M11 requires no new human decision. The complete M8 native matrix, M9 trust,
+vulnerability/hardening, real vault/crash/privacy and recipient-access/retention
+obligations remain pending. M12 also requires canonical predecessor acceptance;
+the RFC remains Proposed and publication is not authorized.

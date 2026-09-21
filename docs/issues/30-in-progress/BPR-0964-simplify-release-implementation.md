@@ -23,6 +23,27 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Verification and execution record
 
-Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-The milestone owner must record source/artifact identities and focused public
-checks here. Native, human and external evidence cannot be self-certified.
+Sole implementer `/root/rfc0014_m11` claimed this card at
+`aed1172fdfaa46c0057c16a9bff9fa10724c41f8`, under mandate r3 and
+coordinator-implementer rev2. Entry was clean
+`484a19807a2b9c541d45c7b0a15e924be9894ff4`; immutable RFC base remains
+`d0a8a6dda005af12b3818234f4878a9f48a44146`. The
+[M11 binding](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m11.json)
+retains all three criteria and both authored exits, with accepted M10 as its
+prerequisite.
+
+The [simplification ledger](../../verification/RFC-BPR-0014.md#milestone-11-simplification)
+records the changed-scope review and source-backed no-change findings. Two
+implementation files change: the maintenance host separates effect execution
+from completion scheduling; the package tool shares bounded stream hashing
+and replaces a nested archive-suffix expression with explicit branches.
+Authority, cancellation/commit ordering, errors, selected dependencies, installed
+notices and the separate source-asset contract are preserved.
+
+The pre-change composed public path passes. Preliminary changed-surface build,
+format/tidy and all 19 package/source tests pass. Exact-candidate focused
+integration and final documentation/board/checkpoint acceptance remain to be
+recorded before Done. M8/M9 native, human, independent trust, vulnerability,
+vault/crash and final RFC/predecessor obligations remain pending. No publication,
+remote mutation, candidate-protection release or new attended session is part
+of M11.
