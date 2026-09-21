@@ -58,3 +58,26 @@ preserving the full package matrix and core dependency-isolation outcome.
 Account for every required shipped third-party component, including static
 dependencies, in the minimal runtime closure, SBOM and license/source-offer
 analysis. The live RFC records this rationale; no native acceptance is waived.
+
+## M5 presentation handoff
+
+Candidate `13a7d0522137eeb4ab147ff9d563de62aa978035` mounts actual profile
+Settings diagnostic preview/export. Read the
+[M5 contract](../../architecture/release-maintenance.md#m5-settings-presentation-and-bounded-composition)
+and [M5 evidence/station ledger](../../verification/RFC-BPR-0014.md#milestone-5-qt-presentation-adapter).
+Controlled clear/purge presentation is complete; live destructive capabilities
+are false. M6 must compose the retained-lease barrier: close ingress, retire
+all affected windows/generations, drain producers and Git/workspace/MCP recovery,
+close stores/logger, retain an independent vault worker for exact credential-
+before-metadata cleanup, and end the purged runtime. Cancellation cannot silently
+restart producers; partial cleanup needs real recovery before fresh admission.
+Ordinary shutdown or a passing widget test does not prove this composition.
+Do not simply flip the two flags in `diagnostic_storage`.
+
+The shared Settings panel follows invoking-window pages, and diagnostic work
+drains during profile shutdown. Preserve that behavior and unchanged retention
+ownership while completing tests-disabled package selection. JaegAW Windows and
+WSL2 routes are reachable but older dirty candidates, not native qualifications;
+reconcile exact station/lease/toolchain before authorized work. M8 owns their
+native acceptance. Existing release/publish paths remain authoritative; M5 ran
+no publication, signing or notarization and grants no such authority.

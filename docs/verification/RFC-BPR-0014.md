@@ -3,9 +3,9 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m4` owns only
-`rfc-bpr-0014-release-readiness/m4-imperative-application-host` on `main`.
-The M1–M3 records below retain their original child and candidate provenance.
+current child `/root/rfc0014_m5` owns only
+`rfc-bpr-0014-release-readiness/m5-qt-presentation-adapter` on `main`.
+The M1–M4 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -562,3 +562,98 @@ off. Separately advancing worktrees, including new RFC-0037 and RFC-0018–0026
 checkouts, were observed and left untouched; main remained the expected task
 revision. Final local observation/check receipts bind the bookkeeping HEAD,
 while product acceptance remains bound to `19a3dfd7`.
+
+## Milestone 5: Qt presentation adapter
+
+Assignment `m5-qt-presentation-adapter`, sole non-delegating child
+`/root/rfc0014_m5`, mandate r3 and coordinator-implementer recipe revision 2,
+run `rfc0014-20260920`, started from clean main
+`d2539a90b387eedd119748d019a1490633227158`. Guarded claim
+`46a32a100c2cd348fb07014dcc1357b8e8a51047` and the
+[M5 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m5.json)
+retain accepted M1–M4, all BPR-0955 criteria and both unchanged exits. No agents
+were delegated. The shortest existing Settings composition passed early
+(`qt_settings_window`, 1.02 seconds).
+
+Source candidate `a34fc07ffe49e21d03edce174bd28a0d5fb37a8a` implements the
+[M5 contract](../architecture/release-maintenance.md#m5-settings-presentation-and-bounded-composition).
+Final product candidate `13a7d0522137eeb4ab147ff9d563de62aa978035` changes
+only session generation from Qt's `system()` accessor to `securelySeeded()`.
+The former tripped the existing architecture check's lexical shell-process
+ban. The checker was not loosened; secure random identity remains effect-lane
+work. Corrected composition build, public path, Cocoa execution, tidy, format
+and complete final-source architecture scan pass. Unchanged checks are reused
+from `a34fc07f`, not relabelled as newly run at the final revision.
+
+Real Settings admits diagnostics independently of sign-in, previews frozen
+metadata and saves exactly those bytes to an admitted new local file. Non-ASCII
+filename and existing-destination negative controls exercise native effects.
+The panel follows the profile Settings shell across invoking windows. Controlled
+host/storage/lifecycle courses exercise clear/purge presentation, exact targets,
+default/Escape cancellation, stale dialogs, stopped runtime and partial cleanup.
+Live `Clear`/`Purge` remain false until M6 supplies actual window/producer
+retirement, recovery, store/logger closure and retained vault/lease lifetimes.
+This is the authored boundary, not production purge acceptance from widget tests.
+
+| Check | Exact revision and result |
+|---|---|
+| Dev app, panel, public path, Settings, host and multi-window target build | `a34fc07f`: pass, 17.488s; final app/public-path rebuild at `13a7d052`: pass, 2.659s |
+| `ctest --test-dir build/dev --output-on-failure -R '^(qt_release_maintenance_scale_(100\|125\|200)\|application_release_maintenance_public_path\|application_release_maintenance\|qt_settings_window\|application_profile_multi_window_public_path)$'` | `a34fc07f`: 7/7 pass, 82.834s, network-isolated; includes existing selected-review multi-window regression |
+| `ctest --test-dir build/dev --output-on-failure -R '^application_release_maintenance_public_path$'` | `13a7d052`: 1/1 pass, 1.52s; actual private-root preview/export, no model reset, Settings owner transfer and shutdown |
+| Core-only host build and `application_release_maintenance` | `a34fc07f`: pass, 2.132s and 0.292s; Qt/provider-free presentation API, inputs unchanged in final candidate |
+| Cocoa public path through `qualification_guard.py` and network-denying runner | Final `13a7d052`: pass; native macOS widgets/effects, deterministic Qt filename field, not attended native-picker/VoiceOver evidence. Four selected live MASK/context files unchanged; cooperative guard is not a filesystem sandbox. |
+| Complete final `git archive`; `cmake -DBPR_ROOT=/private/tmp/bpr0014-m5-architecture-final.et7Lad -P /private/tmp/bpr0014-m5-architecture-final.et7Lad/cmake/VerifyArchitectureBoundaries.cmake` | `13a7d052`: pass, 5.669s; excludes unrelated ignored nested worktree without changing it or the checker |
+| Changed-file format and production tidy | 11 files/three production TUs pass at `a34fc07f`; changed composition TU rechecked at `13a7d052`; clang-format/clang-tidy 23.1.1 |
+| New-test tidy | Full checks pass with a test-source line filter. Unfiltered tidy finds inherited `home_view_state.hpp:35` signed-bitwise warnings, also reproduced by untouched `settings_window_tests.cpp`; header unchanged, not silently fixed or claimed clean. |
+| Source reuse/fidelity | Core, native file/logging/provider/MCP owners, epoch host/actor/controls, diff/alignment and release scripts/skill/presets unchanged from entry; all nine canonical bullets byte-identical to immutable base |
+| Documentation and verifier suite | Candidate gate `DOCUMENTATION_OK`; 64/64 tests pass, 2.3s, expected hostile-fixture error text; final bookkeeping gate recorded in the handoff |
+
+Command arrays are retained in `build/rfc0014-run/m5-*-evidence.json`; final
+correction checks use `m5-final-*-evidence.json`. The failed first archive scan
+remains `m5-architecture-evidence.json`. Three-scale preview/confirmation/recovery
+PNGs are under `build/dev/tests/adapters_qt/`; actual Settings is under
+`build/dev/tests/end_to_end/`; the final Cocoa view is copied to
+`build/rfc0014-run/m5-public-cocoa.png`. These ignored artifacts are reproducible
+test evidence, not human verdicts. Inspection confirmed literal text, visible
+Cancel default and bounded scrolling.
+
+Self-review used code-simplifier on the changed surface: removed an unused
+factory/button cache, retained one projection/dispatch boundary, preserved
+focus by not toggling equivalent commands, and corrected shared-Settings page
+ownership. Preparation failures included a capture-name compile error, a
+mistyped test target, keyboard animation timing, generic refusal wording,
+Cocoa's test-driver filename selection and the lexical architecture hit. Each
+was diagnosed and its relevant course rerun. The Cocoa driver now checks the
+real filename field before acceptance; its early misnamed export stayed inside
+the disposable root and was removed by the runner. No live credential/content,
+release command, publication, independent or human verdict was used.
+
+### Observed remote qualification routes
+
+Read-only SSH `aito-main-win` reached `JaegAW`. These are discovery facts, not
+M5 candidate execution, clean native acceptance or permission for another writer.
+Neither checkout was changed, built, fetched or launched; both pre-existing
+`.mask.lock.json` modifications were preserved.
+
+- Windows: `C:/code/git/bpr-windows`, station `stn-a5155427` / `bpr-win`,
+  `windows-native`, `windows-lane`, HEAD
+  `b9cf4edb316dceaf8c7ea75f4c7321ce353651e8`; Windows NT 10.0.26200.0.
+  Managed Remote task `bpr-win` was visible as `notLoaded`, thread
+  `01a0ad7c-172d-7bd1-877f-b92372b3f09b`, host
+  `remote-control:env_e_6a925c2980dc832da3493cea2cb4d944`.
+  Python/CMake resolve in SSH; Ninja/`cl` did not. The MASK skill link exists
+  but its helper path did not resolve; writer-lease status is unverified, not
+  free. The next owner must reconcile deployment/lease before writing.
+- Linux: Ubuntu WSL2 on JaegAW, `/home/mmarcin/bpr-linux` on ext4,
+  station `stn-3f7fcc92` / `bpr-linux`, `linux-lane`, HEAD
+  `1aabc2f3bbd619a8e26938b8c2e909e4a7058f3e`; kernel
+  `6.18.33.2-microsoft-standard-WSL2 x86_64`. CMake/Ninja/clang++ resolve;
+  `DISPLAY=:0`, `WAYLAND_DISPLAY=wayland-0` exist (not desktop acceptance).
+  Installed helper reports `station-writer: free`. Recorded Codex thread
+  `01a0ad7c-5112-7230-ace9-1cf4715ea864` alone does not prove a visible managed task.
+
+Carry these routes to M8. Neither station proves the clean Windows 10/11,
+Ubuntu/RHEL package matrix; Intel Mac remains external. MASK drift/incomplete
+and `host_load: not_verified` remain recorded. No skill repair or remote launch
+was performed. The final handoff retains candidate identities, commands and
+pending later obligations; this child stops at M5.

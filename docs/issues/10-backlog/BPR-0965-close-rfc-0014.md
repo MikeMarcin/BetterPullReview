@@ -48,13 +48,24 @@ this run does not reset or extend their acceptance.
 
 ## Verification and execution record
 
-The current owner is `/root/rfc0014_m4`, assignment milestone 4, mandate r3
+The current owner is `/root/rfc0014_m5`, assignment milestone 5, mandate r3
 (preserving r1/r2), run `rfc0014-20260920`, segment
-`m4-imperative-application-host`, on `main`.
+`m5-qt-presentation-adapter`, on `main`.
 The available-target implementation exception permits work while earlier RFCs
 remain Proposed. It does not waive a package/native requirement or permit
 terminal closeout. BPR-0617 and RFC-BPR-0013 remain open; the earliest canonical
 closure frontier remains RFC-BPR-0008/BPR-0242.
+
+M5's final product candidate is `13a7d0522137eeb4ab147ff9d563de62aa978035`.
+The [M5 ledger](../../verification/RFC-BPR-0014.md#milestone-5-qt-presentation-adapter)
+and [durable handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m5.json)
+record accepted diagnostic/maintenance presentation, real Settings/native-host
+export evidence, three-scale keyboard/accessibility checks, unchanged retention
+owners and exact source verification. Production destructive lifecycle remains
+explicitly M6; live clear/purge commands are unavailable until composed safely.
+JaegAW Windows/WSL2 station discovery is read-only, not native package acceptance.
+This card and the RFC remain open; no later requirement or publication boundary
+is waived by M5.
 
 The authored source's twelve stages are retained in the
 [adopted plan](../../rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json).
