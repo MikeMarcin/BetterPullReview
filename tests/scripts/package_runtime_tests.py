@@ -19,10 +19,10 @@ class PackageRuntimeTests(unittest.TestCase):
         config = (ROOT / "packaging/Install.cmake").read_text()
         self.assertIn('set(CPACK_WIX_INSTALL_SCOPE perUser)', config)
         self.assertIn('packaging/windows/InstallRoot.xml', config)
-        patch = ET.parse(ROOT / "packaging/windows/InstallRoot.xml").getroot()
-        product = patch.find("./CPackWiXFragment[@Id='#PRODUCT']")
+        tree = ET.parse(ROOT / "packaging/windows/InstallRoot.xml").getroot()
+        product = tree.find("./CPackWiXFragment[@Id='#PRODUCT']")
         search = product.find("./Property[@Id='BPR_PREVIOUS_INSTALL_ROOT']/RegistrySearch")
-        stored = patch.find("./CPackWiXFragment[@Id='INSTALL_ROOT_RemoveFolderComponent']/RegistryValue")
+        stored = tree.find("./CPackWiXFragment[@Id='CM_CP_better_pull_review.exe']/RegistryValue")
         for key in ("Root", "Key", "Name"):
             self.assertEqual(search.get(key), stored.get(key))
         self.assertEqual(search.get("Root"), "HKCU")

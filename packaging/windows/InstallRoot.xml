@@ -13,7 +13,7 @@
         <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALL_ROOT]"
             After="CostFinalize" Sequence="execute"/>
     </CPackWiXFragment>
-    <CPackWiXFragment Id="INSTALL_ROOT_RemoveFolderComponent">
+    <CPackWiXFragment Id="CM_CP_better_pull_review.exe">
         <RegistryValue Root="HKCU" Key="Software\GameCoreTech\BetterPullReview"
             Name="InstallRoot" Type="string" Value="[INSTALL_ROOT]"/>
     </CPackWiXFragment>
