@@ -10,6 +10,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import zipfile
@@ -65,10 +66,13 @@ def compile_hardening(build: Path, system: str) -> dict:
     required = ("/sdl", "/guard:cf", "/GS") if system == "Windows" else ("-fstack-protector-strong", "-fno-omit-frame-pointer", "-D_FORTIFY_SOURCE=3")
     failures = []
     for item in selected:
-        command = item.get("command", " ".join(item.get("arguments", [])))
+        arguments = item.get("arguments")
+        if arguments is None:
+            arguments = shlex.split(item["command"], posix=system != "Windows")
         # MSVC /GS is enabled by default; an explicit /GS- invalidates that default.
-        absent = [flag for flag in required if flag not in command and not (flag == "/GS" and "/GS-" not in command)]
-        if absent or (system == "Windows" and "/GS-" in command):
+        absent = [flag for flag in required if flag not in arguments and not (flag == "/GS" and "/GS-" not in arguments)]
+        disabling = {"/GS-", "/sdl-", "/guard:cf-", "-fno-stack-protector", "-fomit-frame-pointer", "-U_FORTIFY_SOURCE"}
+        if absent or disabling.intersection(arguments):
             failures.append(Path(item["file"]).name)
     require(not failures, "missing-compile-hardening:" + ",".join(sorted(set(failures))))
     return {"compile_units": len(selected), "required": required,

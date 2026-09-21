@@ -61,6 +61,10 @@ class ReleaseSecurityTests(unittest.TestCase):
                       "command": "clang++ -fstack-protector-strong -fno-omit-frame-pointer -D_FORTIFY_SOURCE=3"}
             (root / "compile_commands.json").write_text(json.dumps([record]))
             self.assertEqual(security.compile_hardening(root, "Darwin")["compile_units"], 1)
+            record["command"] += " -fno-stack-protector"
+            (root / "compile_commands.json").write_text(json.dumps([record]))
+            with self.assertRaisesRegex(ValueError, "missing-compile-hardening"):
+                security.compile_hardening(root, "Darwin")
             record["command"] = record["command"].replace("-fstack-protector-strong", "")
             (root / "compile_commands.json").write_text(json.dumps([record]))
             with self.assertRaisesRegex(ValueError, "missing-compile-hardening"):
