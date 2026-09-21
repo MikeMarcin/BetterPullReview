@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0957"
 title: "Verify package contracts and hostile fixtures"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0956"]
 milestone: "M7 Focused tests and fixtures"
