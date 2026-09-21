@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0955"
 title: "Compose maintenance and diagnostic controls"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0954"]
 milestone: "M5 Qt presentation adapter"
