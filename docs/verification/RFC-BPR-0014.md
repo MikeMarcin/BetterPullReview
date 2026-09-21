@@ -1739,3 +1739,22 @@ M11 requires no new human decision. The complete M8 native matrix, M9 trust,
 vulnerability/hardening, real vault/crash/privacy and recipient-access/retention
 obligations remain pending. M12 also requires canonical predecessor acceptance;
 the RFC remains Proposed and publication is not authorized.
+
+Guarded finish `00015dc04294e63fdf9733f8594e6f2a74c17e38` accepts BPR-0964
+against `a7e8c48b` and moves it to Done. The
+[M11 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m11.json)
+retains exact commands, candidate identities, the self-review, cleanup and all
+remaining obligations. The checkpoint returns `stop` at the bounded milestone;
+its engineering-acceptance field remains `not-evaluated`, since the helper checks
+consistency rather than truth. The board has no next eligible card; BPR-0965
+still requires BPR-0617 and BPR-0958 through BPR-0962. This owner starts no M12.
+
+All task commands are complete. The disposable architecture source archive and
+extraction were removed after verification and are reproducible from the
+candidate. Normal builds and ignored evidence receipts remain. The six-candidate
+review projection still hashes to
+`2e472c1178e8282b90331337b2c9c175023d3486282551015346b4b2012b6c5c`, and
+all four principal M9 artifact hashes match the prior handoff. No protected
+candidate, installed app, foreign worktree, remote state or review server changed.
+Future final packages must include the M11 source and receive their own exact
+artifact qualification; earlier human verdicts do not transfer to new bytes.

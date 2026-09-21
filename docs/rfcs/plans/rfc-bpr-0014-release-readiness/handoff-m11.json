@@ -1,0 +1,327 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m11-simplification",
+    "issue": "BPR-0964",
+    "child": "/root/rfc0014_m11",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m11-simplification",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "484a19807a2b9c541d45c7b0a15e924be9894ff4",
+  "candidate_revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+  "acceptance_revision": "00015dc04294e63fdf9733f8594e6f2a74c17e38",
+  "result": "milestone-complete",
+  "rfc_status": "Proposed",
+  "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m11.json",
+  "commits": [
+    {
+      "revision": "aed1172fdfaa46c0057c16a9bff9fa10724c41f8",
+      "purpose": "Claim eligible BPR-0964 after accepted M10."
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "purpose": "Two-file simplification, source-backed scope/self-review ledger and M11 binding; exact implementation candidate."
+    },
+    {
+      "revision": "00015dc04294e63fdf9733f8594e6f2a74c17e38",
+      "purpose": "Guarded finish accepts all three BPR-0964 criteria, moves it to Done and records exact candidate results/RFC progress."
+    }
+  ],
+  "changed_paths": [
+    "src/application/src/release_maintenance_application_host.cpp",
+    "packaging/package_runtime.py",
+    "docs/issues/60-done/BPR-0964-simplify-release-implementation.md",
+    "docs/verification/RFC-BPR-0014.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m11.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m11.json"
+  ],
+  "milestone_results": [
+    {
+      "id": "BPR-0964:AC1",
+      "outcome": "pass",
+      "scope": "Reviewed RFC-owned M3-M10 product/package paths for duplicate policy, capability breadth, unnecessary serialization/dependencies and whole-state refresh. Ledger records each source owner and no-change disposition; unrelated RFC-0036 scope excluded."
+    },
+    {
+      "id": "BPR-0964:AC2",
+      "outcome": "pass",
+      "scope": "Extracted maintenance run_effect from scheduling/completion callback; shared bounded stream hashing and expanded nested suffix selection. No public API, schema, policy, effect authority, package source-reference or output-byte behavior change."
+    },
+    {
+      "id": "BPR-0964:AC3",
+      "outcome": "pass",
+      "scope": "Affected hostile contracts and coherent composed maintenance integration pass at exact candidate. Legacy package/native evidence keeps original scope."
+    },
+    {
+      "id": "m11-simplification:exit:1",
+      "outcome": "pass"
+    },
+    {
+      "id": "m11-simplification:exit:2",
+      "outcome": "pass"
+    }
+  ],
+  "verification": [
+    {
+      "revision": "484a19807a2b9c541d45c7b0a15e924be9894ff4",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^application_release_maintenance_public_path$"
+      ],
+      "result": "Early public path 1/1 pass, 16.87s before edits."
+    },
+    {
+      "revision": "aed1172fdfaa46c0057c16a9bff9fa10724c41f8 plus exact a7e8c48b source contents",
+      "commands": [
+        [
+          "cmake",
+          "--build",
+          "--preset",
+          "dev",
+          "--target",
+          "test_release_maintenance_host",
+          "test_release_maintenance_public_path"
+        ],
+        [
+          "cmake",
+          "--build",
+          "--preset",
+          "dev",
+          "--target",
+          "test_release_maintenance_core",
+          "test_release_maintenance_panel",
+          "test_release_maintenance_files"
+        ],
+        [
+          "python3",
+          "_coding-standard/scripts/format_check.py",
+          "--root",
+          ".",
+          "src/application/src/release_maintenance_application_host.cpp"
+        ],
+        [
+          "python3",
+          "_coding-standard/scripts/tidy.py",
+          "--root",
+          ".",
+          "--build-dir",
+          "build/dev",
+          "--warnings-as-errors",
+          "--paths",
+          "src/application/src/release_maintenance_application_host.cpp"
+        ]
+      ],
+      "result": "Focused build consumers current; touched host passes clang-format and clang-tidy 23.1.1. Files were unchanged between these checks and the exact candidate integration."
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^(core_release_maintenance|application_release_maintenance|sqlite_release_maintenance_files|qt_release_maintenance_scale_(100|125|200)|application_release_maintenance_public_path)$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 21.03,
+      "result": "7/7 maintenance core/host/native-file/Qt scales/public-path tests pass; CTest 21.02s, public path 17.94s.",
+      "receipt": "build/m11-composition-evidence.json"
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^(package_runtime_contract|release_source_assets_contract|release_package_audit_contract|release_security_audit_contract)$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.895,
+      "result": "4/4 package runtime, source assets, package audit and security audit contract suites pass; CTest 1.89s. Uses closed fixtures including fake Git/gh only.",
+      "receipt": "build/m11-package-contracts-evidence.json"
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "command": [
+        "python3",
+        "packaging/verify_release_sources.py",
+        "--app-zip",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.zip",
+        "--sbom",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+        "--source-archive",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip",
+        "--version",
+        "0.1.3",
+        "--source-revision",
+        "1c429749aff4c09c6dc88da930d3344cd2d33c36"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.146,
+      "result": "RELEASE_SOURCE_ASSET_OK for the unchanged M9 app ZIP/SPDX/separate source ZIP. No trust/legal approval or new M11 package inferred.",
+      "receipt": "build/m11-source-asset-evidence.json"
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "command": [
+        "cmake",
+        "-DBPR_ROOT=/Users/jaeger/Documents/GitHub/BetterPullReview/build/m11-architecture.mNkn3l",
+        "-P",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/m11-architecture.mNkn3l/cmake/VerifyArchitectureBoundaries.cmake"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 6.316,
+      "result": "Pass on complete git archive of a7e8c48b, excluding unrelated ignored worktree; no checker or boundary change.",
+      "receipt": "build/m11-architecture-evidence.json"
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.097,
+      "result": "DOCUMENTATION_OK.",
+      "receipt": "build/m11-documentation-evidence.json"
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.595,
+      "result": "64/64 pass, suite 2.519s. ERROR lines are expected hostile-fixture assertions.",
+      "receipt": "build/m11-doc-regressions-evidence.json"
+    },
+    {
+      "revision": "a7e8c48b99103ce9b95e4583d92dace6b0795d28",
+      "command": [
+        "python3",
+        "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/issue_board.py",
+        "--repo-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "validate",
+        "--rfc",
+        "RFC-BPR-0014",
+        "--json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.405,
+      "result": "Scoped RFC-BPR-0014 validation valid, 957 total cards.",
+      "receipt": "build/m11-board-evidence.json"
+    }
+  ],
+  "verification_notes": [
+    "Initial tidy invocation omitted --paths; it returned usage error without changing source. Corrected invocation passed.",
+    "Initial finish used repeated --paths options, so the parser retained only the last value and refused the dirty bookkeeping path without mutation. Retried with one explicit path list; guarded finish succeeded.",
+    "No new implementation/test defect found. No dependency upgrade, security waiver, native qualification or publication performed.",
+    "The public source preflight verifies old protected M9 bytes using current tooling. The maintenance implementation changed, so it does not make that old binary an M11 candidate; future final packages must be rebuilt/rebound to the actual source and qualified."
+  ],
+  "review": {
+    "new_session_required": false,
+    "session_id": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "event_cursor": 470,
+    "url": null,
+    "host": null,
+    "watch": null,
+    "active_protections": 6,
+    "projection_sha256": "2e472c1178e8282b90331337b2c9c175023d3486282551015346b4b2012b6c5c",
+    "protected_candidates": [
+      "BPR-0755-neutral-identity-v001",
+      "BPR-0958-native-diff-v001",
+      "BPR-0958-maintenance-clarity-v001",
+      "BPR-0958-initial-load-recovery-v002",
+      "rfc0014-m9-licensing-v001",
+      "rfc0014-m9-licensing-v002"
+    ],
+    "accepted_source_candidate": "rfc0014-m9-licensing-v002",
+    "accepted_source_fingerprint": "da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80",
+    "decision_scope": "Existing M8 and M9 decisions remain bound only to their exact original questions and artifact identities. No new M11 human/independent criterion, decision or review server. All protected source/artifact/session bytes unchanged."
+  },
+  "retained_artifact": {
+    "source_revision": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
+    "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749",
+    "app_zip_sha256": "06c1c17e427bc1aa9a2566ccb295165faee7aa2e8b5716728b9218eaeb527b25",
+    "sbom_sha256": "d47ebc072f819496fdebefe16542f00ee8b940a03f29a7535cede2123a094a74",
+    "source_zip_sha256": "37b0106584fb897a798c0cd048f46fd2051599835f399b8808774af76cfc02af",
+    "executable_sha256": "d3b06eaa1a3fbe8eaa8b6dda502dd4a639a757b0e3fc7ebf57b140f158b90a86",
+    "trust": "Existing offline ad-hoc candidate only; no new release package or trust acceptance.",
+    "check": "All four hashes match the prior M10/M9 identities."
+  },
+  "m11_required_pending": [],
+  "required_pending": [
+    "M8: complete clean-account authentication, real credential-vault lifecycle, full purge/residuals and installed high-DPI/accessibility/native interaction on Apple Silicon and Intel macOS, ordinary-user Windows 10/11, Ubuntu 24.04 and RHEL 10. Existing three scoped Mac human accepts do not close this matrix.",
+    "M9: independent final macOS Developer-ID/notarization/Gatekeeper, Windows Authenticode and declared Linux signatures/checksums. Revised native Windows/Linux separate-source artifacts and exact licensing/source qualification remain pending.",
+    "M9: Grype 21 macOS / 19 Windows findings and full coverage/lower-severity disposition; external Qt/KSyntaxHighlighting/LibArchive hardening, full PE CFG and native lifecycle sanitizer/fuzz remain unresolved. No suppression or waiver.",
+    "M9: actual active-operation network/vault/foreign-user IPC and resident synthetic source/comment/token crash-redaction evidence remains pending.",
+    "M9 distribution: accepted Mac licensing-v002 approves only its exact reviewed source/inventory/access/retention/build-relink criterion; URL is unpublished and ongoing recipient access/retention obligations remain. Approval does not transfer to changed artifacts.",
+    "M12: BPR-0617/RFC-BPR-0013 and canonical predecessors, BPR-0958 through BPR-0962 and complete M8/M9 exits must be accepted before BPR-0965 can be claimed. M11 adds no publication authority."
+  ],
+  "ownership": {
+    "repository_writer": "Sole writer /root/rfc0014_m11 on assigned main checkout; releases at final handoff.",
+    "child_agents": [],
+    "background_commands": [],
+    "review_server": null,
+    "remote_station_writes": false,
+    "state": "quiescent-at-handoff",
+    "unrelated_worktrees": "All existing six registered checkouts observed and preserved; no task worktree created or external writer started.",
+    "temporary_work": "Removed only validated build/m11-architecture.mNkn3l and build/m11-candidate.tar after completed architecture verification; reproducible from a7e8c48b. Test-owned disposable roots self-cleaned. Ignored build/m11-* evidence/acceptance/observation receipts and normal build outputs retained.",
+    "active_command_state": "All builds, tests, audits, recorder exec sessions and cleanup commands complete. Process inspection found no remaining CTest, CMake/Ninja, maintenance course or BetterPullReview process; no attended server inherited or launched."
+  },
+  "checkpoint_result": {
+    "revision": "00015dc04294e63fdf9733f8594e6f2a74c17e38",
+    "observation": "build/m11-observation.json",
+    "action": "stop",
+    "detail": "M11/BPR-0964 is accepted and this owner stops at the assigned milestone boundary. No successor is eligible: M12 requires the blocked M8 and M9 milestones plus canonical predecessor/card acceptance. Coordinator must obtain the missing native, trust, vulnerability, vault/crash/privacy and distribution evidence before dispatching closeout. No publication authority.",
+    "engineering_acceptance": "not-evaluated"
+  },
+  "continuation": {
+    "next_eligible_milestone": null,
+    "next_authored_milestone": "m12-verification-rfc-closeout",
+    "next_issue": "BPR-0965",
+    "action": "Stop at M11. Board next is null. Coordinator reconciles M8/M9 missing environments, evidence and authorities; no M12 claim or closeout until prerequisites pass.",
+    "blocked_milestones": [
+      "m8-ux-ui-native-verification",
+      "m9-security-boundary-verification"
+    ],
+    "unmet_card_dependencies": [
+      "BPR-0617",
+      "BPR-0958",
+      "BPR-0959",
+      "BPR-0960",
+      "BPR-0961",
+      "BPR-0962"
+    ],
+    "rfc_closeout": "Not eligible; RFC remains Proposed."
+  },
+  "uncertainties": [
+    "No M11 implementation obligation remains pending. Full release/native/trust/privacy/vulnerability acceptance remains explicitly unavailable as above.",
+    "Strategy route is configured coordinator-implementer rev2; host-load evidence remains not_verified, no runtime override reported."
+  ],
+  "skills": [
+    "implement-rfc: bounded full-cycle ownership, eligibility, exact checkpoint/acceptance and explicit-path commits.",
+    "code-simplifier: two-file local extraction/deduplication and source-backed no-change findings, preserving behavior and security boundaries."
+  ]
+}
