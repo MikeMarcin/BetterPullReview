@@ -20,6 +20,9 @@ add_library(
         src/review_queue_refresh.cpp
         src/release_update_application_host.cpp
         src/release_update_service.cpp
+        src/release_maintenance_application_host.cpp
+        src/release_diagnostic_snapshot.cpp
+        src/release_profile_cleanup.cpp
         src/review_queue_enrollment.cpp
         src/setup_destination.cpp
         src/profile_registry.cpp

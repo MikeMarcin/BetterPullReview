@@ -2529,7 +2529,7 @@ bpr_add_network_isolated_test(NAME application_device_binding_relaunch
     --application $<TARGET_FILE:test_device_binding_relaunch>)
 set_tests_properties(application_device_binding_relaunch PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "DEVICE_BINDING_RELAUNCH_OK")
 
-if(UNIX)
+# The same native sink and canary course now run on Windows; no platform privacy waiver.
 bpr_add_executable(test_application_logging application_logging_tests.cpp)
 target_link_libraries(test_application_logging PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_application_logging PRIVATE BPR_BUILD_TESTING=1)
@@ -2537,7 +2537,6 @@ bpr_enable_hardening(test_application_logging)
 bpr_enable_warnings(test_application_logging)
 bpr_add_network_isolated_test(NAME application_logging WINDOWS_UNCONTAINED COMMAND test_application_logging)
 set_tests_properties(application_logging PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 30)
-endif()
 
 # Real normal controls, typed fake server, real SQLite; no live effects.
 bpr_add_executable(test_better_pull_review_review_submission_composition_public_path review_submission_composition_public_path.cpp)

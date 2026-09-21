@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_ADAPTERS_SQLITE_SRC_CATALOG_DATABASE_HPP
 #define BPR_SRC_ADAPTERS_SQLITE_SRC_CATALOG_DATABASE_HPP
 
+#include "../../native/storage_failure.hpp"
+
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -25,16 +27,7 @@ namespace bpr::adapters::sqlite::detail {
 	[[nodiscard]] auto classify_sqlite_result(int aResultCode) noexcept
 		-> sqlite_result_classification;
 
-	enum class catalog_database_failure {
-		invalid_path,
-		invalid_permissions,
-		unavailable,
-		schema_mismatch,
-		integrity_failure,
-		quota_exceeded,
-		cancelled,
-		platform_unsupported,
-	};
+	using catalog_database_failure = native_storage::failure;
 
 	struct catalog_database_platform_state;
 

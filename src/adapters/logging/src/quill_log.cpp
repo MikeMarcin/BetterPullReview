@@ -1,4 +1,5 @@
 #include "bpr/logging/quill_log.hpp"
+#include "../../native/windows_private_storage.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <expected>
 #include <limits>
 #include <mutex>
 #include <quill/Backend.h>
@@ -20,6 +22,9 @@
 	#include <sys/file.h>
 	#include <sys/stat.h>
 	#include <unistd.h>
+#else
+	#include <fcntl.h>
+	#include <io.h>
 #endif
 namespace bpr::adapters::logging {
 	namespace {
@@ -241,9 +246,10 @@ namespace bpr::adapters::logging {
 		using frontend = quill::FrontendImpl<frontend_options>;
 		struct sink_state
 		{
-			std::atomic<status_type>   Status{ status_type::unavailable };
-			std::atomic<std::uint64_t> Dropped{ 0 };
-			void                       fail(const status_type aStatus) noexcept
+			std::atomic<status_type>             Status{ status_type::unavailable };
+			std::atomic<diagnostic_file_failure> OpenFailure{ diagnostic_file_failure::none };
+			std::atomic<std::uint64_t>           Dropped{ 0 };
+			void                                 fail(const status_type aStatus) noexcept
 			{
 				Status.store(aStatus);
 			}
@@ -259,45 +265,124 @@ namespace bpr::adapters::logging {
 				}
 			}
 		};
-		// Walk every component without following links; the final file is owner-only,
-		// single-link, regular, and exclusively locked for this process lifetime.
-		auto open_log(const std::filesystem::path& aRoot) -> std::FILE*
+		struct opened_log
+		{
+			std::FILE* File = nullptr;
+			~opened_log()
+			{
+				if (File) {
+					std::fclose(File);
+				}
+			}
+		};
+		auto open_log(const std::filesystem::path& aRoot) -> std::expected<std::unique_ptr<opened_log>, diagnostic_file_failure>
 		{
 			if (!aRoot.is_absolute() || aRoot.lexically_normal() != aRoot) {
-				return nullptr;
+				return std::unexpected(diagnostic_file_failure::invalid_root);
 			}
-			owned_fd directory{ ::open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC) };
-			if (directory.Value < 0) {
-				return nullptr;
+			struct stat named{ };
+			if (::lstat(aRoot.c_str(), &named) != 0 || !S_ISDIR(named.st_mode)) {
+				return std::unexpected(diagnostic_file_failure::invalid_root);
 			}
-			for (const auto& component : aRoot.relative_path() / "logs") {
-				if (component == "." || component == "..") {
-					return nullptr;
-				}
-				if (::mkdirat(directory.Value, component.c_str(), 0700) != 0 && errno != EEXIST) {
-					return nullptr;
-				}
-				const auto next = ::openat(directory.Value, component.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-				if (next < 0) {
-					return nullptr;
-				}
-				::close(directory.Value);
-				directory.Value = next;
+			const auto  canonical = std::filesystem::canonical(aRoot);
+			owned_fd    root{ ::open(canonical.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) };
+			struct stat admitted{ };
+			if (root.Value < 0 || ::fstat(root.Value, &admitted) != 0 || admitted.st_dev != named.st_dev || admitted.st_ino != named.st_ino) {
+				return std::unexpected(diagnostic_file_failure::invalid_root);
 			}
+			if (admitted.st_uid != ::geteuid() || (admitted.st_mode & 0077U) != 0) {
+				return std::unexpected(diagnostic_file_failure::invalid_permissions);
+			}
+			// The storage owner creates/adopts the root. Logging creates only its one child.
+			if (::mkdirat(root.Value, "logs", 0700) != 0 && errno != EEXIST) {
+				return std::unexpected(diagnostic_file_failure::io_failure);
+			}
+			owned_fd    directory{ ::openat(root.Value, "logs", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) };
 			struct stat directoryStat{ };
-			if (::fstat(directory.Value, &directoryStat) != 0 || directoryStat.st_uid != ::geteuid() || (directoryStat.st_mode & 0077U) != 0) {
-				return nullptr;
+			if (directory.Value < 0 || ::fstat(directory.Value, &directoryStat) != 0 || directoryStat.st_uid != ::geteuid() || (directoryStat.st_mode & 0077U) != 0) {
+				return std::unexpected(diagnostic_file_failure::invalid_permissions);
 			}
 			owned_fd    file{ ::openat(directory.Value, "diagnostics.log", O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC, 0600) };
 			struct stat fileStat{ };
-			if (file.Value < 0 || ::fstat(file.Value, &fileStat) != 0 || !S_ISREG(fileStat.st_mode) || fileStat.st_uid != ::geteuid() || fileStat.st_nlink != 1 || (fileStat.st_mode & 0077U) != 0 || ::flock(file.Value, LOCK_EX | LOCK_NB) != 0) {
-				return nullptr;
+			if (file.Value < 0 || ::fstat(file.Value, &fileStat) != 0 || !S_ISREG(fileStat.st_mode) || fileStat.st_uid != ::geteuid() || fileStat.st_nlink != 1 || (fileStat.st_mode & 0077U) != 0) {
+				return std::unexpected(diagnostic_file_failure::invalid_permissions);
 			}
-			auto* stream = ::fdopen(file.Value, "a");
-			if (stream != nullptr) {
-				file.Value = -1;
+			if (::flock(file.Value, LOCK_EX | LOCK_NB) != 0) {
+				return std::unexpected(diagnostic_file_failure::busy);
 			}
-			return stream;
+			auto result  = std::make_unique<opened_log>();
+			result->File = ::fdopen(file.Value, "a");
+			if (!result->File) {
+				return std::unexpected(diagnostic_file_failure::io_failure);
+			}
+			file.Value = -1;
+			return result;
+		}
+#else
+		namespace win = native_storage;
+		struct opened_log
+		{
+			std::FILE*                               File = nullptr;
+			std::vector<win::private_windows_object> Parents;
+			~opened_log()
+			{
+				if (File) {
+					std::fclose(File);
+				}
+			}
+		};
+		auto open_log(const std::filesystem::path& aRoot) -> std::expected<std::unique_ptr<opened_log>, diagnostic_file_failure>
+		{
+			const auto canonical = win::canonical_windows_root(aRoot);
+			const auto security  = win::private_security::load();
+			if (!canonical || !security) {
+				return std::unexpected(diagnostic_file_failure::invalid_root);
+			}
+			auto ancestors = win::validate_ancestor_chain(*canonical);
+			auto root      = win::open_private_directory(*canonical, *security, false);
+			if (!ancestors || !root || !win::reliable_local_filesystem(*root)) {
+				return std::unexpected(diagnostic_file_failure::invalid_permissions);
+			}
+			auto directory = win::ensure_private_child(*root, L"logs", *security);
+			if (!directory) {
+				return std::unexpected(diagnostic_file_failure::invalid_permissions);
+			}
+			win::private_security_attributes attributes;
+			if (!attributes.initialize(*security, win::windows_object_kind::regular_file)) {
+				return std::unexpected(diagnostic_file_failure::invalid_permissions);
+			}
+			const auto      path   = directory->Path / L"diagnostics.log";
+			constexpr DWORD access = GENERIC_READ | GENERIC_WRITE | READ_CONTROL;
+			// A second writer or a replace/delete opener cannot coexist with this handle.
+			win::windows_handle file{ ::CreateFileW(path.c_str(), access, FILE_SHARE_READ, attributes.attributes(), CREATE_NEW,
+													FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+			if (!file.valid() && (::GetLastError() == ERROR_FILE_EXISTS || ::GetLastError() == ERROR_ALREADY_EXISTS)) {
+				file = win::windows_handle{ ::CreateFileW(path.c_str(), access, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+														  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+			}
+			if (!file.valid()) {
+				return std::unexpected(::GetLastError() == ERROR_SHARING_VIOLATION ? diagnostic_file_failure::busy : diagnostic_file_failure::io_failure);
+			}
+			if (!win::identity_of(file.Value, win::windows_object_kind::regular_file)
+				|| !win::validate_private_security(file.Value, *security, win::windows_object_kind::regular_file)
+				|| !win::path_matches_handle(file.Value, path)) {
+				return std::unexpected(diagnostic_file_failure::invalid_permissions);
+			}
+			auto       result = std::make_unique<opened_log>();
+			const auto fd     = ::_open_osfhandle(reinterpret_cast<std::intptr_t>(file.Value), _O_APPEND | _O_BINARY | _O_NOINHERIT);
+			if (fd < 0) {
+				return std::unexpected(diagnostic_file_failure::io_failure);
+			}
+			file.Value   = INVALID_HANDLE_VALUE;
+			result->File = ::_fdopen(fd, "ab");
+			if (!result->File) {
+				::_close(fd);
+				return std::unexpected(diagnostic_file_failure::io_failure);
+			}
+			result->Parents = std::move(*ancestors);
+			result->Parents.push_back(std::move(*root));
+			result->Parents.push_back(std::move(*directory));
+			return result;
 		}
 #endif
 		class capped_sink final : public quill::Sink
@@ -307,19 +392,20 @@ namespace bpr::adapters::logging {
 				: State{ std::move(aState) }
 				, MaximumBytes{ aMaximumBytes }
 			{
-#if !defined(_WIN32)
-				File = open_log(aRoot);
-#else
-				static_cast<void>(aRoot);
-#endif
-				if (File == nullptr) {
+				auto opened = open_log(aRoot);
+				if (!opened) {
+					State->OpenFailure = opened.error();
 					return;
 				}
+				Native = std::move(*opened);
+				File   = Native->File;
 				if (std::fseek(File, 0, SEEK_END) != 0) {
+					State->OpenFailure = diagnostic_file_failure::io_failure;
 					return;
 				}
 				const auto size = std::ftell(File);
 				if (size < 0) {
+					State->OpenFailure = diagnostic_file_failure::io_failure;
 					return;
 				}
 				Bytes         = static_cast<std::uint64_t>(size);
@@ -328,12 +414,7 @@ namespace bpr::adapters::logging {
 					State->fail(status_type::full);
 				}
 			}
-			~capped_sink() override
-			{
-				if (File != nullptr) {
-					std::fclose(File);
-				}
-			}
+			~capped_sink() override = default;
 
 		protected:
 			void write_log(const quill::MacroMetadata*, std::uint64_t, std::string_view, std::string_view, const std::string&, std::string_view, quill::LogLevel, std::string_view, std::string_view, const std::vector<std::pair<std::string, std::string>>*, std::string_view, const std::string_view aStatement) override
@@ -361,6 +442,7 @@ namespace bpr::adapters::logging {
 		private:
 			std::shared_ptr<sink_state> State;
 			std::FILE*                  File = nullptr;
+			std::unique_ptr<opened_log> Native;
 			std::uint64_t               MaximumBytes;
 			std::uint64_t               Bytes = 0;
 		};
@@ -492,6 +574,7 @@ namespace bpr::adapters::logging {
 	quill_log::~quill_log() = default;
 	auto quill_log::record(const application::diagnostic_event& aEvent) noexcept -> status_type { return Implementation ? Implementation->record(aEvent) : status_type::unavailable; }
 	auto quill_log::status() const noexcept -> status_type { return Implementation ? Implementation->status() : status_type::unavailable; }
+	auto quill_log::open_failure() const noexcept -> diagnostic_file_failure { return Implementation ? Implementation->State->OpenFailure.load() : diagnostic_file_failure::io_failure; }
 	void quill_log::close() noexcept
 	{
 		if (Implementation) {

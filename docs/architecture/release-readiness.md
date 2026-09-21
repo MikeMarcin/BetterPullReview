@@ -8,9 +8,14 @@ The immutable RFC base remains `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 This allocation records existing code separately from successor design and
 qualification. It changes no product behavior or RFC acceptance criterion.
 
-The subsequent [M3 core contract](release-maintenance.md) implements the bounded
-G5/G6 policy and records exact reuse evidence. Host effects and public controls
-remain M4–M6 obligations; the M2 inventory below retains its original meaning.
+The subsequent [M3/M4 maintenance contract](release-maintenance.md) implements
+bounded G5/G6 policy, host/native effects, private local export and the existing
+logger's Windows mechanism. It records the exact per-profile inventory and
+durable recovery model, residuals and r3 whole-profile-purge prescription
+correction. Windows logging now links the existing native Advapi32 capability;
+no new logging library or core dependency is introduced. Public controls,
+composition and target-native qualification remain M5–M9 obligations. The M2
+inventory below retains its historical meaning, including then-missing APIs.
 
 The [live plan](../rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json)
 and [verification ledger](../verification/RFC-BPR-0014.md) own sequence and

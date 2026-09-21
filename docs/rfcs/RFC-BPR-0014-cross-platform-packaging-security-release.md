@@ -157,3 +157,12 @@ bounded metadata-only preview/export selection and exact profile-purge
 confirmation, with direct Qt/provider-free core tests. It reuses existing
 retention, migration-value, profile and updater policy. Native effects,
 controls, package privacy and the delivered matrix remain unaccepted.
+
+The same contract records M4's bounded application host, exact native inventory,
+durable purge recovery, credential-owner cleanup and metadata-only local export.
+The existing Quill sink gains private Windows support without a second logger.
+The r3 whole-profile-purge recovery adjustment is explicit; ordinary retention
+and store migration keep their existing owners. Manual/native disposable-root
+tests and Windows source checks do not certify Qt composition, native Windows
+execution, real vault continuity, package uninstall or the delivered matrix.
+Those obligations and all nine canonical acceptance criteria remain unchanged.

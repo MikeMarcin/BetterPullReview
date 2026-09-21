@@ -4,8 +4,8 @@ RFC-BPR-0014 M3, BPR-0953, implements the deterministic part of G5/G6 from
 the [release allocation](release-readiness.md). The public core API is
 `src/core/include/bpr/core/release_maintenance.hpp`; its implementation and
 direct course are `src/core/src/release_maintenance.cpp` and
-`tests/core/release_maintenance_tests.cpp`. This is a core contract. M4 owns
-native observations/effects, M5 the controls, and M6 their public composition.
+`tests/core/release_maintenance_tests.cpp`. M4, BPR-0954, adds the host/native
+contract below; M5 owns controls and M6 their public composition.
 It is not evidence that a diagnostic export or profile purge is already shipped.
 
 ## Authority and state
@@ -150,3 +150,144 @@ The current `publish-release` skill, release/publish scripts and presets remain
 the authoritative package workflow, unchanged by M3. RFC-0027's broad verbosity,
 rotation/anonymization controls and optional context ring remain deferred.
 No RFC criterion, platform/native requirement or publication permission changed.
+
+## M4 host and native effects
+
+The public `release_maintenance_application_host.hpp` consumes the M3 core
+protocol. Its storage, lifecycle, projection and local-output ports contain no
+Qt or provider types. `release_maintenance_files.hpp` implements the native
+storage/output capability under an existing, genuine `profile_runtime_lease`.
+It retains native root authority, not merely the core's opaque numeric label.
+Construction/recovery are effect-lane work before a new host is admitted.
+
+### Decision lane and lifecycle
+
+The host retains one physical job and one immutable preparation. A cancelled
+or invalidated core request still owns its physical job and terminal delivery;
+new work cannot overtake it. A bounded 32-entry ingress queue serializes
+reentrant projection callbacks. Shutdown/invalidation takes priority. Projection
+exceptions do not strand completions. Effect callbacks post to the existing
+serialized decision executor; they never directly mutate core state.
+
+The commit gate checks cancellation/revocation under the job's mutex. A terminal
+that overtakes its queued commit notification first publishes the same exact
+commit context. This preserves the core's irreversible-boundary protocol under
+reordered delivery. `is_quiescent()` includes queued decision callbacks, not
+only the apparent core status. Keep ports, effect/decision executors, the
+independent vault worker and the root lease alive until shutdown drains.
+
+Destructive preparation first calls the lifecycle barrier. Composition must
+close ingress, invalidate affected window generations, drain producers and
+existing Git/workspace/MCP recovery, and close stores/logger while retaining the
+lease. It then permits exact inventory capture. Cancellation does not silently
+restart those producers; continuing that profile may require an explicit reopen.
+M5/M6 must wire this barrier to actual application ownership. A generic callback
+or passing manual-executor test is not evidence of composed desktop shutdown.
+
+### Metadata snapshot and output
+
+`release_diagnostic_snapshot.cpp` classifies only the known Quill prefix into
+closed operation/outcome codes and numeric HTTP status/dropped counts. It omits
+timestamps, request/session identities and all free text. In particular,
+`detail=` is an unframed tail: even a later apparent `failure=` token can be
+producer prose, so the default export omits the entire tail. This is a stricter
+subset of M3's allowed fields, not a claim that arbitrary local prose is safe.
+Unknown, malformed and incomplete records are omitted and counted.
+
+Input is bounded to 16 MiB, 65,536 records and 8,192 bytes per line. Output is
+bounded to 1,024 records and 256 KiB. Input/work overflow refuses rather than
+silently scanning unbounded history. The host verifies the exact prepared
+bytes, count and SHA-256 against the descriptor. Preview and export share the
+same frozen bytes, with no raw log, source/comment/secret, database or crash file.
+
+Local output admission retains a canonical, owner-controlled parent and refuses
+existing destinations. A private temporary file is published exclusively after
+the commit gate: a hard link on POSIX, a no-replace handle rename on Windows.
+Native identities protect temporary cleanup and changed-parent refusal. No
+overwrite or upload API exists. If publication succeeds but a final durability
+check fails, an error can leave that user-selected file; callers must not claim
+that every failure rolls back a published export.
+
+### Native inventory, vault ordering and recovery
+
+Both POSIX and Windows enforce native private-storage admission, no symlink/
+reparse traversal, regular-file single-link checks, exact object identities and
+same-volume containment. POSIX identity includes device/inode/size/mtime;
+Windows retains the volume and full 128-bit file identity, checks protected
+private ACLs and holds no-delete-sharing handles. Windows lease validation now
+verifies the genuine process-owned native lease rather than accepting a path
+or a user-constructed lease value. Shared private-storage primitives are in
+`src/adapters/native/`; they add no core dependency.
+
+The closed inventory admits known private databases and their exact sidecars,
+the one diagnostic log, and complete manifest-identified managed Git caches.
+It bounds depth (16), relative path bytes (1,024) and total native/vault targets
+(4,096). Unknown entries, unsafe objects, changed identities, partial incoming
+spools/quarantines, pending original-owner recovery, or populated adjacent agent
+workspaces refuse preparation. They must be reconciled by their current owner;
+there is no recursive-delete fallback. `profiles/`, `updates/`, shared profile
+registry/updater databases and the live profile lease remain excluded without
+traversing them.
+
+`release_profile_credentials` inspects at most 64 remembered bindings, including
+tombstones, through the existing device-binding store. It closes that store
+before native inventory. The digest covers inert exact binding identities;
+cleanup deletes both token slots through `github_credential_vault_port` without
+reading a token or enumerating a namespace. Every callback must match its exact
+request. An absent slot is idempotent success; any failure preserves metadata
+and the recovery journal. The vault must run on an independent live worker.
+
+Before deletion, `.bpr-maintenance-v1` persists the bounded exact inventory and
+its SHA-256 as `BPRMNT03`. After exact credential cleanup, a separate
+`BPRCRED1` receipt bound to that inventory digest is appended and flushed before
+any binding metadata is removed. A torn receipt safely retries the same known
+keys. Recovery accepts only missing members of that exact inventory; new or
+replaced objects, changed root/profile authority, corrupt inventory or foreign
+receipt refuse cleanup. A torn initial journal has not authorized native file
+deletion and requires explicit repair; it is not permission to guess targets.
+Exact regular files are removed before empty directories, and the journal is
+removed last. The host remains recovery-required after irreversible failure
+until actual recovery and a fresh runtime admission.
+
+Mandate r3 prescription correction: ordinary epoch retention/cache deletion
+continues using its existing catalog transactions, tombstones and recovery.
+Whole-profile purge instead journals the closed, manifest-validated managed
+cache objects together with the catalog and other profile artifacts. A catalog
+that is itself being removed needs no second per-cache transaction history.
+This avoids competing recovery owners while retaining exact authority, bounded
+inventory, pre-deletion durability and restart refusal for changed objects.
+Unresolved original-owner state still blocks the purge; this is not a waiver
+of recovery or an alternate retention policy.
+
+Successful profile purge intentionally leaves the root/runtime lock, excluded
+shared containers/stores, any empty state parent containing shared entries,
+and an admitted empty adjacent workspace directory. Exported files remain the
+user's property. These are explicit residuals, not a full uninstall result.
+All-profiles/shared-registry removal and package uninstall are M6/M8 work.
+
+### Existing logger, migration and evidence boundary
+
+The existing Quill sink now supports Windows using the same private ACL/handle
+primitives and exposes only fixed admission-failure reasons. POSIX and Windows
+open an already admitted root and create only its `logs` child; neither walks
+missing ancestors into existence. Writers are exclusive. The existing queue,
+16 MiB file ceiling and producer limits remain; no second logging system,
+rotation policy or RFC-0027 context ring is added. Native fixture tests are
+registered on Windows as well as POSIX. BPR-0885/BPR-0891 overlap this source
+work but remain unclaimed; their own acceptance/native evidence is not inferred.
+
+Store migration remains in the established per-store transactions. Focused
+appearance, workbench, device-binding, epoch, queue, ledger, mutation-recovery
+and restoration courses cover their existing migration/foreign/future/corrupt
+and persistence behavior. The real development-app retention course continues
+to exercise seed → prune → restart/cache-delete → restart/verify.
+
+Direct new tests are `application_release_maintenance` (manual executors,
+cancellation/reordering/retirement/reentrancy, typed failures and hostile
+metadata) and `sqlite_release_maintenance_files` (real disposable roots,
+preview/export identity, native permissions/containment, credential failures,
+crash/recovery, corrupt receipt and replaced-object refusal). Logging and
+profile public courses exercise the changed real sink. Cross-compilation is
+only Windows source/contract evidence: MSVC linking and native Windows ACL,
+vault and lifecycle execution, Linux qualification, native crash artifacts,
+Qt controls and tests-disabled delivered packages remain M5–M9 obligations.

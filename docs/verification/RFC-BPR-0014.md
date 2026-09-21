@@ -3,9 +3,9 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m3` owns only
-`rfc-bpr-0014-release-readiness/m3-deterministic-functional-core` on `main`.
-The M1/M2 records below retain their original child and candidate provenance.
+current child `/root/rfc0014_m4` owns only
+`rfc-bpr-0014-release-readiness/m4-imperative-application-host` on `main`.
+The M1–M3 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -463,3 +463,57 @@ recreate them. Runtime receipts and normal core-only build output remain
 ignored. No child, worktree, server or native app is handed off. Final local
 observation/check receipts bind the final bookkeeping HEAD; source acceptance
 stays bound to `7445b09e`.
+
+## Milestone 4: imperative application host
+
+Assignment `m4-imperative-application-host`, sole non-delegating child
+`/root/rfc0014_m4`, mandate r3, coordinator-implementer recipe revision 2, run
+`rfc0014-20260920`, started from clean main
+`a9146cac58e584b3c7f225eabe8b31d39eed6bf7`. Guarded claim
+`a578f8ec07fb1dd1eb98192e61ab8473152b023b` and the
+[M4 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m4.json)
+retain accepted M1–M3, all BPR-0954 criteria and both exits. No agents were
+delegated and no other main writer was observed.
+
+The [implemented M4 contract](../architecture/release-maintenance.md) records
+the one-job host, exact native preparation/output capabilities, bounded metadata
+classifier, lifecycle barrier, credential-owner cleanup and durable inventory
+recovery. Both POSIX and Windows have native mechanisms; Windows uses the
+existing ACL/handle admission extracted into a shared native header, genuine
+runtime-lease validation and the existing Quill logger. The core is unchanged.
+No Qt widget performs effects and no maintenance port can mutate GitHub or a
+developer checkout. Raw diagnostic prose is never an export payload.
+
+The r3 prescription correction is explicit in the contract: whole-profile purge
+journals the closed manifest-identified cache inventory together with the
+catalog being removed. Ordinary epoch retention/cache deletion retains its
+existing transactions and recovery. Unknown objects and unfinished original-
+owner cleanup still refuse. Exact private authority, bounded work, credential-
+before-metadata ordering and restart safety are preserved. Native uninstall,
+shared registry/all-profiles cleanup and root/lock residuals are not renamed as
+complete uninstall. No criterion, plan selector, platform or release permission
+changed. All nine canonical RFC acceptance bullets remain immutable.
+
+The shortest existing public composition was exercised early through
+`application_epoch_maintenance_public_path`: seed, prune, restart/cache delete,
+restart/verify in isolated roots with external network blocked; pass in 47.91
+seconds. New direct courses exercise the public host with manual lanes and the
+real native file capability. The logger/profile courses use actual Quill and
+development composition. They are not tests-disabled package or human evidence.
+
+Self-review and simplification retained one shared completion/failure path and
+native cleanup helpers, separated policy from mechanisms, and removed duplicated
+Windows admission primitives. Direct counterexamples caught and corrected a
+native refusal whose reason was not a legal core operational terminal. The host
+now maps that effect refusal to `selection_changed`, consumes the terminal and
+drains the job. The immutable journal now has a separate digest-bound credential
+receipt: torn receipts retry exact idempotent keys, while foreign receipts,
+corrupt inventories and replaced objects refuse. This does not weaken the core
+commit boundary or invent a second retention policy.
+
+Initial preparation checks caught local capture/suffix compile errors, an
+incorrect error-enum alias during extraction, formatting/bracing and exception-
+type tidy findings; each was corrected before final verification. The first
+MinGW check also needed the project's existing missing-field-initializer warning
+exception. No compile/test failure is being presented as a passing platform
+qualification. Final exact-candidate results and acceptance follow below.

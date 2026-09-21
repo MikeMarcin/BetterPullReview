@@ -1,6 +1,6 @@
-if(BPR_BUILD_QT AND UNIX)
+if(BPR_BUILD_QT)
     bpr_add_executable(test_quill_logging quill_logging_tests.cpp)
-    target_link_libraries(test_quill_logging PRIVATE BetterPullReview::AdapterLogging BetterPullReview::AdapterGitHub Qt6::Core)
+    target_link_libraries(test_quill_logging PRIVATE BetterPullReview::AdapterLogging BetterPullReview::AdapterGitHub BetterPullReview::AdapterSQLite Qt6::Core)
     target_include_directories(test_quill_logging PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
     bpr_enable_hardening(test_quill_logging)
     bpr_enable_warnings(test_quill_logging)

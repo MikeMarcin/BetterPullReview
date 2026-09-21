@@ -1,5 +1,7 @@
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
+#include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
@@ -24,6 +26,12 @@ namespace {
 		std::ifstream stream{ aPath };
 		return { std::istreambuf_iterator<char>{ stream }, { } };
 	}
+	auto private_root(const std::filesystem::path& aPath) -> std::filesystem::path
+	{
+		std::filesystem::create_directory(aPath);
+		expect(bpr::adapters::sqlite::make_storage_root_owner_private(aPath), "test owner creates private root before logger admission");
+		return std::filesystem::canonical(aPath);
+	}
 }
 int main(int aArgc, char** aArgv)
 {
@@ -39,7 +47,7 @@ int main(int aArgc, char** aArgv)
 	using status = application::diagnostic_log_status;
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "temporary root");
-	const auto root = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+	const auto root = private_root(std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() });
 	const auto file = root / "logs/diagnostics.log";
 	{
 		adapters::logging::quill_log log{ root };
@@ -69,8 +77,8 @@ int main(int aArgc, char** aArgv)
 		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 19U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_protocol_v2_failure::pack_sink, .EpochPackFailure = application::git_pack_stream_failure::input_limit }) == status::available, "typed epoch detail accepted by real sink");
 	}
 	{
-		const auto                   firstRoot  = root / "profile-first";
-		const auto                   secondRoot = root / "profile-second";
+		const auto                   firstRoot  = private_root(root / "profile-first");
+		const auto                   secondRoot = private_root(root / "profile-second");
 		adapters::logging::quill_log firstLog{ firstRoot };
 		adapters::logging::quill_log secondLog{ secondRoot };
 		expect(firstLog.status() == status::available && secondLog.status() == status::available, "concurrent profiles both have logging");
@@ -79,7 +87,7 @@ int main(int aArgc, char** aArgv)
 		{
 			adapters::logging::quill_log unavailable{ "relative" };
 			expect(unavailable.status() == status::unavailable, "invalid sibling stays unavailable");
-			adapters::logging::quill_log full{ root / "profile-full", 1U };
+			adapters::logging::quill_log full{ private_root(root / "profile-full"), 1U };
 			static_cast<void>(full.record({ }));
 			full.close();
 			expect(full.status() == status::full, "one profile's cap is isolated");
@@ -112,7 +120,7 @@ int main(int aArgc, char** aArgv)
 		writers.reserve(4);
 		for (auto index = 0; index < 4; ++index) {
 			writers.emplace_back([&, index] {
-				adapters::logging::quill_log log{ root / ("concurrent-" + std::to_string(index)) };
+				adapters::logging::quill_log log{ private_root(root / ("concurrent-" + std::to_string(index))) };
 				expect(log.status() == status::available, "concurrent logger admission");
 				ready.arrive_and_wait();
 				expect(log.record({ .Request = static_cast<std::uint64_t>(8000 + index) }) == status::available, "concurrent logger record");
@@ -126,8 +134,8 @@ int main(int aArgc, char** aArgv)
 		}
 	}
 	{
-		adapters::logging::quill_log busy{ root / "busy-profile", 256U * 1024U * 1024U };
-		adapters::logging::quill_log healthy{ root / "healthy-profile" };
+		adapters::logging::quill_log busy{ private_root(root / "busy-profile"), 256U * 1024U * 1024U };
+		adapters::logging::quill_log healthy{ private_root(root / "healthy-profile") };
 		auto                         event = application::diagnostic_event{ };
 		event.Summary.Text.fill('x');
 		event.Summary.Size  = static_cast<std::uint16_t>(event.Summary.Text.size());
@@ -144,7 +152,11 @@ int main(int aArgc, char** aArgv)
 		expect(healthy.status() == status::available, "informational queue-drop report is not a shared backend failure");
 		expect(read(root / "healthy-profile/logs/diagnostics.log").find("request=9001 ") != std::string::npos, "healthy sibling event survives overflow drainage");
 	}
-	const auto first = read(file);
+	const auto first    = read(file);
+	const auto exported = application::prepare_release_diagnostics(first, core::release_maintenance_revision{ 1U });
+	expect(exported && exported->Descriptor.Records != 0U && exported->Bytes.find("runtime-only-file-secret") == std::string::npos
+			   && exported->Bytes.find("newField") == std::string::npos && exported->Bytes.find("request=") == std::string::npos,
+		   "real Quill log yields bounded metadata-only maintenance preview without prose or identity");
 	expect(first.find("epoch_stage=protocol_acquire failure_domain=protocol failure=pack_sink pack_failure=input_limit") != std::string::npos, "fixed protocol and pack failure names persisted");
 	expect(first.find("newField") != std::string::npos && first.find("NEW_SCHEMA_CODE") != std::string::npos && first.find("request=42 http_status=200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
@@ -179,8 +191,8 @@ int main(int aArgc, char** aArgv)
 		expect(log.status() == status::full, "existing full file refused");
 	}
 	expect(std::filesystem::file_size(file) == before, "cap never appends beyond ceiling");
-	const auto unsafe = root / "unsafe";
-	std::filesystem::create_directory(unsafe);
+#if !defined(_WIN32)
+	const auto unsafe = private_root(root / "unsafe");
 	std::filesystem::create_directory_symlink(root / "logs", unsafe / "logs");
 	{
 		adapters::logging::quill_log log{ unsafe };
@@ -194,6 +206,7 @@ int main(int aArgc, char** aArgv)
 		adapters::logging::quill_log log{ unsafe };
 		expect(log.status() == status::unavailable, "symlink file refused");
 	}
+#endif
 	{
 		adapters::logging::quill_log log{ file };
 		expect(log.status() == status::unavailable, "non-directory root refused");
@@ -201,6 +214,23 @@ int main(int aArgc, char** aArgv)
 	{
 		adapters::logging::quill_log log{ "relative" };
 		expect(log.status() == status::unavailable, "relative root refused");
+		expect(log.open_failure() != adapters::logging::diagnostic_file_failure::none, "admission refusal names a fixed cause");
 	}
+	{
+		adapters::logging::quill_log missing{ root / "missing-parent/missing-root" };
+		expect(missing.status() == status::unavailable && !std::filesystem::exists(root / "missing-parent"), "logger never creates unowned ancestors or root");
+		adapters::logging::quill_log firstWriter{ root };
+		adapters::logging::quill_log secondWriter{ root };
+		expect(firstWriter.status() == status::available && secondWriter.open_failure() == adapters::logging::diagnostic_file_failure::busy, "native sink has exactly one writer");
+	}
+#if !defined(_WIN32)
+	{
+		const auto realParent = private_root(root / "real-parent");
+		private_root(realParent / "profile");
+		std::filesystem::create_directory_symlink(realParent, root / "alias-parent");
+		adapters::logging::quill_log aliased{ root / "alias-parent/profile" };
+		expect(aliased.status() == status::available, "existing symlinked ancestor resolves without creating shared directories");
+	}
+#endif
 	std::cout << "quill-logging-tests:pass\n";
 }

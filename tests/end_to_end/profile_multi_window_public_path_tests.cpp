@@ -720,21 +720,15 @@ auto main(int aArgc, char** aArgv) -> int
 	action(*windowB, "quitProfilesAction")->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "Quit drains all sessions and shared profile services");
 	desktop.reset();
-	// [[BPR-0701]] claims the diagnostics file where the file sink exists; Windows
-	// has none, deferred with the rest of RFC-BPR-0027 by [[BPR-0603]]. The
-	// adapter's typed status says which claim this platform makes, as
-	// application_profile_management_public_path does ([[BPR-0806]]).
+	// M4 supplies the same owner-private sink on every shipped platform.
 	const auto sinkStatus = [&] {
+		expect(adapters::sqlite::create_storage_root_owner_private(root / "diagnostic-sink-probe"), "private sink probe root");
 		adapters::logging::quill_log probe{ root / "diagnostic-sink-probe" };
 		const auto                   status = probe.status();
 		probe.close();
 		return status;
 	}();
-#if defined(_WIN32)
-	expect(sinkStatus == application::diagnostic_log_status::unavailable, "Windows reports no diagnostics file sink");
-#else
 	expect(sinkStatus == application::diagnostic_log_status::available, "this platform reports its diagnostics file sink");
-#endif
 	if (sinkStatus != application::diagnostic_log_status::available) {
 		expect(!std::filesystem::exists(root / "logs/diagnostics.log"), "no diagnostics file is written where the platform has no file sink");
 	} else {

@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include <QAction>
@@ -40,7 +41,8 @@ int main(int aArgc, char** aArgv)
 	QApplication  qt{ aArgc, aArgv };
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private test root");
-	const auto                                           root = bpr::app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+	const auto root = bpr::app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+	expect(bpr::adapters::sqlite::make_storage_root_owner_private(root), "native private root before composed startup");
 	bpr::app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;
