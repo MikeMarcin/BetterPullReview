@@ -1254,10 +1254,22 @@ so this is command quiescence, not a claimed normal-exit test pass. Original
 passing focused checks and package audit remain applicable because no product
 or package input changed; existing broader-suite failures remain explicit.
 
-The exact decision is captured here and in the handoff before stopping review
-server PID 18863. All prepared candidate protections, including unrelated
-historical BPR-0755, remain in place; this bookkeeping touches no protected
-candidate paths or resources. The review queue has no pending questions.
+Commit `a1a9a90a8dbc412ab25efb7b07e670212feb333d` durably captured the exact
+decision and guarded blocker move before the companion stopped review server
+PID 18863. Subsequent status retains cursor 460, no pending questions and no
+host; the server and all three replay PIDs are absent. All prepared candidate
+protections, including unrelated historical BPR-0755, remain in place. This
+bookkeeping touches no protected candidate paths or resources, and no data was
+removed. No task command, application, server or remote writer remains.
+
+The documentation gate passes, documentation regressions pass 64/64 in 2.139s,
+and scoped board validation reports 957 cards with no errors. Whitespace and
+the no-product-change comparison against round entry pass. Final installed
+executable, both original accepted executables, revised ZIP/SPDX and live
+configuration hashes match the recorded identities. The checkpoint checker
+returns `fresh-context` for independent M9 with quiescent ownership and
+accepted M7; it checks consistency, not engineering acceptance. The ignored
+`build/m8-finalize-observation.json` binds the final bookkeeping revision.
 
 The authored M8 boundary explicitly permits independent M9/M10 after safe
 release. M9 depends only on accepted `m7-focused-tests-fixtures`, and the live

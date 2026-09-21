@@ -80,6 +80,10 @@
     {
       "revision": "23ed69ca258482bcd6189d9135f8016fd3b41557",
       "purpose": "Checkpoint preceding post-review M8 boundary and command state"
+    },
+    {
+      "revision": "a1a9a90a8dbc412ab25efb7b07e670212feb333d",
+      "purpose": "Durably capture exact recovery accept and guarded native-blocker move before review-server shutdown"
     }
   ],
   "changed_paths": [
@@ -454,8 +458,9 @@
     "event_cursor": 460,
     "status": "All three prepared scoped questions accepted; no pending human question. Complete native qualification remains blocked.",
     "pending_decisions": [],
-    "url": "Full token-bearing loopback URL returned privately to coordinator; durable local .mask/attended-review/session.json host.url. Never commit access token.",
+    "url": "No active URL: the review server was stopped after durable decision commit a1a9a90a8dbc412ab25efb7b07e670212feb333d. Session and candidate protections remain resumable; no token committed.",
     "server": {
+      "state": "stopped",
       "pid": 18863,
       "port": 50579,
       "exec_session": 60423,
@@ -467,7 +472,7 @@
         "/Users/jaeger/Documents/GitHub/BetterPullReview",
         "serve"
       ],
-      "ownership": "Finalizer owns shutdown after durable capture of event 459 and hand-back 460; no new watch is required"
+      "ownership": "Finalizer stopped the exact recorded server through attended-review stop after durable capture of event 459 and hand-back 460. Native PID absent and session host cleared; no running command handed off."
     },
     "offline_html": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/m8-postreview-attended-review.html",
     "manifest": "docs/verification/reviews/rfc0014-m8-native-v002.json",
@@ -530,12 +535,10 @@
     "prior_manifest": "docs/verification/reviews/rfc0014-m8-native-v001.json"
   },
   "ownership": {
-    "exclusive_writer": "/root/rfc0014_m8_finalize; no delegated agents; release at final return",
+    "exclusive_writer": "/root/rfc0014_m8_finalize; sole scoped writer, no delegated agents; released at final return",
     "background_commands": [],
     "running_apps_or_helpers": [],
-    "review_servers": [
-      18863
-    ],
+    "review_servers": [],
     "remote_writers": "No remote commands or station writers in this round. Prior M8 command cleanup/lease release remains historical evidence.",
     "other_worktrees": "Existing RFC18-26/36/37, superseded/ignored checkouts and prior protected candidate untouched.",
     "cleanup": "Completed Mac fixture, fixture-v2 and removed-v2.app moved recoverably to /Users/jaeger/.Trash/bpr0014-m8-courses.00Ne8Z. Only two fresh protected review roots remain in /Users/jaeger/bpr0014-m8.hqGy0H. Windows obsolete candidate-ff5242c4 and uninstalled-first-candidate-residuals deleted after final artifact/source verification; these were reproducible task-only outputs, not user data. Final Windows candidate/source/build, task-local WiX cache and replay scripts/receipts are deliberately retained for exact PE follow-up; normal ignored local build evidence remains.",
@@ -648,7 +651,20 @@
     "public_evidence_reuse": "No product/package input changed; reuse recorded exact-candidate focused 2/2 regression/public checks and 43-file installed audit. Human event 459 supplies only the missing failure-recovery judgment. Existing broader-suite failures remain pending limitations.",
     "protected_candidates": "All original v001 and revised v002 resources remain protected, as does unrelated BPR-0755-neutral-identity-v001. No release/invalidation, resource cleanup or manifest modification performed.",
     "remote_state": "No remote command or station writer started. Prior remote identities/lease release are retained history, not newly revalidated. No unrelated worktree was modified.",
-    "command_state": "Scoped replay guard 37534, fixture 37535 and app 37536 have exited. Review server 18863 remains pending shutdown after this durable decision capture. No new background command or writer was created."
+    "command_state": "Scoped replay guard 37534, fixture 37535 and app 37536 have exited. Exact review server 18863 stopped through the companion after decision commit a1a9a90a; status has no host and all four native PIDs are absent. No task-owned background command, app/helper, server or remote writer survives. The old tool session 60423 was already unavailable when queried; native process and durable host state establish shutdown."
+  },
+  "final_upkeep": {
+    "decision_commit": "a1a9a90a8dbc412ab25efb7b07e670212feb333d",
+    "board_move": "Guarded issue_board.py move BPR-0958 --to 50-blocked --blocked-by clean-macos-account-vault; dry-run and actual move succeeded. No card is eligible for Done.",
+    "documentation_regressions": "python3 tests/scripts/verify_documentation_tests.py: 64/64 pass in 2.139s; hostile-fixture ERROR diagnostics are expected test evidence.",
+    "documentation_gate": "python3 scripts/verify_documentation.py --root .: DOCUMENTATION_OK",
+    "board_validation": "issue_board.py validate --rfc RFC-BPR-0014 --json: 957 cards, valid true, errors empty",
+    "no_product_change": "git diff 23ed69ca258482bcd6189d9135f8016fd3b41557 HEAD --exit-code -- src tests packaging tools CMakeLists.txt: pass",
+    "candidate_integrity": "shasum -a 256 reverified final installed executable, both original accepted executables, final ZIP and SPDX sidecar against recorded hashes; all match",
+    "session_stop": "attended_review.py stop returned stopped true only after decision commit. Subsequent status remains cursor 460 with no pending questions, host absent, all four exact candidate protections and decision IDs intact.",
+    "self_review": "Acceptance bookkeeping only; exact candidate identities, original decisions, all three pending BPR-0958 criteria, unchanged native blockers, immutable RFC base and r3 scope checked. No product, release, skill, manifest, historical candidate or other worktree was edited.",
+    "checkpoint_observation": "build/m8-finalize-observation.json binds this segment to the final committed bookkeeping revision. milestone_checkpoint.py check with quiescent ownership and accepted M7 returns fresh-context for independently eligible M9; engineering acceptance remains this leaf's explicit partial-blocked judgment.",
+    "cleanup": "No new disposable product root or native station lease was created. Retained only the ignored continuation observation; existing exact candidate artifacts/fixtures remain protected for future native qualification. No data removed."
   },
   "post_review": {
     "hand_back_sequence": 454,
