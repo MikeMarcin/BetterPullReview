@@ -68,6 +68,13 @@ class ReleasePackageTests(unittest.TestCase):
             write()
             check = lambda: audit.check_file_inventory(root, sbom, revision, {"platform": "Linux", "version": "1"})
             self.assertEqual(check()["file_count"], 1)
+            with tempfile.TemporaryDirectory() as external_directory:
+                external = Path(external_directory) / "delivered.spdx.json"
+                external.write_bytes(sbom.read_bytes())
+                self.assertEqual(audit.check_file_inventory(root, external, revision, {"platform": "Linux", "version": "1"})["file_count"], 1)
+                external.write_text("{}")
+                with self.assertRaisesRegex(ValueError, "installed-inventory-mismatch"):
+                    audit.check_file_inventory(root, external, revision, {"platform": "Linux", "version": "1"})
             source.write_bytes(b"substituted")
             with self.assertRaisesRegex(ValueError, "file-digest-mismatch"):
                 check()

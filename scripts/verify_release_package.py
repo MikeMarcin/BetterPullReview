@@ -62,6 +62,10 @@ def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
 
 def check_file_inventory(root: Path, sbom: Path, revision: str, info: dict) -> dict:
     record = json.loads(sbom.read_text(encoding="utf-8"))
+    installed_inventory = root / "sbom.spdx.json" if info["platform"] != "Darwin" else None
+    if installed_inventory is not None:
+        require(installed_inventory.is_file() and not installed_inventory.is_symlink()
+                and runtime.digest(installed_inventory) == runtime.digest(sbom), "installed-inventory-mismatch")
     product = [item for item in record["packages"] if item["SPDXID"] == "SPDXRef-BetterPullReview"]
     require(len(product) == 1 and product[0]["versionInfo"] == info["version"], "invalid-product-inventory")
     require(product[0]["sourceInfo"] == f"git:{revision}; clean=True; tests-disabled Release; {info['platform']}", "package-source-identity-mismatch")
@@ -69,6 +73,7 @@ def check_file_inventory(root: Path, sbom: Path, revision: str, info: dict) -> d
     for item in record["files"]:
         name = item["fileName"]
         require(name.startswith("./"), "invalid-inventory-path")
+        require(name != "./sbom.spdx.json", "recursive-inventory-entry")
         relative = PurePosixPath(name[2:])
         require(not relative.is_absolute() and ".." not in relative.parts and "\\" not in name
                 and relative.as_posix() == name[2:] and name not in expected, "invalid-inventory-path")
@@ -78,7 +83,7 @@ def check_file_inventory(root: Path, sbom: Path, revision: str, info: dict) -> d
     actual = {}
     for path in sorted(root.rglob("*")):
         require(path.resolve().is_relative_to(root), "package-link-escape")
-        if path.is_file() and path.resolve() != sbom.resolve():
+        if path.is_file() and path.resolve() != sbom.resolve() and path != installed_inventory:
             actual["./" + path.relative_to(root).as_posix()] = runtime.digest(path)
     require(bool(actual) and actual.keys() == expected.keys(), "package-file-set-mismatch")
     require(actual == expected, "package-file-digest-mismatch")
