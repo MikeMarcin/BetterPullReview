@@ -323,7 +323,8 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
                     process.terminate.assert_called_once()
 
     def test_loader_queries_are_process_scoped_and_require_a_packaged_qt_positive(self) -> None:
-        with mock.patch.object(runtime_surface.platform, "system", return_value="Darwin"):
+        with (mock.patch.object(runtime_surface.platform, "system", return_value="Darwin"),
+              mock.patch.object(Path, "resolve", lambda path: path)):
             root = Path("/candidate/App.app")
             qt = root / "Contents/Frameworks/QtCore.framework/Versions/A/QtCore"
             runtime_surface.check_library_origins([qt, Path("/usr/lib/libSystem.B.dylib")], root)

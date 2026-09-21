@@ -77,6 +77,7 @@ class PackageRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "corresponding source"):
                 runtime.audit(root, {"platform": "Linux"}, root, root / "sbom.json")
 
+    @unittest.skipIf(runtime.os.name == "nt", "Linux ldd fixture requires POSIX paths; run on a Linux or macOS host")
     def test_linux_deployment_inspects_pinned_provider_before_staged_copies(self):
         with tempfile.TemporaryDirectory() as directory:
             build = Path(directory)
