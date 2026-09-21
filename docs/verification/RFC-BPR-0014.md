@@ -1103,3 +1103,12 @@ Only the review server is intentionally handed off. Product/native commands
 are finished and station leases are free. The next engineering round must
 interpret actual decisions and reconcile remaining clean-platform evidence;
 it must not close M8 or the RFC from two narrower human answers.
+
+Guarded finish `63108c12b646205df3d3096772669dd9cffbd070` parks BPR-0958 for
+human review and stores pending AC1/AC2/AC3 records with their partial evidence.
+BPR-0959/0960/0961 are Blocked with their concrete environment/account reasons.
+Both remote station leases are free and final live project/MASK hashes match.
+Completed Mac courses are recoverable in Trash; obsolete reproducible Windows
+candidate/residual outputs were removed. Exact review and final Windows
+PE-investigation resources remain explicitly owned in the handoff. Only the
+loopback review server is left running for the coordinator.

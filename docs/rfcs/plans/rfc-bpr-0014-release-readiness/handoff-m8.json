@@ -18,6 +18,7 @@
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
   "entry_revision": "789ccc311264271086e69ddec8d9cbd07a7ec839",
   "candidate_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+  "guarded_human_pending_finish": "63108c12b646205df3d3096772669dd9cffbd070",
   "result": "human-pending-with-explicit-native-dependencies",
   "rfc_status": "Proposed",
   "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
@@ -275,7 +276,7 @@
         "--root",
         "."
       ],
-      "result": "DOCUMENTATION_OK with the final handoff and blocked-card moves; rerun after guarded human-pending finish"
+      "result": "DOCUMENTATION_OK; final closing gate includes guarded human-pending finish 63108c12. Board validation: 957 cards, no errors."
     },
     {
       "command": [
