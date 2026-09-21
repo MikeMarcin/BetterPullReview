@@ -99,6 +99,7 @@ def run(app: Path, scratch: Path, report_root: Path | None) -> dict:
                         reports.append({"sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload)})
                 if not reports:
                     time.sleep(0.25)
+            require(bool(reports), "native-crash-report-unavailable")
             evidence["crash"] = {"reports": reports, "environment_canaries_absent": bool(reports),
                                  "resident_provider_source_course": "pending; environment memory is narrower evidence"}
     finally:
