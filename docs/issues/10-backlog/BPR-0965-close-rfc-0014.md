@@ -219,3 +219,12 @@ uninstall, package trust or crash artifacts. M5 must use the new typed host;
 M6 must wire its real lifecycle. Every platform/security/predecessor requirement
 and the MASK drift/host-load discrepancy remains open. This child stops at M4;
 no publication authority or running review session is added.
+
+Guarded finish `2475b4ba5af545236ac0f68f1738bc76f09685a3` accepts BPR-0954;
+BPR-0955 is Ready for the fresh M5 owner. The
+[durable M4 handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m4.json)
+retains the source candidate, commands, explicit remaining obligations and
+quiescent ownership. Temporary source/sanitizer outputs were removed; ignored
+receipts and normal builds remain. No task-created worktree, review server or
+native app is handed off, and unrelated worktrees were preserved. This card
+and the RFC remain open.

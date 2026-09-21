@@ -549,3 +549,16 @@ claimed. BPR-0885/BPR-0891 remain unclaimed despite overlapping source repairs.
 The complete publish-release skill was read; existing release paths are
 unchanged and were not run. MASK drift/incomplete and `host_load: not_verified`
 remain recorded discrepancies, not acceptance evidence.
+
+Guarded finish `2475b4ba5af545236ac0f68f1738bc76f09685a3` accepts BPR-0954.
+BPR-0955 is Ready for a fresh M5 implementer; this child stops at M4. The
+[durable M4 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m4.json)
+contains exact assignment/candidate/commit identities, paths, commands, pending
+obligations and lifecycle instructions. The task-owned full source archive/tar
+and both sanitizer executables/debug directories were removed after verification;
+they are reproducible. Normal build output and ignored receipts remain.
+All task commands and native test processes completed; no server/app is handed
+off. Separately advancing worktrees, including new RFC-0037 and RFC-0018–0026
+checkouts, were observed and left untouched; main remained the expected task
+revision. Final local observation/check receipts bind the bookkeeping HEAD,
+while product acceptance remains bound to `19a3dfd7`.
