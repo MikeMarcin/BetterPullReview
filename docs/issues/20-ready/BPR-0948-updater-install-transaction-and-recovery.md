@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0948"
 title: "Implement updater install transaction and recovery"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0947"]
 milestone: "RFC-0035 milestone 3"
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
-blocked_by: "signed-helper-upgrade-qualification"
 ---
 
 # Implement updater install transaction and recovery
