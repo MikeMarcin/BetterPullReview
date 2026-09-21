@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0962"
 title: "Verify release trust and security boundaries"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M9 Security and boundary verification"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
-blocked_by: "release-security-inputs"
 ---
 
 # Verify release trust and security boundaries
