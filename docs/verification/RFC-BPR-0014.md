@@ -1711,8 +1711,26 @@ warnings as errors. Thirteen package-runtime tests and six source-asset tests
 pass, including actual publication-script execution using only fixture
 Git/gh executables. No real tag, push or release operation occurred.
 
-Final candidate-bound verification and acceptance are recorded after this
-implementation commit. The earlier source-asset candidate remains
+Implementation candidate `a7e8c48b99103ce9b95e4583d92dace6b0795d28` passes:
+
+| Exact-candidate check | Result and receipt |
+|---|---|
+| Maintenance core/host/native files, Qt at 1.0/1.25/2.0 scales, composed public path | 7/7 pass, 21.02s; actual public path 17.94s. `build/m11-composition-evidence.json`. |
+| Package runtime, source assets, release package/security audit contracts | 4/4 suites pass, 1.89s. `build/m11-package-contracts-evidence.json`. Fixtures cover substituted/missing/embedded/stale source, source references, runtime allowlists and boundary failures. |
+| Public source-asset preflight on retained M9 app ZIP/SPDX/source ZIP | `RELEASE_SOURCE_ASSET_OK`, 0.146s. `build/m11-source-asset-evidence.json`; SHA-256/SHA3-256 checks include all seven actual upstream source archives. |
+| Architecture gate on a complete `git archive` of the candidate | Pass, 6.316s. `build/m11-architecture-evidence.json`. The copy excludes the unrelated ignored nested worktree; neither it nor the checker was changed. |
+| Documentation gate and verifier regressions | `DOCUMENTATION_OK`; 64/64 pass, 2.519s. `build/m11-documentation-evidence.json` and `build/m11-doc-regressions-evidence.json`. Hostile-fixture ERROR lines are expected assertions. |
+| Scoped board | Valid, 957 cards. `build/m11-board-evidence.json`. |
+
+The five focused build targets are current. Canonical formatting and
+warnings-as-errors clang-tidy pass on the touched host translation unit;
+its verified working-tree bytes equal the committed candidate. Initial tidy
+invocation omitted its required `--paths` option and exited with usage error;
+the corrected invocation passed. No product/test failure remains. Existing
+unchanged core-only, native platform and earlier package evidence retains its
+original scope; this refactor neither broadens it nor repeats that qualification.
+
+The earlier source-asset candidate remains
 `1c429749aff4c09c6dc88da930d3344cd2d33c36`; read-only validation of its bytes
 tests the refactored tool, not a newly built or newly approved M11 package.
 All six review protections remain in force, with session

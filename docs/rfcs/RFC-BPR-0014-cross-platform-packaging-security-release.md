@@ -241,3 +241,11 @@ Architecture, UI and agent guidance now reflect the composed maintenance path,
 exact ownership and cleanup residuals. All M8/M9 blockers remain explicit.
 Documentation completion permits independent M11 simplification, not M12
 closeout or a change to this RFC's Proposed status.
+
+M11's [simplification pass](../verification/RFC-BPR-0014.md#milestone-11-simplification)
+separates maintenance effect execution from completion scheduling and shares
+the release tool's bounded file/ZIP digest logic. Focused contracts and the
+composed maintenance course preserve behavior, authority and separate-source
+delivery. Core policy, native cleanup, presentation, selected dependencies and
+protected candidates remain unchanged. M11 completion leaves M12 gated by the
+full M8/M9 and canonical predecessor acceptance; no release approval is implied.
