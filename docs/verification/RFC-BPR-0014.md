@@ -937,3 +937,13 @@ M9 trust/hardening/crash/licensing and M10 corporate packet obligations intact.
 No signing, notarization, GitHub mutation or publication occurred. The durable
 handoff records cleanup, exact commands and the next M8 action. MASK drift and
 `host_load: not_verified` remain unchanged configuration observations.
+
+Guarded finish `3a0c398eb8f1977bfb5e3035409c29ab78d1e89f` accepts BPR-0957.
+BPR-0958–0963 are now Ready because their BPR-0957 dependency is satisfied;
+no successor work is claimed. Both remote leases are free. The empty Mac
+scratch root and the exact Windows/WSL source-probe directories have been
+removed after completion; the latter contain only reproducible committed-source
+copies and temporary outputs. Original candidates and ignored local evidence
+archives remain. All owned commands/children are finished and no review server
+is handed off. Live project/MASK hashes were rechecked after remote cleanup and
+remain unchanged.

@@ -1,8 +1,8 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-0959"
-title: "Qualify the macOS Intel package"
-status: "Backlog"
+id: "BPR-0958"
+title: "Qualify the macOS Apple Silicon package"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
@@ -10,7 +10,7 @@ platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
 ---
 
-# Qualify the macOS Intel package
+# Qualify the macOS Apple Silicon package
 
 Bounded work from the immutable RFC-BPR-0014 authored issue plan. The live
 RFC and its owner amendments remain authoritative. Reuse inherited evidence
@@ -18,9 +18,9 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Acceptance
 
-- AC1: On a clean native macOS 13+ Intel environment install the exact universal candidate per user, launch, authenticate using an authorized safe route and open a fixture PR to the exact selected-file comparison; two Mach-O slices do not prove native execution.
+- AC1: On a clean macOS 13+ Apple Silicon environment install the exact universal candidate per user, launch, authenticate using an authorized safe route and open a fixture PR to the exact selected-file comparison.
 - AC2: Exercise real rendered high-DPI source/navigation, the shared alignment controller and DiffLinkMap, keyboard/focus/accessibility, diagnostic preview and maintenance interactions with objective native evidence.
-- AC3: Uninstall and explicitly purge disposable owned roots and inspect documented credential/file/cache residuals. RFC-0035's Intel updater deferral does not waive this separate RFC-0014 package requirement.
+- AC3: Uninstall and explicitly purge in disposable owned roots; inspect credential/file/cache residuals against the documented policy and retain exact package/source/environment identities.
 
 ## Verification and execution record
 

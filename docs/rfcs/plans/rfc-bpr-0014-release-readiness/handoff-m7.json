@@ -25,7 +25,8 @@
     {"revision": "988f2d34d0245c86520ac4b7234b4997c0258928", "purpose": "Claim eligible BPR-0957 before edits"},
     {"revision": "3da341d11ebcc963963cc285b47735f992d8a9ea", "purpose": "Exact package audit, hostile courses, native runtime inspector and focused regressions"},
     {"revision": "b5fa524672dc113e54d4f0ae8fd5bb66140c67b5", "purpose": "Correct native OS path fixture eligibility without weakening product checks"},
-    {"revision": "0b2323845a2d326da3f4b545c2a4c0f50b69d697", "purpose": "Clarify platform/origin path selection; final local integration and package course pass"}
+    {"revision": "0b2323845a2d326da3f4b545c2a4c0f50b69d697", "purpose": "Clarify platform/origin path selection; final local integration and package course pass"},
+    {"revision": "3a0c398eb8f1977bfb5e3035409c29ab78d1e89f", "purpose": "Guarded finish accepts BPR-0957; records all exact evidence and limits"}
   ],
   "changed_paths": [
     "scripts/verify_runtime_surface.py",
@@ -39,6 +40,12 @@
     "tests/scripts/verify_runtime_surface_tests.py",
     "docs/development/release-packages.md",
     "docs/issues/60-done/BPR-0957-verify-package-contracts-and-hostile-fixtures.md",
+    "docs/issues/20-ready/BPR-0958-qualify-macos-arm64-package.md",
+    "docs/issues/20-ready/BPR-0959-qualify-macos-intel-package.md",
+    "docs/issues/20-ready/BPR-0960-qualify-windows-x64-package.md",
+    "docs/issues/20-ready/BPR-0961-qualify-linux-x64-packages.md",
+    "docs/issues/20-ready/BPR-0962-verify-release-trust-and-security-boundaries.md",
+    "docs/issues/20-ready/BPR-0963-document-release-and-corporate-security.md",
     "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m7.json",
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m7.json",
@@ -111,6 +118,14 @@
     {
       "command": ["python3", "tests/scripts/verify_documentation_tests.py"],
       "result": "64/64 pass; expected hostile-fixture ERROR lines; verifier inputs unchanged"
+    },
+    {
+      "command": ["python3", "scripts/verify_documentation.py", "--root", "."],
+      "result": "DOCUMENTATION_OK after guarded finish and successor promotion"
+    },
+    {
+      "command": ["python3", "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/issue_board.py", "--repo-root", "/Users/jaeger/Documents/GitHub/BetterPullReview", "validate", "--rfc", "RFC-BPR-0014", "--json"],
+      "result": "valid true, 957 total cards, no errors. Scoped queue next BPR-0958; no ambiguous in-progress; BPR-0960/0961 keep win/linux eligibility."
     }
   ],
   "native_inspector_evidence": {
@@ -166,6 +181,11 @@
     "Windows native guard helper exists at its absolute MASK store despite unresolved repository skill symlink. Native MSVC/WiX/CRT notice and package inputs still need M8 observation. WSL Ubuntu 26.04 probe is not baseline qualification.",
     "Existing MASK drift/incomplete state and host_load not_verified remain recorded, not repaired."
   ],
+  "board_state": {
+    "BPR-0957": "Done at guarded finish 3a0c398eb8f1977bfb5e3035409c29ab78d1e89f",
+    "BPR-0958 through BPR-0963": "Ready after their sole BPR-0957 dependency completed; none claimed or accepted by this child",
+    "BPR-0964 and BPR-0965": "Backlog with later milestone/full-matrix/predecessor obligations preserved"
+  },
   "continuation": {
     "intent": "fresh",
     "next_milestone": "m8-ux-ui-native-verification",

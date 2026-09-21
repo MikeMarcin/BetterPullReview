@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-0958"
-title: "Qualify the macOS Apple Silicon package"
-status: "Backlog"
+id: "BPR-0960"
+title: "Qualify the Windows x64 package"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
-platforms: ["mac"]
+platforms: ["win"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
 ---
 
-# Qualify the macOS Apple Silicon package
+# Qualify the Windows x64 package
 
 Bounded work from the immutable RFC-BPR-0014 authored issue plan. The live
 RFC and its owner amendments remain authoritative. Reuse inherited evidence
@@ -18,9 +18,9 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Acceptance
 
-- AC1: On a clean macOS 13+ Apple Silicon environment install the exact universal candidate per user, launch, authenticate using an authorized safe route and open a fixture PR to the exact selected-file comparison.
-- AC2: Exercise real rendered high-DPI source/navigation, the shared alignment controller and DiffLinkMap, keyboard/focus/accessibility, diagnostic preview and maintenance interactions with objective native evidence.
-- AC3: Uninstall and explicitly purge in disposable owned roots; inspect credential/file/cache residuals against the documented policy and retain exact package/source/environment identities.
+- AC1: On clean native Windows 10/11 x64 environments install the exact MSVC-built candidate per user without unnecessary administrator rights, launch, authenticate through an authorized safe route and open a fixture PR to the exact selected-file comparison.
+- AC2: Exercise real high-DPI source/navigation, one shared alignment controller and DiffLinkMap, keyboard/focus/accessibility, diagnostic preview and maintenance interactions; cross-compilation and hosted output cannot replace native evidence.
+- AC3: Uninstall and explicitly purge disposable owned roots and inspect documented Credential Manager/file/cache residuals; bind evidence to package/source/OS/toolchain identities.
 
 ## Verification and execution record
 

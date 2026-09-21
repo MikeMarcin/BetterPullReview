@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0961"
 title: "Qualify the Linux x64 packages"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
