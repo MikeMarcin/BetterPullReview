@@ -17,7 +17,7 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Acceptance
 
-- AC1: Implement the complete install/export/package graph for Windows per-user x64, macOS 13+ universal and the declared oldest-supported Linux x64 DEB/RPM baseline, retaining an independently buildable Qt/provider-free core.
+- AC1: Complete the application installation/package graph for Windows per-user x64, macOS 13+ universal and the declared oldest-supported Linux x64 DEB/RPM baseline, retaining an independently buildable/testable Qt/provider-free core. Add install/export rules only where the delivered application packages need them; a separate core SDK or general CMake embedding support is not required.
 - AC2: Reuse the macOS release path and product identity; produce exact-artifact checksums, SBOM, dependency provenance, runtime notices and source-offer obligations while collecting only declared required runtime libraries/plugins.
 - AC3: Exercise each available tests-disabled package through the real composition to a fixture PR and exact selected-file diff with one alignment controller and DiffLinkMap; preserve restricted install paths and the qualified macOS-only updater exception.
 
@@ -34,3 +34,9 @@ smoke, DMG/ZIP and checksum flow. Complete demonstrated gaps and Windows/Linux
 work; do not construct a second equivalent macOS release pipeline. The
 [source inventory](../../verification/RFC-BPR-0014.md#owner-amendment-r2-existing-macos-release-workflow)
 keeps actual past evidence and unverified final acceptance distinct.
+
+Owner amendment r3 modernizes the installation prescription above while
+preserving the full package matrix and core dependency-isolation outcome.
+Account for every required shipped third-party component, including static
+dependencies, in the minimal runtime closure, SBOM and license/source-offer
+analysis. The live RFC records this rationale; no native acceptance is waived.

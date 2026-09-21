@@ -1,0 +1,13 @@
+{
+  "state": "amendment-checked",
+  "reason": "Owner amendment r3 authorizes source-backed modernization of obsolete implementation prescriptions while preserving intended outcomes and acceptance",
+  "source_basis": "Current packaged application and Qt-free core target; existing macOS release workflow and declared dependencies; all nine RFC acceptance bullets unchanged",
+  "before_fingerprint": "sha256:e6880f4a693fa62363d69a0ec3db3e5c6c227357435924eb047f20231b20c649",
+  "after_fingerprint": "sha256:2034330458db0229293ca56bf87d3a35fdd52fccadfe19bf18b6cbeb01506830",
+  "affected_milestones": [
+    "m2-architecture-allocation",
+    "m6-composition-public-path"
+  ],
+  "semantic_coverage": "unknown",
+  "next": "reconcile affected assignments before publication"
+}

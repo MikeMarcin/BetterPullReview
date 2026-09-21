@@ -48,9 +48,9 @@ this run does not reset or extend their acceptance.
 
 ## Verification and execution record
 
-The current owner is `/root/rfc0014_m1`, assignment milestone 1, mandate r2
-(preserving r1), run `rfc0014-20260920`, segment
-`m1-release-workflow-amendment`, on `main`.
+The current owner is `/root/rfc0014_m1`, assignment milestone 1, mandate r3
+(preserving r1/r2), run `rfc0014-20260920`, segment
+`m1-prescription-amendment`, on `main`.
 The available-target implementation exception permits work while earlier RFCs
 remain Proposed. It does not waive a package/native requirement or permit
 terminal closeout. BPR-0617 and RFC-BPR-0013 remain open; the earliest canonical
@@ -121,3 +121,21 @@ The r2 inventory/plan candidate is
 shell syntax and empty product/release-skill diff checks pass. The current
 handoff preserves r1 acceptance and r2 source inventory separately and requests
 a fresh M2 owner under mandate r2. No M1 acceptance remains pending.
+
+The final active mandate is r3: the owner authorized source-backed updates to
+obsolete implementation prescriptions. The live RFC now includes required
+declared third-party runtime components in the audited closure and requires
+Qt/provider-free core build/test isolation without inventing a separate SDK or
+general CMake embedding work. All nine canonical acceptance bullets, supported
+platforms, security outcomes and milestone exits are unchanged. The
+[r3 ledger](../../verification/RFC-BPR-0014.md#owner-amendment-r3-current-implementation-prescriptions)
+and [renewed checkpoint](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r3.json)
+retain the exact rationale and unchanged M1 fingerprints. Original records are
+preserved; the successor reads the r3 handoff.
+
+The unrelated RFC-0036 writer subsequently integrated on main as
+`cf490c5a9873f058ba5730759304424082f6a5d8`. This child paused during its staged
+write, resumed only after a clean index, and retained the shared architecture
+changes. Final M1 product no-impact is scoped from that reconciled integration
+head; the immutable RFC base is unchanged and the unrelated product work is
+not certified by M1's planning checks.

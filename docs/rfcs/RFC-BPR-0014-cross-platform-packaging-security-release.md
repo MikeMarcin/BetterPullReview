@@ -23,7 +23,7 @@ A corporate-acceptable tool needs more than source-level security claims. The de
 ## Goals
 
 - Produce signed Windows, notarized universal macOS, and signed Linux packages.
-- Ship only required Qt and first-party runtime components.
+- Ship only the declared runtime components required by the application and selected adapters, including Qt and other accounted-for third-party dependencies.
 - Generate SBOMs, checksums, license notices, and dependency provenance.
 - Apply platform compiler/linker/runtime hardening.
 - Complete the final threat-model and corporate security documentation.
@@ -32,10 +32,43 @@ A corporate-acceptable tool needs more than source-level security claims. The de
 
 ## Architectural allocation
 
-- Packages must preserve the separate core, application-host, provider-adapter, Qt-adapter, and composition-root dependency graph. The core package/target remains buildable without Qt or provider libraries.
+- Packages must preserve the separate core, application-host, provider-adapter, Qt-adapter, and composition-root dependency graph. The core target remains independently buildable and testable without Qt or provider libraries. Application packaging does not require a separately distributed core SDK or general CMake embedding support; any install/export rules actually needed by a delivered package must preserve the same isolation.
 - The composition root selects only documented first-party adapters. Qt plugin/library paths are restricted to trusted installation locations.
 - Release scans must prove no widget/provider bypass, embedded browser/listener, accidental plugin loader, or undeclared process/network path was introduced.
 - The security packet documents the typed effect path, credential-bearing host capabilities, agent/process boundaries, serialized decision lane, lifecycle/shutdown order, and the direct conformance evidence from `verification/architecture-conformance.md`.
+
+## Current implementation basis — owner amendment r3
+
+The 2026-09-20 RFC-BPR-0014 owner mandate r3 permits revision of obsolete
+implementation prescriptions using the current repository as evidence. The
+nine acceptance criteria below, supported platform matrix, security outcomes
+and canonical closeout order are unchanged. This is separate from RFC-BPR-0035's
+own amendment numbering.
+
+The project `publish-release` skill, `macos-release` preset and
+`tools/release.sh` already provide the macOS build/deploy/sign/notarize/verify/
+DMG/ZIP/checksum path. `tools/publish-release.sh` separately guards private
+publication. Reuse those mechanisms and complete demonstrated gaps; source
+availability or an older successful candidate is not final package evidence.
+Publication still requires an explicit request for the prepared version.
+
+The delivered dependency closure can include required third-party libraries
+beyond Qt. Each shipped component, including statically linked components,
+must appear in dependency provenance, SBOM and licensing/source-offer analysis.
+The earlier Qt-and-first-party-only wording must not exclude actual required
+dependencies from that accounting. Dependency minimality and trusted plugin/
+library paths remain required.
+
+Core isolation is a build/test and delivered dependency-graph obligation, not
+a requirement to create an unrelated SDK or make this audited top-level build
+embeddable. Complete application installation/package rules where needed.
+Likewise, inventory existing profile, credential, maintenance, diagnostic,
+helper and updater ownership before adding runtime code. A generic core/host/Qt
+planning stage may reuse directly verified behavior or record a source-backed
+no-impact result; it does not require a duplicate implementation.
+
+The [amendment and evidence ledger](../verification/RFC-BPR-0014.md#owner-amendment-r3-current-implementation-prescriptions)
+records the source basis and remaining native, package, security and human gates.
 
 ## Supported initial matrix
 

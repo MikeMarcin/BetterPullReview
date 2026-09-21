@@ -99,3 +99,15 @@ The checked future-only M2/M6/M9 plan amendment preserves the original source,
 all selectors/exits, platform and closeout requirements, and publication authority.
 The current handoff and renewed checkpoint use mandate r2; the r1 records above
 remain original import history.
+
+## Owner amendment r3
+
+The owner next authorized source-backed modernization of obsolete RFC/plan
+implementation prescriptions while preserving intended outcomes and security
+obligations. The [r3 record](../../verification/RFC-BPR-0014.md#owner-amendment-r3-current-implementation-prescriptions)
+accounts for actual required third-party runtime dependencies and clarifies that
+application packaging/core isolation do not imply a standalone SDK or general
+CMake embedding support. All nine canonical acceptance bullets are byte-for-byte
+unchanged, as are the platform matrix, original source snapshots, work selectors
+and milestone exits. Current continuation uses mandate r3 and its renewed M1
+checkpoint; r1/r2 remain historical records.

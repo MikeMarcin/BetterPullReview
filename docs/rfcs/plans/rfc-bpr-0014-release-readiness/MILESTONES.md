@@ -35,7 +35,7 @@ Identify authoritative state, compact core state, bounded observations, typed tr
 - The release/maintenance architecture and existing implementation gaps are mapped to exact source paths and typed ownership.
 - Each acceptance row has a concrete public check, native/environment requirement and owning work item.
 
-**Boundary:** Finish allocation and any necessary evidence-backed future plan refinement before feature engineering.
+**Boundary:** Finish allocation and any necessary evidence-backed future plan refinement before feature engineering. Owner amendment r3 permits source-backed revision of obsolete implementation prescriptions while preserving intended outcomes, all acceptance exits and explicit native/human gaps.
 
 ## m3-deterministic-functional-core
 
@@ -95,7 +95,7 @@ Reuse the existing authoritative macOS release pipeline, complete demonstrated c
 - Windows, universal macOS and baseline Linux package definitions, dependencies, SBOM/notices/source offers and checksum generation are implemented.
 - Available packaged public paths reach an exact fixture comparison through one alignment controller and DiffLinkMap; unavailable native evidence stays pending.
 
-**Boundary:** Do not turn available-host package mechanics into full delivered-matrix acceptance.
+**Boundary:** Do not turn available-host package mechanics into full delivered-matrix acceptance. Deliver application packages and any install rules they need; independently verify core isolation without inventing a standalone core SDK or general project-embedding support.
 
 ## m7-focused-tests-fixtures
 

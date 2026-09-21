@@ -34,3 +34,11 @@ maps their existing universal build/deploy/sign/notarize/verify/package/publish
 mechanisms and exact fingerprints to remaining acceptance. Inventory and extend
 demonstrated gaps; do not duplicate those mechanisms or treat their existence
 as clean-target, trust or publication evidence.
+
+Owner amendment r3 permits source-backed revisions to obsolete implementation
+prescriptions in the RFC/plan while preserving intended outcomes and security
+obligations. M1 has reconciled the third-party runtime inventory wording and
+removed an inferred standalone-core-SDK/general-embedding deliverable. The nine
+RFC acceptance bullets are unchanged. Record any later material scope or
+acceptance change explicitly, retain unavailable native/human evidence, and
+reuse existing core/host/Qt behavior with direct evidence where no new code is needed.

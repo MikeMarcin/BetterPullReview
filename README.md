@@ -266,9 +266,11 @@ built from a controlled two-file staging directory as the existing
 `BetterPullReview::SQLite3` static target. Set standard hints such as
 `Qt6_ROOT`, `Python3_ROOT_DIR`, `Git_ROOT`, `CMAKE_PREFIX_PATH`,
 `PKG_CONFIG_PATH`, and `CPM_SOURCE_CACHE` when discovery needs help.
-Until the install/export work in RFC-BPR-0014, configure BetterPullReview as
-the top-level project. Top-level dependency-provider hooks are rejected, and
-repository plus built-in CMake modules are loaded from trusted absolute paths.
+Configure BetterPullReview as the top-level project. Top-level dependency-provider
+hooks are rejected, and repository plus built-in CMake modules are loaded from
+trusted absolute paths. RFC-BPR-0014 owns application installation and package
+qualification; it does not require a separate core SDK or general CMake embedding
+support. The core remains independently buildable and testable without Qt/providers.
 
 ```sh
 cmake --preset dev

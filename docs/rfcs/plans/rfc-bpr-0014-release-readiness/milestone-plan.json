@@ -40,7 +40,7 @@
         "The release/maintenance architecture and existing implementation gaps are mapped to exact source paths and typed ownership.",
         "Each acceptance row has a concrete public check, native/environment requirement and owning work item."
       ],
-      "boundary": "Finish allocation and any necessary evidence-backed future plan refinement before feature engineering."
+      "boundary": "Finish allocation and any necessary evidence-backed future plan refinement before feature engineering. Owner amendment r3 permits source-backed revision of obsolete implementation prescriptions while preserving intended outcomes, all acceptance exits and explicit native/human gaps."
     },
     {
       "id": "m3-deterministic-functional-core",
@@ -108,7 +108,7 @@
         "Windows, universal macOS and baseline Linux package definitions, dependencies, SBOM/notices/source offers and checksum generation are implemented.",
         "Available packaged public paths reach an exact fixture comparison through one alignment controller and DiffLinkMap; unavailable native evidence stays pending."
       ],
-      "boundary": "Do not turn available-host package mechanics into full delivered-matrix acceptance."
+      "boundary": "Do not turn available-host package mechanics into full delivered-matrix acceptance. Deliver application packages and any install rules they need; independently verify core isolation without inventing a standalone core SDK or general project-embedding support."
     },
     {
       "id": "m7-focused-tests-fixtures",

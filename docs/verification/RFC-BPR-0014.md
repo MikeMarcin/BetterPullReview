@@ -2,7 +2,8 @@
 
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
-`r2`, authorizes this run; child `/root/rfc0014_m1` owns only
+`r2` and prescription-modernization instruction `r3`, authorizes this run;
+child `/root/rfc0014_m1` owns only
 `rfc-bpr-0014-release-readiness/m1-pack-import-planning` on `main`.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
@@ -42,7 +43,7 @@ criteria; the row numbers below follow their existing order, not new requirement
 | 6 Storage and removal | Exercise vault/file/cache permissions, retention, explicit purge, migration, crash recovery and uninstall in disposable roots; compare actual retained/deleted items with docs | BPR-0953–0955, BPR-0958–0961 | Earlier component evidence does not prove packaged lifecycle |
 | 7 Diagnostic privacy | Seed source/comment/token canaries, preview/export diagnostics and inspect crash/log artifacts; defaults omit bodies/secrets and redaction survives hostile inputs | BPR-0953–0955, BPR-0957, BPR-0962 | Required controls and package course pending |
 | 8 Corporate packet | Reconcile network/storage/process/credential/AI/logging/removal claims with observed composed effects and final threat model | BPR-0952, BPR-0963 | Existing docs are inventory inputs; final packet pending |
-| 9 Packaged architecture | Build/test core with Qt/provider unavailable; inspect install/export targets and packaged symbols/dependencies; trace real host effects and exact selected comparison through composition | BPR-0952, BPR-0956, BPR-0957, BPR-0962 | Existing architecture checks must be bound to final package inputs |
+| 9 Packaged architecture | Build/test core with Qt/provider unavailable; inspect delivered targets, required install rules and packaged symbols/dependencies; trace real host effects and exact selected comparison through composition | BPR-0952, BPR-0956, BPR-0957, BPR-0962 | Existing architecture checks must be bound to final package inputs |
 
 A successful launch alone is insufficient for row 1: the terminal observation
 is the exact selected-file comparison through the shipped alignment controller
@@ -59,7 +60,7 @@ an RFC milestone does not authorize publishing a release.
 | macOS 13+ Apple Silicon | Universal arm64/x86_64 tests-disabled app and DMG/ZIP; hardened signature/notarization; clean native install/render/remove | BPR-0958 native operator plus BPR-0962 trust evidence; current host is arm64 but no clean package run occurred in M1 |
 | macOS 13+ Intel | Same exact universal package, actual native Intel install/launch/auth/render/remove | BPR-0959 Intel operator/hardware; updater BPR-0950 deferral does not satisfy it |
 | Linux x86_64 | Oldest supported baseline declared by M2; signed DEB/RPM, dependency/desktop/plugin/vault/render/uninstall checks and default per-user route | BPR-0961 Linux operators/stations plus BPR-0962 signing authority; exact baseline and clean environments pending |
-| Core-only | No Qt/provider discovery or link dependency; deterministic policy tests and install/export consumer check | BPR-0953, BPR-0956, BPR-0957 |
+| Core-only | No Qt/provider discovery or link dependency; deterministic build/tests and delivered target/dependency inspection; audit any install/export rules actually selected | BPR-0953, BPR-0956, BPR-0957 |
 
 No additional architecture is implied. Signing identities, clean native
 environments and any attended decisions are required external inputs when
@@ -77,7 +78,7 @@ fixes the ownership obligations so a later no-impact conclusion needs evidence.
 | Application host | Validated bounded private-root/vault/catalog observations, maintenance/migration/export jobs, effect ports, cancellation and quiescent lifecycle | BPR-0952/0954 fake-port/manual-executor failures plus disposable-root evidence |
 | Platform adapters | Native filesystem/vault/package/process mechanisms through narrow capabilities; secure signing inputs remain external | BPR-0954/0956/0962 permissions, containment, runtime and independent trust checks |
 | Qt presentation | User gesture, confirmation, preview, focus/accessibility, incremental command/model projection; no provider or storage effects | BPR-0955 public rendered interaction and bounded update checks |
-| Composition and packaging | Select first-party adapters and actual private roots, deploy only required dependencies/plugins, preserve isolated core install/export target and updater boundary | BPR-0956/0957/0962 tests-disabled relocated public path and dependency inspection |
+| Composition and packaging | Select first-party adapters and actual private roots, deploy only required declared dependencies/plugins, preserve isolated core target and updater boundary | BPR-0956/0957/0962 tests-disabled relocated public path and dependency inspection |
 | GitHub/shared state | GitHub remains authoritative; packaging and local maintenance cannot mutate shared review history | Fixture/read-only paths by default; any remote mutation needs an expressly designated safe target |
 
 The intended path is Qt semantic intent → core eligibility using host-supplied
@@ -106,7 +107,7 @@ claimed by documentation tests.
 | Semantic obligation | Owning documents/surfaces | Disposition and owner |
 |---|---|---|
 | Core/host/Qt and typed ownership, identity, concurrency, projections | System architecture and architecture-conformance matrix | Plan recorded here; M2 allocates exact changes, M10 reconciles |
-| Build/install/export, supported baseline, dependencies and license/source offer | README, build-and-test, packaging README and release tooling/operator guide | M6 implementation; M10 final source-backed instructions |
+| Application build/install/package, supported baseline, dependencies and license/source offer | README, build-and-test, packaging README and release tooling/operator guide | M6 implementation; M10 final source-backed instructions |
 | Credentials, storage, retention/purge, migration and removal | Product contract, foundation security, security threat model and operator docs | M3–M5 implement/qualify; M10 reconciles |
 | Network, subprocesses, AI, diagnostics and corporate posture | Security threat model, corporate packet, diagnostic/operator docs | M9 evidence; M10 final packet |
 | Qualified macOS updater and manual managed/Windows/Linux policy | Existing release-updater architecture/security and application-updates guide | Preserve owner amendment; revalidate only affected package boundary |
@@ -218,7 +219,7 @@ the amendment source in its own directory produced the valid receipt without
 changing the live source or losing its original provenance. The original
 preparation/adoption receipts and r1 checkpoint remain historical.
 
-The [current r2 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r2.json)
+The [r2 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r2.json)
 retains identical M1 definition and obligation fingerprints. The amendment
 checker identifies only future M2/M6/M9 changes. Shell syntax checks for both
 existing scripts, adopted-plan and scoped-board checks, documentation and
@@ -230,3 +231,42 @@ documentation, both script syntax checks and the expanded empty product/release-
 skill diff check pass. Receipts are
 `build/rfc0014-run/m1-r2-{documentation,release-syntax,publish-syntax,no-impact}-evidence.json`.
 The current handoff carries mandate r2 and preserves original r1 acceptance.
+
+## Owner amendment r3: current implementation prescriptions
+
+The owner explicitly authorized revision of obsolete or no-longer-sensible
+RFC/plan prescriptions based on the current repository, while preserving intended
+outcomes/security obligations and recording material changes. M1 applies two
+concrete prescription corrections; all nine canonical acceptance bullets remain
+verbatim and the Windows/macOS Intel/Apple Silicon/Linux matrix stays required.
+
+| Earlier prescription | Source-backed correction | Preserved obligation |
+|---|---|---|
+| Ship only required Qt and first-party runtime components | The selected architecture already includes required non-Qt third-party components such as SQLite, KSyntaxHighlighting, Quill and LibArchive. Declare and account for the actual minimal runtime closure, including static dependencies | Minimal trusted dependency/plugin surface; complete provenance, SBOM, notices and source offers |
+| Core package/target plus future install/export composition | The current app ships native application bundles/helpers and deliberately configures as the audited top-level project. Require an independently Qt/provider-free core build/test target and only the install/export rules the actual application packages need, without inventing a standalone core SDK or general project embedding | Deterministic core isolation; delivered target/dependency graph; all effects through the packaged host/composition path |
+
+The live RFC now names the existing release workflow and allows direct reuse or
+evidence-backed no-impact completion of a generic core/host/Qt stage. The
+original twelve-stage grouping, all work selectors and milestone exits remain.
+BPR-0956's implementation criterion is reconciled to the clarified packaging
+prescription; its platform, isolation and artifact obligations are retained.
+README and the owning architecture document remove their stale suggestion that
+RFC-0014 necessarily supplies general install/export embedding. Existing updater
+and helper scope remains declared and must be inventoried, not silently removed.
+There is no acceptance waiver, native-platform deferral, new publication
+authority or product-code change in this amendment.
+
+The original RFC snapshot, authored issue plan and r1/r2 records remain intact.
+The [r3 amendment receipt](../rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r3/check.json)
+reports only future M2/M6 definition changes. The successor may use r3 authority
+for further source-backed prescription updates, but must record any material
+scope/acceptance change and preserve unavailable native/human decisions.
+
+During r3 orientation another owner staged and integrated RFC-BPR-0036 on main.
+This child paused main mutations and preserved the other index. Integration
+completed with clean main at `cf490c5a9873f058ba5730759304424082f6a5d8`, retaining
+the r2 handoff ancestor `03458e69`. The shared architecture diff was reviewed
+before applying the two scoped documentation lines; its Markdown changes are
+preserved. The immutable RFC base stays `d0a8a6dd`. Earlier empty product-diff
+receipts remain true only for their earlier candidate; final M1 scope is verified
+against the reconciled integration head and does not certify the unrelated RFC.

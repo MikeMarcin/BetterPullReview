@@ -224,8 +224,9 @@ are evaluated and rejects any predeclared collision with those owned names.
 Standard tool discovery uses CMake's built-in modules and rejects package
 redirects for provider-owned names. The source tree configures only as the
 top-level project, rejects top-level dependency-provider hooks, and loads its
-repository and built-in modules by trusted absolute path; install/export
-composition remains RFC-BPR-0014 work. CPM owns verified source acquisition
+repository and built-in modules by trusted absolute path. Application installation
+and package qualification remain RFC-BPR-0014 work; its core-isolation requirement
+does not imply a separate SDK or general CMake embedding support. CPM owns verified source acquisition
 rather than prebuilt platform-package discovery.
 `Threads::Threads` and native frameworks remain explicit toolchain/platform
 capabilities. SQLite is download-only CPM source that becomes the first-party
