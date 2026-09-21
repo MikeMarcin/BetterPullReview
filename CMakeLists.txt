@@ -124,8 +124,9 @@ function(bpr_add_executable target)
         # that waits for a person. Every automated executable gets the unit
         # that routes those to stderr instead, so a failure is an exit code
         # CTest can act on rather than a dialog an unattended run stalls on
-        # (BPR-0434). It is empty on every other toolchain.
-        if(MSVC)
+        # (BPR-0434). Shipped tools are also non-application executables, but
+        # must not inherit test-only CRT/crash policy in a distribution graph.
+        if(MSVC AND BUILD_TESTING)
             target_sources(
                 "${target}"
                 PRIVATE
