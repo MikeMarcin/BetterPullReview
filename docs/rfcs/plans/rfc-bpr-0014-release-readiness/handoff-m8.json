@@ -3,10 +3,10 @@
     "rfc": "RFC-BPR-0014",
     "plan": "rfc-bpr-0014-release-readiness",
     "milestone": "m8-ux-ui-native-verification",
-    "child": "/root/rfc0014_m8",
+    "child": "/root/rfc0014_m8_postreview",
     "mandate_revision": "r3",
     "run_id": "rfc0014-20260920",
-    "segment_id": "m8-ux-ui-native-verification",
+    "segment_id": "m8-postreview-454",
     "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
     "branch": "main",
     "role": "rfc-implementer",
@@ -16,13 +16,13 @@
     "recipe_revision": "2"
   },
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
-  "entry_revision": "789ccc311264271086e69ddec8d9cbd07a7ec839",
-  "candidate_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
-  "guarded_human_pending_finish": "63108c12b646205df3d3096772669dd9cffbd070",
-  "result": "human-pending-with-explicit-native-dependencies",
+  "entry_revision": "ee2e38cfab311622ff455d878279cd72cc6a46a9",
+  "candidate_revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
+  "guarded_human_pending_finish": null,
+  "result": "partial-human-pending; original two scoped accepts reconciled, Overview defect corrected, native matrix and recovery review pending",
   "rfc_status": "Proposed",
   "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
-  "verification_ledger": "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance",
+  "verification_ledger": "docs/verification/RFC-BPR-0014.md#post-review-round-at-hand-back-454",
   "commits": [
     {
       "revision": "df273695d4484c42fa7b2f0a7a3fe95c16443dc0",
@@ -55,6 +55,22 @@
     {
       "revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
       "purpose": "Exclude test CRT support from all tests-disabled production helpers"
+    },
+    {
+      "revision": "214291562d4acfbd23c2b4cc775274d946ffc649",
+      "purpose": "Reconcile exact two v001 accepts and resume only BPR-0958 Overview investigation"
+    },
+    {
+      "revision": "79696fd9e09e7b8b1a1df6d80568d026564f4b74",
+      "purpose": "Guarded BPR-0958 claim for fresh post-review M8 round"
+    },
+    {
+      "revision": "babcb3dcc0f55ca1f79143ef7310e0d9dc78ea77",
+      "purpose": "Return initial failed/cancelled review loads to Home; real-command regression and bound post-review checkpoint"
+    },
+    {
+      "revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
+      "purpose": "Clarify new comment/docs; existing accepted-destination Open-bar clearing behavior unchanged"
     }
   ],
   "changed_paths": [
@@ -77,24 +93,29 @@
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m8.json",
     "docs/verification/RFC-BPR-0014.md",
-    "docs/verification/reviews/rfc0014-m8-native-v001.json"
+    "docs/verification/reviews/rfc0014-m8-native-v001.json",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "docs/ux/workbench-specification.md",
+    "docs/verification/reviews/rfc0014-m8-native-v002.json"
   ],
   "artifacts": {
     "macos": {
-      "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
-      "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m8-6ad71635",
+      "source_revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
+      "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m8-recovery-80481e80",
       "version": "0.1.3",
-      "executable_sha256": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54",
+      "executable_sha256": "ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618",
       "archive": "BetterPullReview-0.1.3-macos-universal-local.zip",
-      "archive_sha256": "a6fbad8a60f8f8c27156f2964ba44af7311f77e2ef6b8d64ac20fb4045dd6cb0",
+      "archive_sha256": "95245bd2d6122bb197dbbf290451032e85350f5508283832c63d708c2a55fb19",
       "sbom": "BetterPullReview-0.1.3-macos-universal-local.spdx.json",
-      "sbom_sha256": "0e7cdb572489b7abc5a839a517a16974b24b4c209c55a2c41dab4c14c312a8b1",
+      "sbom_sha256": "7d543637ab167827b0f69efb89a701daa894d9872407c01cf87a8e90ee341d40",
       "file_count": 43,
       "binaries": 13,
       "first_party_compile_units": 227,
       "production_anchors": 34,
       "trust": "Offline ad-hoc only; no Developer-ID signing, notarization, Gatekeeper or license approval",
-      "native_reuse": "Complete sorted SPDX files arrays compare equal with rendered 277a2c57 payload. All 43 bytes/hashes, including executable, are identical. Final-source installed audit passes both fresh review copies. Later product changes affect Windows only; SPDX provenance/archive wrapper changed."
+      "installed_copy": "/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery/home/Applications/BetterPullReview.app",
+      "native_scope": "Final installed audit passed. Behavior-equivalent babcb3dc native run showed 404 returning to Home; final 80481e80 embedded identity changes bytes and has no final native/human verdict yet. Original v001 accepts are not transferred."
     },
     "windows": {
       "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
@@ -109,7 +130,24 @@
       "binaries": 16,
       "first_party_compile_units": 222,
       "trust": "Unsigned; installed notice is not license/source-offer approval",
-      "state": "Final MSI uninstalled: exit 0, ProductState -1, exact install directory absent; source/build/artifact retained."
+      "state": "Final MSI uninstalled: exit 0, ProductState -1, exact install directory absent; source/build/artifact retained.",
+      "post_review_state": "Unchanged 6ad71635 artifact; does not contain the shared Qt failure-recovery fix. Rebuild exact candidate before any further complete Windows qualification. No remote action this round."
+    },
+    "macos_v001_accepted": {
+      "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+      "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m8-6ad71635",
+      "version": "0.1.3",
+      "executable_sha256": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54",
+      "archive": "BetterPullReview-0.1.3-macos-universal-local.zip",
+      "archive_sha256": "a6fbad8a60f8f8c27156f2964ba44af7311f77e2ef6b8d64ac20fb4045dd6cb0",
+      "sbom": "BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+      "sbom_sha256": "0e7cdb572489b7abc5a839a517a16974b24b4c209c55a2c41dab4c14c312a8b1",
+      "file_count": 43,
+      "binaries": 13,
+      "first_party_compile_units": 227,
+      "production_anchors": 34,
+      "trust": "Offline ad-hoc only; no Developer-ID signing, notarization, Gatekeeper or license approval",
+      "native_reuse": "Complete sorted SPDX files arrays compare equal with rendered 277a2c57 payload. All 43 bytes/hashes, including executable, are identical. Final-source installed audit passes both fresh review copies. Later product changes affect Windows only; SPDX provenance/archive wrapper changed."
     }
   },
   "commands": [
@@ -285,6 +323,85 @@
         "--check"
       ],
       "result": "Pass; touched C++ formatting also passes"
+    },
+    {
+      "command_ref": "Added real-core-command regression before product fix; build then ctest --test-dir build/dev --output-on-failure -R ^qt_composed_loading_scale_100$",
+      "result": "Expected FAIL: cancelled progress cannot keep a loading overview alive (0.84s). Demonstrates the old public composition bug."
+    },
+    {
+      "command_ref": "cmake --build --preset dev --target test_better_pull_review_qt_github_tests test_release_maintenance_public_path -j 6",
+      "result": "PASS 7.592s against final behavior; later changes comment/docs only.",
+      "receipt": "build/m8-postreview-build.json"
+    },
+    {
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^(qt_composed_loading_scale_100|application_release_maintenance_public_path)$"
+      ],
+      "result": "PASS 2/2, 18.53s against final behavior; comment/docs-only 80481e80 does not invalidate these checks.",
+      "receipt": "build/m8-postreview-focused.json"
+    },
+    {
+      "command_ref": "Eight-test UI selection: qt_composed_github scales 100/125/200, qt_workbench_window scales 100/125/200, qt_composed_loading_scale_100 and application_release_maintenance_public_path",
+      "result": "FAIL 6/8 (32.65s). CLI-card state and epoch-row placement assertions fail at each broad-suite scale; focused loading and maintenance pass.",
+      "receipt": "build/m8-postreview-integration-first.log"
+    },
+    {
+      "command_ref": "Temporarily reversed only task source/test changes; git diff --exit-code confirmed both tracked files match 79696fd9; rebuilt and ran qt_composed_github_scale_100 and qt_workbench_window_scale_100, then restored exact fix with apply_patch",
+      "result": "FAIL 2/2, same two assertion strings (4.81s): independent pre-existing baseline confirmation, not a passing broader suite.",
+      "receipt": "build/m8-postreview-baseline-ui.log"
+    },
+    {
+      "command_ref": "Guarded exact 6ad71635 original app in fresh fixture; native paste before CLI, observe 404/empty Overview, Command-Q",
+      "result": "Reproduced original real defect; normal launcher completion 79.592s; live project/MASK hashes unchanged.",
+      "receipt": "build/m8-postreview-exact-launch.json"
+    },
+    {
+      "command_ref": "Guarded babcb3dc tests-disabled app; same original anonymous request then begin fixture CLI setup",
+      "result": "Partial native observation: 404 returns to Home, refusal and Copy details visible. Mac locked during subsequent CLI consent. FAIL launcher timeout 310.11s, own app reaped; not normal-exit or complete-course acceptance.",
+      "receipt": "build/m8-postreview-fixed-launch.json"
+    },
+    {
+      "command": [
+        "tools/release.sh",
+        "--version",
+        "0.1.3",
+        "--prepare-only",
+        "--skip-tests",
+        "--output-dir",
+        "build/releases/m8-recovery-80481e80"
+      ],
+      "result": "PASS 41.267s; existing offline release path.",
+      "receipt": "build/m8-postreview-final-package.json"
+    },
+    {
+      "command_ref": "Guarded fresh fixture preparation, ditto final .app and CMakeCache into /Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery; absolute paths in receipt",
+      "result": "PASS 0.234s; both live hashes unchanged. Earlier attempts refused missing target and existing fixture directory; no product conclusion from those preparation failures.",
+      "receipt": "build/m8-postreview-final-prepare-v3.json",
+      "prior_refusals": [
+        "build/m8-postreview-final-prepare.json",
+        "build/m8-postreview-final-prepare-v2.json"
+      ]
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_release_package.py",
+        "--build",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/macos-release",
+        "--root",
+        "/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery/home/Applications/BetterPullReview.app",
+        "--sbom",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m8-recovery-80481e80/BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+        "--source-revision",
+        "80481e80d60f739db4c7eaea5e2eb8716ace2b4d"
+      ],
+      "result": "RELEASE_PACKAGE_OK, 1.884s; 43 files, 13 binaries, 227 compile units, app composition and symbol/dependency inspection.",
+      "receipt": "build/m8-postreview-final-audit.json"
     }
   ],
   "native_routing": {
@@ -319,12 +436,13 @@
     },
     "live_project_sha256_all_hosts": "faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2",
     "live_local_mask_sha256": "a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf",
-    "live_files_unchanged": true
+    "live_files_unchanged": true,
+    "post_review": "No remote command, native station lease or remote writer was created in this round. Prior remote facts are retained history, not freshly rechecked. Only local disposable fixture roots used."
   },
   "review_handoff": {
     "required_for_m8": true,
     "session": "cbd48b91000b00f1e72e1ad62c7c384c",
-    "event_cursor": 451,
+    "event_cursor": 458,
     "url": "Full token-bearing loopback URL returned privately to coordinator; durable local .mask/attended-review/session.json host.url. Never commit access token.",
     "server": {
       "pid": 18863,
@@ -340,44 +458,74 @@
       ],
       "ownership": "Explicitly handed off to coordinator; sole allowed surviving task command"
     },
-    "offline_html": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/m8-attended-review.html",
-    "manifest": "docs/verification/reviews/rfc0014-m8-native-v001.json",
+    "offline_html": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/m8-postreview-attended-review.html",
+    "manifest": "docs/verification/reviews/rfc0014-m8-native-v002.json",
     "candidates": [
       {
         "id": "BPR-0958-native-diff-v001",
         "fingerprint": "daf5be5cb08311e758960c67e6ecdb07071b95b4aff925b5324acbb734049e77",
         "phase": "ready",
         "protected": true,
-        "decision": null,
-        "fixture": "/Users/jaeger/bpr0014-m8.hqGy0H/review-diff"
+        "decision": {
+          "decision_id": "fcd51e30-b163-4136-9e50-923d1a13de85",
+          "outcome": "accept",
+          "note": "Overview page looked completely broken when I went to the review before picking github cli, that might have just been a fixture test issue.",
+          "saved_at": "2026-09-21T16:28:24.864208+00:00",
+          "event": 453,
+          "actor": "human"
+        },
+        "fixture": "/Users/jaeger/bpr0014-m8.hqGy0H/review-diff",
+        "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+        "executable_sha256": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54"
       },
       {
         "id": "BPR-0958-maintenance-clarity-v001",
         "fingerprint": "b352efe45d939c97aff4425a6919afd5f1bd20dfac2ffb7d10a89e1fe72f9274",
         "phase": "ready",
         "protected": true,
+        "decision": {
+          "decision_id": "75ea6265-3302-49cd-8741-c23e1c583341",
+          "outcome": "accept",
+          "note": "",
+          "saved_at": "2026-09-21T16:26:09.541413+00:00",
+          "event": 452,
+          "actor": "human"
+        },
+        "fixture": "/Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance",
+        "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+        "executable_sha256": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54"
+      },
+      {
+        "id": "BPR-0958-initial-load-recovery-v002",
+        "fingerprint": "ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824",
+        "phase": "ready",
+        "protected": true,
         "decision": null,
-        "fixture": "/Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance"
+        "fixture": "/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery",
+        "source_revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
+        "executable_sha256": "ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618"
       }
     ],
-    "protection": "Exact final macOS artifact directory, fixture launcher source and two separate install/fixture resources. Static install version binds executable SHA. No repository-wide freeze; do not mutate shared protected inputs.",
+    "protection": "Original v001 artifact/two fixture installs preserved with exact accepted fingerprints. New final artifact, source workbench_window.cpp, shared unchanged fixture launcher and distinct review-recovery install/fixture protected. No repository-wide freeze; query conflicts before relevant writes.",
     "prior_session": "Existing unrelated BPR-0755-neutral-identity-v001 protection and all historical decisions preserved.",
-    "interpretation": "Coordinator arms event watch from cursor 451 after handoff. Next engineering round interprets actual scoped decisions. Even both accepts do not complete AC1/AC3 or other platforms."
+    "interpretation": "Coordinator arms event watch from cursor 458 after writer handoff. Next fresh engineering round interprets the one new recovery question. Original two human accepts applied only to original bound AC2 questions; not new artifact, clean-account/vault or platform acceptance. Unlock Mac for native review.",
+    "prior_manifest": "docs/verification/reviews/rfc0014-m8-native-v001.json"
   },
   "ownership": {
-    "exclusive_writer": "/root/rfc0014_m8; no delegated agents; release at final return",
+    "exclusive_writer": "/root/rfc0014_m8_postreview; no delegated agents; release at final return",
     "background_commands": [],
     "running_apps_or_helpers": [],
     "review_servers": [
       18863
     ],
-    "remote_writers": "No remote agents. Station leases released after commands; final exact product absent and no task app/helper process.",
+    "remote_writers": "No remote commands or station writers in this round. Prior M8 command cleanup/lease release remains historical evidence.",
     "other_worktrees": "Existing RFC18-26/36/37, superseded/ignored checkouts and prior protected candidate untouched.",
     "cleanup": "Completed Mac fixture, fixture-v2 and removed-v2.app moved recoverably to /Users/jaeger/.Trash/bpr0014-m8-courses.00Ne8Z. Only two fresh protected review roots remain in /Users/jaeger/bpr0014-m8.hqGy0H. Windows obsolete candidate-ff5242c4 and uninstalled-first-candidate-residuals deleted after final artifact/source verification; these were reproducible task-only outputs, not user data. Final Windows candidate/source/build, task-local WiX cache and replay scripts/receipts are deliberately retained for exact PE follow-up; normal ignored local build evidence remains.",
-    "certificate_cleanup": "Task-local .NET first run unexpectedly generated one untrusted CN=localhost certificate. Matched exact thumbprint C73A7EB30494A1E734CB66EBFC0ACF8FF360E184 and NotBefore UTC 2026-09-21T12:44:38Z, then removed only that task-created item; final Test-Path false. Future package script sets DOTNET_GENERATE_ASPNET_CERTIFICATE=false. No broad store cleanup or real application credential access."
+    "certificate_cleanup": "Task-local .NET first run unexpectedly generated one untrusted CN=localhost certificate. Matched exact thumbprint C73A7EB30494A1E734CB66EBFC0ACF8FF360E184 and NotBefore UTC 2026-09-21T12:44:38Z, then removed only that task-created item; final Test-Path false. Future package script sets DOTNET_GENERATE_ASPNET_CERTIFICATE=false. No broad store cleanup or real application credential access.",
+    "post_review_cleanup": "Original reproduction fixture and pre-comment fixed native course moved recoverably to /Users/jaeger/.Trash/bpr0014-m8-postreview-courses.Jp3GAv after process reaping. New protected review-recovery remains. All task-owned commands finished; no native app/helper survives. Original v001 protected candidates, historical BPR-0755 protection, unrelated worktrees and final Windows artifacts untouched."
   },
   "board_state": {
-    "BPR-0958": "Parked for human-review by guarded finish; every full criterion remains pending",
+    "BPR-0958": "Parked for narrow new recovery human review by guarded finish; original two scoped accepts reconciled, complete AC1/AC2/AC3 still pending",
     "BPR-0959": "Blocked: native-intel-environment",
     "BPR-0960": "Blocked: clean-windows-desktop-vault; stripped-PE audit also pending",
     "BPR-0961": "Blocked: declared-linux-baselines",
@@ -386,14 +534,14 @@
   },
   "required_pending": [
     "BPR-0958 AC1: disposable clean macOS arm64 OS/account with working native default Keychain and authorized authentication; isolated CLI fixture success is partial.",
-    "BPR-0958 AC2: exact native-diff and maintenance-clarity human decisions through the prepared attended session; agent AX/screenshot observations are not those verdicts.",
+    "BPR-0958 AC2: exact revised initial-load recovery question BPR-0958-initial-load-recovery-v002 remains without a human verdict. Original v001 source/map and maintenance questions accepted only for 6ad71635/app 5ffa68c9. Final 80481e80 native execution also remains pending after locked-screen interruption.",
     "BPR-0958 AC3: real native vault continuity/deletion, explicit full-profile purge and documented credential/file/cache residuals; bundle removal with preserved file hashes is partial.",
     "BPR-0959 AC1-AC3: native Intel macOS environment and complete install/auth/rendered/maintenance/purge/uninstall evidence; no Rosetta or universal-slice substitution.",
     "BPR-0960 AC1-AC3: clean Windows 10 and 11 non-elevated attended desktops, authorized auth/selected fixture, high-DPI/accessibility/maintenance and actual Credential Manager purge/residuals.",
     "BPR-0960 full exact-installed PE symbol/security audit: stripped PE has no llvm-nm symbol table; do not waive or relabel narrower producer-map/mechanics evidence. Coordinate with assigned M9 owner.",
     "BPR-0961 AC1-AC3: declared Ubuntu 24.04 and RHEL 10 x64 baselines with complete DEB/RPM/native fixture/vault/purge/uninstall evidence; available WSL Ubuntu 26.04 is not eligible.",
     "M8 exit 1: complete clean native matrix remains unsatisfied.",
-    "M8 exit 2: required human outcomes remain unsupplied."
+    "M8 exit 2: original two human outcomes supplied and applied narrowly; revised recovery judgment remains pending."
   ],
   "acceptance_records": [
     {
@@ -443,11 +591,29 @@
     "intent": "wait",
     "next_milestone": "m8-ux-ui-native-verification",
     "reason": "pending-obligation",
-    "detail": "Return at exact M8 boundary. Coordinator takes review server/watch, obtains required platform/account inputs and interprets real decisions in a fresh engineering round. Independent M9/M10 can proceed only under renewed explicit scope. Do not self-certify required human, actual-vault, native-baseline or stripped-PE evidence."
+    "detail": "Return at exact M8 boundary. Coordinator owns existing review server and arms watch at cursor 458 after writer release, obtains missing clean platform/account inputs, and dispatches fresh engineering for actual new decisions. Mac must be unlocked for the scoped review. Do not start M9 from this assignment or self-certify human, vault, baseline or PE gaps."
   },
   "uncertainties": [
     "No Developer-ID/AuthentiCode/notarization/license/distribution approval or publication authority; no tag/push/upload performed.",
     "M8 package mechanics are not M9 release security or crash-privacy acceptance.",
-    "Existing MASK drift/incomplete and host_load not_verified remain unrepaired configuration observations."
-  ]
+    "Existing MASK drift/incomplete and host_load not_verified remain unrepaired configuration observations.",
+    "Broader composed GitHub and workbench-window suites fail existing CLI-card and epoch-row assertions; both reproduced at unmodified 79696fd9 baseline, not repaired or waived here.",
+    "The native fixed-course observation is partial and on babcb3dc. 80481e80 changes only comment/docs behavior but embedded revision changes final bytes; final-candidate native/human recovery remains pending."
+  ],
+  "initial_m8_entry_revision": "789ccc311264271086e69ddec8d9cbd07a7ec839",
+  "initial_guarded_human_pending_finish": "63108c12b646205df3d3096772669dd9cffbd070",
+  "post_review": {
+    "hand_back_sequence": 454,
+    "hand_back_at": "2026-09-21T16:28:28.297472+00:00",
+    "original_candidate": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+    "note": "Overview page looked completely broken when I went to the review before picking github cli, that might have just been a fixture test issue.",
+    "attachment_sha256": [
+      "ae05a5d8a55bb209ff6651cea4e889f5dfd37555c6657dbc378d147584d679e6",
+      "3251586066b5ba7850486fb9f13c5bb26662ab2f7cde1b671b0345959ee596c6"
+    ],
+    "classification": "Real product failure-presentation defect triggered by fixture sequencing, not a fixture-data-only issue or unresolved speculation",
+    "evidence": "Original log 16:26:46 GetRepository 404 precedes CLI viewer success 16:27:12; exact original app reproduction and user's screenshots agree. Default core drawer commands kept empty Overview instead of visible Home refusal.",
+    "fix": "babcb3dc: Qt-only initial failed/cancelled-load Home selection despite enabled drawer commands; retained snapshot/comparison/loading unaffected. 80481e80 comment/docs clarification preserves intentional submitted-bar clearing.",
+    "acceptance_scope": "Original human accepts are immutable exact-candidate AC2 subcriteria only. Neither complete AC2 nor any clean-account/vault/platform criterion passes from them."
+  }
 }

@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0958"
 title: "Qualify the macOS Apple Silicon package"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pending","revision":"6ad716350c7f2e02a1b00370ea49cd5b77ce4c15","evidence":{"kind":"observation","detail":"Exact 43-file package reaches closed safe CLI fixture review.cpp comparison in isolated HOME; clean OS/account with working native Keychain and authorized auth remains pending. See docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"}},{"criterion":"AC2","outcome":"pending","revision":"6ad716350c7f2e02a1b00370ea49cd5b77ce4c15","evidence":{"kind":"observation","detail":"Agent-native rendered diff/map/shared scroll, keyboard focus, metadata-only diagnostics, retirement and normal Quit pass. Exact human decisions BPR-0958-native-diff-v001 and BPR-0958-maintenance-clarity-v001 are ready/protected in session cbd48b91000b00f1e72e1ad62c7c384c, cursor 451; neither verdict supplied."}},{"criterion":"AC3","outcome":"pending","revision":"6ad716350c7f2e02a1b00370ea49cd5b77ce4c15","evidence":{"kind":"observation","detail":"Recoverable uninstall preserved all profile/cache hashes and prior diagnostics stayed absent. Full purge is correctly unavailable without isolated HOME default Keychain; real vault continuity/deletion and residual policy remain pending."}}]
+acceptance: [{"criterion":"AC1","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Fresh revised 43-file installed package passes source/SBOM audit. Prior 6ad71635 closed synthetic CLI comparison remains exact-candidate evidence only. Clean macOS arm64 OS/account, working default Keychain and authorized real authentication remain pending; see docs/verification/RFC-BPR-0014.md#post-review-round-at-hand-back-454."}},{"criterion":"AC2","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Both original 6ad71635 questions accepted: maintenance 75ea6265-3302-49cd-8741-c23e1c583341, source/map fcd51e30-b163-4136-9e50-923d1a13de85. Their exact fingerprints remain in the ledger. Overview observation reproduced a real initial-load recovery defect; focused regression passes 2/2 after fix. Broader UI suites retain independently reproduced baseline failures. Partial babcb3dc native inspection shows refusal on Home; locked Mac prevented complete course. Revised exact BPR-0958-initial-load-recovery-v002 is ready/protected at cursor 458, fingerprint ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824; no new human verdict."}},{"criterion":"AC3","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Prior 6ad71635 recoverable uninstall retained profile/cache hashes; diagnostic deletion and accepted maintenance wording are not full purge or credential deletion. No real credential touched. Isolated HOME lacks default Keychain; clean-account native vault continuity/deletion and documented full-purge residuals remain pending."}}]
+parked_on: "human-review"
 ---
 
 # Qualify the macOS Apple Silicon package
@@ -56,7 +57,27 @@ decision also reported a broken Overview before choosing GitHub CLI. The fresh
 post-review implementer reproduced it on the same executable: the synthetic
 link takes the native anonymous route before CLI selection, receives 404, and
 leaves Overview selected over empty comparison panes with the error hidden on
-Home. This real failure-presentation defect is being corrected within M8.
-The original verdicts and all clean-account/vault/platform obligations remain.
+Home. `babcb3dc` corrects this real presentation defect: a first failed or
+cancelled load returns to Home even while drawer commands remain enabled;
+accepted reviews and active comparisons are retained. The actual Open-bar
+contract still clears a submitted destination; `80481e80` corrects the new
+documentation wording without changing that behavior.
+
+The added regression fails before the fix and passes afterward. Focused loading
+and public maintenance checks pass 2/2; broader composed/window suites retain
+two independently reproduced pre-existing failures. A native run of `babcb3dc`
+shows the initial anonymous 404 returning to Home with the refusal and Copy
+details visible. The Mac then locked during subsequent CLI consent and the
+bounded launcher timed out; this is partial evidence, not a completed course.
+
+The final tests-disabled universal package is source
+`80481e80d60f739db4c7eaea5e2eb8716ace2b4d`, executable SHA-256
+`ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618`.
+Its fresh installed copy passes the full package audit. The single new question
+`BPR-0958-initial-load-recovery-v002` is ready/protected in session
+`cbd48b91000b00f1e72e1ad62c7c384c`, cursor 458, fingerprint
+`ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824`.
+That changed artifact has no new human verdict; the original two accepts are
+not transferred to it. All clean-account/vault/platform obligations remain.
 See the [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
 and the durable M8 handoff for hashes, commands and retained review resources.

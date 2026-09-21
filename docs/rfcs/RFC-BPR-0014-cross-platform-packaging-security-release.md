@@ -202,8 +202,12 @@ records exact macOS rendered/maintenance evidence and native Windows MSI
 build/install/removal mechanics, together with the concrete defects they
 exposed and corrected. It reuses the existing release paths; native baselines,
 clean-account authentication/vault/purge, required human decisions and full
-Windows stripped-PE inspection are not inferred from partial success. Two
-scoped macOS questions are prepared for attended review. The Intel and declared
+Windows stripped-PE inspection are not inferred from partial success. Both
+original scoped macOS questions were accepted for their exact candidate at
+hand-back 454. The accompanying Overview observation reproduced a real
+first-load failure-presentation defect, now corrected with a focused regression.
+A new exact recovery candidate awaits its own narrow human decision; those
+two accepts do not satisfy the clean-account or vault criteria. The Intel and declared
 Linux baselines remain unavailable, and the elevated Windows SSH session is
 not an ordinary-user desktop qualification. All four M8 cards and both exits
 remain pending; no trust approval, publication or RFC closeout is claimed.

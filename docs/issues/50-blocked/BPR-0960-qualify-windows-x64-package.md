@@ -51,3 +51,10 @@ bounded mechanics are not a waiver of that security evidence. No graphical
 production profile or real credential was opened. See the
 [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
 and handoff for exact retained artifacts and the next safe native session.
+
+Post-review hand-back 454 corrected first-load failure presentation in the
+shared Qt window (`babcb3dc`, documentation clarification `80481e80`). No
+Windows station was changed or requalified in that round. The retained MSI
+above predates that correction; rebuild it from the next exact candidate
+before complete Windows qualification. The existing native gaps and full
+stripped-PE audit refusal remain unchanged.

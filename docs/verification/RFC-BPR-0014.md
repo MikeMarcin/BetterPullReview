@@ -950,18 +950,20 @@ remain unchanged.
 
 ## Milestone 8 native candidates and pending acceptance
 
-M8 is **not complete**. The sole `/root/rfc0014_m8` implementer owns only
+M8 is **not complete**. The fresh sole `/root/rfc0014_m8_postreview` implementer owns only
 `m8-ux-ui-native-verification` under mandate r3 and coordinator-implementer rev2.
-Entry was `789ccc311264271086e69ddec8d9cbd07a7ec839`; RFC base remains
+The post-review entry was clean `ee2e38cfab311622ff455d878279cd72cc6a46a9`;
+the initial M8 entry was `789ccc311264271086e69ddec8d9cbd07a7ec839`. RFC base remains
 `d0a8a6dda005af12b3818234f4878a9f48a44146`. The
 [bound checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json)
 and [handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m8.json)
-retain all four complete card obligations and both exits. None is accepted.
+retain all four complete card obligations and both exits. None is accepted in
+full; two original narrow human questions are accepted as recorded below.
 Independent M9/M10 work requires renewed coordinator scope, not an M8 waiver.
 
-### Exact candidate and corrections
+### Initial M8 candidate and corrections
 
-Final product source is `6ad716350c7f2e02a1b00370ea49cd5b77ce4c15`, version
+The initial M8 product source was `6ad716350c7f2e02a1b00370ea49cd5b77ce4c15`, version
 0.1.3. Native execution found and corrected five concrete problems:
 
 - `3a2404df`: after rejecting non-ASCII/unsafe filename characters, convert each
@@ -1011,7 +1013,7 @@ notice inclusion is not license/source-offer approval. M9 retains that decision.
 
 | Card / declared environment | Direct M8 observation | Required pending work |
 |---|---|---|
-| BPR-0958 / macOS 13+ arm64 | macOS 26.6.2 (25G83), Retina 3456×2234; exact package in isolated HOME, closed CLI auth fixture, selected-file comparison, keyboard/map, diagnostics, retirement/clear, normal Quit and recoverable bundle removal | Clean disposable OS/account with default Keychain, actual credential continuity/deletion, full purge/residuals and two human interaction decisions |
+| BPR-0958 / macOS 13+ arm64 | macOS 26.6.2 (25G83), Retina 3456×2234; initial exact package in isolated HOME, closed CLI auth fixture, selected-file comparison, keyboard/map, diagnostics, retirement/clear, normal Quit and recoverable bundle removal; both original human questions accepted | Clean disposable OS/account with default Keychain, actual credential continuity/deletion, full purge/residuals and the revised first-load-recovery human decision |
 | BPR-0959 / native macOS Intel | No eligible native Intel station supplied | All three criteria; arm64 universal slices or Rosetta are not native Intel evidence |
 | BPR-0960 / Windows 10/11 x64 | Actual Windows 11 Home 10.0.26200 AMD64; native build, MSI custom-root install/uninstall, inventory/graph/dependencies/producer-map checks | Non-elevated clean desktop, Windows 10, native auth/rendered fixture/vault/full purge/residuals and full stripped-PE audit |
 | BPR-0961 / Ubuntu 24.04 and RHEL 10 x64 | Available WSL is Ubuntu 26.04, kernel 6.18.33.2; no declared baseline found | Both declared clean native DEB/RPM baselines and all three criteria; no substitute baseline accepted |
@@ -1096,8 +1098,9 @@ fresh isolated homes, absolute launch commands and one question per criterion.
 `BPR-0958-native-diff-v001` asks source/map/focus usability;
 `BPR-0958-maintenance-clarity-v001` asks local maintenance scope/confirmation
 clarity. Session `cbd48b91000b00f1e72e1ad62c7c384c` protects both exact candidates
-without overwriting previous unrelated decisions or protection. Human outcomes
-remain pending. The coordinator receives the full token-bearing loopback URL
+without overwriting previous unrelated decisions or protection. At the initial
+handoff the human outcomes were pending; the post-review record below reconciles
+their subsequent accepts. The coordinator receives the full token-bearing loopback URL
 privately, event cursor and server ownership; no access token is committed.
 Only the review server is intentionally handed off. Product/native commands
 are finished and station leases are free. The next engineering round must
@@ -1112,3 +1115,93 @@ Completed Mac courses are recoverable in Trash; obsolete reproducible Windows
 candidate/residual outputs were removed. Exact review and final Windows
 PE-investigation resources remain explicitly owned in the handoff. Only the
 loopback review server is left running for the coordinator.
+
+### Post-review round at hand-back 454
+
+This round keeps mandate r3 and recipe revision 2. Session
+`cbd48b91000b00f1e72e1ad62c7c384c` handed back at event 454 on 2026-09-21.
+Both human verdicts bind source `6ad716350c7f2e02a1b00370ea49cd5b77ce4c15`
+and executable `5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54`:
+
+| Question | Accepted decision | Exact fingerprint |
+|---|---|---|
+| `BPR-0958-maintenance-clarity-v001` | `75ea6265-3302-49cd-8741-c23e1c583341`, event 452, no note | `b352efe45d939c97aff4425a6919afd5f1bd20dfac2ffb7d10a89e1fe72f9274` |
+| `BPR-0958-native-diff-v001` | `fcd51e30-b163-4136-9e50-923d1a13de85`, event 453 | `daf5be5cb08311e758960c67e6ecdb07071b95b4aff925b5324acbb734049e77` |
+
+The second decision's note is preserved verbatim: “Overview page looked
+completely broken when I went to the review before picking github cli, that
+might have just been a fixture test issue.” Its two screenshot attachment
+SHA-256 values are `ae05a5d8a55bb209ff6651cea4e889f5dfd37555c6657dbc378d147584d679e6`
+and `3251586066b5ba7850486fb9f13c5bb26662ab2f7cde1b671b0345959ee596c6`.
+Both original protected installations were rehashed without modification.
+These accepts satisfy only their original AC2 questions, not complete AC2,
+AC1/AC3, a different artifact or another platform.
+
+The observation is a **real product defect triggered by fixture sequencing**.
+Before CLI selection, the synthetic link goes through native anonymous HTTP,
+not the closed CLI fixture. The original log records a repository-read 404 at
+16:26:46, before the later successful CLI session. A fresh copy of the exact
+original executable reproduced the empty panes with Overview selected. The
+window mistook always-enabled drawer commands for review content, hiding the
+Home refusal after a first failed load. `babcb3dc` changes only that Qt
+destination decision: first failure/cancellation returns Home; an accepted
+review, active comparison or in-progress load stays in place. No core policy,
+credential authority, transport, purge or trust check changes.
+
+The focused regression composes the actual default core drawer commands. It
+fails without the fix (`cancelled progress cannot keep a loading overview
+alive`) and passes with it. The final focused CTest selection
+`qt_composed_loading_scale_100|application_release_maintenance_public_path`
+passes 2/2 in 18.53s. The broader eight-test UI selection is **not green**:
+the composed GitHub suites fail their existing CLI-card-state assertion and
+the workbench-window suites fail the epoch-row width/position assertion at all
+three scales. Rebuilding the two scale-100 tests against unmodified tracked
+source/test files at `79696fd9` reproduces those same failures. They are
+pre-existing limitations, not a waived full-suite pass. Exact logs and receipts
+are listed in the handoff. Touched C++ formatting and whitespace pass.
+
+The tests-disabled `babcb3dc` native run observed the same anonymous 404 return
+to Home with visible refusal and Copy details. The Mac locked during subsequent
+CLI consent; the 300-second launcher reached its shutdown timeout and reaped
+the app. That partial run is not a normal-exit or complete native-course pass.
+The Open bar's accepted-destination projection deliberately clears submitted
+text; `80481e80` corrects the new comment/documentation wording rather than
+changing that established behavior. The final rebuild's embedded source
+identity changes its bytes, so the native observation is not mislabeled as
+execution of the final artifact.
+
+| Revised artifact, source `80481e80d60f739db4c7eaea5e2eb8716ace2b4d` | SHA-256 |
+|---|---|
+| macOS executable | `ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618` |
+| `BetterPullReview-0.1.3-macos-universal-local.zip` | `95245bd2d6122bb197dbbf290451032e85350f5508283832c63d708c2a55fb19` |
+| SPDX sidecar | `7d543637ab167827b0f69efb89a701daa894d9872407c01cf87a8e90ee341d40` |
+
+Existing `tools/release.sh --version 0.1.3 --prepare-only --skip-tests` produces
+`build/releases/m8-recovery-80481e80` in 41.267s, offline/ad-hoc only. The fresh
+installed review copy passes the exact final source/SBOM audit: 43 files,
+13 binaries and 227 test-free first-party compile units. No signing,
+notarization, Gatekeeper, license or publication approval is inferred.
+Initial fixture preparation refused a missing guard target and then an existing
+fixture directory; the corrected parent-root guard prepares a fresh directory
+successfully and preserves both live configuration hashes.
+
+The [new single-question manifest](reviews/rfc0014-m8-native-v002.json) prepares
+`BPR-0958-initial-load-recovery-v002`, fingerprint
+`ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824`, in the
+same session at cursor 458. It asks only whether first-load failure returns to
+a clear, usable Home recovery. It explicitly describes the anonymous read,
+does not ask for authentication, and supplies an absolute guarded launch
+command. The original decisions/installations remain unchanged and protected.
+The existing server, PID 18863/port 50579, is intentionally retained for this
+follow-up; the coordinator owns the watch after this writer returns. The final
+artifact's native/human recovery judgment remains pending.
+
+No remote command, station writer or new environment was used this round.
+The retained Windows MSI remains at `6ad71635` and does not contain the Qt
+correction; rebuild it before any new whole-candidate qualification. Intel,
+ordinary-user Windows 10/11, native Ubuntu 24.04/RHEL 10 and macOS clean-account
+Keychain/auth/full-purge evidence remain unavailable. M8 and both exits remain
+pending; M9 was not started. All local product/build/test commands are finished.
+The two completed diagnostic profiles are recoverable in
+`/Users/jaeger/.Trash/bpr0014-m8-postreview-courses.Jp3GAv`; only the new protected
+review profile remains in `/Users/jaeger/bpr0014-m8-postreview.Xk8OSi`.
