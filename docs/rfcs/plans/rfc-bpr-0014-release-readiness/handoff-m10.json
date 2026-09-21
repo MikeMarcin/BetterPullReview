@@ -17,14 +17,22 @@
   },
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
   "entry_revision": "59226c62058cfa08387a91c872d7208b30275917",
-  "candidate_revision": null,
-  "result": "verification-pending",
+  "candidate_revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+  "result": "milestone-complete",
   "rfc_status": "Proposed",
   "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m10.json",
   "commits": [
     {
       "revision": "4ba42ccea92d3eb04e5a2b4402aa618d81cd79ea",
       "purpose": "Claim eligible BPR-0963 after accepted M7; M8/M9 remain blocked"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "purpose": "Source-backed corporate/operator/agent documentation and M10 checkpoint; exact documentation candidate"
+    },
+    {
+      "revision": "2b0ab678bb4d956e6ad29e326cfb8a4e520d0ed2",
+      "purpose": "Guarded finish accepts only BPR-0963, moves it to Done and records exact candidate verification"
     }
   ],
   "changed_paths": [
@@ -48,11 +56,36 @@
     "packaging/README.md",
     "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
     "docs/verification/RFC-BPR-0014.md",
-    "docs/issues/30-in-progress/BPR-0963-document-release-and-corporate-security.md",
+    "docs/issues/60-done/BPR-0963-document-release-and-corporate-security.md",
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m10.json",
-    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m10.json"
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m10.json",
+    "docs/issues/20-ready/BPR-0964-simplify-release-implementation.md"
   ],
-  "milestone_results": [],
+  "milestone_results": [
+    {
+      "id": "BPR-0963:AC1",
+      "outcome": "pass",
+      "scope": "Source-backed installation/baselines/toolchains/trust/source licensing/hardening/storage/retention/purge/migration/uninstall/recovery guides. Runtime acceptance remains explicitly pending."
+    },
+    {
+      "id": "BPR-0963:AC2",
+      "outcome": "pass",
+      "scope": "Tracked corporate security and threat/data-flow packet covers actual effects, private data/credentials, AI and subprocess authority, diagnostics/removal and qualified updater. No remote publication."
+    },
+    {
+      "id": "BPR-0963:AC3",
+      "outcome": "pass",
+      "scope": "Semantic source/no-impact ledger reconciles all affected architecture/build/UX/operator/agent guidance, preserves pending facts and immutable plans/protected candidates."
+    },
+    {
+      "id": "m10-documentation-impact:exit:1",
+      "outcome": "pass"
+    },
+    {
+      "id": "m10-documentation-impact:exit:2",
+      "outcome": "pass"
+    }
+  ],
   "implementation_source_revision": "59226c62058cfa08387a91c872d7208b30275917",
   "source_checks_ref": "docs/verification/RFC-BPR-0014.md#semantic-document-disposition-and-source-checks",
   "artifact": {
@@ -98,6 +131,118 @@
         "^application_release_maintenance_public_path$"
       ],
       "result": "1/1 pass, 16.83s; fixture-backed actual composed route, not a real-vault or native-matrix verdict"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK, 0.803s",
+      "receipt": "build/m10-final-documentation-evidence.json"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "exit_code": 0,
+      "result": "64/64 pass, suite 2.208s / command 2.277s; fixture ERROR lines are expected rejection assertions",
+      "receipt": "build/m10-final-doc-regressions-evidence.json"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^(core_release_maintenance|application_release_maintenance|sqlite_release_maintenance_files|qt_release_maintenance_scale_(100|125|200)|application_release_maintenance_public_path)$"
+      ],
+      "exit_code": 0,
+      "result": "7/7 maintenance core/host/native-file/Qt scales/public composition pass; CTest 18.77s, public path 16.60s",
+      "receipt": "build/m10-final-composition-evidence.json"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "command": [
+        "python3",
+        "packaging/verify_release_sources.py",
+        "--app-zip",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.zip",
+        "--sbom",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+        "--source-archive",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip",
+        "--version",
+        "0.1.3",
+        "--source-revision",
+        "1c429749aff4c09c6dc88da930d3344cd2d33c36"
+      ],
+      "exit_code": 0,
+      "result": "RELEASE_SOURCE_ASSET_OK, 0.159s; read-only actual protected Mac app ZIP/SPDX/source binding; no URL fetched or trust/legal approval inferred from the marker",
+      "receipt": "build/m10-final-source-asset-evidence.json"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "59226c62058cfa08387a91c872d7208b30275917",
+        "--",
+        "src",
+        "tests",
+        "scripts",
+        "tools",
+        "cmake",
+        "CMakeLists.txt",
+        "CMakePresets.json",
+        "third_party",
+        ".codex/skills/publish-release",
+        ".mask/skill-config/implement-rfc",
+        "packaging",
+        ":(exclude)packaging/README.md",
+        ":(exclude)packaging/AGENTS.md"
+      ],
+      "exit_code": 0,
+      "result": "Empty source/test/script/tool/CMake/third-party/package/release-skill/consumer diff against entry; packaging changes are README/AGENTS only",
+      "receipt": "build/m10-final-no-product-change-evidence.json"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "command": [
+        "python3",
+        "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/issue_board.py",
+        "--repo-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "validate",
+        "--rfc",
+        "RFC-BPR-0014",
+        "--json"
+      ],
+      "exit_code": 0,
+      "result": "Valid RFC-BPR-0014 dependency closure; 957 total cards",
+      "receipt": "build/m10-final-board-evidence.json"
+    },
+    {
+      "revision": "f6af44a5083a3b05a2a963eeb24b5f199406ab65",
+      "command": [
+        "shasum",
+        "-a",
+        "256",
+        "build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.zip",
+        "build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+        "build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip",
+        "build/releases/m9-source-1c429749/BetterPullReview.app/Contents/MacOS/BetterPullReview"
+      ],
+      "exit_code": 0,
+      "result": "All four match artifact identities above"
     }
   ],
   "reused_evidence": [
@@ -116,10 +261,10 @@
     "fingerprint": "da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80",
     "decision_id": "42661017-3d13-43ba-8366-7ac3bd32c0db",
     "decision_scope": "Only the revised macOS licensing/source/access/retention/build-relink criterion. URL remains unpublished and ongoing distribution obligations remain. No native/trust/vulnerability/publication acceptance.",
-    "untouched": "Existing candidate manifests/installations/source assets/session and all six protections; M10 edits no protected path."
+    "untouched": "Existing candidate manifests/installations/source assets/session and all six protections; M10 edits no protected path.",
+    "projection_sha256": "2e472c1178e8282b90331337b2c9c175023d3486282551015346b4b2012b6c5c"
   },
   "required_pending": [
-    "M10 exact committed-candidate validation and explicit card finish remain to record.",
     "M8 complete clean-account/authentication/native-vault/high-DPI/accessibility/purge/removal matrix on Apple Silicon, Intel, ordinary-user Windows 10/11, Ubuntu 24.04 and RHEL 10.",
     "M9 independent final macOS Developer-ID/notarization/Gatekeeper, Windows Authenticode and Linux package trust; revised native Windows/Linux separate-source artifacts and candidate-specific licensing/source qualification.",
     "M9 Grype 21 macOS / 19 Windows unresolved findings, complete coverage/lower-severity disposition, external Qt/KSyntax/LibArchive hardening, full PE CFG and native lifecycle sanitizer/fuzz.",
@@ -127,19 +272,20 @@
     "M11 simplification and M12/canonical predecessor acceptance; no publication authority."
   ],
   "ownership": {
-    "repository_writer": "/root/rfc0014_m10 only for M10",
+    "repository_writer": "Released after committing M10 bookkeeping; coordinator selects the next writer",
     "child_agents": [],
     "background_commands": [],
     "review_server": null,
     "remote_station_writes": false,
     "unrelated_worktrees": "Observed and preserved; no checkout or writes.",
-    "temporary_work": "Only ignored command receipts; no task-owned scratch directory or persistent process.",
-    "state": "active-finalization"
+    "temporary_work": "No scratch installation/root created; only ignored build/m10-* evidence/decision/checkpoint receipts retained for diagnosis. Nothing material deleted.",
+    "state": "quiescent-at-handoff",
+    "active_command_state": "All tests/read-only audits completed; process inventory found no BetterPullReview, CTest, evidence recorder or attended server. Finalization uses only synchronous documentation/checkpoint/Git commands."
   },
   "continuation": {
     "next_milestone": "m11-simplification",
     "next_issue": "BPR-0964",
-    "action": "After M10 exact verification/acceptance, return to coordinator for a fresh sole implementer. Do not start M11 here.",
+    "action": "BPR-0963 is Done; BPR-0964 is promoted to Ready in this handoff commit, not claimed. Coordinator may assign a fresh sole M11 implementer. This owner starts no M11 and hands off no server or command.",
     "blocked_milestones": [
       "m8-ux-ui-native-verification",
       "m9-security-boundary-verification"
@@ -149,5 +295,29 @@
   "uncertainties": [
     "No current final release/native/trust/privacy/vulnerability approval; documentation describes those gaps.",
     "Strategy routing is configured coordinator-implementer rev2; strategy host-load verification remains not_verified. No runtime override was reported."
+  ],
+  "acceptance_revision": "2b0ab678bb4d956e6ad29e326cfb8a4e520d0ed2",
+  "checkpoint_result": {
+    "revision": "2b0ab678bb4d956e6ad29e326cfb8a4e520d0ed2",
+    "action": "fresh-context",
+    "engineering_acceptance": "not-evaluated",
+    "observation": "build/m10-observation.json",
+    "detail": "All bound M10 obligations/exits pass, current source descends from the claim and next M11 becomes eligible. Helper checks structure only; engineering acceptance is the implementer's complete source/evidence judgment."
+  },
+  "m10_required_pending": [],
+  "final_head_verification_receipts": [
+    "build/m10-handoff-documentation-evidence.json",
+    "build/m10-handoff-board-evidence.json",
+    "build/m10-handoff-checkpoint-evidence.json",
+    "build/m10-handoff-no-product-change-evidence.json"
+  ],
+  "verification_notes": [
+    "Exploratory board invocation used unsupported --target; corrected to --rfc and final validation passes.",
+    "First checkpoint observation omitted two criterion evidence references from its top-level list; corrected the list and obtained fresh-context. No acceptance criteria, product code or policy changed."
+  ],
+  "skills": [
+    "implement-rfc: full milestone ownership, bound checkpoint, exact evidence, explicit acceptance and handoff.",
+    "coauthoring and technical-book-humanizer: light neutral reporting/source-backed reader pass; concrete warnings, residuals and qualifications preserved.",
+    "Existing publish-release skill read as source and reused in documentation; its release workflow was not executed."
   ]
 }

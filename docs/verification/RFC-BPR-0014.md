@@ -1650,3 +1650,11 @@ release-skill/consumer-context diff against entry is empty. Receipts are
 `build/m10-final-{documentation,doc-regressions,composition,source-asset,board,no-product-change}-evidence.json`.
 The unchanged review-candidate projection hashes to
 `2e472c1178e8282b90331337b2c9c175023d3486282551015346b4b2012b6c5c`.
+
+Guarded finish `2b0ab678bb4d956e6ad29e326cfb8a4e520d0ed2` marks BPR-0963 Done
+with all three criteria accepted against `f6af44a5`. BPR-0964 is promoted to Ready,
+not claimed. The checkpoint returns `fresh-context` for M11 with engineering
+acceptance `not-evaluated`; the helper checks structural binding, not the
+documentation's truth. All task commands are complete and no review server,
+writer or scratch installation is handed off. The final handoff preserves exact
+commands, hashes, unchanged protections and every downstream pending obligation.
