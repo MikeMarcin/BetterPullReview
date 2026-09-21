@@ -462,7 +462,10 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue(audit.is_file(), audit)
         records = re.findall(r"\[==\[([^\n]+)\]==\]", audit.read_text(encoding="utf-8"))
         self.assertTrue(records)
-        modes = {record.split("|", 2)[1] for record in records}
+        if any(record.startswith("LibArchive|") for record in records):
+            self.assertIn("LibArchive|CPM_PINNED|BetterPullReview::ReleaseArchive", records)
+        modes = {record.split("|", 2)[1] for record in records
+                 if record != "LibArchive|CPM_PINNED|BetterPullReview::ReleaseArchive"}
         self.assertTrue(
             modes
             <= {"CMAKE_CONFIG", "CMAKE_MODULE", "PKG_CONFIG", "TOOLCHAIN", "PINNED_ARCHIVE"}
