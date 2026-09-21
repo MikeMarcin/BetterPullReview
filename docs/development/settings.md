@@ -147,7 +147,7 @@ removing the application if you want those bindings removed.
 
 The [authority inventory](settings-authority-inventory.md) identifies the typed
 host, store, schema, reset and failure boundary for each group. The
-[RFC-0018 closeout](../issues/50-blocked/BPR-0593-close-rfc-0018.md) records
+[RFC-0018 closeout](../issues/20-ready/BPR-0593-close-rfc-0018.md) records
 which automated, native and attended claims have actually been verified. Later
 Accounts/Appearance and update work has its own acceptance; this guide does not
 turn those RFCs or the packaging dependency into closed work.
