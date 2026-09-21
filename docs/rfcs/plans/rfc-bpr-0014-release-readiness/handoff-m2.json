@@ -1,0 +1,200 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m2-architecture-allocation",
+    "child": "/root/rfc0014_m2",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m2-architecture-allocation",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "result": "milestone-complete",
+  "rfc_status": "Proposed",
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "a9a1e3cd1b897bf1242a3dc46ccd986a9dfe0323",
+  "candidate_revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+  "commits": {
+    "claim": "303ba3b5e2f457f5b0f9385ea999e46c058b84d5",
+    "allocation": "fa93f89a22a189042486ccfc757e6759b982c072",
+    "acceptance": "57b3bce38495c544dba36b8aa279c5a7c33b068c"
+  },
+  "changed_paths": [
+    "docs/architecture/release-readiness.md",
+    "docs/architecture/system-architecture.md",
+    "docs/issues/60-done/BPR-0952-allocate-package-and-security-ownership.md",
+    "docs/issues/20-ready/BPR-0953-implement-release-maintenance-policy.md",
+    "docs/issues/10-backlog/BPR-0954-implement-release-maintenance-host.md",
+    "docs/issues/10-backlog/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+    "docs/issues/10-backlog/BPR-0956-compose-cross-platform-release-packages.md",
+    "docs/issues/10-backlog/BPR-0957-verify-package-contracts-and-hostile-fixtures.md",
+    "docs/issues/10-backlog/BPR-0961-qualify-linux-x64-packages.md",
+    "docs/issues/10-backlog/BPR-0962-verify-release-trust-and-security-boundaries.md",
+    "docs/issues/10-backlog/BPR-0963-document-release-and-corporate-security.md",
+    "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m2.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m2.json",
+    "docs/verification/RFC-BPR-0014.md"
+  ],
+  "moves": [
+    {
+      "from": "docs/issues/20-ready/BPR-0952-allocate-package-and-security-ownership.md",
+      "via": "docs/issues/30-in-progress/BPR-0952-allocate-package-and-security-ownership.md",
+      "to": "docs/issues/60-done/BPR-0952-allocate-package-and-security-ownership.md"
+    },
+    {
+      "from": "docs/issues/10-backlog/BPR-0953-implement-release-maintenance-policy.md",
+      "to": "docs/issues/20-ready/BPR-0953-implement-release-maintenance-policy.md"
+    }
+  ],
+  "milestone_results": {
+    "AC1": "Real build/install/runtime graph, exact current release tools and dependency closure, maintenance/migration/diagnostic owners and G1-G9 gaps inventoried against unchanged product source.",
+    "AC2": "Existing typed authority/identity/port/lifecycle paths and exact source entry points recorded; bounded M3-M5 design distinguished from existing APIs; source no-impact evidence and early real maintenance course support reuse.",
+    "AC3": "All nine canonical rows have concrete public checks, native/environment and accountable live work. Successor cards carry scope notes; updater exception, evidence limits, entire platform matrix and no-publication authority preserved.",
+    "exit_1": "Pass: docs/architecture/release-readiness.md maps architecture and gaps to exact paths and typed owners.",
+    "exit_2": "Pass: its per-criterion table maps all nine rows to public checks, environment and owners.",
+    "plan_change": "None: no work selector, acceptance bullet or milestone exit changed. Linux qualification targets fill the unspecified baseline; declaration is not native acceptance.",
+    "prescription_update": "Shared architecture corrects stale caller-installed-only Qt prose against the pinned provider; required release workflow reused unchanged."
+  },
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review",
+      "revision": "303ba3b5e2f457f5b0f9385ea999e46c058b84d5",
+      "result": "pass",
+      "artifact": "build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "sha256": "68fb0910686c6959777c26f59d898b109bdbf3ea18c89420816c60636140a597"
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^(application_epoch_maintenance_public_path|architecture_boundaries|composed_application_hosts)$' -j 1",
+      "revision": "303ba3b5e2f457f5b0f9385ea999e46c058b84d5",
+      "result": "overall exit 8; maintenance passes in 49.86s and composed hosts passes in 2.17s; architecture checkout scan fails on unrelated ignored nested worktree",
+      "limits": "Real dev process, private disposable test roots and blocked external network. Four processes exercise seed/prune/restart-delete/restart-verify. Not tests-disabled package, native visual/auth, privacy, signing or new-controls acceptance."
+    },
+    {
+      "command": "cmake -DBPR_ROOT=/Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m2-source.k0OBN8 -P /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m2-source.k0OBN8/cmake/VerifyArchitectureBoundaries.cmake",
+      "revision": "303ba3b5e2f457f5b0f9385ea999e46c058b84d5",
+      "result": "pass on complete git archive; archive removed after verification"
+    },
+    {
+      "command": "cmake -DBPR_ROOT=/Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m2-candidate.Fz5zwM -P /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m2-candidate.Fz5zwM/cmake/VerifyArchitectureBoundaries.cmake",
+      "revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+      "result": "pass in 6.004s on complete exact candidate git archive; archive removed after verification",
+      "receipt": "build/rfc0014-run/m2-architecture-evidence.json"
+    },
+    {
+      "command": "otool -L build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "revision": "303ba3b5e2f457f5b0f9385ea999e46c058b84d5",
+      "result": "Qt/system dynamic libraries inspected; static closure inventoried separately from source",
+      "limits": "Development linkage only; not relocated artifact trust or runtime-socket evidence."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "revision": "303ba3b5 plus prepared allocation tree; scripts/tests unchanged at candidate",
+      "result": "64/64 pass in 2.019s; expected hostile-fixture ERROR messages do not denote suite failure"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+      "result": "DOCUMENTATION_OK",
+      "receipt": "build/rfc0014-run/m2-documentation-evidence.json"
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0014 --json",
+      "revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+      "result": "valid; 957 cards",
+      "receipt": "build/rfc0014-run/m2-board-evidence.json"
+    },
+    {
+      "command": "milestone_plan.py discover --target RFC-BPR-0014 --json",
+      "revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+      "result": "found same twelve-stage adopted plan",
+      "receipt": "build/rfc0014-run/m2-discovery-evidence.json"
+    },
+    {
+      "command": "git diff --exit-code a9a1e3cd1b897bf1242a3dc46ccd986a9dfe0323 -- src tests cmake tools packaging .codex/skills/publish-release CMakeLists.txt CMakePresets.json",
+      "revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+      "result": "empty; no product/build/test/tool/skill source change",
+      "receipt": "build/rfc0014-run/m2-no-impact-evidence.json"
+    },
+    {
+      "command": "diff immutable RFC_BASE_SHA and candidate Acceptance criteria sections",
+      "revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+      "result": "all nine canonical bullets byte-for-byte unchanged"
+    },
+    {
+      "command": "git diff --cached --check",
+      "revision": "fa93f89a22a189042486ccfc757e6759b982c072",
+      "result": "pass"
+    },
+    {
+      "command": "milestone_checkpoint.py bind --accepted-milestone m1-pack-import-planning --milestone m2-architecture-allocation --mandate-revision r3",
+      "result": "resolved; acceptance and both exit fingerprints bound",
+      "receipt": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m2.json"
+    }
+  ],
+  "release_workflow_reuse": {
+    "skill": ".codex/skills/publish-release/SKILL.md",
+    "skill_sha256": "c5e654bade74c4821cdde0109f623cefa1ae618c44b5184a7a59b4b427810bb2",
+    "release_script_sha256": "251b6be79236871b946f87b62517201adaf7b62b2bb41866e41c877ad8896202",
+    "publish_script_sha256": "50e0e3e8f521d9c418b01d119ba62f556ea346a1b5c39c79719ea13bee87e62f",
+    "presets_sha256": "d341a40099f605a6dde518962def369e210eec950c886c5301e5b8a1ecb27fb9",
+    "result": "All M1 fingerprints rechecked unchanged. Existing shell syntax evidence reused. No release, signing, notary, remote preflight, tag, push or publication command run."
+  },
+  "review": {
+    "session": null,
+    "url": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected_candidates": [],
+    "detail": "M2 has no required human/native/independent criterion. No attended candidate or server was created. Future cards retain those gates."
+  },
+  "ownership": {
+    "sole_writer": "/root/rfc0014_m2",
+    "child_agents": [],
+    "task_owned_running_commands": [],
+    "handed_off_server": null,
+    "task_created_worktrees": [],
+    "release_on_return": true,
+    "repository_writers_reconciled": "Main and empty index matched each expected claim/candidate/finish revision before mutations. No other main writer observed. All preexisting commits and three unrelated worktrees preserved.",
+    "worktrees": [
+      {
+        "path": "/Users/jaeger/.codex/worktrees/14a8/BetterPullReview",
+        "revision": "5ad552a5ce7d1ccb5aa11d21f06314950c5bd0ae"
+      },
+      {
+        "path": "/Users/jaeger/Documents/GitHub/BetterPullReview.superseded-worktrees/bpr-dif-integration-rfc-3c2904",
+        "revision": "8ee34d1f4504d30644a12256a99f596acfa681e9"
+      },
+      {
+        "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/agent-a17cae88115dbbb4e",
+        "revision": "de6bc6bf1ffd34277199d40773a629bdab3fdec4"
+      }
+    ],
+    "cleanup": "Both task-owned git-archive directories were validated and removed using non-force rm -r; no registered worktree was deleted. They are reproducible from commits. Local build/rfc0014-run receipts and normal dev build outputs remain ignored. All own exec sessions completed; no native app remains."
+  },
+  "pending_obligations": [
+    "M3-M12 remain open. BPR-0953 is Ready; this result accepts only BPR-0952 and both M2 exits.",
+    "G1: production MCP helper filename/suffix/build dependency/copy/install must be reconciled in M6 and negative-tested in M7.",
+    "G2-G4/G7: actual per-user package routes, complete static/transitive SBOM/notices/source offers, macOS 13 deployment floor, and declared Linux glibc 2.39 Ubuntu24.04/RHEL10 environments require implementation/qualification. RHEL10 x86-64-v3 and actual C++ runtime/toolchain constraints are explicit; native compatibility is not established.",
+    "G5-G6: bounded metadata-only diagnostic snapshot/preview/export/clear and exact admitted profile-purge capabilities/UI require M3-M5 work; reuse existing epoch/migration/credential owners. Deferred RFC0027 umbrella remains unclaimed.",
+    "G8-G9: effective hardening/release scan policy, native canary/crash privacy and current owner-authenticated AF_UNIX profile activation vs old no-local-server wording remain unaccepted; M9 must explicitly reconcile, not waive or hide, the IPC surface.",
+    "All clean Windows10/11 x64, macOS Intel/Apple Silicon and Linux native package/auth/render/remove, independent trust, privacy and human verdicts remain pending on assigned cards.",
+    "RFC-BPR-0013/BPR-0617 and canonical predecessors remain open; earliest closeout frontier stays RFC-BPR-0008/BPR-0242.",
+    "Updater exception, BPR-0950 Intel deferral and BPR-0911/0912 live-private-service evidence remain separate and unchanged.",
+    "MASK preflight drift/incomplete and host_load not_verified remain configuration discrepancies. Active native rfc-implementer identity was observed by coordinator; do not infer plugin/rendered-skill host loading."
+  ],
+  "next_action": "Coordinator launches a fresh sole non-delegating rfc-implementer for m3-deterministic-functional-core on main, mandate r3. Read this handoff/current live plan/allocation and claim Ready BPR-0953. Implement/qualify only M3 with exact core reuse evidence and bounded G5/G6 policy; do not start host/Qt/package work or authorize remote operations.",
+  "continuation_evidence": "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md",
+  "current_checkpoint": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m2.json",
+  "runtime_final_observation": "build/rfc0014-run/m2-observation.json",
+  "runtime_final_check": "build/rfc0014-run/m2-final-check.json",
+  "mechanical_check_scope": "The final observation and mechanical check bind the bookkeeping HEAD after this handoff is committed; helper success is not an independent engineering verdict."
+}

@@ -165,3 +165,13 @@ ignored nested worktree. Product, release script and publish-release skill
 bytes are unchanged. No remote command, package, native trust result or human
 verdict is supplied by allocation. BPR-0953 is the next core-policy milestone
 after BPR-0952's guarded finish; this card and RFC stay open.
+
+M2 allocation candidate is `fa93f89a22a189042486ccfc757e6759b982c072`;
+guarded finish `57b3bce38495c544dba36b8aa279c5a7c33b068c` accepts BPR-0952.
+Documentation, scoped board, target-only discovery, no-product-change and
+isolated architecture receipts pass at the candidate; 64 documentation tests
+pass with unchanged test inputs. All nine RFC bullets remain unchanged.
+The [durable M2 handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m2.json)
+names Ready BPR-0953 and the fresh M3 assignment. No M2 human decision or
+task-owned command remains; all M3–M12/native/security/predecessor obligations
+are retained.

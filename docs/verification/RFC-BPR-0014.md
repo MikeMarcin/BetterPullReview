@@ -370,3 +370,14 @@ remain byte-for-byte unchanged. Self-review checked the allocation against
 current source and the live criteria, including the unresolved IPC issue and
 absence of native/signing/privacy verdicts. Only BPR-0952/M2 is accepted by
 these records; M3–M12 and predecessor closeout remain open.
+
+BPR-0952's guarded finish is
+`57b3bce38495c544dba36b8aa279c5a7c33b068c`. BPR-0953 is promoted to Ready
+for a fresh M3 owner; this child stops at the M2 boundary. The
+[M2 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m2.json)
+records the exact candidate/commits, paths, checks, pending work and next action.
+Both disposable source archives were removed after their checks; Git can
+recreate them. No unrelated worktree, product input or review candidate changed.
+No task-owned process/server is handed off. The final observation/check receipts
+are local to `build/rfc0014-run/m2-observation.json` and `m2-final-check.json`
+and bind the final bookkeeping HEAD without claiming new product acceptance.
