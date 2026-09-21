@@ -35,7 +35,9 @@ Closeout runs `python3 scripts/verify_documentation.py --root .` and records dir
 RFC-0014 M8 has partial native candidates, not platform-matrix acceptance.
 BPR-0958's original source/map and maintenance questions are accepted only for
 their exact candidate. A reproduced initial-load failure now returns to Home;
-its narrow follow-up review and clean-account/vault evidence remain pending.
+its exact revised recovery question was accepted at hand-back 460. BPR-0958
+is Blocked on clean-account Keychain/authentication, full purge and residual
+evidence; the three scoped human accepts do not complete native qualification.
 BPR-0959 needs a native Intel Mac; BPR-0960 needs clean ordinary-user Windows
 10/11 desktop/auth/vault evidence and complete PE qualification; BPR-0961 needs
 the declared Ubuntu 24.04/RHEL 10 environments. The

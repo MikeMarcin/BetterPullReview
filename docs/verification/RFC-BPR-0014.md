@@ -3,7 +3,7 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m8` owns only
+current child `/root/rfc0014_m8_finalize` owns only
 `rfc-bpr-0014-release-readiness/m8-ux-ui-native-verification` on `main`.
 The M1–M7 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
@@ -950,15 +950,17 @@ remain unchanged.
 
 ## Milestone 8 native candidates and pending acceptance
 
-M8 is **not complete**. The fresh sole `/root/rfc0014_m8_postreview` implementer owns only
+M8 is **not complete**. The fresh sole `/root/rfc0014_m8_finalize` implementer owns only
 `m8-ux-ui-native-verification` under mandate r3 and coordinator-implementer rev2.
-The post-review entry was clean `ee2e38cfab311622ff455d878279cd72cc6a46a9`;
+The finalization entry was clean `23ed69ca258482bcd6189d9135f8016fd3b41557`;
+the preceding post-review entry was `ee2e38cfab311622ff455d878279cd72cc6a46a9`;
 the initial M8 entry was `789ccc311264271086e69ddec8d9cbd07a7ec839`. RFC base remains
 `d0a8a6dda005af12b3818234f4878a9f48a44146`. The
 [bound checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json)
 and [handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m8.json)
-retain all four complete card obligations and both exits. None is accepted in
-full; two original narrow human questions are accepted as recorded below.
+retain all four complete card obligations and both exits. No card or native
+matrix exit is accepted in full. All three narrow human questions are accepted
+for their exact candidates, satisfying the human-decision binding exit.
 Independent M9/M10 work requires renewed coordinator scope, not an M8 waiver.
 
 ### Initial M8 candidate and corrections
@@ -1013,7 +1015,7 @@ notice inclusion is not license/source-offer approval. M9 retains that decision.
 
 | Card / declared environment | Direct M8 observation | Required pending work |
 |---|---|---|
-| BPR-0958 / macOS 13+ arm64 | macOS 26.6.2 (25G83), Retina 3456×2234; initial exact package in isolated HOME, closed CLI auth fixture, selected-file comparison, keyboard/map, diagnostics, retirement/clear, normal Quit and recoverable bundle removal; both original human questions accepted | Clean disposable OS/account with default Keychain, actual credential continuity/deletion, full purge/residuals and the revised first-load-recovery human decision |
+| BPR-0958 / macOS 13+ arm64 | macOS 26.6.2 (25G83), Retina 3456×2234; initial exact package in isolated HOME, closed CLI auth fixture, selected-file comparison, keyboard/map, diagnostics, retirement/clear, normal Quit and recoverable bundle removal; both original questions and exact revised recovery question accepted | Clean disposable OS/account with default Keychain, authentication, credential continuity/deletion, full purge/residuals and complete native qualification of the revised package |
 | BPR-0959 / native macOS Intel | No eligible native Intel station supplied | All three criteria; arm64 universal slices or Rosetta are not native Intel evidence |
 | BPR-0960 / Windows 10/11 x64 | Actual Windows 11 Home 10.0.26200 AMD64; native build, MSI custom-root install/uninstall, inventory/graph/dependencies/producer-map checks | Non-elevated clean desktop, Windows 10, native auth/rendered fixture/vault/full purge/residuals and full stripped-PE audit |
 | BPR-0961 / Ubuntu 24.04 and RHEL 10 x64 | Available WSL is Ubuntu 26.04, kernel 6.18.33.2; no declared baseline found | Both declared clean native DEB/RPM baselines and all three criteria; no substitute baseline accepted |
@@ -1213,3 +1215,53 @@ The documentation regressions pass 64/64 in 1.898s, the documentation gate is
 Final executable and live project/MASK rehashes match their recorded identities.
 The final bookkeeping HEAD is bound by the ignored checkpoint observation;
 no app/helper, build/test command or remote writer is left to the coordinator.
+
+### Finalization at hand-back 460
+
+Fresh sole leaf `/root/rfc0014_m8_finalize` reconciled clean main
+`23ed69ca258482bcd6189d9135f8016fd3b41557` under mandate r3 and
+coordinator-implementer rev2. It changes acceptance bookkeeping only. The
+immutable RFC base, authored grouping, requirements and product candidate remain
+unchanged.
+
+Session `cbd48b91000b00f1e72e1ad62c7c384c` records human **accept** decision
+`f9c2ddba-40bd-4d4d-b8f8-295a7056db79` at event 459, saved
+`2026-09-21T17:11:51.232600+00:00`, with no note. Hand-back 460 occurred at
+`2026-09-21T17:11:53.400497+00:00`. The verdict applies only to
+`BPR-0958-initial-load-recovery-v002`, fingerprint
+`ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824`, source
+`80481e80d60f739db4c7eaea5e2eb8716ace2b4d`, executable SHA-256
+`ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618`.
+The installed executable rehash matches. Its single question asks whether
+first-load failure clearly returns to usable Home; the two original accepts
+retain their original source, fingerprints and limits. No verdict is copied
+to another artifact or promoted to a complete native course.
+
+The human-decision binding exit passes: all three prepared questions now have
+durable, exact-candidate human decisions. BPR-0958 AC1–AC3 and the complete
+native-matrix exit remain pending. BPR-0958 moves from Parked to Blocked with
+`clean-macos-account-vault`; its missing inputs are a disposable clean Apple
+Silicon OS/account, working native default Keychain, authorized authentication,
+full profile purge and documented credential/file/cache residuals. The complete
+revised package still needs its native course. Native Intel, ordinary-user
+Windows 10/11 plus full stripped-PE audit, and Ubuntu 24.04/RHEL 10 remain
+required exactly as above. No new evidence for those requirements was supplied.
+
+The finalizer found the review replay still running as guard 37534, fixture
+37535 and app 37536 under the manifest's 300-second bound. All three then
+exited before finalization; no exit-status receipt was available to this leaf,
+so this is command quiescence, not a claimed normal-exit test pass. Original
+passing focused checks and package audit remain applicable because no product
+or package input changed; existing broader-suite failures remain explicit.
+
+The exact decision is captured here and in the handoff before stopping review
+server PID 18863. All prepared candidate protections, including unrelated
+historical BPR-0755, remain in place; this bookkeeping touches no protected
+candidate paths or resources. The review queue has no pending questions.
+
+The authored M8 boundary explicitly permits independent M9/M10 after safe
+release. M9 depends only on accepted `m7-focused-tests-fixtures`, and the live
+board reports BPR-0962 Ready with no unmet dependencies. The coordinator may
+dispatch a fresh M9 implementer while preserving all M8 blockers. This leaf
+does not claim or start M9. M12 and RFC closeout continue to require accepted
+M8, M9, M11 and canonical predecessors; publication remains unauthorized.

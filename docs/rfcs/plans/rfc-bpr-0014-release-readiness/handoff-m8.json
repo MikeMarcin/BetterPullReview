@@ -3,10 +3,10 @@
     "rfc": "RFC-BPR-0014",
     "plan": "rfc-bpr-0014-release-readiness",
     "milestone": "m8-ux-ui-native-verification",
-    "child": "/root/rfc0014_m8_postreview",
+    "child": "/root/rfc0014_m8_finalize",
     "mandate_revision": "r3",
     "run_id": "rfc0014-20260920",
-    "segment_id": "m8-postreview-454",
+    "segment_id": "m8-finalize-460",
     "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
     "branch": "main",
     "role": "rfc-implementer",
@@ -16,13 +16,14 @@
     "recipe_revision": "2"
   },
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
-  "entry_revision": "ee2e38cfab311622ff455d878279cd72cc6a46a9",
+  "entry_revision": "23ed69ca258482bcd6189d9135f8016fd3b41557",
+  "prior_post_review_entry_revision": "ee2e38cfab311622ff455d878279cd72cc6a46a9",
   "candidate_revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
   "guarded_human_pending_finish": "bd088eb1406b3073bc69f4cb3e97fa5c5407e4aa",
-  "result": "partial-human-pending; original two scoped accepts reconciled, Overview defect corrected, native matrix and recovery review pending",
+  "result": "partial-blocked; all three exact scoped human accepts reconciled, human-decision binding exit passes, all native card obligations and matrix exit pending",
   "rfc_status": "Proposed",
   "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
-  "verification_ledger": "docs/verification/RFC-BPR-0014.md#post-review-round-at-hand-back-454",
+  "verification_ledger": "docs/verification/RFC-BPR-0014.md#finalization-at-hand-back-460",
   "commits": [
     {
       "revision": "df273695d4484c42fa7b2f0a7a3fe95c16443dc0",
@@ -71,6 +72,14 @@
     {
       "revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
       "purpose": "Clarify new comment/docs; existing accepted-destination Open-bar clearing behavior unchanged"
+    },
+    {
+      "revision": "bd088eb1406b3073bc69f4cb3e97fa5c5407e4aa",
+      "purpose": "Guarded human-pending finish with exact recovery candidate prepared"
+    },
+    {
+      "revision": "23ed69ca258482bcd6189d9135f8016fd3b41557",
+      "purpose": "Checkpoint preceding post-review M8 boundary and command state"
     }
   ],
   "changed_paths": [
@@ -85,7 +94,7 @@
     "tests/scripts/package_runtime_tests.py",
     "docs/development/release-packages.md",
     "docs/issues/README.md",
-    "docs/issues/40-parked/BPR-0958-qualify-macos-arm64-package.md",
+    "docs/issues/50-blocked/BPR-0958-qualify-macos-arm64-package.md",
     "docs/issues/50-blocked/BPR-0959-qualify-macos-intel-package.md",
     "docs/issues/50-blocked/BPR-0960-qualify-windows-x64-package.md",
     "docs/issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md",
@@ -115,7 +124,7 @@
       "production_anchors": 34,
       "trust": "Offline ad-hoc only; no Developer-ID signing, notarization, Gatekeeper or license approval",
       "installed_copy": "/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery/home/Applications/BetterPullReview.app",
-      "native_scope": "Final installed audit passed. Behavior-equivalent babcb3dc native run showed 404 returning to Home; final 80481e80 embedded identity changes bytes and has no final native/human verdict yet. Original v001 accepts are not transferred."
+      "native_scope": "Final installed audit passed. Exact 80481e80 recovery question accepted by human decision f9c2ddba-40bd-4d4d-b8f8-295a7056db79 at event 459, hand-back 460. Installed executable rehash matches. This narrow failure-recovery accept is not a complete final-package native course; original v001 accepts are not transferred."
     },
     "windows": {
       "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
@@ -442,7 +451,9 @@
   "review_handoff": {
     "required_for_m8": true,
     "session": "cbd48b91000b00f1e72e1ad62c7c384c",
-    "event_cursor": 458,
+    "event_cursor": 460,
+    "status": "All three prepared scoped questions accepted; no pending human question. Complete native qualification remains blocked.",
+    "pending_decisions": [],
     "url": "Full token-bearing loopback URL returned privately to coordinator; durable local .mask/attended-review/session.json host.url. Never commit access token.",
     "server": {
       "pid": 18863,
@@ -456,7 +467,7 @@
         "/Users/jaeger/Documents/GitHub/BetterPullReview",
         "serve"
       ],
-      "ownership": "Explicitly handed off to coordinator; sole allowed surviving task command"
+      "ownership": "Finalizer owns shutdown after durable capture of event 459 and hand-back 460; no new watch is required"
     },
     "offline_html": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/m8-postreview-attended-review.html",
     "manifest": "docs/verification/reviews/rfc0014-m8-native-v002.json",
@@ -500,7 +511,14 @@
         "fingerprint": "ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824",
         "phase": "ready",
         "protected": true,
-        "decision": null,
+        "decision": {
+          "decision_id": "f9c2ddba-40bd-4d4d-b8f8-295a7056db79",
+          "outcome": "accept",
+          "note": "",
+          "saved_at": "2026-09-21T17:11:51.232600+00:00",
+          "event": 459,
+          "actor": "human"
+        },
         "fixture": "/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery",
         "source_revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
         "executable_sha256": "ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618"
@@ -508,11 +526,11 @@
     ],
     "protection": "Original v001 artifact/two fixture installs preserved with exact accepted fingerprints. New final artifact, source workbench_window.cpp, shared unchanged fixture launcher and distinct review-recovery install/fixture protected. No repository-wide freeze; query conflicts before relevant writes.",
     "prior_session": "Existing unrelated BPR-0755-neutral-identity-v001 protection and all historical decisions preserved.",
-    "interpretation": "Coordinator arms event watch from cursor 458 after writer handoff. Next fresh engineering round interprets the one new recovery question. Original two human accepts applied only to original bound AC2 questions; not new artifact, clean-account/vault or platform acceptance. Unlock Mac for native review.",
+    "interpretation": "Event 459 accepts only the exact v002 initial-load failure-recovery question. All three questions now have durable human decisions, satisfying M8 exit 2. Original v001 source/map and maintenance accepts remain bound to source 6ad71635/app 5ffa68c9. No verdict grants complete AC2, clean-account/vault/purge, native matrix or trust acceptance. Preserve candidate protections and historical decisions; no new review/watch is pending.",
     "prior_manifest": "docs/verification/reviews/rfc0014-m8-native-v001.json"
   },
   "ownership": {
-    "exclusive_writer": "/root/rfc0014_m8_postreview; no delegated agents; release at final return",
+    "exclusive_writer": "/root/rfc0014_m8_finalize; no delegated agents; release at final return",
     "background_commands": [],
     "running_apps_or_helpers": [],
     "review_servers": [
@@ -525,23 +543,22 @@
     "post_review_cleanup": "Original reproduction fixture and pre-comment fixed native course moved recoverably to /Users/jaeger/.Trash/bpr0014-m8-postreview-courses.Jp3GAv after process reaping. New protected review-recovery remains. All task-owned commands finished; no native app/helper survives. Original v001 protected candidates, historical BPR-0755 protection, unrelated worktrees and final Windows artifacts untouched."
   },
   "board_state": {
-    "BPR-0958": "Parked for narrow new recovery human review by guarded finish; original two scoped accepts reconciled, complete AC1/AC2/AC3 still pending",
+    "BPR-0958": "Blocked: clean-macos-account-vault; all three prepared scoped questions accepted, complete AC1/AC2/AC3 still pending",
     "BPR-0959": "Blocked: native-intel-environment",
     "BPR-0960": "Blocked: clean-windows-desktop-vault; stripped-PE audit also pending",
     "BPR-0961": "Blocked: declared-linux-baselines",
-    "M8": "Both exits pending; no card moved Done",
-    "M9 and later": "Not claimed by this leaf"
+    "M8": "Exit 1 pending; exit 2 passes exact human-decision binding; no card moved Done",
+    "M9 and later": "BPR-0962 and BPR-0963 Ready from accepted M7; independent M9 may be freshly assigned after release. Not claimed or started by this leaf."
   },
   "required_pending": [
     "BPR-0958 AC1: disposable clean macOS arm64 OS/account with working native default Keychain and authorized authentication; isolated CLI fixture success is partial.",
-    "BPR-0958 AC2: exact revised initial-load recovery question BPR-0958-initial-load-recovery-v002 remains without a human verdict. Original v001 source/map and maintenance questions accepted only for 6ad71635/app 5ffa68c9. Final 80481e80 native execution also remains pending after locked-screen interruption.",
+    "BPR-0958 AC2: complete revised-package native high-DPI/navigation/map/focus/accessibility/diagnostic/maintenance course remains pending. All three scoped human questions are accepted only for their recorded candidates; v002 failure-recovery acceptance does not transfer original v001 accepts or certify the whole course.",
     "BPR-0958 AC3: real native vault continuity/deletion, explicit full-profile purge and documented credential/file/cache residuals; bundle removal with preserved file hashes is partial.",
     "BPR-0959 AC1-AC3: native Intel macOS environment and complete install/auth/rendered/maintenance/purge/uninstall evidence; no Rosetta or universal-slice substitution.",
     "BPR-0960 AC1-AC3: clean Windows 10 and 11 non-elevated attended desktops, authorized auth/selected fixture, high-DPI/accessibility/maintenance and actual Credential Manager purge/residuals.",
     "BPR-0960 full exact-installed PE symbol/security audit: stripped PE has no llvm-nm symbol table; do not waive or relabel narrower producer-map/mechanics evidence. Coordinate with assigned M9 owner.",
     "BPR-0961 AC1-AC3: declared Ubuntu 24.04 and RHEL 10 x64 baselines with complete DEB/RPM/native fixture/vault/purge/uninstall evidence; available WSL Ubuntu 26.04 is not eligible.",
-    "M8 exit 1: complete clean native matrix remains unsatisfied.",
-    "M8 exit 2: original two human outcomes supplied and applied narrowly; revised recovery judgment remains pending."
+    "M8 exit 1: complete clean native matrix remains unsatisfied."
   ],
   "acceptance_records": [
     {
@@ -581,28 +598,29 @@
     },
     {
       "id": "m8-ux-ui-native-verification:exit:2",
-      "outcome": "pending",
+      "outcome": "pass",
       "evidence_refs": [
-        "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"
+        "docs/verification/RFC-BPR-0014.md#finalization-at-hand-back-460"
       ]
     }
   ],
   "continuation": {
-    "intent": "wait",
-    "next_milestone": "m8-ux-ui-native-verification",
-    "reason": "pending-obligation",
-    "detail": "Return at exact M8 boundary. Coordinator owns existing review server and arms watch at cursor 458 after writer release, obtains missing clean platform/account inputs, and dispatches fresh engineering for actual new decisions. Mac must be unlocked for the scoped review. Do not start M9 from this assignment or self-certify human, vault, baseline or PE gaps."
+    "intent": "fresh",
+    "next_milestone": "m9-security-boundary-verification",
+    "reason": "independent-work",
+    "detail": "Return at exact M8 boundary with all native blockers preserved. Authored M8 boundary permits independent M9/M10 after safe release; M9 depends on accepted M7 and BPR-0962 is Ready with no unmet dependencies. Coordinator may dispatch a fresh M9 implementer; this leaf neither claims nor starts it. M8 resumes only with actual missing native/account evidence. No publication or closeout authority is implied."
   },
   "uncertainties": [
     "No Developer-ID/AuthentiCode/notarization/license/distribution approval or publication authority; no tag/push/upload performed.",
     "M8 package mechanics are not M9 release security or crash-privacy acceptance.",
     "Existing MASK drift/incomplete and host_load not_verified remain unrepaired configuration observations.",
     "Broader composed GitHub and workbench-window suites fail existing CLI-card and epoch-row assertions; both reproduced at unmodified 79696fd9 baseline, not repaired or waived here.",
-    "The native fixed-course observation is partial and on babcb3dc. 80481e80 changes only comment/docs behavior but embedded revision changes final bytes; final-candidate native/human recovery remains pending."
+    "The earlier native fixed-course observation was partial on babcb3dc. Exact 80481e80 human recovery is now accepted, but a complete revised-package native course, clean account/vault/auth and purge/residual evidence are still missing.",
+    "Recovery replay processes 37534/37535/37536 were found running at hand-back and then observed absent after their 300-second bound; this leaf has no exit-status receipt and claims only quiescence, not normal-exit acceptance."
   ],
   "initial_m8_entry_revision": "789ccc311264271086e69ddec8d9cbd07a7ec839",
   "initial_guarded_human_pending_finish": "63108c12b646205df3d3096772669dd9cffbd070",
-  "final_upkeep": {
+  "prior_post_review_upkeep": {
     "guarded_finish": "bd088eb1406b3073bc69f4cb3e97fa5c5407e4aa: BPR-0958 Parked, AC1/AC2/AC3 pending; original exact verdicts and new recovery review recorded",
     "documentation_regressions": "64/64 pass in 1.898s; expected hostile-fixture diagnostics are not errors in the consumer repository",
     "documentation_gate": "DOCUMENTATION_OK; repeated after final handoff upkeep",
@@ -610,6 +628,27 @@
     "self_review": "Diff reviewed against clean round entry: Qt-only destination predicate with actual default drawer-command regression; retained reviews/comparisons/loading preserved. No authority, vault, transport or release-security changes. Existing whole-UI-suite failures explicitly retained; no independent review claimed.",
     "live_hashes": "Local project faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2 and MASK a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf unchanged; both original protected executables and final review copy rehashed exactly",
     "checkpoint_observation": "build/m8-postreview-observation.json binds the final bookkeeping HEAD, complete obligations and explicit pending exits; check uses quiescent execution and accepted predecessor m7-focused-tests-fixtures"
+  },
+  "finalization": {
+    "hand_back_sequence": 460,
+    "hand_back_at": "2026-09-21T17:11:53.400497+00:00",
+    "decision_id": "f9c2ddba-40bd-4d4d-b8f8-295a7056db79",
+    "acceptance_scope": "Only BPR-0958-initial-load-recovery-v002, exact fingerprint ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824, source 80481e80d60f739db4c7eaea5e2eb8716ace2b4d, executable ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618. Original two accepts remain unchanged.",
+    "changed_paths": [
+      "docs/issues/README.md",
+      "docs/issues/40-parked/BPR-0958-qualify-macos-arm64-package.md",
+      "docs/issues/50-blocked/BPR-0958-qualify-macos-arm64-package.md",
+      "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m8.json",
+      "docs/verification/RFC-BPR-0014.md"
+    ],
+    "candidate_rehash": "PASS: exact final installed executable matches ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618",
+    "live_configuration_rehash": "PASS: project faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2 and MASK a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf unchanged",
+    "public_evidence_reuse": "No product/package input changed; reuse recorded exact-candidate focused 2/2 regression/public checks and 43-file installed audit. Human event 459 supplies only the missing failure-recovery judgment. Existing broader-suite failures remain pending limitations.",
+    "protected_candidates": "All original v001 and revised v002 resources remain protected, as does unrelated BPR-0755-neutral-identity-v001. No release/invalidation, resource cleanup or manifest modification performed.",
+    "remote_state": "No remote command or station writer started. Prior remote identities/lease release are retained history, not newly revalidated. No unrelated worktree was modified.",
+    "command_state": "Scoped replay guard 37534, fixture 37535 and app 37536 have exited. Review server 18863 remains pending shutdown after this durable decision capture. No new background command or writer was created."
   },
   "post_review": {
     "hand_back_sequence": 454,

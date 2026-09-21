@@ -2,14 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0958"
 title: "Qualify the macOS Apple Silicon package"
-status: "Parked"
+status: "Blocked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
-acceptance: [{"criterion":"AC1","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Fresh revised 43-file installed package passes source/SBOM audit. Prior 6ad71635 closed synthetic CLI comparison remains exact-candidate evidence only. Clean macOS arm64 OS/account, working default Keychain and authorized real authentication remain pending; see docs/verification/RFC-BPR-0014.md#post-review-round-at-hand-back-454."}},{"criterion":"AC2","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Both original 6ad71635 questions accepted: maintenance 75ea6265-3302-49cd-8741-c23e1c583341, source/map fcd51e30-b163-4136-9e50-923d1a13de85. Their exact fingerprints remain in the ledger. Overview observation reproduced a real initial-load recovery defect; focused regression passes 2/2 after fix. Broader UI suites retain independently reproduced baseline failures. Partial babcb3dc native inspection shows refusal on Home; locked Mac prevented complete course. Revised exact BPR-0958-initial-load-recovery-v002 is ready/protected at cursor 458, fingerprint ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824; no new human verdict."}},{"criterion":"AC3","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Prior 6ad71635 recoverable uninstall retained profile/cache hashes; diagnostic deletion and accepted maintenance wording are not full purge or credential deletion. No real credential touched. Isolated HOME lacks default Keychain; clean-account native vault continuity/deletion and documented full-purge residuals remain pending."}}]
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Fresh revised 43-file installed package passes source/SBOM audit. Prior 6ad71635 closed synthetic CLI comparison remains exact-candidate evidence only. Clean macOS arm64 OS/account, working default Keychain and authorized real authentication remain pending; see docs/verification/RFC-BPR-0014.md#finalization-at-hand-back-460."}},{"criterion":"AC2","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"All three prepared human questions accepted only for their exact candidates. Original 6ad71635: maintenance 75ea6265-3302-49cd-8741-c23e1c583341 and source/map fcd51e30-b163-4136-9e50-923d1a13de85. Revised 80481e80: recovery f9c2ddba-40bd-4d4d-b8f8-295a7056db79 at event 459, hand-back 460, fingerprint ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824, executable ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618. Focused regression passes 2/2; broader UI suites retain independently reproduced baseline failures. The narrow recovery accept is not a complete exact-final-package native course or transfer of original accepts."}},{"criterion":"AC3","outcome":"pending","revision":"80481e80d60f739db4c7eaea5e2eb8716ace2b4d","evidence":{"kind":"observation","detail":"Prior 6ad71635 recoverable uninstall retained profile/cache hashes; diagnostic deletion and accepted maintenance wording are not full purge or credential deletion. No real credential touched. Isolated HOME lacks default Keychain; clean-account native vault continuity/deletion and documented full-purge residuals remain pending."}}]
+blocked_by: "clean-macos-account-vault"
 ---
 
 # Qualify the macOS Apple Silicon package
@@ -77,7 +77,15 @@ Its fresh installed copy passes the full package audit. The single new question
 `BPR-0958-initial-load-recovery-v002` is ready/protected in session
 `cbd48b91000b00f1e72e1ad62c7c384c`, cursor 458, fingerprint
 `ee8486b7d89634bf1a8c707190daabbe7d48a0fc6a59f8c8fb24f40bb515b824`.
-That changed artifact has no new human verdict; the original two accepts are
-not transferred to it. All clean-account/vault/platform obligations remain.
+At the second hand-back, event 460 on 2026-09-21, human decision
+`f9c2ddba-40bd-4d4d-b8f8-295a7056db79` accepted that exact recovery question
+at event 459 (`2026-09-21T17:11:51.232600+00:00`, no note). The installed
+executable was rehashed to the recorded identity. The original two accepts
+remain bound to their original candidate; none is transferred. All three
+prepared questions are answered, satisfying M8's human-decision binding exit.
+Complete AC1–AC3 remain pending: no clean-account Keychain/authentication,
+full-purge/residual evidence or complete revised-package native course was
+supplied by this narrow verdict. The card now waits on
+`clean-macos-account-vault`, rather than another answer to the recovery question.
 See the [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
 and the durable M8 handoff for hashes, commands and retained review resources.

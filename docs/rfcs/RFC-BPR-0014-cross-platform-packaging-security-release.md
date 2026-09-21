@@ -206,8 +206,11 @@ Windows stripped-PE inspection are not inferred from partial success. Both
 original scoped macOS questions were accepted for their exact candidate at
 hand-back 454. The accompanying Overview observation reproduced a real
 first-load failure-presentation defect, now corrected with a focused regression.
-A new exact recovery candidate awaits its own narrow human decision; those
-two accepts do not satisfy the clean-account or vault criteria. The Intel and declared
+A new exact recovery candidate was accepted at hand-back 460; all three
+decisions remain scoped to their original questions and candidate identities.
+They do not satisfy the clean-account or vault criteria. The Intel and declared
 Linux baselines remain unavailable, and the elevated Windows SSH session is
-not an ordinary-user desktop qualification. All four M8 cards and both exits
-remain pending; no trust approval, publication or RFC closeout is claimed.
+not an ordinary-user desktop qualification. All four M8 cards and the native
+matrix exit remain pending; the human-decision binding exit is satisfied.
+Independent M9 may proceed from accepted M7 after coordinator reassignment;
+no trust approval, publication or RFC closeout is claimed.
