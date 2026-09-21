@@ -18,7 +18,7 @@
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
   "entry_revision": "b908246e72bb2a9de75ff9c913af6ac321354311",
   "candidate_revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
-  "result": "implemented-awaiting-final-native-ui-replay",
+  "result": "milestone-complete",
   "rfc_status": "Proposed",
   "commits": [
     {
@@ -32,6 +32,14 @@
     {
       "revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
       "purpose": "Correct SPDX input versus final-byte assertions; regression test"
+    },
+    {
+      "revision": "c4d64313a20d34cb2b41719d2f01d65fa90b12f7",
+      "purpose": "Durable blocked checkpoint awaiting Mac unlock"
+    },
+    {
+      "revision": "02325a491d9062bd274a19e5c31572d8fefe3c64",
+      "purpose": "Resume original M6 claim after user unlock; no product change"
     }
   ],
   "changed_paths": [
@@ -84,8 +92,8 @@
     },
     {
       "id": "BPR-0956:AC3",
-      "outcome": "pending",
-      "scope": "Real final-source comparison/maintenance public test passes; earlier working package native diff passes but final exact-byte UI replay interrupted by locked Mac"
+      "outcome": "pass",
+      "scope": "Exact final tests-disabled package native fixture PR17/review.cpp passed after unlock; one comparison map/shared scrollbar, normal Quit and unchanged live config. Unavailable native matrix remains M8."
     },
     {
       "id": "m6-composition-public-path:exit:1",
@@ -93,8 +101,7 @@
     },
     {
       "id": "m6-composition-public-path:exit:2",
-      "outcome": "pending",
-      "required_pending": "Unlock local Mac and replay final packaged fixture PR17/review.cpp through native UI. Do not substitute earlier dirty working artifact"
+      "outcome": "pass"
     }
   ],
   "artifact": {
@@ -238,10 +245,62 @@
       "result": "Native CUA: Use GitHub CLI -> read-only consent -> PR17 -> Start review at review.cpp; 11-16 earlier and 21-26 later, one replacement, one Diff correspondence map and one shared comparison scrollbar; screenshot/AX observed; normal Quit exit0. Guard live files unchanged",
       "artifact": "build/releases/m6-working-v3/BetterPullReview.app",
       "executable_sha256": "2983c9382ffb8c495cd367b194dc4e751f57bd0b5548142feee1da013b4ea613"
+    },
+    {
+      "criterion": "AC3/M6 exit2 exact final packaged native UI",
+      "outcome": "pass",
+      "revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
+      "execution_bookkeeping_revision": "02325a491d9062bd274a19e5c31572d8fefe3c64",
+      "command": [
+        "python3",
+        "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/qualification_guard.py",
+        "--allowed-root",
+        "/Users/jaeger/bpr-m6-final.NqToKm",
+        "--target-root",
+        "/Users/jaeger/bpr-m6-final.NqToKm",
+        "--live-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json",
+        "--",
+        "python3",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture.py",
+        "launch",
+        "--directory",
+        "/Users/jaeger/bpr-m6-final.NqToKm/fixture",
+        "--app",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+        "--cmake-cache",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/macos-release/CMakeCache.txt",
+        "--seconds",
+        "300"
+      ],
+      "fixture_pid": 99461,
+      "app": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/BetterPullReview.app",
+      "executable_sha256": "d31b371b1aad6caef369bdf60212b0a156b913ee7834d1f88b7424c8d8221852",
+      "base_commit": "a61a212aa0484929bc5f20a26e9a7c1c6541c726",
+      "head_commit": "3b60c8324eee117ce72e6446fe640d85a60b37a2",
+      "result": "Native CUA: Use GitHub CLI, read-only local fixture consent, PR17, Start review at review.cpp. AX and screenshot show earlier int review_line_1..6=11..16 and later=21..26; Diff ready with1 semantic change, one selected replacement Diff correspondence map and one Shared comparison position scrollbar. Normal Quit exit0; qualification guard passed. No in-product fixture hook or alternative UI.",
+      "live_files": [
+        {
+          "path": ".mask/skill-config/implement-rfc/project.json",
+          "sha256": "faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2",
+          "unchanged": true
+        },
+        {
+          "path": ".mask.lock.json",
+          "sha256": "a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf",
+          "unchanged": true
+        }
+      ],
+      "cleanup": "Post-Quit CUA snapshot reopened same app bare asPID99796. Closed immediately with no further interaction; process checks show99461/99796 absent. Verify future Quit via launcher/process state, not an app snapshot.",
+      "evidence_storage": "Native AX/screenshot were directly observed through CUA in this task; no local screenshot checked in."
     }
   ],
   "verification_limits": [
-    "Final packaged native UI replay is pending, not passed. CUA reported Mac locked; bounded launcher timed out at310s and terminated/reaped its process.",
+    "First final replay was interrupted by locked Mac and timed out. User unlocked; exact unchanged final artifact replay subsequently passed. Earlier working-v3 success is not used as final acceptance.",
     "verify_runtime_surface.py hardcodes QT_QPA_PLATFORM=offscreen; offscreen is intentionally absent from package. Attempt failed before inspection and is not counted as runtime security evidence. Native-platform audit adaptation belongs to M7/M9.",
     "PUBLIC_PATH_OK and NATIVE_PLATFORM_VAULT_SELECTED are existing unguarded production self-test status strings, not valid fixture-absence markers; initial broad check was corrected, not product code.",
     "Windows MSI/Linux DEB/RPM/per-user archive definitions have source and closed-data tests only. Native build/install/upgrade/uninstall, licensed CRT input, signatures and legal approval remain pending.",
@@ -287,7 +346,7 @@
     "url": null,
     "event_cursor": null,
     "pending_decisions": [],
-    "limits": "Mac unlock is an environmental action, not a human acceptance verdict. No attended-review server/protection created"
+    "limits": "No required human verdict at M6. User supplied Mac unlock only; deterministic native UI acceptance was performed by the M6 owner. No attended-review server/protection."
   },
   "ownership": {
     "exclusive_writer": "/root/rfc0014_m6",
@@ -302,8 +361,8 @@
     "cleanup": "Earlier exact task-owned probe/fixture/archive roots moved to /Users/jaeger/.Trash and are recoverable: bpr-m6-public.RbYEqK, bpr-m6-public.ZcDjVs, bpr0014-m6-architecture.lHVEbA. Final disposable fixture /Users/jaeger/bpr-m6-final.NqToKm retained for resume. No running app/debugger/helper. Normal ignored build/package/evidence output retained."
   },
   "moves": {
-    "BPR_0956": "Blocked / native-desktop-locked; not finished",
-    "BPR_0957": "Backlog; M6 acceptance dependency remains unmet"
+    "BPR_0956": "Accepted for guarded finish",
+    "BPR_0957": "Dependency-eligible for Ready after BPR-0956 finish; no M7 work started"
   },
   "pending_later": [
     "M8 Windows10/11 native MSVC/per-user MSI, Ubuntu24.04/RHEL10 native package and AppleSilicon/Intel clean install/UI/auth/uninstall courses, plus actual human criteria.",
@@ -312,9 +371,11 @@
     "MASK drift/incomplete and host_load not_verified unchanged."
   ],
   "next_action": {
-    "prerequisite": "User unlocks the local Mac; coordinator resumes sole M6 owner. Do not begin M7 or mark M6 complete until final UI replay passes.",
-    "caution": "Launch with the disposable external fixture FIRST. Only then select the app in CUA; getApp alone can launch a real user-profile instance.",
-    "command": [
+    "milestone": "m7-focused-tests-fixtures",
+    "issue": "BPR-0957",
+    "owner": "Coordinator starts a fresh sole non-delegating rfc-implementer under r3/rev2 after M6 finish and Ready promotion.",
+    "detail": "Read this handoff, bound checkpoint, live plan/card and installed contract; reconcile writers and claim before editing. Reuse exact source/artifact and unchanged passing evidence. M7 owns missing-helper/capability and hostile public negative controls, exact tests-disabled seam audits and native-platform runtime audit selection. This M6 child stops at the accepted boundary; no publication authority.",
+    "preserved_replay_command": [
       "python3",
       "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/qualification_guard.py",
       "--allowed-root",
@@ -340,7 +401,6 @@
       "--seconds",
       "300"
     ],
-    "ui": "Use GitHub CLI -> explicit read-only fixture consent -> open https://github.com/octo-org/review-repository/pull/17 -> wait -> Start review (at review.cpp). Verify exact earlier11-16/later21-26, one Diff correspondence map, one Shared comparison position scrollbar. Capture AX/screenshot, then normal Quit. Do not use the Read checkbox AX action as a substitute for Start review.",
-    "completion": "Record final artifact-bound UI/guard result, resolve card blocker through shared board, accept AC1-3 with unchanged evidence reuse, guarded finish BPR-0956, Ready BPR-0957, final checkpoint check and stop at M6 boundary."
+    "ui_note": "Launch under external fixture before selecting the app. Verify exact review.cpp values and map. After normal Quit, use launcher/process observations; a CUA snapshot can reopen a bare app."
   }
 }

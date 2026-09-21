@@ -681,8 +681,10 @@ lease desktop retirement/recovery barrier and actual package paths. Correction
 `da12f5568f8ab207d8a75451cda9b3de1a49df63` separates original Qt producer
 verification assertions from relocated/sealed file hashes. The
 [M6 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m6.json)
-preserves every assigned criterion and exit. M6 remains **unaccepted** pending
-the final packaged native UI replay; BPR-0957 remains Backlog.
+preserves every assigned criterion and exit. M6 is now accepted after the user
+unlocked the Mac and the exact packaged native UI replay passed. The temporary
+blocked checkpoint `c4d64313` and resume `02325a49` changed bookkeeping only;
+package/source evidence was reused without rebuilding. BPR-0957 is Ready for M7.
 
 ### Implemented scope and direct checks
 
@@ -770,13 +772,32 @@ completed with exit 0. App SHA was
 `2983c9382ffb8c495cd367b194dc4e751f57bd0b5548142feee1da013b4ea613`.
 This was a dirty working candidate and is not substituted for final acceptance.
 
-The final exact-byte candidate was launched under the installed qualification
+The first final exact-byte replay was launched under the installed qualification
 guard in `/Users/jaeger/bpr-m6-final.NqToKm/fixture`; CUA reported the Mac locked
 and automatic unlock unavailable. No UI pass is claimed. The bounded launcher
 terminated/reaped the process after 310 seconds; selected live project/MASK
-files stayed hash-identical. Unlock the Mac and repeat the external fixture
-course against the final bundle before accepting AC3 and M6 exit 2. There is no
-required human verdict, attended-review server or hidden approval request here.
+files stayed hash-identical. This interruption remained pending until the user
+unlocked the Mac. There is no required human verdict, attended-review server or
+hidden approval request at M6.
+
+On resumption, source `da12f556` and executable SHA `d31b371b…` were unchanged,
+and no old fixture process remained. The same guarded external fixture launched
+the final `build/releases/m6-da12f556/BetterPullReview.app` as PID 99461. CUA
+selected GitHub CLI, accepted only the closed fixture's read-only consent, opened
+PR 17 and chose Start review at `review.cpp`. Native AX and screenshot showed
+`Diff ready — 1 semantic changes`, exact earlier values 11–16/later 21–26, one
+selected replacement in the Diff correspondence map, and one Shared comparison
+position scrollbar. The product path selected the same single alignment and
+DiffLinkMap ownership verified by the source/public test; no fixture-specific
+application argument or alternative UI was used. Normal Quit exited 0 and the
+guard passed with both live configuration hashes unchanged. This final artifact
+evidence completes AC3 and M6 exit 2, independently of the earlier dirty package.
+
+The post-Quit CUA snapshot unexpectedly reopened the same app bare as PID 99796.
+It was closed immediately without further UI interaction, and process checks
+confirmed both PIDs gone. The guarded course's exit-0 result was already complete;
+the extra launch is not used as fixture evidence. Future courses should verify
+Quit through the launcher/process state without a post-exit app snapshot.
 
 Read-only station discovery confirmed JaegAW, VS 18 Community and Smart App
 Control state 0. The Windows installed skill link lacks a resolvable

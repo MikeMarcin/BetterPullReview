@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0956"
 title: "Compose cross-platform release packages"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0952","BPR-0955"]
 milestone: "M6 Composition and public-path integration"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"da12f5568f8ab207d8a75451cda9b3de1a49df63","evidence":{"kind":"observation","detail":"Application-only Windows per-user x64 MSI, macOS13 universal, Ubuntu24.04/RHEL10 DEB/RPM and per-user Linux archive definitions implemented. Core-only build/tests2/2 and complete committed architecture archive pass; native unavailability explicitly stays with M8. See handoff-m6.json."}},{"criterion":"AC2","outcome":"pass","revision":"da12f5568f8ab207d8a75451cda9b3de1a49df63","evidence":{"kind":"artifact","detail":"Existing tools/release.sh --prepare-only produces clean tests-disabled universal local candidate, pinned source/notices/SPDX71packages144relationships43filehashes plus ZIP/SBOM checksums. Final artifact at build/releases/m6-da12f556; appSHA d31b371b1aad6caef369bdf60212b0a156b913ee7834d1f88b7424c8d8221852; ZIP SHA c0fe65a9978b9786f40953349806492afe7c3cce24e4de659901d92586c1306c; SPDX SHA 4fb15f0fd7ec256355fa39b6b75b096812512e4527a1e14a74eb6642360aa7fe. Existing publish script only source/syntax checked; no release mutation. Independent trust/licensing approval remains M9."}},{"criterion":"AC3","outcome":"pass","revision":"da12f5568f8ab207d8a75451cda9b3de1a49df63","evidence":{"kind":"observation","detail":"Native CUA: Use GitHub CLI, read-only local fixture consent, PR17, Start review at review.cpp. AX and screenshot show earlier int review_line_1..6=11..16 and later=21..26; Diff ready with1 semantic change, one selected replacement Diff correspondence map and one Shared comparison position scrollbar. Normal Quit exit0; qualification guard passed. No in-product fixture hook or alternative UI. Local available package AC3/exit2 complete. Final-source two-window producer/store/logger retirement, retained lease/vault, clear/purge, stale inventory and startup recovery direct public test also passes. Windows/Linux full native matrix remains M8 as bound exit allows."}}]
 ---
 
 # Compose cross-platform release packages
@@ -25,8 +26,9 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 Implemented under mandate r3 at source candidate
 `da12f5568f8ab207d8a75451cda9b3de1a49df63` (main implementation
-`65dd7dd4add669606f67f39da05e6b420effec77`). M6 is not yet accepted:
-the final packaged native UI replay is pending because the Mac is locked.
+`65dd7dd4add669606f67f39da05e6b420effec77`). All three M6 criteria now pass.
+After the user unlocked the Mac, the final packaged native UI replay completed
+without changing the source or package, under resume commit `02325a49`.
 The [M6 ledger](../../verification/RFC-BPR-0014.md#milestone-6-composition-and-public-path)
 and [durable handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m6.json)
 bind exact artifacts, commands, corrections, native limits and the resume action.
@@ -41,18 +43,19 @@ bind exact artifacts, commands, corrections, native limits and the resume action
   notices and checksums. Both-slice floor/dependency checks, offline ad-hoc seal,
   relocated launch, all installed hashes and artifact checksums pass. Real release
   trust, native CRT/license review and owner distribution approval remain M9.
-- AC3 partial: the final source's actual fixture comparison plus two-window
-  retirement/clear/purge/recovery course passes. An earlier working local package
-  reached PR 17 → `review.cpp`, exact 11–16/21–26 values, one correspondence map
-  and one shared scrollbar through native UI. That is not substituted for the
-  final artifact replay: CUA reported the Mac locked; the bounded launch timed
-  out and was reaped. Unlock and repeat the named final course before accepting
-  AC3/M6 exit 2. No human review verdict is being requested at this milestone.
+- AC3 pass: the final source's fixture comparison and two-window retirement/
+  clear/purge/recovery course passes. The exact tests-disabled package at
+  `build/releases/m6-da12f556/` now also reaches PR 17 → Start review at
+  `review.cpp`: native AX and screenshot show exact earlier 11–16/later 21–26
+  values, one replacement, one Diff correspondence map and one Shared comparison
+  position scrollbar. Normal Quit returns exit 0; the qualification guard passes
+  with unchanged live files. The earlier locked-desktop timeout is preserved in
+  the ledger, not counted as a pass. No human review verdict is required at M6.
 
 All independent commands are complete. No Developer ID signing, Keychain change,
 notarization, tag, push, upload, publication or remote station mutation occurred.
 Ordinary offline ad-hoc sealing is the explicitly authorized local verification
-exception. BPR-0957 stays Backlog until this M6 acceptance gap is resolved.
+exception. BPR-0957 becomes Ready for a fresh M7 owner; this slice stops at M6.
 
 ## M2 allocation for the successor
 
