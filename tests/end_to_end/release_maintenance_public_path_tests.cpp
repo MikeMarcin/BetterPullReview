@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/release_maintenance_panel.hpp"
@@ -206,6 +207,9 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(panel->action(command::clear_diagnostics)->isEnabled(), "actual log inventory is prepared after retirement");
 	expect(lifetime.expired() && desktop->runtime(core::default_bpr_profile_id) == nullptr, "entire original runtime and every store owner are destroyed before confirmation");
 	expect(settings->isVisible() && panel->isVisible(), "maintenance-only Settings survives window retirement");
+#if defined(__APPLE__)
+	expect(desktop->desktop_menu() && desktop->desktop_menu()->quit_action()->isEnabled(), "maintenance-only Settings retains the native Quit action");
+#endif
 	expect(!adapters::sqlite::acquire_profile_runtime_lease(root), "maintenance retains exclusive native profile ownership");
 	panel->action(command::cancel)->trigger();
 	expect(status->text().contains(QStringLiteral("Cancelled")) && desktop->runtime(core::default_bpr_profile_id) == nullptr, "cancel does not restart producers");
@@ -236,8 +240,12 @@ auto main(int aArgc, char** aArgv) -> int
 	until([&] { return status->text().contains(QStringLiteral("data was purged")); }, "exact profile purge completes through real Settings");
 	expect(!std::filesystem::exists(root / "state" / "v1" / "device-bindings.sqlite3") && !std::filesystem::exists(root / "state" / "v1" / "review-queue.sqlite3"), "private stores and binding metadata are removed");
 	expect(read(app::native_filesystem_path(destination)) == bytes, "exported user file survives profile purge");
+#if defined(__APPLE__)
+	desktop->desktop_menu()->quit_action()->trigger();
+#else
 	settings->close();
 	desktop->quit();
+#endif
 	until([&] { return desktop->is_quiescent(); }, "desktop drains maintenance before releasing root and workers");
 	expect(desktop->exit_code() == 0, "orderly real desktop shutdown succeeds");
 	desktop.reset();

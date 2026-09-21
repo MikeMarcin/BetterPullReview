@@ -882,7 +882,7 @@ namespace bpr::app {
 			if (Updater) {
 				Updater->attach(*presented);
 			}
-			const auto weak            = weak_from_this();
+			const auto weak = weak_from_this();
 			presented->installEventFilter(this);
 			presented->set_profile_management_dispatch(
 				[weak, aContext](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && self->current(aContext)){ self->dispatch(std::move(aIntent));
@@ -1250,8 +1250,17 @@ namespace bpr::app {
 					ExitCode = 1;
 				}
 				position = Runtimes.erase(position);
-				if (Runtimes.empty() && Maintenance.empty() && !Quitting) {
-					desktop_emptied();
+				if (Runtimes.empty() && !Quitting) {
+					if (Maintenance.empty()) {
+						desktop_emptied();
+					}
+#if defined(__APPLE__)
+					else {
+						// Retained Settings has no menu of its own after the last
+						// workbench retires. Keep the real Quit action reachable.
+						present_desktop_menu();
+					}
+#endif
 				}
 			}
 			poll_maintenance();
@@ -1305,7 +1314,7 @@ namespace bpr::app {
 		std::optional<profile_desktop_startup_result>                  PendingHealthyStart;
 		QElapsedTimer                                                  HealthyStartWait;
 #endif
-		int                       ExitCode = 0;
+		int ExitCode = 0;
 	};
 
 	auto native_empty_desktop_policy() -> empty_desktop_policy
