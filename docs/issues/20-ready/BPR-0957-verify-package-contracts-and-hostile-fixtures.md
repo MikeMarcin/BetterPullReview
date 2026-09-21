@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0957"
 title: "Verify package contracts and hostile fixtures"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0956"]
 milestone: "M7 Focused tests and fixtures"
@@ -41,3 +41,17 @@ product source. The checkout architecture scan failed only on an ignored nested
 unrelated worktree; it passed on an exact tracked-source archive. Preserve that
 known scanner/worktree limitation and qualify any future verifier change in this
 verification scope; never delete another owner's checkout to make a scan pass.
+
+## M6 accepted handoff
+
+BPR-0956 is Done at guarded finish `2589f07f`. Read the
+[M6 handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m6.json)
+and [artifact/public-path ledger](../../verification/RFC-BPR-0014.md#milestone-6-composition-and-public-path).
+The clean source candidate is `da12f556`; its tests-disabled universal local
+package at `build/releases/m6-da12f556/` reached the exact fixture comparison
+through native UI and normal Quit. Reuse unchanged focused and artifact evidence.
+M7 still owns its hostile/missing-capability controls and comprehensive
+tests-disabled seam assertions. The older runtime-surface script forces an
+unshipped offscreen plugin; select a native platform for package inspection
+without expanding the shipped plugin allowlist. Windows/Linux native and
+release-trust/license gates remain M8/M9, not waived by the macOS result.

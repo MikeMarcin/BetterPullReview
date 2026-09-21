@@ -809,12 +809,15 @@ package matrix remains M8; all exact trust/vault/crash/security and distribution
 approval obligations remain M9. MASK drift/incomplete and host-load
 `not_verified` remain configuration observations, not silent repairs.
 
+Guarded finish `2589f07f2897f3f19b6e408edfdd2be487892b0d` accepts BPR-0956.
 The [durable M6 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m6.json)
 records the resume command, all candidate identities, ownership and pending
 acceptance. No background command, child, review server or protected candidate
-is handed off. The final disposable fixture and normal ignored package/build
-evidence remain; earlier exact task-owned fixture/probe and archive directories
-were moved to the user's Trash after their evidence was recorded and remain
-recoverable. No unrelated worktree changed
+is handed off. Normal ignored package/build evidence remains; all exact
+task-owned fixture/probe and archive directories, including the completed final
+fixture, were moved to the user's Trash after their evidence was recorded and
+remain recoverable. Recreate a canonical disposable external fixture for later
+courses; the recorded launch command is historical evidence, not a live process.
+No unrelated worktree changed
 through this child's actions. Full RFC closeout and its predecessor gate remain
 unchanged.

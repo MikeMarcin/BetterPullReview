@@ -40,6 +40,10 @@
     {
       "revision": "02325a491d9062bd274a19e5c31572d8fefe3c64",
       "purpose": "Resume original M6 claim after user unlock; no product change"
+    },
+    {
+      "revision": "2589f07f2897f3f19b6e408edfdd2be487892b0d",
+      "purpose": "Guarded finish accepts BPR-0956 against exact unchanged final package and native UI evidence"
     }
   ],
   "changed_paths": [
@@ -296,7 +300,10 @@
         }
       ],
       "cleanup": "Post-Quit CUA snapshot reopened same app bare asPID99796. Closed immediately with no further interaction; process checks show99461/99796 absent. Verify future Quit via launcher/process state, not an app snapshot.",
-      "evidence_storage": "Native AX/screenshot were directly observed through CUA in this task; no local screenshot checked in."
+      "evidence_storage": "Native AX/screenshot were directly observed through CUA in this task; no local screenshot checked in.",
+      "base_blob": "3456e31deaf7dc9a4c9a56b384c1b0ee9ff24e5b",
+      "head_blob": "1522997381f979112468fccd2be62e69f93b96c9",
+      "fixture_cleanup": "Completed final fixture moved to Trash after exact Git object verification; preserved command is historical and must use a newly prepared canonical disposable fixture on future runs."
     }
   ],
   "verification_limits": [
@@ -358,11 +365,11 @@
     "task_worktrees": [],
     "protected_candidates": [],
     "external_writers": "Main remained on expected child commits. Unrelated worktrees preserved; RFC0018-0026 observed at7358ee9234831c1b191d16054404392c0ded7217; RFC0036 at5ad552a5ce7d1ccb5aa11d21f06314950c5bd0ae; RFC0037 atb00016107082460b215f7832e617325ba05c479b.",
-    "cleanup": "Earlier exact task-owned probe/fixture/archive roots moved to /Users/jaeger/.Trash and are recoverable: bpr-m6-public.RbYEqK, bpr-m6-public.ZcDjVs, bpr0014-m6-architecture.lHVEbA. Final disposable fixture /Users/jaeger/bpr-m6-final.NqToKm retained for resume. No running app/debugger/helper. Normal ignored build/package/evidence output retained."
+    "cleanup": "All exact task-owned probe/fixture/archive roots moved to /Users/jaeger/.Trash and are recoverable: bpr-m6-public.RbYEqK, bpr-m6-public.ZcDjVs, bpr0014-m6-architecture.lHVEbA, bpr-m6-final.NqToKm. No running app/debugger/helper. Normal ignored build/package/evidence output retained."
   },
   "moves": {
-    "BPR_0956": "Accepted for guarded finish",
-    "BPR_0957": "Dependency-eligible for Ready after BPR-0956 finish; no M7 work started"
+    "BPR_0956": "Done via guarded finish2589f07f2897f3f19b6e408edfdd2be487892b0d",
+    "BPR_0957": "Ready; no M7 work claimed or started"
   },
   "pending_later": [
     "M8 Windows10/11 native MSVC/per-user MSI, Ubuntu24.04/RHEL10 native package and AppleSilicon/Intel clean install/UI/auth/uninstall courses, plus actual human criteria.",
@@ -373,8 +380,8 @@
   "next_action": {
     "milestone": "m7-focused-tests-fixtures",
     "issue": "BPR-0957",
-    "owner": "Coordinator starts a fresh sole non-delegating rfc-implementer under r3/rev2 after M6 finish and Ready promotion.",
-    "detail": "Read this handoff, bound checkpoint, live plan/card and installed contract; reconcile writers and claim before editing. Reuse exact source/artifact and unchanged passing evidence. M7 owns missing-helper/capability and hostile public negative controls, exact tests-disabled seam audits and native-platform runtime audit selection. This M6 child stops at the accepted boundary; no publication authority.",
+    "owner": "Coordinator starts a fresh sole non-delegating rfc-implementer under r3/rev2 for Ready BPR-0957.",
+    "detail": "Read this handoff, bound checkpoint, live plan/card and installed contract; reconcile writers and claim before editing. Reuse exact source/artifact and unchanged passing evidence. M7 owns missing-helper/capability and hostile public negative controls, exact tests-disabled seam audits and native-platform runtime audit selection. This M6 child stops at the accepted boundary; no publication authority. The prior final fixture is now recoverably trashed; recreate it with rfc0015_cli_read_fixture.py prepare in a newly admitted canonical disposable directory before any later replay.",
     "preserved_replay_command": [
       "python3",
       "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/qualification_guard.py",
