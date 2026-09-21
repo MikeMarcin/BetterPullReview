@@ -40,7 +40,9 @@ def require(value: bool, reason: str) -> None:
 
 def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
     directory = root / "Contents/MacOS" if info["platform"] == "Darwin" else root
-    app = directory / ("BetterPullReview" if info["platform"] == "Darwin" else "better_pull_review.exe" if info["platform"] == "Windows" else "better_pull_review")
+    executable_names = {"Darwin": "BetterPullReview", "Windows": "better_pull_review.exe",
+                        "Linux": "better_pull_review"}
+    app = directory / executable_names[info["platform"]]
     suffix = ".exe" if info["platform"] == "Windows" else ""
     helpers = [directory / (name + suffix) for name in ("better_pull_review_agent_supervisor", "better_pull_review_mcp_context_helper")]
     if info["platform"] == "Darwin":
@@ -147,7 +149,12 @@ def check_dependencies(binary: Path, root: Path, system: str) -> None:
     for reference in dependencies.dependency_references(output, system):
         if reference.startswith(("/usr/lib/", "/System/Library/")):
             continue
-        base = frameworks if reference.startswith("@rpath/") else binary.parent if reference.startswith("@loader_path/") else root / "Contents/MacOS"
+        if reference.startswith("@rpath/"):
+            base = frameworks
+        elif reference.startswith("@loader_path/"):
+            base = binary.parent
+        else:
+            base = root / "Contents/MacOS"
         require(reference.startswith(("@rpath/", "@loader_path/", "@executable_path/")), "untrusted-library-origin")
         resolved = (base / reference.split("/", 1)[1]).resolve()
         require(resolved.is_relative_to(root) and resolved.is_file(), "unresolved-packaged-library")
