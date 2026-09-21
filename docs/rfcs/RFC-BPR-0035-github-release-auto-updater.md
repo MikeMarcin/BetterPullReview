@@ -42,12 +42,20 @@ the installer; [[BPR-0949]] retains the remaining native/security closeout scope
 Milestone 4 source `518c384a` fixes duplicate native Check for Updates entries
 across two windows and the empty desktop, and supplies the
 [operator/recovery guide](../development/application-updates.md) and
-[security inventory](../security/release-updater.md). [[BPR-0949]] is Blocked,
-not complete: Intel hardware upgrade execution and authorized live private-release/
-vault evidence remain unavailable. [[BPR-0911]] and [[BPR-0912]] stay Backlog;
-RFC-BPR-0014 remains Proposed and canonical closure still starts at RFC-BPR-0008.
+[security inventory](../security/release-updater.md). The r3 acceptance amendment
+below permits [[BPR-0949]] to finish using the accepted Apple Silicon course.
+[[BPR-0911]] retains unavailable live private-release/vault evidence; [[BPR-0912]]
+also retains RFC-BPR-0014 and canonical-order gates. RFC-BPR-0014 remains Proposed
+and canonical closure still starts at RFC-BPR-0008.
 The unchanged signed Apple Silicon helper evidence does not certify M4's menu
 correction in a new signed package, Intel execution or live private-service access.
+
+Owner acceptance amendment r3, 2026-09-20: Intel Mac updater validation is deferred
+to [[BPR-0950]], outside this RFC's M4 and closeout acceptance. AC-07 and
+BPR-0949:AC-01 now require the native Apple Silicon course. The follow-up must not
+block M4, BPR-0949, BPR-0911, BPR-0912 or this RFC's closeout. This is an owner
+decision to change acceptance, not Intel execution evidence. It waives no live
+private-release/vault criterion, RFC-BPR-0014 dependency or canonical closeout rule.
 
 The first implementation targets the existing signed, notarized macOS universal
 release. Windows and Linux expose manual update guidance until separately scoped
@@ -284,7 +292,7 @@ plan or native installation. [[BPR-0912]] retains every unverified criterion.
 - AC-04: Downloads and staging enforce declared bounds and reject wrong identity, version, architecture, signer, digest, unsafe archive entries and changed staged candidates before replacement.
 - AC-05: Installation quiesces every window and process using the target, preserves drafts and pending publication reconciliation, and refuses timeout without forced termination.
 - AC-06: Interrupted replacement and failed relaunch retain a recoverable old application; success requires a matching new-process receipt, and cleanup touches only transaction-owned resources.
-- AC-07: The packaged macOS update path upgrades an older signed version to the offered signed version, relaunches with retained user state, and reports truthful progress and terminal status.
+- AC-07: The packaged macOS update path on Apple Silicon upgrades an older signed version to the offered signed version, relaunches with retained user state, and reports truthful progress and terminal status.
 - AC-08: Core, host, Qt and platform boundaries hold; unsupported platforms and managed packages expose truthful manual fallback; release and security documentation describe the shipped authority and network paths.
 
 ## Documentation impact and verification limits

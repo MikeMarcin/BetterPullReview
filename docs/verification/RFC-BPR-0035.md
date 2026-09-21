@@ -3,13 +3,52 @@
 RFC baseline: `1b4c24154bd1d4f1d4bea3d84c593e2fb4c3d47f`.
 Mandate `r1`, 2026-09-20: implement the RFC; amendment `r2` permits disposable
 local signing/notarization, not publication or live release/vault access.
+Owner amendment `r3` separately defers Intel Mac updater qualification to
+[[BPR-0950]], outside M4 and RFC-0035 closeout. Intel execution remains unobserved;
+the amendment changes acceptance rather than supplying native evidence.
 Accepted bounded milestones are
 `rfc0035-auto-updater/m1-core-contract` (child `/root/rfc0035_m1`) and
 `rfc0035-auto-updater/m2-download-staging` (child `/root/rfc0035_m2`), followed by
 `m3-install-recovery` (child `/root/rfc0035_m3_resume`). M4 available-target
-engineering is committed at `518c384a`; its native/live/dependency exit is pending.
+engineering is committed at `518c384a`; its live-service/dependency exit is pending.
 The [live closeout](../issues/10-backlog/BPR-0912-close-rfc-0035.md) retains all
 full RFC acceptance; this ledger describes bounded component evidence only.
+
+## Milestone 4 owner acceptance amendment and reassessment (mandate r3)
+
+Run `rfc0035-20260920`, segment `m4-post-block-intel-deferral`, sole owner
+`/root/rfc0035_m4_resume`, on `main` from
+`fe728286093326839b63f49f83487d61b5d88ad8`. BPR-0950 is allocated with the shared
+allocator and remains Backlog for later native Intel qualification. It is outside
+the authored milestone plan and cannot block BPR-0949, BPR-0911, BPR-0912, M4 or
+RFC-0035 closeout. No Intel execution, live credential/service use or new signed
+artifact is observed in this round.
+
+The plan amendment changes only M4's boundary to record the owner decision;
+`check-amendment` preserves scope, work selectors, exit text and M1–M3. RFC AC-07
+and BPR-0949:AC-01 now explicitly require Apple Silicon execution. The original
+criteria and r2 blocked result remain below as historical records.
+
+| Obligation | Current disposition under r3 |
+|---|---|
+| BPR-0949:AC-01 / RFC AC-07 | Pass for the amended Apple Silicon scope using the exact signed M3 package, receipt, retained-state and native UI evidence below. Intel evidence remains unobserved on nonblocking BPR-0950. |
+| BPR-0949:AC-02 | Pass: operator/recovery/security/package documentation is complete; follow-up references distinguish the deferral from remaining acceptance gaps. |
+| BPR-0949:AC-03 | Pass for truthful reconciliation of all RFC criteria; the existing text permits unavailable external evidence to remain open and forbids premature parent closure. |
+| BPR-0911 / RFC AC-03 | Pending: no actual native-vault release credential, live private-release asset route or live revocation has been observed. M2's 24 TLS scenarios and menu/host fixtures remain bounded evidence. No access authority is granted. |
+| BPR-0912 / M4 exit | Pending: full parent acceptance plus RFC-0014's Proposed status and canonical order. RFC-0014 retains its separate wider packaging/security requirements and RFC-0013 dependency; the index's first closure frontier is RFC-0008/BPR-0242. |
+
+No product source changed from `518c384a285ef3cb873d12ea167488d105aa91b7`.
+Accepted M3 source remains `b7e2df46cc178bbcff88b49dd2170ecf27a8c764`; signed
+package source remains `5db1d104a2436a2b0df811ac2e40cff0c58c2319`. The package
+does not contain M4's separately tested native menu correction. Reuse applies only
+to unchanged installer/helper/state/authority behavior, not a new final signed
+package claim. Prior evidence, failures and resource limits remain intact.
+
+The shortest public composition ran before edits:
+`ctest --preset dev -R '^application_release_update_public_path$' --output-on-failure`:
+1/1 pass, 3.97 seconds. Final focused verification and r3 command/commit state are
+recorded on the live closeout before handoff. No attended or independent verdict
+is required for this documentation/acceptance amendment; none is claimed.
 
 ## Milestone 1 candidate and checks
 

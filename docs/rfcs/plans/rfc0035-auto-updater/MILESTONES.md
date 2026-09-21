@@ -63,4 +63,4 @@ Record native upgrade evidence, package/security documentation and dependency-or
 
 - All RFC acceptance has exact native/public-path evidence and documentation; implementation cards are complete and canonical RFC dependency order permits closeout.
 
-**Boundary:** Close only accepted, dependency-eligible scope; retain every unavailable external/native/human obligation.
+**Boundary:** Close only accepted, dependency-eligible scope; retain every unavailable external/native/human obligation within the amended acceptance. Owner amendment r3 defers Intel Mac updater validation to BPR-0950 outside this plan and removes it from M4 and RFC-BPR-0035 closeout gates. Live private-release/vault evidence, RFC-BPR-0014 dependency and canonical closeout order remain required.

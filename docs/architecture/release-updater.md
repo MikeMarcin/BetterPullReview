@@ -124,7 +124,8 @@ The installed trust source is checked as well. No quarantine bypass, signing
 identity or privilege elevation is used. A content/inode manifest detects changed
 staging before and after validation and at revalidation. The signed fixture proves
 these checks on this Apple Silicon host. Disposable packaged upgrades also pass;
-Intel execution remains later acceptance, not inferred from universal headers.
+Intel execution is the separate nonblocking BPR-0950 follow-up under owner
+amendment r3; it is not inferred from universal headers.
 The core also requires completed download bytes to equal the selected size.
 Passing fake verification establishes orchestration only, not native validation.
 
@@ -269,8 +270,9 @@ not yet qualified.
 The [verification ledger](../verification/RFC-BPR-0035.md) distinguishes fixture
 fault courses, real peer processes and signed older-to-newer native upgrade,
 timeout, missing-receipt and rollback courses. These use synthetic private state,
-network denial and disposable installations. Live private-release access, Intel
-execution and dependency-ordered closeout remain [[BPR-0949]] obligations. The
+network denial and disposable installations. Owner amendment r3 defers Intel
+updater execution to [[BPR-0950]] outside M4/RFC closeout. Live private-release
+access and dependency-ordered closeout remain [[BPR-0911]]/[[BPR-0912]] obligations. The
 [security boundary](../security/release-updater.md) inventories network, helper,
 storage, cleanup and trust policy; neither
 local signing authorization nor milestone acceptance authorizes publication.

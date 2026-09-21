@@ -62,8 +62,10 @@ records—not a hosted workflow name—are authoritative.
   packages with the qualified signed helper/startup protocol: discovery may be
   automatic, while download and installation each require a user gesture.
   Windows/Linux and managed packages retain manual distribution. This exception
-  changes neither this RFC's acceptance nor canonical closeout order; Intel and
-  live private-release evidence remain open under BPR-0949. See the
+  changes neither this RFC's acceptance nor canonical closeout order. Owner
+  amendment r3 defers updater-specific Intel validation to BPR-0950 outside
+  RFC-BPR-0035 closeout; live private-release evidence remains on BPR-0911/0912.
+  This RFC's separate package/security acceptance matrix is unchanged. See the
   [updater security boundary](../security/release-updater.md) and
   [operator/recovery guide](../development/application-updates.md).
 - No telemetry or crash upload occurs automatically.

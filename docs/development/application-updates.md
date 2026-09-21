@@ -5,7 +5,7 @@ macOS installations. **Check for Updates…** is in the application menu, includ
 with no review windows open. General Settings uses the same application-wide
 service and preferences. Windows, Linux and administrator-managed installations
 use manual distribution. The [verification ledger](../verification/RFC-BPR-0035.md)
-records the qualified Apple Silicon packages and the outstanding Intel and live
+records the qualified Apple Silicon packages, Intel follow-up and outstanding live
 private-service evidence; implementation does not mean final release acceptance.
 
 ## Updating
@@ -149,8 +149,10 @@ live private-release/vault check requires its own explicitly authorized account
 and target, including the observed asset redirect route and revocation. Fixtures
 cannot establish those live observations.
 
-The current recorded package course is Apple Silicon only. Intel execution,
-authorized live private-service/vault evidence and RFC-BPR-0014's dependency gates
-remain open on [[BPR-0949]] and [[BPR-0912]]. Building, signing or notarizing a
+The current recorded package course is Apple Silicon only. Owner amendment r3
+defers Intel updater validation to [[BPR-0950]], outside M4 and RFC-BPR-0035
+closeout; it does not report Intel success or amend RFC-BPR-0014's wider matrix.
+Authorized live private-service/vault evidence remains on [[BPR-0911]], with
+RFC-BPR-0014 and canonical-order gates on [[BPR-0912]]. Building, signing or notarizing a
 local artifact grants no tag, push, GitHub release or installed-app replacement
 authority. Publication is a separate authorized operation.

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0950"
+  ],
+  "reserve_for": "rfc0035-m4-r3-intel-followup",
+  "purpose": "Owner amendment r3: defer native Intel Mac updater qualification outside RFC-BPR-0035 M4 and closeout",
+  "created": "2026-09-21T01:39:35.851054+00:00",
+  "base": "fe728286093326839b63f49f83487d61b5d88ad8"
+}

@@ -15,8 +15,9 @@ including this helper. [[BPR-0948]] qualifies disposable signed/notarized native
 upgrade, timeout and recovery on Apple Silicon; native composition now selects
 the installer for eligible trusted macOS installations. These unpublished,
 qualification-only packages do not authorize release publication or replace the
-developer application. Intel execution, live private-service acceptance and
-final RFC closeout remain [[BPR-0949]] obligations. Windows/Linux and managed
+developer application. Owner amendment r3 defers Intel updater execution to
+nonblocking [[BPR-0950]]; live private-service acceptance and dependency-ordered
+RFC closeout remain on [[BPR-0911]] and [[BPR-0912]]. Windows/Linux and managed
 packages retain manual distribution. See [Application updates and recovery](../docs/development/application-updates.md)
 for bootstrap, operator qualification, retained data and exact helper-recovery
 commands, and the [security boundary](../docs/security/release-updater.md) for

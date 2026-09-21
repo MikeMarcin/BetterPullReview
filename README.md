@@ -217,7 +217,8 @@ for the verified version. Managed installations and other platforms use manual
 distribution. Packages predating the helper protocol need a manual bootstrap.
 [Application updates and recovery](docs/development/application-updates.md)
 explains the workflow and retained data. Apple Silicon disposable signed upgrades
-are verified; Intel and live private-release/vault evidence remain open in the
+are verified; Intel validation is deferred to nonblocking BPR-0950, while live
+private-release/vault evidence remains required in the
 [RFC-0035 ledger](docs/verification/RFC-BPR-0035.md).
 
 ## Architecture

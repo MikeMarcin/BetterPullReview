@@ -27,6 +27,11 @@ its native authentication boundary, fixed private release source, typed core/hos
 Qt allocation, application-wide ownership and signed macOS package constraints.
 Canonical dependency and closeout order remains unchanged.
 
+Owner acceptance amendment r3, 2026-09-20, defers native Intel updater validation
+to [[BPR-0950]] outside M4 and RFC-BPR-0035 closeout. It must not gate this parent.
+The amendment changes AC-07's platform acceptance to Apple Silicon; live
+private-release/vault AC-03 and unrelated dependency requirements remain required.
+
 ## Acceptance
 
 - Implement AC-01 through AC-08 using the RFC's milestone order; track any split
@@ -46,9 +51,12 @@ The r2 amendment permits disposable local signing/notarization, not publication.
 
 Milestone 4 source `518c384a285ef3cb873d12ea167488d105aa91b7` fixes duplicate
 native update-menu entries and completes operator/recovery/security documentation.
-[[BPR-0949]] is Blocked: native Intel upgrade execution and explicitly authorized
-live private-release/vault evidence remain unavailable. Universal slices and
-fixtures are not substitutes. This parent remains Backlog, not Done. [[BPR-0912]]
-also retains RFC-BPR-0014/canonical-order closure gates; the RFC remains Proposed.
+Under r3, [[BPR-0949]] can finish with its Apple Silicon native evidence and
+truthful criterion reconciliation. This parent still lacks explicitly authorized
+live private-release/vault evidence for RFC AC-03: fixtures exercise selection,
+revocation, redirects and refusal, but no actual vault-backed release access or
+live route/revocation is observed. Intel qualification is separately deferred to
+[[BPR-0950]] and is not a blocking dependency. [[BPR-0912]] also retains the
+RFC-BPR-0014/canonical-order closure gates; the RFC remains Proposed.
 AllTheThings remains read-only provenance; Windows/Linux self-installation remains
-outside this card. No user obligation or acceptance criterion is waived.
+outside this card. Only the explicit Intel acceptance amendment changes scope.

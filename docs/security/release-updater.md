@@ -100,5 +100,7 @@ review-store migration is part of this updater. Same-user/admin tampering,
 unreported media failure and power-loss durability beyond the tested journal
 boundaries are not established by cooperative locking or disposable fault tests.
 The ledger's native upgrade/recovery proof is Apple Silicon with fixture release
-authority and synthetic state. Intel execution and live private-service/vault
-qualification remain open, as does the wider RFC-BPR-0014 release matrix.
+authority and synthetic state. Owner amendment r3 defers Intel updater execution
+to [[BPR-0950]], outside M4 and RFC-BPR-0035 closeout. Live private-service/vault
+qualification remains required on [[BPR-0911]]/[[BPR-0912]], as does the separate
+RFC-BPR-0014 release matrix. The deferral is not evidence of Intel behavior.
