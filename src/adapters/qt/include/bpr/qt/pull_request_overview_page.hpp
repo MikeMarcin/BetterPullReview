@@ -29,6 +29,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class appearance_profile;
 	class overview_description_view;
+	class markdown_body_view;
 
 	/// \brief The colours the overview's marks are drawn in.
 	///
@@ -202,7 +203,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto summary_label() const noexcept -> QLabel*;
-		[[nodiscard]] auto body_view() const noexcept -> QPlainTextEdit*;
+		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
 		[[nodiscard]] auto files_heading() const noexcept -> QLabel*;
 		[[nodiscard]] auto files_view() const noexcept -> QTreeView*;
 		[[nodiscard]] auto file_model() const noexcept -> overview_file_model*;

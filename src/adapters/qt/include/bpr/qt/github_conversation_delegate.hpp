@@ -8,7 +8,7 @@ namespace bpr::qt {
 	class github_conversation_delegate final : public QStyledItemDelegate
 	{
 	public:
-		explicit github_conversation_delegate(QObject* aParent = nullptr);
+		explicit github_conversation_delegate(QObject* aParent = nullptr, bool aCompact = false);
 
 		void paint(
 			QPainter*                   aPainter,
@@ -17,6 +17,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto sizeHint(
 			const QStyleOptionViewItem& aOption,
 			const QModelIndex&          aIndex) const -> QSize override;
+
+	private:
+		bool Compact = false;
 	};
 }
 

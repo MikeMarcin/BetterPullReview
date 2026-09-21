@@ -10,11 +10,12 @@
 
 namespace bpr::app {
 	namespace {
-		// The only scheme this opener will hand to the platform. The compiled
-		// profile authority the host checks against names no other one, and a
+		// The web schemes this opener will hand to the platform. Each host
+		// separately admits its capability (device authorization remains HTTPS). A
 		// launch service will happily open `file:` or a registered custom
 		// scheme for whoever asks.
-		constexpr auto browser_scheme = "https";
+		constexpr auto browser_scheme          = "https";
+		constexpr auto browser_insecure_scheme = "http";
 
 		// The whole effect, in one function so the rest of this file can be
 		// tested without it. `openUrl` asks the desktop which program handles
@@ -52,7 +53,7 @@ namespace bpr::app {
 			QUrl::StrictMode
 		};
 		if (!address.isValid() || address.isRelative()
-			|| address.scheme() != QLatin1String{ browser_scheme }
+			|| (address.scheme() != QLatin1String{ browser_scheme } && address.scheme() != QLatin1String{ browser_insecure_scheme })
 			|| address.host().isEmpty() || !address.userInfo().isEmpty()) {
 			return std::nullopt;
 		}

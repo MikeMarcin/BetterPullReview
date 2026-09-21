@@ -1,11 +1,14 @@
 #include "bpr/application/github_window_read_host.hpp"
 
+#include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/sha256.hpp"
 #include "github_projection_mapping.hpp"
 #include <algorithm>
 #include <atomic>
+#include <limits>
 #include <mutex>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -418,7 +421,14 @@ namespace bpr::application {
 					presentation.Session = project_github_session(*aSession);
 				}
 				if (aSnapshot != nullptr) {
-					presentation.PullRequest = project_github_pull_request(*aSnapshot);
+					presentation.PullRequest                  = project_github_pull_request(*aSnapshot);
+					presentation.PullRequest->MarkdownContext = markdown_identity();
+					MarkdownBodies.clear();
+					for (const auto& body : presentation.PullRequest->Conversations) {
+						if (!body.Deleted) {
+							MarkdownBodies.insert(body.Id);
+						}
+					}
 				}
 				if (error && (error->RetryAfterSeconds || has_observations(error->RateLimits))) {
 					presentation.HostDiagnostics.push_back(project_github_host_diagnostic({
@@ -1003,6 +1013,11 @@ namespace bpr::application {
 										success->Request.Context.Request, std::nullopt, std::nullopt,
 										success->LastReadOperation);
 					AcceptedSnapshot = std::move(StagedSnapshot);
+					if (MarkdownRevision != std::numeric_limits<std::uint64_t>::max()) {
+						++MarkdownRevision;
+					} else {
+						MarkdownExhausted = true;
+					}
 					StagedSnapshot.reset();
 					if (!is_public_preview()) {
 						// Signed out there is nothing to mutate with. The
@@ -1139,6 +1154,50 @@ namespace bpr::application {
 			AcceptedCapabilityEvidence.reset();
 			Session.reset();
 		}
+		auto markdown_identity() const -> std::optional<core::markdown_context>
+		{
+			if (Closing || !AcceptedSnapshot || !Session || MarkdownRevision == 0 || MarkdownExhausted) {
+				return std::nullopt;
+			}
+			return core::markdown_context{ Policy.window(), DiagnosticWindowSession, State.IdentityGeneration, AcceptedSnapshot->Snapshot, MarkdownRevision };
+		}
+		auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+		{
+			const auto  current  = markdown_identity();
+			const auto& snapshot = AcceptedSnapshot;
+			const auto  head     = snapshot ? snapshot->PullRequest.HeadOid.value() : std::string_view{ };
+			const auto  decision = core::admit_markdown_link(aIntent, {
+																		  .Context          = current,
+																		  .BodyAvailable    = current && (aIntent.Body.empty() || MarkdownBodies.contains(aIntent.Body)),
+																		  .BrowserAvailable = aBrowser != nullptr,
+																		  .Hostname         = AcceptedProfileAuthority ? std::string_view{ AcceptedProfileAuthority->Hostname.value() } : std::string_view{ },
+																		  .Owner            = snapshot ? std::string_view{ snapshot->Repository.Owner } : std::string_view{ },
+																		  .Repository       = snapshot ? std::string_view{ snapshot->Repository.Name } : std::string_view{ },
+																		  .Revision         = head,
+																		  .Number           = snapshot ? snapshot->PullRequest.Number : core::pull_request_number{ },
+																	  });
+			if (!decision) {
+				return decision.error();
+			}
+			if (aBrowser == nullptr) {
+				return core::markdown_link_result::unavailable;
+			}
+			try {
+				auto address = decision->Target;
+				if (decision->Kind != core::markdown_destination_kind::absolute_web) {
+					const auto root = "https://" + std::string{ AcceptedProfileAuthority->Hostname.value() } + "/" + snapshot->Repository.Owner + "/" + snapshot->Repository.Name;
+					address         = decision->Kind == core::markdown_destination_kind::repository_path
+						? root + "/blob/" + std::string{ head } + "/" + decision->Target
+						: root + "/pull/" + std::to_string(snapshot->PullRequest.Number.value()) + decision->Target;
+				}
+				return aBrowser->open(address) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
+			} catch (...) {
+				return core::markdown_link_result::failed;
+			}
+		}
+		std::uint64_t                                       MarkdownRevision  = 0;
+		bool                                                MarkdownExhausted = false;
+		std::unordered_set<std::string>                     MarkdownBodies;
 		bool                                                SuppressPublication = false;
 		core::github_window_read                            Policy;
 		const core::github_state&                           State;
@@ -1249,6 +1308,10 @@ namespace bpr::application {
 	}
 	auto github_window_read_host::state() const noexcept -> const core::github_state& { return Implementation->State; }
 	auto github_window_read_host::window() const noexcept -> core::bpr_window_context { return Implementation->Policy.window(); }
+	auto github_window_read_host::open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+	{
+		return Implementation->open_markdown_link(aIntent, aBrowser);
+	}
 	auto github_window_read_host::accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>& { return Implementation->AcceptedSnapshot; }
 	auto github_window_read_host::mutation_transport() const noexcept -> review_mutation_transport { return Implementation->ReviewMutationTransport; }
 	auto github_window_read_host::rate_limits() const noexcept -> const github_rate_limit_state& { return Implementation->RateLimits; }

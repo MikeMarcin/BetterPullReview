@@ -1,6 +1,9 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
+#include <QTextEdit>
+#include <type_traits>
 
 #include <QAbstractItemView>
 #include <QAccessible>
@@ -42,195 +45,182 @@
 #include <vector>
 
 namespace bpr::qt {
-	// One document serves both presentations. Only the expanded presentation
-	// owns scrolling; its source offsets survive the compact preview's layout.
-	class overview_description_view final : public QPlainTextEdit
+	// One shared reader keeps both native documents through compact/expanded layout.
+	class overview_description_view final : public QWidget
 	{
 	public:
 		explicit overview_description_view(QWidget* aParent)
-			: QPlainTextEdit{ aParent }
+			: QWidget{ aParent }
 		{
-			connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { remember(true); });
-			connect(this, &QPlainTextEdit::selectionChanged, this, [this] { remember(false); });
-			connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this] { remember(false); });
+			Reader       = new markdown_body_view{ this };
+			auto* layout = new QVBoxLayout{ this };
+			layout->setContentsMargins(0, 0, 0, 0);
+			layout->addWidget(Reader);
+			setFocusProxy(Reader);
+			watch(Reader->rendered_view());
+			watch(Reader->source_view());
 		}
-
+		markdown_body_view*       Reader = nullptr;
 		std::function<void(bool)> OverflowChanged;
-
-		void present_body(const QString& aText)
+		void                      present_body(const std::string& aText)
 		{
-			Adjusting = true;
-			setPlainText(aText);
-			clamp_place();
+			const auto changed = Reader->original_body() != aText;
+			Adjusting          = true;
+			Reader->set_body(aText, "description");
+			if (changed) {
+				RenderedPlace = { };
+				SourcePlace   = { };
+			}
 			Adjusting = false;
 			queue_layout();
 		}
-
 		void reset_reader()
 		{
-			Expanded  = false;
-			Saved     = { };
-			Adjusting = true;
-			clear();
+			Expanded      = false;
+			RenderedPlace = { };
+			SourcePlace   = { };
+			Adjusting     = true;
+			Reader->clear();
 			Adjusting = false;
 			queue_layout();
 		}
-
 		void set_expanded(const bool aExpanded)
 		{
+			if (Expanded && !aExpanded) {
+				remember();
+			}
 			Expanded = aExpanded;
-			Pending  = true;
-			setVerticalScrollBarPolicy(aExpanded ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
-			setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			setMinimumHeight(0);
 			setMaximumHeight(QWIDGETSIZE_MAX);
 			setSizePolicy(QSizePolicy::Expanding, aExpanded ? QSizePolicy::Expanding : QSizePolicy::Fixed);
-			if (aExpanded) {
-				setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-				setFocusPolicy(Qt::StrongFocus);
-				setAccessibleDescription(QStringLiteral("Full pull request description. Escape returns to Files."));
-			}
 			queue_layout();
 		}
 
 	protected:
 		bool event(QEvent* aEvent) override
 		{
-			const auto reflow = aEvent->type() == QEvent::Resize
-				|| aEvent->type() == QEvent::FontChange
-				|| aEvent->type() == QEvent::ApplicationFontChange
-				|| aEvent->type() == QEvent::StyleChange
-				|| aEvent->type() == QEvent::DevicePixelRatioChange;
-			if (reflow) {
+			if (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::FontChange
+				|| aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange) {
 				queue_layout();
 			}
-			return QPlainTextEdit::event(aEvent);
+			return QWidget::event(aEvent);
 		}
-
-		void wheelEvent(QWheelEvent* aEvent) override
+		bool eventFilter(QObject* aObject, QEvent* aEvent) override
 		{
-			if (Expanded) {
-				QPlainTextEdit::wheelEvent(aEvent);
-			} else {
+			if (Expanded && (aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::MouseButtonPress || aEvent->type() == QEvent::MouseButtonRelease || aEvent->type() == QEvent::Wheel)) {
+				ReadingInput = true;
+			}
+			if (!Expanded && aEvent->type() == QEvent::Wheel) {
 				aEvent->ignore();
+				return true;
 			}
-		}
-
-		void scrollContentsBy(int aDx, int aDy) override
-		{
-			QPlainTextEdit::scrollContentsBy(aDx, aDy);
-			if (!Expanded && !Adjusting && verticalScrollBar()->value() != 0) {
-				verticalScrollBar()->setValue(0);
+			if ((!Expanded && aEvent->type() == QEvent::Show) || aEvent->type() == QEvent::DevicePixelRatioChange) {
+				queue_layout();
 			}
+			return QWidget::eventFilter(aObject, aEvent);
 		}
 
 	private:
 		struct reading_place
 		{
-			int Source   = 0;
-			int Anchor   = 0;
-			int Position = 0;
+			int Top        = 0;
+			int Anchor     = 0;
+			int Position   = 0;
+			int Horizontal = 0;
 		};
-
-		void remember(const bool aScrolled)
+		template <typename TView>
+		void watch(TView* aView)
 		{
-			if (!Expanded || Adjusting || Pending) {
+			aView->installEventFilter(this);
+			aView->viewport()->installEventFilter(this);
+			connect(aView->verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { remember(); });
+			connect(aView, &TView::selectionChanged, this, [this] { remember(); });
+			connect(aView, &TView::cursorPositionChanged, this, [this] { remember(); });
+		}
+		template <typename TView>
+		void save(TView* aView, reading_place& aPlace)
+		{
+			aPlace = { aView->cursorForPosition(QPoint{ 0, 0 }).position(), aView->textCursor().anchor(), aView->textCursor().position(), aView->horizontalScrollBar()->value() };
+		}
+		void remember()
+		{
+			if (!Expanded || Adjusting || Queued) {
 				return;
 			}
-			const auto selection = textCursor();
-			Saved.Anchor         = selection.anchor();
-			Saved.Position       = selection.position();
-			if (aScrolled) {
-				Saved.Source = cursorForPosition(QPoint{ 0, 0 }).position();
+			if (Reader->source_visible()) {
+				save(Reader->source_view(), SourcePlace);
+			} else {
+				save(Reader->rendered_view(), RenderedPlace);
 			}
 		}
-
+		template <typename TView>
+		void restore(TView* aView, const reading_place& aPlace)
+		{
+			const auto last   = aView->document()->characterCount() - 1;
+			auto       cursor = QTextCursor{ aView->document() };
+			cursor.setPosition(std::min(aPlace.Top, last));
+			aView->setTextCursor(cursor);
+			aView->ensureCursorVisible();
+			auto* bar = aView->verticalScrollBar();
+			if constexpr (std::is_same_v<TView, QPlainTextEdit>) {
+				bar->setValue(cursor.blockNumber());
+			} else {
+				bar->setValue(bar->value() + aView->cursorRect(cursor).top());
+			}
+			const auto offset = bar->value();
+			cursor.setPosition(std::min(aPlace.Anchor, last));
+			cursor.setPosition(std::min(aPlace.Position, last), QTextCursor::KeepAnchor);
+			aView->setTextCursor(cursor);
+			bar->setValue(offset);
+			aView->horizontalScrollBar()->setValue(aPlace.Horizontal);
+		}
 		void queue_layout()
 		{
-			Pending = true;
-			if (Queued) {
+			if (Queued || Reader == nullptr) {
 				return;
 			}
 			Queued = true;
 			QTimer::singleShot(0, this, [this] {
-				Queued    = false;
-				Adjusting = true;
+				// A reading gesture after layout was queued takes precedence over
+				// the saved pre-layout place, including a new source fallback.
+				if (Expanded && ReadingInput) {
+					if (Reader->source_visible()) {
+						save(Reader->source_view(), SourcePlace);
+					} else {
+						save(Reader->rendered_view(), RenderedPlace);
+					}
+				}
+				ReadingInput   = false;
+				Adjusting      = true;
+				auto* rendered = Reader->rendered_view();
+				auto* source   = Reader->source_view();
+				rendered->setVerticalScrollBarPolicy(Expanded ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+				source->setVerticalScrollBarPolicy(Expanded ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 				if (Expanded) {
-					restore_place();
+					if (Reader->source_visible()) {
+						restore(source, SourcePlace);
+					} else {
+						restore(rendered, RenderedPlace);
+					}
 				} else {
-					layout_preview();
+					const auto budget   = 4 * (Reader->source_visible() ? source->fontMetrics().lineSpacing() : rendered->fontMetrics().lineSpacing());
+					const auto natural  = Reader->source_visible() ? source->document()->blockCount() * source->fontMetrics().lineSpacing()
+																   : static_cast<int>(std::ceil(rendered->document()->size().height()));
+					const auto viewport = Reader->source_visible() ? source->viewport()->height() : rendered->viewport()->height();
+					const auto chrome   = std::max(0, Reader->height() - viewport);
+					setFixedHeight(std::min(natural, budget) + chrome);
+					rendered->verticalScrollBar()->setValue(0);
+					source->verticalScrollBar()->setValue(0);
+					if (OverflowChanged) {
+						OverflowChanged(natural > budget || !Reader->rendered_available());
+					}
 				}
 				Adjusting = false;
-				Pending   = false;
+				Queued    = false;
 			});
 		}
-
-		void clamp_place()
-		{
-			const auto last = document()->characterCount() - 1;
-			Saved.Source    = std::clamp(Saved.Source, 0, last);
-			Saved.Anchor    = std::clamp(Saved.Anchor, 0, last);
-			Saved.Position  = std::clamp(Saved.Position, 0, last);
-		}
-
-		void restore_place()
-		{
-			auto source = QTextCursor{ document() };
-			source.setPosition(Saved.Source);
-			setTextCursor(source);
-			centerCursor();
-			const auto scroll    = source_scroll_position(source);
-			auto       selection = QTextCursor{ document() };
-			selection.setPosition(Saved.Anchor);
-			selection.setPosition(Saved.Position, QTextCursor::KeepAnchor);
-			setTextCursor(selection);
-			verticalScrollBar()->setValue(scroll);
-			// A cursor exactly on a soft-wrap boundary can paint on the preceding
-			// line. Resolve that one-line ambiguity against actual cursor geometry.
-			if (cursorRect(source).top() < 0) {
-				verticalScrollBar()->setValue(verticalScrollBar()->value() - 1);
-			}
-		}
-
-		int source_scroll_position(const QTextCursor& aSource)
-		{
-			// centerCursor has laid out this visible neighbourhood. Count actual
-			// wrapped lines, including fallback-font metrics, without polling or
-			// laying out the whole body. The scrollbar owns the legal end clamp.
-			const auto top        = cursorForPosition(QPoint{ 0, 0 });
-			const auto lineNumber = [](const QTextCursor& aCursor) {
-				return aCursor.block().layout()->lineForTextPosition(aCursor.positionInBlock()).lineNumber();
-			};
-			auto lines = lineNumber(aSource) - lineNumber(top);
-			for (auto block = top.block(); block.isValid() && block.position() < aSource.block().position(); block = block.next()) {
-				lines += block.layout()->lineCount();
-			}
-			return verticalScrollBar()->value() + lines;
-		}
-
-		void layout_preview()
-		{
-			const auto budget  = 4 * fontMetrics().lineSpacing() + 2 * document()->documentMargin();
-			qreal      natural = 2 * document()->documentMargin();
-			for (auto block = document()->begin(); block.isValid() && natural <= budget; block = block.next()) {
-				natural += blockBoundingRect(block).height();
-			}
-			const auto overflow = natural > budget;
-			setFixedHeight(static_cast<int>(std::ceil(std::min(natural, budget))));
-			setTextInteractionFlags(overflow ? Qt::NoTextInteraction : Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-			setFocusPolicy(overflow ? Qt::NoFocus : Qt::StrongFocus);
-			setAccessibleDescription(overflow ? QStringLiteral("Description preview. Use Read full description to read and copy the complete text.") : QStringLiteral("Complete pull request description."));
-			verticalScrollBar()->setValue(0);
-			if (OverflowChanged) {
-				OverflowChanged(overflow);
-			}
-		}
-
-		reading_place Saved;
-		bool          Expanded  = false;
-		bool          Adjusting = false;
-		bool          Pending   = false;
-		bool          Queued    = false;
+		reading_place RenderedPlace, SourcePlace;
+		bool          Expanded = false, Adjusting = false, Queued = false, ReadingInput = false;
 	};
 
 	namespace {
@@ -1033,10 +1023,7 @@ namespace bpr::qt {
 		Body = new overview_description_view{ main };
 		Body->setObjectName(QStringLiteral("overviewBody"));
 		Body->setAccessibleName(QStringLiteral("Pull request description"));
-		Body->setReadOnly(true);
-		Body->setTabChangesFocus(true);
-		Body->setFrameShape(QFrame::NoFrame);
-		Body->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+		Body->Reader->setAccessibleName(QStringLiteral("Pull request description"));
 		mainColumn->addSpacing(4);
 		mainColumn->addWidget(Body);
 		EmptyBody = new QLabel{ QStringLiteral("No description"), main };
@@ -1214,7 +1201,7 @@ namespace bpr::qt {
 								  text(aProjection.HeadRef),
 								  state));
 		if (updateBody) {
-			Body->present_body(text(aProjection.Body));
+			Body->present_body(aProjection.Body);
 		}
 		Body->setVisible(!aProjection.Body.empty());
 		EmptyBody->setVisible(aProjection.Body.empty());
@@ -1343,7 +1330,7 @@ namespace bpr::qt {
 		Summary->setText(QStringLiteral("%1 · %2 · %3 → %4 · %5. Provisional metadata; review data is still loading.")
 							 .arg(aObservation.AuthorLogin.empty() ? QStringLiteral("Unknown author") : text(aObservation.AuthorLogin),
 								  commits, text(aObservation.HeadRef), text(aObservation.BaseRef), state));
-		Body->present_body(text(aObservation.Body));
+		Body->present_body(aObservation.Body);
 		Body->setVisible(!aObservation.Body.empty());
 		FilesHeading->setText(QStringLiteral("Files — %1 reported; catalogue loading…").arg(count_text(aObservation.ReportedFiles)));
 		SinceHeading->setText(QStringLiteral("Review state — loading…"));
@@ -1403,6 +1390,7 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::adopt_appearance(const appearance_profile& aProfile)
 	{
+		Body->Reader->set_code_font(aProfile.code_font(), aProfile.code_tab_stop_distance());
 		Colours.Unread   = aProfile.color(core::appearance_role::state_unread);
 		Colours.Accepted = aProfile.color(core::appearance_role::state_accepted);
 		Colours.Defect   = aProfile.color(core::appearance_role::state_defect);
@@ -1435,9 +1423,9 @@ namespace bpr::qt {
 		return Summary;
 	}
 
-	auto pull_request_overview_page::body_view() const noexcept -> QPlainTextEdit*
+	auto pull_request_overview_page::body_view() const noexcept -> markdown_body_view*
 	{
-		return Body;
+		return Body->Reader;
 	}
 
 	auto pull_request_overview_page::files_heading() const noexcept -> QLabel*

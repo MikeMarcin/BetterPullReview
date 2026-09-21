@@ -1,8 +1,10 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/github_conversation_delegate.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_thread_map.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 
 #include "github_presentation_text.hpp"
 
@@ -37,8 +39,17 @@ namespace bpr::qt {
 		{
 		public:
 			using QTreeView::QTreeView;
+			std::function<void()> ReadBody;
 
 		protected:
+			bool focusNextPrevChild(const bool aNext) override
+			{
+				if (aNext && ReadBody) {
+					ReadBody();
+					return true;
+				}
+				return QTreeView::focusNextPrevChild(aNext);
+			}
 			void updateGeometries() override
 			{
 				QTreeView::updateGeometries();
@@ -409,7 +420,11 @@ namespace bpr::qt {
 		mapLayout->addWidget(ThreadMapBranch);
 		loaded->addWidget(mapPane);
 
-		View = new conversation_detail_view{ loaded };
+		DetailPane         = new QWidget{ loaded };
+		auto* detailLayout = new QVBoxLayout{ DetailPane };
+		detailLayout->setContentsMargins(0, 0, 0, 0);
+		auto* postView = new conversation_detail_view{ DetailPane };
+		View           = postView;
 		View->setObjectName(QStringLiteral("githubConversationView"));
 		View->setAccessibleName(QStringLiteral("Selected conversation detail"));
 		View->setAccessibleDescription(
@@ -435,8 +450,18 @@ namespace bpr::qt {
 		View->header()->setSectionResizeMode(QHeaderView::Stretch);
 		View->setTextElideMode(Qt::ElideNone);
 		View->header()->hide();
-		View->setItemDelegate(new github_conversation_delegate{ View });
-		loaded->addWidget(View);
+		View->setItemDelegate(new github_conversation_delegate{ View, true });
+		View->setMaximumHeight(fontMetrics().lineSpacing() * 7);
+		View->setAccessibleName(QStringLiteral("Conversation posts"));
+		View->setAccessibleDescription(QStringLiteral("Select a post or reply to read its complete Markdown body below."));
+		detailLayout->addWidget(View);
+		Body = new markdown_body_view{ DetailPane };
+		Body->setObjectName(QStringLiteral("conversationMarkdownBody"));
+		Body->setAccessibleName(QStringLiteral("Selected public conversation body"));
+		postView->ReadBody = [this] { Body->setFocus(Qt::TabFocusReason); };
+		detailLayout->addWidget(Body, 1);
+		QWidget::setTabOrder(View, Body);
+		loaded->addWidget(DetailPane);
 		// The map asks for the band its own sizeHint names and the tree takes
 		// the rest. Left to stretch factors alone the map collapsed to its
 		// minimum in an ordinary window, which showed a highlighted branch
@@ -542,6 +567,7 @@ namespace bpr::qt {
 		if (Discuss) {
 			DiscussSelection = Model->id_for_index(View->currentIndex());
 		}
+		refresh_body(admitted);
 		if (!DetailDirty && DetailRoot == rootId && DetailAdmitted == admitted) {
 			return;
 		}
@@ -618,6 +644,39 @@ namespace bpr::qt {
 		refresh_projection();
 	}
 
+	void github_conversation_panel::refresh_body(const bool aAdmitted)
+	{
+		auto index = View->currentIndex();
+		if (index.data(github_conversation_model::kind_role).toInt() == static_cast<int>(application::github_conversation_kind::review_thread)
+			&& Model->rowCount(index) > 0) {
+			index = Model->index(0, 0, index);
+		}
+		const auto id    = Model->id_for_index(index);
+		const auto found = ShownPositions.find(id);
+		if (!aAdmitted || found == ShownPositions.end() || Shown[found->second].Deleted) {
+			Body->clear();
+			Body->set_link_dispatch({ });
+			return;
+		}
+		const auto& post = Shown[found->second];
+		Body->set_body(post.Body, post.Id);
+		Body->setAccessibleName(QStringLiteral("Public post by %1").arg(QString::fromStdString(post.AuthorLogin)));
+		Body->set_link_dispatch([this, id](const std::string& aDestination) {
+			if (LinkDispatch) {
+				LinkDispatch(id, aDestination);
+			}
+		});
+	}
+	auto github_conversation_panel::body_view() const noexcept -> markdown_body_view* { return Body; }
+	void github_conversation_panel::set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch)
+	{
+		LinkDispatch = std::move(aDispatch);
+	}
+	void github_conversation_panel::adopt_appearance(const appearance_profile& aProfile)
+	{
+		Body->set_code_font(aProfile.code_font(), aProfile.code_tab_stop_distance());
+	}
+
 	void github_conversation_panel::refresh_projection()
 	{
 		// Restoring by identity keeps the reviewer on the same reply.
@@ -687,6 +746,8 @@ namespace bpr::qt {
 	void github_conversation_panel::clear(QString aAvailabilityText)
 	{
 		ExpandOnNextProjection = true;
+		Body->clear();
+		Body->set_link_dispatch({ });
 		DetailRoot.clear();
 		DiscussSelection.clear();
 		DiscussReadingOffset = 0;
@@ -770,7 +831,7 @@ namespace bpr::qt {
 				FilterUnresolved->setChecked(DiscussFilters.UnresolvedOnly);
 			}
 			auto* const column = qobject_cast<QVBoxLayout*>(DiscussColumn->layout());
-			column->addWidget(View, 1);
+			column->addWidget(DetailPane, 1);
 			column->addWidget(MapPane, 0);
 			DiscussSplitter->insertWidget(0, CardsPane);
 			DiscussSplitter->setStretchFactor(0, 0);
@@ -781,7 +842,7 @@ namespace bpr::qt {
 			ScopeThisFile->setChecked(true);
 			Loaded->insertWidget(0, CardsPane);
 			Loaded->insertWidget(1, MapPane);
-			Loaded->insertWidget(2, View);
+			Loaded->insertWidget(2, DetailPane);
 			DiscussSummary->hide();
 			Cards->set_feed(false);
 		}
@@ -792,6 +853,7 @@ namespace bpr::qt {
 				View->setCurrentIndex(selected);
 			}
 		}
+		QWidget::setTabOrder(View, Body);
 		show_loaded_page();
 		arrange_discuss();
 		if (Discuss) {
@@ -897,6 +959,7 @@ namespace bpr::qt {
 
 	void github_conversation_panel::relayout()
 	{
+		View->setMaximumHeight(fontMetrics().lineSpacing() * 7);
 		View->doItemsLayout();
 		arrange_discuss();
 	}

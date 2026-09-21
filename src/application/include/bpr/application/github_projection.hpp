@@ -5,6 +5,7 @@
 #include "bpr/application/github_read_progress.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_model.hpp"
+#include "bpr/core/markdown_navigation.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -234,6 +235,10 @@ namespace bpr::application {
 		core::capability_revision                   CapabilityRevision{ };
 		github_rate_limits_projection               RateLimits{ };
 		std::vector<github_conversation_projection> Conversations{ };
+		/// Exact window publication admitted for explicit body-link gestures.
+		std::optional<core::markdown_context> MarkdownContext;
+		bool                                  PublicPreview           = false;
+		bool                                  ReviewCommentsAvailable = false;
 
 		auto operator<=>(const github_pull_request_projection&) const = default;
 	};

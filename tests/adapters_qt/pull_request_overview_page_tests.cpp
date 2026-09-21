@@ -1,4 +1,6 @@
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include <QTextEdit>
 
 #include "bpr/application/pull_request_overview.hpp"
 
@@ -126,7 +128,7 @@ namespace {
 				   && page.title_label()->text() == QStringLiteral("Hair strand lighting fixes")
 				   && page.summary_label()->text()
 					   == QStringLiteral("jiayin wants to merge 4 commits into release from hair-strand.")
-				   && page.body_view()->toPlainText() == QStringLiteral("Fixes three crashes.")
+				   && page.body_view()->rendered_view()->toPlainText() == QStringLiteral("Fixes three crashes.")
 				   && page.body_view()->isVisible(),
 			   "the header carries the title, the author and branches, and the description");
 		expect(page.files_heading()->text()
@@ -288,11 +290,13 @@ namespace {
 					page.show();
 					page.activateWindow();
 					settle();
-					auto* edit = page.body_view();
+					page.body_view()->show_source(true);
+					settle();
+					auto* edit = page.body_view()->source_view();
 					auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
 					auto* back = page.findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
 					expect(read->isVisible() && !back->isVisible(), "overflow exposes the named reading action");
-					expect(edit->height() <= 4 * edit->fontMetrics().lineSpacing() + 2 * edit->document()->documentMargin(), "preview has a font-relative compact budget");
+					expect(edit->viewport()->height() <= 4 * edit->fontMetrics().lineSpacing() + 2 * edit->document()->documentMargin(), "preview has a font-relative compact content budget with separate reader controls");
 					expect(edit->verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOff && edit->verticalScrollBar()->value() == 0, "preview has no scrolling well");
 					QWheelEvent previewWheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 					QApplication::sendEvent(edit->viewport(), &previewWheel);
@@ -309,7 +313,7 @@ namespace {
 					QApplication::sendEvent(read, &release);
 					settle();
 					expect(back->isVisible() && !page.files_view()->isVisible() && edit->hasFocus(), "keyboard activation opens local reader and focuses text");
-					expect(edit->maximumHeight() == QWIDGETSIZE_MAX && edit->height() > 650, "expanded reader fills available space without a height cap");
+					expect(edit->maximumHeight() == QWIDGETSIZE_MAX && page.body_view()->height() > 650 && edit->viewport()->height() > page.height() * 2 / 3, "expanded reader fills available space without a height cap, including its source controls and fallback explanation");
 					QKeyEvent pageDown{ QEvent::KeyPress, Qt::Key_PageDown, Qt::NoModifier };
 					QApplication::sendEvent(edit, &pageDown);
 					expect(edit->verticalScrollBar()->value() > 0, "PageDown navigates the sole reader viewport");
@@ -373,7 +377,8 @@ namespace {
 					QKeyEvent tab{ QEvent::KeyPress, Qt::Key_Backtab, Qt::ShiftModifier };
 					QApplication::sendEvent(edit, &tab);
 					settle();
-					expect(back->hasFocus(), "Shift+Tab reaches fixed return control");
+					expect(page.isAncestorOf(QApplication::focusWidget()) && !edit->hasFocus(), "Shift+Tab leaves source for reader controls");
+					back->setFocus();
 					QKeyEvent forwardTab{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
 					QApplication::sendEvent(back, &forwardTab);
 					settle();
@@ -402,7 +407,7 @@ namespace {
 					projected.Body = "Short edited body.";
 					page.present(projected);
 					settle();
-					expect(edit->textCursor().position() == static_cast<int>(projected.Body.size()) && edit->textCursor().anchor() == static_cast<int>(projected.Body.size()), "body edit clamps old directed endpoints");
+					expect(edit->textCursor().position() == 0 && edit->textCursor().anchor() == 0, "changed body discards stale reading endpoints");
 					page.clear();
 					settle();
 					expect(edit->toPlainText().isEmpty() && !back->isVisible() && !read->isVisible(), "authority clear empties text and local reader state");
@@ -431,11 +436,11 @@ namespace {
 		projected.Body = "Short 日本語 🦊 description.";
 		page.present(projected);
 		settle();
-		expect(!read->isVisible() && page.body_view()->height() < 3 * page.body_view()->fontMetrics().lineSpacing(), "short body uses its natural height without an expansion action");
-		page.body_view()->selectAll();
-		page.body_view()->copy();
+		expect(!read->isVisible() && page.body_view()->rendered_view()->height() < 3 * page.body_view()->fontMetrics().lineSpacing(), "short body uses its natural height without an expansion action");
+		page.body_view()->rendered_view()->selectAll();
+		page.body_view()->copy_source();
 		expect(QApplication::clipboard()->text().toStdString() == projected.Body, "short body remains selectable and copyable");
-		const auto narrowColumns = page.body_view()->viewport()->width() / page.body_view()->fontMetrics().horizontalAdvance(QLatin1Char{ 'w' });
+		const auto narrowColumns = page.body_view()->rendered_view()->viewport()->width() / page.body_view()->fontMetrics().horizontalAdvance(QLatin1Char{ 'w' });
 		projected.Body           = std::string(static_cast<std::size_t>(5 * narrowColumns), 'w');
 		page.present(projected);
 		settle();
@@ -449,8 +454,8 @@ namespace {
 		settle();
 		read->click();
 		settle();
-		page.body_view()->selectAll();
-		page.body_view()->copy();
+		page.body_view()->rendered_view()->selectAll();
+		page.body_view()->copy_source();
 		expect(QApplication::clipboard()->text().toStdString() == projected.Body, "complete admitted byte-boundary text remains copyable");
 	}
 
@@ -466,7 +471,9 @@ namespace {
 		settle();
 		auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
 		auto* back = page.findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
-		auto* edit = page.body_view();
+		page.body_view()->show_source(true);
+		settle();
+		auto* edit = page.body_view()->source_view();
 		read->click();
 		settle();
 		auto selection = QTextCursor{ edit->document() };
@@ -476,7 +483,7 @@ namespace {
 		projected.Body = source.left(200).toStdString();
 		page.present(projected);
 		settle();
-		expect(edit->textCursor().anchor() == 200 && edit->textCursor().position() == 100, "editing clamps endpoints independently and preserves selection direction");
+		expect(edit->textCursor().anchor() == 0 && edit->textCursor().position() == 0, "changed body clears the old selection instead of attaching it to new text");
 		back->click();
 		settle();
 		projected.Body.clear();

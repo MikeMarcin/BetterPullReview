@@ -2,7 +2,7 @@
 /// \brief The one address shape the composed opener forwards, and nothing else.
 ///
 /// \details BPR-0537. `system_browser_opener::open` re-parses the verification
-/// address strictly and forwards only an absolute `https` address that has a
+/// address strictly and forwards only an absolute HTTP(S) address that has a
 /// host and no userinfo; before this its evidence was three owner observations
 /// of a browser that did open, which say nothing about the addresses it must
 /// refuse.
@@ -42,7 +42,6 @@ namespace {
 	/// host, nothing, a scheme a launch service would happily run as code, a
 	/// scheme that reads the local disk, and a string strict parsing refuses.
 	constexpr std::string_view refused_addresses[] = {
-		"http://github.com/login/device",
 		"github.com/login/device",
 		"https://user@github.com/login/device",
 		"https://user:secret@github.com/login/device",
@@ -84,6 +83,7 @@ namespace {
 
 	void the_verification_address_is_accepted()
 	{
+		expect(validated_browser_address("http://example.invalid/docs").has_value(), "explicit Markdown HTTP destinations share the web opener");
 		const auto accepted = validated_browser_address(accepted_address);
 		expect(accepted.has_value(), "an absolute https address must be accepted");
 		if (accepted.has_value()) {
@@ -122,6 +122,9 @@ namespace {
 		expect(
 			launches().Address == as_qstring(accepted_address),
 			"the launched address must be the one that was opened");
+		expect(opener.open("http://example.invalid/docs") && launches().Calls == 2
+				   && launches().Address == QStringLiteral("http://example.invalid/docs"),
+			   "an admitted Markdown HTTP destination reaches the same platform launch once");
 
 		// Restored, and the seam proves it swapped: what comes back is the
 		// stand-in this test installed, not whatever it replaced.

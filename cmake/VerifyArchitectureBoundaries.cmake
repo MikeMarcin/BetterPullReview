@@ -1062,6 +1062,20 @@ file(
     "${BPR_ROOT}/src/adapters/qt/*.hxx"
     "${BPR_ROOT}/src/adapters/qt/*.mm"
 )
+# Markdown's private document overrides the mandatory Qt signature to deny all
+# resources. Strip only this exact inert implementation; every other URL-bearing
+# use and every effect pattern remains subject to the ordinary boundary checks.
+function(strip_markdown_resource_denial source_file)
+    if(source_file STREQUAL "${BPR_ROOT}/src/adapters/qt/src/markdown_document.hpp")
+        set(denial_pattern "auto loadResource\\(int, const QUrl&\\) -> QVariant override[ \t\r\n]*\\{[ \t\r\n]*return QByteArray\\{ \\};[ \t\r\n]*\\}")
+        if(NOT contents MATCHES "${denial_pattern}")
+            message(FATAL_ERROR "Markdown document resource denial must remain unconditional")
+        endif()
+        string(REGEX REPLACE "${denial_pattern}" "" contents "${contents}")
+        set(contents "${contents}" PARENT_SCOPE)
+    endif()
+endfunction()
+
 set(
     provider_free_projection_patterns
     "QUrl"
@@ -1074,6 +1088,7 @@ set(
 )
 foreach(provider_free_file IN LISTS provider_free_projection_files)
     file(READ "${provider_free_file}" contents)
+    strip_markdown_resource_denial("${provider_free_file}")
     foreach(pattern IN LISTS provider_free_projection_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${provider_free_file}")
@@ -1135,6 +1150,7 @@ set(
 
 foreach(qt_file IN LISTS qt_files)
     file(READ "${qt_file}" contents)
+    strip_markdown_resource_denial("${qt_file}")
     foreach(pattern IN LISTS qt_forbidden_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${qt_file}")
@@ -1507,6 +1523,7 @@ endif()
 
 foreach(qt_github_projection_file IN LISTS qt_github_projection_files)
     file(READ "${qt_github_projection_file}" contents)
+    strip_markdown_resource_denial("${qt_github_projection_file}")
     string(
         REGEX MATCHALL
         "#[ \t]*include[ \t]*[<\"]bpr/application/github_[A-Za-z0-9_]+\\.hpp[>\"]"

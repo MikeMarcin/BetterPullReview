@@ -1,0 +1,171 @@
+# Native Markdown reading
+
+RFC-BPR-0036 provides `qt::markdown_body_view`, shared by the expanded PR
+overview and the complete selected public post in Read and Discuss.
+The original provider body remains the authority for source, copy and publishing.
+
+## Reading policy
+
+The renderer uses Qt's `QTextDocument::MarkdownDialectGitHub` with
+`MarkdownNoHTML`. Its declared subset is paragraphs, headings, emphasis, strong
+emphasis, quotes, ordered and unordered lists, fenced/indented code, inline code,
+thematic breaks, strikethrough, read-only tasks, tables and links. This is a
+bounded native subset, not GitHub visual parity. Math, Mermaid, video, active
+HTML, editing tools, footnote presentation and syntax highlighting are not part
+of this delivery. Unsupported syntax can always be read in **View source**.
+Raw HTML is displayed as literal text, never submitted to an HTML importer.
+
+**View source** and **Rendered** retain separate reading positions and selections;
+the first switch uses approximate scroll fraction. **Copy source** copies the
+original UTF-8 bytes, including original line endings, via the text MIME payload.
+Qt's selectable rendered text is a presentation, never the publication source.
+An empty body has an explicit empty state. A refused rendering budget or an
+unverified whitespace mapping shows the complete original source and an
+explanation. No prefix is silently presented as the complete body.
+
+Images become native text placeholders with alternative text and an explicit
+open-image-link gesture. No image is fetched. The private `markdown_document`
+returns a valid empty byte array from every resource request. Returning an
+invalid variant would permit Qt's document/global resource-provider fallback;
+that is deliberately forbidden. The architecture guard permits only the exact
+unnamed address parameter of this unconditional override. No widget acquires an
+opener, filesystem capability or network capability.
+
+All destinations remain untrusted strings. Tab visits link text and shows its
+destination; Enter or a deliberate click emits that string to application
+admission. The widget performs no scheme parsing, relative resolution or browser
+handoff. The window read host checks the exact window generation, session,
+account generation, accepted snapshot and a monotonically increasing publication
+revision before core admission. The selected post must still exist and not be
+deleted. Description and image-placeholder links use this same path. The existing
+application-owned browser port performs the effect; Qt receives no credentials.
+A failed or unavailable handoff is stated in the window status bar.
+
+Absolute HTTP(S) URLs admit DNS/IPv4 authorities and optional decimal ports,
+without userinfo, control characters, backslashes, invalid escapes or
+credential-bearing query keys. Other schemes are refused. Repository-root paths
+such as `./docs/guide.md` resolve against the accepted full head OID, never a
+default branch. A fragment addresses the current PR. Network-path, root-relative,
+parent-escaping and encoded relative paths stay readable but are refused because
+their interpretation is ambiguous here. IPv6 literals, raw Unicode URLs and other
+unsupported address forms remain available in source. No private attachment
+authentication or credential-bearing URL is manufactured.
+
+Prose wraps in the reader; fenced code and table-cell text stay on their native
+lines. Wide code/tables use the reader's horizontal scrollbar so narrow columns
+do not turn readable words into tall stacks of single characters. Source has horizontal scrolling, which avoids
+expensive wrapping of a provider-sized single line. Text, links, quote/code
+backgrounds and table borders use the inherited palette. Composition supplies
+code typography through `set_code_font`; the default is the native fixed font
+with four-space tab stops. Qt handles native focus, selection and accessibility.
+
+Qt expands code tabs during Markdown import. A bounded source-aware repair
+retains literal tabs in top-level fenced code only after the complete sequence
+of imported code lines equals the tab-expanded source lines. No partial repair
+is published. Tab-bearing constructs outside that verified mapping (for example
+a fence nested inside a quote, indented tabbed code or a prose tab) explicitly
+fall back to source. This limitation is part of acceptance, not a claim of full
+whitespace fidelity in every Markdown construct. Non-list blocks also have
+inherited task markers removed; Qt otherwise carries the last task marker into
+later code/table/paragraph blocks.
+
+## Bounds and lifecycle
+
+Provider descriptions are already admitted at 262,144 bytes. Preview adds these
+conservative pre-parse work budgets; they count literal syntax, including code,
+and may refuse a document that a full Markdown parser could accept:
+
+| Budget | Limit |
+| --- | --- |
+| Rendered UTF-8 source | 65,536 bytes |
+| Source lines / bytes in any line | 2,048 / 4,096 |
+| Leading whitespace/quote prefix | 64 columns; tab counts as four |
+| Quote prefix / open square brackets | 8 / 16 |
+| Formatting characters `*_~` plus backticks, brackets, angle brackets and pipes | 8,192 |
+| Pipes in any line | 32 |
+| Pipe-bearing lines × (maximum pipes + 1) | 1,024 |
+
+The bracket count spans source lines. Table budgeting bounds rectangular
+expansion before Qt allocates native cells. Eager preparation was selected after
+measuring admitted long prose and rejected nesting. It runs synchronously on the
+GUI lane under these budgets: no worker, timer, late completion or cross-window
+result exists. Owners must clear the reader on authority invalidation and pass
+an identity unique to the current body/surface. An identical identity and body
+performs no document mutation; a replacement clears selection and link state.
+
+The 262,144-byte source path is measured separately. It does not establish
+latency guarantees for arbitrary unadmitted input. Measurements and exact
+platform context are in [the verification ledger](../verification/RFC-BPR-0036.md).
+
+## Initial surface inventory and integration contract
+
+| Surface | Current path | Delivered behavior |
+| --- | --- | --- |
+| PR overview | `pull_request_overview_page.cpp`, `overview_description_view` | The shared renderer occupies the compact/expanded flow; the expanded viewport has no height cap and retains RFC0037 Return/Escape, source anchors and file focus. |
+| Public selected conversation | `github_conversation_panel.cpp`, selected `QTreeView` and `github_conversation_delegate.cpp` | Compact post summaries select complete bodies/replies in the shared reader; thread selection, read state and reply context retain their identities. Review summaries, GraphQL roots/replies, REST roots/replies and issue comments are included. |
+| Read/Discuss navigation cards | `conversation_cards_view.cpp` | Compact entries remain navigation summaries; the selected detail owns the complete public body. Draft entries keep their existing plain-text editing contract. |
+| AI side chat | `side_chat_panel.cpp` | Inventoried, outside initial delivery. |
+| Local review/reply editors and draft cards | `review_draft_editor.cpp`, `review_submission_editor.cpp`, draft `conversation_cards_view` entries | Preserve Markdown editing and payloads; do not silently adopt rendering in this slice. |
+
+The wrapper exposes the rendered and source text widgets for layout, focus and
+selection integration. It does not own PR geometry, the conversation model,
+publication, receipt state or accepted authority. The composed acceptance course
+opens a synthetic PR through the real read host,
+reads each complete body, activates admitted links and reaches the final long
+paragraph. REST preview groups now travel in the accepted per-window projection;
+profile-wide status cannot overwrite another window's bodies. A new body starts
+at its first character; identical body/identity does not mutate either document.
+Native Cocoa rendering, accessibility interfaces, keyboard events and local
+horizontal overflow are checked. This does not claim VoiceOver certification,
+physical-input attendance or testing on unavailable platforms.
+
+## Renderer comparison requested by the owner
+
+Mandate r2 explicitly adds md4qt versus native Qt for GFM to the plan. The live
+plan preserves every original exit and adds a comparison exit, with its checked
+amendment receipt beside it. Selection below was reconsidered after compiling
+and probing current md4qt, rather than treating the initial Qt implementation as
+settled.
+
+The comparator is canonical KDE md4qt **5.1.4**, revision
+`34d059e066e0dac138f0bc8144fe1d3acbba3dc3` (2026-09-19). The KDE GitHub mirror's
+default branch was stale 4.0.0, so it was not used for the decision. Current
+[upstream source](https://invent.kde.org/libraries/md4qt/-/tree/34d059e066e0dac138f0bc8144fe1d3acbba3dc3)
+and [API documentation](https://api.kde.org/md4qt-module.html) identify a static
+C++17/Qt Core parser with an AST, source positions, extensible parsing and HTML
+export. Its implementation is MIT licensed. It adds a pinned source dependency,
+notice and central-provider maintenance obligation; the inspected release notes
+record incompatible 4.x and 5.x APIs. Recent changes and named consumers show
+active maintenance, not a guarantee of future compatibility.
+
+Qt 6.10.3 is already selected by this build. Its
+[native Markdown API](https://doc.qt.io/qt-6/qtextdocument.html#MarkdownFeature-enum)
+uses [MD4C](https://doc.qt.io/qt-6/qtgui-attribution-md4c.html), an MIT-licensed
+parser already included in Qt Gui. No new shipped dependency is needed. Qt's
+native text structure provides the existing selection, layout and accessibility
+surface directly.
+
+| Dimension | Native Qt candidate | md4qt 5.1.4 candidate |
+| --- | --- | --- |
+| Declared corpus | Native heading, list hierarchy, 2 task markers, quote/code, table, links and inline styles pass after the documented marker repair. | AST contains the same declared structures; exact source positions and code tabs are useful advantages. |
+| Additional dialect | Uses Qt's declared GitHub dialect; no claim of complete GFM conformance or GitHub styling. | Documents CommonMark 0.31.2, GitHub autolinks, tasks/tables/strikethrough plus footnotes and math; some extensions exceed this RFC. |
+| Native rendering | Direct `QTextDocument` import. | A parser, not a native widget renderer. The measured HTML-export bridge lost task markers (`input` checkboxes are not native text tasks). A proper AST-to-document visitor could retain them but was not implemented or benchmarked. |
+| Resources and raw HTML | HTML disabled, all resource requests denied, images replaced before enabled layout. | The stream entry avoids recursive file parsing, but `LinkImageParser::prepareUrl` still calls `QFileInfo::exists` and rewrites existing relative files. HTML export includes raw HTML and images; a safe visitor and an effect-free link preparation path are required. |
+| Original source | Retained separately; checked code-tab repair and explicit source fallback where it cannot prove a mapping. | Retained original still necessary; AST positions could improve precise rendered/source anchoring and broader tab handling. |
+| Accessibility | Native text widgets, keyboard link traversal and source controls already exercised. | Could share the same native widgets once a safe AST visitor exists; parser success alone proves no accessibility result. |
+| Performance | Local 64 KiB native import/layout around 19 ms in the standalone probe. | Around 2.9 ms AST parse plus 20 ms HTML export/native layout for that body. The result does not measure an unbuilt direct AST visitor. |
+
+The synthetic relative-link probe parsed `[relative](canary.md)` from a memory
+stream before and after creating that one file in a temporary directory. The
+md4qt destination changed from `canary.md` to an absolute local pathname. This
+proves filesystem-dependent link interpretation even without recursive parsing;
+it does not claim that file content was read. The exported synthetic HTML also
+contained the raw script tag. Neither result means md4qt cannot be adapted
+safely; they identify integration work required by this application.
+
+**Decision:** retain native Qt for the initial bounded reader. It supplies the
+required native structures with a smaller effect boundary and no additional
+shipped package. The empirical timings do not justify choosing on speed alone.
+md4qt remains the stronger candidate if precise source mapping or broader dialect
+support warrants a safe custom AST renderer and removal/override of its local
+link checks. Do not route its ordinary HTML export into production as a shortcut.

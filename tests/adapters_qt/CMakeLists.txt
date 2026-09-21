@@ -1288,3 +1288,32 @@ foreach(bpr_surface_capture_scale IN ITEMS 100 125 150 200)
             TIMEOUT 600
     )
 endforeach()
+
+bpr_add_executable(test_better_pull_review_markdown_body_view_tests markdown_body_view_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_body_view_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_markdown_body_view_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_body_view_tests)
+foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
+    string(REPLACE "." "_" markdown_suffix "${markdown_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_markdown_body_${markdown_suffix}"
+        COMMAND test_better_pull_review_markdown_body_view_tests
+    )
+    set_tests_properties("qt_markdown_body_${markdown_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${markdown_scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-${markdown_suffix}"
+        TIMEOUT 30
+    )
+endforeach()
+
+bpr_add_executable(test_better_pull_review_composed_markdown_tests composed_markdown_tests.cpp)
+target_link_libraries(test_better_pull_review_composed_markdown_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_composed_markdown_tests)
+bpr_enable_warnings(test_better_pull_review_composed_markdown_tests)
+foreach(scale IN ITEMS 1.0 1.25 2.0)
+    string(REPLACE "." "_" scale_id "${scale}")
+    bpr_add_network_isolated_test(NAME qt_composed_markdown_${scale_id} COMMAND test_better_pull_review_composed_markdown_tests)
+    set_tests_properties(qt_composed_markdown_${scale_id} PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/composed-markdown-${scale_id}" TIMEOUT 60)
+endforeach()
+
+bpr_add_network_isolated_test(NAME qt_public_preview_conversation COMMAND test_better_pull_review_qt_anonymous_public_preview_tests --conversation-only)
+set_tests_properties(qt_public_preview_conversation PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0" TIMEOUT 30)

@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0005", "RFC-BPR-0006", "RFC-BPR-0008"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc0036-native-markdown","path":"docs/rfcs/plans/rfc0036-native-markdown/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0036: Native Markdown Rendering for Review Content
@@ -13,8 +14,16 @@ pack_version: "post-v2"
 ## Request and outcome
 
 After opening their first PR in the 0.1.3 patch build, the owner requested
-Markdown rendering on 2026-09-18. This registers a proposal and backlog, not
-runtime implementation. Implementation is [[BPR-0916]]; verification and
+Markdown rendering on 2026-09-18. That registration created a proposal and backlog.
+Implementation is now authorized in a worktree, including an explicit comparison
+of md4qt with native Qt for GFM (mandate r2). The
+[shared reader design](../architecture/native-markdown.md) records the comparison
+and the delivered component/composition boundary. Both milestones have technical
+acceptance at `a3ab46ee7c2b3fb26e3c43d71c1658ea64ba1d5f`;
+[the ledger](../verification/RFC-BPR-0036.md) records native macOS evidence and
+limitations. RFC status remains Proposed because RFC-BPR-0008 and canonical
+predecessors are not all Auto-Verified.
+Implementation is [[BPR-0916]]; verification and
 closeout are [[BPR-0917]]. Registration baseline: `7ad0e43eb92c217ac6cd01fc478bde2968d217a0`.
 
 PR descriptions and review conversations should display readable formatted
@@ -22,8 +31,8 @@ content instead of exposing Markdown punctuation as plain prose. Reviewers must
 be able to read headings, lists, code, links and tables without leaving the app,
 select and copy text, and recover the original source without loss.
 
-The overview currently mounts `overviewBody` as a read-only `QPlainTextEdit`,
-sets its maximum height to 110 pixels and applies `setPlainText` in
+At registration, the overview mounted `overviewBody` as a read-only
+`QPlainTextEdit`, capped it at 110 pixels and applied `setPlainText` in
 `src/adapters/qt/src/pull_request_overview_page.cpp`. Markdown alone does not
 solve that small viewport. [[BPR-0918]] separately investigates long-description
 layout under [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md); neither task must wait for the other to explore or
