@@ -270,3 +270,13 @@ before applying the two scoped documentation lines; its Markdown changes are
 preserved. The immutable RFC base stays `d0a8a6dd`. Earlier empty product-diff
 receipts remain true only for their earlier candidate; final M1 scope is verified
 against the reconciled integration head and does not certify the unrelated RFC.
+
+R3 candidate: `3deec8893c3f722096f797c45ecfde18e1e71534`.
+The exact-candidate documentation gate and scoped product/release-tool/skill
+no-impact check pass; the nine-bullet acceptance comparison is unchanged.
+Receipts are `build/rfc0014-run/m1-r3-{documentation,no-impact}-evidence.json`.
+The [r3 checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r3.json)
+and current handoff preserve the original baseline, all prior acceptance limits
+and the next Ready BPR-0952 milestone. The unchanged 64 documentation-verifier
+tests and r2 script-syntax evidence remain reusable. No new runtime acceptance
+or publication is claimed.

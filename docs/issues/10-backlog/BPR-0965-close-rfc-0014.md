@@ -139,3 +139,10 @@ write, resumed only after a clean index, and retained the shared architecture
 changes. Final M1 product no-impact is scoped from that reconciled integration
 head; the immutable RFC base is unchanged and the unrelated product work is
 not certified by M1's planning checks.
+
+Final M1 prescription candidate:
+`3deec8893c3f722096f797c45ecfde18e1e71534`. Exact-candidate documentation and
+scoped product-no-impact checks pass; the acceptance section comparison proves
+all nine canonical bullets are unchanged. The durable handoff now uses r3,
+retains r1/r2 commits and the external integration separately, and requests a
+fresh M2 implementer. No attended decision or task-owned command remains pending.
