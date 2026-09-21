@@ -1205,3 +1205,11 @@ pending; M9 was not started. All local product/build/test commands are finished.
 The two completed diagnostic profiles are recoverable in
 `/Users/jaeger/.Trash/bpr0014-m8-postreview-courses.Jp3GAv`; only the new protected
 review profile remains in `/Users/jaeger/bpr0014-m8-postreview.Xk8OSi`.
+
+Guarded finish `bd088eb1406b3073bc69f4cb3e97fa5c5407e4aa` returns BPR-0958
+to Parked with all three complete criteria pending and scoped verdicts retained.
+The documentation regressions pass 64/64 in 1.898s, the documentation gate is
+`DOCUMENTATION_OK`, and board validation reports 957 cards with no errors.
+Final executable and live project/MASK rehashes match their recorded identities.
+The final bookkeeping HEAD is bound by the ignored checkpoint observation;
+no app/helper, build/test command or remote writer is left to the coordinator.

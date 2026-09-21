@@ -18,7 +18,7 @@
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
   "entry_revision": "ee2e38cfab311622ff455d878279cd72cc6a46a9",
   "candidate_revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
-  "guarded_human_pending_finish": null,
+  "guarded_human_pending_finish": "bd088eb1406b3073bc69f4cb3e97fa5c5407e4aa",
   "result": "partial-human-pending; original two scoped accepts reconciled, Overview defect corrected, native matrix and recovery review pending",
   "rfc_status": "Proposed",
   "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
@@ -602,6 +602,15 @@
   ],
   "initial_m8_entry_revision": "789ccc311264271086e69ddec8d9cbd07a7ec839",
   "initial_guarded_human_pending_finish": "63108c12b646205df3d3096772669dd9cffbd070",
+  "final_upkeep": {
+    "guarded_finish": "bd088eb1406b3073bc69f4cb3e97fa5c5407e4aa: BPR-0958 Parked, AC1/AC2/AC3 pending; original exact verdicts and new recovery review recorded",
+    "documentation_regressions": "64/64 pass in 1.898s; expected hostile-fixture diagnostics are not errors in the consumer repository",
+    "documentation_gate": "DOCUMENTATION_OK; repeated after final handoff upkeep",
+    "board_validation": "957 cards, no structural or scoped RFC-BPR-0014 workflow errors",
+    "self_review": "Diff reviewed against clean round entry: Qt-only destination predicate with actual default drawer-command regression; retained reviews/comparisons/loading preserved. No authority, vault, transport or release-security changes. Existing whole-UI-suite failures explicitly retained; no independent review claimed.",
+    "live_hashes": "Local project faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2 and MASK a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf unchanged; both original protected executables and final review copy rehashed exactly",
+    "checkpoint_observation": "build/m8-postreview-observation.json binds the final bookkeeping HEAD, complete obligations and explicit pending exits; check uses quiescent execution and accepted predecessor m7-focused-tests-fixtures"
+  },
   "post_review": {
     "hand_back_sequence": 454,
     "hand_back_at": "2026-09-21T16:28:28.297472+00:00",
