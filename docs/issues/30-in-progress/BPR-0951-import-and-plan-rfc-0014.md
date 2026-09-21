@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0951"
 title: "Import and plan RFC-BPR-0014"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: []
 priority: "P1"
