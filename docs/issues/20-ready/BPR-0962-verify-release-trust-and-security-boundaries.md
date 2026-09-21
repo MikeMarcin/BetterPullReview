@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0962"
 title: "Verify release trust and security boundaries"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M9 Security and boundary verification"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
-blocked_by: "release-security-inputs"
 ---
 
 # Verify release trust and security boundaries
@@ -129,6 +128,25 @@ M8 and unrelated protections remain intact. BPR-0962 stays Blocked on
 `release-security-inputs`; both M9 exits remain pending, including the unchanged
 21 macOS / 19 Windows Grype failures and trust/native/privacy gaps. Independent
 M10/BPR-0963 is next through accepted M7; this owner stops at M9.
+
+## M9 dependency remediation resumption
+
+Sole implementer `/root/rfc0014_m9_finalize` resumes AC3 engineering from clean
+`08d129d0b04d2cac2649013b16b315cf7ccf929e`, mandate r3 and
+coordinator-implementer rev2 unchanged. M10 and M11 are integrated; their
+acceptance does not resolve M9. The scope is supported pinned dependency
+remediation, exact offline package rebuild/rescan, and primary-source
+applicability evidence for every existing finding. No suppression, security
+waiver, native/trust acceptance or publication is authorized.
+
+Execution plan: preserve all six attended protections and recorded decisions;
+upgrade the official Qt provider/source pin together where a released fix is
+available; exercise the package/source/public path and focused Qt-dependent
+contracts; bind unfiltered scans and per-finding evidence to the new artifact;
+then return this card to Blocked if independent decisions or unavailable
+upstream fixes remain. SQLite is already at the latest published 3.53.4.
+Historical packages and approvals remain immutable and do not transfer to
+changed inventories. M10/M12 are out of scope.
 
 ## M2 security allocation
 
