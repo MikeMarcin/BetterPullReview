@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0961"
 title: "Qualify the Linux x64 packages"
-status: "Ready"
+status: "Blocked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["linux"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+blocked_by: "declared-linux-baselines"
 ---
 
 # Qualify the Linux x64 packages
@@ -24,9 +25,16 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Verification and execution record
 
-Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-The milestone owner must record source/artifact identities and focused public
-checks here. Native, human and external evidence cannot be self-certified.
+Imported under mandate r1 at RFC base
+`d0a8a6dda005af12b3818234f4878a9f48a44146`; all criteria remain pending.
+M8 r3 reconciled the available bpr-linux station: Ubuntu 26.04 LTS x86_64 under
+WSL, not either declared baseline. No Ubuntu 24.04 or RHEL 10 environment was
+provisioned. Existing unrelated Docker images/containers were not changed.
+No DEB/RPM qualification or desktop/vault claim was inferred from WSL or a
+container. The station's existing dirty MASK lock remains protected and its
+writer lease is free. Supply both declared clean desktop baselines (including
+Secret Service and ordinary-user operation) before claiming native acceptance.
+See the [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance).
 
 ## M2 baseline declaration
 

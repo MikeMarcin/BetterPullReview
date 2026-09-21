@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0959"
 title: "Qualify the macOS Intel package"
-status: "Ready"
+status: "Blocked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+blocked_by: "native-intel-environment"
 ---
 
 # Qualify the macOS Intel package
@@ -24,6 +25,11 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Verification and execution record
 
-Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-The milestone owner must record source/artifact identities and focused public
-checks here. Native, human and external evidence cannot be self-certified.
+Imported under mandate r1 at RFC base
+`d0a8a6dda005af12b3818234f4878a9f48a44146`; all criteria remain untested.
+M8 r3 found an arm64 Mac and the JaegAW Windows/WSL stations, but no native
+Intel Mac. The exact universal 0.1.3 candidate at
+`6ad716350c7f2e02a1b00370ea49cd5b77ce4c15` has both slices; neither those slices
+nor Rosetta is native Intel evidence. A clean macOS 13+ Intel account/operator
+is the concrete prerequisite. No baseline or updater-deferral substitution
+was made. See the [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance).

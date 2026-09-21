@@ -24,6 +24,25 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Verification and execution record
 
-Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-The milestone owner must record source/artifact identities and focused public
-checks here. Native, human and external evidence cannot be self-certified.
+Imported untested under mandate r1 at RFC base
+`d0a8a6dda005af12b3818234f4878a9f48a44146`. M8 under r3 prepared source
+`6ad716350c7f2e02a1b00370ea49cd5b77ce4c15`, version 0.1.3, with the existing
+offline `tools/release.sh --prepare-only` route. No publication or trust approval.
+
+On native arm64 macOS 26.6.2 (25G83), an isolated HOME installation reached the
+closed CLI fixture's exact review.cpp comparison (11–16 versus 21–26), one map,
+one shared controller, keyboard focus, metadata-only diagnostic preview,
+confirmed retirement/clear and normal Command-Q exit. This exposed and fixed
+the missing Quit menu after last-workbench retirement. All 43 final payload
+file hashes match the exercised candidate; the final installed audit passes.
+Recoverable bundle removal preserved every profile/cache file hash and the
+cleared diagnostic file stayed absent.
+
+AC1–AC3 remain pending in full: the fixture is not a clean OS/account with a
+working native vault; its default Keychain is absent, so full purge is correctly
+unavailable. Real credential continuity/deletion and exact residual policy
+still need a disposable clean account. Two exact AC2 human questions are
+prepared in `rfc0014-m8-native-v001.json`: `BPR-0958-native-diff-v001` and
+`BPR-0958-maintenance-clarity-v001`. No human decision was supplied.
+See the [M8 ledger](../../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
+and the durable M8 handoff for hashes, commands and retained review resources.

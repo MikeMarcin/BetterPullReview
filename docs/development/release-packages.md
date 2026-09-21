@@ -92,6 +92,15 @@ executable, with the platform-emitted filenames. macOS additionally carries
 plugin-path overrides are removed, and arbitrary plugin-loading CLI options are
 refused. The app never uses developer Qt paths as a fallback.
 
+The Windows MSI remembers its selected per-user directory in its own HKCU
+installer value so repair/uninstall resolve the same directory, including a
+custom location. CPack supplies the normal installed-location metadata. Use
+native backslash paths with `msiexec`; M8's forwarded-slash command was refused
+before installation. The native M8 run used an elevated SSH token and therefore
+does not prove the ordinary-user desktop route. The generic full package audit
+currently refuses stripped installed PE symbol tables; do not turn a successful
+MSI/file/graph/import or producer-map check into complete security acceptance.
+
 Uninstalling program files does not purge profiles, credentials, exported user
 files, desktop registry or update-recovery records. Storage & privacy's explicit
 profile purge retires that profile first; cancellation does not restart it.

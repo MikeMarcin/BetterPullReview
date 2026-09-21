@@ -3,9 +3,9 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m7` owns only
-`rfc-bpr-0014-release-readiness/m7-focused-tests-fixtures` on `main`.
-The M1–M6 records below retain their original child and candidate provenance.
+current child `/root/rfc0014_m8` owns only
+`rfc-bpr-0014-release-readiness/m8-ux-ui-native-verification` on `main`.
+The M1–M7 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -947,3 +947,159 @@ copies and temporary outputs. Original candidates and ignored local evidence
 archives remain. All owned commands/children are finished and no review server
 is handed off. Live project/MASK hashes were rechecked after remote cleanup and
 remain unchanged.
+
+## Milestone 8 native candidates and pending acceptance
+
+M8 is **not complete**. The sole `/root/rfc0014_m8` implementer owns only
+`m8-ux-ui-native-verification` under mandate r3 and coordinator-implementer rev2.
+Entry was `789ccc311264271086e69ddec8d9cbd07a7ec839`; RFC base remains
+`d0a8a6dda005af12b3818234f4878a9f48a44146`. The
+[bound checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json)
+and [handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m8.json)
+retain all four complete card obligations and both exits. None is accepted.
+Independent M9/M10 work requires renewed coordinator scope, not an M8 waiver.
+
+### Exact candidate and corrections
+
+Final product source is `6ad716350c7f2e02a1b00370ea49cd5b77ce4c15`, version
+0.1.3. Native execution found and corrected five concrete problems:
+
+- `3a2404df`: after rejecting non-ASCII/unsafe filename characters, convert each
+  validated Windows `wchar_t` explicitly; MSVC `/WX` no longer rejects implicit
+  narrowing in the maintenance file adapter.
+- `277a2c57`: make the actual entry-point runtime header portable; restore the
+  macOS desktop Quit menu when maintenance retires the last workbench while
+  Settings remains alive. The public test now uses that real Quit action.
+- `6c46ce2f`, `9d03edb5`, `ff5242c4`: use CPack's existing WiX patch mechanism
+  to remember the per-user custom install root in HKCU and restore it before
+  costing. Native uninstall removes that exact root. The final patch uses the
+  real executable component and leaves CPack's existing ARP metadata intact.
+- `6ad71635`: compile the MSVC test-only CRT support only with `BUILD_TESTING`.
+  The installed-package audit found it in shipped helpers; it was not waived.
+
+This preserves the core/host/Qt ownership model. Only adapter filename encoding,
+Qt desktop lifetime, entry composition and package/test graph mechanics change.
+The refinement pass stays within touched code. No new release implementation,
+fixture shortcut, deployment service or runtime dependency was introduced.
+
+| Exact artifact | SHA-256 |
+|---|---|
+| macOS executable | `5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54` |
+| `BetterPullReview-0.1.3-macos-universal-local.zip` | `a6fbad8a60f8f8c27156f2964ba44af7311f77e2ef6b8d64ac20fb4045dd6cb0` |
+| macOS SPDX sidecar | `0e7cdb572489b7abc5a839a517a16974b24b4c209c55a2c41dab4c14c312a8b1` |
+| Windows executable | `61f4d792cc6ea8171e833e40190e1e76e5960cb7e3da6af20da5a23f1097cc73` |
+| `BetterPullReview-0.1.3-windows-x64.msi` | `ee2e304b9ab84c36105b7f365c6685caf1c5222313af927693d8a620dc0ac698` |
+| Windows SPDX sidecar | `af694bf4df30d22fb173c0b811a01228084d3abfd610bf974fcdf58219098be5` |
+
+The macOS candidate is in `build/releases/m8-6ad71635`, produced through the
+existing publish-release skill's offline `tools/release.sh --prepare-only`
+route, tests disabled, minimum macOS 13, universal, ad-hoc sealed only. All 43
+payload file hashes are identical to the native-rendered `277a2c57` package;
+later changes affect Windows only. Comparing complete sorted SPDX `files`
+arrays passes, and the installed copies pass the final source/SBOM audit.
+Only source provenance, SPDX and archive wrapper change. This exact byte binding
+justifies reuse of native rendered observations; it is not reuse by version name.
+
+The Windows candidate is retained at
+`C:/Users/mikem/bpr0014-m8-df273695/candidate-6ad71635`. The external source clone
+is detached at the exact final commit. `packaging/package.py --generator WIX`
+uses native MSVC 19.51.36257.0/14.51.36231, Qt 6.10.3, CMake 4.4, task-local
+WiX/UI 4.0.6 and the installed MSVC redistribution notice. It is unsigned;
+notice inclusion is not license/source-offer approval. M9 retains that decision.
+
+### Native observations and limits
+
+| Card / declared environment | Direct M8 observation | Required pending work |
+|---|---|---|
+| BPR-0958 / macOS 13+ arm64 | macOS 26.6.2 (25G83), Retina 3456×2234; exact package in isolated HOME, closed CLI auth fixture, selected-file comparison, keyboard/map, diagnostics, retirement/clear, normal Quit and recoverable bundle removal | Clean disposable OS/account with default Keychain, actual credential continuity/deletion, full purge/residuals and two human interaction decisions |
+| BPR-0959 / native macOS Intel | No eligible native Intel station supplied | All three criteria; arm64 universal slices or Rosetta are not native Intel evidence |
+| BPR-0960 / Windows 10/11 x64 | Actual Windows 11 Home 10.0.26200 AMD64; native build, MSI custom-root install/uninstall, inventory/graph/dependencies/producer-map checks | Non-elevated clean desktop, Windows 10, native auth/rendered fixture/vault/full purge/residuals and full stripped-PE audit |
+| BPR-0961 / Ubuntu 24.04 and RHEL 10 x64 | Available WSL is Ubuntu 26.04, kernel 6.18.33.2; no declared baseline found | Both declared clean native DEB/RPM baselines and all three criteria; no substitute baseline accepted |
+
+On macOS the existing closed read-only CLI fixture provided only synthetic
+`octo-reviewer`, `octo-org/review-repository` PR 17 and local Git objects. No
+live GitHub authentication, mutation or private repository content was used.
+Native AX/screenshot observations showed exact earlier values 11–16 and later
+21–26 in `review.cpp`, one replacement correspondence map and one shared
+comparison position. Return on the map, then Tab, reached later source focus.
+Settings preview showed 57 metadata records/2677 bytes without free text,
+paths, identity, source, comments or credential bodies. The confirmation's
+default Cancel, retirement with Settings surviving, and truthful two-entry
+diagnostic clear were observed. Command-Q then exited normally; the launcher
+reaped the process and the qualification guard preserved live configuration.
+
+The first native maintenance course exposed the lost Quit menu and timed out;
+a secondary queued-activation process was not counted as a full course. The
+fixed candidate's rendered course and regression both pass. One 360-second
+launcher request was refused before launch; the valid bound is 300 seconds.
+These failures remain recorded, not relabeled as passing observations.
+
+The isolated HOME has no default Keychain (`security default-keychain -d user`
+refuses it), so the actual vault capability is absent and full-profile purge
+correctly remains unavailable. No default Keychain was fabricated and no real
+credentials were touched. Bundle removal preserved every profile/cache file
+hash; the previously cleared diagnostic file remained absent. This proves only
+the observed uninstall-retention portion, not complete AC3.
+
+Windows MSI product `{67A42F3D-0F59-437D-BAE4-34DCEAB3898F}` installed with exit
+0, native `WindowsInstaller.Installer.ProductState` 5 and the correct custom
+location. Uninstall returned 0, state -1 and the owned install root was absent.
+The first candidate left files because the custom directory was not remembered;
+the WiX correction fixes the actual cause. Native `msiexec` paths must use
+backslashes; a forward-slash attempt failed with 1619 before installation.
+Exact product queries replaced an inadequate registry enumeration. The SSH
+session is elevated, so none of this establishes ordinary-user privilege needs
+or an attended clean desktop. No Windows graphical app/profile was opened.
+
+The full installed audit correctly rejected a test CRT source in the graph,
+then, after the fix, refused `llvm-nm --demangle produced an empty symbol table`
+on stripped PE images. That security inspection is still pending; the audit
+was not weakened. A bounded native mechanics course independently checks all
+23 payload hashes and required files, all 222 test-free first-party compile
+units, 16 PE dependency inventories, byte equality with producer app/helpers,
+and actual app composition through its producer linker map and `undname`.
+Those passing checks are explicitly narrower than a full installed audit.
+
+### Verification, protection and continuation
+
+Final `6ad71635` focused CTest passes 5/5 in 22.713s: public maintenance,
+native empty-desktop menu, SQLite maintenance files, package-runtime contract
+and release-package-audit contract. Package Python tests pass 12/12; audit
+regressions pass 6/6. Touched C++ formatting and whitespace checks pass.
+The final macOS installed audit checks 43 files, 13 binaries, 227 compile units
+and all 34 composition anchors; both independent fresh review copies pass.
+The final Windows package command and narrower mechanics course pass, with
+full-audit refusal retained. Exact commands and ignored receipts are in the
+durable handoff; unchanged M7 hostile/runtime inspector evidence is not
+repeated or promoted to platform acceptance.
+
+Documentation verifier regression passes 64/64; the final documentation gate
+reports `DOCUMENTATION_OK`. Board validation reports 957 cards with no errors.
+The first gate ran before the new handoff file existed and correctly refused
+its missing link; the completed handoff resolves it. Initial move commands used
+the semantic name `blocked`; the helper requires the configured `50-blocked`
+folder, and refused those attempts without writes. Corrected moves preserve
+the platform metadata and name the concrete missing environments/accounts.
+
+Both remote stations were acquired through their exclusive station-writer
+lease and the qualification guard. JaegAW's live checkout remains `b9cf4edb`,
+WSL's `1aabc2f3`; their existing dirty `.mask.lock.json` files remain unchanged.
+Windows reused the existing pinned Qt cache read-only and used its absolute
+installed MASK helper because the repository skill link is unresolved.
+Task-local WiX/.NET setup created one untrusted localhost development
+certificate as a first-run side effect. Its exact thumbprint and creation time
+were checked, and only that task-created certificate was removed. Subsequent
+commands disable that .NET first-run behavior. No user vault item was removed.
+
+The [review manifest](reviews/rfc0014-m8-native-v001.json) supplies two separate
+fresh isolated homes, absolute launch commands and one question per criterion.
+`BPR-0958-native-diff-v001` asks source/map/focus usability;
+`BPR-0958-maintenance-clarity-v001` asks local maintenance scope/confirmation
+clarity. Session `cbd48b91000b00f1e72e1ad62c7c384c` protects both exact candidates
+without overwriting previous unrelated decisions or protection. Human outcomes
+remain pending. The coordinator receives the full token-bearing loopback URL
+privately, event cursor and server ownership; no access token is committed.
+Only the review server is intentionally handed off. Product/native commands
+are finished and station leases are free. The next engineering round must
+interpret actual decisions and reconcile remaining clean-platform evidence;
+it must not close M8 or the RFC from two narrower human answers.

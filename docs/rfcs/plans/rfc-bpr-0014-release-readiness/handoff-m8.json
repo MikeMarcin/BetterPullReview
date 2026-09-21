@@ -1,0 +1,452 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m8-ux-ui-native-verification",
+    "child": "/root/rfc0014_m8",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m8-ux-ui-native-verification",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "789ccc311264271086e69ddec8d9cbd07a7ec839",
+  "candidate_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+  "result": "human-pending-with-explicit-native-dependencies",
+  "rfc_status": "Proposed",
+  "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
+  "verification_ledger": "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance",
+  "commits": [
+    {
+      "revision": "df273695d4484c42fa7b2f0a7a3fe95c16443dc0",
+      "purpose": "Claim BPR-0958"
+    },
+    {
+      "revision": "06ffa1ccf1d00f87fb0b82c9388006686f60b599",
+      "purpose": "Claim eligible Windows BPR-0960"
+    },
+    {
+      "revision": "3a2404dfcb661b17947e3071c7e8e647e5862f8f",
+      "purpose": "Explicit validated native filename conversion and bound M8 checkpoint"
+    },
+    {
+      "revision": "277a2c572ab20e81aa164bdcd2b5856d9e74ad74",
+      "purpose": "Portable entry include and native Quit after last-workbench retirement; public regression"
+    },
+    {
+      "revision": "6c46ce2fa5eaa5196bf6ffa3303c8df5c2af21e8",
+      "purpose": "Persist custom per-user MSI install root and add closed patch regression"
+    },
+    {
+      "revision": "9d03edb5f58b8bb2eb855dcec1d59b1cbae22599",
+      "purpose": "Bind MSI registry persistence to actual executable component"
+    },
+    {
+      "revision": "ff5242c44a9a2a951a00f4373225c8f08b5ebf1a",
+      "purpose": "Reuse CPack ARP metadata action without duplication"
+    },
+    {
+      "revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+      "purpose": "Exclude test CRT support from all tests-disabled production helpers"
+    }
+  ],
+  "changed_paths": [
+    "CMakeLists.txt",
+    "packaging/Install.cmake",
+    "packaging/windows/InstallRoot.xml",
+    "src/adapters/sqlite/src/release_maintenance_files.cpp",
+    "src/app/main.cpp",
+    "src/app/src/profile_desktop.cpp",
+    "tests/end_to_end/release_maintenance_public_path_tests.cpp",
+    "tests/msvc_quiet_crt_reports.cpp",
+    "tests/scripts/package_runtime_tests.py",
+    "docs/development/release-packages.md",
+    "docs/issues/README.md",
+    "docs/issues/40-parked/BPR-0958-qualify-macos-arm64-package.md",
+    "docs/issues/50-blocked/BPR-0959-qualify-macos-intel-package.md",
+    "docs/issues/50-blocked/BPR-0960-qualify-windows-x64-package.md",
+    "docs/issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m8.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m8.json",
+    "docs/verification/RFC-BPR-0014.md",
+    "docs/verification/reviews/rfc0014-m8-native-v001.json"
+  ],
+  "artifacts": {
+    "macos": {
+      "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+      "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m8-6ad71635",
+      "version": "0.1.3",
+      "executable_sha256": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54",
+      "archive": "BetterPullReview-0.1.3-macos-universal-local.zip",
+      "archive_sha256": "a6fbad8a60f8f8c27156f2964ba44af7311f77e2ef6b8d64ac20fb4045dd6cb0",
+      "sbom": "BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+      "sbom_sha256": "0e7cdb572489b7abc5a839a517a16974b24b4c209c55a2c41dab4c14c312a8b1",
+      "file_count": 43,
+      "binaries": 13,
+      "first_party_compile_units": 227,
+      "production_anchors": 34,
+      "trust": "Offline ad-hoc only; no Developer-ID signing, notarization, Gatekeeper or license approval",
+      "native_reuse": "Complete sorted SPDX files arrays compare equal with rendered 277a2c57 payload. All 43 bytes/hashes, including executable, are identical. Final-source installed audit passes both fresh review copies. Later product changes affect Windows only; SPDX provenance/archive wrapper changed."
+    },
+    "windows": {
+      "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+      "root": "C:/Users/mikem/bpr0014-m8-df273695/candidate-6ad71635",
+      "version": "0.1.3",
+      "msi": "BetterPullReview-0.1.3-windows-x64.msi",
+      "msi_sha256": "ee2e304b9ab84c36105b7f365c6685caf1c5222313af927693d8a620dc0ac698",
+      "sbom_sha256": "af694bf4df30d22fb173c0b811a01228084d3abfd610bf974fcdf58219098be5",
+      "executable_sha256": "61f4d792cc6ea8171e833e40190e1e76e5960cb7e3da6af20da5a23f1097cc73",
+      "product_code": "{67A42F3D-0F59-437D-BAE4-34DCEAB3898F}",
+      "file_count": 23,
+      "binaries": 16,
+      "first_party_compile_units": 222,
+      "trust": "Unsigned; installed notice is not license/source-offer approval",
+      "state": "Final MSI uninstalled: exit 0, ProductState -1, exact install directory absent; source/build/artifact retained."
+    }
+  },
+  "commands": [
+    {
+      "command": [
+        "tools/release.sh",
+        "--version",
+        "0.1.3",
+        "--prepare-only",
+        "--skip-tests",
+        "--output-dir",
+        "build/releases/m8-6ad71635"
+      ],
+      "result": "Pass 21.339s; existing release route reused",
+      "receipt": "build/m8-macos-candidate-package-evidence.json"
+    },
+    {
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^(application_release_maintenance_public_path|application_profile_empty_desktop_native_menu_bar|sqlite_release_maintenance_files|package_runtime_contract|release_package_audit_contract)$"
+      ],
+      "result": "Final source: 5/5 pass in 22.713s",
+      "receipt": "build/m8-integration-evidence.json"
+    },
+    {
+      "command": [
+        "python3",
+        "tests/scripts/package_runtime_tests.py"
+      ],
+      "result": "12/12 pass"
+    },
+    {
+      "command": [
+        "python3",
+        "tests/scripts/verify_release_package_tests.py"
+      ],
+      "result": "6/6 pass"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_release_package.py",
+        "--build",
+        "build/macos-release",
+        "--root",
+        "/Users/jaeger/bpr0014-m8.hqGy0H/review-diff/home/Applications/BetterPullReview.app",
+        "--sbom",
+        "build/releases/m8-6ad71635/BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+        "--source-revision",
+        "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15"
+      ],
+      "result": "RELEASE_PACKAGE_OK; same command for review-maintenance passes",
+      "receipt": "build/m8-macos-final-installed-audit.json"
+    },
+    {
+      "command_ref": "docs/verification/reviews/rfc0014-m8-native-v001.json:candidates[].launch.command",
+      "result": "Absolute replay commands with copied tests-OFF CMake cache, qualification guard and isolated synthetic HOME. Historical rendered fixture-v2 course exited normally in 145.384s; both fresh protected review copies are stopped.",
+      "receipt": "build/m8-macos-installed-course-v3.json"
+    },
+    {
+      "command_ref": "build/m8-macos-uninstall.sh",
+      "result": "Recoverable bundle removal; all before/after profile/cache hashes equal, cleared diagnostics absent",
+      "receipt": "build/m8-macos-uninstall-evidence.json"
+    },
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "windows-app-release",
+        "-DBPR_QT_ROOT=C:/code/git/bpr-windows/build/.cpm-cache/bprqt/6.10.3/6.10.3/msvc2022_64"
+      ],
+      "result": "Native MSVC configured; existing pinned Qt reused read-only"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "windows-app-release",
+        "--target",
+        "app_better_pull_review",
+        "-j",
+        "12"
+      ],
+      "result": "Final tests-disabled native production build passes"
+    },
+    {
+      "command": [
+        "py",
+        "-3",
+        "C:/Users/mikem/bpr0014-m8-df273695/source/packaging/package.py",
+        "--build",
+        "C:/Users/mikem/bpr0014-m8-df273695/source/build/windows-app-release",
+        "--generator",
+        "WIX",
+        "--output",
+        "C:/Users/mikem/bpr0014-m8-df273695/candidate-6ad71635"
+      ],
+      "result": "Final build/package course passes 34.823s",
+      "receipt": "build/m8-windows-package-no-test-crt-evidence.json"
+    },
+    {
+      "command": [
+        "msiexec.exe",
+        "/i",
+        "C:\\Users\\mikem\\bpr0014-m8-df273695\\candidate-6ad71635\\BetterPullReview-0.1.3-windows-x64.msi",
+        "/qn",
+        "/norestart",
+        "INSTALL_ROOT=C:\\Users\\mikem\\bpr0014-m8-df273695\\installed",
+        "/l*v",
+        "C:\\Users\\mikem\\bpr0014-m8-df273695\\install.log"
+      ],
+      "result": "Exit 0; exact product state 5 and correct InstallLocation. Elevated SSH token, so ordinary-user qualification remains pending."
+    },
+    {
+      "command": [
+        "py",
+        "-3",
+        "C:/Users/mikem/bpr0014-m8-df273695/source/scripts/verify_release_package.py",
+        "--build",
+        "C:/Users/mikem/bpr0014-m8-df273695/source/build/windows-app-release",
+        "--root",
+        "C:/Users/mikem/bpr0014-m8-df273695/installed",
+        "--sbom",
+        "<one actual installed sidecar>",
+        "--source-revision",
+        "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15"
+      ],
+      "result": "FAIL: llvm-nm --demangle produced an empty symbol table. Audit remains fail-closed; narrower mechanics do not satisfy it.",
+      "receipt": "build/m8-windows-candidate-installed-audit-evidence.json"
+    },
+    {
+      "command": [
+        "msiexec.exe",
+        "/x",
+        "C:\\Users\\mikem\\bpr0014-m8-df273695\\candidate-6ad71635\\BetterPullReview-0.1.3-windows-x64.msi",
+        "/qn",
+        "/norestart",
+        "/l*v",
+        "C:\\Users\\mikem\\bpr0014-m8-df273695\\uninstall.log"
+      ],
+      "result": "Finally block: exit 0; exact product state -1 and installed directory absent"
+    },
+    {
+      "command_ref": "C:/Users/mikem/bpr0014-m8-df273695/basics.ps1 and basics.py; local copies build/m8-windows-basics.ps1 and .py",
+      "result": "WINDOWS_PACKAGE_MECHANICS_OK 6.291s: 23 exact files, 222 test-free units, 16 native dependency inventories, producer app/helper hash equality and app link /MAP | undname composition. Full stripped-PE and native GUI/auth/vault still pending.",
+      "receipt": "build/m8-windows-mechanics-evidence.json"
+    },
+    {
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "result": "64/64 pass; hostile-fixture ERROR diagnostics are expected"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "result": "DOCUMENTATION_OK with the final handoff and blocked-card moves; rerun after guarded human-pending finish"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "result": "Pass; touched C++ formatting also passes"
+    }
+  ],
+  "native_routing": {
+    "scope": "No native live source/branch mutation. Windows builds only in the detached external clone; Linux qualification unavailable and no M8 provisioning attempted.",
+    "wrapper": "station_lease.py run --role station-writer --station bpr-win --repo C:/code/git/bpr-windows -- py -3 qualification_guard.py --allowed-root C:/Users/mikem/bpr0014-m8-df273695 --target-root C:/Users/mikem/bpr0014-m8-df273695 --live-root C:/code/git/bpr-windows --live-file <project.json> --live-file <.mask.lock.json> -- powershell -NoProfile -NonInteractive -File <owned script>",
+    "windows_guard_root": "C:/Users/mikem/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts",
+    "transport": "SSH aito-main-win; native PowerShell -EncodedCommand (UTF-16LE), avoiding MSYS WSL path rewriting. Native Python py -3.",
+    "windows": {
+      "station": "bpr-win",
+      "station_id": "stn-a5155427",
+      "os": "Windows 11 Home 10.0.26200 AMD64",
+      "live_checkout": "C:/code/git/bpr-windows",
+      "live_revision": "b9cf4edb316dceaf8c7ea75f4c7321ce353651e8",
+      "source_clone": "C:/Users/mikem/bpr0014-m8-df273695/source",
+      "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+      "msvc": "19.51.36257.0 / 14.51.36231, VS 18 Community",
+      "qt": "6.10.3 msvc2022_64",
+      "cmake": "4.4",
+      "python": "3.14.7",
+      "wix": "4.0.6 with WixToolset.UI.wixext/4.0.6; task-local",
+      "msvc_notice": "C:/Program Files/Microsoft Visual Studio/18/Community/Licenses/1033/Redist.txt; owner legal approval pending",
+      "mask_lock_sha256": "a1619aa548470dd9adcc5f4288830d3426698f9fbe6f2c8d75f7905c24bf76e0"
+    },
+    "linux": {
+      "station": "bpr-linux",
+      "station_id": "stn-3f7fcc92",
+      "os": "Ubuntu 26.04 LTS WSL2, 6.18.33.2-microsoft-standard-WSL2 x86_64",
+      "live_checkout": "/home/mmarcin/bpr-linux",
+      "live_revision": "1aabc2f3bbd619a8e26938b8c2e909e4a7058f3e",
+      "mask_lock_sha256": "c50f588f8093017c41a0b3c29bba9817ba3f73083da4741e4d91acb7b6d4a575",
+      "eligibility": "Not Ubuntu 24.04 or RHEL 10; no baseline substitute or provisioning performed"
+    },
+    "live_project_sha256_all_hosts": "faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2",
+    "live_local_mask_sha256": "a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf",
+    "live_files_unchanged": true
+  },
+  "review_handoff": {
+    "required_for_m8": true,
+    "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "event_cursor": 451,
+    "url": "Full token-bearing loopback URL returned privately to coordinator; durable local .mask/attended-review/session.json host.url. Never commit access token.",
+    "server": {
+      "pid": 18863,
+      "port": 50579,
+      "exec_session": 60423,
+      "command": [
+        "python3",
+        "-u",
+        ".agents/skills/attended-review/scripts/attended_review.py",
+        "--repo-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "serve"
+      ],
+      "ownership": "Explicitly handed off to coordinator; sole allowed surviving task command"
+    },
+    "offline_html": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/m8-attended-review.html",
+    "manifest": "docs/verification/reviews/rfc0014-m8-native-v001.json",
+    "candidates": [
+      {
+        "id": "BPR-0958-native-diff-v001",
+        "fingerprint": "daf5be5cb08311e758960c67e6ecdb07071b95b4aff925b5324acbb734049e77",
+        "phase": "ready",
+        "protected": true,
+        "decision": null,
+        "fixture": "/Users/jaeger/bpr0014-m8.hqGy0H/review-diff"
+      },
+      {
+        "id": "BPR-0958-maintenance-clarity-v001",
+        "fingerprint": "b352efe45d939c97aff4425a6919afd5f1bd20dfac2ffb7d10a89e1fe72f9274",
+        "phase": "ready",
+        "protected": true,
+        "decision": null,
+        "fixture": "/Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance"
+      }
+    ],
+    "protection": "Exact final macOS artifact directory, fixture launcher source and two separate install/fixture resources. Static install version binds executable SHA. No repository-wide freeze; do not mutate shared protected inputs.",
+    "prior_session": "Existing unrelated BPR-0755-neutral-identity-v001 protection and all historical decisions preserved.",
+    "interpretation": "Coordinator arms event watch from cursor 451 after handoff. Next engineering round interprets actual scoped decisions. Even both accepts do not complete AC1/AC3 or other platforms."
+  },
+  "ownership": {
+    "exclusive_writer": "/root/rfc0014_m8; no delegated agents; release at final return",
+    "background_commands": [],
+    "running_apps_or_helpers": [],
+    "review_servers": [
+      18863
+    ],
+    "remote_writers": "No remote agents. Station leases released after commands; final exact product absent and no task app/helper process.",
+    "other_worktrees": "Existing RFC18-26/36/37, superseded/ignored checkouts and prior protected candidate untouched.",
+    "cleanup": "Completed Mac fixture, fixture-v2 and removed-v2.app moved recoverably to /Users/jaeger/.Trash/bpr0014-m8-courses.00Ne8Z. Only two fresh protected review roots remain in /Users/jaeger/bpr0014-m8.hqGy0H. Windows obsolete candidate-ff5242c4 and uninstalled-first-candidate-residuals deleted after final artifact/source verification; these were reproducible task-only outputs, not user data. Final Windows candidate/source/build, task-local WiX cache and replay scripts/receipts are deliberately retained for exact PE follow-up; normal ignored local build evidence remains.",
+    "certificate_cleanup": "Task-local .NET first run unexpectedly generated one untrusted CN=localhost certificate. Matched exact thumbprint C73A7EB30494A1E734CB66EBFC0ACF8FF360E184 and NotBefore UTC 2026-09-21T12:44:38Z, then removed only that task-created item; final Test-Path false. Future package script sets DOTNET_GENERATE_ASPNET_CERTIFICATE=false. No broad store cleanup or real application credential access."
+  },
+  "board_state": {
+    "BPR-0958": "Parked for human-review by guarded finish; every full criterion remains pending",
+    "BPR-0959": "Blocked: native-intel-environment",
+    "BPR-0960": "Blocked: clean-windows-desktop-vault; stripped-PE audit also pending",
+    "BPR-0961": "Blocked: declared-linux-baselines",
+    "M8": "Both exits pending; no card moved Done",
+    "M9 and later": "Not claimed by this leaf"
+  },
+  "required_pending": [
+    "BPR-0958 AC1: disposable clean macOS arm64 OS/account with working native default Keychain and authorized authentication; isolated CLI fixture success is partial.",
+    "BPR-0958 AC2: exact native-diff and maintenance-clarity human decisions through the prepared attended session; agent AX/screenshot observations are not those verdicts.",
+    "BPR-0958 AC3: real native vault continuity/deletion, explicit full-profile purge and documented credential/file/cache residuals; bundle removal with preserved file hashes is partial.",
+    "BPR-0959 AC1-AC3: native Intel macOS environment and complete install/auth/rendered/maintenance/purge/uninstall evidence; no Rosetta or universal-slice substitution.",
+    "BPR-0960 AC1-AC3: clean Windows 10 and 11 non-elevated attended desktops, authorized auth/selected fixture, high-DPI/accessibility/maintenance and actual Credential Manager purge/residuals.",
+    "BPR-0960 full exact-installed PE symbol/security audit: stripped PE has no llvm-nm symbol table; do not waive or relabel narrower producer-map/mechanics evidence. Coordinate with assigned M9 owner.",
+    "BPR-0961 AC1-AC3: declared Ubuntu 24.04 and RHEL 10 x64 baselines with complete DEB/RPM/native fixture/vault/purge/uninstall evidence; available WSL Ubuntu 26.04 is not eligible.",
+    "M8 exit 1: complete clean native matrix remains unsatisfied.",
+    "M8 exit 2: required human outcomes remain unsupplied."
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0958:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"
+      ]
+    },
+    {
+      "id": "BPR-0959:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"
+      ]
+    },
+    {
+      "id": "BPR-0960:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"
+      ]
+    },
+    {
+      "id": "BPR-0961:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"
+      ]
+    },
+    {
+      "id": "m8-ux-ui-native-verification:exit:1",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"
+      ]
+    },
+    {
+      "id": "m8-ux-ui-native-verification:exit:2",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "wait",
+    "next_milestone": "m8-ux-ui-native-verification",
+    "reason": "pending-obligation",
+    "detail": "Return at exact M8 boundary. Coordinator takes review server/watch, obtains required platform/account inputs and interprets real decisions in a fresh engineering round. Independent M9/M10 can proceed only under renewed explicit scope. Do not self-certify required human, actual-vault, native-baseline or stripped-PE evidence."
+  },
+  "uncertainties": [
+    "No Developer-ID/AuthentiCode/notarization/license/distribution approval or publication authority; no tag/push/upload performed.",
+    "M8 package mechanics are not M9 release security or crash-privacy acceptance.",
+    "Existing MASK drift/incomplete and host_load not_verified remain unrepaired configuration observations."
+  ]
+}

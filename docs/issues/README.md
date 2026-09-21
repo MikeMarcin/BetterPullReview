@@ -31,3 +31,12 @@ matrix.
 The RFC index (`../rfcs/README.md`) remains the sequencing authority. Existing narrow product-owner exceptions and required real-platform evidence remain valid. Split portable and platform work only when the portable portion can be verified independently. [HISTORY.md](HISTORY.md) retains the historical narrative; it is not a duplicate live ledger.
 
 Closeout runs `python3 scripts/verify_documentation.py --root .` and records direct criterion/check/result/revision evidence. Specialized RFC-0016/17 historical contracts remain repository verification tools under `scripts/verification/rfc0016_attended_contract/`.
+
+RFC-0014 M8 has partial native candidates, not platform-matrix acceptance.
+BPR-0958 awaits exact macOS interaction review and clean-account/vault evidence;
+BPR-0959 needs a native Intel Mac; BPR-0960 needs clean ordinary-user Windows
+10/11 desktop/auth/vault evidence and complete PE qualification; BPR-0961 needs
+the declared Ubuntu 24.04/RHEL 10 environments. The
+[M8 ledger](../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
+retains the observed fixes and exact limitations. M9/M10 work is not accepted
+by M8 and requires renewed coordinator scope; RFC closeout remains gated.

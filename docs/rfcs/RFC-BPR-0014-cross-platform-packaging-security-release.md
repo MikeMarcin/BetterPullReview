@@ -196,3 +196,14 @@ Actual Windows and WSL probes verify process/socket/library inspector contracts;
 they do not qualify a native package or alter the declared platform baselines.
 Required install/authentication/removal, independent trust, crash/security and
 license/distribution acceptance remain with M8/M9; this RFC stays Proposed.
+
+M8's [native candidate ledger](../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
+records exact macOS rendered/maintenance evidence and native Windows MSI
+build/install/removal mechanics, together with the concrete defects they
+exposed and corrected. It reuses the existing release paths; native baselines,
+clean-account authentication/vault/purge, required human decisions and full
+Windows stripped-PE inspection are not inferred from partial success. Two
+scoped macOS questions are prepared for attended review. The Intel and declared
+Linux baselines remain unavailable, and the elevated Windows SSH session is
+not an ordinary-user desktop qualification. All four M8 cards and both exits
+remain pending; no trust approval, publication or RFC closeout is claimed.
