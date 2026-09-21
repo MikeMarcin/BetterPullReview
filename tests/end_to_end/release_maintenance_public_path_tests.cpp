@@ -124,6 +124,11 @@ auto main(int aArgc, char** aArgv) -> int
 	for (auto* model : window->findChildren<QAbstractItemModel*>()) {
 		observers.push_back(QObject::connect(model, &QAbstractItemModel::modelReset, window, [&] { ++resets; }));
 	}
+	{
+		std::ofstream hostile{ root / "logs/diagnostics.log", std::ios::app };
+		hostile << "2026-09-21T01:00:00Z v=1 op=application outcome=failed request=99 http_status=0 summary=sanitized dropped=0 detail=BPR_CANARY_SECRET_1 BPR_CANARY_SOURCE_1 BPR_CANARY_COMMENT_1\nlegacy BPR_CANARY_SOURCE_2\n";
+	}
+	expect(read(root / "logs/diagnostics.log").find("BPR_CANARY_SOURCE_2") != std::string::npos, "hostile legacy diagnostics actually reach the selected native log");
 	auto* button = panel->findChild<QPushButton*>(QStringLiteral("releaseMaintenanceCommand0"));
 	button->setFocus();
 	QKeyEvent press{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
@@ -135,6 +140,7 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(preview && preview->isReadOnly(), "exact export text is selectable read-only preview");
 	const auto bytes = preview->toPlainText().toStdString();
 	expect(bytes.starts_with("bpr-diagnostics-v1\n") && bytes.find("request=") == std::string::npos && bytes.find("detail=") == std::string::npos, "actual log is reduced to metadata");
+	expect(bytes.find("BPR_CANARY_") == std::string::npos && bytes.find("legacy") == std::string::npos, "public preview excludes secret, source, comment and malformed legacy bodies");
 	settings->resize(960, 680);
 	QApplication::processEvents();
 	const auto capture = qEnvironmentVariable("BPR_MAINTENANCE_PUBLIC_RENDER");

@@ -19,7 +19,8 @@ SOCKET_PATTERN = re.compile(r"socket:\[(\d+)\]")
 DARWIN_PID_MAX = (1 << 31) - 1
 DARWIN_CHILD_PID_LIMIT = 1024
 PRIVATE_DATA_ROOT_SWITCH = "--private-data-root"
-USAGE = f"usage: verify_runtime_surface.py [{PRIVATE_DATA_ROOT_SWITCH}] <executable>"
+NATIVE_PLATFORM_SWITCH = "--native-platform"
+USAGE = f"usage: verify_runtime_surface.py [{PRIVATE_DATA_ROOT_SWITCH}] [{NATIVE_PLATFORM_SWITCH}] <executable>"
 
 DarwinChildPidQuery = Callable[[int, ctypes.Array, int], int]
 
@@ -189,7 +190,7 @@ def macos_network_sockets(pid: int) -> list[str]:
 def windows_network_query(pid: int) -> str:
     return (
         f"$tcp = @(Get-NetTCPConnection -OwningProcess {pid} "
-        '-State Listen -ErrorAction SilentlyContinue | ForEach-Object { '
+        '-ErrorAction SilentlyContinue | ForEach-Object { '
         '"tcp:$($_.LocalAddress):$($_.LocalPort)" }); '
         f"$udp = @(Get-NetUDPEndpoint -OwningProcess {pid} "
         '-ErrorAction SilentlyContinue | ForEach-Object { '
@@ -213,13 +214,65 @@ def network_sockets(pid: int) -> list[str]:
     raise RuntimeError(f"unsupported runtime-audit platform: {system}")
 
 
-def parse_arguments(arguments: list[str]) -> tuple[Path, bool] | None:
-    """Return the executable and whether the launch gets a private data root."""
-    if len(arguments) == 1 and arguments[0] != PRIVATE_DATA_ROOT_SWITCH:
-        return Path(arguments[0]), False
-    if len(arguments) == 2 and arguments[0] == PRIVATE_DATA_ROOT_SWITCH:
-        return Path(arguments[1]), True
-    return None
+def loaded_libraries(pid: int) -> list[Path]:
+    system = platform.system()
+    if system == "Darwin":
+        result = subprocess.run(["lsof", "-a", "-p", str(pid), "-Fn"], check=True,
+                                capture_output=True, text=True, timeout=5)
+        names = [line[1:] for line in result.stdout.splitlines() if line.startswith("n/")]
+        return sorted({Path(name) for name in names if ".framework/" in name or name.endswith(".dylib")})
+    if system == "Linux":
+        names = [line.split(maxsplit=5)[-1] for line in Path(f"/proc/{pid}/maps").read_text().splitlines()]
+        return sorted({Path(name) for name in names if name.startswith("/") and ".so" in name})
+    if system == "Windows":
+        return [Path(name) for name in output_lines(powershell_output(
+            f"(Get-Process -Id {pid} -ErrorAction Stop).Modules | Select-Object -ExpandProperty FileName")) if name.lower().endswith(".dll")]
+    raise RuntimeError("unsupported loader inspection platform")
+
+
+def check_library_origins(paths: list[Path], package_root: Path) -> None:
+    package_root = package_root.resolve()
+    system = platform.system()
+    roots = {"Darwin": [Path("/usr/lib"), Path("/System/Library")],
+             "Linux": [Path("/usr/lib"), Path("/lib")],
+             "Windows": [Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32"]}[system]
+    require_qt = False
+    for path in paths:
+        resolved = path.resolve()
+        packaged = resolved.is_relative_to(package_root)
+        if not packaged and not any(resolved.is_relative_to(root.resolve()) for root in roots):
+            raise RuntimeError("loaded library outside package and declared system roots")
+        require_qt |= packaged and ("QtCore.framework" in str(path) or "Qt6Core" in path.name)
+    if not require_qt:
+        raise RuntimeError("no packaged QtCore observed in the running process")
+
+
+def parse_arguments(arguments: list[str]) -> tuple[Path, bool, bool] | None:
+    """Flags precede one executable; native selection adds no product test seam."""
+    if not arguments or arguments[-1].startswith("--"):
+        return None
+    switches = arguments[:-1]
+    if len(set(switches)) != len(switches) or any(
+        value not in (PRIVATE_DATA_ROOT_SWITCH, NATIVE_PLATFORM_SWITCH)
+        for value in switches
+    ):
+        return None
+    return (Path(arguments[-1]), PRIVATE_DATA_ROOT_SWITCH in switches,
+            NATIVE_PLATFORM_SWITCH in switches)
+
+
+def launch_environment(native_platform: bool, environment: dict[str, str] | None = None) -> dict[str, str]:
+    result = dict(os.environ if environment is None else environment)
+    if native_platform:
+        selected = {"Darwin": "cocoa", "Windows": "windows", "Linux": "xcb"}
+        try:
+            result["QT_QPA_PLATFORM"] = selected[platform.system()]
+        except KeyError as error:
+            raise RuntimeError("unsupported native Qt platform") from error
+    else:
+        result["QT_QPA_PLATFORM"] = "offscreen"
+    result["BPR_TEST_CANARY"] = CANARY
+    return result
 
 
 def application_command(executable: Path, data_root: Path | None) -> list[str]:
@@ -232,23 +285,19 @@ def application_command(executable: Path, data_root: Path | None) -> list[str]:
     return [str(executable), "--test-application-data-root", str(data_root)]
 
 
-def inspect_application(command: list[str]) -> int:
-    environment = os.environ.copy()
-    environment["QT_QPA_PLATFORM"] = "offscreen"
-    environment["BPR_TEST_CANARY"] = CANARY
-
+def inspect_application(command: list[str], *, native_platform: bool = False,
+                        environment: dict[str, str] | None = None,
+                        package_root: Path | None = None) -> int:
     process = subprocess.Popen(
         command,
-        env=environment,
+        env=launch_environment(native_platform, environment),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
     try:
-        time.sleep(0.5)
+        time.sleep(2 if native_platform else 0.5)
         if process.poll() is not None:
-            stdout, stderr = process.communicate(timeout=2)
-            print(stdout + stderr, file=sys.stderr)
             print("application exited before runtime inspection", file=sys.stderr)
             return 1
 
@@ -265,6 +314,10 @@ def inspect_application(command: list[str]) -> int:
                 file=sys.stderr,
             )
             return 1
+        if package_root is not None:
+            libraries = loaded_libraries(process.pid)
+            check_library_origins(libraries, package_root)
+            print(f"RUNTIME_LIBRARIES_OK:{len(libraries)}")
     finally:
         if process.poll() is None:
             process.terminate()
@@ -278,10 +331,13 @@ def inspect_application(command: list[str]) -> int:
     if CANARY in combined_output:
         print("canary secret appeared in application output", file=sys.stderr)
         return 1
+    if any(marker in combined_output for marker in ("STARTUP_FAILED", "INSTALLED_RUNTIME_REFUSED", "PROFILE_ALREADY_OPEN")):
+        print("application did not own a usable runtime", file=sys.stderr)
+        return 1
     return 0
 
 
-def inspect_with_private_data_root(executable: Path) -> int:
+def inspect_with_private_data_root(executable: Path, *, native_platform: bool = False) -> int:
     # `mkdtemp` creates the parent owner-only. It is resolved because the
     # application refuses a root whose existing ancestor is not spelled
     # canonically, and macOS reaches the temporary directory through links.
@@ -290,7 +346,7 @@ def inspect_with_private_data_root(executable: Path) -> int:
     parent = Path(tempfile.mkdtemp(prefix="bpr-runtime-surface-")).resolve(strict=True)
     data_root = parent / "data"
     try:
-        result = inspect_application(application_command(executable, data_root))
+        result = inspect_application(application_command(executable, data_root), native_platform=native_platform)
         if result == 0 and not data_root.is_dir():
             print(f"private data root was not composed: {data_root}", file=sys.stderr)
             result = 1
@@ -308,16 +364,16 @@ def main(arguments: list[str] | None = None) -> int:
         print(USAGE, file=sys.stderr)
         return 2
 
-    executable, private_data_root = parsed
+    executable, private_data_root, native_platform = parsed
     executable = executable.resolve()
     if not executable.is_file():
         print(f"missing executable: {executable}", file=sys.stderr)
         return 2
 
     result = (
-        inspect_with_private_data_root(executable)
+        inspect_with_private_data_root(executable, native_platform=native_platform)
         if private_data_root
-        else inspect_application(application_command(executable, None))
+        else inspect_application(application_command(executable, None), native_platform=native_platform)
     )
     if result != 0:
         return result

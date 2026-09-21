@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import io
 import os
 import platform
 import subprocess
@@ -20,6 +21,7 @@ from scripts.verify_runtime_surface import (  # noqa: E402
     DARWIN_CHILD_PID_LIMIT,
     DARWIN_PID_MAX,
     PRIVATE_DATA_ROOT_SWITCH,
+    NATIVE_PLATFORM_SWITCH,
     application_command,
     child_processes,
     darwin_child_processes,
@@ -60,11 +62,11 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
         self.assertIn('ParentProcessId = 4815', query)
         self.assertIn("Select-Object -ExpandProperty ProcessId", query)
 
-    def test_windows_network_query_checks_tcp_listeners_and_udp(self) -> None:
+    def test_windows_network_query_checks_all_owned_tcp_connections_and_udp(self) -> None:
         query = windows_network_query(90210)
 
         self.assertIn("Get-NetTCPConnection -OwningProcess 90210", query)
-        self.assertIn("-State Listen", query)
+        self.assertNotIn("-State Listen", query, "an outbound connection is also part of the runtime surface")
         self.assertIn("Get-NetUDPEndpoint -OwningProcess 90210", query)
         self.assertIn('"tcp:$($_.LocalAddress):$($_.LocalPort)"', query)
         self.assertIn('"udp:$($_.LocalAddress):$($_.LocalPort)"', query)
@@ -191,10 +193,12 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
 
 
     def test_arguments_accept_the_executable_alone_or_after_the_private_root_switch(self) -> None:
-        self.assertEqual(parse_arguments(["app"]), (Path("app"), False))
+        self.assertEqual(parse_arguments(["app"]), (Path("app"), False, False))
         self.assertEqual(
-            parse_arguments([PRIVATE_DATA_ROOT_SWITCH, "app"]), (Path("app"), True)
+            parse_arguments([PRIVATE_DATA_ROOT_SWITCH, "app"]), (Path("app"), True, False)
         )
+        self.assertEqual(parse_arguments([NATIVE_PLATFORM_SWITCH, "app"]), (Path("app"), False, True))
+        self.assertEqual(parse_arguments([PRIVATE_DATA_ROOT_SWITCH, NATIVE_PLATFORM_SWITCH, "app"]), (Path("app"), True, True))
         for arguments in (
             [],
             [PRIVATE_DATA_ROOT_SWITCH],
@@ -219,7 +223,8 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
     def private_root_run(self, outcome):
         seen: dict[str, object] = {}
 
-        def inspect(command: list[str]) -> int:
+        def inspect(command: list[str], *, native_platform: bool = False) -> int:
+            self.assertFalse(native_platform)
             self.assertEqual(command[1], "--test-application-data-root")
             data_root = Path(command[2])
             parent = data_root.parent
@@ -285,6 +290,52 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
         result, seen = self.private_root_run(raises)
         self.assertIsNone(result)
         self.assertFalse(Path(seen["parent"]).exists())
+
+    def test_native_environment_selects_only_the_declared_shipped_platform(self) -> None:
+        original = {"QT_QPA_PLATFORM": "offscreen", "QT_PLUGIN_PATH": "/hostile"}
+        for system, expected in (("Darwin", "cocoa"), ("Windows", "windows"), ("Linux", "xcb")):
+            with mock.patch.object(runtime_surface.platform, "system", return_value=system):
+                result = runtime_surface.launch_environment(True, original)
+                self.assertEqual(result["QT_QPA_PLATFORM"], expected)
+                self.assertEqual(result["QT_PLUGIN_PATH"], "/hostile", "audit must not hide a hostile origin from the product")
+        self.assertEqual(original["QT_QPA_PLATFORM"], "offscreen")
+        self.assertEqual(runtime_surface.launch_environment(False, {})["QT_QPA_PLATFORM"], "offscreen")
+
+    def test_inspection_rejects_early_exit_canary_socket_child_and_startup_failure(self) -> None:
+        for case in ("early", "canary", "socket", "child", "startup", "healthy"):
+            with self.subTest(case=case):
+                process = mock.Mock(pid=4815)
+                process.poll.return_value = 0 if case == "early" else None
+                output = runtime_surface.CANARY if case in ("early", "canary") else "STARTUP_FAILED" if case == "startup" else ""
+                process.communicate.return_value = (output, "")
+                errors = io.StringIO()
+                with (mock.patch.object(runtime_surface.subprocess, "Popen", return_value=process) as launch,
+                      mock.patch.object(runtime_surface.time, "sleep"),
+                      mock.patch.object(runtime_surface, "network_sockets", return_value=["tcp:socket"] if case == "socket" else []),
+                      mock.patch.object(runtime_surface, "child_processes", return_value=[72] if case == "child" else []),
+                      contextlib.redirect_stderr(errors)):
+                    result = runtime_surface.inspect_application(["app"], native_platform=True)
+                self.assertEqual(result, 0 if case == "healthy" else 1)
+                self.assertEqual(launch.call_args.args[0], ["app"], "native audit adds no in-product fixture flag")
+                self.assertNotIn(runtime_surface.CANARY, errors.getvalue())
+                process.communicate.assert_called_once()
+                if case != "early":
+                    process.terminate.assert_called_once()
+
+    def test_loader_queries_are_process_scoped_and_require_a_packaged_qt_positive(self) -> None:
+        with mock.patch.object(runtime_surface.platform, "system", return_value="Darwin"):
+            root = Path("/candidate/App.app")
+            qt = root / "Contents/Frameworks/QtCore.framework/Versions/A/QtCore"
+            runtime_surface.check_library_origins([qt, Path("/usr/lib/libSystem.B.dylib")], root)
+            for paths in ([], [Path("/usr/lib/libSystem.B.dylib")], [qt, Path("/untrusted/libUseful.dylib")]):
+                with self.assertRaises(RuntimeError):
+                    runtime_surface.check_library_origins(paths, root)
+            with mock.patch.object(runtime_surface.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=f"p4815\nn{qt.as_posix()}\nn/a/profile/database\n")) as query:
+                self.assertEqual(runtime_surface.loaded_libraries(4815), [qt])
+                self.assertEqual(query.call_args.args[0], ["lsof", "-a", "-p", "4815", "-Fn"])
+        with mock.patch.object(runtime_surface.platform, "system", return_value="Windows"), mock.patch.object(runtime_surface, "powershell_output", return_value="C:/Windows/System32/kernel32.dll\n") as query:
+            self.assertEqual(len(runtime_surface.loaded_libraries(90210)), 1)
+            self.assertIn("Get-Process -Id 90210 -ErrorAction Stop", query.call_args.args[0])
 
 
 if __name__ == "__main__":
