@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0953"
 title: "Implement release maintenance policy"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0952"]
 milestone: "M3 Deterministic functional core"
