@@ -14,8 +14,12 @@ metadata: {"milestone_plan":{"id":"rfc0036-native-markdown","path":"docs/rfcs/pl
 ## Request and outcome
 
 After opening their first PR in the 0.1.3 patch build, the owner requested
-Markdown rendering on 2026-09-18. This registers a proposal and backlog, not
-runtime implementation. Implementation is [[BPR-0916]]; verification and
+Markdown rendering on 2026-09-18. That registration created a proposal and backlog.
+Implementation is now authorized in a worktree, including an explicit comparison
+of md4qt with native Qt for GFM (mandate r2). The
+[shared reader design](../architecture/native-markdown.md) records the comparison
+and the component boundary; composed integration remains the second milestone.
+Implementation is [[BPR-0916]]; verification and
 closeout are [[BPR-0917]]. Registration baseline: `7ad0e43eb92c217ac6cd01fc478bde2968d217a0`.
 
 PR descriptions and review conversations should display readable formatted

@@ -26,6 +26,7 @@ add_library(
         src/native_window_chrome.cpp
         src/epoch_line.cpp
         src/workbench_landing.cpp
+        src/markdown_body_view.cpp
         src/pull_request_overview_page.cpp
         src/conversation_cards_view.cpp
         src/repositories_drawer.cpp

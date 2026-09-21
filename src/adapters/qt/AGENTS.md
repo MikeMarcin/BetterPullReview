@@ -16,6 +16,10 @@ themes, rendering mechanics, and event translation.
   constructs, parses, or opens an address — `QUrl` and a literal scheme are
   both refused here by `VerifyArchitectureBoundaries.cmake`, so the
   system-browser capability is host-owned and lives outside this adapter.
+  The sole inert exception is the unnamed `const QUrl&` parameter required by
+  `markdown_document::loadResource`: its exact guarded implementation returns
+  a valid empty byte array for every resource and never inspects the address.
+  Link destinations remain untrusted text gestures for application admission.
 - Public-preview presentation receives only
   `bpr/application/public_preview_projection.hpp` in addition to the ordinary
   GitHub projection. Its explicit unavailable facts and semantic gestures must

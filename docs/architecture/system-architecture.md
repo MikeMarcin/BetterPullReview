@@ -1102,7 +1102,12 @@ what is on screen, because neither moves the flow ([[BPR-0280]],
 **The browser capability is composition's, not Qt's.**
 `VerifyArchitectureBoundaries.cmake` refuses `QUrl`, `QDesktopServices`, and a
 literal scheme anywhere under `src/adapters/qt/`, so the presentation adapter
-cannot hold an address and cannot acquire an opener. `bpr::app::system_browser_opener`
+cannot construct an address or acquire an opener. RFC-BPR-0036 adds one guarded,
+inert exception: the unnamed address parameter required by the private Markdown
+document's resource-denial override. That function returns empty bytes without
+reading the address. Markdown destinations remain untrusted text gestures for
+application admission; [the reader contract](native-markdown.md) describes this
+component boundary. `bpr::app::system_browser_opener`
 is the one place in the shipped graph that hands an address to the platform's
 own launch service: no embedded web view, no browser engine, no network of its
 own, no listener, and no supervised child. Both graphs bind it for a person's

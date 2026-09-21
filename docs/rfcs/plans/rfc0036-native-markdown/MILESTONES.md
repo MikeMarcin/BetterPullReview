@@ -20,6 +20,7 @@ Select the Markdown dialect, safety and work bounds; provide one native reader v
 - The shared native component renders the declared synthetic corpus, retains original source/copy, denies document resources and emits explicit link gestures without effects.
 - Focused keyboard, selection, fallback, unchanged-refresh, appearance/scale and measured large/pathological-document checks pass at the exact component candidate.
 - The design, acceptance frontier and continuation are durable, focused architecture/documentation checks pass and task-owned commands are quiescent.
+- The owner-requested comparison of md4qt and native Qt covers the declared GFM corpus, dependency/license/maintenance, resource boundary, measured bounded performance, native accessibility and source preservation, with a recorded renderer decision.
 
 **Boundary:** Component foundation only; keep BPR-0916 open for composed integration and all unsupplied native/human acceptance.
 
