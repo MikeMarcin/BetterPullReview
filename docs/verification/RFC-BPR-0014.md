@@ -3,9 +3,10 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m9_finalize` owns only
-`rfc-bpr-0014-release-readiness/m9-security-boundary-verification` on `main`.
-The M1–M7 records below retain their original child and candidate provenance.
+current child `/root/rfc0014_m10` owns only
+`rfc-bpr-0014-release-readiness/m10-documentation-impact` on `main` under
+coordinator-implementer rev2. The earlier records below retain their original
+child and candidate provenance; M8/M9 remain blocked.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -36,14 +37,14 @@ criteria; the row numbers below follow their existing order, not new requirement
 
 | RFC row | Direct falsifiable check and terminal observation | Owning cards | Current disposition |
 |---|---|---|---|
-| 1 Clean installation and operation | Install the exact candidate in a clean native user account; launch, authenticate through an authorized safe route, open a fixture PR, select a file and verify both displayed source identities; uninstall and inspect residuals | BPR-0956–0961 | Not run for the delivered matrix |
-| 2 Package trust | Verify the delivered installer/app/package signature, macOS notarization/staple and checksum using native trust tools independently of package generation; reject altered/untrusted artifacts | BPR-0962 | Existing Mac evidence is bounded to its recorded candidates |
-| 3 Runtime attack surface | Inspect packaged dependency closure plus native sockets, spawned processes, Qt plugin/library resolution and network destinations under public operation; compare with explicit allow-lists | BPR-0956, BPR-0957, BPR-0962 | Not run on final packages |
+| 1 Clean installation and operation | Install the exact candidate in a clean native user account; launch, authenticate through an authorized safe route, open a fixture PR, select a file and verify both displayed source identities; uninstall and inspect residuals | BPR-0956–0961 | M8 has three scoped macOS human accepts and Windows mechanics; full clean-account/native/vault/removal matrix is pending |
+| 2 Package trust | Verify the delivered installer/app/package signature, macOS notarization/staple and checksum using native trust tools independently of package generation; reject altered/untrusted artifacts | BPR-0962 | Current macOS candidate is ad-hoc, Windows MSI unsigned, native Linux package absent; prior updater trust is not transferable |
+| 3 Runtime attack surface | Inspect packaged dependency closure plus native sockets, spawned processes, Qt plugin/library resolution and network destinations under public operation; compare with explicit allow-lists | BPR-0956, BPR-0957, BPR-0962 | Exact Mac/Windows inventory and bounded runtime/IPC courses pass; active-operation and full native matrix remain pending |
 | 4 Inventory and licensing | Generate SBOM/notices/source-offer manifest from the actual shipped closure, reconcile versions/provenance and hash every delivered artifact; fail on omissions or substitutions | BPR-0956, BPR-0962 | Exact revised macOS licensing-v002 owner criterion accepted at hand-back 470; complete delivered matrix and revised Windows/Linux obligations remain pending |
-| 5 Release hardening policy | Name platform compiler/linker/runtime flags and release policy; run relevant static analysis, sanitizer/fuzz, secret/vulnerability scans with tool/database versions and adjudicated findings | BPR-0957, BPR-0962 | Policy and exact-artifact evidence pending |
-| 6 Storage and removal | Exercise vault/file/cache permissions, retention, explicit purge, migration, crash recovery and uninstall in disposable roots; compare actual retained/deleted items with docs | BPR-0953–0955, BPR-0958–0961 | Earlier component evidence does not prove packaged lifecycle |
-| 7 Diagnostic privacy | Seed source/comment/token canaries, preview/export diagnostics and inspect crash/log artifacts; defaults omit bodies/secrets and redaction survives hostile inputs | BPR-0953–0955, BPR-0957, BPR-0962 | Required controls and package course pending |
-| 8 Corporate packet | Reconcile network/storage/process/credential/AI/logging/removal claims with observed composed effects and final threat model | BPR-0952, BPR-0963 | Existing docs are inventory inputs; final packet pending |
+| 5 Release hardening policy | Name platform compiler/linker/runtime flags and release policy; run relevant static analysis, sanitizer/fuzz, secret/vulnerability scans with tool/database versions and adjudicated findings | BPR-0957, BPR-0962 | Policy and bounded M9 checks recorded; 21 Mac/19 Windows Grype findings, external hardening and native lifecycle coverage remain open |
+| 6 Storage and removal | Exercise vault/file/cache permissions, retention, explicit purge, migration, crash recovery and uninstall in disposable roots; compare actual retained/deleted items with docs | BPR-0953–0955, BPR-0958–0961 | Retained-lease maintenance is composed and fixture-tested; real native credential and complete installed removal courses remain pending |
+| 7 Diagnostic privacy | Seed source/comment/token canaries, preview/export diagnostics and inspect crash/log artifacts; defaults omit bodies/secrets and redaction survives hostile inputs | BPR-0953–0955, BPR-0957, BPR-0962 | Metadata preview/export and hostile courses pass at recorded candidates; resident source/comment/token crash course and native matrix remain pending |
+| 8 Corporate packet | Reconcile network/storage/process/credential/AI/logging/removal claims with observed composed effects and final threat model | BPR-0952, BPR-0963 | M10 publishes a tracked source-backed packet and operator instructions; pending artifact/native/security qualification is explicit, not certified by this document |
 | 9 Packaged architecture | Build/test core with Qt/provider unavailable; inspect delivered targets, required install rules and packaged symbols/dependencies; trace real host effects and exact selected comparison through composition | BPR-0952, BPR-0956, BPR-0957, BPR-0962 | Existing architecture checks must be bound to final package inputs |
 
 A successful launch alone is insufficient for row 1: the terminal observation
@@ -107,13 +108,13 @@ claimed by documentation tests.
 
 | Semantic obligation | Owning documents/surfaces | Disposition and owner |
 |---|---|---|
-| Core/host/Qt and typed ownership, identity, concurrency, projections | System architecture and architecture-conformance matrix | Plan recorded here; M2 allocates exact changes, M10 reconciles |
-| Application build/install/package, supported baseline, dependencies and license/source offer | README, build-and-test, packaging README and release tooling/operator guide | M6 implementation; M10 final source-backed instructions |
-| Credentials, storage, retention/purge, migration and removal | Product contract, foundation security, security threat model and operator docs | M3–M5 implement/qualify; M10 reconciles |
-| Network, subprocesses, AI, diagnostics and corporate posture | Security threat model, corporate packet, diagnostic/operator docs | M9 evidence; M10 final packet |
-| Qualified macOS updater and manual managed/Windows/Linux policy | Existing release-updater architecture/security and application-updates guide | Preserve owner amendment; revalidate only affected package boundary |
-| RFC acceptance, canonical order and continuation | RFC/index, adopted plan, live cards, this ledger and BPR-0965 | M1 creates truthful records; M12 alone may close |
-| Agent guidance | Applicable AGENTS.md and consumer context | No M1 rule changed; M10 updates only newly evidenced hazards or ownership changes |
+| Core/host/Qt and typed ownership, identity, concurrency, projections | System architecture, maintenance contract, UX specification and architecture-conformance matrix | Updated in M10 against composed ownership and direct test names; no behavioral edit |
+| Application build/install/package, supported baseline, dependencies and license/source offer | README, build-and-test, packaging README and release tooling/operator guide | M10 documents existing drivers, observed producers, separate source asset, eight-asset publication contract and pending trust/native inputs |
+| Credentials, storage, retention/purge, migration and removal | Product contract, foundation security, security threat model and storage/removal guide | M10 distinguishes remembered grants, exact cleanup, journals, residuals, raw logs and metadata export |
+| Network, subprocesses, AI, diagnostics and corporate posture | Security threat model and corporate packet | M10 packet reconciles source, actual scoped evidence, AF_UNIX exception, pending privacy and unresolved vulnerabilities |
+| Qualified macOS updater and manual managed/Windows/Linux policy | Existing release-updater architecture/security and application-updates guide | No change: existing documents already describe exact authority, private draft recovery, transaction residuals and qualification gaps; new guides cross-link them |
+| RFC acceptance, canonical order and continuation | RFC/index, adopted plan, live cards, this ledger and BPR-0965 | M10 updates progress only; index/acceptance/plan unchanged, RFC remains Proposed; M12 alone may close |
+| Agent guidance | Root/packaging AGENTS.md, docs AGENTS.md and consumer context | Root/packaging add evidenced hazards; docs/consumer no impact because ownership/configuration and documentation rules did not change |
 
 ## Safe fixtures and external boundaries
 
@@ -1542,3 +1543,100 @@ The plan and board both identify independent
 `m10-documentation-impact` / BPR-0963 as next, with accepted M7 its sole
 prerequisite. This owner does not claim or start M10. M12/RFC closeout still
 requires the complete M8/M9/M11 and canonical predecessor acceptance.
+
+## Milestone 10: agent and product documentation
+
+Fresh sole implementer `/root/rfc0014_m10` entered at clean
+`59226c62058cfa08387a91c872d7208b30275917`, mandate r3,
+coordinator-implementer rev2. Claim `4ba42ccea92d3eb04e5a2b4402aa618d81cd79ea`
+owns only BPR-0963 / `m10-documentation-impact`. The
+[checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m10.json)
+binds all three card criteria and both authored exits; accepted M7 is its sole
+prerequisite. M8/M9 are not treated as accepted to make this stage eligible.
+
+The tracked [corporate packet](../security/corporate-security-overview.md)
+describes implemented effects and their qualification limits. The package guide
+now includes actual producer toolchains, recipient checksum/signature checks,
+separate source delivery and release stop conditions. The new storage guide
+distinguishes raw logs from frozen metadata export, exact purge from uninstall,
+remembered grants from session-only tokens, and profile state from excluded
+registry/updater/draft-recovery data. It puts the stop-profile and irreversible
+cleanup warnings before the corresponding actions.
+
+### Semantic document disposition and source checks
+
+Implementation source is unchanged from entry `59226c62`; exact packaged
+evidence remains bound to its earlier producer/artifact, not this documentation
+revision. Each row below records source inspection, not a new native verdict.
+
+| Documents | Reconciled facts and direct source/evidence |
+|---|---|
+| README; package guide; build-and-test; packaging README | `CMakeLists.txt`, `CMakePresets.json`, `packaging/Install.cmake`, native drivers, existing release/publish scripts and installed `publish-release` skill: application installation, no standalone SDK, declared baselines, selected toolchains, Qt/private helpers and eight separate binary/SPDX/source/checksum assets. M9 producer/compiler and PE audit records supply observed Windows/Mac facts. |
+| Product contract; storage guide; corporate packet; security threat model | `profile_storage_root.cpp`, `profile_runtime_lease.cpp`, `release_maintenance_files.cpp`, `release_profile_cleanup.cpp`: private roots/leases, exact file/sidecar inventory, known vault-key cleanup before metadata, recovery journal, unknown-object refusal and shared/updater/workspace residuals. No broad vault enumeration, generic repair or secure erasure is promised. |
+| Storage guide; build-and-test; corporate packet | `release_diagnostic_snapshot.cpp` and `quill_log.cpp`: 16 MiB raw-log/input cap, 65,536 input records, 8,192-byte lines, 1,024-record/256 KiB output, classified metadata only, frozen preview/new-file export and explicit cleanup; complete OS crash privacy remains pending. |
+| System architecture; maintenance contract; release allocation; architecture conformance | Core `release_maintenance.hpp/.cpp`, application maintenance host, `release_maintenance_controls.cpp`, `profile_desktop.cpp`: authority/request/generation/selection identity; typed intents, prepared/commit/terminal events and deltas; one job and serialized completion; retained root lease and independent vault worker through retirement; startup recovery before stores. M2/M5 stale stage-specific descriptions are explicitly historical. |
+| UX specification; storage guide | `release_maintenance_panel.cpp`: seven projected actions, exact preview, default/Escape Cancel, two distinct confirmations, stale-dialog invalidation, stopped-profile behavior and preserved preview selection/scroll. The composed public-path test was rerun; no complete native accessibility/usability verdict is inferred. |
+| Corporate packet; threat model; foundation security; release gates | `github_host_profile.cpp`, `native_https_transport.cpp`, `gh_cli_git_smart_transport.cpp`, `github_release_update_contract.hpp`, `profile_activation.cpp` and M9 policy: native/GHES/device/CLI/browser/agent/updater authority, declared same-user AF_UNIX listener, bounded frames and owner/peer checks. Idle/environment-canary courses are not active-network, foreign-user or resident-secret crash proof. |
+| README; AI agent boundary; corporate packet | `agent_process_launcher.cpp`, `windows_agent_process.cpp`, `github_application.cpp`, `installed_git_process.cpp`, Done BPR-0622 and RFC-0013 ledger: native Windows dispatch and durable workspace recovery are implemented, not pending. Existing credential/context/agent-tool boundaries are preserved; component/native recovery evidence is not RFC-0014 package qualification. |
+| Root and packaging AGENTS.md | Reuse existing release paths; bind separate source/access/retention; distinguish audits from approval, purge from uninstall and the sole declared local IPC exception from forbidden network services. No role, consumer configuration or architecture authority is widened. |
+| Live RFC; this ledger; BPR-0963; M10 checkpoint/handoff | Track documentation acceptance and next independent work without changing the nine RFC criteria, native/security blockers, immutable authored plans or canonical closeout order. |
+
+No-impact dispositions are source-backed, not omitted obligations:
+
+- The existing updater architecture/security and application-updates guide
+  already name the fixed API/asset authority, separate account selection,
+  signed helper/startup receipt, transaction recovery, private recovered drafts,
+  manual managed/Windows/Linux route and outstanding Intel/live-service inputs.
+  M10 changes none of their source paths; the new guides link that contract.
+- The M9 release-security policy already specifies emitted hardening, exact
+  source bindings, vulnerability disposition and pending native/independent
+  evidence. Its requirements and `rfc0014-m9-security-evidence.json` are unchanged.
+  M10 summarizes the same failed 21/19-match scans and does not reclassify them.
+- Existing retention/epoch and per-store migration owners are unchanged. M10
+  adds operator consequences, not another retention policy or generic migration
+  switch. Core/application/Qt/provider runtime, CMake, scripts, package metadata,
+  release skill and tests receive no executable change.
+- `docs/AGENTS.md`, `_coding-standard/STANDARD.md`, CONTRIBUTING and the
+  selected consumer `project.json`/`project.md` need no change: the documentation
+  gates, source/tracker roots, layered authority and workflow remain the same.
+  The RFC index remains Proposed and the adopted twelve-stage plan is unchanged.
+
+### Verification, self-review and continuation
+
+Before documentation edits, the shortest real public release composition check,
+`packaging/verify_release_sources.py`, returned `RELEASE_SOURCE_ASSET_OK` for
+the protected revised macOS app ZIP, SPDX and separate source ZIP from
+`1c429749aff4c09c6dc88da930d3344cd2d33c36`. This verifies installed references
+against those exact files without network, signing or publication. The original
+M9 34-test contracts and nine-group tests-disabled package course remain reused
+for unchanged code/artifact inputs, with their original limitations.
+
+After the documentation edits, the repository documentation gate passed,
+all 64 documentation-verifier regressions passed (2.191s), and
+`application_release_maintenance_public_path` passed (16.83s). The latter runs
+the actual composed maintenance route with fixtures; it does not supply real
+vault or cross-platform removal acceptance. Documentation fixture `ERROR` lines
+are expected rejection assertions; the suite exited zero. CTest discovery also
+confirmed all seven maintenance check names used in the conformance matrix.
+Final exact-revision command receipts and the integration/board state are
+recorded in the [M10 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m10.json).
+
+The light coauthoring/technical-prose pass checked four reader tasks: install
+and verify trust, export safe diagnostics, remove a profile without losing its
+recovery authority, and assess corporate release readiness. It corrected stale
+session-only credential, Windows agent/PE, workspace recovery, source-delivery,
+core-SDK and absolute no-listener claims. It did not simplify or change product
+implementation; that remains M11's bounded assignment.
+
+All M10 criteria concern documentation and source reconciliation; no new human,
+native or independent acceptance is required to close BPR-0963. None is claimed.
+The existing session `cbd48b91000b00f1e72e1ad62c7c384c` remains handed back at
+470, with six protected historical candidates and no host. Accepted v002's
+licensing criterion remains specific to the revised Mac inventory; source
+access/retention, revised native Windows/Linux artifacts, unresolved
+vulnerabilities, trust, vault/crash/privacy/hardening and the complete M8 matrix
+remain open. No protection or candidate artifact is changed.
+
+The next independent milestone is M11 / BPR-0964 after BPR-0963 is Done. This
+owner stops at the M10 boundary. M12 remains blocked by M8/M9 and predecessor
+acceptance, and no publication, remote mutation or release signing is authorized.

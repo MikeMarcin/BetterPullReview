@@ -74,8 +74,9 @@ explicit verification, the stable multi-defect queue survives restart, and a
 separate Publish action is still the only shared path. The shipped workbench now
 offers explicit built-in agent profiles and carries one reviewer gesture through
 core host policy, exact accepted context, an isolated exact-head workspace, the
-real process adapter, and visible terminal projection. Windows launch remains
-fail-closed pending target-native containment evidence.
+real process adapter, and visible terminal projection. Windows uses the native
+suspended-start/Job Object backend; its component evidence does not qualify the
+RFC-0014 installed-package matrix.
 The shipped landing surface now accepts local repository, author, and path
 observer rules, persists the exact matched reason, restores it across a restart,
 and removes the projected item when its only local rule is deleted. Explicit
@@ -207,6 +208,25 @@ controls functional without art. Dif is decorative and consumes only accepted
 presentation facts. Both RFCs are `Auto-Verified` after the focused native,
 rendered, memory, resource, and core-only closeout. The selected-graph evidence
 does not certify a signed, notarized, or installable package.
+
+## Installation, privacy and release status
+
+The [package guide](docs/development/release-packages.md) covers per-user
+installation, declared platform/toolchain baselines, dependency notices,
+separate corresponding-source assets and independent signature checks.
+RFC-BPR-0014 release acceptance remains pending: current macOS/Windows candidates
+lack final release trust, dependency vulnerability findings remain unresolved,
+and the complete native install/authentication/vault/removal matrix is open.
+Package definitions and a universal binary do not establish that acceptance.
+
+Use Settings → Storage & privacy to preview and export bounded diagnostic
+metadata or prepare explicit diagnostic cleanup/profile purge. Preparation
+stops that profile; cancellation does not restart it. Uninstalling program
+files retains private state. The [storage and removal guide](docs/development/storage-and-diagnostics.md)
+names included data, credentials, recovery and residuals. The
+[corporate security overview](docs/security/corporate-security-overview.md)
+describes actual network destinations, subprocesses, AI and privacy boundaries,
+with current qualification gaps.
 
 ## Application updates
 

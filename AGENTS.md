@@ -47,6 +47,11 @@ network, or process effects.
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
 - Commit each completed issue slice intentionally.
+- For release work, use the existing `publish-release` skill and package paths.
+  Bind the separate versioned corresponding-source asset as well as the binary,
+  SPDX and installed notices; an offline audit is not trust or release approval.
+- Keep M8/M9 native, vault, crash and vulnerability gaps explicit in operator
+  claims. Profile purge excludes shared updater/registry state and is not uninstall.
 - Use fixtures or designated safe test repositories for remote mutations.
 - Never commit credentials, private repository content, transient inspection
   artifacts, build output, or secret-bearing logs.

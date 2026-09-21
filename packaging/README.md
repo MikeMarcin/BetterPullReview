@@ -10,7 +10,10 @@ separate gates; definitions and local artifacts do not certify a release.
 
 Packaging must preserve the core/application/adapters/composition dependency
 graph and restrict Qt plugin discovery to trusted installation paths. No browser
-runtime, listener, telemetry or general remote loader is permitted. RFC-BPR-0035
+runtime, network server, telemetry or general remote loader is permitted. The
+existing owner-private AF_UNIX profile activation channel is the sole declared
+listener exception, bounded by the [release security policy](../docs/security/release-policy.md).
+RFC-BPR-0035
 adds only its user-confirmed, qualified macOS updater to the earlier manual policy.
 
 RFC-BPR-0035 development now bundles `Contents/MacOS/bpr_update_helper` on macOS.
@@ -61,6 +64,13 @@ the provenance and notice disposition before packaging.
 
 ## RFC-BPR-0002 dependency record
 
+This section retains historical foundation candidates and their original
+evidence limits. It is not the current runtime or credential lifecycle inventory.
+Use the [corporate security overview](../docs/security/corporate-security-overview.md)
+and [M8/M9 ledger](../docs/verification/RFC-BPR-0014.md) for current candidates,
+the separate corresponding-source asset, unresolved vulnerability findings and
+native/trust gaps.
+
 The effect-backed GitHub adapter adds private Qt Core and Qt Network 6.8+
 dependencies plus the platform credential-vault dependency. Its native HTTPS
 implementation uses the TLS backend and system CA/proxy sources selected by
@@ -103,7 +113,8 @@ under App ID prefix/team `YTQKP2V2A8` without optional capabilities or managed
 capability requests. `tools/release.sh --version X.Y.Z` is the narrow private
 macOS distribution path: it builds the tests-disabled universal product,
 deploys the allow-listed Qt runtime, signs with Developer ID and hardened
-runtime, notarizes and staples the app and DMG, and emits DMG/ZIP/checksums.
+runtime, notarizes and staples the app and DMG, and now emits DMG/app ZIP/SPDX/
+separate version-bound source ZIP and four checksums.
 `tools/publish-release.sh` separately guards GitHub visibility as `PRIVATE`
 before any tag push or release creation. Signing credentials remain outside the
 repository. This slice does not satisfy the full RFC-BPR-0014 cross-platform,
@@ -128,11 +139,14 @@ transitive dependency inventory, SBOM, other-platform signing and installers,
 launch, upgrade, uninstall, and clean-machine evidence.
 Windows target-native execution is nonblocking for current implementation and
 documentation work but remains required for the affected Windows claim and
-RFC-BPR-0002 closeout. The public host policy requires exact deletion on
-orderly shutdown; the recorded fixture proves the exact delete and absence in
-fixture-vault state, while separate target-native lifecycle checks prove
-native-item cleanup. There is no durable selector or enumeration path, so no
-crash/restart recovery is claimed.
+RFC-BPR-0002 closeout. Those original credential fixtures proved exact deletion
+for their recorded session-only policy. The current device-grant policy retains
+a settled vault pair across orderly quit and revalidates its persisted inert
+binding on restart; manual-token sessions remain session-only. Sign out and
+profile purge use exact keys, never vault-wide enumeration. These changes do not
+retroactively qualify signed-package native continuity. Follow the
+[storage and removal guide](../docs/development/storage-and-diagnostics.md),
+including shared/updater/export residuals after purge or uninstall.
 
 `BUILD_TESTING=ON` adds the adapter-private native HTTPS seam and the
 GitHub.com/GHES public composition fixture. A directly inspected

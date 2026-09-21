@@ -1,5 +1,12 @@
 # Foundation Security Baseline
 
+The opening inventory describes the historical RFC-BPR-0001 foundation graph.
+The current release/security inventory is the
+[corporate security overview](corporate-security-overview.md), with exact
+qualification in [RFC-BPR-0014](../verification/RFC-BPR-0014.md). Later hosts add
+GitHub, vault, Git, SQLite, agent, profile activation, diagnostics and the
+qualified updater; the foundation's absence claims are not current product claims.
+
 RFC-BPR-0001 selects a deliberately small runtime:
 
 - Qt Core, Gui, and Widgets
@@ -22,8 +29,10 @@ runtime, telemetry, privileged service or update listener.
   random, and Qt-symbol dependencies.
 - The Qt scan rejects network, process, TCP/UDP/local server, plugin/library
   loader, desktop-URL, SQLite, and provider-adapter access.
-- The selected-runtime scan rejects browser/server/listener, telemetry, and
-  updater surfaces.
+- The selected-runtime scan rejects undeclared browser/server, telemetry and
+  loader surfaces. Current declared hosts include bounded owner-authenticated
+  AF_UNIX profile activation and the qualified macOS updater; the
+  [release policy](release-policy.md) defines their scope and direct checks.
 - Binary inspection rejects WebEngine, WebKit, Chromium, Electron, Tauri,
   Node, CEF, and HTTP-server dependencies. Windows PE inspection selects
   `dumpbin`, `llvm-readobj`, or `objdump` in deterministic preference order.
@@ -33,7 +42,10 @@ runtime, telemetry, privileged service or update listener.
 The macOS, Linux, and Windows process audit launches the real application with
 the offscreen Qt platform, injects a canary secret, maps process-owned network
 endpoints and child processes, terminates the application, and checks captured
-output. It fails on any network endpoint, subprocess, or canary-bearing output.
+output. Its current release course rejects TCP/UDP endpoints, undeclared
+subprocesses and canary output, and separately inspects the declared owner-private
+AF_UNIX activation endpoint. An idle sample does not qualify active provider,
+vault, agent or updater traffic or the full installed-package matrix.
 macOS direct-child inspection uses the process-scoped
 `proc_listchildpids` libproc API with a fixed 1,024-child limit and fails closed
 on unavailable APIs, invalid results, or overflow; it does not launch `ps` or a
@@ -122,9 +134,9 @@ outbound endpoint instead.
   hands one already-validated address to the platform's own launch service and
   supervises nothing afterwards. It re-parses the address and refuses anything
   that is not an absolute `https` address with a host and no userinfo, so an
-  opener cannot be talked into a `file:` or `javascript:` address. No suite in
-  this repository binds it: a tests-enabled graph binds a recording opener
-  instead ([[BPR-0516]],
+  opener cannot be talked into a `file:` or `javascript:` address. Both build
+  graphs bind it for a person's run. An automated-test boundary or selected
+  fixture instead binds the recording opener ([[BPR-0797]],
   `application_device_authorization_browser_handoff`).
 
 The device-flow service endpoints are deliberately not forbidden material. The

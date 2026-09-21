@@ -1,0 +1,153 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m10-documentation-impact",
+    "child": "/root/rfc0014_m10",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m10-documentation-impact",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "59226c62058cfa08387a91c872d7208b30275917",
+  "candidate_revision": null,
+  "result": "verification-pending",
+  "rfc_status": "Proposed",
+  "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m10.json",
+  "commits": [
+    {
+      "revision": "4ba42ccea92d3eb04e5a2b4402aa618d81cd79ea",
+      "purpose": "Claim eligible BPR-0963 after accepted M7; M8/M9 remain blocked"
+    }
+  ],
+  "changed_paths": [
+    "AGENTS.md",
+    "README.md",
+    "docs/architecture/ai-agent-boundary.md",
+    "docs/architecture/product-contract.md",
+    "docs/architecture/release-maintenance.md",
+    "docs/architecture/release-readiness.md",
+    "docs/architecture/security-threat-model.md",
+    "docs/architecture/system-architecture.md",
+    "docs/development/build-and-test.md",
+    "docs/development/release-packages.md",
+    "docs/development/storage-and-diagnostics.md",
+    "docs/security/corporate-security-overview.md",
+    "docs/security/foundation-security.md",
+    "docs/ux/workbench-specification.md",
+    "docs/verification/architecture-conformance.md",
+    "docs/verification/release-gates.md",
+    "packaging/AGENTS.md",
+    "packaging/README.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/verification/RFC-BPR-0014.md",
+    "docs/issues/30-in-progress/BPR-0963-document-release-and-corporate-security.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m10.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m10.json"
+  ],
+  "milestone_results": [],
+  "implementation_source_revision": "59226c62058cfa08387a91c872d7208b30275917",
+  "source_checks_ref": "docs/verification/RFC-BPR-0014.md#semantic-document-disposition-and-source-checks",
+  "artifact": {
+    "source_revision": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
+    "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749",
+    "app_zip": "BetterPullReview-0.1.3-macos-universal-local.zip",
+    "app_zip_sha256": "06c1c17e427bc1aa9a2566ccb295165faee7aa2e8b5716728b9218eaeb527b25",
+    "sbom": "BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+    "sbom_sha256": "d47ebc072f819496fdebefe16542f00ee8b940a03f29a7535cede2123a094a74",
+    "source_zip": "BetterPullReview-0.1.3-macos-universal-corresponding-source.zip",
+    "source_zip_sha256": "37b0106584fb897a798c0cd048f46fd2051599835f399b8808774af76cfc02af",
+    "executable_sha256": "d3b06eaa1a3fbe8eaa8b6dda502dd4a639a757b0e3fc7ebf57b140f158b90a86",
+    "trust": "Offline ad-hoc only; not Developer ID/notarized/Gatekeeper accepted.",
+    "reuse": "Unchanged protected M9 bytes. Source/publication preflight is read-only; no build or release mutation."
+  },
+  "verification": [
+    {
+      "revision": "4ba42ccea92d3eb04e5a2b4402aa618d81cd79ea plus M10 documentation working tree",
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "result": "DOCUMENTATION_OK"
+    },
+    {
+      "revision": "4ba42ccea92d3eb04e5a2b4402aa618d81cd79ea plus M10 documentation working tree",
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "result": "64/64 pass, 2.191s; ERROR lines are expected hostile-fixture assertions"
+    },
+    {
+      "revision": "4ba42ccea92d3eb04e5a2b4402aa618d81cd79ea plus M10 documentation working tree",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^application_release_maintenance_public_path$"
+      ],
+      "result": "1/1 pass, 16.83s; fixture-backed actual composed route, not a real-vault or native-matrix verdict"
+    }
+  ],
+  "reused_evidence": [
+    "M9 1c429749 exact source/security inventory, 34-test focused contracts and nine-group tests-disabled package course; unchanged executable and artifact inputs, original scope only.",
+    "BPR-0622/RFC-0013 exact Windows/Linux/macOS durable workspace recovery evidence; no transfer to the RFC-0014 installed-package/purge matrix.",
+    "M8's three exact macOS human accepts and M9's exact licensing-v002 accept remain the only recorded attended scope."
+  ],
+  "review": {
+    "new_session_required": false,
+    "session_id": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "event_cursor": 470,
+    "host": null,
+    "watch": null,
+    "active_protections": 6,
+    "accepted_candidate": "rfc0014-m9-licensing-v002",
+    "fingerprint": "da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80",
+    "decision_id": "42661017-3d13-43ba-8366-7ac3bd32c0db",
+    "decision_scope": "Only the revised macOS licensing/source/access/retention/build-relink criterion. URL remains unpublished and ongoing distribution obligations remain. No native/trust/vulnerability/publication acceptance.",
+    "untouched": "Existing candidate manifests/installations/source assets/session and all six protections; M10 edits no protected path."
+  },
+  "required_pending": [
+    "M10 exact committed-candidate validation and explicit card finish remain to record.",
+    "M8 complete clean-account/authentication/native-vault/high-DPI/accessibility/purge/removal matrix on Apple Silicon, Intel, ordinary-user Windows 10/11, Ubuntu 24.04 and RHEL 10.",
+    "M9 independent final macOS Developer-ID/notarization/Gatekeeper, Windows Authenticode and Linux package trust; revised native Windows/Linux separate-source artifacts and candidate-specific licensing/source qualification.",
+    "M9 Grype 21 macOS / 19 Windows unresolved findings, complete coverage/lower-severity disposition, external Qt/KSyntax/LibArchive hardening, full PE CFG and native lifecycle sanitizer/fuzz.",
+    "M9 active-operation network/vault/foreign-user IPC and actual resident synthetic source/comment/token crash redaction.",
+    "M11 simplification and M12/canonical predecessor acceptance; no publication authority."
+  ],
+  "ownership": {
+    "repository_writer": "/root/rfc0014_m10 only for M10",
+    "child_agents": [],
+    "background_commands": [],
+    "review_server": null,
+    "remote_station_writes": false,
+    "unrelated_worktrees": "Observed and preserved; no checkout or writes.",
+    "temporary_work": "Only ignored command receipts; no task-owned scratch directory or persistent process.",
+    "state": "active-finalization"
+  },
+  "continuation": {
+    "next_milestone": "m11-simplification",
+    "next_issue": "BPR-0964",
+    "action": "After M10 exact verification/acceptance, return to coordinator for a fresh sole implementer. Do not start M11 here.",
+    "blocked_milestones": [
+      "m8-ux-ui-native-verification",
+      "m9-security-boundary-verification"
+    ],
+    "rfc_closeout": "Not eligible; RFC remains Proposed."
+  },
+  "uncertainties": [
+    "No current final release/native/trust/privacy/vulnerability approval; documentation describes those gaps.",
+    "Strategy routing is configured coordinator-implementer rev2; strategy host-load verification remains not_verified. No runtime override was reported."
+  ]
+}

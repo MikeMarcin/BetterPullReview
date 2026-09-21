@@ -1,8 +1,9 @@
 # Local release packages
 
-RFC-BPR-0014 M6 supplies package definitions and available-host composition
-evidence. It does not approve distribution terms, certify the native matrix or
-authorize publication. The existing project `publish-release` skill and
+RFC-BPR-0014 supplies package definitions and available-host composition
+evidence. The native matrix, release trust and vulnerability gates remain open;
+the exact macOS source-distribution approval has the limits recorded below.
+The existing project `publish-release` skill and
 `tools/release.sh` remain the sole macOS release workflow. GitHub Actions is not
 used. See the [release-readiness allocation](../architecture/release-readiness.md)
 and [evidence ledger](../verification/RFC-BPR-0014.md) for exact candidates and
@@ -22,6 +23,15 @@ There is no new core SDK or embedding API.
 | Windows 10/11 x64 | `windows-app-release`; WiX 4 per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` | Native MSVC x64 developer environment, Ninja, WiX 4, Python 3.10+, Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
 | Ubuntu 24.04 LTS x86_64 | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret development files |
 | RHEL 10 x86_64 | `linux-package`; RPM and per-user archive | Native RHEL packaging/development tools and the same runtime requirements; CPU floor x86-64-v3 |
+
+Build prerequisites include CMake 4.4.2, Ninja, Python 3.10+ and a C++23
+compiler/library accepted by the root feature checks. The inspected macOS release
+configuration records AppleClang `21.0.0.21000101`. M9's native Windows producer
+records MSVC `19.51.36257.0` / toolset `14.51.36231`, Visual Studio 18 Community,
+WiX 4.0.6 and Qt's `msvc2022_64` package. These identify observed producers, not
+every compatible toolchain. No Linux compiler/libstdc++ package baseline has yet
+completed native qualification. Installed Git 2.39+ is required for the Git path;
+optional `gh` and agents are separately installed and explicitly selected.
 
 Linux deliberately rejects Ubuntu 26.04 and other undeclared build baselines.
 Both targets have a glibc 2.39 ceiling on required ELF symbol versions. The
@@ -71,8 +81,8 @@ python3 packaging/package.py --build build/linux-package \
 
 The native driver builds the application and both helpers, runs CPack, requires
 one native installer/inventory, and emits checksums, an SPDX sidecar, a separate
-version-bound source ZIP and source revision provenance. Linux also emits `*-user.tar.gz` from the same audited
-runtime. None of these Windows/Linux outputs is signed or published by this
+version-bound source ZIP and source revision provenance. Linux also emits
+`*-user.tar.gz` from the same audited runtime. None of these Windows/Linux outputs is signed or published by this
 driver. Installer signing and independent trust are later explicit gates.
 
 ## Installation and removal boundaries
@@ -98,14 +108,19 @@ installer value so repair/uninstall resolve the same directory, including a
 custom location. CPack supplies the normal installed-location metadata. Use
 native backslash paths with `msiexec`; M8's forwarded-slash command was refused
 before installation. The native M8 run used an elevated SSH token and therefore
-does not prove the ordinary-user desktop route. The generic full package audit
-currently refuses stripped installed PE symbol tables; do not turn a successful
-MSI/file/graph/import or producer-map check into complete security acceptance.
+does not prove the ordinary-user desktop route. M9 now audits stripped PE images
+with byte-identical producers, full linker maps and exact upstream DLL evidence;
+its 16-image Windows audit passes for the recorded unsigned artifact. The map is
+trusted build evidence, not publisher trust or proof of complete CFG call-site
+coverage. That artifact also predates the separate-source disposition: a revised
+native MSI still needs production and qualification.
 
 Uninstalling program files does not purge profiles, credentials, exported user
 files, desktop registry or update-recovery records. Storage & privacy's explicit
 profile purge retires that profile first; cancellation does not restart it.
-See the [maintenance ownership contract](../architecture/release-maintenance.md#m6-retained-lease-maintenance-composition).
+See [Storage, diagnostics and removal](storage-and-diagnostics.md) for the actual
+controls, migration/recovery, credentials and exact residuals, and the
+[maintenance ownership contract](../architecture/release-maintenance.md#m6-retained-lease-maintenance-composition).
 Windows/Linux and managed installations retain manual updates. Only the existing
 qualified, user-confirmed macOS updater exception applies to eligible trusted
 bundles; an ad-hoc candidate does not qualify.
@@ -131,8 +146,8 @@ The SPDX hashes those installed references, and package audits verify the
 separate asset's digest and complete source inventory. macOS preparation writes
 it beside the app ZIP; CPack stages it outside the installed tree and the native
 driver copies it beside the MSI/DEB/RPM. The corresponding checksum and native
-provenance include it. Qt stays dynamically linked. The source-offer document describes replacement with
-ABI-compatible modified libraries and local resealing of a macOS copy; it grants
+provenance include it. Qt stays dynamically linked. The source-offer document
+describes replacement with ABI-compatible modified libraries and local resealing of a macOS copy; it grants
 no updater trust. All embedded syntax/theme attribution and complete licensed
 data are retained, not mislabeled as MIT just because the engine is MIT.
 
@@ -149,7 +164,11 @@ checks cannot prove future retention or recipient access; release readiness
 requires the owner to establish and maintain those arrangements.
 
 First-party distribution terms and aggregate mixed MIT/LGPL/GPL syntax-data
-obligations need owner/legal release approval. Metadata uses `NOASSERTION`
+obligations need owner/legal release approval. The exact revised macOS inventory
+from `1c429749` received that scoped source/distribution decision at M9 event 469,
+hand-back 470. It does not approve revised Windows/Linux artifacts, different
+bytes, vulnerabilities, trust or publication. Actual source access and retention
+remain ongoing distribution obligations. Metadata uses `NOASSERTION`
 where no single license has been concluded; it is not a waiver. Windows also
 requires the native operator's applicable Microsoft runtime notice. Exact
 artifact license/source completeness remains an independent M9 release gate.
@@ -160,9 +179,49 @@ assets and verifies the source reference inside the actual app ZIP against
 the SPDX and separate source ZIP before any remote operation. Its nonmutating
 offline sub-check is `packaging/verify_release_sources.py`; `--help` lists the
 explicit artifact and producer arguments. No source URL is fetched by it.
-Do not run the publication
-script, submit notarization, or apply release signatures without explicit
+Do not run the publication script, submit notarization, or apply release signatures without explicit
 authority for the prepared version.
+
+## Recipient verification and release stop conditions
+
+Obtain the package, its checksum, SPDX, corresponding-source ZIP/checksum and
+publisher identity through the approved distribution channel. A checksum from an
+untrusted source is not authentication. Verify the actual downloaded bytes before
+installation and preserve the exact asset names. On macOS/Linux, run from the
+asset directory so relative filenames inside checksum files resolve correctly:
+
+```sh
+cd /absolute/path/to/downloaded-release
+shasum -a 256 -c BetterPullReview-X.Y.Z-macos-universal.zip.sha256
+shasum -a 256 -c BetterPullReview-X.Y.Z-macos-universal.spdx.json.sha256
+shasum -a 256 -c BetterPullReview-X.Y.Z-macos-universal-corresponding-source.zip.sha256
+```
+
+Replace the version/platform with the exact delivered names and verify the DMG
+or installer checksum as well. On Windows, `Get-FileHash -Algorithm SHA256
+-LiteralPath 'C:\absolute\candidate.msi'` must match the supplied digest; do the
+same for the source asset and SPDX. Hash verification does not install anything.
+
+Independent trust checks for a *signed* candidate use these native interfaces:
+
+| Platform | Check and required result |
+|---|---|
+| macOS | `codesign --verify --deep --strict --verbose=2 /absolute/BetterPullReview.app`; inspect `codesign -d --verbose=4` for bundle `com.gamecoretech.betterpullreview`, expected team `YTQKP2V2A8` and hardened runtime. `xcrun stapler validate /absolute/BetterPullReview.app` and `spctl --assess --type execute --verbose=4 /absolute/BetterPullReview.app` must pass. Validate the DMG staple and assess it with `spctl --assess --type open --context context:primary-signature --verbose=4 /absolute/candidate.dmg`. |
+| Windows | `signtool verify /pa /all /v C:\absolute\candidate.msi`, plus each signed delivered executable/DLL as applicable. Compare the signer/chain and timestamp with the approved publisher, not merely a zero exit. The current MSI is unsigned. |
+| Linux | `rpmkeys --checksig /absolute/candidate.rpm` requires the independently provisioned approved signing key. For a DEB/archive delivered with a detached signature, `gpg --verify /absolute/candidate.deb.asc /absolute/candidate.deb` requires the approved key fingerprint. Corporate repository distribution instead validates its signed repository metadata and package digest under that repository's policy. The native driver does not yet produce these signatures; a missing signing route/artifact remains a release blocker. |
+
+Do not disable OS trust checks, clear quarantine or enroll an unknown certificate
+to make a candidate pass. Record source/artifact/signature identities and results
+separately from package production. An ad-hoc `codesign` verification proves only
+the local seal; it cannot satisfy the Developer ID/notarization checks.
+
+The [release security policy](../security/release-policy.md) defines emitted
+hardening, analysis, sanitizer/fuzz, secret and vulnerability gates. M9's recorded
+21 macOS / 19 Windows Grype matches remain unresolved, as do the full native
+vault/privacy/runtime matrix and external dependency hardening. The
+[corporate security packet](../security/corporate-security-overview.md) records
+their implications. A completed documentation milestone changes none of these
+release stop conditions.
 
 ## Focused candidate audit and hostile course
 

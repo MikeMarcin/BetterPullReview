@@ -6,9 +6,12 @@ the [release allocation](release-readiness.md). The public core API is
 direct course are `src/core/src/release_maintenance.cpp` and
 `tests/core/release_maintenance_tests.cpp`. M4, BPR-0954, adds the host/native
 contract below; M5, BPR-0955, mounts the diagnostic path and verifies the
-maintenance presentation. M6 still owns destructive lifecycle composition and
-tests-disabled package selection. Development evidence does not certify a
-shipped diagnostic export or profile purge.
+maintenance presentation. M6, BPR-0956, supplies the retained-lease destructive
+lifecycle and tests-disabled package composition described at the end. The M3–M5
+sections retain their stage-specific obligations; M5's disabled destructive
+capabilities are historical, not the current composition. Native vault, crash
+privacy and full package removal remain M8/M9 obligations. Current user steps
+and residuals are in [Storage, diagnostics and removal](../development/storage-and-diagnostics.md).
 
 ## Authority and state
 

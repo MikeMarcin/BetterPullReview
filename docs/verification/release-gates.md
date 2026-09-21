@@ -23,7 +23,10 @@ No release candidate is acceptable until all applicable gates pass from a clean 
 
 - Threat model reviewed against final dependency and process graph.
 - Secret scanning, dependency vulnerability scan, SBOM generation, static analysis, sanitizers, and fuzzers pass.
-- No embedded browser, listener, remote plugin/theme loader, undocumented telemetry, or certificate bypass exists.
+- No embedded browser, TCP/UDP server, remote plugin/theme loader, telemetry,
+  or certificate bypass exists. The sole declared listener exception is the
+  existing bounded owner-private AF_UNIX profile activation channel; its peer,
+  frame, identity and lifetime checks must pass the release policy.
 - Git and AI subprocess policies are verified with hostile fixtures.
 - Diagnostics and logs pass canary redaction tests.
 
@@ -46,6 +49,10 @@ No release candidate is acceptable until all applicable gates pass from a clean 
 - macOS universal app is signed, hardened, notarized, and verifies on Intel and Apple Silicon targets.
 - Linux packages verify signatures, dependencies, file permissions, uninstall behavior, and supported baseline.
 - License notices and source-offer obligations are complete for shipped dependencies.
+  The exact version-bound corresponding-source ZIP is a separate release asset,
+  bound by installed notices/offers/provenance and SPDX. Every binary recipient
+  has equivalent access; corporate/offline redistribution carries it, and the
+  accountable distributor preserves its required immutable retention.
 - SBOM and checksums match delivered packages.
 
 ## Documentation
@@ -53,6 +60,17 @@ No release candidate is acceptable until all applicable gates pass from a clean 
 - Product contract, architecture, security, provider, epoch, diff, review semantics, AI, build, package, and operator documentation match runtime behavior.
 - Every generated index and documentation validator passes.
 - No release note overclaims a stub, disabled path, test-only surface, or unsupported platform.
+
+The [corporate packet](../security/corporate-security-overview.md),
+[package guide](../development/release-packages.md) and
+[storage/removal guide](../development/storage-and-diagnostics.md) supply current
+operator-facing facts. RFC-0014 M8/M9 remain blocked: unsigned/ad-hoc candidates,
+21 macOS / 19 Windows vulnerability matches, missing native/account/vault/crash
+evidence and external dependency hardening are not waived by documentation,
+source-delivery approval, a successful audit marker or a prior updater course.
+The [release security policy](../security/release-policy.md) defines exact
+evidence/disposition requirements. Publication still uses the existing skill
+and requires the prepared version's explicit authorization.
 
 ## Public-preview selection
 

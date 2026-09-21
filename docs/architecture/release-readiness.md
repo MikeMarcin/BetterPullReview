@@ -22,6 +22,16 @@ and [verification ledger](../verification/RFC-BPR-0014.md) own sequence and
 evidence. The twelve stages still apply; the existing release workflow and
 domain hosts are the starting points for their work.
 
+M10 reconciles the completed M3–M9 source work in the
+[corporate security packet](../security/corporate-security-overview.md),
+[package guide](../development/release-packages.md) and
+[storage/removal guide](../development/storage-and-diagnostics.md).
+The M2 inventories and then-missing G1–G9 mechanisms below are dated allocation
+evidence. They do not override the later implementation or transfer its scoped
+acceptance: M8/M9 remain blocked. The current publication set has eight assets,
+including a separate version-bound source ZIP and checksum; the old four-asset
+inventory below describes the inspected M2 revision.
+
 ## Selected build, install and runtime graph
 
 `CMakeLists.txt` configures the audited top-level project and central dependency

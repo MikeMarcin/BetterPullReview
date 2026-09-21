@@ -222,3 +222,22 @@ not an ordinary-user desktop qualification. All four M8 cards and the native
 matrix exit remain pending; the human-decision binding exit is satisfied.
 Independent M9 may proceed from accepted M7 after coordinator reassignment;
 no trust approval, publication or RFC closeout is claimed.
+
+M9's [security ledger](../verification/RFC-BPR-0014.md#milestone-9-security-and-boundary-verification)
+records exact macOS/Windows package audits, including the completed mechanical
+stripped-PE inspection, but remains blocked on independent trust, unresolved
+vulnerabilities and native/privacy/hardening inputs. The owner's source-delivery
+decision replaces embedded source archives with a separate version-bound asset
+through the existing release paths. Only the revised macOS licensing-v002
+criterion was accepted at hand-back 470. That decision grants no security,
+native, changed-artifact or publication approval; recipient access and retention
+remain distribution obligations.
+
+M10's [documentation reconciliation](../verification/RFC-BPR-0014.md#milestone-10-agent-and-product-documentation)
+provides the tracked [corporate security packet](../security/corporate-security-overview.md),
+[installation/trust/source guide](../development/release-packages.md) and
+[storage/diagnostics/removal guide](../development/storage-and-diagnostics.md).
+Architecture, UI and agent guidance now reflect the composed maintenance path,
+exact ownership and cleanup residuals. All M8/M9 blockers remain explicit.
+Documentation completion permits independent M11 simplification, not M12
+closeout or a change to this RFC's Proposed status.
