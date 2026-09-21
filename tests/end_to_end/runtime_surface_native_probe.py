@@ -13,10 +13,10 @@ import platform
 import socket
 import subprocess
 import sys
-import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
 import verify_runtime_surface as surface
 
 
@@ -47,7 +47,7 @@ def main() -> int:
             raise RuntimeError("actual native library inspection returned no evidence")
         unix_observed = "not-implemented-on-Windows"
         if platform.system() != "Windows":
-            with tempfile.TemporaryDirectory(dir=os.environ["QUALIFICATION_TARGET_ROOT"], prefix="ipc-") as directory:
+            with ContainedTemporaryDirectory(parent=os.environ["QUALIFICATION_TARGET_ROOT"], prefix="ipc-") as directory:
                 endpoint = Path(directory) / "p.sock"
                 with socket.socket(socket.AF_UNIX) as listener:
                     listener.bind(str(endpoint))

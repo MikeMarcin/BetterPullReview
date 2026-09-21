@@ -15,10 +15,10 @@ import plistlib
 import shutil
 import subprocess
 import sys
-import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
 import verify_release_package as package
 import verify_runtime_surface as surface
 
@@ -187,7 +187,7 @@ def main() -> int:
     package.require(platform.system() == "Darwin", "native-macos-package-course-required")
     admitted = Path(os.environ["QUALIFICATION_TARGET_ROOT"]).resolve(strict=True)
     package.require(not admitted.is_relative_to(ROOT) and not ROOT.is_relative_to(admitted), "scratch-must-not-overlap-live-checkout")
-    with tempfile.TemporaryDirectory(prefix="package-course-", dir=admitted) as temporary:
+    with ContainedTemporaryDirectory(prefix="package-course-", parent=admitted) as temporary:
         evidence = course(args, Path(temporary).resolve(strict=True))
     print(json.dumps(evidence, sort_keys=True))
     return 0

@@ -5,12 +5,12 @@ import hashlib
 import json
 import struct
 import sys
-import tempfile
 import unittest
 import zipfile
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
 import verify_pe_release as pe
 import verify_release_package as package
 import verify_release_security as security
@@ -41,7 +41,7 @@ def map_text(symbol="main"):
 
 class ReleaseSecurityTests(unittest.TestCase):
     def test_source_archive_inventory_and_digest_fail_closed(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             declared = [{"name": "fixture", "version": "1", "url": "https://example.invalid/a.zip",
                          "sha256": hashlib.sha256(b"source").hexdigest()}]
@@ -57,7 +57,7 @@ class ReleaseSecurityTests(unittest.TestCase):
                         package.runtime.verify_source_asset(source, provenance)
 
     def test_compile_hardening_requires_selected_flags(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             record = {"file": str(package.ROOT / "src/core/src/release_maintenance.cpp"),
                       "command": "clang++ -fstack-protector-strong -fno-omit-frame-pointer -D_FORTIFY_SOURCE=3"}
@@ -73,7 +73,7 @@ class ReleaseSecurityTests(unittest.TestCase):
                 security.compile_hardening(root, "Darwin")
 
     def test_map_requires_exact_producer_image_identity_and_addresses(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             producer, installed = root / "app.exe", root / "installed.exe"
             producer.write_bytes(image())
@@ -96,7 +96,7 @@ class ReleaseSecurityTests(unittest.TestCase):
                     pe.map_symbols(installed, producer)
 
     def test_complete_decorated_table_catches_non_anchor_testing_seam(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             producer = Path(directory) / "app.exe"
             producer.write_bytes(image())
             producer.with_suffix(".map").write_text(map_text("?github_public_path_fixture@private_impl@@YAXXZ"))
@@ -106,7 +106,7 @@ class ReleaseSecurityTests(unittest.TestCase):
                 package.check_payload(image(), symbols)
 
     def test_linker_only_cfg_indexes_are_bound_and_still_scanned(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             producer = Path(directory) / "app.exe"
             producer.write_bytes(image())
             text = map_text("__guard_fids_github_public_path_fixture")
@@ -122,7 +122,7 @@ class ReleaseSecurityTests(unittest.TestCase):
                         pe.map_symbols(producer, producer)
 
     def test_pe_hardening_requires_aslr_dep_and_nonwritable_code(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             binary = Path(directory) / "app.exe"
             binary.write_bytes(image())
             self.assertTrue(security.binary_hardening(binary, "Windows")["cfg_declared"])
@@ -139,7 +139,7 @@ class ReleaseSecurityTests(unittest.TestCase):
                 pe.pe_headers(payload)
 
     def test_qt_presign_digest_requires_unchanged_payload_and_valid_publisher(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             binary = Path(directory) / "Qt6Core.dll"
             signed = bytearray(image())
             struct.pack_into("<I", signed, 152, 1234)  # Signed-image checksum.

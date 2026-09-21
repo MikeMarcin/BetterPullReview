@@ -8,12 +8,14 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
+
 sys.path.insert(0, str(ROOT / "packaging"))
 import package_runtime as runtime
 import package as native_package
@@ -22,7 +24,7 @@ import verify_release_sources as release
 
 class SourceAssetTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
+        temporary = ContainedTemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.info = {"version": "1.2.3", "platform": "Darwin"}

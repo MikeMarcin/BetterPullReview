@@ -4,7 +4,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
-import tempfile
+import sys
 import tarfile
 import unittest
 from unittest.mock import patch
@@ -12,6 +12,9 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
+
 spec = importlib.util.spec_from_file_location("package_runtime", ROOT / "packaging/package_runtime.py")
 runtime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runtime)
@@ -58,7 +61,7 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertEqual(runtime.linux_baseline()["cpuFloor"], "x86-64-v3")
 
     def test_development_build_cannot_package(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             build = Path(directory)
             (build / "_bpr").mkdir()
             (build / "_bpr/package-inputs.json").write_text("{}")
@@ -69,7 +72,7 @@ class PackageRuntimeTests(unittest.TestCase):
     def test_package_qt_version_matches_provider_and_corresponding_source(self):
         version = next(item["version"] for item in runtime.components({"platform": runtime.platform.system()}) if item["name"] == "QtBase")
         self.assertIn(f'set(BPR_QT_VERSION "{version}")', (ROOT / "cmake/BprQtProvider.cmake").read_text())
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             build = Path(directory)
             (build / "_bpr").mkdir()
             (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=OFF\nBPR_DISTRIBUTION_BUILD:BOOL=ON\nCMAKE_BUILD_TYPE:STRING=Release\n")
@@ -83,7 +86,7 @@ class PackageRuntimeTests(unittest.TestCase):
                 runtime.inputs(build)
 
     def test_unpinned_cached_source_is_refused_without_network(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             build = Path(directory)
             (build / "release-sources").mkdir()
             (build / "release-sources/Example-1.tar.gz").write_bytes(b"tampered")
@@ -94,7 +97,7 @@ class PackageRuntimeTests(unittest.TestCase):
                 network.assert_not_called()
 
     def test_qt_runtime_graph_excludes_unshipped_build_tools(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             (root / "sbom").mkdir()
             packages = [{"SPDXID": "p-" + name, "name": name} for name in ("Core", "Gui", "Widgets", "Network", "rcc", "pcre2")]
@@ -110,14 +113,14 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertEqual({item["name"] for item in selected["packages"]}, {"Core", "Gui", "Widgets", "Network", "pcre2"})
 
     def test_installed_audit_needs_source(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             with self.assertRaises(FileNotFoundError):
                 runtime.audit(root, {"platform": "Linux"}, root, root / "sbom.json")
 
     def test_notices_keep_sources_outside_every_platform_runtime(self):
         for system in ("Darwin", "Windows", "Linux"):
-            with self.subTest(system=system), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(system=system), ContainedTemporaryDirectory() as directory:
                 build = Path(directory)
                 stage = build / "runtime"
                 stage.mkdir()
@@ -164,7 +167,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
     @unittest.skipIf(runtime.os.name == "nt", "Linux ldd fixture requires POSIX paths; run on a Linux or macOS host")
     def test_linux_deployment_inspects_pinned_provider_before_staged_copies(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             build = Path(directory)
             qt, stage = build / "qt", build / "stage"
             stage.mkdir()
@@ -195,7 +198,7 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertEqual(closure["baseline"]["requiredGLIBCXX"], ["3.4.32"])
 
     def test_linux_sonames_bind_versioned_qt_producer_records(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             (root / "sbom").mkdir()
             names = ("Core", "Gui", "Widgets", "Network")
@@ -221,7 +224,7 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertIn("--force --deep --sign - --timestamp=none", prefix)
 
     def test_final_sbom_does_not_reuse_upstream_file_verification_codes(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             (root / "ThirdParty").mkdir()
             upstream = {"upstreamNamespace": "https://example.invalid/qt-input", "files": [], "relationships": [], "hasExtractedLicensingInfos": [],

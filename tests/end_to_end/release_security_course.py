@@ -16,10 +16,10 @@ import socket
 import sqlite3
 import subprocess
 import sys
-import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
 import verify_runtime_surface as surface
 
 
@@ -124,7 +124,7 @@ def main():
     args = parser.parse_args()
     require(sys.platform == "darwin", "course-requires-macos")
     outer = Path(os.environ["QUALIFICATION_TARGET_ROOT"]).resolve(strict=True)
-    with tempfile.TemporaryDirectory(prefix="security-", dir=outer) as temporary:
+    with ContainedTemporaryDirectory(prefix="security-", parent=outer) as temporary:
         result = run(args.application.resolve(strict=True), Path(temporary), args.crash_report_root)
     print(json.dumps({"result": "RELEASE_SECURITY_COURSE_OK", **result}, sort_keys=True))
 

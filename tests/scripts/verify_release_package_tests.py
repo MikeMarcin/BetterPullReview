@@ -7,19 +7,19 @@ from pathlib import Path
 import plistlib
 import subprocess
 import sys
-import tempfile
 import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
 import verify_release_package as audit
 
 
 class ReleasePackageTests(unittest.TestCase):
     def test_package_layout_requires_each_helper_and_only_declared_plugins(self):
         for system in ("Darwin", "Windows", "Linux"):
-            with self.subTest(system=system), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(system=system), ContainedTemporaryDirectory() as directory:
                 root = Path(directory).resolve()
                 info = {"platform": system, "version": "1.2.3"}
                 binaries = root / "Contents/MacOS" if system == "Darwin" else root
@@ -53,7 +53,7 @@ class ReleasePackageTests(unittest.TestCase):
                         audit.package_paths(root, info)
 
     def test_inventory_detects_revision_file_hash_omission_and_path_escape(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             root = Path(directory).resolve()
             legal = root / "ThirdParty"
             legal.mkdir()
@@ -71,7 +71,7 @@ class ReleasePackageTests(unittest.TestCase):
             write()
             check = lambda: audit.check_file_inventory(root, sbom, revision, {"platform": "Linux", "version": "1"})
             self.assertEqual(check()["file_count"], 1)
-            with tempfile.TemporaryDirectory() as external_directory:
+            with ContainedTemporaryDirectory() as external_directory:
                 external = Path(external_directory) / "delivered.spdx.json"
                 external.write_bytes(sbom.read_bytes())
                 self.assertEqual(audit.check_file_inventory(root, external, revision, {"platform": "Linux", "version": "1"})["file_count"], 1)
@@ -109,7 +109,7 @@ class ReleasePackageTests(unittest.TestCase):
             audit.check_payload(b"production", ("bpr::app::detail::github_application_fixture_access::start",))
 
     def test_static_dependency_omission_and_wrong_provenance_fail(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             sbom = Path(directory) / "sbom.json"
             dependency = {"name": "StaticLibrary", "version": "1", "url": "https://example.invalid/source", "sha256": "a" * 64}
             record = {"SPDXID": "SPDXRef-StaticLibrary", "versionInfo": "1", "downloadLocation": dependency["url"],
@@ -123,7 +123,7 @@ class ReleasePackageTests(unittest.TestCase):
                         audit.check_dependency_inventory(sbom, {})
 
     def test_graph_requires_real_regions_and_excludes_testing_and_core_effects(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with ContainedTemporaryDirectory() as directory:
             build = Path(directory)
             commands = [{"file": str(ROOT / "src" / region / "source.cpp"), "command": "c++ -O3"} for region in ("core", "application", "adapters", "app")]
             commands.append({"file": str(ROOT / "src/app/src/installed_runtime.cpp"), "command": "c++ -DBPR_DISTRIBUTION_BUILD=1"})
