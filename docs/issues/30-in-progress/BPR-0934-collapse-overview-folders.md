@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0934"
 title: "Collapse folders in the Overview file list"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0037"]
 depends_on: []
 priority: P2
