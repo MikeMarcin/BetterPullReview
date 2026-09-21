@@ -9,7 +9,10 @@ component evidence; composed RFC acceptance remains pending milestone 2.
 
 Branch: `codex/rfc-bpr-0036-native-markdown`.
 Plan/claim commits: `85a0184e`, `1322e913`.
-Source candidate and final measured results are recorded below after verification.
+Source candidate: `4812884e3670971b1b0bdc0b6e5d12fd81ddec48`.
+Subsequent checkpoint edits change documentation only; the checked source remains
+that candidate. Milestone 1's scoped obligation and all five exits pass. This is
+not acceptance of the composed RFC or completion of BPR-0916.
 
 Run `rfc0036-20260920`, segment `m1-comparison-r2`, mandate `r2`.
 Selected recipe: coordinator-implementer revision 2; selection and binding are
@@ -25,13 +28,28 @@ conversation composition.
 
 Commands and local detailed logs under `build/rfc0036-run/`:
 
-- `cmake --preset dev`; selected component target built with `-j 6`.
+- `cmake --preset dev`; `cmake --build --preset dev --target
+  test_better_pull_review_markdown_body_view_tests -j 6`: passed.
 - `ctest --test-dir build/dev -R '^qt_markdown_body_' --output-on-failure`:
   native document corpus, source/copy, resources, keyboard links, bounds,
-  refresh, forced-palette appearance and rasters at 1.0, 1.25 and 2.0 scale.
+  refresh, forced-palette appearance and rasters at 1.0, 1.25 and 2.0 scale;
+  3/3 passed in 2.04 seconds (`component-scales.log`).
 - Architecture checks: `core_dependency_boundary`, `architecture_boundaries`,
-  `architecture_boundary_contract` (including negative controls).
-- Touched-file format/tidy and documentation gates are recorded at completion.
+  `architecture_boundary_contract` (including negative controls): 3/3 passed
+  (`architecture.log`). Final source rerun of the first two: 2/2 passed
+  (`architecture-final.log`).
+- Touched-file format/tidy: passed (`format.log`, `tidy-final.log`).
+- `python3 scripts/verify_documentation.py --root .`: passed;
+  `python3 tests/scripts/verify_documentation_tests.py`: 64 tests passed.
+- RFC board validation: valid. `git diff --check`: passed.
+
+The component binary also passed directly with `QT_QPA_PLATFORM=cocoa`,
+`BPR_AUTOMATED_TEST_BOUNDARY=1` and `BPR_MARKDOWN_RENDER_DIR` set to the absolute
+`build/rfc0036-run/native-cocoa` directory in this worktree. The native 2x run
+measured 61 ms for the 65,536-byte rendered body and 80 ms for the complete
+262,144-byte source fallback (`native-cocoa.log`). These local observations include
+component styling and stay below the test's one-second stress ceiling; they are
+not a guaranteed frame budget on all hardware.
 
 ## Direct component evidence
 
@@ -63,9 +81,20 @@ those observed failures. Tabs that cannot be mapped safely still have explicit
 complete-source fallback, as specified in the
 [reading contract](../architecture/native-markdown.md).
 
+The native Cocoa run exposed a tab-chain loop, a bright alternate-base fill in
+the dark code/quote palette, and an extra blank first table-header paragraph.
+Explicit traversal to the source controls, window-palette code/quote fills and
+bounded header-block cleanup correct those failures. The corrected native
+capture was inspected: code, quotes, aligned bold headers, grid, tasks, image
+placeholder and final Unicode text are readable. A separate wide-code capture
+shows horizontal scrolling without forcing the component wider; the wide-table
+case also passes the scrollbar/final-content assertions.
+
 Rendered PNGs are runtime artifacts beneath
 `build/dev/tests/adapters_qt/markdown-1_0`, `markdown-1_25`, and `markdown-2_0`.
 They are layout evidence, not system appearance or VoiceOver certification.
+Native Cocoa captures are under `build/rfc0036-run/native-cocoa`. No composed
+application screenshot or attended physical-input decision is claimed here.
 
 ## md4qt comparison evidence
 
@@ -73,8 +102,9 @@ Canonical upstream revision: `34d059e066e0dac138f0bc8144fe1d3acbba3dc3`, version
 5.1.4. A separate Release probe links that parser against the same Qt 6.10.3;
 no md4qt code or package is linked into BetterPullReview. Probe source, CMake
 harness, corpus and results remain under `build/rfc0036-run/comparison*` for
-continuation. Downloaded source is task-owned and disposable; canonical revision
-and the decision are durable here and in the reading contract.
+continuation. The task-owned downloaded source and comparison build were removed
+after collecting results; the pinned canonical source can be fetched again.
+The canonical revision and decision are durable here and in the reading contract.
 
 The 777-byte component corpus is reused exactly. AST counts: two tasks, one
 heading, one table, two code items (inline/fenced), one image, three links.

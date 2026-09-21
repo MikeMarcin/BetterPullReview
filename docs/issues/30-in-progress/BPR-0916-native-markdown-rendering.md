@@ -38,4 +38,8 @@ text, nested structures, wide tables/code and hostile resource references.
 
 ## Status
 
-Milestone 1 is starting; this card remains open until both delivery stages pass.
+Milestone 1 is accepted at source candidate
+`4812884e3670971b1b0bdc0b6e5d12fd81ddec48`, including the mandate-r2 md4qt/native-Qt
+comparison. See the [verification ledger](../../verification/RFC-BPR-0036.md)
+and the continuation on [[BPR-0917]]. Milestone 2 and composed AC-01 through AC-06
+remain pending; this card stays open until both delivery stages pass.
