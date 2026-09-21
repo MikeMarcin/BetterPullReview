@@ -1640,3 +1640,13 @@ remain open. No protection or candidate artifact is changed.
 The next independent milestone is M11 / BPR-0964 after BPR-0963 is Done. This
 owner stops at the M10 boundary. M12 remains blocked by M8/M9 and predecessor
 acceptance, and no publication, remote mutation or release signing is authorized.
+
+Documentation candidate `f6af44a5083a3b05a2a963eeb24b5f199406ab65` passes
+the final documentation gate, 64 verifier regressions and all seven focused
+maintenance tests (18.77s; composed public path 16.60s). The actual M9 source
+asset preflight passes in 0.159s, four principal artifact hashes match, the
+957-card scoped board validates, and the explicit source/test/script/package/
+release-skill/consumer-context diff against entry is empty. Receipts are
+`build/m10-final-{documentation,doc-regressions,composition,source-asset,board,no-product-change}-evidence.json`.
+The unchanged review-candidate projection hashes to
+`2e472c1178e8282b90331337b2c9c175023d3486282551015346b4b2012b6c5c`.
