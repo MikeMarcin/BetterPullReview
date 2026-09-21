@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0949"
 title: "Qualify updater packages and document release security"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0948"]
 milestone: "RFC-0035 milestone 4"

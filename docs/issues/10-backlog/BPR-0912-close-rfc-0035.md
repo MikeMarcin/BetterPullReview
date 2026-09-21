@@ -79,6 +79,8 @@ Acceptance and final binding observation are `build/rfc0035-run/m3-r2-acceptance
 and `build/rfc0035-run/m3-r2-observation.json`; the original M3 fingerprints remain
 unchanged. No attended session, review server, protected candidate or pending
 M3 human decision exists.
+Acceptance/upkeep commit: `f0e783afaa8681785cd20582eb1f27a1a141aed4`.
+[[BPR-0948]] is Done; [[BPR-0949]] is promoted to Ready without a claim.
 
 All task commands/native applications are joined or orderly quit; the detached
 source worktree was removed only after its commits were retained on the branch
@@ -87,9 +89,12 @@ were moved to `/Users/jaeger/.Trash/bpr35.6aKkXi`,
 `/Users/jaeger/.Trash/bpr-rfc0035-m3-r2.g1eYKY` and
 `/Users/jaeger/.Trash/bpr-rfc0035-m3-r2-build-g1eYKY` (recoverable). Packages/logs
 remain under `build/rfc0035-run/`; no product writer remains.
+The final repository inventory also contains the separately owned
+`/Users/jaeger/.codex/worktrees/14a8/BetterPullReview` worktree on
+`codex/rfc-bpr-0036-native-markdown`; it was not modified or cleaned by this owner.
 
 Next action: the coordinator may start a fresh M4 owner for [[BPR-0949]], now
-eligible for Ready. M4 was not started here. Carry forward Intel execution,
+Ready. M4 was not started here. Carry forward Intel execution,
 live private-release/vault verification, self-service recovery/operator/security
 closeout and the observed duplicate Check for Updates menu entries in a two-window
 native session. RFC and parent/closeout cards remain open. No release publication,
