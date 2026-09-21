@@ -166,3 +166,13 @@ and store migration keep their existing owners. Manual/native disposable-root
 tests and Windows source checks do not certify Qt composition, native Windows
 execution, real vault continuity, package uninstall or the delivered matrix.
 Those obligations and all nine canonical acceptance criteria remain unchanged.
+
+M5 mounts the real profile Settings diagnostic preview/export path and verifies
+the typed clear/purge presentation, exact confirmations, cancellation,
+accessibility and bounded updates. The
+[presentation/composition boundary](../architecture/release-maintenance.md#m5-settings-presentation-and-bounded-composition)
+keeps live destructive commands unavailable until M6 supplies complete profile
+retirement/store/logger/vault composition under the retained lease. Controlled
+widget/host success does not certify production purge. Existing retention and
+release paths are reused unchanged; package/native/human/security acceptance
+remains with its assigned later owners.

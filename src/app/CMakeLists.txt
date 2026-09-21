@@ -5,6 +5,7 @@ if(BPR_BUILD_QT)
             src/foundation_application.cpp
             src/github_application.cpp
             src/profile_desktop.cpp
+            src/release_maintenance_controls.cpp
             src/release_update_desktop.cpp
             src/review_submission_workflow.cpp
             src/system_browser_opener.cpp

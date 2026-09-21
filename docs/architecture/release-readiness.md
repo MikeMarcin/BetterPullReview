@@ -282,3 +282,19 @@ protected candidate, new platform qualification or independent verdict from
 this allocation. Full clean-target, trust, privacy and predecessor obligations
 remain on the live cards; the Linux baseline is a declared engineering target,
 not a passing native result.
+
+## M5 G5/G6 presentation disposition
+
+BPR-0955 mounts the typed maintenance panel in the actual profile Settings shell.
+The [M5 contract](release-maintenance.md#m5-settings-presentation-and-bounded-composition)
+records native-host preview/export and controlled clear/purge presentation,
+exact-target dialog invalidation, incremental updates and shared-window Settings
+ownership. Existing epoch retention controls and their underlying policy remain
+unchanged. Qt receives no effect capability. Diagnostic access remains signed-out.
+
+Live clear/purge admission is explicitly unavailable until BPR-0956 supplies the
+complete retained-lease lifecycle barrier, including actual window/producer
+retirement, original-owner recovery, store/logger closure and the independent
+vault worker. This is pending M6 composition, not a no-impact disposition or a
+waiver of G5/G6. M5 rendered development tests do not satisfy the tests-disabled
+package, native installer/vault, human or independent trust matrix above.

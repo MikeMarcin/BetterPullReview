@@ -2704,6 +2704,17 @@ if(APPLE)
 endif()
 
 bpr_add_executable(test_release_update_public_path release_update_public_path_tests.cpp)
+bpr_add_executable(test_release_maintenance_public_path release_maintenance_public_path_tests.cpp)
+target_link_libraries(test_release_maintenance_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_release_maintenance_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_release_maintenance_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_release_maintenance_public_path)
+bpr_enable_warnings(test_release_maintenance_public_path)
+bpr_add_network_isolated_test(NAME application_release_maintenance_public_path WINDOWS_UNCONTAINED
+    COMMAND test_release_maintenance_public_path)
+set_tests_properties(application_release_maintenance_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_MAINTENANCE_PUBLIC_RENDER=${CMAKE_CURRENT_BINARY_DIR}/maintenance-public.png"
+    RUN_SERIAL TRUE TIMEOUT 90 PASS_REGULAR_EXPRESSION "release-maintenance-public-path:pass")
 bpr_add_executable(test_release_update_recovery release_update_recovery_tests.cpp)
 target_link_libraries(test_release_update_recovery PRIVATE BetterPullReview::AdapterSQLite Qt6::Core)
 bpr_enable_hardening(test_release_update_recovery)

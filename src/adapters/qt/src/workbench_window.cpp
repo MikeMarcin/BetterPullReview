@@ -2510,7 +2510,7 @@ namespace bpr::qt {
 			button->setAccessibleName(action->text());
 			storageColumn->addWidget(button);
 		}
-		auto* const privacy = new QLabel{ QStringLiteral("Maintenance is limited to the selected review or repository cache and asks for confirmation. It does not change GitHub or your working copy. Basic diagnostics contain bounded operation metadata; advanced verbosity and export are not available here. Removing the application does not remove its local data folder or system credential entries. Use Accounts & Hosts to sign out of remembered device sessions."), storage };
+		auto* const privacy = new QLabel{ QStringLiteral("History maintenance above is limited to the selected review or repository cache and asks for confirmation. It does not change GitHub or your working copy. Diagnostic preview and local export are available in the profile controls. Removing the application does not remove its local data folder or system credential entries. Use Accounts & Hosts to sign out of remembered device sessions."), storage };
 		privacy->setWordWrap(true);
 		storageColumn->addWidget(privacy);
 		SettingsWindow->adopt_panel(settings_page::storage_and_privacy, storage);

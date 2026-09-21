@@ -1,0 +1,84 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m5-qt-presentation-adapter",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m5-qt-presentation-adapter",
+    "definition_fingerprint": "sha256:8b952e8644e8f46d0dc9ca1a1f7305dad6bfcf873bf35e4ecee72dd91de3a7ad",
+    "obligations": [
+      {
+        "id": "BPR-0955:*",
+        "source": "BPR-0955",
+        "selector": null,
+        "source_fingerprint": "sha256:568dedebb5353913e5162de5147346a5b5c827768503de41be769eaae0aad09b"
+      }
+    ],
+    "obligation_fingerprint": "sha256:454f42cd5a79010f4ca1b33e21f5445c8be1a8cc29047a4ff5df70b77028b111",
+    "exit_criteria": [
+      {
+        "id": "m5-qt-presentation-adapter:exit:1",
+        "text": "Required user actions reach typed host policy and render truthful terminal results without Qt performing effects."
+      },
+      {
+        "id": "m5-qt-presentation-adapter:exit:2",
+        "text": "Focused rendered keyboard/accessibility/confirmation and incremental-projection checks pass, with direct no-impact evidence where applicable."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:9687ff33bb8cb42dddb96c8cd633c6dc50ebe70850ac1785d321ebe23e28682e",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "46a32a100c2cd348fb07014dcc1357b8e8a51047",
+    "workflow_branch": "main",
+    "workflow_revision": "46a32a100c2cd348fb07014dcc1357b8e8a51047"
+  }
+}

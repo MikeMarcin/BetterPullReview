@@ -64,6 +64,20 @@ if(UNIX AND NOT APPLE)
     list(APPEND bpr_qt_github_common_environment "QT_STYLE_OVERRIDE=Windows")
 endif()
 
+bpr_add_executable(test_release_maintenance_panel release_maintenance_panel_tests.cpp)
+target_link_libraries(test_release_maintenance_panel PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_release_maintenance_panel)
+bpr_enable_warnings(test_release_maintenance_panel)
+foreach(bpr_maintenance_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_maintenance_whole "${bpr_maintenance_scale} / 100")
+    math(EXPR bpr_maintenance_fraction "${bpr_maintenance_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_release_maintenance_scale_${bpr_maintenance_scale}
+        COMMAND test_release_maintenance_panel)
+    set_tests_properties(qt_release_maintenance_scale_${bpr_maintenance_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_maintenance_whole}.${bpr_maintenance_fraction};BPR_MAINTENANCE_RENDER_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/maintenance-${bpr_maintenance_scale}"
+        RUN_SERIAL TRUE TIMEOUT 90 PASS_REGULAR_EXPRESSION "release-maintenance-panel:pass")
+endforeach()
+
 bpr_add_network_isolated_test(
     NAME qt_composed_github_scale_100
     COMMAND test_better_pull_review_qt_github_tests

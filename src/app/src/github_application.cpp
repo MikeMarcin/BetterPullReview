@@ -1,5 +1,6 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
+#include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_release_update.hpp"
 #include <QCryptographicHash>
@@ -4016,9 +4017,10 @@ namespace bpr::app {
 				});
 			};
 		}
-		std::unique_ptr<qt::settings_window>    Settings;
-		std::optional<core::bpr_window_context> SettingsOwner;
-		void                                    present_settings(core::bpr_window_context aContext, qt::settings_page aPage)
+		std::unique_ptr<qt::settings_window>          Settings;
+		std::unique_ptr<release_maintenance_controls> Maintenance;
+		std::optional<core::bpr_window_context>       SettingsOwner;
+		void                                          present_settings(core::bpr_window_context aContext, qt::settings_page aPage)
 		{
 			if (!current_window(aContext)) {
 				return;
@@ -4038,6 +4040,10 @@ namespace bpr::app {
 			if (found != Observers.end() && found->second.Settings) {
 				found->second.Settings(*Settings, aPage);
 			}
+			if (!Maintenance) {
+				Maintenance = release_maintenance_controls::start_diagnostics(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile());
+			}
+			Maintenance->attach(*Settings, Admission.Label);
 		}
 		std::optional<core::bpr_window_context> Focused;
 		[[nodiscard]] auto                      current(const core::bpr_window_context& aContext) const noexcept -> bool override { return current_window(aContext); }
@@ -4235,6 +4241,9 @@ namespace bpr::app {
 		void begin_shutdown()
 		{
 			Closing = true;
+			if (Maintenance) {
+				Maintenance->shutdown();
+			}
 			if (ServicesClosing) {
 				return;
 			}
@@ -4271,6 +4280,9 @@ namespace bpr::app {
 		void poll_shutdown()
 		{
 			if (!ServicesClosing || ShutdownComplete) {
+				return;
+			}
+			if (Maintenance && !Maintenance->quiescent()) {
 				return;
 			}
 			if (ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())

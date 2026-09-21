@@ -64,6 +64,7 @@ namespace bpr::application {
 		std::shared_ptr<job>                                   Live;
 		std::shared_ptr<const release_maintenance_preparation> Prepared;
 		std::shared_ptr<const std::string>                     Preview;
+		std::optional<command>                                 Operation;
 		std::deque<std::function<void()>>                      Ingress;
 		bool                                                   Turning      = false;
 		bool                                                   Closing      = false;
@@ -84,7 +85,7 @@ namespace bpr::application {
 		void publish(const core::release_maintenance_output& aDelta) noexcept
 		{
 			try {
-				Projection.publish({ State, core::release_maintenance_commands(State), Preview, aDelta });
+				Projection.publish({ State, core::release_maintenance_commands(State), Preview, Operation, aDelta.Diagnostic });
 			} catch (...) { }
 		}
 		void post_decision(std::function<void()> aAction)
@@ -157,6 +158,9 @@ namespace bpr::application {
 				Prepared.reset();
 				Preview.reset();
 			}
+			if (delta.AuthorityChanged) {
+				Operation.reset();
+			}
 			if (delta.Request && delta.Request->Cancel) {
 				revoke();
 			}
@@ -191,6 +195,7 @@ namespace bpr::application {
 				return;
 			}
 			live->Context     = delta.Request->Context;
+			Operation         = live->Context.Operation;
 			live->Preparation = std::move(preparation);
 			live->Output      = std::move(aOutput);
 			Live              = live;
