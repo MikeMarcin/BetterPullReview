@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0956"
 title: "Compose cross-platform release packages"
-status: "Blocked"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0952","BPR-0955"]
 milestone: "M6 Composition and public-path integration"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
-blocked_by: "native-desktop-locked"
 ---
 
 # Compose cross-platform release packages
