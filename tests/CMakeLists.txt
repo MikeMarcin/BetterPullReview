@@ -316,6 +316,12 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME release_security_audit_contract
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/verify_release_security_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME issue_id_allocation_contract
     WINDOWS_UNCONTAINED
     COMMAND

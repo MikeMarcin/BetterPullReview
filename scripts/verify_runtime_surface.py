@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -212,6 +213,52 @@ def network_sockets(pid: int) -> list[str]:
     if system == "Windows":
         return windows_network_sockets(pid)
     raise RuntimeError(f"unsupported runtime-audit platform: {system}")
+
+
+def named_unix_sockets(pid: int) -> list[Path]:
+    """Enumerate process-owned named AF_UNIX endpoints, separately from TCP/UDP.
+
+Unnamed desktop IPC is not a pathname listener and is not claimed absent.
+Windows profile activation has no implemented transport.
+"""
+    system = platform.system()
+    if system == "Darwin":
+        result = subprocess.run(["lsof", "-a", "-p", str(pid), "-U", "-Fn"],
+                                capture_output=True, text=True, timeout=5)
+        if result.returncode not in (0, 1):
+            raise RuntimeError("native Unix socket inventory failed")
+        return sorted({Path(line[1:]) for line in result.stdout.splitlines() if line.startswith("n/")})
+    if system == "Linux":
+        inodes = set()
+        for descriptor in Path(f"/proc/{pid}/fd").iterdir():
+            try:
+                match = SOCKET_PATTERN.fullmatch(os.readlink(descriptor))
+            except FileNotFoundError:
+                continue
+            if match:
+                inodes.add(match[1])
+        paths = []
+        for line in Path(f"/proc/{pid}/net/unix").read_text().splitlines()[1:]:
+            fields = line.split(maxsplit=7)
+            if len(fields) == 8 and fields[6] in inodes:
+                if not fields[7].startswith("/"):
+                    raise RuntimeError("undeclared abstract Unix socket")
+                paths.append(Path(fields[7]))
+        return sorted(set(paths))
+    if system == "Windows":
+        return []
+    raise RuntimeError("unsupported Unix socket inspection platform")
+
+
+def check_profile_socket(pid: int, expected: Path) -> None:
+    if named_unix_sockets(pid) != [expected]:
+        raise RuntimeError("unexpected process-owned named Unix socket set")
+    endpoint = expected.lstat()
+    parent = expected.parent.lstat()
+    if not (stat.S_ISSOCK(endpoint.st_mode) and stat.S_IMODE(endpoint.st_mode) == 0o600
+            and stat.S_ISDIR(parent.st_mode) and stat.S_IMODE(parent.st_mode) == 0o700
+            and endpoint.st_uid == parent.st_uid == os.geteuid()):
+        raise RuntimeError("profile socket is not owner-private")
 
 
 def loaded_libraries(pid: int) -> list[Path]:

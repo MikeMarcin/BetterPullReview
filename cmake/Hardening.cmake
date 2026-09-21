@@ -4,7 +4,12 @@ function(bpr_enable_hardening target)
 
     if(MSVC)
         target_compile_options("${target}" PRIVATE /sdl /guard:cf)
-        target_link_options("${target}" PRIVATE /guard:cf)
+        target_link_options("${target}" PRIVATE /guard:cf /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT)
+        get_target_property(target_type "${target}" TYPE)
+        if(target_type STREQUAL "EXECUTABLE")
+            # Keep complete public/static link evidence outside the installed payload.
+            target_link_options("${target}" PRIVATE /MAP)
+        endif()
         return()
     endif()
 

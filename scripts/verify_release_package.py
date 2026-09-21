@@ -18,6 +18,7 @@ import sys
 import verify_binary_dependencies as dependencies
 import verify_composed_hosts as composition
 import verify_rfc0016_test_inventory as device_inventory
+import verify_pe_release as pe_release
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("bpr_package_runtime", ROOT / "packaging/package_runtime.py")
@@ -168,7 +169,7 @@ def check_dependencies(binary: Path, root: Path, system: str) -> None:
                 and (base / origin.split("/", 1)[1]).resolve().is_relative_to(root), "untrusted-library-search-path")
 
 
-def audit(build: Path, root: Path, sbom: Path, revision: str) -> dict:
+def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_root: Path | None = None) -> dict:
     require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
     info = runtime.inputs(build)
     app, helpers = package_paths(root, info)
@@ -176,6 +177,7 @@ def audit(build: Path, root: Path, sbom: Path, revision: str) -> dict:
     check_dependency_inventory(sbom, info)
     evidence.update(check_graph(build, info, revision))
     binaries = []
+    symbol_evidence = {}
     for path in sorted(root.rglob("*")):
         if path.is_symlink() or not path.is_file():
             continue
@@ -183,15 +185,18 @@ def audit(build: Path, root: Path, sbom: Path, revision: str) -> dict:
             magic = stream.read(4)
         if not magic.startswith(BINARY_MAGICS):
             continue
-        table = composition.inspect_symbols(path)
+        table = (pe_release.inspect(path, info, windows_redist_root) if info["platform"] == "Windows"
+                 else composition.inspect_symbols(path))
         check_payload(path.read_bytes(), table.symbols)
         check_dependencies(path, root, info["platform"])
         if path == app:
             require(not composition.audit_symbols(table.symbols, composition.PRODUCTION_PROFILE), "production-composition-anchor-missing")
         binaries.append(path.relative_to(root).as_posix())
+        symbol_evidence[path.relative_to(root).as_posix()] = table.inspector
     require(all(path.relative_to(root).as_posix() in binaries for path in (app, *helpers)), "required-capability-not-a-binary")
     return {**evidence, "source_revision": revision, "executable_sha256": runtime.digest(app),
-            "binaries": binaries, "trust": "not-assessed", "license_approval": "pending"}
+            "binaries": binaries, "symbol_evidence": symbol_evidence,
+            "trust": "not-assessed", "license_approval": "pending"}
 
 
 def main() -> int:
@@ -200,9 +205,11 @@ def main() -> int:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--sbom", required=True, type=Path)
     parser.add_argument("--source-revision", required=True)
+    parser.add_argument("--windows-redist-root", type=Path)
     args = parser.parse_args()
     try:
-        evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision)
+        evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision,
+                         windows_redist_root=args.windows_redist_root)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError, composition.verification_error) as error:
         print(f"RELEASE_PACKAGE_FAILED:{error}", file=sys.stderr)
         return 1

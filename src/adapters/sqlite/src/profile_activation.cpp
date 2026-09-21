@@ -135,9 +135,9 @@ namespace bpr::adapters::sqlite {
 					continue;
 				}
 				if (owner_private_directory(*candidate, true)) {
-					return *candidate;
+					return candidate;
 				}
-				const auto child = *candidate / owned;
+				auto child = *candidate / owned;
 				if ((::mkdir(child.c_str(), 0700) == 0 || errno == EEXIST) && owner_private_directory(child, false)) {
 					return child;
 				}

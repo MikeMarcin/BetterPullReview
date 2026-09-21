@@ -13,6 +13,7 @@ import platform
 import socket
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -44,6 +45,25 @@ def main() -> int:
         modules = surface.loaded_libraries(os.getpid())
         if not modules:
             raise RuntimeError("actual native library inspection returned no evidence")
+        unix_observed = "not-implemented-on-Windows"
+        if platform.system() != "Windows":
+            with tempfile.TemporaryDirectory(dir=os.environ["QUALIFICATION_TARGET_ROOT"], prefix="ipc-") as directory:
+                endpoint = Path(directory) / "p.sock"
+                with socket.socket(socket.AF_UNIX) as listener:
+                    listener.bind(str(endpoint))
+                    endpoint.chmod(0o600)
+                    listener.listen(1)
+                    surface.check_profile_socket(os.getpid(), endpoint)
+                    if surface.named_unix_sockets(child.pid):
+                        raise RuntimeError("Unix socket query included another process's socket")
+                    endpoint.chmod(0o666)
+                    try:
+                        surface.check_profile_socket(os.getpid(), endpoint)
+                    except RuntimeError:
+                        pass
+                    else:
+                        raise RuntimeError("unsafe Unix socket mode was accepted")
+                unix_observed = "owned endpoint observed; unrelated process excluded; unsafe mode rejected"
     finally:
         child.terminate()
         try:
@@ -55,6 +75,7 @@ def main() -> int:
                       "architecture": platform.machine(), "python": platform.python_version(),
                       "direct_child_observed": True, "owned_listener_and_connection_observed": True,
                       "other_process_sockets_excluded": True, "loaded_library_count": len(modules),
+                      "unix_socket": unix_observed,
                       "child_reaped": child.poll() is not None, "package_qualification": "not-claimed"}))
     return 0
 

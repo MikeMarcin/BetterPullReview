@@ -114,7 +114,7 @@ runtime/dependency inspection cannot be replaced by hosted workflow output.
 
 - Clean Windows, macOS Intel/Apple Silicon, and Linux test environments install, launch, authenticate, open a fixture PR, and uninstall successfully.
 - Package signatures/notarization verify independently.
-- Runtime dependency scan shows no WebEngine, browser engine, Node, local server, arbitrary plugin loader, or undeclared network endpoint.
+- Runtime dependency scan shows no WebEngine, browser engine, Node, local network server, arbitrary plugin loader, or undeclared network endpoint. The existing bounded owner-authenticated profile-activation AF_UNIX IPC is the sole declared listener exception; verify its owner/peer/frame/lifetime boundary and absence of network-service capability.
 - SBOM, license notices, source-offer obligations, and checksums match the delivered artifacts.
 - Hardened build settings, static analysis, sanitizers, fuzzers, secret scans, and vulnerability scans pass release policy.
 - Credential vaults, file permissions, cache locations, retention, purge, and uninstall behavior match documentation.
@@ -123,6 +123,14 @@ runtime/dependency inspection cannot be replaced by hosted workflow output.
 - Delivered target/dependency graphs and runtime inspection prove the functional core remains Qt/provider-free and all effects are reachable only through the packaged host/composition path.
 
 ## Verification matrix
+
+Mandate r3 explicitly permits modernizing obsolete implementation prescriptions
+while preserving security outcomes. M9 reconciles “no local server” above with
+the already-shipped profile activation adapter, not with any new network
+service. The [release security policy](../security/release-policy.md) specifies
+the exception's negative controls and keeps trust, legal, vulnerability and
+native-matrix acceptance independent. The immutable imported RFC/card baseline
+is retained as provenance; this amendment does not waive its security outcome.
 
 | Claim | Direct surface | Proof |
 |---|---|---|

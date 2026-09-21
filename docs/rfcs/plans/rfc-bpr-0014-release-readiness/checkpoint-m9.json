@@ -1,0 +1,84 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m9-security-boundary-verification",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m9-security-boundary-verification",
+    "definition_fingerprint": "sha256:c2e9ddfa95474c84a0bfdaa452070575b671b5fc0f130cf7ae973f0017a7ebef",
+    "obligations": [
+      {
+        "id": "BPR-0962:*",
+        "source": "BPR-0962",
+        "selector": null,
+        "source_fingerprint": "sha256:159ed4d05af3866518c1e09de2afef24c3a74970e3e23eafc61fad9e38d2659f"
+      }
+    ],
+    "obligation_fingerprint": "sha256:e5e47ef3a9ff9c9705f3edd05177919c0e49edb17f43c410cd57c7572d55afd4",
+    "exit_criteria": [
+      {
+        "id": "m9-security-boundary-verification:exit:1",
+        "text": "Each exact delivered artifact independently verifies trust, checksums, SBOM, notices and source-offer obligations."
+      },
+      {
+        "id": "m9-security-boundary-verification:exit:2",
+        "text": "Release-policy hardening/analysis/sanitizer/fuzz/secret/vulnerability and native runtime/credential/privacy boundary checks pass across the supported matrix."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:12e60b5412a82c362593968c4c412917e212df98e9adea9bed0bd67834bba1fb",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "8d75ff697d8aae83a54a6396fa7a71a519ec56ba",
+    "workflow_branch": "main",
+    "workflow_revision": "8d75ff697d8aae83a54a6396fa7a71a519ec56ba"
+  }
+}
