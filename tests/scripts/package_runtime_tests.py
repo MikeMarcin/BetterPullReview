@@ -134,6 +134,23 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertNotIn('sign "${CODESIGN_IDENTITY}"', prefix)
         self.assertIn("--force --deep --sign - --timestamp=none", prefix)
 
+    def test_final_sbom_does_not_reuse_upstream_file_verification_codes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "ThirdParty").mkdir()
+            (root / "ThirdParty/corresponding-source.zip").touch()
+            upstream = {"upstreamNamespace": "https://example.invalid/qt-input", "files": [], "relationships": [], "hasExtractedLicensingInfos": [],
+                        "packages": [{"SPDXID": "SPDXRef-QtCore", "name": "Core", "filesAnalyzed": True,
+                                      "packageVerificationCode": {"packageVerificationCodeValue": "upstream-only"}, "licenseInfoFromFiles": ["MIT"]}]}
+            with patch.object(runtime, "qt_records", return_value=upstream), patch.object(runtime, "components", return_value=[]), patch.object(runtime, "run", side_effect=["a" * 40, "", "2026-09-21T00:00:00+00:00"]):
+                runtime.audit(root, {"platform": "Linux", "version": "1.0.0"}, root, root / "sbom.json")
+            record = json.loads((root / "sbom.json").read_text())["packages"][1]
+            self.assertFalse(record["filesAnalyzed"])
+            self.assertNotIn("packageVerificationCode", record)
+            self.assertNotIn("licenseInfoFromFiles", record)
+            self.assertIn("Qt producer input", record["sourceInfo"])
+            self.assertTrue(upstream["packages"][0]["filesAnalyzed"], "full input evidence remains intact")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -302,7 +302,16 @@ def audit(build: Path, info: dict, root: Path, output: Path) -> None:
     package = {"SPDXID": "SPDXRef-BetterPullReview", "name": "BetterPullReview", "versionInfo": info["version"],
                "downloadLocation": "NOASSERTION", "filesAnalyzed": False, "licenseConcluded": "NOASSERTION", "licenseDeclared": "NOASSERTION",
                "copyrightText": "NOASSERTION", "sourceInfo": f"git:{revision}; clean={source_clean}; tests-disabled Release; {info['platform']}"}
-    packages = [package] + records["packages"]
+    packages = [package]
+    for item in records["packages"]:
+        # Producer verification codes cover upstream files, not our relocated
+        # and re-sealed bytes. Keep those assertions only in provenance.
+        dependency = dict(item)
+        dependency["filesAnalyzed"] = False
+        dependency.pop("packageVerificationCode", None)
+        dependency.pop("licenseInfoFromFiles", None)
+        dependency["sourceInfo"] = f"Qt producer input: {records['upstreamNamespace']}; {item.get('sourceInfo', '')}"
+        packages.append(dependency)
     relations = records["relationships"] + [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": package["SPDXID"]}]
     for item in records["packages"]:
         if item["name"] in QT_LIBRARIES or "-qt-plugin-" in item["SPDXID"]:
