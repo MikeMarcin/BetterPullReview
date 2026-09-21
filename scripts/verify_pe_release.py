@@ -83,8 +83,18 @@ def map_symbols(binary: Path, producer: Path) -> tuple[str, ...]:
         require(index < len(header["sections"]), "pe-map-section-mismatch")
         section = header["sections"][index]
         displacement = int(record["offset"], 16)
+        address = int(record["rva"], 16)
+        # MSVC emits linker-only CFG index records at image-base-relative
+        # offsets before the first mapped section. Their section displacement
+        # wraps at 32 bits; these names still participate in forbidden-seam
+        # scanning, but are not represented as executable functions.
+        guard_metadata = (record["name"].startswith(("__guard_fids_", "__guard_iats_", "__guard_ehcont_"))
+                          and header["image_base"] <= address < header["image_base"] + min(item["address"] for item in header["sections"])
+                          and (section["address"] + displacement) & 0xffffffff == address - header["image_base"])
+        if guard_metadata:
+            continue
         require(displacement < section["size"]
-                and int(record["rva"], 16) == header["image_base"] + section["address"] + displacement,
+                and address == header["image_base"] + section["address"] + displacement,
                 "pe-map-symbol-address-mismatch")
     decorated = composition.parse_map_defined_symbols(text)
     undname = shutil.which("undname")
@@ -94,7 +104,7 @@ def map_symbols(binary: Path, producer: Path) -> tuple[str, ...]:
 
 def upstream_dll(binary: Path, info: dict, redist_root: Path | None) -> Path:
     qt = Path(info["qt_root"]).resolve(strict=True)
-    record = json.loads((qt / "sbom/qtbase-6.10.3.spdx.json").read_text(encoding="utf-8"))
+    record = json.loads((qt / f"sbom/qtbase-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
     matching = [item for item in record["files"] if Path(item["fileName"]).name.lower() == binary.name.lower()
                 and "BINARY" in item.get("fileTypes", [])]
     if matching:

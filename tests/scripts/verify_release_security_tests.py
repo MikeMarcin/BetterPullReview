@@ -99,6 +99,22 @@ class ReleaseSecurityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "fixture-symbol"):
                 package.check_payload(image(), symbols)
 
+    def test_linker_only_cfg_indexes_are_bound_and_still_scanned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            producer = Path(directory) / "app.exe"
+            producer.write_bytes(image())
+            text = map_text("__guard_fids_github_public_path_fixture")
+            text = text.replace("0001:00000000 __guard", "0001:fffff004 __guard").replace("0000000140001000 f", "0000000140000004 f")
+            producer.with_suffix(".map").write_text(text)
+            with patch.object(pe.shutil, "which", return_value="undname"):
+                symbols = pe.map_symbols(producer, producer)
+                with self.assertRaisesRegex(ValueError, "fixture-symbol"):
+                    package.check_payload(image(), symbols)
+                for invalid in (text.replace("__guard_fids_", "untrusted_"), text.replace("fffff004", "fffff005")):
+                    producer.with_suffix(".map").write_text(invalid)
+                    with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                        pe.map_symbols(producer, producer)
+
     def test_pe_hardening_requires_aslr_dep_and_nonwritable_code(self):
         with tempfile.TemporaryDirectory() as directory:
             binary = Path(directory) / "app.exe"
