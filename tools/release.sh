@@ -428,7 +428,9 @@ Plugins = PlugIns
 EOF
 verify_dependency_policy "${STAGED_APP}"
 log "Preparing exact third-party notices and corresponding source"
-python3 "${ROOT_DIR}/packaging/package_runtime.py" notices --build "${BUILD_DIR}" --root "${STAGED_APP}"
+SOURCE_ASSET="${APP_NAME}-${REQUESTED_VERSION}-macos-universal-corresponding-source.zip"
+SOURCE_PATH="${OUTPUT_DIR}/${SOURCE_ASSET}"
+python3 "${ROOT_DIR}/packaging/package_runtime.py" notices --build "${BUILD_DIR}" --root "${STAGED_APP}" --source-archive "${SOURCE_PATH}"
 
 if [[ "${PREPARE_ONLY}" == "1" ]]; then
     ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal-local"
@@ -440,9 +442,9 @@ if [[ "${PREPARE_ONLY}" == "1" ]]; then
     codesign --verify --deep --strict "${STAGED_APP}"
     verify_relocated_launch "${STAGED_APP}" "${STAGING_ROOT}/smoke-profile"
     ditto "${STAGED_APP}" "${LOCAL_APP}"
-    python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${LOCAL_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json"
+    python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${LOCAL_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json" --source-archive "${SOURCE_PATH}"
     ditto -c -k --keepParent "${LOCAL_APP}" "${LOCAL_ZIP}"
-    (cd "${OUTPUT_DIR}" && shasum -a 256 "${ASSET_BASE}.zip" "${ASSET_BASE}.spdx.json" > "${ASSET_BASE}.sha256")
+    (cd "${OUTPUT_DIR}" && shasum -a 256 "${ASSET_BASE}.zip" "${ASSET_BASE}.spdx.json" "${SOURCE_ASSET}" > "${ASSET_BASE}.sha256")
     log "Local candidate: ${LOCAL_APP}; not Developer-ID signed, notarized, Gatekeeper-qualified or published"
     exit 0
 fi
@@ -492,12 +494,13 @@ fi
 
 log "Creating the release ZIP and checksums"
 ditto -c -k --keepParent "${STAGED_APP}" "${ZIP_PATH}"
-python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${STAGED_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json"
+python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${STAGED_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json" --source-archive "${SOURCE_PATH}"
 (
     cd "${OUTPUT_DIR}"
     shasum -a 256 "$(basename "${DMG_PATH}")" >"$(basename "${DMG_CHECKSUM_PATH}")"
     shasum -a 256 "$(basename "${ZIP_PATH}")" >"$(basename "${ZIP_CHECKSUM_PATH}")"
     shasum -a 256 "${ASSET_BASE}.spdx.json" >"${ASSET_BASE}.spdx.json.sha256"
+    shasum -a 256 "${SOURCE_ASSET}" >"${SOURCE_ASSET}.sha256"
 )
 
 cat <<EOF
@@ -508,6 +511,7 @@ Release package complete
   Team:    ${TEAM_ID}
   DMG:     ${DMG_PATH}
   ZIP:     ${ZIP_PATH}
+  Source:  ${SOURCE_PATH}
   SHA-256: ${DMG_CHECKSUM_PATH}
            ${ZIP_CHECKSUM_PATH}
 EOF

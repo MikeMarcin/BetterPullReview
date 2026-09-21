@@ -45,14 +45,16 @@ class ReleaseSecurityTests(unittest.TestCase):
             root = Path(directory)
             declared = [{"name": "fixture", "version": "1", "url": "https://example.invalid/a.zip",
                          "sha256": hashlib.sha256(b"source").hexdigest()}]
-            (root / "source-provenance.json").write_text(json.dumps({"schema": "bpr.release-sources.v1", "components": declared}))
-            with patch.object(package.runtime, "legal_root", return_value=root), patch.object(package.runtime, "components", return_value=declared):
+            info = {"platform": "Darwin", "version": "1.2.3"}
+            source = root / package.runtime.source_asset_name(info)
+            with patch.object(package.runtime, "components", return_value=declared):
                 for name, payload, error in (("unexpected.zip", b"source", "inventory-mismatch"),
                                              ("fixture-1.zip", b"substitute", "digest-mismatch")):
-                    with zipfile.ZipFile(root / "corresponding-source.zip", "w") as archive:
+                    with zipfile.ZipFile(source, "w") as archive:
                         archive.writestr(name, payload)
+                    provenance = package.runtime.source_provenance(info, "a" * 40, package.runtime.digest(source))
                     with self.assertRaisesRegex(ValueError, error):
-                        security.source_and_notices(root, root / "unused.json", {})
+                        package.runtime.verify_source_asset(source, provenance)
 
     def test_compile_hardening_requires_selected_flags(self):
         with tempfile.TemporaryDirectory() as directory:

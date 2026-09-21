@@ -37,12 +37,26 @@ evidence may be reused only with its original scope and identity.
   fails. This does not alter or resign the DLL. Microsoft's
   [PE signature format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
   specifies those excluded signature fields.
-- `verify_release_security.py` additionally validates corresponding-source
-  inventory/digests (including SQLite SHA3), retained notice texts, Qt transitive
+- Package audits reject an embedded corresponding-source archive. They bind
+  its separate versioned release name, exact URL, producer revision and SHA-256
+  through the installed provenance/notices/source offer and the SPDX. The
+  macOS publication preflight checks those exact references inside the app ZIP
+  against the separate source ZIP before remote operations. Checksums and the
+  upload set include the source asset; native MSI/DEB/RPM production emits it
+  beside the binary artifacts too.
+- `verify_release_security.py` additionally validates retained notice texts, Qt transitive
   package identities, source offers, actual compiler commands and emitted image
   protections. Legal/owner review must resolve first-party distribution terms,
   mixed syntax-definition licenses, Qt/third-party obligations, toolchain terms,
-  and practical corresponding build/relink material. Text presence alone does
+  and practical corresponding build/relink material. The separate source asset
+  receives equivalent access for every binary recipient at no extra charge,
+  including a distribution-channel fallback after private repository access
+  changes and a copy alongside corporate/offline redistribution. Retention is
+  indefinite until the distribution owner documents that all applicable
+  source-offer/license obligations have ended, and never ends while matching
+  binaries remain distributed. Keep the asset and version tag immutable.
+  Offline validation cannot certify those ongoing access/retention arrangements.
+  Text presence alone does
   not discharge these obligations. See [Qt licensing](https://doc.qt.io/qt-6.10/licensing.html)
   and [LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations).
 - First-party and selected SQLite Release compile commands require strong stack

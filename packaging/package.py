@@ -46,7 +46,12 @@ def main() -> None:
     artifact = artifacts[0]
     sbom = output / (artifact.name + ".spdx.json")
     shutil.copy2(inventories[0], sbom)
-    products = [artifact, sbom]
+    provenance = runtime.installed_source_provenance(inventories[0].parent, info, revision)
+    source_input = runtime.source_asset_path(build, info, revision)
+    runtime.verify_source_asset(source_input, provenance)
+    source_asset = output / provenance["asset"]["name"]
+    shutil.copy2(source_input, source_asset)
+    products = [artifact, sbom, source_asset]
     if info["platform"] == "Linux":
         # DEB/RPM remain corporate-managed system packages. The same restricted
         # runtime also supplies the default no-administrator per-user route.

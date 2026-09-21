@@ -23,19 +23,7 @@ require = package.require
 
 def source_and_notices(root: Path, sbom: Path, info: dict) -> dict:
     legal = package.runtime.legal_root(root, info)
-    declared = package.runtime.components(info)
-    provenance = json.loads((legal / "source-provenance.json").read_text(encoding="utf-8"))
-    require(provenance == {"schema": "bpr.release-sources.v1", "components": declared}, "source-provenance-drift")
-    expected = {}
-    for item in declared:
-        suffix = ".zip" if item["url"].endswith(".zip") else ".tar.xz" if item["url"].endswith(".xz") else ".tar.gz"
-        expected[f"{item['name']}-{item['version']}{suffix}"] = item
-    with zipfile.ZipFile(legal / "corresponding-source.zip") as archive:
-        require(sorted(archive.namelist()) == sorted(expected), "corresponding-source-inventory-mismatch")
-        for name, item in expected.items():
-            algorithm = "sha256" if "sha256" in item else "sha3_256"
-            with archive.open(name) as stream:
-                require(pe.stream_digest(stream, algorithm) == item[algorithm], "corresponding-source-digest-mismatch")
+    provenance = package.runtime.installed_source_provenance(root, info)
     notices = (legal / "THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
     for relative in ("sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE"):
         require((package.ROOT / "third_party" / relative).read_text(encoding="utf-8") in notices, "required-notice-missing")
@@ -51,9 +39,10 @@ def source_and_notices(root: Path, sbom: Path, info: dict) -> dict:
     if info["platform"] == "Windows":
         require("Microsoft Visual C++ Runtime redistribution notice" in notices, "msvc-notice-missing")
     offers = (legal / "SOURCE-OFFERS.txt").read_text(encoding="utf-8")
-    require(all(value in offers for value in ("ABI-compatible", "corresponding-source.zip", "KSyntaxHighlighting")), "source-offer-incomplete")
-    return {"source_archives": len(expected), "qt_packages": len(qt["packages"]),
-            "source_archive_sha256": package.runtime.digest(legal / "corresponding-source.zip"),
+    require(all(value in offers for value in ("ABI-compatible", "corresponding-source.zip", "KSyntaxHighlighting",
+                                             "equivalent access", "Retention is indefinite", "Corporate/offline redistribution")), "source-offer-incomplete")
+    return {"source_archives": len(provenance["components"]), "qt_packages": len(qt["packages"]),
+            "source_archive_sha256": provenance["asset"]["sha256"],
             "notices_sha256": package.runtime.digest(legal / "THIRD-PARTY-NOTICES.txt"),
             "legal_approval": "pending: first-party terms, mixed syntax-data licenses, toolchain terms and corresponding build/relink obligations"}
 
@@ -111,17 +100,19 @@ def main() -> int:
     parser.add_argument("--sbom", required=True, type=Path)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--windows-redist-root", type=Path)
+    parser.add_argument("--source-archive", type=Path, help="defaults to the versioned asset beside the SPDX")
     args = parser.parse_args()
     try:
         build, root, sbom = (path.resolve(strict=True) for path in (args.build, args.root, args.sbom))
-        evidence = package.audit(build, root, sbom, args.source_revision, windows_redist_root=args.windows_redist_root)
+        evidence = package.audit(build, root, sbom, args.source_revision, windows_redist_root=args.windows_redist_root,
+                                 source_archive=args.source_archive)
         info = package.runtime.inputs(build)
         evidence["sources_notices"] = source_and_notices(root, sbom, info)
         evidence["compile_hardening"] = compile_hardening(build, info["platform"])
         evidence["binary_hardening"] = {name: binary_hardening(root / name, info["platform"]) for name in evidence["binaries"]}
         evidence["result"] = "RELEASE_SECURITY_MECHANICS_OK"
         evidence["release_acceptance"] = "pending independent trust/legal, scan policy and complete native runtime/vault/crash evidence"
-    except (OSError, ValueError, KeyError, subprocess.SubprocessError, package.composition.verification_error) as error:
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError, package.composition.verification_error) as error:
         print(f"RELEASE_SECURITY_FAILED:{error}", file=sys.stderr)
         return 1
     print(json.dumps(evidence, sort_keys=True))

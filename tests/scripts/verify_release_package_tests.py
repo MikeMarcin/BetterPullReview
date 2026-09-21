@@ -57,12 +57,15 @@ class ReleasePackageTests(unittest.TestCase):
             root = Path(directory).resolve()
             legal = root / "ThirdParty"
             legal.mkdir()
-            source = legal / "corresponding-source.zip"
+            source = legal / "SOURCE-OFFERS.txt"
             source.write_bytes(b"controlled source fixture")
             sbom = root / "sbom.spdx.json"
             revision = "a" * 40
             record = {"packages": [{"SPDXID": "SPDXRef-BetterPullReview", "versionInfo": "1", "sourceInfo": f"git:{revision}; clean=True; tests-disabled Release; Linux"}],
-                      "files": [{"fileName": "./ThirdParty/corresponding-source.zip", "checksums": [{"algorithm": "SHA256", "checksumValue": audit.runtime.digest(source)}]}]}
+                      "files": [{"fileName": "./ThirdParty/SOURCE-OFFERS.txt", "checksums": [{"algorithm": "SHA256", "checksumValue": audit.runtime.digest(source)}]}]}
+            provenance = patch.object(audit.runtime, "installed_source_provenance")
+            provenance.start()
+            self.addCleanup(provenance.stop)
             def write():
                 sbom.write_text(json.dumps(record))
             write()

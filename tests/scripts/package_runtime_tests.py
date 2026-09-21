@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Closed-data tests for package selection and fail-closed evidence generation."""
 import importlib.util
+import io
 import json
 from pathlib import Path
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("package_runtime", ROOT / "packaging/package_runtime.py")
@@ -93,8 +96,55 @@ class PackageRuntimeTests(unittest.TestCase):
     def test_installed_audit_needs_source(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            with self.assertRaisesRegex(ValueError, "corresponding source"):
+            with self.assertRaises(FileNotFoundError):
                 runtime.audit(root, {"platform": "Linux"}, root, root / "sbom.json")
+
+    def test_notices_keep_sources_outside_every_platform_runtime(self):
+        for system in ("Darwin", "Windows", "Linux"):
+            with self.subTest(system=system), tempfile.TemporaryDirectory() as directory:
+                build = Path(directory)
+                stage = build / "runtime"
+                stage.mkdir()
+                cache = build / "release-sources"
+                cache.mkdir()
+                declared = []
+                for name in ("QtBase", "KSyntaxHighlighting"):
+                    path = cache / f"{name}-1.tar.gz"
+                    with tarfile.open(path, "w:gz") as archive:
+                        entry = tarfile.TarInfo(name + "/LICENSES/fixture.txt")
+                        entry.size = 7
+                        archive.addfile(entry, io.BytesIO(b"license"))
+                    declared.append({"name": name, "version": "1", "url": "https://example.invalid/source.tar.gz", "sha256": runtime.digest(path)})
+                (build / "_bpr").mkdir()
+                (build / "_bpr/LibArchive-NOTICES.txt").write_text("LibArchive notice")
+                msvc = build / "msvc.txt"
+                msvc.write_text("Toolchain notice fixture")
+                info = {"platform": system, "version": "1.2.3"}
+                with (patch.object(runtime, "components", return_value=declared),
+                      patch.object(runtime, "qt_records", return_value={"packages": [], "files": [], "hasExtractedLicensingInfos": []}),
+                      patch.object(runtime, "run", return_value="a" * 40),
+                      patch.dict(runtime.os.environ, {"BPR_MSVC_REDISTRIBUTION_NOTICE": str(msvc)}),
+                      patch.object(runtime.urllib.request, "urlopen") as network):
+                    runtime.notices(build, info, stage)
+                    provenance = runtime.installed_source_provenance(stage, info, "a" * 40)
+                    asset = runtime.source_asset_path(build, info, "a" * 40)
+                    runtime.verify_source_asset(asset, provenance)
+                    self.assertFalse(list(stage.rglob("*.zip")))
+                    offers = (runtime.legal_root(stage, info) / "SOURCE-OFFERS.txt").read_text()
+                    for required in ("ABI-compatible", "codesign --force --deep --sign -", "equivalent access", "Retention is indefinite"):
+                        self.assertIn(required, offers)
+                    # A new staging location and changed source-cache times must
+                    # retain the exact separately distributable archive bytes.
+                    for path in cache.iterdir():
+                        runtime.os.utime(path, (1_500_000_000, 1_500_000_000))
+                    runtime.notices(build, info, stage)
+                    self.assertEqual(runtime.digest(asset), provenance["asset"]["sha256"])
+                    network.assert_not_called()
+                    with self.assertRaisesRegex(ValueError, "outside the installed runtime"):
+                        runtime.notices(build, info, stage, stage / asset.name)
+                    (stage / "corresponding-source.zip").touch()
+                    with self.assertRaisesRegex(ValueError, "not embedded"):
+                        runtime.installed_source_provenance(stage, info)
 
     @unittest.skipIf(runtime.os.name == "nt", "Linux ldd fixture requires POSIX paths; run on a Linux or macOS host")
     def test_linux_deployment_inspects_pinned_provider_before_staged_copies(self):
@@ -158,11 +208,12 @@ class PackageRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "ThirdParty").mkdir()
-            (root / "ThirdParty/corresponding-source.zip").touch()
             upstream = {"upstreamNamespace": "https://example.invalid/qt-input", "files": [], "relationships": [], "hasExtractedLicensingInfos": [],
                         "packages": [{"SPDXID": "SPDXRef-QtCore", "name": "Core", "filesAnalyzed": True,
                                       "packageVerificationCode": {"packageVerificationCodeValue": "upstream-only"}, "licenseInfoFromFiles": ["MIT"]}]}
-            with patch.object(runtime, "qt_records", return_value=upstream), patch.object(runtime, "components", return_value=[]), patch.object(runtime, "run", side_effect=["a" * 40, "", "2026-09-21T00:00:00+00:00"]):
+            with (patch.object(runtime, "qt_records", return_value=upstream), patch.object(runtime, "components", return_value=[]),
+                  patch.object(runtime, "installed_source_provenance"), patch.object(runtime, "verify_source_asset"),
+                  patch.object(runtime, "run", side_effect=["a" * 40, "", "2026-09-21T00:00:00+00:00"])):
                 runtime.audit(root, {"platform": "Linux", "version": "1.0.0"}, root, root / "sbom.json")
             record = json.loads((root / "sbom.json").read_text())["packages"][1]
             self.assertFalse(record["filesAnalyzed"])

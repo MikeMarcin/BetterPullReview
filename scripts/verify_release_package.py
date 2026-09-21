@@ -14,6 +14,7 @@ import plistlib
 import re
 import subprocess
 import sys
+import zipfile
 
 import verify_binary_dependencies as dependencies
 import verify_composed_hosts as composition
@@ -87,8 +88,7 @@ def check_file_inventory(root: Path, sbom: Path, revision: str, info: dict) -> d
             actual["./" + path.relative_to(root).as_posix()] = runtime.digest(path)
     require(bool(actual) and actual.keys() == expected.keys(), "package-file-set-mismatch")
     require(actual == expected, "package-file-digest-mismatch")
-    legal = runtime.legal_root(root, info)
-    require((legal / "corresponding-source.zip").is_file(), "corresponding-source-missing")
+    runtime.installed_source_provenance(root, info, revision)
     return {"file_count": len(actual), "sbom_sha256": runtime.digest(sbom)}
 
 
@@ -174,11 +174,15 @@ def check_dependencies(binary: Path, root: Path, system: str) -> None:
                 and (base / origin.split("/", 1)[1]).resolve().is_relative_to(root), "untrusted-library-search-path")
 
 
-def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_root: Path | None = None) -> dict:
+def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_root: Path | None = None,
+          source_archive: Path | None = None) -> dict:
     require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
     info = runtime.inputs(build)
     app, helpers = package_paths(root, info)
     evidence = check_file_inventory(root, sbom, revision, info)
+    source = runtime.installed_source_provenance(root, info, revision)
+    runtime.verify_source_asset(source_archive or sbom.parent / source["asset"]["name"], source)
+    evidence["source_asset"] = source["asset"]
     check_dependency_inventory(sbom, info)
     evidence.update(check_graph(build, info, revision))
     binaries = []
@@ -211,11 +215,12 @@ def main() -> int:
     parser.add_argument("--sbom", required=True, type=Path)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--windows-redist-root", type=Path)
+    parser.add_argument("--source-archive", type=Path, help="defaults to the versioned asset beside the SPDX")
     args = parser.parse_args()
     try:
         evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision,
-                         windows_redist_root=args.windows_redist_root)
-    except (ValueError, OSError, KeyError, subprocess.SubprocessError, composition.verification_error) as error:
+                         windows_redist_root=args.windows_redist_root, source_archive=args.source_archive)
+    except (ValueError, OSError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError, composition.verification_error) as error:
         print(f"RELEASE_PACKAGE_FAILED:{error}", file=sys.stderr)
         return 1
     print(json.dumps({"result": "RELEASE_PACKAGE_OK", **evidence}, sort_keys=True))

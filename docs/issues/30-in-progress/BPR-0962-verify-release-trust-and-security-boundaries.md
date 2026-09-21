@@ -60,6 +60,27 @@ Developer ID signing or notarization was performed.
 
 ## M2 security allocation
 
+### M9 post-review correction in progress
+
+Fresh sole owner `/root/rfc0014_m9_postreview` resumes only M9 at
+`6ee88ac8afdc30543c0c6ea42e2a596b7556c1c4`, mandate r3 unchanged. Session
+`cbd48b91000b00f1e72e1ad62c7c384c` handed back at sequence 465. Rejection
+`626562d7-65a5-4eb3-842b-30b2573a09e5` applies only to licensing v001,
+fingerprint `2ec3475e1eed532ab1455783ae8553b823f6f7ffb005ee8b057ce1be5119c577`.
+The requested correction moves corresponding source to a separate version-bound
+release asset, retains exact references/notices and replacement instructions in
+the application, and requires equivalent recipient access and retention. It
+does not approve legal terms, security, trust or publication.
+
+The implementation plan is to update the existing package/release drivers,
+bind the sidecar digest and release location in installed source provenance,
+reject absent/substituted/embedded archives in audits, test the public package
+and publish preflight locally, and prepare only the affected licensing question.
+The old protected candidates remain untouched. The review server PID 49181 is
+the only inherited task command; no other writer is assigned. Grype's 21 Mac/19
+Windows failures and every M8/M9 native/independent obligation remain pending.
+Next action: implement and verify this bounded packaging correction offline.
+
 The [source allocation](../../architecture/release-readiness.md) binds all nine
 canonical public checks and G1–G9. Verify exact final package/helper bytes,
 static/transitive SBOM coverage, effective emitted hardening, loader policy,

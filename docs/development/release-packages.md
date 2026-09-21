@@ -45,8 +45,9 @@ tools/release.sh --version 0.1.3 --prepare-only --skip-tests \
 
 This uses the existing universal build, restricted Qt deployment, both-slice
 dependency/deployment-floor checks and relocated launch smoke. It includes
-notices/source, applies only an offline ad-hoc signature, and emits an app,
-local ZIP, SPDX SBOM and checksums. It does not read signing identities, change
+notices/source references, applies only an offline ad-hoc signature, and emits
+an app, local ZIP, separate version-bound source ZIP, SPDX SBOM and checksums.
+It does not read signing identities, change
 Keychain, contact Apple, sign with Developer ID, tag, push or publish. Ad-hoc
 sealing permits local execution; it is not Gatekeeper or distribution trust.
 `--skip-notarize` is different: it still uses Developer ID signing.
@@ -69,8 +70,8 @@ python3 packaging/package.py --build build/linux-package \
 ```
 
 The native driver builds the application and both helpers, runs CPack, requires
-one native installer/inventory, and emits checksums, an SPDX sidecar and source
-revision provenance. Linux also emits `*-user.tar.gz` from the same audited
+one native installer/inventory, and emits checksums, an SPDX sidecar, a separate
+version-bound source ZIP and source revision provenance. Linux also emits `*-user.tar.gz` from the same audited
 runtime. None of these Windows/Linux outputs is signed or published by this
 driver. Installer signing and independent trust are later explicit gates.
 
@@ -119,12 +120,33 @@ KSyntaxHighlighting, Quill/fmt, Glaze and the macOS-only LibArchive input.
 downloaded mismatches are refused. ECM is identified as build-only.
 
 The installed `ThirdParty` directory (macOS: `Contents/Resources/ThirdParty`)
-contains `THIRD-PARTY-NOTICES.txt`, `SOURCE-OFFERS.txt`, source provenance,
-selected Qt producer provenance, and `corresponding-source.zip`. Qt stays
-dynamically linked. The source-offer document describes replacement with
+contains `THIRD-PARTY-NOTICES.txt`, `SOURCE-OFFERS.txt`, source provenance and
+selected Qt producer provenance. Corresponding source is a separate asset:
+`BetterPullReview-VERSION-PLATFORM-corresponding-source.zip`, where PLATFORM is
+`macos-universal`, `windows-x64` or `linux-x64`. It is not embedded in the app,
+installer or per-user archive. Both installed notices and source offers point
+to its exact `releases/download/vVERSION/ASSET` location and SHA-256; the
+installed provenance also binds the producer commit and upstream input hashes.
+The SPDX hashes those installed references, and package audits verify the
+separate asset's digest and complete source inventory. macOS preparation writes
+it beside the app ZIP; CPack stages it outside the installed tree and the native
+driver copies it beside the MSI/DEB/RPM. The corresponding checksum and native
+provenance include it. Qt stays dynamically linked. The source-offer document describes replacement with
 ABI-compatible modified libraries and local resealing of a macOS copy; it grants
 no updater trust. All embedded syntax/theme attribution and complete licensed
 data are retained, not mislabeled as MIT just because the engine is MIT.
+
+Every binary recipient must have equivalent source access at no additional
+charge. The private GitHub release holds binaries and source under the same
+access policy. Corporate/offline redistribution must deliver the exact source
+asset alongside its binaries; if repository access changes or the URL is
+unavailable, the distributor must supply the asset through the original
+distribution channel. Keep the asset, digest and version tag immutable while
+any matching binary is distributed and throughout every applicable retention
+period afterward. Retention is indefinite until the accountable distribution
+owner documents that all source-offer/license obligations have ended. Package
+checks cannot prove future retention or recipient access; release readiness
+requires the owner to establish and maintain those arrangements.
 
 First-party distribution terms and aggregate mixed MIT/LGPL/GPL syntax-data
 obligations need owner/legal release approval. Metadata uses `NOASSERTION`
@@ -132,8 +154,13 @@ where no single license has been concluded; it is not a waiver. Windows also
 requires the native operator's applicable Microsoft runtime notice. Exact
 artifact license/source completeness remains an independent M9 release gate.
 
-The full existing macOS path emits final DMG/ZIP/SBOM checksums, and the existing
-private publication script now requires those SBOM assets too. Do not run that
+The full existing macOS path emits DMG, app ZIP, SPDX and source ZIP plus four
+checksum files. The existing private publication script requires all eight
+assets and verifies the source reference inside the actual app ZIP against
+the SPDX and separate source ZIP before any remote operation. Its nonmutating
+offline sub-check is `packaging/verify_release_sources.py`; `--help` lists the
+explicit artifact and producer arguments. No source URL is fetched by it.
+Do not run the publication
 script, submit notarization, or apply release signatures without explicit
 authority for the prepared version.
 
@@ -143,7 +170,8 @@ authority for the prepared version.
 building, signing or publishing. Supply its actual build directory, SPDX and
 exact clean producer revision. A later verifier/documentation-only revision
 may reuse the package only while product/build/package inputs are unchanged.
-The audit requires all installed file hashes, helper/plugin capability names,
+The audit requires the separate source ZIP beside the supplied SPDX (or an
+explicit `--source-archive` path), all installed file hashes, helper/plugin capability names,
 declared static provenance, tests-disabled compile graph and native symbol/byte
 evidence. macOS also checks every packaged native library reference and RPATH.
 Native Windows/Linux loaded origins and full trust/license review are separate

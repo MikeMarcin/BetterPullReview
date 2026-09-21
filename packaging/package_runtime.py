@@ -66,14 +66,18 @@ def components(info: dict) -> list[dict]:
     return [item for item in entries if info["platform"] in item.get("platforms", [info["platform"]])]
 
 
+def upstream_source_name(item: dict) -> str:
+    suffix = ".zip" if item["url"].endswith(".zip") else ".tar.xz" if item["url"].endswith(".xz") else ".tar.gz"
+    return f"{item['name']}-{item['version']}{suffix}"
+
+
 def source_archives(build: Path, info: dict) -> dict[str, Path]:
     directory = build / "release-sources"
     directory.mkdir(exist_ok=True)
     result = {}
     for item in components(info):
         algorithm = "sha256" if "sha256" in item else "sha3_256"
-        extension = ".zip" if item["url"].endswith(".zip") else ".tar.xz" if item["url"].endswith(".xz") else ".tar.gz"
-        path = directory / f"{item['name']}-{item['version']}{extension}"
+        path = directory / upstream_source_name(item)
         if not path.exists():
             descriptor, temporary_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".download", dir=directory)
             os.close(descriptor)
@@ -96,6 +100,101 @@ def source_archives(build: Path, info: dict) -> dict[str, Path]:
 
 def legal_root(root: Path, info: dict) -> Path:
     return root / "Contents/Resources/ThirdParty" if info["platform"] == "Darwin" else root / "ThirdParty"
+
+
+def source_asset_name(info: dict) -> str:
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z.-]+)?", info["version"]):
+        raise ValueError("invalid source asset version")
+    target = {"Darwin": "macos-universal", "Windows": "windows-x64", "Linux": "linux-x64"}[info["platform"]]
+    return f"BetterPullReview-{info['version']}-{target}-corresponding-source.zip"
+
+
+def source_asset_url(info: dict) -> str:
+    return f"https://github.com/MikeMarcin/BetterPullReview/releases/download/v{info['version']}/{source_asset_name(info)}"
+
+
+def source_asset_path(build: Path, info: dict, revision: str) -> Path:
+    return build / "release-source-assets" / revision / source_asset_name(info)
+
+
+def source_provenance(info: dict, revision: str, checksum: str) -> dict:
+    return {"schema": "bpr.release-sources.v2", "components": components(info),
+            "release": {"version": info["version"], "platform": info["platform"], "sourceRevision": revision},
+            "asset": {"name": source_asset_name(info), "url": source_asset_url(info), "sha256": checksum}}
+
+
+def check_source_provenance(provenance: dict, info: dict, revision: str | None = None) -> dict:
+    recorded_revision = provenance.get("release", {}).get("sourceRevision", "")
+    checksum = provenance.get("asset", {}).get("sha256", "")
+    if not re.fullmatch(r"[a-f0-9]{40}", recorded_revision) or not re.fullmatch(r"[a-f0-9]{64}", checksum):
+        raise ValueError("invalid corresponding source identity")
+    if revision is not None and recorded_revision != revision:
+        raise ValueError("corresponding source revision mismatch")
+    if provenance != source_provenance(info, recorded_revision, checksum):
+        raise ValueError("corresponding source provenance mismatch")
+    return provenance
+
+
+def check_source_references(provenance: dict, material: dict[str, str]) -> None:
+    for name in ("SOURCE-OFFERS.txt", "THIRD-PARTY-NOTICES.txt"):
+        if any(provenance["asset"][key] not in material[name] for key in ("name", "url", "sha256")):
+            raise ValueError("corresponding source reference missing from " + name)
+
+
+def installed_source_provenance(root: Path, info: dict, revision: str | None = None) -> dict:
+    if any(root.rglob("*corresponding-source*.zip")):
+        raise ValueError("corresponding source must be a separate release asset, not embedded")
+    legal = legal_root(root, info)
+    provenance = check_source_provenance(json.loads((legal / "source-provenance.json").read_text(encoding="utf-8")), info, revision)
+    check_source_references(provenance, {name: (legal / name).read_text(encoding="utf-8")
+                                        for name in ("SOURCE-OFFERS.txt", "THIRD-PARTY-NOTICES.txt")})
+    return provenance
+
+
+def verify_source_asset(archive: Path, provenance: dict) -> None:
+    if archive.is_symlink() or not archive.is_file() or archive.name != provenance["asset"]["name"]:
+        raise ValueError("corresponding source release asset missing or misnamed")
+    if digest(archive) != provenance["asset"]["sha256"]:
+        raise ValueError("corresponding source release asset digest mismatch")
+    expected = {upstream_source_name(item): item for item in provenance["components"]}
+    with zipfile.ZipFile(archive) as stream:
+        if sorted(stream.namelist()) != sorted(expected):
+            raise ValueError("corresponding-source-inventory-mismatch")
+        for name, item in expected.items():
+            algorithm = "sha256" if "sha256" in item else "sha3_256"
+            checksum = hashlib.new(algorithm)
+            with stream.open(name) as entry:
+                for chunk in iter(lambda: entry.read(1024 * 1024), b""):
+                    checksum.update(chunk)
+            if checksum.hexdigest() != item[algorithm]:
+                raise ValueError("corresponding-source-digest-mismatch")
+
+
+def prepare_source_asset(build: Path, info: dict, root: Path, archives: dict[str, Path], output: Path | None) -> dict:
+    revision = run("git", "-C", ROOT, "rev-parse", "HEAD").strip()
+    output = output or source_asset_path(build, info, revision)
+    if output.resolve().is_relative_to(root.resolve()) or output.name != source_asset_name(info) or output.is_symlink():
+        raise ValueError("corresponding source requires its versioned name outside the installed runtime")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # Fixed ZIP entry metadata makes the same upstream inputs byte-identical on
+    # every preparation, independent of source-cache paths and download times.
+    with tempfile.TemporaryDirectory(prefix=".source-asset-", dir=output.parent) as directory:
+        temporary = Path(directory) / output.name
+        with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as stream:
+            for path in sorted(archives.values(), key=lambda item: item.name):
+                entry = zipfile.ZipInfo(path.name, date_time=(1980, 1, 1, 0, 0, 0))
+                entry.create_system = 3
+                entry.external_attr = 0o100644 << 16
+                with path.open("rb") as source, stream.open(entry, "w") as destination:
+                    shutil.copyfileobj(source, destination)
+        provenance = source_provenance(info, revision, digest(temporary))
+        verify_source_asset(temporary, provenance)
+        if output.exists():
+            if digest(output) != provenance["asset"]["sha256"]:
+                raise ValueError("existing versioned source asset differs; use a fresh output directory")
+        else:
+            temporary.rename(output)
+    return provenance
 
 
 def qt_records(info: dict, root: Path) -> dict:
@@ -129,11 +228,18 @@ def qt_records(info: dict, root: Path) -> dict:
             "hasExtractedLicensingInfos": upstream.get("hasExtractedLicensingInfos", [])}
 
 
-def notices(build: Path, info: dict, root: Path) -> None:
+def notices(build: Path, info: dict, root: Path, source_archive: Path | None = None) -> None:
     archives = source_archives(build, info)
+    provenance = prepare_source_asset(build, info, root, archives, source_archive)
     destination = legal_root(root, info)
     destination.mkdir(parents=True, exist_ok=True)
     texts = [("Distribution notice", (ROOT / "packaging/DISTRIBUTION.txt").read_text())]
+    source_reference = (f"Corresponding third-party source for BetterPullReview {info['version']} ({info['platform']}), "
+                        f"producer {provenance['release']['sourceRevision']}.\n"
+                        f"Separate release asset: {provenance['asset']['name']}\n"
+                        f"Download: {provenance['asset']['url']}\n"
+                        f"SHA-256: {provenance['asset']['sha256']}\n")
+    texts.append(("Corresponding source release asset", source_reference + "See SOURCE-OFFERS.txt for recipient access, retention and replacement instructions."))
     for relative in ("sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE"):
         texts.append((relative, (ROOT / "third_party" / relative).read_text()))
     for name in ("QtBase", "KSyntaxHighlighting"):
@@ -173,12 +279,12 @@ def notices(build: Path, info: dict, root: Path) -> None:
         texts.append((item["licenseId"], item["extractedText"]))
     (destination / "THIRD-PARTY-NOTICES.txt").write_text("\n\n".join(f"{title}\n{'=' * len(title)}\n{body}" for title, body in texts) + "\n", encoding="utf-8")
     write_json(destination / "qt-runtime-provenance.json", records)
-    write_json(destination / "source-provenance.json", {"schema": "bpr.release-sources.v1", "components": components(info)})
-    with zipfile.ZipFile(destination / "corresponding-source.zip", "w", compression=zipfile.ZIP_STORED) as output:
-        for path in archives.values():
-            output.write(path, path.name)
+    write_json(destination / "source-provenance.json", provenance)
     (destination / "SOURCE-OFFERS.txt").write_text(
-        "Corresponding third-party source is included in corresponding-source.zip, with exact upstream digests in source-provenance.json.\n"
+        source_reference +
+        "The source archive is distributed beside the binary packages, not inside the application. Exact upstream digests are in source-provenance.json.\n"
+        "Every binary recipient must have equivalent access to this exact source asset at no additional charge. Private repository access is required for the URL above; distributors must provide a copy through the original distribution channel if a recipient cannot access it, including after repository access changes. Corporate/offline redistribution must provide the same asset alongside the binaries.\n"
+        "Retain the immutable source asset and recipient access while any matching binary is distributed and for every applicable source-offer/license retention period afterward. Retention is indefinite until the accountable distribution owner documents that all such obligations have ended; do not delete or replace the asset or rebind its version tag.\n"
         "Qt uses shared libraries. You may replace these libraries with ABI-compatible modified builds and debug those modifications.\n"
         "On macOS work on a copy of the bundle: replace the framework/plugin files and seal the copy locally with codesign --force --deep --sign - --timestamp=none. No Developer ID or notarization credentials are required. Modified bundles are not trusted updater destinations.\n"
         "On Windows/Linux replace the matching private Qt DLLs/shared objects and plugins with your compatible build. Keep the documented relative layout; no global search path is needed.\n"
@@ -201,7 +307,7 @@ def qt_library(name: str) -> bool:
     return bool(match and match[1] in QT_LIBRARIES)
 
 
-def deploy(build: Path, info: dict, root: Path) -> None:
+def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = None) -> None:
     target = info["platform"]
     if target == "Darwin":
         raise ValueError("macOS deployment is owned by tools/release.sh")
@@ -288,15 +394,14 @@ def deploy(build: Path, info: dict, root: Path) -> None:
     (root / "qt.conf").write_text("[Paths]\nPlugins=plugins\n", encoding="utf-8")
     write_json(root / "runtime-closure.json", {"schema": "bpr.runtime-closure.v1", "baseline": baseline,
                "systemDependencies": sorted(system), "files": sorted(str(path.relative_to(root)) for path in processed), "plugins": PLUGINS[target]})
-    notices(build, info, root)
-    audit(build, info, root, root / "sbom.spdx.json")
+    notices(build, info, root, source_archive)
+    audit(build, info, root, root / "sbom.spdx.json", source_archive)
 
 
-def audit(build: Path, info: dict, root: Path, output: Path) -> None:
-    legal = legal_root(root, info)
-    if not (legal / "corresponding-source.zip").is_file():
-        raise ValueError("corresponding source and notices must be prepared before artifact audit")
+def audit(build: Path, info: dict, root: Path, output: Path, source_archive: Path | None = None) -> None:
     revision = run("git", "-C", ROOT, "rev-parse", "HEAD").strip()
+    provenance = installed_source_provenance(root, info, revision)
+    verify_source_asset(source_archive or source_asset_path(build, info, revision), provenance)
     source_clean = not run("git", "-C", ROOT, "status", "--porcelain").strip()
     records = qt_records(info, root)
     package = {"SPDXID": "SPDXRef-BetterPullReview", "name": "BetterPullReview", "versionInfo": info["version"],
@@ -359,21 +464,22 @@ def main() -> None:
     parser.add_argument("--build", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--source-archive", type=Path, help="separate versioned source release asset (outside the runtime)")
     args = parser.parse_args()
     build, root = args.build.resolve(strict=True), args.root.resolve(strict=True)
     info = inputs(build)
     if args.action == "deploy":
-        deploy(build, info, root)
+        deploy(build, info, root, args.source_archive)
     elif args.action == "notices":
-        notices(build, info, root)
+        notices(build, info, root, args.source_archive)
     else:
         if args.output is None:
             parser.error("audit requires --output")
-        audit(build, info, root, args.output.resolve())
+        audit(build, info, root, args.output.resolve(), args.source_archive)
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+    except (ValueError, OSError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         raise SystemExit(f"package runtime refused: {error}") from error

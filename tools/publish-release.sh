@@ -83,8 +83,10 @@ DMG_SHA="${DMG}.sha256"
 ZIP_SHA="${ZIP}.sha256"
 SBOM="${DIST_DIR}/${ASSET_BASE}.spdx.json"
 SBOM_SHA="${SBOM}.sha256"
+SOURCE="${DIST_DIR}/${ASSET_BASE}-corresponding-source.zip"
+SOURCE_SHA="${SOURCE}.sha256"
 
-for artifact in "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}"; do
+for artifact in "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}"; do
     [[ -f "${artifact}" ]] || fail "Release artifact is absent: ${artifact}"
 done
 (
@@ -92,7 +94,10 @@ done
     shasum -a 256 -c "$(basename "${DMG_SHA}")"
     shasum -a 256 -c "$(basename "${ZIP_SHA}")"
     shasum -a 256 -c "$(basename "${SBOM_SHA}")"
+    shasum -a 256 -c "$(basename "${SOURCE_SHA}")"
 )
+python3 "${ROOT_DIR}/packaging/verify_release_sources.py" --app-zip "${ZIP}" --sbom "${SBOM}" \
+    --source-archive "${SOURCE}" --version "${VERSION}" --source-revision "$(git -C "${ROOT_DIR}" rev-parse HEAD)"
 
 private_repository_guard
 git -C "${ROOT_DIR}" rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null && \
@@ -113,7 +118,7 @@ git -C "${ROOT_DIR}" push --atomic origin main "${TAG}"
 
 private_repository_guard
 gh release create "${TAG}" \
-    "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" \
+    "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}" \
     --repo "${EXPECTED_REPOSITORY}" \
     --title "BetterPullReview ${TAG}" \
     --notes-file "${NOTES_FILE}" \

@@ -55,7 +55,8 @@ def course(args, scratch: Path) -> dict:
     shutil.copyfile(args.sbom, sbom)
     info = package.runtime.inputs(args.build)
     app, helpers = package.package_paths(relocated, info)
-    original = package.audit(args.build, relocated, sbom, args.source_revision)
+    source_archive = args.sbom.parent / package.runtime.source_asset_name(package.runtime.inputs(args.build))
+    original = package.audit(args.build, relocated, sbom, args.source_revision, source_archive=source_archive)
     results = ["relocated-exact-audit"]
 
     home = scratch / "home"
@@ -101,7 +102,7 @@ def course(args, scratch: Path) -> dict:
         displaced.rename(plugins)
     results.append("missing-and-outside-symlinked-plugin-root-refused")
 
-    check = lambda: package.audit(args.build, relocated, sbom, args.source_revision)
+    check = lambda: package.audit(args.build, relocated, sbom, args.source_revision, source_archive=source_archive)
     for helper in helpers:
         saved = scratch / helper.name
         helper.rename(saved)

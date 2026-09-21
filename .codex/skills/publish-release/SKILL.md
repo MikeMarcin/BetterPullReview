@@ -29,8 +29,8 @@ tools/release.sh --version X.Y.Z
 This is the authoritative local macOS package path. It runs the normal test
 gate, builds a tests-disabled universal app, deploys the restricted Qt runtime,
 signs with Developer ID and hardened runtime, submits and staples the app and
-DMG, performs Gatekeeper checks, and writes DMG/ZIP/checksum artifacts under
-`build/releases/X.Y.Z/`.
+DMG, performs Gatekeeper checks, and writes DMG/ZIP/SPDX/checksum artifacts and a
+separate version-bound corresponding-source ZIP under `build/releases/X.Y.Z/`.
 
 Do not use `--skip-tests`, `--skip-notarize`, or `--allow-dirty` for a published
 release unless the user explicitly accepts the resulting limitation. A missing
@@ -70,6 +70,21 @@ inherits repository access; there is no separate public/private switch for an
 individual release. Stop on any partial failure and report the tag, push, and
 release state without automatically retrying a potentially completed mutation.
 
-Verify the returned release URL, tag, four uploaded assets, and repository
-visibility. Never include credentials, private repository content, build logs,
-or transient test evidence in the release.
+Verify the returned release URL, tag, all eight uploaded assets (DMG, app ZIP,
+SPDX, corresponding-source ZIP, and one SHA-256 file for each), and repository
+visibility. The source ZIP must be the exact versioned asset referenced by
+SOURCE-OFFERS.txt and notices inside the app; the publication script verifies
+that binding offline before any remote operation.
+
+Every binary recipient must retain equivalent access to that source asset at
+no additional charge. For corporate/offline redistribution or a recipient
+who loses repository access, provide the exact asset through the original
+distribution channel. Retain the asset immutably while the binaries remain
+available and throughout every applicable source-offer/license retention
+period. Retention is indefinite until the distribution owner documents that
+all obligations have ended; do not replace the asset or rebind its tag.
+Legal approval of terms, practical build/relink material, recipient access and
+retention remains part of release readiness, not a result of the offline check.
+
+Never include credentials, private repository content, build logs, or transient
+test evidence in the release.
