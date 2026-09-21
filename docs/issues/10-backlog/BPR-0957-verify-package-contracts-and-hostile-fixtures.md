@@ -26,3 +26,18 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
+
+## M2 allocation for the successor
+
+Use the [nine-row public-check map](../../architecture/release-readiness.md)
+and G1–G9 to bind each negative control to a claimed terminal state. Include
+missing packaged helper, untrusted library/plugin origin, mismatched snapshot/
+selection, canary content, corrupt/future/foreign stores, partial cleanup and
+preserved sibling/unknown data. Tests-disabled packages must contain no fixture
+entry; public fixture evidence is not native authentication/trust evidence.
+
+M2's real epoch-maintenance and composed-host checks passed with unchanged
+product source. The checkout architecture scan failed only on an ignored nested
+unrelated worktree; it passed on an exact tracked-source archive. Preserve that
+known scanner/worktree limitation and qualify any future verifier change in this
+verification scope; never delete another owner's checkout to make a scan pass.

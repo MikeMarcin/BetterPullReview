@@ -27,6 +27,23 @@ Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
 
+## M2 security allocation
+
+The [source allocation](../../architecture/release-readiness.md) binds all nine
+canonical public checks and G1–G9. Verify exact final package/helper bytes,
+static/transitive SBOM coverage, effective emitted hardening, loader policy,
+vault/root behavior and native crash-artifact canaries independently of build/
+sign success. Write and apply an explicit tool/database/findings release policy
+for static analysis, sanitizer/fuzzer, secrets and vulnerabilities.
+
+G9 requires explicit reconciliation: the existing profile-activation adapter
+uses an owner-authenticated bounded AF_UNIX listener, while the old RFC runtime
+criterion says no local server. M2 did not waive or rewrite that criterion.
+Inspect owner/peer/frame/lifetime/no-network-service properties; a TCP-only scan
+cannot omit this IPC. Preserve any required acceptance/mandate decision rather
+than claiming the current implementation already passes. Existing updater/live/
+Intel gates remain separate; publication is not authorized.
+
 Owner amendment r2 directs reuse of the existing release script's macOS
 signature/notarization/Gatekeeper and dependency checks, followed by independent
 exact-artifact qualification. The project `publish-release` skill preserves a

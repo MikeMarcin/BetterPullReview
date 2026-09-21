@@ -215,8 +215,9 @@ The live repository may use different target names, but it must enforce these ru
 - In-process communication uses typed C++ calls and records. JSON/RPC is added only at a real process boundary such as an agent protocol.
 
 Build dependency ownership is centralized before these product targets are
-declared. Caller-installed Qt is required in CMake package mode and is never
-fetched; Python, Git, and Linux libsecret use the standard CMake or
+declared. Qt is acquired by the pinned provider by default or supplied through
+an explicit caller-installed root, then resolved in CMake package mode;
+Python, Git, and Linux libsecret use the standard CMake or
 `pkg-config` providers only when the selected graph needs them. The centralized
 provider verifies the resulting `Qt6::*`, `LibSecret::LibSecret`,
 `Python3::Interpreter`, and `Git::Git` targets before product subdirectories
@@ -226,7 +227,10 @@ redirects for provider-owned names. The source tree configures only as the
 top-level project, rejects top-level dependency-provider hooks, and loads its
 repository and built-in modules by trusted absolute path. Application installation
 and package qualification remain RFC-BPR-0014 work; its core-isolation requirement
-does not imply a separate SDK or general CMake embedding support. CPM owns verified source acquisition
+does not imply a separate SDK or general CMake embedding support. The
+[release-readiness allocation](release-readiness.md) records the current
+dependency/helper inventory and the remaining package/security ownership.
+CPM owns verified source acquisition
 rather than prebuilt platform-package discovery.
 `Threads::Threads` and native frameworks remain explicit toolchain/platform
 capabilities. SQLite is download-only CPM source that becomes the first-party

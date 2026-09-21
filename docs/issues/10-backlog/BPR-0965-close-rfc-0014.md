@@ -48,9 +48,9 @@ this run does not reset or extend their acceptance.
 
 ## Verification and execution record
 
-The current owner is `/root/rfc0014_m1`, assignment milestone 1, mandate r3
+The current owner is `/root/rfc0014_m2`, assignment milestone 2, mandate r3
 (preserving r1/r2), run `rfc0014-20260920`, segment
-`m1-prescription-amendment`, on `main`.
+`m2-architecture-allocation`, on `main`.
 The available-target implementation exception permits work while earlier RFCs
 remain Proposed. It does not waive a package/native requirement or permit
 terminal closeout. BPR-0617 and RFC-BPR-0013 remain open; the earliest canonical
@@ -146,3 +146,22 @@ scoped product-no-impact checks pass; the acceptance section comparison proves
 all nine canonical bullets are unchanged. The durable handoff now uses r3,
 retains r1/r2 commits and the external integration separately, and requests a
 fresh M2 implementer. No attended decision or task-owned command remains pending.
+
+## Milestone 2 checkpoint
+
+The [allocation](../../architecture/release-readiness.md) and
+[M2 ledger](../../verification/RFC-BPR-0014.md#milestone-2-architecture-allocation)
+bind exact source ownership, existing release/maintenance reuse, G1–G9 gaps and
+all nine public/native/security checks to the remaining cards. The
+[M2 binding](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m2.json)
+retains accepted M1, mandate r3 and the unchanged authored milestone exits.
+The default Linux baseline is now a declared engineering target, not native
+qualification. The existing authenticated profile-activation IPC and old
+no-local-server criterion remain explicitly unresolved for M9.
+
+Real maintenance/composed-host checks pass; the architecture verifier passes
+an exact tracked-source archive but the checkout scan still sees an unrelated
+ignored nested worktree. Product, release script and publish-release skill
+bytes are unchanged. No remote command, package, native trust result or human
+verdict is supplied by allocation. BPR-0953 is the next core-policy milestone
+after BPR-0952's guarded finish; this card and RFC stay open.

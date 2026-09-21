@@ -1,0 +1,84 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m2-architecture-allocation",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m2-architecture-allocation",
+    "definition_fingerprint": "sha256:8374c6b1be0061d331fa796faad10d1e0f044b7a910d1a9847f2405f778f46de",
+    "obligations": [
+      {
+        "id": "BPR-0952:*",
+        "source": "BPR-0952",
+        "selector": null,
+        "source_fingerprint": "sha256:5b6e068dd2f0035e3f9bc3975016f6964b330f6cd2e2ccd9b8ebe69993d11f9d"
+      }
+    ],
+    "obligation_fingerprint": "sha256:6cc6d364c6cdc50fab3b9ef088f9d972e5b8ac812307620164572a43f224d806",
+    "exit_criteria": [
+      {
+        "id": "m2-architecture-allocation:exit:1",
+        "text": "The release/maintenance architecture and existing implementation gaps are mapped to exact source paths and typed ownership."
+      },
+      {
+        "id": "m2-architecture-allocation:exit:2",
+        "text": "Each acceptance row has a concrete public check, native/environment requirement and owning work item."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:b1d099f6d60234bb51c719c0fd4224f5fe59eb3c26806ab14841f23f00561bac",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "a9a1e3cd1b897bf1242a3dc46ccd986a9dfe0323",
+    "workflow_branch": "main",
+    "workflow_revision": "a9a1e3cd1b897bf1242a3dc46ccd986a9dfe0323"
+  }
+}

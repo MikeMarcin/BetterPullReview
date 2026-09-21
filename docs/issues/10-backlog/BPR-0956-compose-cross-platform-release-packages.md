@@ -27,6 +27,24 @@ Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
 
+## M2 allocation for the successor
+
+The [source/dependency allocation](../../architecture/release-readiness.md)
+records G1–G4/G7. Reconcile the production MCP helper's emitted name, platform
+suffix, build dependency and copy/install path; tests currently inject an
+absolute path that masks the missing production composition. Inventory the
+agent supervisor and Mac updater helper too. Add only the missing Windows/Linux
+installers and per-user routes; reuse the existing macOS skill/scripts.
+
+Account for static SQLite/KSyntaxHighlighting/Quill/Glaze/LibArchive and all
+embedded definitions, TLS/plugins, platform runtimes and source offers in the
+actual closure; the generated CMake dependency audit alone is not an SBOM.
+Pin/inspect the macOS 13 deployment floor on every Mach-O slice. The declared
+Linux targets are glibc 2.39, Ubuntu 24.04 LTS DEB and RHEL 10 RPM; record the
+RHEL CPU floor, actual C++23 toolchain/GLIBCXX requirements and reconcile any
+incompatibility explicitly instead of silently raising the baseline. None of
+these target declarations is native acceptance. Publication remains unauthorized.
+
 Under owner amendment r2, the authoritative macOS packaging path is already
 `tools/release.sh` as documented by the project `publish-release` skill. Reuse
 its universal tests-disabled build, restricted deployment, signing/notarization,

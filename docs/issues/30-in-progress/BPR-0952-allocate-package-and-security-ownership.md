@@ -23,9 +23,27 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Verification and execution record
 
-Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-The milestone owner must record source/artifact identities and focused public
-checks here. Native, human and external evidence cannot be self-certified.
+Assigned child `/root/rfc0014_m2`, milestone `m2-architecture-allocation`,
+mandate r3, adopted clean entry `a9a1e3cd1b897bf1242a3dc46ccd986a9dfe0323`.
+The immutable RFC base remains `d0a8a6dda005af12b3818234f4878a9f48a44146`.
+Claim `303ba3b5e2f457f5b0f9385ea999e46c058b84d5` changes only this card's lane.
+
+The [release-readiness allocation](../../architecture/release-readiness.md)
+records exact existing owners, typed paths/identities/lifecycles, build/runtime
+and static dependency graph, release-tool reuse, G1–G9 gaps and all nine public/
+native criterion checks. Its bounded follow-on notes are copied to the owning
+cards. No acceptance bullet, stage exit or platform obligation is removed.
+Linux baselines are declared qualification targets, not observed native support;
+the existing local activation IPC versus the no-local-server criterion is
+explicitly pending reconciliation in M9.
+
+The real development app builds. Its maintenance course passes seed/prune/
+restart/delete/restart verification, and composed-host linkage passes. The
+checkout architecture scan finds an unrelated ignored nested worktree's second
+adapter declaration; an exact committed tracked-source archive passes the same
+check. See the [M2 ledger](../../verification/RFC-BPR-0014.md#milestone-2-architecture-allocation)
+for exact commands, executable hash, limits and final candidate evidence.
+M2 changes no product/build/tool source and requires no attended verdict.
 
 Owner amendment r2 explicitly requires reuse of the existing project
 `publish-release` skill, `tools/release.sh`, `tools/publish-release.sh` and

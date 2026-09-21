@@ -146,3 +146,8 @@ records baseline, provenance and live ID mapping; the [verification ledger](../v
 tracks per-criterion evidence and limits. BPR-0951 through BPR-0965 own the
 remaining work. This RFC remains Proposed until BPR-0965 satisfies the full
 package/security matrix and dependency-ordered closeout.
+
+The [M2 architecture allocation](../architecture/release-readiness.md) maps the
+current typed owners, reusable maintenance/release paths, missing controls and
+package gaps to exact successor cards and public/native checks. Its Linux
+baseline is a declared qualification target, not observed native support.

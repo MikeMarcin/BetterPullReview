@@ -27,3 +27,13 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
+
+## M2 baseline declaration
+
+The [M2 baseline rationale](../../architecture/release-readiness.md#package-and-security-work-allocation)
+selects glibc 2.39 with Ubuntu 24.04 LTS x86_64 for DEB and RHEL 10 x86_64 for
+RPM qualification. RHEL 10's x86-64-v3 requirement and the actual package's
+C++ runtime/toolchain/CPU floor must be visible in installation instructions.
+These are engineering targets, not successful builds or supported-native
+observations. Qualify both clean environments and the ordinary-user route;
+retain pending status when hardware/operator/trust inputs are unavailable.

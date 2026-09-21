@@ -26,3 +26,16 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
+
+## M2 allocation for the successor
+
+The [source allocation](../../architecture/release-readiness.md) is the r3
+starting point. Reuse the epoch maintenance transition/identity and each
+store's migration authority; qualify them directly instead of creating a
+generic migration engine. New core work is compact diagnostic snapshot
+selection/preview-export identity, clearing, and exact profile-purge eligibility
+(G5/G6). Define bounds, allowed categories, confirmation/cancellation and stale/
+duplicate refusals with no native path as authority. M4 owns all observations
+and effects. RFC-0027 is a compatibility reference, not authorization to activate
+its deferred BPR-0603 or optional broad logging features. No new policy is
+implemented or accepted by M2.

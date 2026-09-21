@@ -3,8 +3,9 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-child `/root/rfc0014_m1` owns only
-`rfc-bpr-0014-release-readiness/m1-pack-import-planning` on `main`.
+current child `/root/rfc0014_m2` owns only
+`rfc-bpr-0014-release-readiness/m2-architecture-allocation` on `main`.
+The M1 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -59,7 +60,7 @@ an RFC milestone does not authorize publishing a release.
 | Windows 10/11 x64 | Supported MSVC toolchain; signed per-user installer; native PE/dependency/vault/runtime and high-DPI checks | BPR-0960 native operator/station plus BPR-0962 signing authority; not run here |
 | macOS 13+ Apple Silicon | Universal arm64/x86_64 tests-disabled app and DMG/ZIP; hardened signature/notarization; clean native install/render/remove | BPR-0958 native operator plus BPR-0962 trust evidence; current host is arm64 but no clean package run occurred in M1 |
 | macOS 13+ Intel | Same exact universal package, actual native Intel install/launch/auth/render/remove | BPR-0959 Intel operator/hardware; updater BPR-0950 deferral does not satisfy it |
-| Linux x86_64 | Oldest supported baseline declared by M2; signed DEB/RPM, dependency/desktop/plugin/vault/render/uninstall checks and default per-user route | BPR-0961 Linux operators/stations plus BPR-0962 signing authority; exact baseline and clean environments pending |
+| Linux x86_64 | Declared glibc 2.39 floor: Ubuntu 24.04 LTS DEB and RHEL 10 RPM qualification targets; signed packages, dependency/desktop/plugin/vault/render/uninstall checks and default per-user route | BPR-0961 Linux operators/stations plus BPR-0962 signing authority; no native qualification yet; RHEL 10's x86-64-v3 and actual C++ runtime requirements must be explicit |
 | Core-only | No Qt/provider discovery or link dependency; deterministic build/tests and delivered target/dependency inspection; audit any install/export rules actually selected | BPR-0953, BPR-0956, BPR-0957 |
 
 No additional architecture is implied. Signing identities, clean native
@@ -280,3 +281,72 @@ and current handoff preserve the original baseline, all prior acceptance limits
 and the next Ready BPR-0952 milestone. The unchanged 64 documentation-verifier
 tests and r2 script-syntax evidence remain reusable. No new runtime acceptance
 or publication is claimed.
+
+## Milestone 2: architecture allocation
+
+Assignment `m2-architecture-allocation`, child `/root/rfc0014_m2`, mandate r3,
+run `rfc0014-20260920`, segment `m2-architecture-allocation`, started from clean
+`a9a1e3cd1b897bf1242a3dc46ccd986a9dfe0323`. Guarded claim
+`303ba3b5e2f457f5b0f9385ea999e46c058b84d5` moved BPR-0952 into In Progress.
+The [bound checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m2.json)
+uses accepted M1 and binds all BPR-0952 acceptance plus both M2 exits.
+
+The [source allocation](../architecture/release-readiness.md) inventories the
+real build/install/runtime graph, dependency provenance, existing macOS tools,
+retention/migration/credentials/logging/profile/updater ownership, exact identity
+and lifecycle, nine canonical public checks and documentation owners. M3–M5
+reuse epoch maintenance and store/vault owners while adding only the required
+diagnostic preview/export/clear and exact profile-purge policy/capabilities/UI.
+The deferred RFC-0027 umbrella is not activated. Existing macOS release scripts
+and the complete project publish-release skill remain unchanged and authoritative.
+
+G1–G9 record the concrete remaining gaps: the production MCP helper filename/
+copy, application installers, complete static/transitive provenance, macOS
+deployment floor and per-user course, diagnostic controls/Windows sink,
+profile-wide purge, native baselines, effective hardening/security policy, and
+the existing authenticated local profile-activation IPC versus the old broad
+no-local-server wording. That last criterion is explicitly unresolved for M9;
+M2 does not waive it or omit the listener from inspection.
+
+The Linux target fills the previously unspecified baseline: glibc 2.39,
+Ubuntu 24.04 LTS x86_64 DEB and RHEL 10 x86_64 RPM, with the latter's CPU floor
+and actual C++23 runtime/toolchain requirements explicit. The allocation cites
+upstream Qt/Red Hat facts, not a BPR support result. M6 must reconcile any
+inability to meet it; M8 must perform native qualification. No canonical
+acceptance bullet, work selector, milestone exit, updater exception or
+publication authority changed, so no milestone-plan amendment is needed.
+The shared architecture's obsolete caller-installed-only Qt sentence is
+corrected against the actual pinned provider; this changes no build behavior.
+
+### Focused source/public evidence
+
+At claim `303ba3b5`, with unchanged product inputs:
+
+- `cmake --build --preset dev --target app_better_pull_review` passed. The
+  real dev executable SHA-256 is
+  `68fb0910686c6959777c26f59d898b109bdbf3ea18c89420816c60636140a597`.
+- `ctest --test-dir build/dev --output-on-failure -R
+  '^(application_epoch_maintenance_public_path|architecture_boundaries|composed_application_hosts)$'
+  -j 1` exercised all three checks. Maintenance passed in 49.86 seconds through
+  four real processes (seed, prune, restart/cache delete, restart/verify deleted).
+  Composed-host linkage passed in 2.17 seconds. The suite exit was 8 because
+  the checkout architecture scan found a duplicate AdapterGitHub declaration
+  under an unrelated ignored `.claude/worktrees/agent-a17cae88115dbbb4e` checkout.
+- `cmake -DBPR_ROOT=... -P .../cmake/VerifyArchitectureBoundaries.cmake`
+  passed on a complete `git archive` of exact claim `303ba3b5`. The isolated
+  tracked tree demonstrates the source boundary without traversing the ignored
+  worktree. The original failing checkout result remains recorded; no unrelated
+  checkout or verifier was altered to hide it.
+- `otool -L` inspected the real dev executable's Qt/system dynamic linkage.
+  Static dependency accounting comes from source/link ownership, not an empty
+  dynamic-library scan. This is not relocated/package/native trust evidence.
+- The M1 hashes for publish-release skill, both scripts and presets still
+  match. Their unchanged syntax evidence is reused; no release command ran.
+
+The maintenance test uses private disposable roots, offscreen Qt, test-enabled
+composition and blocked external network. Its test-only entry disappears from
+tests-disabled builds. It proves reuse of that maintenance path, not final
+package installation, signing, authentication, visual/native or new-control
+acceptance. No M2 human or independent criterion exists; all later required
+verdicts remain pending. Final documentation, board, checkpoint and no-impact
+checks bind the committed allocation candidate before handoff.

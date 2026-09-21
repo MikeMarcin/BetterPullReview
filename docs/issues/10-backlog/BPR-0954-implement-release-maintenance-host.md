@@ -26,3 +26,20 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
+
+## M2 allocation for the successor
+
+Follow the [typed ownership allocation](../../architecture/release-readiness.md)
+for G5/G6: one bounded immutable metadata-only diagnostic snapshot, identical
+preview/export identity, explicit cancellation/quiescence, and exact admitted
+profile artifact inventory under the existing runtime lease. Omit/refuse
+unclassified legacy prose; never raw-copy logs, databases, source/diff/comment/
+draft/agent/MCP content into the default bundle. Qualify or implement the missing
+Windows sink without inventing a second logging system.
+
+Drain profile producers/windows, close stores/logger, preserve sibling profiles,
+shared registry/updater state and unknown objects, and delete only exact
+remembered vault bindings through their existing owner before removing metadata.
+Retained Git/cache recovery and store migration remain with their existing
+ports/transactions. Test partial failure, replay, sidecars, changed root/object
+identity, profile replacement and shutdown. This is future work, not M2 acceptance.
