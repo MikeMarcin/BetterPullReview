@@ -1,0 +1,14 @@
+{
+  "state": "amendment-checked",
+  "reason": "Owner amendment r2 requires inventory and reuse of the existing publish-release workflow without duplicate implementation or expanded publication authority",
+  "source_basis": ".codex/skills/publish-release/SKILL.md and tools/release.sh, tools/publish-release.sh, CMakePresets.json at 9778997d565fa3b5c89540bd52799cc0c12e2982",
+  "before_fingerprint": "sha256:5f0db343bc3b37a385728a72fedde3ac968cda249be8288970518ef65f2b3883",
+  "after_fingerprint": "sha256:e6880f4a693fa62363d69a0ec3db3e5c6c227357435924eb047f20231b20c649",
+  "affected_milestones": [
+    "m2-architecture-allocation",
+    "m6-composition-public-path",
+    "m9-security-boundary-verification"
+  ],
+  "semantic_coverage": "unknown",
+  "next": "reconcile affected assignments before publication"
+}

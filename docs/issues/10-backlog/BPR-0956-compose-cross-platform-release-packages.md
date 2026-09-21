@@ -26,3 +26,11 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
+
+Under owner amendment r2, the authoritative macOS packaging path is already
+`tools/release.sh` as documented by the project `publish-release` skill. Reuse
+its universal tests-disabled build, restricted deployment, signing/notarization,
+smoke, DMG/ZIP and checksum flow. Complete demonstrated gaps and Windows/Linux
+work; do not construct a second equivalent macOS release pipeline. The
+[source inventory](../../verification/RFC-BPR-0014.md#owner-amendment-r2-existing-macos-release-workflow)
+keeps actual past evidence and unverified final acceptance distinct.

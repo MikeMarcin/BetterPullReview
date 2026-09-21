@@ -48,8 +48,9 @@ this run does not reset or extend their acceptance.
 
 ## Verification and execution record
 
-The current owner is `/root/rfc0014_m1`, assignment milestone 1, mandate r1,
-run `rfc0014-20260920`, segment `m1-planning`, on `main`.
+The current owner is `/root/rfc0014_m1`, assignment milestone 1, mandate r2
+(preserving r1), run `rfc0014-20260920`, segment
+`m1-release-workflow-amendment`, on `main`.
 The available-target implementation exception permits work while earlier RFCs
 remain Proposed. It does not waive a package/native requirement or permit
 terminal closeout. BPR-0617 and RFC-BPR-0013 remain open; the earliest canonical
@@ -95,3 +96,22 @@ paths, commands/results, command ownership, preserved worktrees and next action.
 The final mechanical observation and check receipts remain in
 `build/rfc0014-run/m1-observation.json` and `m1-final-check.json`; they refer to
 the final bookkeeping HEAD and do not claim additional product validation.
+
+Before return, owner amendment r2 explicitly required inventory/reuse of the
+project [publish-release skill](../../../.codex/skills/publish-release/SKILL.md).
+The complete skill and underlying scripts were inspected; the
+[source inventory](../../verification/RFC-BPR-0014.md#owner-amendment-r2-existing-macos-release-workflow)
+maps the existing universal build, restricted Qt deployment, signing,
+notarization, Gatekeeper, smoke, DMG/ZIP/checksum and guarded private-publication
+mechanisms. M2/M6/M9 now explicitly reuse them and fill demonstrated gaps.
+Skill/code existence is not observed package acceptance; publication authority
+and all Windows/Linux, clean-target, security, SBOM/license, retention/diagnostic
+and canonical closeout requirements are unchanged. The
+[r2 checkpoint](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r2.json)
+renews mandate/segment identity with unchanged M1 obligations and exits.
+
+The final worktree inventory observed unrelated RFC-0036 work advancing in its
+separate checkout and removal of its disposable baseline checkout by another
+owner (five worktrees at entry, four observed at r2 orientation). This child
+created/removed no worktree and main stayed at the expected task HEAD. The
+unrelated writer is outside this milestone's exclusive main checkout scope.

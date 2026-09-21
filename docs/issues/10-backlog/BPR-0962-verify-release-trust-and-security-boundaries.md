@@ -26,3 +26,10 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
+
+Owner amendment r2 directs reuse of the existing release script's macOS
+signature/notarization/Gatekeeper and dependency checks, followed by independent
+exact-artifact qualification. The project `publish-release` skill preserves a
+separate explicit user request before tag/push/release creation. Neither its
+existence nor BPR-0908's skipped-notarization run satisfies this card; retain
+the full supported matrix and SBOM/license/privacy/hardening obligations.

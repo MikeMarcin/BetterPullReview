@@ -1,7 +1,8 @@
 # RFC-BPR-0014 verification and planning ledger
 
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-Mandate `r1` authorizes this run; child `/root/rfc0014_m1` owns only
+Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
+`r2`, authorizes this run; child `/root/rfc0014_m1` owns only
 `rfc-bpr-0014-release-readiness/m1-pack-import-planning` on `main`.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
@@ -132,7 +133,7 @@ no closeout. These are workflow observations, not application runtime checks.
 The final public workflow must discover the adopted plan by RFC ID and return
 the next eligible architecture card after BPR-0951 is Done.
 
-The current binding is
+The original r1 binding is
 [checkpoint-m1.json](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1.json).
 It binds the whole BPR-0951 acceptance section and all three milestone exits.
 Helpers report structural consistency only; the assigned implementer owns
@@ -168,3 +169,57 @@ BPR-0952 is Ready for a fresh milestone-2 owner. The
 [durable handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m1.json)
 preserves exact revisions, changed paths, command state and pending obligations.
 No child agent, background command or review server is handed off.
+
+## Owner amendment r2: existing macOS release workflow
+
+The owner explicitly directed M1 to inventory and reuse the project
+[publish-release skill](../../.codex/skills/publish-release/SKILL.md).
+The complete skill and both underlying scripts were read at
+`9778997d565fa3b5c89540bd52799cc0c12e2982`; their contents are unchanged by M1.
+This is an implementation inventory, not a newly observed release or proof
+that a host loaded a rendered skill. No package, signing/notary command,
+remote preflight, tag, push or release command was run for the inventory.
+
+| Existing source mechanism | What is already implemented and should be reused | Evidence limit / remaining RFC obligation |
+|---|---|---|
+| Skill preparation | Choose an explicit version, commit CMake version and release notes, verify private repository status; stage publication after package review | Procedure exists; no version or publication authority is granted by M1 |
+| `tools/release.sh` and `macos-release` | Clean/version guards; normal dev configure/build/CTest gate; tests-disabled Release with `arm64;x86_64`; exact bundle identity/version checks | Reuse this build entry point. Two slices and preset selection do not prove native Intel or macOS 13 deployment compatibility; the preset does not explicitly set a deployment target |
+| Qt deployment and relocation | `macdeployqt`; allow-list five frameworks and four plugins; install-local `qt.conf`; RPATH normalization; per-slice dependency inspection and universal check | Reuse and qualify this mechanism against the final closure, including the update helper. It is not a complete SBOM, license/source-offer or live runtime/socket/process audit |
+| Signing | Sign nested Mach-O/framework code and the app with Developer ID, timestamp and hardened runtime; deep/strict signature verification plus bundle/team identity and no-entitlement checks | Reuse existing signing. Native independent trust verification is still required for each final artifact; credential availability was not queried |
+| Notarization and trust | Default path submits the app and DMG with the configured Keychain profile, staples/validates both, Gatekeeper-assesses execution/open and signs the DMG | The skill treats a missing notary profile as setup work. Its existence and old BPR-0908 setup notes do not establish today's profile or a fresh notarization result |
+| Smoke and artifacts | Relocated isolated-profile launch requires the private-profile and production-bundle markers; emits universal DMG, ZIP and their SHA-256 files under `build/releases/VERSION/` | The smoke accepts exit 0 or 1 with those markers; it does not authenticate or open the exact fixture PR/diff, establish clean install/uninstall or native Intel evidence |
+| `tools/publish-release.sh --dry-run` | Check clean main/version/notes, four files and checksum validity; verify exact PRIVATE repository, absent local/remote tag and absent release | This path performs remote reads. It was inspected, not executed, and does not authorize publication or prove final package qualification |
+| Explicit publication branch | Recheck PRIVATE; create annotated tag; atomically push main and tag; recheck PRIVATE; create the release with DMG/ZIP/two checksums and return release metadata | Use only after the user requests publishing that prepared version. M1 authorizes no tag/push/release. Partial mutation is inspected before retry; the skill separately requires verifying URL, tag, four assets and visibility |
+
+The source inventory fingerprints are:
+
+- Skill: `c5e654bade74c4821cdde0109f623cefa1ae618c44b5184a7a59b4b427810bb2`.
+- Release script: `251b6be79236871b946f87b62517201adaf7b62b2bb41866e41c877ad8896202`.
+- Publish script: `50e0e3e8f521d9c418b01d119ba62f556ea346a1b5c39c79719ea13bee87e62f`.
+- Presets: `d341a40099f605a6dde518962def369e210eec950c886c5301e5b8a1ecb27fb9`.
+
+BPR-0908 and RFC-0035 provide only their previously recorded candidate-bound
+observations, described above. Skill text, code availability and static shell
+syntax checks are distinct from executed package evidence. The normal release
+workflow may be reused and extended for demonstrated gaps; it must not be
+reimplemented merely because the generic authored plan says “implement”.
+M2 inventories these exact inputs and their compatibility; M6 completes missing
+cross-platform/install/inventory behavior; M9 obtains final trust/security proof.
+Windows/Linux packaging, clean native operation/removal, SBOM/licensing,
+diagnostics/retention, corporate security and canonical closeout remain open.
+Skip-tests/skip-notarize/allow-dirty are not publication defaults; the skill
+requires the user's explicit acceptance of their limitations for a publication.
+
+The [checked amendment](../rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r2/check.json)
+changes only future M2/M6/M9 descriptions and preserves all work selectors,
+acceptance exits and M1's definition. An initial colocated proposal was refused
+because the helper compared it with the existing plan's generated view; placing
+the amendment source in its own directory produced the valid receipt without
+changing the live source or losing its original provenance. The original
+preparation/adoption receipts and r1 checkpoint remain historical.
+
+The [current r2 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r2.json)
+retains identical M1 definition and obligation fingerprints. The amendment
+checker identifies only future M2/M6/M9 changes. Shell syntax checks for both
+existing scripts, adopted-plan and scoped-board checks, documentation and
+whitespace gates pass after this inventory. No release script was executed.

@@ -24,7 +24,7 @@ Reconcile paths/IDs, retain the normative architecture, create the live task set
 
 ## m2-architecture-allocation
 
-Identify authoritative state, compact core state, bounded observations, typed transitions, host ports/effects, Qt projections, async identity and evidence-backed no-impact regions.
+Identify authoritative state, compact core state, bounded observations, typed transitions, host ports/effects, Qt projections, async identity and evidence-backed no-impact regions. Inventory and reuse the existing publish-release skill, macos-release preset and release/publish scripts, separating available mechanisms from observed qualification.
 
 **Work:** `BPR-0952`
 
@@ -84,7 +84,7 @@ Implement or qualify diagnostic preview and maintenance controls, typed event tr
 
 ## m6-composition-public-path
 
-Build the cross-platform install/package graph and artifact inventory and prove the tests-disabled public application selects the required path.
+Reuse the existing authoritative macOS release pipeline, complete demonstrated cross-platform install/package and inventory gaps, and prove the tests-disabled public application selects the required path.
 
 **Work:** `BPR-0956`
 
@@ -140,7 +140,7 @@ Verify signatures/notarization, provenance, hardening, credentials, process/netw
 - Each exact delivered artifact independently verifies trust, checksums, SBOM, notices and source-offer obligations.
 - Release-policy hardening/analysis/sanitizer/fuzz/secret/vulnerability and native runtime/credential/privacy boundary checks pass across the supported matrix.
 
-**Boundary:** Required external signing authority and native evidence stay pending; no live publication is implied.
+**Boundary:** Required external signing authority and native evidence stay pending; no live publication is implied. Reuse existing macOS signing/notarization and package-verification mechanisms; inspect or repair demonstrated gaps and obtain exact-artifact evidence instead of rebuilding equivalent tooling.
 
 ## m10-documentation-impact
 

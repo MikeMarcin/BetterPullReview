@@ -88,3 +88,14 @@ the checkout workflow and reports `artifact.corrupt`; snapshot host loading is
 `not_verified`. The running assigned native role reports
 `rfc-implementer | gpt-6-astra | max`. Configuration completeness is not
 proof of observed provider loading; this milestone does not repair shared tooling.
+
+## Owner amendment r2
+
+Before M1 handoff, the owner explicitly required inventory and reuse of the
+existing project `publish-release` skill and real macOS release scripts. The
+[source inventory](../../verification/RFC-BPR-0014.md#owner-amendment-r2-existing-macos-release-workflow)
+records exact fingerprints, implemented mechanisms and evidence limits.
+The checked future-only M2/M6/M9 plan amendment preserves the original source,
+all selectors/exits, platform and closeout requirements, and publication authority.
+The current handoff and renewed checkpoint use mandate r2; the r1 records above
+remain original import history.

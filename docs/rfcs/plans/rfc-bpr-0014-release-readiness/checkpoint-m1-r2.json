@@ -1,0 +1,88 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m1-release-workflow-amendment",
+  "mandate_revision": "r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m1-pack-import-planning",
+    "definition_fingerprint": "sha256:0022acbac8309f6e9b6923811b32e941ad499669a66e8b3ae9ef136dfe34787b",
+    "obligations": [
+      {
+        "id": "BPR-0951:*",
+        "source": "BPR-0951",
+        "selector": null,
+        "source_fingerprint": "sha256:22f1abeb90e3f93e14f7c0d1c06b785efcc3ea706f55a431f86088b8c9302f25"
+      }
+    ],
+    "obligation_fingerprint": "sha256:06990c96530fd12a714b9968d58995898522ac85fe52b51dec85b35558af37b2",
+    "exit_criteria": [
+      {
+        "id": "m1-pack-import-planning:exit:1",
+        "text": "The immutable source, RFC base, historical associations and owner amendments are reconciled."
+      },
+      {
+        "id": "m1-pack-import-planning:exit:2",
+        "text": "One discoverable adopted plan and live queue cover all authored stages and RFC acceptance obligations without hidden scope reduction."
+      },
+      {
+        "id": "m1-pack-import-planning:exit:3",
+        "text": "Documentation and board checks pass; the bound milestone checkpoint and intentional planning commit identify the next eligible stage."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "9778997d565fa3b5c89540bd52799cc0c12e2982",
+    "workflow_branch": "main",
+    "workflow_revision": "9778997d565fa3b5c89540bd52799cc0c12e2982"
+  }
+}

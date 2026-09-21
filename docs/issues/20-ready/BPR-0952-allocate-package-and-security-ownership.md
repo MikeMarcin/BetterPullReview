@@ -26,3 +26,11 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 The milestone owner must record source/artifact identities and focused public
 checks here. Native, human and external evidence cannot be self-certified.
+
+Owner amendment r2 explicitly requires reuse of the existing project
+`publish-release` skill, `tools/release.sh`, `tools/publish-release.sh` and
+`macos-release` preset. The [M1 source inventory](../../verification/RFC-BPR-0014.md#owner-amendment-r2-existing-macos-release-workflow)
+maps their existing universal build/deploy/sign/notarize/verify/package/publish
+mechanisms and exact fingerprints to remaining acceptance. Inventory and extend
+demonstrated gaps; do not duplicate those mechanisms or treat their existence
+as clean-target, trust or publication evidence.
