@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0916"
 title: "Implement native Markdown rendering for review content"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 milestone: "Post-Pack v2"
 metadata: {"milestone_plan":{"id":"rfc0036-native-markdown","path":"docs/rfcs/plans/rfc0036-native-markdown/milestone-plan.json"}}
+acceptance: [{"criterion":"M1","outcome":"pass","revision":"4812884e3670971b1b0bdc0b6e5d12fd81ddec48","evidence":{"kind":"artifact","detail":"Accepted shared reader, bounded resource policy and mandate-r2 empirical md4qt/native-Qt comparison; docs/verification/RFC-BPR-0036.md and docs/architecture/native-markdown.md. Changed reader interactions also pass M2 final component tests."}},{"criterion":"M2","outcome":"pass","revision":"a3ab46ee7c2b3fb26e3c43d71c1658ea64ba1d5f","evidence":{"kind":"observation","detail":"Composed overview and six complete public post/reply body kinds, exact per-window/core-host/browser link admission, source/payload preservation, uncapped long reading and native keyboard/accessibility/appearance/wide-block evidence. AC-01–AC-06 recorded on BPR-0917; 14/14 integration and final 8/8 affected plus 3/3 composed scale checks pass. Native Cocoa 50,742-byte layout 32 ms and pathological source 14 ms. Known broader pre-existing failures are explicitly retained."}}]
 ---
 
 # Implement native Markdown rendering for review content
@@ -38,8 +39,12 @@ text, nested structures, wide tables/code and hostile resource references.
 
 ## Status
 
-Milestone 1 is accepted at source candidate
-`4812884e3670971b1b0bdc0b6e5d12fd81ddec48`, including the mandate-r2 md4qt/native-Qt
-comparison. See the [verification ledger](../../verification/RFC-BPR-0036.md)
-and the continuation on [[BPR-0917]]. Milestone 2 and composed AC-01 through AC-06
-remain pending; this card stays open until both delivery stages pass.
+Both authored milestones are accepted. M1 source
+`4812884e3670971b1b0bdc0b6e5d12fd81ddec48` supplies the shared component and
+mandate-r2 md4qt/native-Qt comparison. M2 source
+`a3ab46ee7c2b3fb26e3c43d71c1658ea64ba1d5f` supplies the composed overview and full
+public post/reply reader, exact host navigation authority, appearance/focus and
+complete native reading behavior. The [verification ledger](../../verification/RFC-BPR-0036.md)
+records AC-01–AC-06, passing focused/public/native evidence and the explicitly
+classified broader baseline failures. [[BPR-0917]] owns technical closeout;
+formal RFC promotion still obeys canonical dependencies.
