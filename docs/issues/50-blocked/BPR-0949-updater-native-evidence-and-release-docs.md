@@ -1,0 +1,62 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-0949"
+title: "Qualify updater packages and document release security"
+status: "Blocked"
+rfcs: ["RFC-BPR-0035"]
+depends_on: ["BPR-0948"]
+milestone: "RFC-0035 milestone 4"
+platforms: ["mac"]
+metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
+blocked_by: "intel-and-private-service-qualification"
+---
+
+# Qualify updater packages and document release security
+
+Fourth authored milestone of [[BPR-0911]]. Obtain target-native upgrade evidence
+and complete release/security/installation/recovery documentation. Windows/Linux
+self-installation remains future scope; manual fallback is required now.
+
+## Acceptance
+
+- AC-01: An older signed package upgrades to the offered signed package on Apple
+  Silicon and Intel, relaunches with retained user state, and reports truthful
+  progress/result. Bind artifact digests, candidate revisions and actual platforms.
+- AC-02: Document authority, destinations/redirects, bounds, helper inventory,
+  signing/notarization, state ownership, cleanup and recovery. Explicitly amend
+  RFC-0014 and packaging's no-updater statements only for qualified macOS packages.
+- AC-03: Reconcile every RFC criterion with direct evidence; unavailable native,
+  human or external authority stays open. No live private access or publication is
+  implied. Finish [[BPR-0911]] only once its complete acceptance is met.
+
+[[BPR-0912]] owns dependency-ordered closeout. RFC status cannot bypass RFC-0014.
+
+## Verification and execution record
+
+Run `rfc0035-20260920`, segment `m4-native-closeout`, mandate `r2`; sole owner
+`/root/rfc0035_m4`. Initial HEAD `c8b16090473c694d70470a1e86f51e952b1d22a8`;
+claim `79217b124758880524ac6a7e81471b1b680bee37`.
+Source candidate `518c384a285ef3cb873d12ea167488d105aa91b7`.
+
+| Criterion | Evidence and disposition |
+|---|---|
+| AC-01 | **Pending.** Reuse the unchanged signed Apple Silicon 0.0.350→0.0.352 upgrade/timeout/receipt/recovery protocol from [[BPR-0948]], source `b7e2df46`, with exact digests in the [ledger](../../verification/RFC-BPR-0035.md). No Intel Mac is available; universal slices do not prove Intel execution. M4's menu correction has native Cocoa developer-test evidence, not a newly signed package. |
+| AC-02 | **Pass at the source candidate.** Added [operator/recovery guidance](../../development/application-updates.md) and [security inventory](../../security/release-updater.md), linked package/component/user documentation, and narrowly amended RFC-0014 and packaging's no-updater rule. Explicit signed-helper recovery is documented; no recovery wizard or attended usability approval is claimed. |
+| AC-03 | **Pass for reconciliation, not full RFC acceptance.** [[BPR-0912]] maps all eight criteria to exact source/native evidence and gaps. Actual private-release routing, native vault acquisition and live revocation remain unobserved without explicit account/target authority. Parent BPR-0911 and closeout BPR-0912 remain Backlog. |
+
+The duplicate two-window **Check for Updates…** defect is fixed with one
+application-lifetime AppKit item. The native public-menu test counts exactly one,
+invokes it and observes real Updates status across both windows, Settings,
+last-window closure and reopening. The offscreen course also proves idempotent
+attachment. Final updater integration passes 9/9; boundary scans/contracts,
+tests-disabled application build, focused format/tidy and documentation checks
+are recorded with initial failures and limits in the ledger.
+
+This card is **Blocked**, not Done, on `intel-and-private-service-qualification`.
+The current host is Apple Silicon macOS 26.6.2; no live private-service or native
+vault credential was accessed. RFC-0014 is still Proposed and canonical closure
+starts at RFC-0008, independently gating M4's exit. Continue with an authorized
+Intel hardware course and explicitly authorized live account/target evidence,
+then reconcile dependency-ordered closeout. No tags, pushes, publication or
+installed/developer-app replacement occurred or is implied. No attended session,
+review server or protected candidate exists; commands are quiescent at handoff.

@@ -39,6 +39,16 @@ Signed native upgrade, timeout, missing-receipt and interrupted-rename recovery
 courses pass on Apple Silicon. Eligible trusted macOS installations now select
 the installer; [[BPR-0949]] retains the remaining native/security closeout scope.
 
+Milestone 4 source `518c384a` fixes duplicate native Check for Updates entries
+across two windows and the empty desktop, and supplies the
+[operator/recovery guide](../development/application-updates.md) and
+[security inventory](../security/release-updater.md). [[BPR-0949]] is Blocked,
+not complete: Intel hardware upgrade execution and authorized live private-release/
+vault evidence remain unavailable. [[BPR-0911]] and [[BPR-0912]] stay Backlog;
+RFC-BPR-0014 remains Proposed and canonical closure still starts at RFC-BPR-0008.
+The unchanged signed Apple Silicon helper evidence does not certify M4's menu
+correction in a new signed package, Intel execution or live private-service access.
+
 The first implementation targets the existing signed, notarized macOS universal
 release. Windows and Linux expose manual update guidance until separately scoped
 native installers and evidence exist. Corporate-managed installations retain

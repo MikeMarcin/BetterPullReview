@@ -1,9 +1,13 @@
 # RFC-BPR-0035 verification ledger
 
 RFC baseline: `1b4c24154bd1d4f1d4bea3d84c593e2fb4c3d47f`.
-Mandate `r1`, 2026-09-20: implement the RFC. Accepted bounded milestones are
+Mandate `r1`, 2026-09-20: implement the RFC; amendment `r2` permits disposable
+local signing/notarization, not publication or live release/vault access.
+Accepted bounded milestones are
 `rfc0035-auto-updater/m1-core-contract` (child `/root/rfc0035_m1`) and
-`rfc0035-auto-updater/m2-download-staging` (child `/root/rfc0035_m2`).
+`rfc0035-auto-updater/m2-download-staging` (child `/root/rfc0035_m2`), followed by
+`m3-install-recovery` (child `/root/rfc0035_m3_resume`). M4 available-target
+engineering is committed at `518c384a`; its native/live/dependency exit is pending.
 The [live closeout](../issues/10-backlog/BPR-0912-close-rfc-0035.md) retains all
 full RFC acceptance; this ledger describes bounded component evidence only.
 
@@ -538,3 +542,131 @@ and command logs remain in the run root. Shared dependency/build caches and all
 unrelated worktrees remain intact. [[BPR-0948]] closes with its original criteria;
 [[BPR-0949]] is promoted to Ready without being claimed. [[BPR-0912]] and the
 runtime `m3-r2-observation.json` bind the M3 continuation to mandate r2.
+
+## Milestone 4 available-target result (mandate r2)
+
+Run `rfc0035-20260920`, segment `m4-native-closeout`; sole owner
+`/root/rfc0035_m4` on `main`, initial HEAD
+`c8b16090473c694d70470a1e86f51e952b1d22a8`.
+Claim `79217b124758880524ac6a7e81471b1b680bee37`;
+engineering source `518c384a285ef3cb873d12ea167488d105aa91b7`.
+Host: macOS 26.6.2, arm64, native Qt Cocoa; Qt 6.10.3. No Intel Mac was found in
+the available station inventory. Windows/Linux self-installation is outside this
+milestone; unsupported/managed capability paths retain manual fallback.
+
+### Native menu correction and public path
+
+The signed M3 two-window observation exposed duplicate Check for Updates entries.
+Per-window Qt ApplicationSpecificRole actions were each merged into the macOS
+application menu. M4 now owns one AppKit item for the application-wide updater's
+lifetime, with the same bounded host check gesture. Window, Settings and resident
+desktop bars cannot create another native item. The adapter owns focus/state
+presentation repair and clears its callback/item at destruction. Non-Cocoa
+platforms retain a per-window Help action; repeated attachment is idempotent.
+No network, credential, installer, state or core policy moved into presentation.
+
+The shortest existing public desktop/menu-to-projection test passed before edits.
+The expanded `application_profile_empty_desktop_native_menu_bar` runs under Cocoa
+and inspects the real AppKit application menu, not a Qt action tree. It requires
+exactly one visible enabled update entry, invokes it and observes the actual
+Updates status panel with the original window, a second window, the original
+refocused, the sibling closed, Settings focused, no workbench window and reopened
+windows. Existing resident menu/activation/Dock/Command-N/Profiles checks still
+pass. The fixture denies network; no live account or private release is used.
+The offscreen `application_release_update_public_path` also asserts repeated
+attachment creates only one action and retains the full menu/Settings, preferences,
+authority/revocation, staging, two-window draft/save refusal and install course.
+
+Initial designs were rejected by those oracles: toggling visibility of per-window
+merge actions still duplicated the empty-desktop entry; moving one QMenu between
+bars failed native enablement and caused a Qt-owned menu destruction crash in the
+public fixture. Neither design remains. Logs `m4-menu-first-tests.log`,
+`m4-shared-menu-tests.log` and `m4-menu-lifetime-tests.log` retain those failures;
+`m4-menu-build.log` also retains a corrected QPointer comparison compile error.
+The single native item passes the complete final course.
+
+### Candidate verification
+
+Commands ran from `/Users/jaeger/Documents/GitHub/BetterPullReview` using Python
+3.14.7. Runtime outputs are retained in `build/rfc0035-run/`; they are not source
+or release assets.
+
+- Build: `cmake --build --preset dev --target test_profile_empty_desktop_native_menu_bar test_release_update_public_path test_release_update_transport`, with the remaining unchanged updater test targets built during the integration pass. Final log `m4-candidate-build.log`: pass.
+- Integration: `ctest --preset dev -V --output-on-failure -R '^(core_release_update|application_release_update|release_update_transport_contract|release_update_native_https|release_update_native_staging|release_update_transaction|release_update_recovery|application_release_update_public_path|application_profile_empty_desktop_native_menu_bar)$'`: **9/9 pass**, 19.71 seconds, log `m4-candidate-integration.log`. All tests are network-isolated; the HTTPS row alone permits its allocated loopback fixture.
+- Tests-disabled composition: `cmake --build --preset app-release --target app_better_pull_review`, `BUILD_TESTING=OFF`, Release, native arm64 configuration: pass (`m4-tests-disabled-final-build.log`). This is an ordinary ad-hoc developer build, not a new signed/notarized universal artifact. Product paths match the final candidate; the subsequent last edits only strengthen native test assertions.
+- Boundary contracts: `python3 tests/scripts/architecture_boundary_tests.py` passes **139**; `python3 tests/scripts/core_boundary_tests.py` passes **4**. Logs `m4-architecture-contract.log`, `m4-core-contract.log`. Their gate/scanner source is unchanged in the candidate.
+- Exact export of `518c384a` at `/tmp/bpr-rfc0035-m4-export.AJhcpB`: `cmake -DBPR_ROOT=/tmp/bpr-rfc0035-m4-export.AJhcpB -P /tmp/bpr-rfc0035-m4-export.AJhcpB/cmake/VerifyArchitectureBoundaries.cmake` and the same command with `VerifyCoreBoundary.cmake`: pass (`m4-candidate-architecture.log`, `m4-candidate-core.log`). This avoids traversing the preserved unrelated nested worktree; it does not delete or hide it.
+- Canonical `format.py --dry-run`: seven changed C++/header files pass (`m4-candidate-format.log`). `diff -u src/adapters/qt/src/release_update_menu_mac.mm <(clang-format --assume-filename=release_update_menu_mac.cpp < src/adapters/qt/src/release_update_menu_mac.mm)` passes (`m4-candidate-native-format.log`); the repository C++-only format configuration otherwise refuses Objective-C++ input.
+- `tidy.py --build-dir build/dev --warnings-as-errors --paths src/adapters/qt/src/release_update_panel.cpp` passes. Full-header checks for desktop/transport retain the preexisting `home_view_state.hpp:35` signed-bitwise error (`m4-tidy.log`). They are not claimed as global passes. Five changed translation units pass with the native SDK and `--header-filter=(release_update|release_update_menu_mac) --warnings-as-errors=*` (`m4-changed-surface-final-tidy.log`); the final native test additionally passes `m4-candidate-native-test-tidy.log`. New native-menu localizability and touched test naming warnings were corrected, not suppressed.
+- `python3 scripts/verify_documentation.py --root .`, `python3 tests/scripts/verify_documentation_tests.py`, scoped `issue_board.py validate --rfc RFC-BPR-0035` and `git diff --check`: pass after final upkeep. Documentation tests: **64**. Final logs use `m4-final-documentation.log`, `m4-final-documentation-tests.log`, `m4-board-validation.json`.
+
+The first nine-row integration pass was 8/9: the existing HTTPS cancellation
+fixture requested cancellation at 50 ms, before the request reached the origin,
+while its server asserted one complete origin request. It correctly returned
+cancelled, but the fixture reported `inbound-header-truncated`. M4 now sends one
+response byte then waits; the consumer cancels on that byte and asserts exactly
+one byte plus the same cancelled terminal. Exact origin/count/header/canary checks
+are unchanged. The 24-scenario course and all nine integration rows pass with
+that deterministic in-flight cancellation (`m4-integration-tests.log` preserves
+the failure; `m4-candidate-integration.log` is the final passing candidate).
+The first documentation normalization omitted the required `Closeout checklist`
+heading; the gate refused it and the heading was restored without changing any
+criterion. Final document/board checks below use the restored heading.
+
+### Documentation and exact acceptance boundary
+
+The new [operator/recovery guide](../development/application-updates.md) explains
+explicit release-account selection, manual/daily checks, Later versus Skip,
+gesture-gated replacement, recovered text/indeterminate publication, managed/
+unsupported fallback, pre-helper manual bootstrap, signed-helper recovery with
+absolute paths and exact transaction identity, retained stores and no general
+purge UI. The [security inventory](../security/release-updater.md) binds fixed
+network destinations/credentials, process paths, limits, trust, state and cleanup.
+README, component/package/foundation-security documentation and RFC-0014's scoped
+no-updater exception are synchronized. RFC-0014's original wider acceptance and
+status are unchanged. The code-simplifier pass removed obsolete prototype lookup
+code and kept single native presentation ownership separate from host policy.
+
+No installation/helper/receipt code changed. Reuse the exact signed M3 Apple
+Silicon 0.0.350→0.0.352 upgrade, timeout, missing receipt and recovery evidence and
+digests above, with its fixture authority and synthetic review state limits.
+The final signed source remains `5db1d104`, not `518c384a`: it does **not** contain
+M4's menu correction. The correction has actual native Cocoa test evidence; no new
+production signing/notarization was necessary or performed for this bounded fix.
+
+[[BPR-0949]] AC-02 (documentation) and AC-03 (truthful reconciliation) pass at the
+source candidate. AC-01 remains pending for actual Intel older-to-newer signed
+upgrade execution. Universal Mach-O slices and Rosetta cannot replace that hardware
+course. RFC AC-03's live private-release route, actual native-vault credential
+acquisition and live revocation remain unobserved; no account/target authority was
+granted. Signing permission does not grant it. The explicit CLI recovery guide
+does not claim an unbuilt wizard, attended usability verdict or Intel behavior.
+No required human or independent review is being silently marked accepted.
+
+BPR-0949 is Blocked on `intel-and-private-service-qualification`; BPR-0911/0912
+remain Backlog. The [closeout](../issues/10-backlog/BPR-0912-close-rfc-0035.md)
+reconciles all eight criteria. RFC-0035/index stay Proposed: RFC-0014 is Proposed
+and depends on Proposed RFC-0013; canonical closure begins at RFC-0008/BPR-0242.
+M4's exit and all its whole-card obligations remain pending. No plan criterion,
+RFC acceptance, user amendment or unfinished obligation was removed.
+
+### Final ownership and continuation
+
+Self-review is complete and all task commands/native test processes are joined.
+No M4 helper/app installation, review server, attended session or protected
+candidate remains. The exact source export was moved recoverably to
+`/Users/jaeger/.Trash/bpr-rfc0035-m4-export.AJhcpB`; shared build/log outputs and all
+M3 signed packages/qualification commits remain intact. The unrelated
+`.mask.lock.json` and all separately owned worktrees, especially
+`/Users/jaeger/.codex/worktrees/14a8/BetterPullReview`, were not modified.
+No publication, tag, push, live private-service/vault access or developer-installed
+application replacement occurred.
+
+The initial M4 checkpoint and refreshed final checkpoint are retained in
+`build/rfc0035-run/`; final normalization only separates immutable parent/closeout
+acceptance from mutable evidence. The strategy, plan and M4 exit are unchanged.
+`m4-observation.json` binds the final upkeep revision with quiescent ownership,
+`blocked` disposition and `wait` continuation for the same milestone. Resume only
+with Intel hardware and authorized live account/target evidence, then bind the
+final signed candidate and reconcile canonical dependency closure. No safe
+independent local engineering work remains for this assigned milestone.

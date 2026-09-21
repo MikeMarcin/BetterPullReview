@@ -36,9 +36,19 @@ Canonical dependency and closeout order remains unchanged.
 - Record actual results and unresolved target-native evidence on [[BPR-0912]].
   Fixtures alone cannot establish private-service or native package success.
 
-## Current evidence
+## Verification and execution record
 
-Milestone 1 is accepted at source candidate `42a85cf7`: [[BPR-0946]] supplies
-core policy and the public host with fake ports. It enables no shipped updater.
-Next is [[BPR-0947]]; milestones 2–4 remain open. AllTheThings remains read-only
-reference provenance. Windows/Linux self-installation is outside this card.
+Milestones 1–3 are accepted: [[BPR-0946]] at `42a85cf7`, [[BPR-0947]] at
+`54535c1e`, and [[BPR-0948]] at `b7e2df46`. Native signed/notarized Apple Silicon
+upgrade, helper timeout, exact healthy receipt, retained synthetic review state
+and recovery evidence is bound in the [ledger](../../verification/RFC-BPR-0035.md).
+The r2 amendment permits disposable local signing/notarization, not publication.
+
+Milestone 4 source `518c384a285ef3cb873d12ea167488d105aa91b7` fixes duplicate
+native update-menu entries and completes operator/recovery/security documentation.
+[[BPR-0949]] is Blocked: native Intel upgrade execution and explicitly authorized
+live private-release/vault evidence remain unavailable. Universal slices and
+fixtures are not substitutes. This parent remains Backlog, not Done. [[BPR-0912]]
+also retains RFC-BPR-0014/canonical-order closure gates; the RFC remains Proposed.
+AllTheThings remains read-only provenance; Windows/Linux self-installation remains
+outside this card. No user obligation or acceptance criterion is waived.
