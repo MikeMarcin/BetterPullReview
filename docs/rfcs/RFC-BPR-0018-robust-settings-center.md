@@ -30,9 +30,15 @@ These ownership corrections change none of AC-01 through AC-14.
 
 The macOS Settings review below and the later Accounts/Appearance reviews are
 accepted. Windows/Linux packaged inventories are complete on [[BPR-0730]] and
-[[BPR-0731]]. The ledger distinguishes their recorded revisions from an
-unperformed current three-platform comparison. RFC-BPR-0014 is still Proposed,
-so canonical dependency order independently prevents Auto-Verified closeout.
+[[BPR-0731]]. The [2026-09-20 Mac capture and comparison](../verification/BPR-0593-macos-settings-inventory.md)
+now supplies the missing like-for-like native inventory at the Windows source
+revision: all seven pages match Windows/Linux actionable controls. Current Mac
+dev/release trees also match, and real Preferences/Command-comma/same-profile
+window courses pass. The required appearance restart contract is repaired and
+passes without production changes. The ledger still requires Windows/Linux
+native menu/shortcut courses and a current refresh of the later updater/CLI
+rows; neither is inferred from the baseline capture. RFC-BPR-0014 remains
+Proposed, so canonical dependency order independently prevents Auto-Verified.
 
 ## Accepted attended history, 2026-09-12
 
