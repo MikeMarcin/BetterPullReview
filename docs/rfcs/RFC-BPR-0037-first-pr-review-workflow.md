@@ -28,8 +28,10 @@ status.
 Owner follow-up [[BPR-0934]], recorded on 2026-09-20 in attended decision
 441, adds collapsible Overview folders. It extends this RFC as AC-10 and the
 `overview-folder-collapse` milestone. The original nine criteria and their
-technical acceptance remain intact; BPR-0934 must also finish before a final
-status reconciliation can close the current RFC scope.
+technical acceptance remain intact. BPR-0934 is technically accepted at
+`a88c0d19`: nested folders have retained, accessible native disclosure controls,
+and focused plus rendered public-path checks pass. Its branch candidate is not
+yet landed in main; the active BPR-0954 checkout must not be disrupted.
 
 Markdown rendering remains independently owned by RFC-BPR-0036 and BPR-0916/
 BPR-0917. It is neither part of this RFC's delivery nor a prerequisite for fixing
@@ -187,7 +189,6 @@ Canonical closeout order and predecessor eligibility remain unchanged.
 - AC-07: Full admitted thread bodies are reachable without accidental nested scroll traps; wheel, trackpad and keyboard behavior is responsive and supported by observed or measured evidence.
 - AC-08: The graph and thread detail form one understandable reading path with consistent body presentation and no unexplained duplicate full thread, while preserving identity and navigation.
 - AC-09: Discuss displays known PR conversations without requiring a source file to load; its default scope and optional file filtering are decided explicitly, with clear thread-to-code navigation and loading/error states.
-
 - AC-10: Each Overview folder has an accessible mouse and keyboard expand/collapse control that hides every descendant file; reopening preserves file identity and order, and same-authority refresh retains local expansion and sensible focus/selection without unintended file dispatch.
 
 ## Verification and closeout
@@ -227,7 +228,23 @@ Successful in-process Refresh recovery was also not claimed; the recorded course
 demonstrates healthy relaunch over the same durable store. RFC-BPR-0036 Markdown
 rendering remains outside this result.
 
+The later AC-10 candidate `a88c0d19e00cbf035bafd282c2701c862ddac623`
+adds complete folder ancestry and stable incremental model indexes. Native
+mouse/keyboard disclosure hides every descendant, preserves surviving folders'
+local expansion across refresh, and clears that state with the owning authority.
+Focused Qt tests cover nested folders, accessibility, selection/focus, structural
+insertions/removals/reordering and authority reset. The rendered composed
+first-PR course exercises collapse/reopen before continuing through the original
+source, conversation and draft-retention route. Evidence and acceptance are in
+`milestone-overview-folder-collapse-evidence.md` and `acceptance-BPR-0934.json`
+under the plan directory. This new evidence uses offscreen Qt on macOS, not an
+additional attended native-platform verdict. Broader sign-in-card and epoch-row
+smoke failures also reproduce with the pre-change Overview implementation and
+are recorded as baseline failures, not passing evidence.
+
 The technical criteria and BPR-0927 may close while the RFC status remains
 `Proposed`. A later status-only reconciliation may move this RFC and its index row
 to `Auto-Verified` only after every listed dependency is `Auto-Verified`; it does
-not require re-running unchanged RFC-BPR-0037 engineering evidence.
+not require re-running unchanged RFC-BPR-0037 engineering evidence. Main landing
+of the BPR-0934 branch remains a separate pending obligation until the main
+checkout is safe to update; no dependency status or concurrent work is changed.

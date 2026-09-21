@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "Each folder in the Overview file list has an accessible, keyboard-operable expand/collapse control; collapsing hides all descendant files.",
+      "outcome": "pass",
+      "revision": "a88c0d19e00cbf035bafd282c2701c862ddac623",
+      "evidence": {
+        "kind": "command",
+        "detail": "qt_pull_request_overview_page passed against the exact candidate: implicit Engine ancestors and nested Renderer/Shaders folders expose native mouse/Left-Right controls; QAccessible reports the folder name and expandable/expanded state; collapse hides every descendant without file activation."
+      }
+    },
+    {
+      "criterion": "Reopening restores the same file identities and order, with selection and focus handled without dispatching an unintended file selection.",
+      "outcome": "pass",
+      "revision": "a88c0d19e00cbf035bafd282c2701c862ddac623",
+      "evidence": {
+        "kind": "command",
+        "detail": "The focused Qt test retains persistent folder/file indexes and sibling order through collapse/reopen and structural insert/remove/reorder refresh. Collapsing an ancestor of the current file moves current focus to that visible ancestor and dispatches no file selection."
+      }
+    },
+    {
+      "criterion": "Qt owns the local expansion state and preserves it across an incremental same-authority refresh when the folder still exists.",
+      "outcome": "pass",
+      "revision": "a88c0d19e00cbf035bafd282c2701c862ddac623",
+      "evidence": {
+        "kind": "command",
+        "detail": "The retained Qt-only tree updates metadata in place and reconciles structural changes with row insertion/move/removal, never model reset. Tests retain nested collapsed states across same-authority refresh and clear old identities/selection/expansion on authority clearing. No core, host, provider or publication behavior changes."
+      }
+    },
+    {
+      "criterion": "Focused nested-folder, refresh and keyboard checks plus a rendered public Overview course demonstrate the behavior.",
+      "outcome": "pass",
+      "revision": "a88c0d19e00cbf035bafd282c2701c862ddac623",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Final restored-candidate batch passed qt_pull_request_overview_page (2.20s) and application_setup_destination_public_path (39.58s). Agent-inspected collapsed/expanded full-window PNGs show native disclosure and correct file visibility. The actual loaded-PR route then completes original source, update, conversation and local-draft checks with no publication. This is Qt 6.11.2 offscreen on macOS arm64/DPR1, not attended native or other-platform acceptance. Baseline smoke failures and inherited tidy diagnostics are separately recorded in milestone-overview-folder-collapse-evidence.md."
+      }
+    }
+  ]
+}
