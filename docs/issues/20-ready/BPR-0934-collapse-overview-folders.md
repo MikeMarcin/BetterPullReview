@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0934"
 title: "Collapse folders in the Overview file list"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0037"]
 depends_on: []
 priority: P2
+metadata: {"milestone_plan":{"id":"rfc-bpr-0037-first-pr-workflow","path":"docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json"}}
 ---
 
 # Collapse folders in the Overview file list

@@ -102,6 +102,25 @@
         "Documentation and board validation pass; RFC/index status changes only when canonical dependencies and every closeout obligation permit it."
       ],
       "boundary": "One RFC closeout boundary against registration baseline 9bd2002b859ce4c5599d86dcc51771aa365fa90b; no claim for RFC-BPR-0036 Markdown work or unobserved platforms."
+    },
+    {
+      "id": "overview-folder-collapse",
+      "outcome": "Overview folders can hide and reveal every descendant file through accessible native tree controls, with exact file identity, order and local expansion retained across same-authority refreshes.",
+      "work": [
+        {
+          "issue": "BPR-0934"
+        }
+      ],
+      "depends_on": [
+        "combined-first-pr-closeout"
+      ],
+      "exit_criteria": [
+        "Every folder, including ancestors of nested paths, exposes mouse and keyboard expand/collapse controls that hide all descendant files without opening a source comparison.",
+        "Reopening preserves file identities and order; collapsing or refreshing preserves sensible focus and selection without dispatching an unintended file selection.",
+        "Qt-local expansion survives an incremental same-authority refresh for surviving folders and is cleared when the owning pull-request authority is invalidated.",
+        "Focused nested-folder, refresh, keyboard and accessibility checks and a rendered public Overview course pass against the exact candidate, along with the documentation and board gates; all earlier accepted RFC criteria and canonical dependency gates remain preserved."
+      ],
+      "boundary": "Owner follow-up BPR-0934 from attended decision 441 extends RFC-BPR-0037 after its original technical closeout. Only Overview presentation and its verification change; provider, comparison, publication and Markdown authorities remain unchanged."
     }
   ],
   "unplanned_work": []
