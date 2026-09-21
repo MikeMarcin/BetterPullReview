@@ -29,3 +29,15 @@ self-installation remains future scope; manual fallback is required now.
   implied. Finish [[BPR-0911]] only once its complete acceptance is met.
 
 [[BPR-0912]] owns dependency-ordered closeout. RFC status cannot bypass RFC-0014.
+
+## Verification and execution record
+
+M3 mandate-r2 handoff: [[BPR-0948]] supplies exact Apple Silicon disposable signed
+upgrade/timeout/receipt/recovery evidence and the enabled installer source. Reuse
+the [ledger](../../verification/RFC-BPR-0035.md); do not repeat unchanged evidence
+or infer Intel/live private-service acceptance. The final unpublished 0.0.352
+candidate and recoverable qualification branch are recorded on [[BPR-0912]].
+No M4 work has been claimed. Preserve the native two-window finding of duplicate
+Check for Updates menu entries for this milestone's public-path review, along
+with the existing self-service recovery/operator/security obligations. Publication,
+tags, pushes and installed/developer-app replacement remain unauthorized.

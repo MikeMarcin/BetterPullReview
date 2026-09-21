@@ -15,14 +15,87 @@ metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans
 ## Scope and continuation
 
 [RFC-BPR-0035](../../rfcs/RFC-BPR-0035-github-release-auto-updater.md) implementation
-was requested on 2026-09-20. Milestones 1 and 2 are accepted under [[BPR-0946]] and
-[[BPR-0947]]. Installation and replacement remain gated on [[BPR-0948]].
+was requested on 2026-09-20. Milestones 1, 2 and 3 are accepted under [[BPR-0946]],
+[[BPR-0947]] and [[BPR-0948]]. [[BPR-0949]] is the next unstarted milestone.
 
 RFC base: `1b4c24154bd1d4f1d4bea3d84c593e2fb4c3d47f`.
 
 Planned cards: BPR-0911, BPR-0912, BPR-0946, BPR-0947, BPR-0948, BPR-0949.
 
 ## Current engineering checkpoint
+
+Run `rfc0035-20260920`, segment `m3-post-block-signing`, mandate revision `r2`.
+Sole owner `/root/rfc0035_m3_resume` resumes only `m3-install-recovery` /
+[[BPR-0948]] on `main` from `14efff7ee60bc1a10c5122402e48aca2f44c690a`.
+The prior owner and commands are quiescent; no review server or protected
+candidate exists. Claim: `182733b3105db797fbf345bc4ac099053f18e005`.
+The unchanged plan/obligations are bound in `build/rfc0035-run/m3-r2-checkpoint.json`.
+
+Owner amendment r2 authorizes local production signing/notarization credentials
+for disposable qualification artifacts. Publication, tags, pushes, GitHub releases,
+live review mutations and installed/developer-application replacement remain
+prohibited. The signing identity and existing `BetterPullReview-notary` profile
+are available; no credential material is retained. Disposable versions `0.0.350`,
+`0.0.351` and final installer-enabled `0.0.352` are stable SemVer, ordered below
+the repository's latest `v0.1.3` release, and
+cannot be offered as upgrades to that production version. Main's version and
+release notes remain unchanged. The unrelated `.mask.lock.json` and nested
+Claude worktree remain preserved.
+
+Engineering commits: `5cf310c42ac392c704d4722f344afe81886ea89e` binds the canonical
+private state root/inode before startup opens stores;
+`b7e2df46cc178bbcff88b49dd2170ecf27a8c764` enables the qualified macOS installer
+and adds the reusable native qualification course. This final source is accepted.
+The final signed package source `5db1d104a2436a2b0df811ac2e40cff0c58c2319`
+differs only in CMake's disposable version. The local branch
+`codex/rfc0035-m3-r2-qualification` retains all three version/source commits;
+main's release version and notes are unchanged.
+
+Actual native results: two signed upgrades (0.0.350→0.0.351, then →0.0.352),
+cooperative two-window shutdown, exact startup receipt, retained window IDs/drafts/
+possibly-transmitted publication state, real helper timeout without termination,
+missing-receipt rollback and signed backup-helper recovery all pass. Native UI
+shows the exact installed version and healthy receipt; the recovered old app
+truthfully reports no completed installation and no publication retry. Final ZIP
+SHA-256: `29ab8fbfc786864ca7f27bdbe95315bcce254fabdb4e5c0695973c2bf1bc3fa7`.
+Final executable SHA-256:
+`1882523982a47a6c0abaa528f09fb19bb6bf8913629252d22f507b22bc5028c5`.
+The [ledger](../../verification/RFC-BPR-0035.md) records all artifacts, commands,
+failed probe corrections and scope limits. Native result records are retained at
+`build/rfc0035-run/native-r2-evidence/`; package and gate logs share that run root.
+
+Verification: final updater integration 8/8; 139 architecture and four core-boundary
+contract cases; both boundary scans on an exact clean source export; six full-file
+and two changed-range format checks; three complete and three changed-surface
+translation-unit tidy checks; documentation gate and 64 documentation tests.
+Unchanged M1/M2/core-only/fault evidence is retained rather than re-inferred.
+Existing unrelated full-header tidy diagnostics remain documented.
+
+Changed paths since resumed claim: six state-root contract/composition/test files,
+installer composition, public-path and transaction drivers, native Python harness,
+component/system/package/RFC notes and this milestone's ledger/cards. Exact list:
+`git diff --name-only 182733b3105db797fbf345bc4ac099053f18e005 b7e2df46cc178bbcff88b49dd2170ecf27a8c764`.
+Acceptance and final binding observation are `build/rfc0035-run/m3-r2-acceptance.json`
+and `build/rfc0035-run/m3-r2-observation.json`; the original M3 fingerprints remain
+unchanged. No attended session, review server, protected candidate or pending
+M3 human decision exists.
+
+All task commands/native applications are joined or orderly quit; the detached
+source worktree was removed only after its commits were retained on the branch
+above. Disposable installations, failed probes/export and qualification build
+were moved to `/Users/jaeger/.Trash/bpr35.6aKkXi`,
+`/Users/jaeger/.Trash/bpr-rfc0035-m3-r2.g1eYKY` and
+`/Users/jaeger/.Trash/bpr-rfc0035-m3-r2-build-g1eYKY` (recoverable). Packages/logs
+remain under `build/rfc0035-run/`; no product writer remains.
+
+Next action: the coordinator may start a fresh M4 owner for [[BPR-0949]], now
+eligible for Ready. M4 was not started here. Carry forward Intel execution,
+live private-release/vault verification, self-service recovery/operator/security
+closeout and the observed duplicate Check for Updates menu entries in a two-window
+native session. RFC and parent/closeout cards remain open. No release publication,
+tag, push, account authorization or developer-app replacement is implied.
+
+### Prior M3 blocked checkpoint (mandate r1)
 
 Run `rfc0035-20260920`, segment `m3-implementation`, mandate revision `r1`
 (implement RFC-BPR-0035; no amendments). Child `/root/rfc0035_m3` owns only

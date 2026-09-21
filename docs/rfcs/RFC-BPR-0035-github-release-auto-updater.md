@@ -26,16 +26,18 @@ publication and replacement of the developer's running application are not.
 The RFC stays Proposed until its acceptance and canonical dependencies close.
 
 Milestone 2 composes check/download controls, app-wide preferences, native private
-release transport and signed macOS staging under [[BPR-0947]]. Installation stays
-disabled pending [[BPR-0948]]. The [verification ledger](../verification/RFC-BPR-0035.md)
+release transport and signed macOS staging under [[BPR-0947]]. Installation was
+gated on [[BPR-0948]]. The [verification ledger](../verification/RFC-BPR-0035.md)
 records fixture coverage and exact signed-artifact evidence; it makes no live
-private-service, Intel execution or complete upgrade claim.
+private-service or Intel execution claim.
 
-Milestone 3 implements the dormant helper/journal protocol, cooperative lifetime
-locks, multi-window draft barrier and matching healthy-start receipt. Fixture
-fault courses and a genuine signed rollback probe pass, but no signed upgrade
-using the new helper and startup protocol is qualified. [[BPR-0948]] and its
-milestone exit remain open; production installation is not enabled.
+Milestone 3 implements the helper/journal protocol, cooperative lifetime locks,
+multi-window draft barrier and matching healthy-start receipt. Mandate amendment
+r2 authorizes local production signing/notarization for disposable qualification
+only, without publication, tags, pushes or installed/developer-app replacement.
+Signed native upgrade, timeout, missing-receipt and interrupted-rename recovery
+courses pass on Apple Silicon. Eligible trusted macOS installations now select
+the installer; [[BPR-0949]] retains the remaining native/security closeout scope.
 
 The first implementation targets the existing signed, notarized macOS universal
 release. Windows and Linux expose manual update guidance until separately scoped

@@ -1131,7 +1131,7 @@ closed to the refusal ([[BPR-0281]], [[BPR-0318]],
 `application_device_authorization_public_path`,
 `application_device_authorization_release_contract`).
 
-## Release updater discovery, staging and gated installation
+## Release updater discovery, staging and installation
 
 RFC-BPR-0035 milestones 1 and 2 add deterministic stable-version/asset/scheduling
 policy and one desktop-wide application service. Menus and General Settings
@@ -1146,8 +1146,11 @@ desktop-wide draft preservation/shutdown, a durable replacement journal and an
 exact healthy-start receipt. Its platform adapter owns fixed signature/trust
 commands and exact helper/application launches; private SQLite stores inert draft
 recovery text and Qt presents it read-only. Cleanup is journal/inode-authorized.
-The production installer capability remains unselected pending signed-upgrade
-qualification: no developer application was replaced or relaunched. The
+The startup transaction binds the canonical private state-root inode before any
+store opens. Disposable signed/notarized upgrade and recovery qualification permits
+installer selection for eligible trusted macOS installations; explicit verified
+candidate gestures still gate replacement. No developer application was replaced
+or relaunched, and no release was published. The
 [release updater contract](release-updater.md) binds the fixed distribution
 source, separate native authority, limits and successor obligations.
 

@@ -4,10 +4,11 @@ RFC-BPR-0035 milestones 1 and 2 supply the deterministic policy and a desktop-wi
 check/download/staging composition. The application menu and General Settings
 share one service, including when the last review window closes on macOS.
 [[BPR-0947]] implements discovery and verified staging. [[BPR-0948]] adds the
-helper, shutdown coordination, replacement and recovery protocol described below,
-but its signed-upgrade qualification is not complete. Native composition does not
-select the installer capability: Install and Restart remains disabled even after
-successful native staging. No package was published or upgraded in this work.
+helper, shutdown coordination, replacement and recovery protocol described below.
+Disposable signed/notarized installations qualify that protocol on Apple Silicon.
+Native composition selects the installer only for an eligible trusted macOS
+installation; every verified candidate still requires an explicit Install and
+Restart gesture. No release was published or developer application replaced.
 
 ## Distribution and authority
 
@@ -118,8 +119,8 @@ requirement and pinned team, then asks system execution trust to assess the bund
 The installed trust source is checked as well. No quarantine bypass, signing
 identity or privilege elevation is used. A content/inode manifest detects changed
 staging before and after validation and at revalidation. The signed fixture proves
-these checks on this Apple Silicon host; an Intel execution and packaged upgrade
-remain later acceptance, not inferred from universal headers.
+these checks on this Apple Silicon host. Disposable packaged upgrades also pass;
+Intel execution remains later acceptance, not inferred from universal headers.
 The core also requires completed download bytes to equal the selected size.
 Passing fake verification establishes orchestration only, not native validation.
 
@@ -155,7 +156,7 @@ lease ID, operation and complete candidate where applicable. Bounded equality
 rejects stale/duplicate observations before any candidate can be published.
 Disable, cancel, authority replacement and shutdown invalidate pending policy.
 Download and verification require exact accepted candidate identity; worker
-exceptions become typed failures. The absent installer remains explicitly disabled,
+exceptions become typed failures. An absent installer remains explicitly disabled,
 including when native validation reaches `ready`. `BPRManagedUpdates=true` in
 the application preference domain supplies the macOS managed-policy refusal.
 Read-only volumes (including mounted read-only disk images), App Translocation,
@@ -177,7 +178,7 @@ deliveries and decision ingress. Executors and clock outlive that quiescence.
 Opaque artifact destruction must be nonblocking; adapters schedule owned cleanup
 on their effect service when the host releases a stale or replaced capability.
 
-## Dormant installation protocol
+## Qualified installation protocol
 
 The macOS build bundles `Contents/MacOS/bpr_update_helper`. Native installation
 requires the trusted production bundle and its exact helper; the helper verifies
@@ -205,6 +206,10 @@ manifests and exact executable digest are checked again. The durable journal bin
 the installation, parent and transaction inodes, old/new trees, candidate and up
 to 64 live participant inodes. Journals are at most 64 KiB; the participant scan
 is bounded to 4,096 entries. No path supplied by release metadata is executable.
+The journal also binds the canonical owner-private application-state root and its
+inode. The new process must accept that exact root before opening stores; an
+absent, aliased or replaced root refuses startup instead of selecting default
+state from the helper's empty environment.
 
 Every participating desktop freezes new window/profile work and its editors,
 captures all profiles' draft text, then requests the existing orderly shutdown.
@@ -254,6 +259,8 @@ normal startup until explicit helper recovery; a user-facing recovery launcher i
 not yet qualified.
 
 The [verification ledger](../verification/RFC-BPR-0035.md) distinguishes fixture
-fault courses, actual cooperating peer processes, a genuine signed rollback probe
-and the still-missing older-to-newer signed helper/startup/state-retention course.
-These limits keep [[BPR-0948]] and production enablement open.
+fault courses, real peer processes and signed older-to-newer native upgrade,
+timeout, missing-receipt and rollback courses. These use synthetic private state,
+network denial and disposable installations. Live private-release access, Intel
+execution and operator/security closeout remain [[BPR-0949]] obligations; neither
+local signing authorization nor milestone acceptance authorizes publication.

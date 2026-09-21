@@ -10,11 +10,13 @@ introduce an updater, browser runtime, listener, telemetry, or remote loader.
 
 RFC-BPR-0035 development now bundles `Contents/MacOS/bpr_update_helper` on macOS.
 The existing release tool signs nested Mach-O files and normalizes their rpaths,
-including this helper. Native composition does not select its installer until
-disposable signed-upgrade qualification is complete. This dormant helper does not
-amend RFC-BPR-0014's manual-update policy or constitute signed/notarized release
-evidence; package enablement and operator/security closeout remain gated by
-[[BPR-0948]] and [[BPR-0949]].
+including this helper. [[BPR-0948]] qualifies disposable signed/notarized native
+upgrade, timeout and recovery on Apple Silicon; native composition now selects
+the installer for eligible trusted macOS installations. These unpublished,
+qualification-only packages do not authorize release publication or replace the
+developer application. Intel execution, live private-service acceptance and
+operator/security closeout remain [[BPR-0949]] obligations. RFC-BPR-0035 amends
+the earlier manual-update policy only for the qualified macOS scope.
 
 ## Application icon
 
