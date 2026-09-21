@@ -1,0 +1,904 @@
+{
+  "schema": "bpr.release-dependency-remediation.v1",
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "card": "BPR-0962",
+    "milestone": "m9-security-boundary-verification",
+    "mandate": "r3",
+    "recipe": "coordinator-implementer rev2",
+    "owner": "/root/rfc0014_m9_finalize",
+    "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+    "entry": "08d129d0b04d2cac2649013b16b315cf7ccf929e"
+  },
+  "result": "partial-blocked: owner-selected Qt upgrade implemented; exact-artifact raw vulnerability gates still fail. Applicability evidence below is not an independent security-owner decision.",
+  "changes": [
+    {
+      "commit": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+      "detail": "Pin official Qt 6.11.2 provider and matching source together; derive package/SBOM version from declared dependency; prevent stale Qt6_DIR/helper mixing; retain 6.9 minimum for caller-installed development Qt."
+    },
+    {
+      "commit": "71ae6665",
+      "detail": "Dependency-audit regression recognizes the existing exact LibArchive CPM_PINNED record without allowing arbitrary new modes."
+    },
+    {
+      "commit": "3d198fa1",
+      "detail": "Seven release verifier/course files use the established contained temporary-root helper; POSIX owner-only behavior preserved and Windows AppContainer inheritance supported."
+    },
+    {
+      "commit": "67f5e51407a883e4469cee6008048a001f7c13b3",
+      "detail": "Windows-only build installer pins upstream merged aqtinstall PR1000, revision 8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b; released 3.3.0 cannot locate Qt 6.11 Windows metadata. This explicitly unreleased build-only tool does not patch shipped Qt."
+    }
+  ],
+  "dependency_provenance": {
+    "qt": {
+      "version": "6.11.2",
+      "source_url": "https://download.qt.io/archive/qt/6.11/6.11.2/submodules/qtbase-everywhere-src-6.11.2.tar.xz",
+      "sha256": "5b2e00eccaf5a4d8c14134ffa0ea8dfd0a35ae1ffc7f8d87fa4305a1ed23cf22",
+      "source_commit": "ef55f427f2c8b410d34f8a7681020a3000cf6866",
+      "release": "https://www.qt.io/blog/qt-6.11.2-released",
+      "platforms": "https://doc.qt.io/qt-6.11/supported-platforms.html",
+      "compatibility": "Declared macOS 13 universal, Windows 10 1809+/11 x64 and Ubuntu24.04/RHEL10 floors are not raised. Native clean-machine/Intel/Linux qualification remains missing. Windows local compiler is MSVC 19.51.36257.0, not an executed MSVC2022 matrix."
+    },
+    "installer": {
+      "version": "Windows upstream merge 8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b; macOS/Linux aqtinstall 3.3.0",
+      "source": "https://github.com/miurahr/aqtinstall/pull/1000",
+      "failure": "https://github.com/miurahr/aqtinstall/issues/1007",
+      "scope": "Build acquisition only; exact commit, no floating branch or hash bypass."
+    },
+    "sqlite": {
+      "version": "3.53.4",
+      "latest_checked": "https://www.sqlite.org/news.html",
+      "source_id": "2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc",
+      "observation": "Existing pinned amalgamation already exceeds all three reported upstream fixed versions. No downgrade, version relabel, CPE removal or suppression."
+    },
+    "resolved": "Qt's bundled libpng moved from 1.6.56 to 1.6.58; CVE-2026-34757 no longer appears in either fresh raw report."
+  },
+  "artifacts": {
+    "macos": {
+      "producer": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+      "root": "build/releases/m9-qt6112-92c4e159",
+      "package": "BetterPullReview-0.1.3-macos-universal-local.zip",
+      "package_bytes": 40716748,
+      "package_sha256": "65cbeb97be3252c2b7e4346fe8033842671030c660744af41943eeecdffeb22c",
+      "sbom_sha256": "b0b94e7fc1deabf16d0fe59af8ff5d19732cab859fa5887e3477f1258dd09b2c",
+      "executable_sha256": "8ffd54bbd15993c9b7c11871410ff545f43c5831eaaf2bbdc4d022dc625586ab",
+      "source_asset": "BetterPullReview-0.1.3-macos-universal-corresponding-source.zip",
+      "source_bytes": 68613819,
+      "source_sha256": "2532ba6aaa2137deb709f201faa453214425e52cc3bec5389cbe898210663329",
+      "notices_sha256": "d93539a80b373fbbe01ee4f8c9e5b0c1e7854abf0092e3e3f56fa846b8fb2d91",
+      "offer_sha256": "dd6fe770fee7135bcb1b568067d843ea9375160732c61978ecd70c2fa6b9b6d4",
+      "provenance_sha256": "680e42561db4633076c86dac5d065bce26a76c38637eadef2867e4efe9063254",
+      "trust": "Ad-hoc only; Developer ID/notarization/Gatekeeper acceptance not supplied.",
+      "mechanics": "42 SPDX files, 63 Qt package records, seven source payloads, 228 hardened compilation units; actual ZIP/source preflight and nine guarded tests-disabled Cocoa public-course groups pass."
+    },
+    "windows": {
+      "producer": "67f5e51407a883e4469cee6008048a001f7c13b3",
+      "root": "build/releases/m9-qt6112-windows-67f5e514",
+      "remote_root": "C:/Users/mikem/bpr0014-m9-qt6112-92c4e159",
+      "package": "BetterPullReview-0.1.3-windows-x64.msi",
+      "package_bytes": 19521536,
+      "package_sha256": "0174d9ce46537601ffca81295eed3bcea31c7fc5666e35613b8e4d6810178ef6",
+      "sbom_sha256": "b34099e6a7e957dc64916a649c2c036ce16ad26dcf0e1c9507b05a7fa979494b",
+      "executable_sha256": "068434f05f4231ba4f752b5958a26cb2dec6972b8e20b15a74073e59eab19c98",
+      "source_asset": "BetterPullReview-0.1.3-windows-x64-corresponding-source.zip",
+      "source_bytes": 61996001,
+      "source_sha256": "11babc5ff5cc7865344835685223d4757bddfa433a4517d56fe9975f39436b3b",
+      "notices_sha256": "253fccb7c01ea837576a14805b40353083c747e56f814f8a01f6edecd3b56eb6",
+      "offer_sha256": "090444aa9088bfd8868a014841f5a5330a0ccd3b0f241896bd9971357a4e710c",
+      "provenance_sha256": "0311a8a7575187816a354f53ca6ef41bd788537450869115430fb95fbed9e5d6",
+      "trust": "MSI NotSigned; upstream Qt publisher signatures validate independently of the unsigned first-party distribution.",
+      "mechanics": "22 SPDX files, 58 Qt package records, six source payloads, 223 hardened compilation units; staged and actual administrative-extracted MSI audits pass, with exact PE producer bytes/full first-party maps. No ordinary-user installation/UI or full runtime/vault qualification inferred."
+    }
+  },
+  "scanner": {
+    "tool": "Grype 0.119.0",
+    "archive_sha256": "500c9b2b6c089d21481815f57a553fabbd441ec7d1e79d95e3aaf40c3bfc7e36",
+    "db": {
+      "schemaVersion": "v6.1.9",
+      "from": "https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.9_2026-09-21T00:35:57Z_1789972764.tar.zst?checksum=sha256%3A3fac8f6fb69bb80a7956703caa7fed5d66ee0c936ca0a2c8fa127e4fe7835c7a",
+      "built": "2026-09-21T06:39:24Z",
+      "path": "/Users/jaeger/Library/Caches/grype/db/6/vulnerability.db",
+      "valid": true
+    },
+    "command": "build/m9-remediation.VaTqWL/grype sbom:<absolute final artifact SPDX> --fail-on high -o json --file <raw-report>",
+    "custom_suppressions": [],
+    "vex_documents": [],
+    "coverage_limit": "Raw default matcher reports are preserved, including duplicate component attributions. SPDX/identifier/feed scope is not whole-program exploitability or exhaustive vulnerability coverage."
+  },
+  "scans": {
+    "macos": {
+      "timestamp": "2026-09-21T16:09:41.297895-07:00",
+      "exit": 2,
+      "total": 32,
+      "severity": {
+        "Critical": 2,
+        "High": 8,
+        "Medium": 19,
+        "Low": 3
+      },
+      "report": "build/m9-remediation.VaTqWL/grype-macos.json",
+      "sha256": "27329d091e2fb4d46799dca6d9a2ed62de946a9b5d3c3477b242d548eb793190",
+      "groups": [
+        {
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "purl": "pkg:github/pcre2project/pcre2@pcre2-10.47",
+          "matches": [
+            {
+              "id": "CVE-2026-89157",
+              "severity": "High",
+              "constraints": [
+                ">= 10.30, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89158",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89160",
+              "severity": "Medium",
+              "constraints": [
+                ">= 10.34, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89156",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89161",
+              "severity": "High",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89162",
+              "severity": "Low",
+              "constraints": [
+                ">= 10.45, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "purl": "pkg:github/pcre2project/pcre2@pcre2-10.47",
+          "matches": [
+            {
+              "id": "CVE-2026-89157",
+              "severity": "High",
+              "constraints": [
+                ">= 10.30, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89158",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89160",
+              "severity": "Medium",
+              "constraints": [
+                ">= 10.34, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89156",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89161",
+              "severity": "High",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89162",
+              "severity": "Low",
+              "constraints": [
+                ">= 10.45, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "Core_Attribution_tika-mimetypes",
+          "version": "c29724782854bb5a319f4a1940d0828a58ace3f9",
+          "purl": "pkg:github/apache/tika@c29724782854bb5a319f4a1940d0828a58ace3f9#tika-core/src/main/resources/org/apache/tika/mime/tika-mimetypes.xml",
+          "matches": [
+            {
+              "id": "CVE-2018-1335",
+              "severity": "High",
+              "constraints": [
+                "< 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2016-6809",
+              "severity": "Critical",
+              "constraints": [
+                "<= 1.13 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-11761",
+              "severity": "High",
+              "constraints": [
+                ">= 0.1, <= 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-11796",
+              "severity": "High",
+              "constraints": [
+                ">= 0.1, <= 1.19 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-11762",
+              "severity": "Medium",
+              "constraints": [
+                ">= 0.9, <= 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2021-28657",
+              "severity": "Medium",
+              "constraints": [
+                "<= 1.25 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-30126",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.28.3||>= 2.0.0, < 2.4.0 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-1339",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-25169",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.28.2||>= 2.0.0, < 2.4.0 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-1338",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-30973",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.28.3 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-33879",
+              "severity": "Low",
+              "constraints": [
+                "< 1.28.4||>= 2.0.0, < 2.4.1 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "DBus_Attribution_libdbus-1-headers",
+          "version": "1.13.12",
+          "purl": "pkg:github/d-bus/dbus@dbus-1.13.12",
+          "matches": [
+            {
+              "id": "CVE-2022-42011",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.12.24||>= 1.13.0, < 1.14.4||>= 1.15.0, < 1.15.2 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-42012",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.12.24||>= 1.13.0, < 1.14.4||>= 1.15.0, < 1.15.2 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-42010",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.12.24||>= 1.13.0, < 1.14.4||>= 1.15.0, < 1.15.2 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "SQLite",
+          "version": "3.53.4",
+          "purl": "",
+          "matches": [
+            {
+              "id": "BIT-sqlite-2025-6965",
+              "severity": "High",
+              "constraints": [
+                "none (unknown)"
+              ]
+            },
+            {
+              "id": "BIT-sqlite-2024-0232",
+              "severity": "Medium",
+              "constraints": [
+                ">=3.43.0 (bitnami)"
+              ]
+            },
+            {
+              "id": "BIT-sqlite-2025-29088",
+              "severity": "Medium",
+              "constraints": [
+                ">=3.49.0 (bitnami)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "WrapZLIB",
+          "version": "1.2.12",
+          "purl": "",
+          "matches": [
+            {
+              "id": "CVE-2022-37434",
+              "severity": "Critical",
+              "constraints": [
+                "<= 1.2.12 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-27171",
+              "severity": "Medium",
+              "constraints": [
+                ">= 1.2.12, < 1.3.2 (unknown)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "windows": {
+      "timestamp": "2026-09-21T16:38:10.718169-07:00",
+      "exit": 2,
+      "total": 30,
+      "severity": {
+        "Critical": 1,
+        "High": 11,
+        "Medium": 15,
+        "Low": 3
+      },
+      "report": "build/m9-remediation.VaTqWL/grype-windows.json",
+      "sha256": "754a71e798ec457c111ffb908e092d5cd7ee178a7ad4a48734c604ee717916c2",
+      "groups": [
+        {
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "purl": "pkg:github/pcre2project/pcre2@pcre2-10.47",
+          "matches": [
+            {
+              "id": "CVE-2026-89157",
+              "severity": "High",
+              "constraints": [
+                ">= 10.30, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89158",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89160",
+              "severity": "Medium",
+              "constraints": [
+                ">= 10.34, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89156",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89161",
+              "severity": "High",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89162",
+              "severity": "Low",
+              "constraints": [
+                ">= 10.45, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "purl": "pkg:github/pcre2project/pcre2@pcre2-10.47",
+          "matches": [
+            {
+              "id": "CVE-2026-89157",
+              "severity": "High",
+              "constraints": [
+                ">= 10.30, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89158",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89160",
+              "severity": "Medium",
+              "constraints": [
+                ">= 10.34, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89156",
+              "severity": "Medium",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89161",
+              "severity": "High",
+              "constraints": [
+                "< 10.48||= 10.48-rc1 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2026-89162",
+              "severity": "Low",
+              "constraints": [
+                ">= 10.45, < 10.48||= 10.48-rc1 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "BundledZLIB",
+          "version": "1.3.2",
+          "purl": "pkg:github/madler/zlib@v1.3.2",
+          "matches": [
+            {
+              "id": "CVE-2026-85091",
+              "severity": "High",
+              "constraints": [
+                ">= 1.3.1.2, <= 1.3.2 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "Core_Attribution_tika-mimetypes",
+          "version": "c29724782854bb5a319f4a1940d0828a58ace3f9",
+          "purl": "pkg:github/apache/tika@c29724782854bb5a319f4a1940d0828a58ace3f9#tika-core/src/main/resources/org/apache/tika/mime/tika-mimetypes.xml",
+          "matches": [
+            {
+              "id": "CVE-2018-1335",
+              "severity": "High",
+              "constraints": [
+                "< 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2016-6809",
+              "severity": "Critical",
+              "constraints": [
+                "<= 1.13 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-11761",
+              "severity": "High",
+              "constraints": [
+                ">= 0.1, <= 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-11796",
+              "severity": "High",
+              "constraints": [
+                ">= 0.1, <= 1.19 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-11762",
+              "severity": "Medium",
+              "constraints": [
+                ">= 0.9, <= 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2021-28657",
+              "severity": "Medium",
+              "constraints": [
+                "<= 1.25 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-30126",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.28.3||>= 2.0.0, < 2.4.0 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-1339",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-25169",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.28.2||>= 2.0.0, < 2.4.0 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2018-1338",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.18 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-30973",
+              "severity": "Medium",
+              "constraints": [
+                "< 1.28.3 (unknown)"
+              ]
+            },
+            {
+              "id": "CVE-2022-33879",
+              "severity": "Low",
+              "constraints": [
+                "< 1.28.4||>= 2.0.0, < 2.4.1 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "Gui_Attribution_zlib",
+          "version": "1.3.2",
+          "purl": "pkg:github/madler/zlib@v1.3.2",
+          "matches": [
+            {
+              "id": "CVE-2026-85091",
+              "severity": "High",
+              "constraints": [
+                ">= 1.3.1.2, <= 1.3.2 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "Network_Attribution_zlib",
+          "version": "1.3.2",
+          "purl": "pkg:github/madler/zlib@v1.3.2",
+          "matches": [
+            {
+              "id": "CVE-2026-85091",
+              "severity": "High",
+              "constraints": [
+                ">= 1.3.1.2, <= 1.3.2 (unknown)"
+              ]
+            }
+          ]
+        },
+        {
+          "package": "SQLite",
+          "version": "3.53.4",
+          "purl": "",
+          "matches": [
+            {
+              "id": "BIT-sqlite-2025-6965",
+              "severity": "High",
+              "constraints": [
+                "none (unknown)"
+              ]
+            },
+            {
+              "id": "BIT-sqlite-2024-0232",
+              "severity": "Medium",
+              "constraints": [
+                ">=3.43.0 (bitnami)"
+              ]
+            },
+            {
+              "id": "BIT-sqlite-2025-29088",
+              "severity": "Medium",
+              "constraints": [
+                ">=3.49.0 (bitnami)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "historical": "Prior macOS 21 / Windows 19 raw failures and their exact artifacts remain in rfc0014-m9-security-evidence.json. The new totals remove one libpng match and add 12 Tika XML-attribution matches on each platform. No old finding or decision was overwritten."
+  },
+  "applicability_review": {
+    "status": "Engineering evidence for independently reviewable decisions; NONE accepted by an independent named security owner.",
+    "pcre2": {
+      "packages": [
+        "BundledPcre2",
+        "BundledPcre2_Attribution_pcre2-sljit"
+      ],
+      "version": "10.47",
+      "fixed_release": "https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.48",
+      "qt_source": [
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/3rdparty/pcre2/CMakeLists.txt",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/text/qregularexpression.cpp"
+      ],
+      "facts": "Qt builds 16-bit PCRE2, omits pcre2_convert.c and disables JIT for the Apple arm64 slice. Windows x64 and macOS x86_64 still require the JIT/call-path analysis. Stripped public symbol absence is not evidence that vulnerable code is absent.",
+      "decisions": [
+        {
+          "id": "CVE-2026-89157",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-q8g2-wprr-34m9",
+          "basis": "Upstream describes 32-bit size_t automatic allocation in pattern conversion. Qt excludes that translation unit and both delivered architectures use 64-bit size_t.",
+          "proposed": "not-affected; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89158",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-fmgr-6ggq-9859",
+          "basis": "Upstream requires the 32-bit-code-unit compile API on a 32-bit process. Qt selects 16-bit PCRE2 in 64-bit artifacts.",
+          "proposed": "not-affected; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89156",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-2p8c-ff85-vh9x",
+          "basis": "Affected JIT-mode mismatch requires invalid UTF and a match mode absent from compilation. Qt optimizePattern requests COMPLETE, PARTIAL_SOFT and PARTIAL_HARD together, the documented workaround. Upstream does not establish 16-bit immunity by itself.",
+          "proposed": "workaround present in source; independent binary/call-path decision pending"
+        },
+        {
+          "id": "CVE-2026-89160",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-9qww-pwc4-77qq",
+          "basis": "Upstream requires PCRE2_MATCH_INVALID_UTF with backwards lookbehind. Qt's complete PatternOptions/MatchOptions conversion does not set that flag; a disabled translation-string occurrence is not an executable option.",
+          "proposed": "call-path non-applicability; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89161",
+          "source": "https://github.com/PCRE2Project/pcre2/pull/937",
+          "basis": "Qt calls pcre2_match_16 with newly created per-invocation match data, not direct pcre2_jit_match or COPY_MATCHED_SUBJECT reuse. The upstream fix concerns copied-subject ownership in the direct JIT API.",
+          "proposed": "call-path non-applicability; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89162",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-q7rw-r7qq-2hx6",
+          "basis": "Serialize encoding is compiled into the source library but is not called by Qt's QRegularExpression implementation. Do not equate lack of a public symbol with lack of compiled code.",
+          "proposed": "unused affected API in traced consumer; independent decision pending"
+        }
+      ],
+      "available_remediation": "PCRE2 10.48 is released and Qt's 6.11 development branch includes it at 5b833552b14e0d415e20129f353cc7fcc3cd7043 (2026-09-04). That commit is not the official Qt 6.11.2 artifact. Qt 6.11.3 is scheduled 2026-09-24, not released at this check.",
+      "next_release_reference": "https://wiki.qt.io/Qt_6.11_Release",
+      "coverage_gap": "Upstream GHSA-3r4p-g7gg-ppmf / CVE-2026-86145 DFA-recursion heap-limit advisory is not in these raw reports. Qt compiles DFA code but its traced QRegularExpression path uses pcre2_match_16. Feed silence does not close coverage."
+    },
+    "windows_zlib": {
+      "id": "CVE-2026-85091",
+      "version": "1.3.2",
+      "source": "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148",
+      "release_status": "https://zlib.net/",
+      "basis": "The latest published zlib 1.3.2 lacks the September 17 gz_vacate pointer-reset fix. Qt includes gzwrite.c in its static source target. The advisory's path follows failed nonblocking gzwrite with gzprintf/gzvprintf; Qt's non-third-party C++ consumers contain no calls to these APIs.",
+      "binary_evidence": "Native dumpbin on every extracted DLL found no z_gzwrite/z_gzprintf/z_gzvprintf/z_gzclose import or export. Qt6Core.dll SHA256 22c113a5644b875b2c85482723cd5d2e6a3a4029169778fcc78adde08ef3b6aa has a Valid The QT Company Oy signature and exports ordinary z_crc32/z_inflate APIs. This supports a reachability review, not proof of stripped internal-code absence.",
+      "proposed": "Retain High blocker pending independent source/call-path adjudication or a newly qualified fixed producer. No released zlib replacement containing the fix was found."
+    },
+    "sqlite": {
+      "ids": [
+        "BIT-sqlite-2024-0232",
+        "BIT-sqlite-2025-29088",
+        "BIT-sqlite-2025-6965"
+      ],
+      "source": "https://www.sqlite.org/cves.html",
+      "basis": "SQLite upstream lists fixes in 3.43.2, 3.49.1 and 3.50.2 respectively; exact pinned 3.53.4 is newer. Raw Bitnami matches use unbounded/unknown version constraints despite these fixed versions.",
+      "proposed": "Version-range false matches supported by upstream and pinned source identity; independent named security-owner acceptance remains required for the High match. Keep all raw matches."
+    },
+    "tika": {
+      "ids": [
+        "CVE-2018-1335",
+        "CVE-2016-6809",
+        "CVE-2018-11761",
+        "CVE-2018-11796",
+        "CVE-2018-11762",
+        "CVE-2021-28657",
+        "CVE-2022-30126",
+        "CVE-2018-1339",
+        "CVE-2022-25169",
+        "CVE-2018-1338",
+        "CVE-2022-30973",
+        "CVE-2022-33879"
+      ],
+      "sources": [
+        "https://tika.apache.org/security.html",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/mimetypes/3rdparty/qt_attribution.json",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/mimetypes/mimetypes_resources.cmake"
+      ],
+      "basis": "Qt includes the attributed tika-mimetypes.xml data resource, not Java Tika parsers/server/JARs. Its PURL even identifies that XML subpath. The wildcard Tika CPE is matched against old Java application version ranges using a git commit as version. Apache advisories describe those executable handlers, not this MIME table; exact package inventories contain no Java runtime or Tika server.",
+      "proposed": "Component-identity mismatch; independent Critical/High applicability approval pending. Retain original upstream attribution, license, PURL and CPE rather than editing metadata to quiet the scanner."
+    },
+    "macos_system_zlib": {
+      "ids": [
+        "CVE-2022-37434",
+        "CVE-2026-27171"
+      ],
+      "source": "https://support.apple.com/en-us/102853",
+      "basis": "Both QtCore Mach-O slices link Apple's /usr/lib/libz.1.dylib, recording 1.2.12. The macOS26.6.2 host's zlibVersion also reports 1.2.12; do not claim it is 1.3.2. Apple lists CVE-2022-37434 as addressed in Ventura13, the declared minimum. SDK/ABI version is not an OS patch inventory.",
+      "proposed": "Vendor-patched Critical-match evidence; independent exact-OS/baseline acceptance pending. CVE-2026-27171 CRC-combine negative-length issue needs separate OS/call-path disposition; no blanket all-macOS waiver."
+    },
+    "dbus": {
+      "ids": [
+        "CVE-2022-42010",
+        "CVE-2022-42011",
+        "CVE-2022-42012"
+      ],
+      "sources": [
+        "https://www.openwall.com/lists/oss-security/2022/10/06/1",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/dbus/qt_attribution.json",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/dbus/qdbus_symbols.cpp"
+      ],
+      "basis": "The matched 1.13.12 item is libdbus header declarations/constants, not the vulnerable message-validation implementation or daemon. QtDBus can dynamically load external libdbus, so header-only attribution does not certify the OS library on every runtime.",
+      "proposed": "Attribution versus external-runtime distinction documented; lower-severity and complete native-load scope still pending."
+    },
+    "expiry": "Every proposed decision must be rechecked on any app/Qt/dependency/package/platform-policy change, at next upstream fix release, and on scanner feed change; no perpetual or package-name-wide waiver is proposed."
+  },
+  "verification": {
+    "full_dev": {
+      "command": "ctest --preset dev --output-on-failure -j 4",
+      "exit": 8,
+      "passed": 374,
+      "total": 415,
+      "failed": 41,
+      "elapsed_seconds": 1998.35,
+      "log": "build/m9-remediation.VaTqWL/ctest-dev.log",
+      "sha256": "93cebe86fa9c9c888fdf77f0a56225dcf19b9ea94991e6fc4c7b49a4e4080d6a",
+      "scope": "Broad diagnostic run, not an all-passing acceptance. Two release-owned failures subsequently corrected; historical/unrelated failures retained."
+    },
+    "qt_serial": {
+      "command": "ctest --preset dev --output-on-failure -j 1 -R '^qt_'",
+      "exit": 8,
+      "passed": 75,
+      "total": 84,
+      "failed": 9,
+      "log": "build/m9-remediation.VaTqWL/qt6112-serial.log",
+      "sha256": "788144afe9ceada1d5fd1b0af31697e728ffb37fadfadba8775df5bb42cc2e2f"
+    },
+    "old_qt_comparison": {
+      "version": "6.10.3",
+      "build": "build/m9-qt6103-comparison",
+      "command": "Same first-party source, caller-installed old Qt, separate build; ten representative failed tests run headlessly and serially.",
+      "exit": 8,
+      "failed": 10,
+      "total": 10,
+      "log": "build/m9-remediation.VaTqWL/qt6103-comparison.log",
+      "sha256": "cc3968dfd28d0f144035570ae7f9e7509ce191151205c5cadad20d616b2fa183",
+      "scope": "Reproduces GitHub/epoch layout, capability/public path, agent-finding, UIforETW, provider request, stale digest and profile restoration failures. Does not assert every broad-suite failure is proved pre-existing.",
+      "additional_scales": {
+        "command": "ctest --test-dir build/m9-qt6103-comparison --output-on-failure -j 1 -R '^qt_(composed_github|anonymous_public_preview|workbench_window)_scale_(125|200)$'",
+        "exit": 8,
+        "failed": 6,
+        "total": 6,
+        "elapsed_seconds": 9.69,
+        "log": "build/m9-remediation.VaTqWL/qt6103-scales.log",
+        "sha256": "6b8892f6285b436be8667056d1f7f628c47deefff0a20bebafe734f8b4d375cc",
+        "conclusion": "Together with the three 1.0x cases above, every failed Qt6.11.2 Qt test reproduces under Qt6.10.3."
+      }
+    },
+    "release_contracts": {
+      "exit": 0,
+      "ctests": 6,
+      "elapsed_seconds": 4.25,
+      "log": "build/m9-remediation.VaTqWL/portable-release-tests.log"
+    },
+    "dependency_contract": {
+      "exit": 0,
+      "tests": 27,
+      "elapsed_seconds": 92.06,
+      "log": "build/m9-remediation.VaTqWL/dependency-final.log"
+    },
+    "static": {
+      "format": "776 C/C++ files pass clang-format 23.1.1",
+      "tidy": "Six M9 core/host/storage/Qt-control translation units pass warnings-as-errors using fresh Qt6.11.2 compilation database.",
+      "simplification": "code-simplifier scoped review retained explicit provider selection and shared contained temporary helper; no broader rewrite.",
+      "fuzz": "Prior 200000 ASan/UBSan selected-core/diagnostic iterations reused only for unchanged non-Qt harness inputs; no third-party parser or native-wide sanitizer claim."
+    },
+    "architecture": "Clean committed-source archive passes VerifyArchitectureBoundaries. Live root scanner sees an unrelated ignored .claude worktree; it was not modified. The archive-only network-structure run lacks tracked Git context and is not a pass.",
+    "secrets": {
+      "tool": "Gitleaks8.30.1",
+      "tool_archive_sha256": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
+      "source_revision": "67f5e51407a883e4469cee6008048a001f7c13b3",
+      "source_archive_sha256": "d62009349e43a3db585ffa53176899e01666a6f0b0a6333b49e8724f38b18102",
+      "source_exit": 1,
+      "source_findings": 16,
+      "source_report_sha256": "add92aa5fc0c660b9265a488ab494a9ec28f8bed4225b83c61d8588d5e452bdb",
+      "delta_exit": 1,
+      "delta_findings": 2,
+      "delta_report_sha256": "7872fc8ae00a55c6a1dafdeda78e9201fad1575e82038fbaf7adf58dab9dc856",
+      "disposition": "Exact normalized file/line/rule set equals prior reviewed 16 synthetic/prose/identifier findings. RFC delta's two default/Escape prose matches are byte-identical to the prior report. No secret, broad ignore, or revocation."
+    },
+    "macos_receipts": [
+      "build/m9-remediation.VaTqWL/macos-prepare.json",
+      "build/m9-remediation.VaTqWL/macos-security.json",
+      "build/m9-remediation.VaTqWL/macos-public-course.json"
+    ],
+    "windows_receipts": [
+      {
+        "path": "build/m9-remediation.VaTqWL/course-resume5.log",
+        "sha256": "6808417645c7a8733673463f78fd30fb5853b97cdb780a5d8241b52adaabd3c6"
+      },
+      {
+        "path": "build/m9-remediation.VaTqWL/course-extract2.log",
+        "sha256": "bb98eeb6a639258a7b22ca616d65fb6beaa3c50a0e299f2a9fcd89f4cfe8e082"
+      },
+      {
+        "path": "build/m9-remediation.VaTqWL/guard-extract2.json",
+        "sha256": "04f327f7e2705179b62f717677aba192e1425b2ea7d4af5e569acdadd2aed2fe"
+      }
+    ]
+  },
+  "operational_failures_retained": [
+    "Stale cached Qt6_DIR initially mixed 6.10.3 helpers with 6.11.2 modules; pinned exact discovery regression fixes it.",
+    "Windows venv/pip failed on inherited Codex bin untrusted-mount PATH entry (WinError448); only this disposable child PATH entry was removed. No machine trust policy or Python installation changed.",
+    "aqtinstall3.3.0 requested missing Qt6.11 Windows repository path; exact upstream installer merge fixes acquisition.",
+    "Long generated KSyntaxHighlighting object path failed MSVC C1083; moving only the disposable binary directory to job-root/b passes without product/source changes.",
+    "First administrative extraction used forward-slash MSI paths and returned1619; native backslash argv paths pass. No ordinary-user install claim.",
+    "First SCP glob also encountered _CPack_Packages directory and returned1; all five requested regular artifacts arrived with exact native hashes. No directory-copy completeness claim."
+  ],
+  "remaining": [
+    "Independent named security-owner applicability decisions with expiry/recheck, or newly qualified fixed dependencies; raw High/Critical policy remains failed.",
+    "Official Qt6.11.2 still contains PCRE2 10.47 and Windows zlib1.3.2. A custom Qt source build using released PCRE2 10.48 and unreleased zlib fixes is a distinct producer requiring full provenance/source/native qualification, not an equivalent relabel of these official bytes.",
+    "Fresh owner/legal decisions for each changed macOS/Windows inventory; licensing-v002 approval stays exact to its historical candidate only.",
+    "Independent final distribution signatures/notarization/Gatekeeper and declared Linux artifacts.",
+    "M8 clean native account/vault/high-DPI/authentication/removal and Mac Intel/Linux/ordinary-user Windows runtime/privacy matrix, external dependency build hardening, full CFG instrumentation and resident source/comment/token crash evidence.",
+    "M10 and M11 remain accepted; M12 is ineligible while M8 and M9 exits remain pending. No publication or remote release mutation."
+  ],
+  "cleanup": {
+    "removed": "Consumed old-Qt comparison build, extracted Qt/source scan copies, duplicate source tar/download and empty guarded Cocoa scratch root only. Logs/hashes remain and source is reproducible from the exact commits/source assets.",
+    "retained": "Current native candidate/source/SPDX/notices, raw scans/advisories/receipts, current build trees and remote disposable producer/maps; all six historical protected inventories untouched.",
+    "remote": "station-writer free; live bpr-windows remains at its pre-existing revision with only its pre-existing .mask.lock.json modification. No task-owned remote process remains."
+  }
+}

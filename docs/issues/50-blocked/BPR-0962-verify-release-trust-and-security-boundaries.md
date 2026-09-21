@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0962"
 title: "Verify release trust and security boundaries"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M9 Security and boundary verification"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+blocked_by: "release-security-inputs"
 ---
 
 # Verify release trust and security boundaries
@@ -156,6 +157,50 @@ old helpers with new modules. The first configure exposed that old-cache failure
 the corrected configure and complete development build pass. Four package/source/
 security contracts and the documentation gate pass before candidate production.
 Full relevant tests, offline package audits and fresh scans are still required.
+
+### Qt 6.11.2 remediation result
+
+The [exact remediation evidence](../../verification/rfc0014-m9-dependency-remediation.json)
+binds macOS producer `92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf` and native
+Windows producer `67f5e51407a883e4469cee6008048a001f7c13b3`. Both exact
+packages pass source/inventory/hardening mechanics; Windows also passes the
+actual administratively extracted MSI audit with bound full PE maps. The
+tests-disabled macOS Cocoa public course passes. Windows acquisition requires
+the pinned upstream aqtinstall repository-layout fix; child-only PATH cleanup
+and a shorter disposable binary directory resolved host-specific build failures.
+All guarded live station files, including its dirty MASK lock, remain unchanged.
+
+Fresh Grype 0.119.0 with valid v6.1.9 database built
+`2026-09-21T06:39:24Z` returns exit 2 for **32 macOS** matches
+(2 Critical, 8 High, 19 Medium, 3 Low) and **30 Windows** matches
+(1 Critical, 11 High, 15 Medium, 3 Low). Qt's libpng 1.6.58 removes its old
+finding; the new Tika MIME-XML attribution adds twelve matches per platform.
+Every match has primary-source/component/call-path evidence for independent
+review, including SQLite version-range mismatches, PCRE2 build/options and
+zlib/DBus platform distinctions. These are proposed dispositions, not waivers.
+Qt 6.11.2 still ships PCRE2 10.47 and Windows zlib 1.3.2; the relevant newer
+upstream fixes are not contained in those official binary packages. No named
+independent security-owner acceptance exists. Historical 21/19 failures remain.
+
+The complete development run finishes 374/415 passing, with 41 raw failures
+retained. Two release-owned verifier failures are corrected and pass focused
+rechecks. Serial Qt verification is 75/84; all nine failed Qt cases reproduce
+with Qt 6.10.3. Ten representative broader failures also reproduce there.
+No full-suite pass or blanket baseline classification is claimed. Six release
+contracts, the 27-test dependency contract, format, six-unit focused tidy and
+documentation checks pass. Fresh redacted secret scans reproduce only the
+previously adjudicated synthetic/prose/identifier findings without suppression.
+
+New macOS licensing-v003 and Windows licensing-v002 packets preserve the
+separate version-bound source asset, exact installed references/digests,
+recipient-access/retention model and relinking instructions. Each needs its own
+owner/legal decision; the prior v002 acceptance remains bound only to its old
+macOS bytes. All six historical protections and decisions are preserved.
+This card and both M9 exits remain Blocked on `release-security-inputs`:
+independent vulnerability disposition/fixed producer, changed-inventory legal
+decisions, final trust and full native/privacy/hardening evidence. M10/M11 are
+already accepted; M12 has no eligibility while M8/M9 remain pending. No signing,
+notarization, tag, push, upload or publication is authorized or performed.
 
 ## M2 security allocation
 

@@ -1758,3 +1758,83 @@ all four principal M9 artifact hashes match the prior handoff. No protected
 candidate, installed app, foreign worktree, remote state or review server changed.
 Future final packages must include the M11 source and receive their own exact
 artifact qualification; earlier human verdicts do not transfer to new bytes.
+
+## M9 dependency remediation after M11
+
+Sole implementer `/root/rfc0014_m9_finalize` resumed BPR-0962 AC3 at clean
+`08d129d0b04d2cac2649013b16b315cf7ccf929e`, mandate r3 and
+coordinator-implementer rev2 unchanged. M10/M11 are accepted, not reopened;
+the immutable RFC base remains `d0a8a6dda005af12b3818234f4878a9f48a44146`.
+The owner's explicit Qt 6.11.2 amendment selects its official binaries and
+matching source archive SHA-256
+`5b2e00eccaf5a4d8c14134ffa0ea8dfd0a35ae1ffc7f8d87fa4305a1ed23cf22`.
+
+Product `92c4e159` upgrades provider, source and package/SBOM selection together
+and fixes stale cached Qt discovery. `71ae6665` corrects the existing LibArchive
+audit expectation; `3d198fa1` adopts the established contained temporary helper
+in release tests. Windows producer `67f5e514` additionally pins the exact
+upstream aqtinstall PR1000 merge: released 3.3.0 cannot resolve Qt 6.11's split
+Windows metadata. This explicitly unreleased build-only tool retrieves official
+Qt bytes; it does not patch the shipped library. The bounded code-simplifier
+review retains explicit selection and the shared temporary-root helper.
+
+The [complete curated evidence](rfc0014-m9-dependency-remediation.json) records
+all artifact/report hashes, raw-match identities, tool/database versions,
+commands, failures, primary sources and proposed per-finding applicability.
+
+| Exact artifact | Mechanics | Raw Grype result |
+|---|---|---|
+| macOS universal, producer `92c4e159`, ZIP `65cbeb97…`, SPDX `b0b94e7f…`, separate source `2532ba6a…` | Actual app ZIP/source preflight, 42-file inventory, 63 Qt records, seven source payloads, 228 hardened compilation units; guarded tests-disabled Cocoa relocation/loader/MCP course passes. Ad-hoc only. | Exit 2; 32 matches: 2 Critical, 8 High, 19 Medium, 3 Low. |
+| Windows x64, producer `67f5e514`, MSI `0174d9ce…`, SPDX `b34099e6…`, separate source `11babc5f…` | Native build plus staged and actual administrative-extracted MSI audit; 22-file inventory, 58 Qt records, six source payloads, 223 hardened compilation units; bound first-party PE maps and upstream publisher bytes. MSI NotSigned. | Exit 2; 30 matches: 1 Critical, 11 High, 15 Medium, 3 Low. |
+
+Grype 0.119.0 uses valid v6.1.9 DB built `2026-09-21T06:39:24Z`, within policy
+age. Qt's libpng 1.6.58 removes its previous match. Twelve new matches per
+platform target Apache Tika's Java application via Qt's MIME-XML attribution.
+The new evidence distinguishes that data component, SQLite 3.53.4's already
+fixed upstream ranges, PCRE2's exact width/options/call paths, Windows zlib's
+nonblocking gzip path, Apple's system zlib patch inventory, and DBus header
+attribution versus an externally loadable implementation. Every raw finding is
+retained. No metadata manipulation, suppression or independent security-owner
+waiver was applied. Qt 6.11.2 still contains PCRE2 10.47 and Windows zlib 1.3.2;
+newer upstream fixes are not present in these official release bytes. A custom
+source-built producer would require its own complete qualification.
+
+The full development build passes. The broad test run is **374/415**, exit 8,
+with all 41 raw failures retained; two release-owned verifier failures now pass
+their narrow rechecks. Serial headless Qt is **75/84**, exit 8. All nine Qt
+failures reproduce in the separate Qt 6.10.3 build; ten representative broader
+failures also reproduce there. This is not a claim that every remaining failure
+is classified or harmless. The ignored historical `.claude` worktree explains
+the live-root architecture scan collision; an exact committed-source archive
+passes that architecture gate without changing the foreign worktree. Six release
+contracts, 27 dependency tests, all 776 C/C++ format checks and six focused tidy
+translation units pass. Documentation structure and its 64 regressions pass.
+Fresh Gitleaks source/delta scans reproduce the prior exact 16/two benign
+synthetic/prose/identifier findings; their raw exit 1 reports remain available.
+Unchanged non-Qt fuzz-harness evidence retains only its previous bounded scope.
+
+The guarded Windows course preserved all four live station files, including
+the existing dirty MASK lock. Host-specific WinError448 from an inherited
+Codex shim path was resolved only in the task child environment; a shorter
+disposable build directory resolved MSVC's generated-file path error. No host
+trust policy, live checkout, unrelated station process or historical candidate
+was changed. Administrative extraction is not ordinary-user installation or UI
+qualification. The macOS guarded course likewise preserved live MASK state.
+
+New [macOS licensing-v003](reviews/rfc0014-m9-licensing-v003/manifest.json) and
+[Windows licensing-v002](reviews/rfc0014-m9-windows-licensing-v002/manifest.json)
+ask separately about exact changed inventories. Each keeps corresponding source
+outside the application, binds the installed URL/digest/provenance, and retains
+equivalent recipient access, ongoing retention and build/relink instructions.
+The old accepted macOS v002 decision and all six historical protections remain
+unchanged; they confer no approval on these bytes. Neither new source URL is
+published. Licensing acceptance is not vulnerability, security, trust, native
+matrix or release approval.
+
+BPR-0962 and both M9 exits remain blocked on independent security decisions or
+fixed qualified producers, changed-inventory legal approval, exact final trust,
+external-dependency hardening and the missing native/vault/crash/privacy matrix.
+M12 remains ineligible through M8/M9 and canonical prerequisites. No Developer-ID
+signing, notarization, tag, push, upload or publication occurred. The updated
+[handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json) records
+the fresh review session cursor and exact remaining obligations.

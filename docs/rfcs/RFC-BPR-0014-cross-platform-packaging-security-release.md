@@ -249,3 +249,12 @@ composed maintenance course preserve behavior, authority and separate-source
 delivery. Core policy, native cleanup, presentation, selected dependencies and
 protected candidates remain unchanged. M11 completion leaves M12 gated by the
 full M8/M9 and canonical predecessor acceptance; no release approval is implied.
+
+M9's [post-M11 dependency remediation](../verification/RFC-BPR-0014.md#m9-dependency-remediation-after-m11)
+implements the owner-selected Qt 6.11.2 upgrade and rebuilds exact macOS and
+native Windows packages with the separate-source model intact. Fresh raw Grype
+gates still fail (32 macOS / 30 Windows matches). Source-backed applicability
+evidence awaits independent security-owner disposition; changed licensing
+inventories have separate owner/legal questions. Historical decisions do not
+transfer, broad-suite failures and native/trust/privacy gaps remain explicit,
+and neither M9 exit nor M12/RFC closeout is accepted.

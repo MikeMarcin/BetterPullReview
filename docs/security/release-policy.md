@@ -136,11 +136,19 @@ against M8's exact macOS SBOM `7d543637ab167827b0f69efb89a701daa894d9872407c01cf
 21 matches, including Critical zlib `CVE-2022-37434`, High PCRE2
 `CVE-2026-89157`/`CVE-2026-89161` and a High Bitnami SQLite match. Qt's retained
 producer metadata identifies bundled PCRE2 10.47; [PCRE2 10.48's release notes](https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.48)
-document corresponding security fixes. No suppression or upgrade is performed
-by this milestone. The zlib system/SDK-versus-shipped distinction and Bitnami
+document corresponding security fixes. No suppression or upgrade was performed
+in that initial scan round. The zlib system/SDK-versus-shipped distinction and Bitnami
 SQLite version-range matches need exact-artifact adjudication; the scan is not
 proof that every reported vulnerability is exploitable. It is nevertheless a
 failed release gate, and lower-severity findings and scan coverage remain open.
+
+The subsequent owner-selected Qt 6.11.2 remediation has its own
+[exact artifacts, unfiltered scans and primary-source applicability evidence](../verification/rfc0014-m9-dependency-remediation.json).
+Its fresh results are 32 macOS and 30 Windows matches, both exit 2. The libpng
+finding is removed; twelve additional matches per platform concern Qt's Tika
+MIME-XML attribution. Proposed component/version/call-path distinctions do not
+replace the independent named security-owner decision required above. Old
+21/19 reports and licensing decisions remain bound to their historical bytes.
 
 The [RFC ledger](../verification/RFC-BPR-0014.md) retains final candidate identities,
 commands, tested scope and remaining independent/native/security-owner decisions.
