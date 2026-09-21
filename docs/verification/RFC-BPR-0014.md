@@ -162,3 +162,9 @@ dependency order, preserved updater amendments and absence of product edits.
 The original source files and seven historical Done cards are unchanged.
 No independent or human verdict is required for this planning milestone;
 none is claimed. Remaining native/security/parent acceptance belongs to M2–M12.
+
+BPR-0951 is Done at `314fd9a7782c03dbef96c924a22ecaa28d3ccb5c`;
+BPR-0952 is Ready for a fresh milestone-2 owner. The
+[durable handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m1.json)
+preserves exact revisions, changed paths, command state and pending obligations.
+No child agent, background command or review server is handed off.

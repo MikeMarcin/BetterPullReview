@@ -86,3 +86,12 @@ preflight discrepancy remains recorded in the import record: configuration
 does not prove host loading. The successor must adopt the existing plan/base,
 claim BPR-0952 and perform M2's source inventory; native package/signing,
 human and predecessor requirements remain pending on their live cards.
+
+Guarded finish accepted BPR-0951 in
+`314fd9a7782c03dbef96c924a22ecaa28d3ccb5c`. BPR-0952 is Ready with its sole
+local prerequisite Done. The [durable M1 handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m1.json)
+contains assignment/mandate, candidate and commit identities, explicit changed
+paths, commands/results, command ownership, preserved worktrees and next action.
+The final mechanical observation and check receipts remain in
+`build/rfc0014-run/m1-observation.json` and `m1-final-check.json`; they refer to
+the final bookkeeping HEAD and do not claim additional product validation.

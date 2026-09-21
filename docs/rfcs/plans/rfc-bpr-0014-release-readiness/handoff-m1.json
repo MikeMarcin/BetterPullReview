@@ -1,0 +1,139 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m1-pack-import-planning",
+    "child": "/root/rfc0014_m1",
+    "mandate_revision": "r1",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m1-planning",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max"
+  },
+  "result": "milestone-complete",
+  "rfc_status": "Proposed",
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "candidate_revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+  "commits": {
+    "allocation": "d3d707ac0785b7f0c55187b2d58f91caa4511d16",
+    "claim": "cec196fba9589bb27910bb5d262d452b6e48ec2f",
+    "planning": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+    "acceptance": "314fd9a7782c03dbef96c924a22ecaa28d3ccb5c"
+  },
+  "changed_paths": [
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-0951--BPR-0965--98dad04c0678.json",
+    "docs/issues/60-done/BPR-0951-import-and-plan-rfc-0014.md",
+    "docs/issues/20-ready/BPR-0952-allocate-package-and-security-ownership.md",
+    "docs/issues/10-backlog/BPR-0953-implement-release-maintenance-policy.md",
+    "docs/issues/10-backlog/BPR-0954-implement-release-maintenance-host.md",
+    "docs/issues/10-backlog/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+    "docs/issues/10-backlog/BPR-0956-compose-cross-platform-release-packages.md",
+    "docs/issues/10-backlog/BPR-0957-verify-package-contracts-and-hostile-fixtures.md",
+    "docs/issues/10-backlog/BPR-0958-qualify-macos-arm64-package.md",
+    "docs/issues/10-backlog/BPR-0959-qualify-macos-intel-package.md",
+    "docs/issues/10-backlog/BPR-0960-qualify-windows-x64-package.md",
+    "docs/issues/10-backlog/BPR-0961-qualify-linux-x64-packages.md",
+    "docs/issues/10-backlog/BPR-0962-verify-release-trust-and-security-boundaries.md",
+    "docs/issues/10-backlog/BPR-0963-document-release-and-corporate-security.md",
+    "docs/issues/10-backlog/BPR-0964-simplify-release-implementation.md",
+    "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/assets/rfc-bpr-0014-planning-v1/IMPLEMENTATION_ORDER.md",
+    "docs/rfcs/assets/rfc-bpr-0014-planning-v1/RFC-BPR-0014.source.txt",
+    "docs/rfcs/assets/rfc-bpr-0014-planning-v1/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/strategy-selection.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/preparation.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/source.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1.json",
+    "docs/rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md",
+    "docs/verification/RFC-BPR-0014.md"
+  ],
+  "verification": [
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "result": "pass; DOCUMENTATION_OK",
+      "receipt": "build/rfc0014-run/m1-documentation-evidence.json"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "revision": "cec196fba9589bb27910bb5d262d452b6e48ec2f plus prepared planning tree",
+      "result": "64/64 pass in 2.131s; unchanged test/script inputs reused"
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0014 --json",
+      "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "result": "valid; 957 total cards",
+      "receipt": "build/rfc0014-run/m1-board-evidence.json"
+    },
+    {
+      "command": "milestone_plan.py discover/check --target RFC-BPR-0014 --json",
+      "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "result": "live adopted twelve-stage plan found",
+      "receipt": "build/rfc0014-run/m1-discovery-evidence.json"
+    },
+    {
+      "command": "cmp original issue plan against retained source copy",
+      "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "result": "byte-identical",
+      "receipt": "build/rfc0014-run/m1-import-fidelity-evidence.json"
+    },
+    {
+      "command": "git diff --exit-code RFC_BASE_SHA -- src tests cmake tools packaging CMakeLists.txt CMakePresets.json",
+      "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "result": "empty; planning has no product behavior impact",
+      "receipt": "build/rfc0014-run/m1-no-impact-evidence.json"
+    },
+    {
+      "command": "milestone_checkpoint.py bind M2 without accepted M1",
+      "result": "expected exit 2; unmet prerequisite refused"
+    },
+    {
+      "command": "milestone_checkpoint.py check --execution quiescent",
+      "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "result": "fresh-context; helper does not judge engineering acceptance",
+      "observation": "build/rfc0014-run/m1-observation.json"
+    },
+    {
+      "command": "git diff --cached --check",
+      "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "result": "pass after correcting generated trailing blank lines before candidate commit"
+    }
+  ],
+  "review": {
+    "session": null,
+    "url": null,
+    "event_cursor": null,
+    "pending_decisions": [],
+    "protected_candidates": [],
+    "detail": "No human or independent acceptance criterion applies to M1; no review server or candidate was created."
+  },
+  "ownership": {
+    "sole_writer": "/root/rfc0014_m1",
+    "child_agents": [],
+    "task_owned_running_commands": [],
+    "handed_off_server": null,
+    "task_created_worktrees": [],
+    "preexisting_worktrees_preserved": 5,
+    "preexisting_local_commits_preserved": 30,
+    "release_on_return": true
+  },
+  "pending_obligations": [
+    "M2–M12 remain open; this acceptance covers only BPR-0951 and M1's three exits.",
+    "Clean Windows x64, macOS Intel/Apple Silicon and Linux packages, trust, provenance, hardening, maintenance, diagnostics and corporate security acceptance remain on BPR-0952–0965.",
+    "RFC-BPR-0013/BPR-0617 and canonical predecessor closeouts remain pending; the earliest closure frontier remains RFC-BPR-0008/BPR-0242.",
+    "RFC-0035 updater exception and its Intel deferral remain separate from RFC-0014 package acceptance; BPR-0911/0912/0950 are unchanged.",
+    "Coordinator preflight reported incomplete/state.drift, undeclared checkout workflow and artifact.corrupt; selection host_load stays not_verified and is not proof of observed provider loading."
+  ],
+  "next_action": "Coordinator launches a fresh rfc-implementer for m2-architecture-allocation on main, preserving this baseline/plan/mandate; claim Ready BPR-0952, inventory the source and package graph, and stop at M2's boundary.",
+  "continuation_evidence": "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md",
+  "runtime_final_observation": "build/rfc0014-run/m1-observation.json",
+  "runtime_final_check": "build/rfc0014-run/m1-final-check.json"
+}
