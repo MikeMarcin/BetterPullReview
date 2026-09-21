@@ -657,3 +657,16 @@ Ubuntu/RHEL package matrix; Intel Mac remains external. MASK drift/incomplete
 and `host_load: not_verified` remain recorded. No skill repair or remote launch
 was performed. The final handoff retains candidate identities, commands and
 pending later obligations; this child stops at M5.
+
+Guarded finish `42c7ac49b41fdc6b11bf072fe8a055c86ac2612e` accepts BPR-0955.
+BPR-0956 is Ready for a fresh M6 owner. The
+[durable M5 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m5.json)
+contains exact assignment, candidate/commit identities, commands, rendered
+hashes, station observations, current ownership and the next action. All task
+commands and native test processes finished. Exact task-owned archive trees,
+tar files and qualification directory were removed after preserving the Cocoa
+image; Git and the tests can recreate them. Ignored receipts, screenshots and
+normal build output remain. No server, worktree, child or protected candidate
+is handed off. Final local observation/check receipts bind the bookkeeping HEAD;
+product acceptance remains bound to `13a7d052` and the explicitly reused
+unchanged evidence at `a34fc07f`.

@@ -67,6 +67,13 @@ JaegAW Windows/WSL2 station discovery is read-only, not native package acceptanc
 This card and the RFC remain open; no later requirement or publication boundary
 is waived by M5.
 
+Guarded finish `42c7ac49b41fdc6b11bf072fe8a055c86ac2612e` accepts BPR-0955;
+BPR-0956 is Ready for a fresh M6 owner. M5 leaves no task-owned command/server
+or attended candidate running. Its temporary source archives and qualification
+root were removed after retaining reproducible evidence; unrelated worktrees
+and both remote station modifications were preserved. The handoff retains all
+later package/native/security/predecessor obligations and the MASK discrepancy.
+
 The authored source's twelve stages are retained in the
 [adopted plan](../../rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json).
 The [verification ledger](../../verification/RFC-BPR-0014.md),

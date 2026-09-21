@@ -24,7 +24,7 @@
     "claim": "46a32a100c2cd348fb07014dcc1357b8e8a51047",
     "implementation": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
     "correction": "13a7d0522137eeb4ab147ff9d563de62aa978035",
-    "acceptance": null
+    "acceptance": "42c7ac49b41fdc6b11bf072fe8a055c86ac2612e"
   },
   "changed_paths": [
     "src/application/include/bpr/application/release_maintenance_projection.hpp",

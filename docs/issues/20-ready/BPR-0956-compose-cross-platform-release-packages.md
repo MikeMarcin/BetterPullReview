@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0956"
 title: "Compose cross-platform release packages"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0952","BPR-0955"]
 milestone: "M6 Composition and public-path integration"
