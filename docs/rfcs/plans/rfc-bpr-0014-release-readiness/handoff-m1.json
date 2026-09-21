@@ -4,9 +4,9 @@
     "plan": "rfc-bpr-0014-release-readiness",
     "milestone": "m1-pack-import-planning",
     "child": "/root/rfc0014_m1",
-    "mandate_revision": "r1",
+    "mandate_revision": "r2",
     "run_id": "rfc0014-20260920",
-    "segment_id": "m1-planning",
+    "segment_id": "m1-release-workflow-amendment",
     "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
     "branch": "main",
     "role": "rfc-implementer",
@@ -16,12 +16,14 @@
   "result": "milestone-complete",
   "rfc_status": "Proposed",
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
-  "candidate_revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+  "candidate_revision": "f66c512c7f48c01ab63d34c051675ce903872c1f",
   "commits": {
     "allocation": "d3d707ac0785b7f0c55187b2d58f91caa4511d16",
     "claim": "cec196fba9589bb27910bb5d262d452b6e48ec2f",
     "planning": "75d9901382f6b1ec04f570d854c93b81889d44b4",
-    "acceptance": "314fd9a7782c03dbef96c924a22ecaa28d3ccb5c"
+    "acceptance": "314fd9a7782c03dbef96c924a22ecaa28d3ccb5c",
+    "r1_handoff": "9778997d565fa3b5c89540bd52799cc0c12e2982",
+    "release_reuse_amendment": "f66c512c7f48c01ab63d34c051675ce903872c1f"
   },
   "changed_paths": [
     "docs/issues/NEXT_ID",
@@ -53,7 +55,11 @@
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/MILESTONES.md",
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1.json",
     "docs/rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md",
-    "docs/verification/RFC-BPR-0014.md"
+    "docs/verification/RFC-BPR-0014.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r2/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r2/check.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r2.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m1.json"
   ],
   "verification": [
     {
@@ -105,6 +111,38 @@
       "command": "git diff --cached --check",
       "revision": "75d9901382f6b1ec04f570d854c93b81889d44b4",
       "result": "pass after correcting generated trailing blank lines before candidate commit"
+    },
+    {
+      "command": "milestone_plan.py check-amendment",
+      "revision": "9778997d565fa3b5c89540bd52799cc0c12e2982 plus r2 proposal",
+      "result": "amendment-checked; only M2/M6/M9 affected; all selectors/exits preserved",
+      "receipt": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r2/check.json"
+    },
+    {
+      "command": "milestone_checkpoint.py bind --mandate-revision r2 --segment-id m1-release-workflow-amendment",
+      "result": "resolved; M1 definition and obligation fingerprints unchanged",
+      "receipt": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r2.json"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "revision": "f66c512c7f48c01ab63d34c051675ce903872c1f",
+      "result": "DOCUMENTATION_OK",
+      "receipt": "build/rfc0014-run/m1-r2-documentation-evidence.json"
+    },
+    {
+      "command": "bash -n tools/release.sh; bash -n tools/publish-release.sh",
+      "revision": "f66c512c7f48c01ab63d34c051675ce903872c1f",
+      "result": "both syntax checks pass; neither script executed",
+      "receipts": [
+        "build/rfc0014-run/m1-r2-release-syntax-evidence.json",
+        "build/rfc0014-run/m1-r2-publish-syntax-evidence.json"
+      ]
+    },
+    {
+      "command": "git diff --exit-code RFC_BASE_SHA -- src tests cmake tools packaging .codex/skills/publish-release CMakeLists.txt CMakePresets.json",
+      "revision": "f66c512c7f48c01ab63d34c051675ce903872c1f",
+      "result": "empty; product/release tool/skill inputs unchanged",
+      "receipt": "build/rfc0014-run/m1-r2-no-impact-evidence.json"
     }
   ],
   "review": {
@@ -121,9 +159,15 @@
     "task_owned_running_commands": [],
     "handed_off_server": null,
     "task_created_worktrees": [],
-    "preexisting_worktrees_preserved": 5,
     "preexisting_local_commits_preserved": 30,
-    "release_on_return": true
+    "release_on_return": true,
+    "worktree_inventory": {
+      "entry_count": 5,
+      "r2_observed_count": 4,
+      "task_touched_unrelated_worktrees": false,
+      "external_observation": "The unrelated codex/rfc-bpr-0036-native-markdown worktree advanced from 7509d70d through efa4388396128698e3cd737dd48efb9c364e5441 and its build/rfc0036-run/m2-baseline-src checkout disappeared under the other owner's work. Main stayed at the expected task revision.",
+      "task_cleanup": "No task-created worktree or native process exists. Retained build/rfc0014-run files are local continuation/evidence receipts, not source artifacts."
+    }
   },
   "pending_obligations": [
     "M2–M12 remain open; this acceptance covers only BPR-0951 and M1's three exits.",
@@ -132,8 +176,55 @@
     "RFC-0035 updater exception and its Intel deferral remain separate from RFC-0014 package acceptance; BPR-0911/0912/0950 are unchanged.",
     "Coordinator preflight reported incomplete/state.drift, undeclared checkout workflow and artifact.corrupt; selection host_load stays not_verified and is not proof of observed provider loading."
   ],
-  "next_action": "Coordinator launches a fresh rfc-implementer for m2-architecture-allocation on main, preserving this baseline/plan/mandate; claim Ready BPR-0952, inventory the source and package graph, and stop at M2's boundary.",
+  "next_action": "Coordinator launches a fresh rfc-implementer for m2-architecture-allocation on main under mandate r2, preserving the baseline, original receipts and existing release-workflow inventory; claim Ready BPR-0952 and implement only M2.",
   "continuation_evidence": "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md",
   "runtime_final_observation": "build/rfc0014-run/m1-observation.json",
-  "runtime_final_check": "build/rfc0014-run/m1-final-check.json"
+  "runtime_final_check": "build/rfc0014-run/m1-final-check.json",
+  "current_checkpoint": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1-r2.json",
+  "mandate_history": [
+    {
+      "revision": "r1",
+      "result": "M1 accepted",
+      "candidate": "75d9901382f6b1ec04f570d854c93b81889d44b4",
+      "acceptance_commit": "314fd9a7782c03dbef96c924a22ecaa28d3ccb5c",
+      "checkpoint": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m1.json"
+    },
+    {
+      "revision": "r2",
+      "instruction": "Explicitly inventory and reuse the existing project publish-release skill and actual macOS release scripts without duplicate implementation or expanded authority.",
+      "candidate": "f66c512c7f48c01ab63d34c051675ce903872c1f",
+      "scope": "M1 continuation; future M2/M6/M9 descriptions changed, all selectors/exits and M1 binding fingerprints unchanged"
+    }
+  ],
+  "release_workflow_reuse": {
+    "skill": ".codex/skills/publish-release/SKILL.md",
+    "skill_sha256": "c5e654bade74c4821cdde0109f623cefa1ae618c44b5184a7a59b4b427810bb2",
+    "release_script": {
+      "path": "tools/release.sh",
+      "sha256": "251b6be79236871b946f87b62517201adaf7b62b2bb41866e41c877ad8896202"
+    },
+    "publish_script": {
+      "path": "tools/publish-release.sh",
+      "sha256": "50e0e3e8f521d9c418b01d119ba62f556ea346a1b5c39c79719ea13bee87e62f"
+    },
+    "presets": {
+      "path": "CMakePresets.json",
+      "sha256": "d341a40099f605a6dde518962def369e210eec950c886c5301e5b8a1ecb27fb9"
+    },
+    "inspected_revision": "9778997d565fa3b5c89540bd52799cc0c12e2982",
+    "implemented_mechanisms": [
+      "Normal dev build/test gate and version/clean-source guards",
+      "Tests-disabled universal macOS release build",
+      "Restricted Qt framework/plugin deployment, qt.conf, RPATH and per-slice dependency checks",
+      "Developer ID signing, hardened runtime, timestamp, bundle/team and no-entitlement checks",
+      "App/DMG notarization, stapling and Gatekeeper checks",
+      "Isolated relocated launch smoke; DMG/ZIP/two SHA-256 artifacts",
+      "Read-only remote publication preflight and explicit publication branch that tags, atomically pushes main/tag, and uploads four assets under repeated PRIVATE guards"
+    ],
+    "evidence_limit": "This is source inventory plus syntax checks, not a fresh execution, installed/observed skill-loading claim or package acceptance. BPR-0908/RFC-0035 observations remain bound to their original candidates.",
+    "remaining": "Windows/Linux, macOS 13/native Intel compatibility, clean install/auth/fixture-PR/diff/uninstall, complete SBOM/license/source-offer, hardening/privacy/retention, corporate packet and predecessor closeout remain.",
+    "publication_authority": "No publication request for a prepared version was supplied. No release, remote preflight, signing/notarization, credential enrollment, tag, push, upload or live mutation command ran.",
+    "inventory_ref": "docs/verification/RFC-BPR-0014.md#owner-amendment-r2-existing-macos-release-workflow",
+    "amendment_check": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r2/check.json"
+  }
 }

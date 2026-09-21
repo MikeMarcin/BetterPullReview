@@ -223,3 +223,10 @@ retains identical M1 definition and obligation fingerprints. The amendment
 checker identifies only future M2/M6/M9 changes. Shell syntax checks for both
 existing scripts, adopted-plan and scoped-board checks, documentation and
 whitespace gates pass after this inventory. No release script was executed.
+
+The r2 source inventory and future plan amendment are committed at
+`f66c512c7f48c01ab63d34c051675ce903872c1f`. At that exact candidate,
+documentation, both script syntax checks and the expanded empty product/release-
+skill diff check pass. Receipts are
+`build/rfc0014-run/m1-r2-{documentation,release-syntax,publish-syntax,no-impact}-evidence.json`.
+The current handoff carries mandate r2 and preserves original r1 acceptance.

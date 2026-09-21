@@ -115,3 +115,9 @@ separate checkout and removal of its disposable baseline checkout by another
 owner (five worktrees at entry, four observed at r2 orientation). This child
 created/removed no worktree and main stayed at the expected task HEAD. The
 unrelated writer is outside this milestone's exclusive main checkout scope.
+
+The r2 inventory/plan candidate is
+`f66c512c7f48c01ab63d34c051675ce903872c1f`. Exact-candidate documentation,
+shell syntax and empty product/release-skill diff checks pass. The current
+handoff preserves r1 acceptance and r2 source inventory separately and requests
+a fresh M2 owner under mandate r2. No M1 acceptance remains pending.
