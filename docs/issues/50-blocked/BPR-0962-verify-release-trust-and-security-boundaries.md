@@ -39,8 +39,10 @@ binds complete first-party PE maps, Qt pre-sign SPDX to valid publisher signatur
 exact deployed inventory/source/notices and actual emitted hardening.
 
 - AC1 pending: mechanical inventories pass for both candidates; independent
-  final distribution trust, complete supported artifacts, owner/legal licensing
-  and corresponding build/relink obligations are not approved.
+  final distribution trust and complete supported artifacts remain pending.
+  The owner approved licensing/source/build/relink obligations only for the
+  revised macOS licensing-v002 inventory at hand-back 470, as recorded below;
+  revised Windows/Linux artifacts and their corresponding obligations remain open.
 - AC2 pending across the matrix: tests-disabled macOS relocation, loader refusals,
   real MCP boundary, five hostile IPC frames and second-launch handoff pass.
   Windows extracted MSI maps/anchors and native inspectors pass. Actual Windows
@@ -55,7 +57,8 @@ exact deployed inventory/source/notices and actual emitted hardening.
 
 Neither authored exit is accepted. Required next actions are dependency
 remediation or independently reviewed applicability, final authorized trust
-verification, legal disposition and the missing native courses. The attended
+verification, remaining artifact-specific licensing and the missing native
+courses. The attended
 licensing question is narrower than release acceptance. No tag, push, upload,
 Developer ID signing or notarization was performed.
 
@@ -96,6 +99,36 @@ failures and all trust/native/privacy obligations remain pending; this card and
 both M9 exits remain unaccepted. No publication, remote release mutation,
 Developer ID signing or notarization occurred. Next action: hand back the exact
 licensing decision; the coordinator assigns a fresh M9 engineering round.
+
+## M9 licensing-v002 decision finalization
+
+Fresh sole implementer `/root/rfc0014_m9_finalize` resumed at clean
+`63c786684ebb1c66b314341f6ee4b66a1d569225`, with mandate r3 and
+coordinator-implementer rev2 unchanged. Session
+`cbd48b91000b00f1e72e1ad62c7c384c` saved human accept
+`42661017-3d13-43ba-8366-7ac3bd32c0db` at event 469 and handed back at 470.
+It applies only to `rfc0014-m9-licensing-v002`, fingerprint
+`da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80`,
+producer `1c429749aff4c09c6dc88da930d3344cd2d33c36`.
+
+The existing owner/legal criterion is satisfied for that exact macOS inventory:
+the separate version-bound corresponding-source asset, installed exact
+reference/digest and notices, equivalent recipient access, continued retention,
+and preserved build/relink/replacement instructions are approved. The raw note
+is empty; no additional supporting opinion or authority is inferred. This
+decision is neither a vulnerability disposition nor security, independent trust,
+native-matrix or release approval. The prospective source URL is still
+unpublished; fulfilling recipient access and retention remains a distribution
+obligation. No approval transfers to revised Windows/Linux artifacts.
+
+The actual app ZIP/SPDX/source preflight and all reviewed artifact digests pass
+again without changing candidate bytes. The
+[finalization ledger](../../verification/RFC-BPR-0014.md#m9-licensing-v002-decision-finalization)
+and handoff capture the exact decision and server retirement. Historical v001,
+M8 and unrelated protections remain intact. BPR-0962 stays Blocked on
+`release-security-inputs`; both M9 exits remain pending, including the unchanged
+21 macOS / 19 Windows Grype failures and trust/native/privacy gaps. Independent
+M10/BPR-0963 is next through accepted M7; this owner stops at M9.
 
 ## M2 security allocation
 

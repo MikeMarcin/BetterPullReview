@@ -3,7 +3,7 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m9` owns only
+current child `/root/rfc0014_m9_finalize` owns only
 `rfc-bpr-0014-release-readiness/m9-security-boundary-verification` on `main`.
 The M1–M7 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
@@ -39,7 +39,7 @@ criteria; the row numbers below follow their existing order, not new requirement
 | 1 Clean installation and operation | Install the exact candidate in a clean native user account; launch, authenticate through an authorized safe route, open a fixture PR, select a file and verify both displayed source identities; uninstall and inspect residuals | BPR-0956–0961 | Not run for the delivered matrix |
 | 2 Package trust | Verify the delivered installer/app/package signature, macOS notarization/staple and checksum using native trust tools independently of package generation; reject altered/untrusted artifacts | BPR-0962 | Existing Mac evidence is bounded to its recorded candidates |
 | 3 Runtime attack surface | Inspect packaged dependency closure plus native sockets, spawned processes, Qt plugin/library resolution and network destinations under public operation; compare with explicit allow-lists | BPR-0956, BPR-0957, BPR-0962 | Not run on final packages |
-| 4 Inventory and licensing | Generate SBOM/notices/source-offer manifest from the actual shipped closure, reconcile versions/provenance and hash every delivered artifact; fail on omissions or substitutions | BPR-0956, BPR-0962 | Complete transitive inventory remains pending |
+| 4 Inventory and licensing | Generate SBOM/notices/source-offer manifest from the actual shipped closure, reconcile versions/provenance and hash every delivered artifact; fail on omissions or substitutions | BPR-0956, BPR-0962 | Exact revised macOS licensing-v002 owner criterion accepted at hand-back 470; complete delivered matrix and revised Windows/Linux obligations remain pending |
 | 5 Release hardening policy | Name platform compiler/linker/runtime flags and release policy; run relevant static analysis, sanitizer/fuzz, secret/vulnerability scans with tool/database versions and adjudicated findings | BPR-0957, BPR-0962 | Policy and exact-artifact evidence pending |
 | 6 Storage and removal | Exercise vault/file/cache permissions, retention, explicit purge, migration, crash recovery and uninstall in disposable roots; compare actual retained/deleted items with docs | BPR-0953–0955, BPR-0958–0961 | Earlier component evidence does not prove packaged lifecycle |
 | 7 Diagnostic privacy | Seed source/comment/token canaries, preview/export diagnostics and inspect crash/log artifacts; defaults omit bodies/secrets and redaction survives hostile inputs | BPR-0953–0955, BPR-0957, BPR-0962 | Required controls and package course pending |
@@ -1291,7 +1291,9 @@ retains every reported vulnerability and exact secret-finding disposition.
 
 Outcome: independent engineering evidence is complete for the available scoped
 candidates; **BPR-0962 and both M9 exits remain unaccepted**, blocked by failed
-dependency policy and missing independent trust/legal/native qualification.
+dependency policy and missing independent trust/native qualification and remaining
+artifact-specific licensing. The exact macOS v002 owner criterion is accepted
+at hand-back 470; its scoped record follows the original-round evidence below.
 No Linux/Intel, ordinary-user Windows, resident-review crash or final signing
 evidence is inferred. A signing run is not authorized by this milestone.
 
@@ -1366,7 +1368,8 @@ compile hardening and PE CFG call-site coverage are not proved by first-party
 flags. Final signed Windows/macOS/declared Linux artifacts still need independent
 native trust and checksum verification. Legal/owner review must resolve
 first-party terms, mixed syntax-definition licensing, upstream/toolchain terms
-and practical corresponding source/build/relink delivery.
+and practical corresponding source/build/relink delivery for artifacts outside
+the exact macOS v002 approval recorded below.
 
 Clean native Intel, ordinary-user Windows 10/11, Ubuntu 24.04/RHEL 10 and the
 complete macOS account/vault/root/removal course remain pending with M8. WSL
@@ -1486,3 +1489,56 @@ yielding; the next engineering round interprets any verdict.
 BPR-0962 remains Blocked on `release-security-inputs`, both authored M9 exits
 remain pending, and M10 was not started. No tag, push, upload, remote release
 mutation, Developer ID signature or notarization was performed.
+
+### M9 licensing-v002 decision finalization
+
+Fresh sole implementer `/root/rfc0014_m9_finalize` entered at clean
+`63c786684ebb1c66b314341f6ee4b66a1d569225`, unchanged mandate r3 and
+coordinator-implementer rev2. The immutable RFC base remains `d0a8a6dd`.
+Session `cbd48b91000b00f1e72e1ad62c7c384c` recorded human accept
+`42661017-3d13-43ba-8366-7ac3bd32c0db` at event 469
+(`2026-09-21T21:46:10.819293+00:00`) and handed back at event 470.
+The decision binds only `rfc0014-m9-licensing-v002`, fingerprint
+`da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80`,
+revision `producer-1c429749-mac-d47ebc07-source-37b01065`, producer
+`1c429749aff4c09c6dc88da930d3344cd2d33c36`.
+
+The single existing owner/legal criterion for that revised macOS inventory is
+accepted: separate version-bound corresponding source, exact installed
+reference/digest and notices, equivalent no-extra-charge recipient access,
+original-channel fallback and corporate/offline copies, indefinite retention
+until all applicable obligations end, and preserved build/relink/replacement
+instructions. The saved note is empty; this record adds no legal opinion or
+supporting evidence that the reviewer did not supply. The original manifest's
+preparation-time pending wording remains immutable historical context.
+
+This approval does not dispose of vulnerabilities, certify security, establish
+independent signature/notarization trust, qualify the native matrix, or authorize
+publication. The URL is still prospective; actual recipient access and ongoing
+retention must be fulfilled during distribution. Revised native Windows/Linux
+packages and their exact source/license binding remain pending. BPR-0962 and
+both authored M9 exits remain unaccepted, with Grype's 21 macOS / 19 Windows
+failures and all native/vault/crash/hardening gaps preserved.
+
+The read-only public source-asset preflight again returns
+`RELEASE_SOURCE_ASSET_OK` for the actual app ZIP, SPDX and source ZIP. SHA-256
+checks match every reviewed artifact, including the installed source offer and
+provenance. Product/package inputs are unchanged, so the existing 34-test focused
+contracts and tests-disabled public course remain their exact-candidate evidence.
+No build, release command, remote mutation, or new acceptance test is implied by
+this decision-only round.
+
+The decision was durably captured in the
+[M9 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json) before
+the companion stopped inherited loopback server PID 49181. The process and its
+port-59550 listener are absent; session status has no host or event after 470.
+Candidate packets, installations and all six active historical protections are preserved; stopping
+the host does not release them. Final command state and verification are recorded
+in that handoff. Documentation passes, all 64 documentation regressions pass,
+957-card scoped board validation is clean, and whitespace and the four-path
+scope check pass. The checkpoint returns `fresh-context` for independent M10,
+with engineering acceptance explicitly `not-evaluated` and both M9 exits pending.
+The plan and board both identify independent
+`m10-documentation-impact` / BPR-0963 as next, with accepted M7 its sole
+prerequisite. This owner does not claim or start M10. M12/RFC closeout still
+requires the complete M8/M9/M11 and canonical predecessor acceptance.

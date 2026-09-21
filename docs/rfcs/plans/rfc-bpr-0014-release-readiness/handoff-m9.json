@@ -3,7 +3,7 @@
     "rfc": "RFC-BPR-0014",
     "plan": "rfc-bpr-0014-release-readiness",
     "milestone": "m9-security-boundary-verification",
-    "child": "/root/rfc0014_m9_postreview",
+    "child": "/root/rfc0014_m9_finalize",
     "mandate_revision": "r3",
     "run_id": "rfc0014-20260920",
     "segment_id": "m9-security-boundary-verification",
@@ -16,13 +16,17 @@
     "recipe_revision": "2"
   },
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
-  "entry_revision": "6ee88ac8afdc30543c0c6ea42e2a596b7556c1c4",
+  "entry_revision": "63c786684ebb1c66b314341f6ee4b66a1d569225",
   "candidate_revision": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
   "product_revision": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
   "result": "blocked",
   "rfc_status": "Proposed",
   "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
   "commits": [
+    {
+      "revision": "63c786684ebb1c66b314341f6ee4b66a1d569225",
+      "purpose": "Durable licensing-v002 preparation and handoff from /root/rfc0014_m9_postreview; finalization entry"
+    },
     {
       "revision": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
       "purpose": "Move corresponding source to a separate version-bound release asset through existing package/publication pipelines"
@@ -107,7 +111,8 @@
       "outcome": "pending",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0014.md#milestone-9-security-and-boundary-verification",
-        "docs/verification/RFC-BPR-0014.md#m9-post-review-source-distribution-correction"
+        "docs/verification/RFC-BPR-0014.md#m9-post-review-source-distribution-correction",
+        "docs/verification/RFC-BPR-0014.md#m9-licensing-v002-decision-finalization"
       ]
     },
     {
@@ -115,7 +120,8 @@
       "outcome": "pending",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0014.md#milestone-9-security-and-boundary-verification",
-        "docs/verification/RFC-BPR-0014.md#m9-post-review-source-distribution-correction"
+        "docs/verification/RFC-BPR-0014.md#m9-post-review-source-distribution-correction",
+        "docs/verification/RFC-BPR-0014.md#m9-licensing-v002-decision-finalization"
       ]
     },
     {
@@ -127,7 +133,7 @@
     }
   ],
   "milestone_results": {
-    "AC1": "Corrected source delivery mechanically passes for exact revised macOS candidate; all platform packaging/driver contracts pass offline. Owner/legal distribution and recipient access/retention remain unapproved; revised native Windows/Linux artifacts, independent final trust and full matrix pending.",
+    "AC1": "Exact revised macOS licensing-v002 owner/legal distribution/source/build/relink and recipient access/retention criterion accepted at decision469/hand-back470; source delivery mechanically reverified. Revised native Windows/Linux artifacts and their obligations, independent final trust and full matrix remain pending. No security or release approval.",
     "AC2": "Mac tests-disabled hostile loader/MCP/private AF_UNIX production course, full Win PE maps/anchors, emitted protections and native inspector self-tests pass. Complete matrix/public active network/vault/foreign-user evidence pending.",
     "AC3": "Defined policy; focused tidy, selected core/host/public tests, ASan/UBSan fuzz and exact secret finding review pass. Vulnerability gate fails; complete native/crash/dependency-hardening scope pending."
   },
@@ -463,12 +469,12 @@
   ],
   "required_pending": [
     "AC1 / exit 1: Independently validate exact final Windows Authenticode, macOS Developer-ID/notarization/Gatekeeper and declared Linux signatures/checksums. Current local Mac is ad-hoc and Windows MSI NotSigned; no final Linux artifact.",
-    "AC1: Owner/legal distribution terms and mixed syntax-data/Qt/toolchain source/build/relink obligations remain unapproved; attended question only covers this existing legal obligation.",
+    "AC1: The exact revised macOS v002 owner/legal criterion is accepted. Artifact-specific distribution terms and source/build/relink obligations outside that inventory, including revised Windows/Linux packages, remain pending; no approval transfers to changed bytes.",
     "AC2 / exit 2: Complete real public-operation runtime/plugin/process/network/vault/root evidence on clean macOS arm64/Intel, non-elevated Windows 10/11, Ubuntu24.04 and RHEL10. WSL26.04 inspector and elevated Windows administrative extraction are not substitutes.",
     "AC3 / exit 2: Grype 0.119.0 fresh v6.1.9 database fails on 21 Mac/19 Windows matches, including High PCRE2 and Windows zlib. Remediate or obtain named independent source-backed applicability; lower severity and full scan coverage also need disposition. No suppression/waiver.",
     "AC3: External Qt/KSyntaxHighlighting/LibArchive compile hardening, full PE CFG call-site coverage, native lifecycle sanitizer/fuzz scope and actual resident source/comment/token crash redaction remain pending; bounded selected harnesses/environment-canary crashes do not close these.",
     "All M8 clean-native/account/vault/high-DPI/authentication/removal obligations, protected human candidates and prior broader-suite failures remain separate; M9 does not rewrite M8 acceptance.",
-    "Post-review source disposition: v002 covers only the exact new macOS inventory. Revised native Windows/Linux artifacts and their source binding remain pending; fixture driver/layout success is not native acceptance. Owner must establish recipient access/retention and corresponding build/relink completeness."
+    "Post-review source disposition: v002 approves the separate version-bound asset, installed exact references/digest/notices, equivalent recipient access/retention and preserved build/relink instructions only for the reviewed macOS inventory. Revised native Windows/Linux artifacts and source binding remain pending. The URL is unpublished; actual source access and ongoing retention remain distribution obligations, not observations inferred from approval."
   ],
   "review_handoff": {
     "candidate": "rfc0014-m9-licensing-v002",
@@ -476,13 +482,26 @@
     "revision": "producer-1c429749-mac-d47ebc07-source-37b01065",
     "fingerprint": "da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80",
     "session": "cbd48b91000b00f1e72e1ad62c7c384c",
-    "event_cursor": 468,
-    "status": "ready/protected; decision null at preparation. Existing server attachment confirmed; next engineering round interprets the hand-back.",
-    "pending_decisions": [
-      "Existing owner/legal distribution/source/build/relink approval for exact revised macOS inventory, including recipient access and retention"
-    ],
+    "event_cursor": 470,
+    "status": "Accepted for the exact existing owner/legal criterion at event469; hand-back470 consumed by /root/rfc0014_m9_finalize. Candidate remains protected; M9 remains blocked.",
+    "pending_decisions": [],
+    "decision": {
+      "candidate": "rfc0014-m9-licensing-v002",
+      "fingerprint": "da5616bda5bc5727e9eb8b8cce756357300a9d5102592ca34698ec48aa8dce80",
+      "decision_id": "42661017-3d13-43ba-8366-7ac3bd32c0db",
+      "outcome": "accept",
+      "note": "",
+      "saved_at": "2026-09-21T21:46:10.819293+00:00",
+      "actor": "human",
+      "decision_sequence": 469,
+      "hand_back_sequence": 470,
+      "hand_back_time": "2026-09-21T21:46:12.984762+00:00",
+      "producer_revision": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
+      "approved_scope": "Existing owner/legal distribution terms and corresponding-source/build/relink obligations for exact macOS licensing-v002 inventory: separate version-bound asset, installed exact reference/digest/notices, equivalent recipient access, retention and replacement instructions.",
+      "excluded_scope": "Vulnerability disposition, security acceptance, independent trust, native-matrix acceptance, release/publication authorization and revised Windows/Linux artifacts. No supporting note or legal opinion was supplied."
+    },
     "server": {
-      "state": "running; existing host safely reused and explicitly handed to coordinator",
+      "state": "Stopped through authenticated companion stop after durable decision capture; PID49181 and port59550 listener absent, session host null",
       "pid": 49181,
       "port": 59550,
       "exec_session": 74251,
@@ -494,26 +513,26 @@
         "/Users/jaeger/Documents/GitHub/BetterPullReview",
         "serve"
       ],
-      "url": "Complete authenticated localhost URL sent to coordinator/user, intentionally not committed. Reattach with the same serve command to retrieve it."
+      "url": "Historical authenticated loopback URL intentionally not committed. Finalization retires the host; no review wait remains."
     },
-    "watch_owner": "Coordinator must arm attended_review.py wait --after 468 --kind handed-back before yielding. No lingering watcher belongs to this leaf.",
+    "watch_owner": "Hand-back470 consumed. No rearmed watch or pending licensing question; coordinator may start independently eligible M10 after this owner releases.",
     "no_automatic_acceptance": true,
     "old_protections": "Rejected M9 v001, all M8 and unrelated BPR0755 candidates unchanged and protected."
   },
   "ownership": {
-    "writers": "Sole main writer /root/rfc0014_m9_postreview; no children. Other worktrees preserved. Writer ownership released at final handoff.",
-    "commands": "All engineering build/test/course commands complete and reaped; inherited loopback review server PID 49181/port59550 is the only explicitly handed-off process.",
-    "protected_candidates": "Old v001, M8 and unrelated packets unchanged. New licensing v002 protects only its packet and build/releases/m9-source-1c429749.",
-    "cleanup": "Only task-owned qualification copies/homes and empty outer scratch removed. Retain exact source/package review artifacts and ignored command receipts; no credentials/private content committed."
+    "writers": "Sole main writer /root/rfc0014_m9_finalize; no children. Prior M9 owner released at entry. Other worktrees preserved. Writer ownership releases at final handoff.",
+    "commands": "Inherited loopback server PID49181/port59550 stopped, process/listener absent and session host null. Original exec handle74251 is already retired/unavailable. All finalization checks complete; no task-owned command, application, build, remote writer or watcher remains.",
+    "protected_candidates": "All six active protections retained: unrelated BPR0755, three accepted M8 candidates, rejected M9 v001 and accepted M9 v002. No resume-development or packet/artifact mutation.",
+    "cleanup": "Only inherited review host stopped; no candidate, installation, packet, historical artifact or protection removed. Earlier qualification cleanup retained."
   },
   "continuation": {
-    "intent": "wait",
-    "reason": "pending-obligation",
-    "next_milestone": "m9-security-boundary-verification",
-    "detail": "M9 remains blocked. Coordinator arms handed-back watch for licensing v002 and starts a fresh M9 implementer for interpretation. Preserve all security/native gaps. M10 remains separately Ready and was not started; no publication/closeout authority."
+    "intent": "fresh",
+    "reason": "independent-work",
+    "next_milestone": "m10-documentation-impact",
+    "detail": "M9 remains blocked after the exact licensing-v002 accept. M10/BPR-0963 is independently Ready with accepted M7 as its sole prerequisite; coordinator may assign a fresh implementer after finalization releases. This owner stops at M9 and starts no M10 work. Resume M9 for vulnerability disposition, independent trust and missing native/artifact inputs; publication and RFC closeout remain unauthorized."
   },
   "uncertainties": [
-    "Independent publisher trust/legal, native OS/account/vault/privacy and vulnerability applicability remain pending despite mechanical checks.",
+    "Independent publisher trust, native OS/account/vault/privacy, vulnerability applicability and artifact-specific licensing outside the exact accepted macOS v002 inventory remain pending.",
     "Configured role/model/effort banner not independent runtime loader attestation; host_load remains not_verified.",
     "Case-specific same-user IPC/environment crash and inspector self-tests are not cross-user/public-network/full-crash qualification."
   ],
@@ -522,7 +541,7 @@
     "BPR_0963": "20-ready; unchanged",
     "BPR_0965": "10-backlog; canonical IPC wording mirror only, no acceptance/status mutation"
   },
-  "final_upkeep": {
+  "preparation_upkeep": {
     "documentation": "DOCUMENTATION_OK after card/ledger/packet/handoff edits",
     "documentation_tests": "64/64 pass, 1.587s; existing fixture refusal diagnostics expected",
     "focused_contracts": "4/4 CTest, 34 total tests, 1.789s",
@@ -532,6 +551,20 @@
     "diff": "git diff --check passes",
     "cleanup": "Guard scratch removed; no remaining engineering command",
     "review_conflicts": "No bookkeeping conflicts; v002 packet/artifacts ready and protected; old v001/M8/unrelated candidates intact."
+  },
+  "final_upkeep": {
+    "documentation": {"command": ["python3", "scripts/verify_documentation.py", "--root", "."], "exit_code": 0, "result": "DOCUMENTATION_OK"},
+    "documentation_tests": {"command": ["python3", "tests/scripts/verify_documentation_tests.py"], "exit_code": 0, "result": "64/64 pass, 2.064s; fixture refusal diagnostics are expected"},
+    "source_preflight": {"command": ["python3", "packaging/verify_release_sources.py", "--app-zip", "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.zip", "--sbom", "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.spdx.json", "--source-archive", "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip", "--version", "0.1.3", "--source-revision", "1c429749aff4c09c6dc88da930d3344cd2d33c36"], "exit_code": 0, "result": "RELEASE_SOURCE_ASSET_OK; mechanical output has no human-approval authority"},
+    "artifact_identity": "All seven recorded macOS artifact digests match: app executable, app ZIP, SPDX, separate source ZIP, installed offers, notices and source provenance. Manifest and vulnerability record hashes unchanged.",
+    "reused_evidence": "Unchanged exact product/package inputs preserve prior 4/4 CTest contracts (34 tests) and nine-group tests-disabled public package course; no unnecessary rebuild or repeated native acceptance.",
+    "board": "issue_board.py validate --rfc RFC-BPR-0014 --json: valid=true, 957 cards, no errors. BPR-0962 remains Blocked/release-security-inputs; BPR-0963 Ready with no unmet dependency. No claim/finish or lane transition for this decision-only bookkeeping round.",
+    "checkpoint": "milestone_checkpoint.py check --checkpoint docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json --observation build/m9-finalize-observation.json --execution quiescent --accepted-milestone m7-focused-tests-fixtures --json: fresh-context; engineering_acceptance not-evaluated. All BPR-0962 and M9 exit records remain pending.",
+    "self_review": "Exact candidate/decision/producer scope preserved, empty human note copied faithfully, source delivery approval not promoted to security/native/trust/release acceptance. Four authorized bookkeeping paths only; no product, package, plan definition, RFC acceptance or protected candidate change.",
+    "diff": "git diff --check passes; git diff --exit-code from finalization entry excluding the four explicit paths passes.",
+    "commands": "All checks returned; review stop authenticated and confirmed by absent PID/listener and null session host. No live task command or watcher.",
+    "review_protection": "No bookkeeping conflicts. Exact snapshot SHA-256 before/after stop is 2e472c1178e8282b90331337b2c9c175023d3486282551015346b4b2012b6c5c; all six active protections and decisions preserved.",
+    "cleanup": "No candidate or material data deleted. Prior artifact/installation/protection retention preserved; ignored finalization observation is the durable local consistency receipt."
   },
   "prior_round": {
     "child": "/root/rfc0014_m9",
@@ -576,7 +609,38 @@
     },
     "record_revision": "6ee88ac8afdc30543c0c6ea42e2a596b7556c1c4"
   },
+  "finalization_round": {
+    "assignment": "Only M9 hand-back finalization by /root/rfc0014_m9_finalize; mandate r3, coordinator-implementer rev2; no delegation or publication/remote release mutation",
+    "entry_revision": "63c786684ebb1c66b314341f6ee4b66a1d569225",
+    "candidate_revision": "1c429749aff4c09c6dc88da930d3344cd2d33c36",
+    "changed_paths": [
+      "docs/issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md",
+      "docs/verification/RFC-BPR-0014.md",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json"
+    ],
+    "decision_ref": "review_handoff.decision; raw event469 and hand-back470 remain in .mask/attended-review/session.json",
+    "checkpoint": "Rebound to clean finalization entry with identical mandate, definition, obligation and prerequisite fingerprints; no acceptance exit changed",
+    "verification": "Read-only actual app ZIP/SPDX/source preflight returns RELEASE_SOURCE_ASSET_OK; reviewed hashes match. Unchanged 34-test contracts and tests-disabled public course reused.",
+    "protection_snapshot_sha256": "2e472c1178e8282b90331337b2c9c175023d3486282551015346b4b2012b6c5c",
+    "protection_snapshot_command": "jq -c '.candidates | map({id,fingerprint,protected,paths,resources,resource_versions,phase,decision}) | walk(if type==\"object\" then del(.images,.media) else . end)' .mask/attended-review/session.json | shasum -a 256",
+    "manifest_sha256": "3d2065f9c359920fb617d2f0043af0aac84606e4484f7595b929bfc362cd4784",
+    "unchanged_scan_record_sha256": "c8cd579340be0051c8ac8852343f6538b583c65f4bd14976d25ef581c4c92bee",
+    "server_stop": {
+      "command": ["python3", ".agents/skills/attended-review/scripts/attended_review.py", "--repo-root", "/Users/jaeger/Documents/GitHub/BetterPullReview", "stop"],
+      "exit_code": 0,
+      "result": {"stopped": true},
+      "postcondition": "PID49181 absent; no TCP listener59550; status cursor470, no new events, host null; all six protections and complete candidate/decision snapshot unchanged",
+      "exec_session": "write_stdin74251 reports Unknown process id after stop; process and listener absence verified directly"
+    },
+    "workflow_check_recovery": "Initial local checkpoint observation omitted one existing evidence_refs entry and returned reconcile; added the existing reference without changing acceptance, then check returned fresh-context.",
+    "bookkeeping_revision": "Containing explicit four-path finalization commit; exact SHA is bound in build/m9-finalize-observation.json after commit and returned to the coordinator",
+    "next_action": "Coordinator may dispatch fresh M10/BPR-0963 from the clean finalization commit. M9 stays blocked; no M10 work or publication started by this owner."
+  },
   "post_review_round": {
+    "child": "/root/rfc0014_m9_postreview",
+    "entry_revision": "6ee88ac8afdc30543c0c6ea42e2a596b7556c1c4",
+    "record_revision": "63c786684ebb1c66b314341f6ee4b66a1d569225",
     "assignment": "M9 only, sole non-delegating implementer; unchanged mandate r3, coordinator-implementer rev2",
     "consumed_decision": {
       "session": "cbd48b91000b00f1e72e1ad62c7c384c",
