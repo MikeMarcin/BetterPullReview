@@ -29,7 +29,14 @@ evidence may be reused only with its original scope and identity.
   demangling; all decorated names are scanned. A map is trusted build evidence,
   not a cryptographic signature or independent proof of its own completeness.
   Upstream DLLs require exact Qt SPDX or selected Microsoft CRT producer bytes
-  and exports; private upstream symbols are not claimed observable.
+  and exports; private upstream symbols are not claimed observable. Qt's Windows
+  SPDX precedes signing: when raw hashes differ, reconstruct the pre-sign whole
+  file in memory by clearing only the checksum/certificate directory and removing
+  the trailing certificate. Every upstream hash must then match, and native
+  Authenticode must report Valid for The QT Company Oy. Any other difference
+  fails. This does not alter or resign the DLL. Microsoft's
+  [PE signature format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
+  specifies those excluded signature fields.
 - `verify_release_security.py` additionally validates corresponding-source
   inventory/digests (including SQLite SHA3), retained notice texts, Qt transitive
   package identities, source offers, actual compiler commands and emitted image

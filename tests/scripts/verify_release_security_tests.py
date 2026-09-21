@@ -136,6 +136,26 @@ class ReleaseSecurityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pe.pe_headers(payload)
 
+    def test_qt_presign_digest_requires_unchanged_payload_and_valid_publisher(self):
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "Qt6Core.dll"
+            signed = bytearray(image())
+            struct.pack_into("<I", signed, 152, 1234)  # Signed-image checksum.
+            struct.pack_into("<II", signed, 232, len(signed), 16)
+            signed.extend(bytes(16))
+            binary.write_bytes(signed)
+            hashes = [{"algorithm": "SHA1", "checksumValue": hashlib.sha1(image()).hexdigest()}]
+            with patch.object(pe.subprocess, "check_output", return_value='{"Status":0,"Signer":"CN=Qt, O=The QT Company Oy, C=FI"}'):
+                self.assertTrue(pe.qt_signed_spdx_match(binary, hashes))
+                signed[600] = 1
+                binary.write_bytes(signed)
+                self.assertFalse(pe.qt_signed_spdx_match(binary, hashes))
+                signed[600] = 0
+                binary.write_bytes(signed)
+            for reply in ('{"Status":2,"Signer":"O=The QT Company Oy"}', '{"Status":0,"Signer":"O=Unknown"}'):
+                with patch.object(pe.subprocess, "check_output", return_value=reply):
+                    self.assertFalse(pe.qt_signed_spdx_match(binary, hashes))
+
     def test_macho_checks_every_slice_and_segment(self):
         with patch.object(security.subprocess, "check_output", side_effect=["ARM64 EXECUTE PIE\nX86_64 EXECUTE\n", ""]):
             with self.assertRaisesRegex(ValueError, "without-pie"):

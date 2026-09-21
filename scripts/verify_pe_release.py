@@ -9,6 +9,7 @@ their exported symbol table. Neither path is independent distribution approval.
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import os
 from pathlib import Path
@@ -102,6 +103,33 @@ def map_symbols(binary: Path, producer: Path) -> tuple[str, ...]:
     return (*decorated, *composition.demangle_map_symbols(undname, decorated, subprocess.run))
 
 
+def qt_signed_spdx_match(producer: Path, hashes: list[dict]) -> bool:
+    """Bind Qt's pre-sign SPDX to its signed bytes without changing the DLL.
+
+    Only the PE checksum, certificate directory and trailing certificate may
+    differ. The reconstructed *whole file* must match every upstream digest;
+    native Authenticode must independently validate Qt's publisher signature.
+    """
+    payload = bytearray(producer.read_bytes())
+    pe_headers(payload)
+    optional = struct.unpack_from("<I", payload, 60)[0] + 24
+    certificate, size = struct.unpack_from("<II", payload, optional + 144)
+    if size < 8 or certificate + size != len(payload) or certificate < optional + 152:
+        return False
+    payload[optional + 64:optional + 68] = bytes(4)
+    payload[optional + 144:optional + 152] = bytes(8)
+    payload = payload[:certificate]
+    if not all(hashlib.new(item["algorithm"].lower(), payload).hexdigest() == item["checksumValue"].lower() for item in hashes):
+        return False
+    command = ("$ProgressPreference='SilentlyContinue'; Get-AuthenticodeSignature -LiteralPath '"
+               + str(producer).replace("'", "''")
+               + "' | Select-Object Status,@{n='Signer';e={$_.SignerCertificate.Subject}} | ConvertTo-Json -Compress")
+    encoded = base64.b64encode(command.encode("utf-16le")).decode("ascii")
+    result = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], text=True, timeout=30)
+    signature = json.loads(result)
+    return signature.get("Status") == 0 and re.search(r"(?:^|,\s*)O=The QT Company Oy(?:,|$)", signature.get("Signer", ""), re.I) is not None
+
+
 def upstream_dll(binary: Path, info: dict, redist_root: Path | None) -> Path:
     qt = Path(info["qt_root"]).resolve(strict=True)
     record = json.loads((qt / f"sbom/qtbase-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
@@ -113,8 +141,9 @@ def upstream_dll(binary: Path, info: dict, redist_root: Path | None) -> Path:
         producer = (qt / item["fileName"]).resolve(strict=True)
         require(producer.is_relative_to(qt) and digest(producer) == digest(binary), "qt-producer-byte-mismatch")
         hashes = [value for value in item["checksums"] if value["algorithm"] in {"SHA1", "SHA256"}]
-        require(bool(hashes) and all(digest(producer, value["algorithm"].lower()) == value["checksumValue"].lower()
-                                     for value in hashes), "qt-producer-spdx-mismatch")
+        require(bool(hashes), "qt-producer-spdx-checksum-missing")
+        raw_match = all(digest(producer, value["algorithm"].lower()) == value["checksumValue"].lower() for value in hashes)
+        require(raw_match or qt_signed_spdx_match(producer, hashes), "qt-producer-spdx-mismatch")
         return producer
     # No filename alone can vouch for a toolchain DLL. The explicitly selected
     # licensed redist directory and exact byte equality are both required.
