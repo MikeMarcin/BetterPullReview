@@ -522,6 +522,31 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertIn("caller-installed Qt", diagnostic)
         self.assertIn("re-enable the pinned provider", diagnostic)
 
+    def test_windows_qt_611_uses_the_pinned_upstream_repository_layout_fix(self):
+        with contained_temporary_directory() as temporary_directory:
+            script = Path(temporary_directory) / "installer.cmake"
+            script.write_text(
+                f'include("{ROOT.as_posix()}/cmake/BprQtProvider.cmake")\n'
+                'bpr_qt_installer_requirement(requirement)\n'
+                'message(STATUS "REQUIREMENT:${requirement}")\n'
+                'set(BPR_QT_VERSION "6.10.3")\n'
+                'bpr_qt_installer_requirement(legacy_requirement)\n'
+                'message(STATUS "LEGACY:${legacy_requirement}")\n'
+            )
+            for system in ("Windows", "Darwin", "Linux"):
+                with self.subTest(system=system):
+                    result = subprocess.run(
+                        ["cmake", f"-DCMAKE_SYSTEM_NAME={system}", "-P", str(script)],
+                        text=True, capture_output=True, check=True,
+                    )
+                    expected = (
+                        "git+https://github.com/miurahr/aqtinstall.git@"
+                        "8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b"
+                        if system == "Windows" else "aqtinstall==3.3.0"
+                    )
+                    self.assertIn("REQUIREMENT:" + expected, result.stdout)
+                    self.assertIn("LEGACY:aqtinstall==3.3.0", result.stdout)
+
     def test_qt_provider_keeps_every_mechanism_it_replaced_the_old_policy_with(
         self,
     ) -> None:

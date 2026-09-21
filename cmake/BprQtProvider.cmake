@@ -15,6 +15,7 @@ include_guard(GLOBAL)
 
 set(BPR_QT_VERSION "6.11.2")
 set(BPR_AQTINSTALL_VERSION "3.3.0")
+set(BPR_AQTINSTALL_WINDOWS_REVISION "8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b")
 
 option(
     BPR_QT_PROVIDER
@@ -88,6 +89,22 @@ function(bpr_validate_qt_prefix prefix result_output)
     set(${result_output} TRUE PARENT_SCOPE)
 endfunction()
 
+# Released aqtinstall 3.3.0 cannot locate Qt 6.11's split Windows repositories.
+# Use the exact upstream merge of https://github.com/miurahr/aqtinstall/pull/1000
+# on that host only until a release includes it. This build-only tool is not
+# shipped and does not replace or patch Qt's official release binaries.
+function(bpr_qt_installer_requirement output)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows" AND BPR_QT_VERSION VERSION_GREATER_EQUAL "6.11")
+        set(
+            ${output}
+            "git+https://github.com/miurahr/aqtinstall.git@${BPR_AQTINSTALL_WINDOWS_REVISION}"
+            PARENT_SCOPE
+        )
+    else()
+        set(${output} "aqtinstall==${BPR_AQTINSTALL_VERSION}" PARENT_SCOPE)
+    endif()
+endfunction()
+
 function(bpr_download_qt host arch prefix_root prefix)
     find_package(Python3 ${BPR_PYTHON_MINIMUM_VERSION} COMPONENTS Interpreter QUIET)
     if(NOT Python3_Interpreter_FOUND)
@@ -124,10 +141,11 @@ function(bpr_download_qt host arch prefix_root prefix)
         set(environment_python "${environment}/bin/python")
     endif()
 
+    bpr_qt_installer_requirement(installer_requirement)
     execute_process(
         COMMAND
             "${environment_python}" -m pip install --quiet --disable-pip-version-check
-            "aqtinstall==${BPR_AQTINSTALL_VERSION}"
+            "${installer_requirement}"
         RESULT_VARIABLE pip_result
         OUTPUT_VARIABLE pip_output
         ERROR_VARIABLE pip_output
@@ -135,7 +153,7 @@ function(bpr_download_qt host arch prefix_root prefix)
     if(NOT pip_result EQUAL 0)
         message(
             FATAL_ERROR
-            "Unable to install aqtinstall==${BPR_AQTINSTALL_VERSION}: ${pip_output}"
+            "Unable to install ${installer_requirement}: ${pip_output}"
         )
     endif()
 
