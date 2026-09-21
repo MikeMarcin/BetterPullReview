@@ -145,7 +145,7 @@ namespace bpr::adapters::sqlite {
 			if (path.size() == 6U) {
 				return aDirectory;
 			}
-			if (path[6].empty() || path[6].size() > 20U || !std::ranges::all_of(path[6], [](char aCharacter) { return aCharacter >= '0' && aCharacter <= '9'; })) {
+			if (!hexadecimal(path[6], 16U)) {
 				return false;
 			}
 			if (path.size() == 7U) {
@@ -228,6 +228,17 @@ namespace bpr::adapters::sqlite {
 			}
 			if (aPath == ".git-process-boundary.lock" || aPath == "agent-workspace-ownership-v1/.git-process-boundary.lock") {
 				return !aDirectory;
+			}
+			// The installed Git owner creates these exact private isolation files.
+			// Its work/home/temp directories must be empty after producer retirement;
+			// no descendant is accepted as an arbitrary recursively-owned tree.
+			constexpr std::array gitFiles{ "config-system", "config-global", "attributes-system" };
+			if (std::ranges::find(gitFiles, aPath) != gitFiles.end()) {
+				return !aDirectory;
+			}
+			constexpr std::array gitDirectories{ "home", "xdg", "tmp", "work" };
+			if (std::ranges::find(gitDirectories, aPath) != gitDirectories.end()) {
+				return aDirectory;
 			}
 			// These namespaces belong exclusively to the existing cache/snapshot owners.
 			// Their closed top-level layout prevents adopting a developer worktree as a cache.

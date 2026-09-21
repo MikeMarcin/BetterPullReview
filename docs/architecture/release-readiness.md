@@ -298,3 +298,30 @@ retirement, original-owner recovery, store/logger closure and the independent
 vault worker. This is pending M6 composition, not a no-impact disposition or a
 waiver of G5/G6. M5 rendered development tests do not satisfy the tests-disabled
 package, native installer/vault, human or independent trust matrix above.
+
+## M6 composition and package disposition
+
+BPR-0956 resolves G1's production helper path by using the emitted target filename
+and application-directory location, adding the real build/copy/install edge for
+MCP, and retaining the supervisor and macOS updater helper. G2/G3/G4 now have
+tests-disabled application-only Windows/Linux install definitions, native runtime
+allowlists, per-user routes, source archives, complete notices and an exact-byte
+SPDX/checksum generator. macOS extends `tools/release.sh`; `--prepare-only` takes
+its existing deployment/smoke route with offline ad-hoc sealing, without Apple
+credentials/submissions. It is not a second release pipeline. Both slices are
+checked against the macOS 13 floor. The existing private publication script
+requires the resulting SBOM assets but publication remains unauthorized.
+
+The [package guide](../development/release-packages.md) records exact baselines,
+runtime layout, strict plugin discovery, Linux X11/XWayland and system C++/TLS
+dependencies, and first-party/mixed syntax-data distribution approval still
+pending. G7's Ubuntu 24.04/RHEL 10 and Windows native definitions are not qualified
+by this macOS implementation; WSL Ubuntu 26.04 is intentionally refused as a
+package-build baseline. Signing, clean install/upgrade/uninstall, credential,
+native UI and independent exact-artifact security gates remain M8/M9.
+
+G5/G6 now use the [retained-lease desktop barrier](release-maintenance.md#m6-retained-lease-maintenance-composition)
+before enabling destruction. Real profile owner retirement, original recovery,
+store/logger closure, an independent native vault and startup receipt recovery
+are composed; the real multi-window public course covers their observable
+boundary. G8/G9 and all other assigned later security obligations are unchanged.

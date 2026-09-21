@@ -354,3 +354,40 @@ private roots, keyboard preview, exact UTF-8 local export, existing-file refusal
 shared Settings ownership and shutdown). Cocoa execution supplies native macOS
 widget/effect evidence but uses a deterministic Qt save picker. It is neither
 an attended VoiceOver/native-picker verdict nor tests-disabled package acceptance.
+
+## M6 retained-lease maintenance composition
+
+The desktop now supplies a concrete retirement callback to the same maintenance
+host. Destructive capabilities exist only with that callback; purge additionally
+requires the native vault capability. Preparation transfers the invoking
+profile's Settings shell and one maintenance panel to a desktop-owned holder,
+unmounts borrowed window pages, refuses profile ingress/activation, and retires
+every window through the existing generation/registry lane. Original Git,
+workspace, MCP, credential and shutdown owners drain their work. The desktop
+destroys the complete original runtime only after shutdown completes: its
+stores, ports and Quill sink cannot keep writing behind a successful barrier.
+Cleanup failure returns recovery-required, never a successful preparation.
+
+The maintenance holder retains the original exclusive root lease, its own
+effect worker and an independently constructed native vault/worker. Binding
+stores are opened lazily after retirement, so exact credential cleanup precedes
+binding metadata removal. No old window, provider or runtime is restarted by
+cancel, clear, purge or retry. The maintenance-only Settings shell remains
+usable for explicit re-preparation; closing it drains the maintenance host and
+releases the lease. Another profile's runtime is not purged or retired.
+
+Fresh startup executes the existing native maintenance recovery under the
+exclusive lease before profile stores, logger or new producers open. An invalid
+or unrecoverable receipt refuses admission and preserves evidence. Unknown
+objects still fail closed: the expanded inventory recognizes only the real
+Git isolation files, empty isolation-directory shells and fixed 16-hex epoch
+ref grammar, not arbitrary descendants left by a producer.
+
+The direct public course starts an actual fixture PR and `review.cpp`, opens a
+second window, retires both window surfaces, and proves the
+original profile owner expires while the native lease stays held. It covers
+cancellation without restart, changed-inventory refusal, explicit retry,
+diagnostic-only clear, full populated-profile purge, preserved external export,
+lease release and corrupt-receipt startup refusal. The native vault is composed;
+real persistent credential/crash continuity and all-target acceptance remain
+M8/M9 evidence, not inferred from the fixture's synthetic sign-in.

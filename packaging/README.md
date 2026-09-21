@@ -1,8 +1,12 @@
 # Packaging
 
-This root owns distribution metadata and platform packaging. RFC-BPR-0001
-establishes the boundary; RFC-BPR-0014 will add signed Windows, macOS, and Linux
-artifacts and their release evidence.
+This root owns distribution metadata and platform packaging. RFC-BPR-0014 M6
+adds tests-disabled Windows per-user x64 MSI and baseline Linux DEB/RPM
+definitions, and extends the existing universal macOS release path with exact
+SBOM, notices and corresponding source. See the
+[local package operator guide](../docs/development/release-packages.md).
+Native matrix qualification, distribution terms and release trust remain
+separate gates; definitions and local artifacts do not certify a release.
 
 Packaging must preserve the core/application/adapters/composition dependency
 graph and restrict Qt plugin discovery to trusted installation paths. No browser
@@ -31,12 +35,12 @@ embeds fixed PNG sizes so its windows and notification tray use the product
 icon without an SVG runtime plugin. Windows builds compile the tracked ICO
 through a native resource file. Tests-disabled macOS builds are application
 bundles whose `Info.plist` names the tracked ICNS. The Linux SVG, PNG family,
-and desktop entry are ready for the hicolor/application directories owned by
-the future RFC-BPR-0014 package rules.
+and desktop entry supply the hicolor/application directories installed by
+`Install.cmake` on Linux.
 
 These assets and bindings are application identity, not a package-readiness
-claim. Signing, deployment of Qt dependencies, Linux installation rules, and
-clean-machine verification remain RFC-BPR-0014 work. Regeneration and asset
+claim. Clean-machine installation and release trust remain RFC-BPR-0014 work.
+Regeneration and asset
 ownership are documented in [`icons/README.md`](icons/README.md).
 
 ## Dif asset notice boundary

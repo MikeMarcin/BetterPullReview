@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
+#include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
@@ -660,6 +661,8 @@ namespace bpr::app {
 		[[nodiscard]] auto        desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;
 		[[nodiscard]] auto        desktop_scratch() const -> std::shared_ptr<void>;
 		void                      set_desktop_quit_handler(std::function<void(int)> aHandler);
+		void                      set_maintenance_retirement(release_maintenance_retirement aRetire);
+		[[nodiscard]] auto        take_maintenance() -> std::unique_ptr<release_maintenance_controls>;
 		[[nodiscard]] static auto start_profile(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
 		[[nodiscard]] auto        open_window(core::bpr_window_context aContext) -> bool;
 		enum class window_retirement { forced,

@@ -156,6 +156,7 @@ function(bpr_configure_dependencies)
         # Qt's resource macro runs outside this function. Preserve the package
         # namespace it uses to address the already-proven Qt6::rcc target.
         set(QT_CMAKE_EXPORT_NAMESPACE Qt6 PARENT_SCOPE)
+        set(BPR_PRODUCT_QT_VERSION "${Qt6_VERSION}" PARENT_SCOPE)
 
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             bpr_reject_dependency_redirect(PkgConfig)

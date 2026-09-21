@@ -64,7 +64,7 @@
     {
       "name": "app-release",
       "displayName": "Release application (tests disabled)",
-      "description": "Production-shaped BetterPullReview application; local Mac bundle signing, distribution packaging deferred to RFC-BPR-0014.",
+      "description": "Tests-disabled development graph. Distribution uses macos-release, windows-app-release or linux-package and their restricted installed runtime.",
       "inherits": "_ninja-common",
       "binaryDir": "${sourceDir}/build/app-release",
       "cacheVariables": {
@@ -91,6 +91,8 @@
         "BUILD_TESTING": "OFF",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0",
+        "BPR_DISTRIBUTION_BUILD": "ON",
         "CMAKE_TEST_BUILD_DEPENDS": "OFF"
       }
     },
@@ -125,10 +127,19 @@
       },
       "cacheVariables": {
         "BPR_BUILD_QT": "ON",
+        "BPR_DISTRIBUTION_BUILD": "ON",
         "BUILD_TESTING": "OFF",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TEST_BUILD_DEPENDS": "OFF"
       }
+    },
+    {
+      "name": "linux-package",
+      "displayName": "Linux baseline tests-disabled package",
+      "inherits": "app-release",
+      "binaryDir": "${sourceDir}/build/linux-package",
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"},
+      "cacheVariables": {"BPR_DISTRIBUTION_BUILD": "ON", "CMAKE_INSTALL_PREFIX": "/usr"}
     }
   ],
   "buildPresets": [

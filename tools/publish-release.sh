@@ -81,14 +81,17 @@ DMG="${DIST_DIR}/${ASSET_BASE}.dmg"
 ZIP="${DIST_DIR}/${ASSET_BASE}.zip"
 DMG_SHA="${DMG}.sha256"
 ZIP_SHA="${ZIP}.sha256"
+SBOM="${DIST_DIR}/${ASSET_BASE}.spdx.json"
+SBOM_SHA="${SBOM}.sha256"
 
-for artifact in "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}"; do
+for artifact in "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}"; do
     [[ -f "${artifact}" ]] || fail "Release artifact is absent: ${artifact}"
 done
 (
     cd "${DIST_DIR}"
     shasum -a 256 -c "$(basename "${DMG_SHA}")"
     shasum -a 256 -c "$(basename "${ZIP_SHA}")"
+    shasum -a 256 -c "$(basename "${SBOM_SHA}")"
 )
 
 private_repository_guard
@@ -110,7 +113,7 @@ git -C "${ROOT_DIR}" push --atomic origin main "${TAG}"
 
 private_repository_guard
 gh release create "${TAG}" \
-    "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" \
+    "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" \
     --repo "${EXPECTED_REPOSITORY}" \
     --title "BetterPullReview ${TAG}" \
     --notes-file "${NOTES_FILE}" \

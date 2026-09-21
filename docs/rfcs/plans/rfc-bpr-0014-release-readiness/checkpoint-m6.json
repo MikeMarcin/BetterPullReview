@@ -1,0 +1,84 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m6-composition-public-path",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m6-composition-public-path",
+    "definition_fingerprint": "sha256:9cf45b97fb9e8b012d898c8ccb89965f8695ff8cbcb359a29fd58a0dba661d6c",
+    "obligations": [
+      {
+        "id": "BPR-0956:*",
+        "source": "BPR-0956",
+        "selector": null,
+        "source_fingerprint": "sha256:6778886f9577841168c6e3287dd9451f0fd92b8ab63e304cdd3094411ad7ab34"
+      }
+    ],
+    "obligation_fingerprint": "sha256:d8bd4e106daadf413bf48879eb5bb35073de3d8ddd0a98a2680c3a31899507d0",
+    "exit_criteria": [
+      {
+        "id": "m6-composition-public-path:exit:1",
+        "text": "Windows, universal macOS and baseline Linux package definitions, dependencies, SBOM/notices/source offers and checksum generation are implemented."
+      },
+      {
+        "id": "m6-composition-public-path:exit:2",
+        "text": "Available packaged public paths reach an exact fixture comparison through one alignment controller and DiffLinkMap; unavailable native evidence stays pending."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:e54f28643b583e973071e162cc1565f1ac5c65c1f56908dfd2f13843284a40d7",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "b8515c7cdd83a12fd329bc7f010a9d7c02b343eb",
+    "workflow_branch": "main",
+    "workflow_revision": "b8515c7cdd83a12fd329bc7f010a9d7c02b343eb"
+  }
+}

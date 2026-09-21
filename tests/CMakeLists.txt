@@ -304,6 +304,12 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME package_runtime_contract
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/package_runtime_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME issue_id_allocation_contract
     WINDOWS_UNCONTAINED
     COMMAND

@@ -12,6 +12,7 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "installed_runtime.hpp"
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
@@ -7687,6 +7688,10 @@ auto main(int argc, char** argv) -> int
 		}
 	}
 #endif
+	if (!bpr::app::restrict_installed_runtime(argc, argv)) {
+		std::fputs("INSTALLED_RUNTIME_REFUSED\n", stderr);
+		return EXIT_FAILURE;
+	}
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QCoreApplication::setApplicationName(QStringLiteral("BetterPullReview"));

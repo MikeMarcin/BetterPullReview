@@ -176,3 +176,13 @@ retirement/store/logger/vault composition under the retained lease. Controlled
 widget/host success does not certify production purge. Existing retention and
 release paths are reused unchanged; package/native/human/security acceptance
 remains with its assigned later owners.
+
+M6 now composes the [retained-lease retirement and recovery barrier](../architecture/release-maintenance.md#m6-retained-lease-maintenance-composition)
+before enabling live clear/purge, without restarting producers on cancellation.
+The [application-only package definitions](../development/release-packages.md)
+reuse the existing macOS release path, add Windows MSI and baseline Linux
+DEB/RPM plus a per-user archive, and carry exact dependency/source/notices/SBOM
+and checksum mechanics. Their tests-disabled runtime restricts plugin loading
+and locates the actual shipped helpers. Unavailable native matrix, attended
+acceptance, release trust and distribution-license approval remain open; local
+ad-hoc sealing is not signing/notarization acceptance or publication authority.

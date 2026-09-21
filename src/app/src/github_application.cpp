@@ -3,6 +3,7 @@
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_release_update.hpp"
+#include "platform_credential_vault.hpp"
 #include <QCryptographicHash>
 
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
@@ -30,13 +31,8 @@
 #include "live_review_mutation_provider.hpp"
 #include "native_https_transport.hpp"
 
-#if defined(__APPLE__)
-	#include "macos_keychain.hpp"
-#elif defined(_WIN32)
-	#include "windows_credential_manager.hpp"
+#if defined(_WIN32)
 	#include "windows_title_row_host.hpp"
-#elif defined(__linux__)
-	#include "linux_secret_service.hpp"
 #endif
 
 #if defined(BPR_BUILD_TESTING)
@@ -2243,26 +2239,6 @@ namespace bpr::app {
 			aOptions.push_back(profile_option(*profile, std::move(aLabel)));
 		}
 
-		[[nodiscard]] auto make_platform_vault(
-			application::effect_executor& aEffects, core::bpr_profile_id aProfile)
-			-> std::unique_ptr<application::github_credential_vault_port>
-		{
-#if defined(__APPLE__)
-			auto vault = adapters::github::make_macos_keychain_vault(aEffects, aProfile);
-#elif defined(_WIN32)
-			auto vault = adapters::github::make_windows_credential_manager_vault(aEffects, aProfile);
-#elif defined(__linux__)
-			auto vault = adapters::github::make_linux_secret_service_vault(aEffects, aProfile);
-#else
-			static_cast<void>(aEffects);
-			static_cast<void>(aProfile);
-			return { };
-#endif
-#if defined(__APPLE__) || defined(_WIN32) || defined(__linux__)
-			return vault.has_value() ? std::move(*vault) : nullptr;
-#endif
-		}
-
 		// [[BPR-0797]]. Whether this run offers the GitHub CLI way in, rather
 		// than a profile row labelled `(unavailable)` with nothing behind it.
 		//
@@ -4019,6 +3995,7 @@ namespace bpr::app {
 		}
 		std::unique_ptr<qt::settings_window>          Settings;
 		std::unique_ptr<release_maintenance_controls> Maintenance;
+		release_maintenance_retirement                MaintenanceRetirement;
 		std::optional<core::bpr_window_context>       SettingsOwner;
 		void                                          present_settings(core::bpr_window_context aContext, qt::settings_page aPage)
 		{
@@ -4041,7 +4018,7 @@ namespace bpr::app {
 				found->second.Settings(*Settings, aPage);
 			}
 			if (!Maintenance) {
-				Maintenance = release_maintenance_controls::start_diagnostics(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile());
+				Maintenance = release_maintenance_controls::start_profile(ApplicationDataRoot, RuntimeLease, Admission.Authority.profile(), MaintenanceRetirement);
 			}
 			Maintenance->attach(*Settings, Admission.Label);
 		}
@@ -6682,9 +6659,7 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 			mcpHelper = std::filesystem::path{ BPR_MCP_HELPER_EXECUTABLE };
 #else
-			mcpHelper = std::filesystem::path{
-				QCoreApplication::applicationDirPath().toStdString()
-			} / "tool_better_pull_review_mcp_context_helper";
+			mcpHelper = native_filesystem_path(QCoreApplication::applicationDirPath()) / BPR_MCP_HELPER_FILE_NAME;
 #endif
 			// Its own launcher rather than the agent's. `cancel` is a launcher
 			// operation, and one shared between an agent run and a helper
@@ -13165,6 +13140,11 @@ namespace bpr::app {
 																	: application::profile_startup_failure::root_unavailable);
 			}
 			RuntimeLease = std::move(*lease);
+			// Recovery precedes every profile store and producer. The registry has a
+			// separate owner and is explicitly excluded from the purge inventory.
+			if (!recover_release_profile(*root, RuntimeLease, Config.Profile)) {
+				return std::unexpected(application::profile_startup_failure::root_unavailable);
+			}
 			if (OwnerOnly) {
 				const auto endpoint = adapters::sqlite::make_profile_activation_server(*root, Config.Profile, RuntimeLease);
 				if (endpoint) {
@@ -13377,6 +13357,23 @@ namespace bpr::app {
 	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
 	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Profile->StartupScratch; }
 	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Profile->DesktopQuit = std::move(aHandler); }
+	void github_application::set_maintenance_retirement(release_maintenance_retirement aRetire) { Profile->MaintenanceRetirement = std::move(aRetire); }
+	auto github_application::take_maintenance() -> std::unique_ptr<release_maintenance_controls>
+	{
+		if (!Profile->Maintenance || !Profile->Settings) {
+			return { };
+		}
+		std::function<void()> unmount;
+		if (Profile->SettingsOwner) {
+			const auto found = Profile->Observers.find(*Profile->SettingsOwner);
+			if (found != Profile->Observers.end()) {
+				unmount = found->second.UnmountSettings;
+			}
+		}
+		Profile->Maintenance->retain_settings(std::move(Profile->Settings), Profile->Admission.Label, std::move(unmount));
+		Profile->SettingsOwner.reset();
+		return std::move(Profile->Maintenance);
+	}
 	void github_application::set_profile_label(std::string aLabel)
 	{
 		Profile->Admission.Label = std::move(aLabel);
