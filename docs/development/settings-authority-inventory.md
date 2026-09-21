@@ -93,6 +93,24 @@ by those partial cards. BPR-0593 remains the canonical closeout and owns the
 actual criterion/check/result/revision ledger. Required native platform or human
 observations remain pending until obtained; this inventory invents no verdict.
 
+## Native inventory and platform rows, 2026-09-20
+
+The [macOS inventory comparison](../verification/BPR-0593-macos-settings-inventory.md)
+now supplies a tests-disabled capture at the exact Windows source revision,
+equal actionable inventory across all seven pages against the Windows/Linux
+captures, and identical current macOS dev/release trees. Native AX wrapper and
+combo-name differences are normalized explicitly, not treated as missing rows.
+
+| Later surface | Owner and capability distinction |
+|---|---|
+| General's nine updater controls | RFC-0035, added after the Windows/Linux inventory baseline. The panel is composed on all platforms; Windows/Linux report unsupported platform. macOS also requires a trusted, writable production installation. Current local dev and ad-hoc release captures both report untrusted installation, disabling all controls except View Release. No update action was invoked. |
+| Accounts page-level Use GitHub CLI | BPR-0909/0910/0913/0915 and RFC-0015. Replaces the older per-server Connect entry and opens discovered-account setup through the shared sign-in dialog. Native configured CLI reads remain macOS-only; other platforms report unavailable. This moves presentation, not credential/provider authority. BPR-0933's trust-dialog wording remains separate. |
+
+The five unaffected current pages still match the captured cross-platform
+baseline. No simultaneous current Windows/Linux updater/shared-dialog capture
+is claimed; those later rows and native menu/shortcut courses remain explicit
+target-platform evidence limits on BPR-0593.
+
 ## Integrated Settings surfaces
 
 BPR-0678 through BPR-0682 now compose all seven categories in the Default

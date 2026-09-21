@@ -50,7 +50,6 @@ function(require_regex label output pattern)
     endif()
 endfunction()
 
-include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 # [[BPR-0875]]. The data root moves inside an owned parent, because the build
 # tree this course roots in is writable by other principals and the agent
 # workspace neighbourhood refuses such a parent.
@@ -128,11 +127,15 @@ endif()
 # Process two opens the same real appearance database without importing or
 # committing anything. The exact black semantic canvas can only come from
 # process one's persisted total palette; System and tab width four prove the
-# unrelated defaults remain intact.
+# unrelated defaults remain intact. The existing composition-only probe stops
+# before sign-in: this restart checks appearance durability, not the CLI setup
+# course whose older entry path is tracked by BPR-0940.
 run_phase(
     "theme restart"
     restart_output
     --self-test
+    --composition-capability-probe
+    --network-denied
     --test-application-data-root
     "${BPR_ROOT}"
 )
