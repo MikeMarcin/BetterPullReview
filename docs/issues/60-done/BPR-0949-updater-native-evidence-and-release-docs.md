@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0949"
 title: "Qualify updater packages and document release security"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0948"]
 milestone: "RFC-0035 milestone 4"
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
+acceptance: [{"criterion":"AC-01","outcome":"pass","revision":"9933db570a07d844a76e72add6967b1b9c737aed","evidence":{"kind":"observation","detail":"Owner amendment r3 (1ded36b9) defers Intel validation to nonblocking BPR-0950; it does not report Intel success. Amended Apple Silicon scope is proved by unchanged accepted M3 b7e2df46 and signed package source 5db1d104, 0.0.350 to 0.0.352, target ZIP SHA-256 29ab8fbfc786864ca7f27bdbe95315bcce254fabdb4e5c0695973c2bf1bc3fa7, exact startup receipt, retained state and native UI. Menu correction at 518c384a has separate Cocoa evidence and is not in that archive.","reference":"docs/verification/RFC-BPR-0035.md"}},{"criterion":"AC-02","outcome":"pass","revision":"9933db570a07d844a76e72add6967b1b9c737aed","evidence":{"kind":"observation","detail":"Operator/recovery/security/package documentation covers authority, destinations/redirects, bounds, helper inventory, trust, state, cleanup and recovery; RFC-0014 updater exception stays scoped. r3 synchronizes Intel follow-up references without waiving live evidence or RFC-0014 acceptance. Documentation gate and 64 documentation tests pass.","reference":"docs/verification/RFC-BPR-0035.md"}},{"criterion":"AC-03","outcome":"pass","revision":"9933db570a07d844a76e72add6967b1b9c737aed","evidence":{"kind":"observation","detail":"BPR-0912 reconciles all eight amended RFC criteria. Live private-release/native-vault/routing/revocation remains pending on BPR-0911/0912; RFC-0014 and canonical closure gates remain. Parent and RFC are not closed. Focused updater/native-menu integration passes 9/9, scoped board and plan validation pass; product source is unchanged from 518c384a.","reference":"docs/issues/10-backlog/BPR-0912-close-rfc-0035.md"}}]
 ---
 
 # Qualify updater packages and document release security
@@ -48,6 +49,10 @@ candidate remains M3 `b7e2df46cc178bbcff88b49dd2170ecf27a8c764`, package source
 `5db1d104a2436a2b0df811ac2e40cff0c58c2319`. New native Intel or live credential
 observations are not claimed.
 
+Amendment/allocation commit `1ded36b9`; resumed claim
+`9933db570a07d844a76e72add6967b1b9c737aed`. The original M4 blockers and outcomes
+below are retained as r2 history, not current eligibility.
+
 | Criterion | Evidence and disposition under r3 |
 |---|---|
 | AC-01 | Pass for amended Apple Silicon scope: reuse BPR-0948's signed 0.0.350→0.0.352 upgrade, exact receipt, retained state, timeout and recovery with ledger digests. The native Cocoa menu correction remains separately tested at `518c384a`; its source does not alter the qualified installer/helper path and is not claimed to be in the signed 0.0.352 archive. Intel execution is deferred to BPR-0950, not passed. |
@@ -55,9 +60,15 @@ observations are not claimed.
 | AC-03 | Pass: the closeout maps all eight amended RFC criteria to actual evidence. RFC AC-03's live private-release/native-vault/revocation course is still pending on BPR-0911/0912; RFC-0014 and canonical gates remain explicit. This card's completion does not close those parents. |
 
 The shortest composed public-path check passed again before this amendment.
-Final focused checks and acceptance commit are recorded in the ledger and
-[[BPR-0912]]. The prior blocked record below remains historical evidence under
-r2, superseded only by this explicit owner amendment and current dispositions.
+At `9933db57`, updater/native-menu integration passes 9/9 (21.50 seconds), the
+documentation gate passes and all 64 documentation tests pass. Scoped board
+validation and the amended plan check pass. Product/test/build-input diff against
+`518c384a` is empty, so the prior exact-source/native evidence remains applicable.
+All three amended card criteria pass; this card is accepted under r3. The
+acceptance record is `build/rfc0035-run/m4-r3-acceptance.json`, with current
+checkpoint `m4-r3-checkpoint.json`; [[BPR-0912]] records the final commit/state.
+The prior blocked record below is superseded only by this explicit owner amendment
+and current dispositions. No full M4/RFC completion is claimed.
 
 ### Prior blocked record (mandate r2)
 
