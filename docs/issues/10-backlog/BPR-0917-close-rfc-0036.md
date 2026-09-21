@@ -7,6 +7,7 @@ rfcs: ["RFC-BPR-0036"]
 depends_on: ["BPR-0916"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0036"]
+metadata: {"milestone_plan":{"id":"rfc0036-native-markdown","path":"docs/rfcs/plans/rfc0036-native-markdown/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0036

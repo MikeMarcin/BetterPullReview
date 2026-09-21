@@ -1,0 +1,7 @@
+{
+  "source": "docs/rfcs/RFC-BPR-0036-native-markdown-rendering.md",
+  "source_revision": "b7e2df46cc178bbcff88b49dd2170ecf27a8c764",
+  "source_sha256": "96c86af19a7f6d440b921bf32d3733565803de6771c508502554154ce6ae565c",
+  "delivery": "1. Inventory the two initial surfaces, select the dialect/renderer and bounds,\n   and implement a shared native component against synthetic fixture bodies.\n2. Integrate overview and public conversations, exercise their composed paths,\n   reconcile long-description layout and record evidence on [[BPR-0917]].",
+  "role": "Source-only grouping provenance; milestone-plan.json is the adopted execution plan."
+}

@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0005", "RFC-BPR-0006", "RFC-BPR-0008"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc0036-native-markdown","path":"docs/rfcs/plans/rfc0036-native-markdown/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0036: Native Markdown Rendering for Review Content
