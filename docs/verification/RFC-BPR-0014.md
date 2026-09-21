@@ -3,9 +3,9 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m5` owns only
-`rfc-bpr-0014-release-readiness/m5-qt-presentation-adapter` on `main`.
-The M1–M4 records below retain their original child and candidate provenance.
+current child `/root/rfc0014_m6` owns only
+`rfc-bpr-0014-release-readiness/m6-composition-public-path` on `main`.
+The M1–M5 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -670,3 +670,130 @@ normal build output remain. No server, worktree, child or protected candidate
 is handed off. Final local observation/check receipts bind the bookkeeping HEAD;
 product acceptance remains bound to `13a7d052` and the explicitly reused
 unchanged evidence at `a34fc07f`.
+
+## Milestone 6 composition and public path
+
+Assignment `m6-composition-public-path`, child `/root/rfc0014_m6`, mandate r3,
+coordinator-implementer revision 2, began from clean
+`b908246e72bb2a9de75ff9c913af6ac321354311`. Claim `b8515c7c` precedes edits.
+Implementation `65dd7dd4add669606f67f39da05e6b420effec77` composes the retained-
+lease desktop retirement/recovery barrier and actual package paths. Correction
+`da12f5568f8ab207d8a75451cda9b3de1a49df63` separates original Qt producer
+verification assertions from relocated/sealed file hashes. The
+[M6 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m6.json)
+preserves every assigned criterion and exit. M6 remains **unaccepted** pending
+the final packaged native UI replay; BPR-0957 remains Backlog.
+
+### Implemented scope and direct checks
+
+The [retirement contract](../architecture/release-maintenance.md#m6-retained-lease-maintenance-composition)
+and [operator guide](../development/release-packages.md) describe the actual
+owners. Core/host/Qt/provider policy remains unchanged: the desktop refuses
+ingress, retires every affected window through the existing registry lane,
+drains original producers/recovery owners, destroys the runtime/stores/logger,
+then acknowledges the maintenance barrier while a separate vault worker and
+the original root lease remain held. Startup recovers before opening producers.
+Real Git inventory testing found missing isolation files and an incorrect
+decimal epoch-ref assumption; the fixed inventory accepts only exact known
+files/empty shells and the producer's fixed 16-hex ref grammar.
+
+Windows/Linux application installation and native closure rules are new;
+macOS extends the existing release script and preset. Production MCP now uses
+its emitted filename, platform suffix and actual app-directory build/install
+edge. Qt discovery is restricted before QApplication. Source/notices account
+for static dependencies and mixed-license embedded syntax/theme data, not just
+Qt. First-party and aggregate syntax-data distribution terms remain owner/legal
+gates; `NOASSERTION` is explicit, not a licensing waiver. Source-only publication
+changes require the new SBOM assets without running publication.
+
+| Direct check | Candidate and result |
+|---|---|
+| `cmake --build --preset dev --target test_release_maintenance_core test_release_maintenance_public_path test_profile_startup_public_path test_profile_multi_window_public_path -j4`; focused CTest selector for maintenance core/host/files/Qt scales 100/125/200, startup, multi-window and package contract | Source now committed at `65dd7dd4`: build pass, 10/10 pass in 98.05s; latest source files rebuilt after range formatting |
+| `ctest --test-dir build/dev --output-on-failure -R '^application_release_maintenance_public_path$'` | `65dd7dd4`: pass 16.385s, actual PR/file selection plus two-window retirement, expired original owner, held lease, cancel/no restart, stale inventory refusal, clear, populated purge and corrupt-receipt startup refusal |
+| `cmake --preset core-only`; build `test_release_maintenance_core test_release_maintenance_host`; CTest core/host maintenance | `65dd7dd4`: pass 2/2, 0.147s; no new core SDK or Qt/provider requirement |
+| Complete committed `git archive`, then `cmake -DBPR_ROOT=/private/tmp/bpr0014-m6-architecture.lHVEbA -P /private/tmp/bpr0014-m6-architecture.lHVEbA/cmake/VerifyArchitectureBoundaries.cmake` | `65dd7dd4`: pass; preserves unrelated ignored nested worktree and checker |
+| `python3 tests/scripts/package_runtime_tests.py` | `da12f556`: 11/11 pass; pin/allowlist/baseline/refusal, Linux provider-before-stage/SONAME binding and corrected SPDX assertions |
+| Focused formatting and strict tidy | Nine touched C++ files format pass; new maintenance/vault TUs strict tidy pass. Installed runtime strict tidy with distribution macro and single-architecture dev compile database passes; universal compile database itself is unsupported by clang-tidy's one-job requirement |
+| Documentation gate and verifier regression | `65dd7dd4`: pass; verifier regression 64/64. Final bookkeeping reruns are in the handoff |
+| `git diff --exit-code b908246e HEAD -- src/core src/application src/adapters/qt src/adapters/git src/adapters/github src/adapters/agent src/adapters/mcp src/adapters/update .codex/skills/publish-release/SKILL.md` | Pass: selected comparison/alignment/DiffLinkMap, retention and existing provider/updater owners are unchanged |
+
+Initial integration selected an unbuilt core test executable; building the
+correct target repaired the harness error and all ten checks passed. The first
+temporary external fixture used macOS's `/private/tmp` alias, which Qt spells
+`/tmp`; existing canonical-root admission correctly refused it. Moving only the
+disposable fixture to a canonical user directory fixed that course, without
+weakening product containment. Broad `PUBLIC_PATH_OK`/native-vault marker absence
+was an invalid fixture check: these are existing unguarded production self-test
+status strings. Actual tests-only translation units and access symbols/markers
+are absent. No claim that every production self-test string is removed is made.
+
+### Exact clean local artifact
+
+`tools/release.sh --version 0.1.3 --prepare-only --skip-tests --output-dir
+build/releases/m6-da12f556` passes in 18.55s from clean `da12f556`.
+It reuses the actual universal tests-disabled deployment, verifies both Mach-O
+slices against macOS 13 and the restricted dependency paths, includes notices
+and complete pinned source, seals offline ad-hoc, and passes relocated launch.
+It does not perform Developer ID signing, Keychain discovery/change, Apple
+submission, tag/push/upload or publication. No such authorization is inferred.
+
+| Artifact under `build/releases/m6-da12f556/` | SHA-256 |
+|---|---|
+| `BetterPullReview.app/Contents/MacOS/BetterPullReview` | `d31b371b1aad6caef369bdf60212b0a156b913ee7834d1f88b7424c8d8221852` |
+| `BetterPullReview-0.1.3-macos-universal-local.zip` | `c0fe65a9978b9786f40953349806492afe7c3cce24e4de659901d92586c1306c` |
+| `BetterPullReview-0.1.3-macos-universal-local.spdx.json` | `4fb15f0fd7ec256355fa39b6b75b096812512e4527a1e14a74eb6642360aa7fe` |
+| `BetterPullReview.app/Contents/Resources/ThirdParty/corresponding-source.zip` | `3b0c46045b6f4c070ab59f44124b932ce2c85dd850a480ffd0794513082b6c2e` |
+
+All 43 installed file hashes match; SPDX has 71 packages and 144 relationships,
+clean source identity and no stale producer verification code. The complete
+43-file installed inventory is identical to the clean `65dd7dd4` package; only
+the external SPDX source/assertion metadata changed. ZIP/SBOM checksums and the
+existing binary dependency scan pass. Both MCP helper slices link only system
+libc++/libSystem, not Qt. Tests-disabled graph and selected fixture byte/symbol
+checks pass; a forbidden platform-plugin-path CLI request fails before startup
+with `INSTALLED_RUNTIME_REFUSED`.
+
+The existing `verify_runtime_surface.py` forces the offscreen Qt plugin. That
+plugin is intentionally not shipped, so its attempted package execution fails
+at Qt initialization and is not a passing runtime audit. M7/M9 must select the
+native platform for that course without expanding the shipped plugin closure.
+
+### Public UI and remaining acceptance
+
+An earlier working package at `build/releases/m6-working-v3/` reached the real
+native window through the existing external local-only `gh` fixture, not an
+in-product fixture hook. Native UI actions selected GitHub CLI, its read-only
+consent, PR 17 and Start review at `review.cpp`. AX and screenshot showed six
+exact earlier values 11–16, later values 21–26, one replacement, one Diff
+correspondence map and one Shared comparison position scrollbar; normal Quit
+completed with exit 0. App SHA was
+`2983c9382ffb8c495cd367b194dc4e751f57bd0b5548142feee1da013b4ea613`.
+This was a dirty working candidate and is not substituted for final acceptance.
+
+The final exact-byte candidate was launched under the installed qualification
+guard in `/Users/jaeger/bpr-m6-final.NqToKm/fixture`; CUA reported the Mac locked
+and automatic unlock unavailable. No UI pass is claimed. The bounded launcher
+terminated/reaped the process after 310 seconds; selected live project/MASK
+files stayed hash-identical. Unlock the Mac and repeat the external fixture
+course against the final bundle before accepting AC3 and M6 exit 2. There is no
+required human verdict, attended-review server or hidden approval request here.
+
+Read-only station discovery confirmed JaegAW, VS 18 Community and Smart App
+Control state 0. The Windows installed skill link lacks a resolvable
+`station_lease.py`; WiX/native toolchain activation and CRT notice are not
+qualified. WSL's free guarded station is Ubuntu 26.04, not Ubuntu 24.04 or RHEL
+10. Both remote checkouts have unrelated `.mask.lock.json` changes. No remote
+dispatch, mutation, checkout, build or repair occurred. Their declared native
+package matrix remains M8; all exact trust/vault/crash/security and distribution
+approval obligations remain M9. MASK drift/incomplete and host-load
+`not_verified` remain configuration observations, not silent repairs.
+
+The [durable M6 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m6.json)
+records the resume command, all candidate identities, ownership and pending
+acceptance. No background command, child, review server or protected candidate
+is handed off. The final disposable fixture and normal ignored package/build
+evidence remain; earlier exact task-owned fixture/probe and archive directories
+were moved to the user's Trash after their evidence was recorded and remain
+recoverable. No unrelated worktree changed
+through this child's actions. Full RFC closeout and its predecessor gate remain
+unchanged.

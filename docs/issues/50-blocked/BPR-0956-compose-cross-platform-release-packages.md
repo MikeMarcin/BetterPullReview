@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0956"
 title: "Compose cross-platform release packages"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0952","BPR-0955"]
 milestone: "M6 Composition and public-path integration"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+blocked_by: "native-desktop-locked"
 ---
 
 # Compose cross-platform release packages
@@ -23,9 +24,36 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Verification and execution record
 
-Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-The milestone owner must record source/artifact identities and focused public
-checks here. Native, human and external evidence cannot be self-certified.
+Implemented under mandate r3 at source candidate
+`da12f5568f8ab207d8a75451cda9b3de1a49df63` (main implementation
+`65dd7dd4add669606f67f39da05e6b420effec77`). M6 is not yet accepted:
+the final packaged native UI replay is pending because the Mac is locked.
+The [M6 ledger](../../verification/RFC-BPR-0014.md#milestone-6-composition-and-public-path)
+and [durable handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m6.json)
+bind exact artifacts, commands, corrections, native limits and the resume action.
+
+- AC1 implementation pass: application-only per-user Windows MSI, macOS 13
+  universal and Ubuntu 24.04/RHEL 10 package definitions; Linux per-user archive
+  plus managed DEB/RPM routes. Core-only build and policy/host tests pass 2/2.
+  Windows/Linux native qualification remains M8, not inferred from definitions.
+- AC2 implementation/available-host pass: the unchanged authoritative macOS
+  release pipeline's new local prepare route produces a clean tests-disabled
+  bundle/ZIP, exact 43-file SPDX inventory, pinned complete corresponding source,
+  notices and checksums. Both-slice floor/dependency checks, offline ad-hoc seal,
+  relocated launch, all installed hashes and artifact checksums pass. Real release
+  trust, native CRT/license review and owner distribution approval remain M9.
+- AC3 partial: the final source's actual fixture comparison plus two-window
+  retirement/clear/purge/recovery course passes. An earlier working local package
+  reached PR 17 → `review.cpp`, exact 11–16/21–26 values, one correspondence map
+  and one shared scrollbar through native UI. That is not substituted for the
+  final artifact replay: CUA reported the Mac locked; the bounded launch timed
+  out and was reaped. Unlock and repeat the named final course before accepting
+  AC3/M6 exit 2. No human review verdict is being requested at this milestone.
+
+All independent commands are complete. No Developer ID signing, Keychain change,
+notarization, tag, push, upload, publication or remote station mutation occurred.
+Ordinary offline ad-hoc sealing is the explicitly authorized local verification
+exception. BPR-0957 stays Backlog until this M6 acceptance gap is resolved.
 
 ## M2 allocation for the successor
 
