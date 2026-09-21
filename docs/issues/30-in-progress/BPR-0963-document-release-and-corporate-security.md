@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0963"
 title: "Document release and corporate security"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M10 Agent and product documentation impact"
