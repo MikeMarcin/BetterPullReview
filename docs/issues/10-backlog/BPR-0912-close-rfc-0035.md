@@ -17,9 +17,10 @@ metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans
 [RFC-BPR-0035](../../rfcs/RFC-BPR-0035-github-release-auto-updater.md) implementation
 was requested on 2026-09-20. Milestones 1, 2 and 3 are accepted under [[BPR-0946]],
 [[BPR-0947]] and [[BPR-0948]]. [[BPR-0949]] has completed available-target M4
-engineering and its amended Apple Silicon acceptance is being reconciled under r3.
+engineering and is Done under its amended Apple Silicon acceptance in r3.
 Intel updater validation is deferred to [[BPR-0950]] and does not gate this closeout.
-Live private-release/vault evidence and RFC dependency/order gates remain open.
+BPR-0911 is Blocked on live private-release/vault evidence; this card remains
+Backlog with that prerequisite and RFC dependency/order gates open.
 
 RFC base: `1b4c24154bd1d4f1d4bea3d84c593e2fb4c3d47f`.
 
@@ -50,9 +51,9 @@ success and does not waive live private-release/vault evidence or other RFC gate
 - AC-06: Interrupted replacement and failed relaunch retain a recoverable old
   application; success requires a matching new-process receipt, and cleanup touches
   only transaction-owned resources.
-- AC-07: The packaged macOS update path on Apple Silicon upgrades an older signed version to the
-  offered signed version, relaunches with retained user state, and reports truthful
-  progress and terminal status.
+- AC-07: The packaged macOS update path on Apple Silicon upgrades an older signed
+  version to the offered signed version, relaunches with retained user state, and
+  reports truthful progress and terminal status.
 - AC-08: Core, host, Qt and platform boundaries hold; unsupported platforms and
   managed packages expose truthful manual fallback; release and security
   documentation describe the shipped authority and network paths.
@@ -77,13 +78,18 @@ is unchanged. No review session, server or protected updater candidate exists.
 Unrelated `.mask.lock.json` and all separately owned worktrees remain untouched.
 
 The owner expressly defers Intel validation to BPR-0950 outside M4 and RFC-0035
-closeout. The allocated card remains Backlog; counter and reservation are committed
-with that amendment. The authored plan retains all four milestones, all work
-selectors and the M4 exit; its boundary explicitly records the deferral and the
-unwaived live-service/dependency gates. `milestone_plan.py check-amendment` accepts
+closeout. Allocation/amendment commit `1ded36b9` includes the Backlog follow-up,
+counter and reservation; resumed BPR-0949 claim is `9933db57`. The authored plan
+retains all four milestones, all work selectors and the M4 exit; its boundary
+explicitly records the deferral and the unwaived live-service/dependency gates.
+`milestone_plan.py check-amendment` accepts
 only M4 as affected. Initial r3 binding: `build/rfc0035-run/m4-r3-checkpoint-initial.json`.
-The r2 checkpoint/observation is preserved as history; the amended r3 binding will
-govern this continuation.
+The r2 checkpoint/observation is preserved as history. The amended r3 binding at
+`build/rfc0035-run/m4-r3-checkpoint.json` is retained; final binding
+`build/rfc0035-run/m4-r3-checkpoint-final.json` refreshes only the closeout's
+AC-07 line wrapping after reconciliation. Its definition and obligation
+fingerprints bind the explicit acceptance amendment, not a change to M1–M3 or an
+invented native observation.
 
 Product source remains `518c384a285ef3cb873d12ea167488d105aa91b7`; qualified M3
 source remains `b7e2df46cc178bbcff88b49dd2170ecf27a8c764`, signed 0.0.352 package
@@ -92,17 +98,52 @@ and documentation only. The prior signed package does not contain the native
 menu correction; its unchanged installer/helper course and the separate native
 menu check are credited to their exact candidates.
 
-Current assessment: BPR-0949's amended AC-01 and its existing AC-02/03 pass;
+Acceptance commit `d6b5ed528b6646830debf5173de2f77c35c83144` finishes BPR-0949
+with all three amended card criteria passing. Its acceptance file is
+`build/rfc0035-run/m4-r3-acceptance.json`. BPR-0911 moves to Blocked on
+`private-service-qualification`, with all its implementation prerequisites Done;
+this card stays Backlog and RFC-0035/index remain Proposed. Full M4 is blocked:
 RFC AC-03 still lacks actual vault-backed private-release access, observed live
 asset routing and live revocation. No live credential/service authority is granted
 by r3. RFC-0014 remains Proposed with its broader packaging/security criteria and
 RFC-0013 dependency; the canonical closure frontier remains RFC-0008/BPR-0242.
 These are separate from the explicitly nonblocking Intel follow-up.
 
-The shortest public-path check passed before edits. Final documentation/board
-checks, exact commits, r3 binding/observation and command state will complete this
-checkpoint before handoff. No human acceptance criterion or review session is
-created by this deferral.
+Verification: shortest public-path 1/1 before edits; one updater/native-menu
+integration pass 9/9 at `9933db57` (21.50 seconds); documentation gate and 64
+documentation tests; scoped board/plan checks and whitespace check pass. Runtime
+command receipts are `build/rfc0035-run/m4-r3-{integration,documentation,documentation-tests}-evidence.json`.
+`git diff --exit-code 518c384a285ef3cb873d12ea167488d105aa91b7 HEAD -- src tests cmake CMakeLists.txt CMakePresets.json`
+is empty: no product/test/build input changed. Reuse earlier signed/helper,
+boundary and lint evidence with their original limits. The final documentation
+and board gates run again for the final lane reconciliation; test-suite source
+did not change. No new build, signing, live credentials, release access, tag, push,
+publication or installed/developer-app replacement occurred.
+
+Changed r3 paths are the Intel follow-up/counter/reservation, BPR-0949's amended
+acceptance and lane, BPR-0911's lane/reason, this closeout, RFC-0035/index, plan JSON
+and generated view, ledger and updater references in README, component/operator/
+security/package documentation and RFC-0014's scoped exception. Exact inventory:
+`git diff --name-status fe728286093326839b63f49f83487d61b5d88ad8 HEAD`.
+The immutable RFC baseline above and prior M1–M4 source inventories remain the
+accepted comparison basis; this round changes no implemented behavior.
+
+All task-owned commands and native fixture processes are joined. No helper/app
+installation, temporary source worktree, review server, attended session, protected
+candidate or pending human decision was created. Shared logs and packages remain
+in `build/rfc0035-run/`. `.mask.lock.json` retains its unrelated preexisting bytes
+and the external native-markdown, nested Claude and superseded sibling worktrees
+are preserved. The final runtime observation `build/rfc0035-run/m4-r3-observation.json`
+binds this bookkeeping commit's exact HEAD, with BPR-0949 pass, parent/closeout/exit
+pending, `blocked` disposition, `wait` continuation and quiescent ownership; the
+checkpoint check records consistency, not acceptance authority.
+
+Next action: resume this same M4 with explicitly authorized live private-release/
+native-vault account and target evidence, then reconcile RFC-0014 and canonical
+closeout eligibility. The r3 amendment requires no Intel course or attended review
+to take effect; live-service authority remains separate. BPR-0950 stays outside
+this milestone. This owner stops at the assigned final-milestone boundary; no
+other RFC work starts.
 
 ### Prior blocked M4 checkpoint (mandate r2)
 

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0911"
 title: "Implement GitHub release auto-updater"
-status: "Backlog"
+status: "Blocked"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0946", "BPR-0947", "BPR-0948", "BPR-0949"]
 milestone: "Post-Pack v2"
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
+blocked_by: "private-service-qualification"
 ---
 
 # Implement GitHub release auto-updater
@@ -51,12 +52,20 @@ The r2 amendment permits disposable local signing/notarization, not publication.
 
 Milestone 4 source `518c384a285ef3cb873d12ea167488d105aa91b7` fixes duplicate
 native update-menu entries and completes operator/recovery/security documentation.
-Under r3, [[BPR-0949]] can finish with its Apple Silicon native evidence and
-truthful criterion reconciliation. This parent still lacks explicitly authorized
-live private-release/vault evidence for RFC AC-03: fixtures exercise selection,
-revocation, redirects and refusal, but no actual vault-backed release access or
+Under r3, [[BPR-0949]] is Done at `d6b5ed528b6646830debf5173de2f77c35c83144`,
+with its Apple Silicon native evidence and truthful criterion reconciliation.
+This parent is Blocked on `private-service-qualification`: it still lacks
+explicitly authorized live private-release/vault evidence for RFC AC-03. Fixtures
+exercise selection, revocation, redirects and refusal, but no actual vault-backed release access or
 live route/revocation is observed. Intel qualification is separately deferred to
 [[BPR-0950]] and is not a blocking dependency. [[BPR-0912]] also retains the
 RFC-BPR-0014/canonical-order closure gates; the RFC remains Proposed.
 AllTheThings remains read-only provenance; Windows/Linux self-installation remains
 outside this card. Only the explicit Intel acceptance amendment changes scope.
+
+Next action: supply explicitly authorized live private-release/vault account and
+target evidence, bound to the actual candidate, observed asset route and revocation.
+Do not infer that authority from local signing/notarization permission. No live
+credential/service operation was attempted in the r3 round. All task commands are
+quiescent; the current handoff is [[BPR-0912]]. BPR-0950 remains a separate
+nonblocking Backlog follow-up, not a prerequisite of this card.

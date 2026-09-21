@@ -37,6 +37,13 @@ criteria and r2 blocked result remain below as historical records.
 | BPR-0911 / RFC AC-03 | Pending: no actual native-vault release credential, live private-release asset route or live revocation has been observed. M2's 24 TLS scenarios and menu/host fixtures remain bounded evidence. No access authority is granted. |
 | BPR-0912 / M4 exit | Pending: full parent acceptance plus RFC-0014's Proposed status and canonical order. RFC-0014 retains its separate wider packaging/security requirements and RFC-0013 dependency; the index's first closure frontier is RFC-0008/BPR-0242. |
 
+BPR-0949 is Done at `d6b5ed528b6646830debf5173de2f77c35c83144` after amendment/
+allocation `1ded36b9` and resumed claim `9933db57`. BPR-0911 is Blocked on
+`private-service-qualification`; BPR-0912 remains Backlog; RFC-0035/index remain
+Proposed. Full M4 is blocked by the remaining live-service and closeout gates,
+not Intel. BPR-0950 is Backlog outside the adopted plan, with no dependency from
+these remaining acceptance units.
+
 No product source changed from `518c384a285ef3cb873d12ea167488d105aa91b7`.
 Accepted M3 source remains `b7e2df46cc178bbcff88b49dd2170ecf27a8c764`; signed
 package source remains `5db1d104a2436a2b0df811ac2e40cff0c58c2319`. The package
@@ -46,9 +53,20 @@ package claim. Prior evidence, failures and resource limits remain intact.
 
 The shortest public composition ran before edits:
 `ctest --preset dev -R '^application_release_update_public_path$' --output-on-failure`:
-1/1 pass, 3.97 seconds. Final focused verification and r3 command/commit state are
-recorded on the live closeout before handoff. No attended or independent verdict
-is required for this documentation/acceptance amendment; none is claimed.
+1/1 pass, 3.97 seconds. One focused integration pass at `9933db57` used:
+`ctest --preset dev --output-on-failure -R '^(core_release_update|application_release_update|release_update_transport_contract|release_update_native_https|release_update_native_staging|release_update_transaction|release_update_recovery|application_release_update_public_path|application_profile_empty_desktop_native_menu_bar)$'`:
+9/9 pass, 21.50 seconds, including real Cocoa menu and loopback TLS cases.
+`python3 scripts/verify_documentation.py --root .` passes and
+`python3 tests/scripts/verify_documentation_tests.py` passes all 64 tests.
+Receipts are `build/rfc0035-run/m4-r3-{integration,documentation,documentation-tests}-evidence.json`.
+Scoped board/plan checks and `git diff --check` pass. Product/test/build inputs
+have no diff from `518c384a`; there is no new build or native signing artifact.
+Final lane/documentation checks and the bound r3 observation are recorded in the
+live closeout. All task commands/fixture processes are quiescent; the unrelated
+lock-file edit and worktrees remain intact. No new temporary installation,
+attended session, review server or protected candidate exists. No attended or
+independent verdict is required for this documentation/acceptance amendment;
+none is claimed.
 
 ## Milestone 1 candidate and checks
 

@@ -43,8 +43,9 @@ Milestone 4 source `518c384a` fixes duplicate native Check for Updates entries
 across two windows and the empty desktop, and supplies the
 [operator/recovery guide](../development/application-updates.md) and
 [security inventory](../security/release-updater.md). The r3 acceptance amendment
-below permits [[BPR-0949]] to finish using the accepted Apple Silicon course.
-[[BPR-0911]] retains unavailable live private-release/vault evidence; [[BPR-0912]]
+below closes [[BPR-0949]] using the accepted Apple Silicon course and current
+documentation/native-menu checks. [[BPR-0911]] is Blocked on unavailable live
+private-release/vault evidence; [[BPR-0912]] remains Backlog and
 also retains RFC-BPR-0014 and canonical-order gates. RFC-BPR-0014 remains Proposed
 and canonical closure still starts at RFC-BPR-0008.
 The unchanged signed Apple Silicon helper evidence does not certify M4's menu
