@@ -151,3 +151,9 @@ The [M2 architecture allocation](../architecture/release-readiness.md) maps the
 current typed owners, reusable maintenance/release paths, missing controls and
 package gaps to exact successor cards and public/native checks. Its Linux
 baseline is a declared qualification target, not observed native support.
+
+The [M3 maintenance policy](../architecture/release-maintenance.md) defines
+bounded metadata-only preview/export selection and exact profile-purge
+confirmation, with direct Qt/provider-free core tests. It reuses existing
+retention, migration-value, profile and updater policy. Native effects,
+controls, package privacy and the delivered matrix remain unaccepted.

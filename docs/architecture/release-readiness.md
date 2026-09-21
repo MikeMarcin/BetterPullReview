@@ -8,6 +8,10 @@ The immutable RFC base remains `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 This allocation records existing code separately from successor design and
 qualification. It changes no product behavior or RFC acceptance criterion.
 
+The subsequent [M3 core contract](release-maintenance.md) implements the bounded
+G5/G6 policy and records exact reuse evidence. Host effects and public controls
+remain M4–M6 obligations; the M2 inventory below retains its original meaning.
+
 The [live plan](../rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json)
 and [verification ledger](../verification/RFC-BPR-0014.md) own sequence and
 evidence. The twelve stages still apply; the existing release workflow and

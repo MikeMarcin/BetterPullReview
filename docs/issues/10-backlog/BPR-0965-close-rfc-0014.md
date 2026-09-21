@@ -48,9 +48,9 @@ this run does not reset or extend their acceptance.
 
 ## Verification and execution record
 
-The current owner is `/root/rfc0014_m2`, assignment milestone 2, mandate r3
+The current owner is `/root/rfc0014_m3`, assignment milestone 3, mandate r3
 (preserving r1/r2), run `rfc0014-20260920`, segment
-`m2-architecture-allocation`, on `main`.
+`m3-deterministic-functional-core`, on `main`.
 The available-target implementation exception permits work while earlier RFCs
 remain Proposed. It does not waive a package/native requirement or permit
 terminal closeout. BPR-0617 and RFC-BPR-0013 remain open; the earliest canonical
@@ -175,3 +175,16 @@ The [durable M2 handoff](../../rfcs/plans/rfc-bpr-0014-release-readiness/handoff
 names Ready BPR-0953 and the fresh M3 assignment. No M2 human decision or
 task-owned command remains; all M3–M12/native/security/predecessor obligations
 are retained.
+
+## Milestone 3 checkpoint
+
+M3 is bound to BPR-0953 under mandate r3, claimed at
+`d6a39867839283b12e0cdb597e605018041814fd`. The
+[core contract](../../architecture/release-maintenance.md) and
+[M3 binding](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m3.json)
+retain the exact new diagnostic/purge policy, reused semantic owners and all
+remaining host/Qt/package/native/security obligations. The source is prepared;
+focused verification and candidate integration are in progress. Next action:
+verify the exact candidate, finish BPR-0953 only if all M3 exits pass, and return
+a durable handoff for a fresh M4 owner. No review server or remote operation
+is authorized or active. Existing unrelated worktrees remain untouched.

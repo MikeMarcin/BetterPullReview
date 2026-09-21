@@ -23,9 +23,18 @@ only for unchanged inputs; this card is unaccepted until its direct criteria pas
 
 ## Verification and execution record
 
-Not run. Imported under mandate r1 at RFC base `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-The milestone owner must record source/artifact identities and focused public
-checks here. Native, human and external evidence cannot be self-certified.
+Claimed at `d6a39867839283b12e0cdb597e605018041814fd`, from clean main
+`9ceb9b0af2eff3c015203a48ff7dd12cc1c55b18`, by `/root/rfc0014_m3`, mandate r3.
+The [M3 binding](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m3.json)
+retains all three criteria and both milestone exits. RFC base remains
+`d0a8a6dda005af12b3818234f4878a9f48a44146`.
+
+The [core contract](../../architecture/release-maintenance.md) records the
+new bounded, allocation-free transition and the exact unchanged semantic
+owners. Initial public core courses pass: epoch retention, appearance values,
+profile ownership and updater policy. The new preview/export, clear and purge
+courses pass; no Qt/application host effects are claimed by those courses.
+Exact committed-candidate verification and acceptance are pending below.
 
 ## M2 allocation for the successor
 

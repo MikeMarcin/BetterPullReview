@@ -3,9 +3,9 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m2` owns only
-`rfc-bpr-0014-release-readiness/m2-architecture-allocation` on `main`.
-The M1 records below retain their original child and candidate provenance.
+current child `/root/rfc0014_m3` owns only
+`rfc-bpr-0014-release-readiness/m3-deterministic-functional-core` on `main`.
+The M1/M2 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
 [live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
@@ -381,3 +381,39 @@ recreate them. No unrelated worktree, product input or review candidate changed.
 No task-owned process/server is handed off. The final observation/check receipts
 are local to `build/rfc0014-run/m2-observation.json` and `m2-final-check.json`
 and bind the final bookkeeping HEAD without claiming new product acceptance.
+
+## Milestone 3: deterministic functional core
+
+Assignment `m3-deterministic-functional-core`, child `/root/rfc0014_m3`, mandate
+r3, run `rfc0014-20260920`, started from clean main
+`9ceb9b0af2eff3c015203a48ff7dd12cc1c55b18`. Guarded claim
+`d6a39867839283b12e0cdb597e605018041814fd` and the
+[M3 binding](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m3.json)
+retain accepted M1/M2, all BPR-0953 criteria and both M3 exits.
+
+The [maintenance contract](../architecture/release-maintenance.md) owns the
+typed state/selection/lifecycle and exact host obligations. New core code admits
+only fixed metadata fields, bounds preview to 1,024 records/256 KiB and purge
+inventory to 4,096 exact entries, requires exact preview/inventory confirmation,
+and rejects stale/duplicate/mismatched or over-limit work. State is trivially
+copyable and at most 512 bytes; no content bytes or effect dependencies enter it.
+Native capability checks, actual digest/byte equality, redaction, recovery,
+producer draining and UI confirmation remain M4–M6 work. These limits are
+conservative engineering ceilings, not latency or native qualification claims.
+
+Core retention, appearance/theme migration semantics, profile identity and
+updater policy are reused unchanged. The contract maps each to exact source
+and direct test selectors; migration transactions and credential sanitization
+remain their current host/adapter owners. No generic migration engine, second
+logger, broad RFC-0027 activation or alternate release pipeline is introduced.
+
+Early checks: `cmake --preset core-only` selected no Qt/provider; its dependency
+audit names Threads and test Python, with pinned SQLite acquired for host tests.
+The explicit epoch/appearance/profile/updater targets built and all four core
+courses passed (1.08 seconds). The first new test build caught four ignored
+`nodiscard` results in test code; each became an asserted transition outcome.
+The new public core course then passed. Self-review added exact cancellation
+target binding and preserved recovery after retiring irreversible deletion;
+their direct counterexamples pass. An initial tidy invocation used positional
+paths; the helper required `--paths`, and the corrected invocation passed.
+Final candidate-bound evidence follows after integration.
