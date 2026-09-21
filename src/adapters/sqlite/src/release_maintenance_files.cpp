@@ -8,6 +8,7 @@
 #include <array>
 #include <atomic>
 #include <exception>
+#include <iterator>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -1081,8 +1082,10 @@ namespace bpr::adapters::sqlite {
 				if (!std::ranges::all_of(nativeName, [](wchar_t aCharacter) { return aCharacter >= 32 && aCharacter <= 126; })) {
 					fail(reason::incomplete_inventory);
 				}
-				const std::string name{ nativeName.begin(), nativeName.end() };
-				const auto        relative = aPrefix.empty() ? name : std::string{ aPrefix } + "/" + name;
+				std::string name;
+				name.reserve(nativeName.size());
+				std::ranges::transform(nativeName, std::back_inserter(name), [](wchar_t aCharacter) { return static_cast<char>(aCharacter); });
+				const auto relative = aPrefix.empty() ? name : std::string{ aPrefix } + "/" + name;
 				if (excluded(relative) || (!aPurge && aPrefix.empty() && relative != "logs")) {
 					continue;
 				}

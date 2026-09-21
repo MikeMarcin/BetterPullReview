@@ -1,0 +1,102 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m8-ux-ui-native-verification",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m8-ux-ui-native-verification",
+    "definition_fingerprint": "sha256:55f98b97d093d01a3feacb3da36d65ff5d34f03b90a745a9d697ca481d4fe68f",
+    "obligations": [
+      {
+        "id": "BPR-0958:*",
+        "source": "BPR-0958",
+        "selector": null,
+        "source_fingerprint": "sha256:03f5542c92eb9ae938cdf278d71d94528daa486bd1f34e049b4a4ea1a049ad46"
+      },
+      {
+        "id": "BPR-0959:*",
+        "source": "BPR-0959",
+        "selector": null,
+        "source_fingerprint": "sha256:49de8f858efb26d4b09231081d1edddf2af1237546d3f81683e1c22bd006a6a3"
+      },
+      {
+        "id": "BPR-0960:*",
+        "source": "BPR-0960",
+        "selector": null,
+        "source_fingerprint": "sha256:7b31429b7744b4f87898319273b797870396569b938e7a6773a4645284635cc5"
+      },
+      {
+        "id": "BPR-0961:*",
+        "source": "BPR-0961",
+        "selector": null,
+        "source_fingerprint": "sha256:b05a84f23cf2a82c3f6363a26f661b37f76f72c6850afca1a8382e61ba808935"
+      }
+    ],
+    "obligation_fingerprint": "sha256:e9a2179947176fecaab56b41cfaed84f0b45277292cbf8924a5257e03d7c44d4",
+    "exit_criteria": [
+      {
+        "id": "m8-ux-ui-native-verification:exit:1",
+        "text": "Clean Windows 10/11 x64, macOS Intel/Apple Silicon and declared Linux x64 DEB/RPM environments satisfy their complete native card criteria."
+      },
+      {
+        "id": "m8-ux-ui-native-verification:exit:2",
+        "text": "Human decisions, where required by an actual interaction criterion, bind the exact candidate and are supplied through attended review rather than self-certified."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:12e60b5412a82c362593968c4c412917e212df98e9adea9bed0bd67834bba1fb",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "df273695d4484c42fa7b2f0a7a3fe95c16443dc0",
+    "workflow_branch": "main",
+    "workflow_revision": "df273695d4484c42fa7b2f0a7a3fe95c16443dc0"
+  }
+}
