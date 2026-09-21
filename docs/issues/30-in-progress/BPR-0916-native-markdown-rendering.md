@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0916"
 title: "Implement native Markdown rendering for review content"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 milestone: "Post-Pack v2"
