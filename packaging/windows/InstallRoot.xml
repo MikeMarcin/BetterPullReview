@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Remember the selected per-user directory for repair and uninstall. CPack's
+     registry-keyed components otherwise resolve the default directory again. -->
+<CPackWiXPatch>
+    <CPackWiXFragment Id="#PRODUCT">
+        <Property Id="BPR_PREVIOUS_INSTALL_ROOT">
+            <RegistrySearch Id="BprPreviousInstallRoot" Root="HKCU"
+                Key="Software\GameCoreTech\BetterPullReview" Name="InstallRoot" Type="raw"/>
+        </Property>
+        <SetProperty Id="INSTALL_ROOT" Value="[BPR_PREVIOUS_INSTALL_ROOT]"
+            Before="CostInitialize" Sequence="both"
+            Condition="BPR_PREVIOUS_INSTALL_ROOT AND NOT INSTALL_ROOT"/>
+        <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALL_ROOT]"
+            After="CostFinalize" Sequence="execute"/>
+    </CPackWiXFragment>
+    <CPackWiXFragment Id="INSTALL_ROOT_RemoveFolderComponent">
+        <RegistryValue Root="HKCU" Key="Software\GameCoreTech\BetterPullReview"
+            Name="InstallRoot" Type="string" Value="[INSTALL_ROOT]"/>
+    </CPackWiXFragment>
+</CPackWiXPatch>

@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("package_runtime", ROOT / "packaging/package_runtime.py")
@@ -14,6 +15,24 @@ spec.loader.exec_module(runtime)
 
 
 class PackageRuntimeTests(unittest.TestCase):
+    def test_windows_remembers_only_its_per_user_install_directory(self):
+        config = (ROOT / "packaging/Install.cmake").read_text()
+        self.assertIn('set(CPACK_WIX_INSTALL_SCOPE perUser)', config)
+        self.assertIn('packaging/windows/InstallRoot.xml', config)
+        patch = ET.parse(ROOT / "packaging/windows/InstallRoot.xml").getroot()
+        product = patch.find("./CPackWiXFragment[@Id='#PRODUCT']")
+        search = product.find("./Property[@Id='BPR_PREVIOUS_INSTALL_ROOT']/RegistrySearch")
+        stored = patch.find("./CPackWiXFragment[@Id='INSTALL_ROOT_RemoveFolderComponent']/RegistryValue")
+        for key in ("Root", "Key", "Name"):
+            self.assertEqual(search.get(key), stored.get(key))
+        self.assertEqual(search.get("Root"), "HKCU")
+        self.assertEqual(stored.get("Value"), "[INSTALL_ROOT]")
+        restore = product.find("./SetProperty[@Id='INSTALL_ROOT']")
+        self.assertEqual(restore.get("Before"), "CostInitialize")
+        self.assertEqual(restore.get("Sequence"), "both")
+        self.assertEqual(restore.get("Condition"), "BPR_PREVIOUS_INSTALL_ROOT AND NOT INSTALL_ROOT")
+        self.assertEqual(restore.get("Value"), "[BPR_PREVIOUS_INSTALL_ROOT]")
+
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
         self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "LibArchive", "extra-cmake-modules"})
