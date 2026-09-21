@@ -297,10 +297,40 @@ namespace {
 		std::cout << "native-signed-recovery:pass; upgrade-and-new-helper-receipt:not-qualified\n";
 		return 0;
 	}
+	auto native_prepare(char** aArguments) -> int
+	{
+		const fs::path root{ aArguments[2] }, archive{ aArguments[3] }, stateRoot{ aArguments[5] };
+		const auto*    permitted = std::getenv("QUALIFICATION_TARGET_ROOT");
+		expect(permitted && fs::canonical(root) == fs::path{ permitted }
+				   && fs::canonical(stateRoot) == stateRoot && stateRoot.string().starts_with(root.string() + "/"),
+			   "native fault course requires disposable scope");
+		struct native_effects final : adapters::update::detail::install_effects
+		{
+			auto validate(const fs::path& aBundle, const fs::path& aTrust, const core::release_update_candidate& aCandidate) -> bool override
+			{
+				return adapters::update::detail::validate_install_tree(aBundle, aTrust, aCandidate, { }) == reason::none;
+			}
+			auto launch(const fs::path&, std::string_view) -> bool override { return false; }
+		} native;
+		const std::string version{ aArguments[4] };
+		const auto        parsed = core::parse_release_update_version(version);
+		expect(parsed.has_value(), "native fault candidate version");
+		const core::release_update_candidate candidate{ core::release_update_release_id{ 350U }, core::release_update_asset_id{ 351U }, *parsed, "v" + version, "BetterPullReview-" + version + "-macos-universal.zip", fs::file_size(archive), { } };
+		transaction                          update{ root / "installed/BetterPullReview.app", native, [](boundary aPoint) { return aPoint != boundary::after_old_rename; } };
+		expect(update.prepare(root / "staged/BetterPullReview.app", candidate, [] { return true; }, stateRoot) == reason::none, "native fault preparation validates exact target");
+		if (std::string_view{ aArguments[6] } == "after-old-rename") {
+			expect(update.replace() == reason::recovery_required && fs::exists(update.transaction_path() / "backup.app"), "native interrupted rename retains old signed helper");
+		}
+		std::cout << update.identity() << '\n';
+		return 0;
+	}
 }
 auto main(int argc, char** argv) -> int
 {
 	QCoreApplication application{ argc, argv };
+	if (argc == 7 && std::string_view{ argv[1] } == "--native-prepare") {
+		return native_prepare(argv);
+	}
 	if (argc == 4 && std::string_view{ argv[1] } == "--native-signed-recovery") {
 		return native_signed_recovery(fs::path{ argv[2] }, fs::path{ argv[3] });
 	}

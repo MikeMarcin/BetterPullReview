@@ -1,6 +1,7 @@
 #include "bpr/app/release_update_desktop.hpp"
 
 #include "bpr/adapters/sqlite/release_update_store.hpp"
+#include "bpr/adapters/update/release_update_installation.hpp"
 #include "bpr/adapters/update/release_update_staging.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
@@ -95,12 +96,20 @@ namespace bpr::app {
 			const auto version   = QCoreApplication::applicationVersion().toStdString();
 			const bool boundary  = qEnvironmentVariableIsSet("BPR_AUTOMATED_TEST_BOUNDARY");
 			auto       staging   = adapters::update::make_release_update_staging(aRoot, installed, Cleanup);
-			auto       store     = adapters::sqlite::make_release_update_store(std::move(aRoot));
-			Effects.post([self = shared_from_this(), installed, version, staging, store, boundary] {
-				const auto capability = boundary ? core::release_update_capability::untrusted_installation : adapters::update::release_update_installation_capability(installed, { });
-				self->Decisions.post([self, version, staging, store, boundary, capability] {
+			auto       store     = adapters::sqlite::make_release_update_store(aRoot);
+			Effects.post([self = shared_from_this(), installed, version, staging, store, boundary, root = std::move(aRoot)] {
+				const auto                                                capability = boundary ? core::release_update_capability::untrusted_installation : adapters::update::release_update_installation_capability(installed, { });
+				std::shared_ptr<application::release_update_install_port> installer;
+#if defined(__APPLE__)
+				if (capability == core::release_update_capability::eligible) {
+					installer = adapters::update::make_release_update_installer(installed, root);
+				}
+#else
+				static_cast<void>(root);
+#endif
+				self->Decisions.post([self, version, staging, store, boundary, capability, installer] {
 					self->start({ version, capability, std::make_shared<update_clock>(), store, staging, staging,
-								  [boundary](std::string aAddress) { if (!boundary) { system_browser_opener opener; static_cast<void>(opener.open(aAddress)); } } });
+								  [boundary](std::string aAddress) { if (!boundary) { system_browser_opener opener; static_cast<void>(opener.open(aAddress)); } }, installer });
 				});
 			});
 		}

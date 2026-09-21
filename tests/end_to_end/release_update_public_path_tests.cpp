@@ -1,9 +1,15 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/adapters/sqlite/release_update_store.hpp"
+#include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#if defined(__APPLE__)
+	#include "bpr/adapters/update/release_update_installation.hpp"
+	#include "bpr/adapters/update/release_update_staging.hpp"
+#endif
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/app/release_update_desktop.hpp"
+#include "bpr/app/worker_executor.hpp"
 #include "bpr/qt/release_update_panel.hpp"
 #include "bpr/qt/release_update_recovery_dialog.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -14,6 +20,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QLabel>
 #include <QMenuBar>
@@ -38,11 +45,11 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	}
-	void until(const std::function<bool()>& aCondition, const char* aMessage)
+	void until(const std::function<bool()>& aCondition, const char* aMessage, int aMilliseconds = 12000)
 	{
 		QElapsedTimer timer;
 		timer.start();
-		while (!aCondition() && timer.elapsed() < 12000) {
+		while (!aCondition() && timer.elapsed() < aMilliseconds) {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
@@ -284,12 +291,162 @@ namespace {
 			until([&] { return desktop->quiescent(); }, "fallback service drains");
 		}
 	}
+#if defined(__APPLE__)
+	void native_state(char** aArguments)
+	{
+		namespace fs = std::filesystem;
+		const fs::path root{ aArguments[2] }, state{ aArguments[3] };
+		const auto*    permitted = std::getenv("QUALIFICATION_TARGET_ROOT");
+		expect(permitted && fs::canonical(root) == fs::path{ permitted } && fs::canonical(state) == state
+				   && state.string().starts_with(root.string() + "/"),
+			   "native state requires exact disposable scope");
+		const bool                                                 seed = std::string_view{ aArguments[4] } == "seed";
+		const std::vector<application::release_update_saved_draft> drafts{
+			{ "native-draft-1", "First window draft", "Retained signed update draft", false },
+			{ "native-draft-2", "Second window indeterminate publication", "Check server before publishing again", true }
+		};
+		auto recovery = adapters::sqlite::make_release_update_recovery_store(state);
+		expect(!seed || recovery->save(drafts), "seed real private recovery store");
+		const auto retained = recovery->load();
+		expect(retained && *retained == drafts, "native draft text and indeterminate marker retained exactly");
+		auto store = adapters::sqlite::make_review_mutation_recovery_store({ state, "github.com", "21", "fixture/update-qualification", 1 });
+		expect(store.has_value(), "real publication recovery store opens");
+		application::review_mutation_recovery_record record;
+		record.IdempotencyKey = std::string(64U, 'a');
+		record.RequestFingerprint.fill(0x11U);
+		record.AuthorityFingerprint.fill(0x22U);
+		record.Body = "Unresolved signed update qualification write";
+		std::array<std::uint8_t, 32> comparison{ };
+		comparison.fill(0x33U);
+		std::array<std::uint8_t, 32> commit{ };
+		std::fill_n(commit.begin(), 20U, 0x44U);
+		record.Anchor                  = { { core::file_comparison_digest{ comparison }, core::diff_side::right, 12U }, "fixture/review.txt", core::git_commit_oid{ core::git_hash_algorithm::sha1, commit } };
+		record.BaselineExactCommentIds = std::vector<std::string>{ "PRRC_fixture_40" };
+		record.Transmission            = application::review_mutation_recovery_transmission::prepared;
+		if (seed) {
+			expect((*store)->admit(record).has_value() && (*store)->mark_possibly_transmitted(record.IdempotencyKey, record.RequestFingerprint).has_value(), "seed durable unresolved publication without a network write");
+		}
+		record.Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		const auto pending  = (*store)->load(record.IdempotencyKey);
+		expect(pending && *pending && **pending == record, "native restart preserves exact unresolved publication and baseline");
+		std::cout << "native-retained-state:pass\n";
+	}
+	struct signed_access final : application::release_update_access_port
+	{
+		std::filesystem::path                                      Archive;
+		std::string                                                Version;
+		std::shared_ptr<application::release_update_archive_store> Store;
+		std::atomic<unsigned>                                      Checks = 0U;
+		auto                                                       binding() const noexcept -> core::release_update_access_id override { return core::release_update_access_id{ 350U }; }
+		auto                                                       kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
+		auto                                                       latest(std::stop_token) -> application::release_update_check_result override
+		{
+			++Checks;
+			return { reason::none, { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 350U }, "v" + Version, false, false, { { core::release_update_asset_id{ 351U }, "BetterPullReview-" + Version + "-macos-universal.zip", std::filesystem::file_size(Archive), { }, true } } }, 0U, "Disposable signed qualification" };
+		}
+		auto download(const core::release_update_candidate& aCandidate, std::stop_token aStop, const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override
+		{
+			auto  writer = Store->begin(aCandidate);
+			QFile input{ QString::fromStdString(Archive.string()) };
+			if (!writer || !input.open(QIODevice::ReadOnly)) {
+				return { reason::unavailable, { }, 0U, 0U };
+			}
+			std::uint64_t count = 0U;
+			while (!input.atEnd() && !aStop.stop_requested()) {
+				const auto bytes = input.read(65536);
+				if (bytes.isEmpty() || !writer->append(std::as_bytes(std::span{ bytes.constData(), static_cast<std::size_t>(bytes.size()) }))) {
+					return { reason::unavailable, { }, count, 0U };
+				}
+				count += static_cast<std::uint64_t>(bytes.size());
+				aProgress(count);
+			}
+			return { aStop.stop_requested() ? reason::cancelled : reason::none, writer->finish(), count, 0U };
+		}
+	};
+	void native_handoff(char** aArguments)
+	{
+		namespace fs = std::filesystem;
+		const fs::path root{ aArguments[2] }, archive{ aArguments[3] }, stateRoot{ aArguments[6] };
+		const auto*    permitted = std::getenv("QUALIFICATION_TARGET_ROOT");
+		expect(permitted && fs::canonical(root) == fs::path{ permitted }, "native public course requires disposable guard");
+		expect(fs::canonical(stateRoot) == stateRoot && stateRoot.string().starts_with(root.string() + "/"), "native restart state stays in disposable root");
+		const auto installed = root / "installed/BetterPullReview.app";
+		expect(adapters::update::release_update_installation_capability(installed, { }) == core::release_update_capability::eligible, "actual signed baseline is eligible");
+		const auto driverRoot = root / "driver";
+		fs::create_directory(driverRoot);
+		expect(adapters::sqlite::make_storage_root_owner_private(driverRoot), "private driver state");
+		app::worker_executor                 cleanup;
+		auto                                 staging = adapters::update::make_release_update_staging(driverRoot, installed, cleanup);
+		auto                                 store   = adapters::sqlite::make_release_update_store(driverRoot);
+		application::release_update_settings initial;
+		initial.Preferences.AutomaticChecks = false;
+		expect(store->save(initial), "native course requires explicit manual gesture");
+		auto wire                    = std::make_shared<signed_access>();
+		wire->Archive                = archive;
+		wire->Version                = aArguments[5];
+		wire->Store                  = staging;
+		auto                 desktop = app::release_update_desktop::start({ aArguments[4], core::release_update_capability::eligible, std::make_shared<clock>(), store, staging, staging, { }, adapters::update::make_release_update_installer(installed, stateRoot) });
+		qt::workbench_window window;
+		qt::settings_window  settings;
+		desktop->attach(window);
+		desktop->attach(settings);
+		desktop->set_accounts({ { std::string(64U, 'b'), "Local fixture authority", [wire](auto, auto, auto aDone) { aDone(wire); } } });
+		until([&] { return desktop->projection().Installed.has_value(); }, "native settings loaded");
+		auto* panel = dynamic_cast<qt::release_update_panel*>(settings.findChild<QWidget*>(QStringLiteral("releaseUpdatePanel")));
+		expect(panel, "public Settings update panel");
+		auto* accounts = panel->findChild<QComboBox*>(QStringLiteral("releaseUpdateAccount"));
+		accounts->setCurrentIndex(1);
+		accounts->activated(1);
+		window.findChild<QAction*>(QStringLiteral("checkForUpdatesAction"))->trigger();
+		until([&] { return desktop->projection().Phase == phase::available; }, "native menu offer");
+		panel->action(command::download)->trigger();
+		until([&] { return desktop->projection().Phase == phase::ready || desktop->projection().Phase == phase::failed; }, "native archive staging terminal", 300000);
+		expect(desktop->projection().Phase == phase::ready, "actual signed target passes native staging");
+		expect(panel->action(command::install)->isEnabled(), "verified candidate permits exact Install and Restart gesture");
+		panel->action(command::install)->trigger();
+		until([&] { return desktop->projection().Phase == phase::handed_off || desktop->projection().Phase == phase::failed; }, "native helper handoff terminal", 300000);
+		expect(desktop->projection().Phase == phase::handed_off && wire->Checks == 2U, "native handoff follows exact release refresh");
+		std::cout << "native-public-handoff:accepted\n"
+				  << std::flush;
+		std::optional<adapters::update::release_update_installation_result> result;
+		until([&] {
+			if (std::ranges::any_of(fs::directory_iterator{ installed.parent_path() }, [](const auto& aEntry) { return aEntry.path().filename().string().starts_with(".bpr-update-") && fs::exists(aEntry.path() / "active.json"); })) {
+				return false;
+			}
+			auto observer = adapters::update::release_update_installation::join(installed);
+			if (observer) {
+				result = (*observer)->last_result();
+			}
+			return result.has_value();
+		},
+			  "native helper reaches durable terminal", 150000);
+		const bool expected = std::string_view{ aArguments[7] } == "installed";
+		expect(result->Installed == expected && desktop->observe_installation_result(result->Installed), "native result reaches public projection");
+		std::cout << "native-public-result:" << (result->Installed ? "installed" : "recovered") << ":" << result->Transaction << '\n';
+		desktop->shutdown();
+		until([&] { return desktop->quiescent(); }, "native public service drains");
+		desktop.reset();
+		wire.reset();
+		staging.reset();
+		cleanup.close_and_drain();
+	}
+#endif
 }
 auto main(int aArgc, char** aArgv) -> int
 {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QApplication::setApplicationVersion(QStringLiteral("2.3.3"));
+#if defined(__APPLE__)
+	if (aArgc == 5 && std::string_view{ aArgv[1] } == "--native-state") {
+		native_state(aArgv);
+		return 0;
+	}
+	if (aArgc == 8 && std::string_view{ aArgv[1] } == "--native-handoff") {
+		native_handoff(aArgv);
+		return 0;
+	}
+#endif
 	root_wiring();
 	gestures_restart_and_staging();
 	unavailable_installations();
