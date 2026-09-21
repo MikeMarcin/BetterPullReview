@@ -299,3 +299,11 @@ and index retain Proposed. No required human criterion exists in this RFC; nativ
 Cocoa rendered/input/accessibility evidence satisfies the available-platform
 criteria without claiming VoiceOver certification or physical-input attendance.
 Windows/Linux and live-provider behavior remain unclaimed.
+
+Technical card acceptance is revision-bound to source `a3ab46ee`; BPR-0916's
+finish commit is `efa43883`. Guarded BPR-0917 readiness and claim follow only
+after that implementation dependency is Done. Final gate artifacts are
+`m2-docs-final.log`, `m2-docs-tests-final.log` (64 tests), and
+`m2-board-final.json` (valid). The completion observation/check result under
+`build/rfc0036-run/` records the final documentation HEAD and quiescent ownership.
+The unrelated `.mask.lock.json` change is excluded from every producer commit.
