@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0952"
 title: "Allocate package and security ownership"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0951"]
 milestone: "M2 Architecture allocation"
