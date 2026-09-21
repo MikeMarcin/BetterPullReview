@@ -1,0 +1,24 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0951",
+    "BPR-0952",
+    "BPR-0953",
+    "BPR-0954",
+    "BPR-0955",
+    "BPR-0956",
+    "BPR-0957",
+    "BPR-0958",
+    "BPR-0959",
+    "BPR-0960",
+    "BPR-0961",
+    "BPR-0962",
+    "BPR-0963",
+    "BPR-0964",
+    "BPR-0965"
+  ],
+  "reserve_for": "rfc-bpr-0014-main",
+  "purpose": "RFC-BPR-0014 authored twelve-stage plan and native package acceptance",
+  "created": "2026-09-21T02:29:30.961131+00:00",
+  "base": "d0a8a6dda005af12b3818234f4878a9f48a44146"
+}
