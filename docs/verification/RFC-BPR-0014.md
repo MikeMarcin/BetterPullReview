@@ -517,3 +517,35 @@ type tidy findings; each was corrected before final verification. The first
 MinGW check also needed the project's existing missing-field-initializer warning
 exception. No compile/test failure is being presented as a passing platform
 qualification. Final exact-candidate results and acceptance follow below.
+
+Source candidate: `19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8`.
+
+| Exact-candidate check | Result / evidence limit |
+|---|---|
+| Core-only build of new host/native tests and existing store/vault courses | Pass, 0.505 seconds; no Qt/provider needed by the new application API |
+| `ctest --test-dir build/core-only --output-on-failure -R '^(application_release_maintenance\|sqlite_release_maintenance_files\|sqlite_appearance_settings_storage\|sqlite_workbench_settings_storage\|sqlite_device_binding_storage\|sqlite_profile_runtime_lease\|sqlite_epoch_catalog_storage_contract\|sqlite_epoch_catalog_behavior_contract\|sqlite_review_ledger_storage\|sqlite_review_mutation_recovery_storage\|sqlite_queue_enrollment_storage\|sqlite_window_review_restoration_storage\|application_github_credential_vault)$' -j4` | 13/13 pass, 43.33 seconds; actual macOS private roots and SQLite plus manual/fake vault boundaries |
+| Dev app/logger/profile-target build; `ctest --test-dir build/dev --output-on-failure -R '^(quill_logging\|quill_logging_backpressure\|application_logging\|application_profile_management_public_path\|application_profile_multi_window_public_path\|application_epoch_maintenance_public_path)$' -j2` | 6/6 pass, 81.22 seconds; retention/restart course 50.80 seconds; tests-enabled real composition, not a delivered package |
+| `x86_64-w64-mingw32-g++ -std=c++23 -Wall -Wextra -Werror -Wno-missing-field-initializers -Wconversion -Wsign-conversion -Wshadow=local -fmax-errors=5 -fsyntax-only` with project/SQLite/Quill includes and eight changed host/native/logging/catalog/test TUs | Pass, 8.734 seconds, GCC 16.2.0; Windows source/type evidence only, not MSVC linking or native execution |
+| `/usr/bin/clang++ -std=c++23 -g -fsanitize=address,undefined -fno-omit-frame-pointer` for new host/parser/credential/native and direct-test TUs, linked to existing static dependencies; both binaries with `ASAN_OPTIONS=abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1` | Compile and run pass; both course pass markers, no findings. Existing static dependencies are not sanitizer-instrumented; this is not package-wide release-policy acceptance |
+| Complete candidate `git archive`; `cmake -DBPR_ROOT=/Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-candidate.jloLnD -P /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-candidate.jloLnD/cmake/VerifyArchitectureBoundaries.cmake` | Pass, 6.435 seconds; avoids the unrelated ignored nested worktree already diagnosed in M2 without changing it or the checker |
+| Touched-file format check; focused tidy in core-only and dev compilation databases | Pass, 20 files and nine TUs; clang-format/clang-tidy 23.1.1, existing tooling excludes non-user-code warnings |
+| `python3 scripts/verify_documentation.py --root .`; `python3 tests/scripts/verify_documentation_tests.py`; scoped board validation, plan discovery and whitespace | `DOCUMENTATION_OK`; 64/64 pass (2.156 seconds; hostile-fixture `ERROR` output is expected); 957 cards valid; same twelve-stage plan; clean whitespace |
+| Scoped no-impact diff from M4 entry; byte comparison of canonical RFC acceptance against immutable base | Core, Qt/app, GitHub/Git/MCP and release scripts/skill/presets unchanged; all nine canonical bullets identical |
+
+The exact command arrays/results are in
+`build/rfc0014-run/m4-{core-build,core-tests,dev-build,public-tests,windows-source,sanitizer-native-build,sanitizer-native,sanitizer-host-build,sanitizer-host,architecture,format,tidy,adapter-tidy,documentation,documentation-tests,board,discovery,reuse-no-impact,acceptance-fidelity}-evidence.json`.
+The durable handoff records reproducible commands and candidate identity; build
+receipts are local ignored verification output, not shipped artifacts.
+
+All three BPR-0954 criteria and both M4 exits are accepted for the implemented
+host/adapters and direct disposable-root course. Windows source mechanisms and
+test registration are complete rather than waived; actual Windows/MSVC, Linux,
+OS-vault and native installer/removal qualification stays explicitly pending
+with M8. Qt controls/rendered acceptance and real lifecycle composition belong
+to M5/M6. Package trust, native crash artifacts, complete dependency/licensing,
+hardening/security policy, G9's local activation IPC issue and canonical
+predecessors remain open. No human/independent verdict or release command is
+claimed. BPR-0885/BPR-0891 remain unclaimed despite overlapping source repairs.
+The complete publish-release skill was read; existing release paths are
+unchanged and were not run. MASK drift/incomplete and `host_load: not_verified`
+remain recorded discrepancies, not acceptance evidence.

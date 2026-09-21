@@ -48,9 +48,9 @@ this run does not reset or extend their acceptance.
 
 ## Verification and execution record
 
-The current owner is `/root/rfc0014_m3`, assignment milestone 3, mandate r3
+The current owner is `/root/rfc0014_m4`, assignment milestone 4, mandate r3
 (preserving r1/r2), run `rfc0014-20260920`, segment
-`m3-deterministic-functional-core`, on `main`.
+`m4-imperative-application-host`, on `main`.
 The available-target implementation exception permits work while earlier RFCs
 remain Proposed. It does not waive a package/native requirement or permit
 terminal closeout. BPR-0617 and RFC-BPR-0013 remain open; the earliest canonical
@@ -196,3 +196,26 @@ records cleanup and command quiescence. Next action is a fresh M4 owner for
 the actual bounded host effects. No review server or remote operation is active.
 Existing unrelated worktrees and every later native/security/predecessor
 obligation are preserved. This child stops at the M3 boundary.
+
+## Milestone 4 checkpoint
+
+M4's source candidate `19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8` supplies
+bounded host/native effects, exact inventory/credential cleanup and recovery,
+metadata-only local export and the existing logger's private Windows mechanism.
+The [M4 contract](../../architecture/release-maintenance.md#m4-host-and-native-effects)
+records lifecycle ownership, deliberate residuals and r3's full-profile purge
+adjustment while preserving ordinary retention/migration owners. The
+[M4 ledger](../../verification/RFC-BPR-0014.md#milestone-4-imperative-application-host)
+and [binding](../../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m4.json)
+retain the exact source, direct tests and both authored exits.
+
+All 13 host/storage/vault and six real logging/profile/retention courses pass
+at the candidate. New host/native TUs pass focused ASan/UBSan; Windows mechanisms
+and portable/native test TUs pass warnings-as-errors source compilation.
+Architecture, format/tidy, documentation/64 verifier tests, board/plan and
+unchanged canonical criteria pass. These accept BPR-0954/M4 only, not native
+Windows/MSVC execution, real OS-vault continuity, UI/human acceptance, full
+uninstall, package trust or crash artifacts. M5 must use the new typed host;
+M6 must wire its real lifecycle. Every platform/security/predecessor requirement
+and the MASK drift/host-load discrepancy remains open. This child stops at M4;
+no publication authority or running review session is added.
