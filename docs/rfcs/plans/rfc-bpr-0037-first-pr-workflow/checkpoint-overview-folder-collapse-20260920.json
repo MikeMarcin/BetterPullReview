@@ -36,10 +36,10 @@
         "id": "BPR-0934:*",
         "source": "BPR-0934",
         "selector": null,
-        "source_fingerprint": "sha256:f022011c44d4d211576b919f37d00e1192f1a1d4ad2fd7e3bdc0cc984be20f8d"
+        "source_fingerprint": "sha256:7e33cc1a17f2c30b3426736986364f1dccc60eaa2dc57bcfb1414ac1e4992292"
       }
     ],
-    "obligation_fingerprint": "sha256:d6c2e774d34e0a05cc401746b8fc466a5484b4ba26ba76147c3a6e1216917b9b",
+    "obligation_fingerprint": "sha256:28b8832839cb50c078430568459c10dafb6aaba2719bdbcb48750279d74924d2",
     "exit_criteria": [
       {
         "id": "overview-folder-collapse:exit:1",
@@ -78,8 +78,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "codex/rfc0037-overview-folders",
-    "source_revision": "0742cc13153690822e51a81d6a1ee3ea10209a99",
+    "source_revision": "f6103a7dc874caa0483b9efd93c7c1d14153410b",
     "workflow_branch": "codex/rfc0037-overview-folders",
-    "workflow_revision": "0742cc13153690822e51a81d6a1ee3ea10209a99"
+    "workflow_revision": "f6103a7dc874caa0483b9efd93c7c1d14153410b"
   }
 }

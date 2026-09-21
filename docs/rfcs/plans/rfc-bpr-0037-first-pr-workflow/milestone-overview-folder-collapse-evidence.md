@@ -132,9 +132,10 @@ git diff --check
 ```
 
 Documentation verification returned `DOCUMENTATION_OK`; all 64 verifier tests
-passed. Board validation was valid with 957 cards and no errors. The final upkeep
-reruns these gates after moving BPR-0934 to Done with four direct, revision-bound
-records in `acceptance-BPR-0934.json`. No issue ID was allocated or reused. The
+passed. Board validation was valid with 957 cards and no errors. Closeout commit
+`f6103a7dc874caa0483b9efd93c7c1d14153410b` moved BPR-0934 to Done with four
+direct, revision-bound records in `acceptance-BPR-0934.json`; the scoped queue is
+now 13/13 Done with no next card. No issue ID was allocated or reused. The
 original four milestone definitions and AC-01 through AC-09 acceptance records
 are unchanged; AC-10 is additive and separately accepted. The final checkpoint
 reconciles the card's expected source fingerprint change caused by recording
@@ -161,11 +162,27 @@ All task-owned builds and tests are finished before handoff. There are no task
 servers, background writers or attended protections newly created by this slice.
 The product candidate remains protected by `codex/rfc0037-overview-folders`.
 
-`checkpoint-overview-folder-collapse-20260920.json` and the matching observation
-bind the five-milestone plan, completed card, exact candidate repository state,
+`checkpoint-overview-folder-collapse-20260920.json` and
+`observation-overview-folder-collapse-20260920.json` bind closeout candidate
+`f6103a7d` (product unchanged from `a88c0d19`), the five-milestone plan, completed
+card, exact candidate repository state,
 accepted evidence and stop decision. The whole RFC/landing request remains blocked
 by canonical status eligibility and the active main checkout, despite complete
 BPR-0934 engineering. Next: the coordinator reports these explicit gates. Once
 the dependency statuses permit closeout and main's owner has completed its work,
 reconcile the branch against the then-current main and land without discarding
 concurrent changes. Do not expand this milestone into dependency implementation.
+
+At `f6103a7d`, the checkpoint helper returned `action: stop` for this reconciled
+observation; its `engineering_acceptance: not-evaluated` correctly leaves the
+acceptance judgment with this implementer. The later handoff commit only persists
+these checkpoint/observation/evidence records. It does not change product or test
+sources, card requirements, acceptance, plan definitions or dependency status.
+Replaying the frozen observation at a later repository revision requires an
+explicit current-state reconciliation, not silently treating its revision as HEAD.
+
+Final post-Done documentation and board checks passed: `DOCUMENTATION_OK`, 64/64
+verifier tests, 957-card validation with no errors, valid milestone-plan references
+and `git diff --check`. All invoked command sessions completed. The disposable
+additive-plan proposal was removed; ignored build output and the two inspection
+captures remain available for local evidence and were not committed.
