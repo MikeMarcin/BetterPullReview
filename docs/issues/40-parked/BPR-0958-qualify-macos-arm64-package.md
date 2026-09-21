@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0958"
 title: "Qualify the macOS Apple Silicon package"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pending","revision":"6ad716350c7f2e02a1b00370ea49cd5b77ce4c15","evidence":{"kind":"observation","detail":"Exact 43-file package reaches closed safe CLI fixture review.cpp comparison in isolated HOME; clean OS/account with working native Keychain and authorized auth remains pending. See docs/verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance"}},{"criterion":"AC2","outcome":"pending","revision":"6ad716350c7f2e02a1b00370ea49cd5b77ce4c15","evidence":{"kind":"observation","detail":"Agent-native rendered diff/map/shared scroll, keyboard focus, metadata-only diagnostics, retirement and normal Quit pass. Exact human decisions BPR-0958-native-diff-v001 and BPR-0958-maintenance-clarity-v001 are ready/protected in session cbd48b91000b00f1e72e1ad62c7c384c, cursor 451; neither verdict supplied."}},{"criterion":"AC3","outcome":"pending","revision":"6ad716350c7f2e02a1b00370ea49cd5b77ce4c15","evidence":{"kind":"observation","detail":"Recoverable uninstall preserved all profile/cache hashes and prior diagnostics stayed absent. Full purge is correctly unavailable without isolated HOME default Keychain; real vault continuity/deletion and residual policy remain pending."}}]
 ---
 
 # Qualify the macOS Apple Silicon package
