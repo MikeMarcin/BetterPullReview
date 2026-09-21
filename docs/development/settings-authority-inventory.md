@@ -5,6 +5,9 @@ application environment before RFC-BPR-0024 introduces profile isolation.
 RFC-BPR-0028 owns the current three-page presentation. RFC-BPR-0018 owns the
 remaining Settings work, RFC-BPR-0032 the Accounts & hosts page and RFC-BPR-0034
 the Appearance page. The table maps ownership; actual criterion evidence belongs to BPR-0593.
+The [Settings guide](settings.md) describes the current user-facing behavior.
+The 2026-09-20 reconciliation retains this inventory's original baseline while
+updating the later profile, sign-in and updater ownership below.
 
 ## Existing adjustable values
 
@@ -25,7 +28,8 @@ the Appearance page. The table maps ownership; actual criterion evidence belongs
 | Cache roots, catalog/ledger locations, capacity limits, retained epochs | Observed locations and compiled limits; epoch/cache/ledger hosts | Existing stores remain authorities. Prune/delete are exact-scope destructive operations, not preference resets; reuse confirmation and tombstone paths. No relocation or automatic eviction control exists. |
 | Diagnostic availability/detail/export | Observed basic logging; `diagnostic_log_port`, Quill adapter/composition | RFC-0027 advanced verbosity/export is deferred and not an existing editable preference. Present capability honestly; do not invent an export containing source, credentials, or database bytes. |
 | Review details disclosure, modality selection, drawer filters/tree order, focused view/selection | Local interaction or retained layout according to its owner; Qt presentation plus workbench intents | Not a universal settings record. Preserve current selection and projections. Independent windows and restoration are 0024/0025 work. |
-| Startup landing and session restoration | No composed user preference yet | General must describe present behavior until 0024 provides typed profile/window restoration. Automatic update controls are outside scope. |
+| Startup landing and session restoration | Desktop lifecycle behavior, not an editable Settings preference | RFC-0024 supplies profile/window identity and restoration. New windows start on Home; no Settings toggle controls startup or restoration. |
+| Release account, automatic update checks and skipped version | Application-wide preferences; dedicated RFC-0035 release-update host | Separate update store and exact native GitHub.com release authority. General mounts the same panel/service as the native update action. Unsupported or managed installations are explained; Settings does not grant installation authority. See [application updates](application-updates.md). |
 
 ## Baseline gaps (before BPR-0678)
 
@@ -40,7 +44,9 @@ At that baseline the three pages reused domain dispatch. General, Notifications,
 Agents & context, Storage & privacy were notices. Several notices still named
 completed issue IDs. Direct Sign in opened Accounts with Get a code focused,
 which did not satisfy RFC-0018's single-gesture begin criterion; sign-in now
-begins inside the server card's account row (RFC-BPR-0032, [[BPR-0773]]).
+uses the dedicated onboarding surface opened from Home, a PR link or the
+server card. Supported device authorization starts directly; the same typed
+host owns code, cancellation, browser handoff and terminal state.
 Appearance was already migrated, so rebuilding a second editor would have
 violated its authority.
 
@@ -60,7 +66,7 @@ already existed, and the card creates no credential authority of its own.
 |---|---|---|
 | Header connection state | nothing; it is a projection | GitHub application host session status, said as one word (Connected, Connecting, Signing in, Signed out, Could not connect). The only coloured thing on the page. |
 | Account row: avatar, login, consequence sentence | nothing; it is a projection | Accepted session identity and grant provenance from the GitHub and device hosts. The displayed login is not authentication authority. |
-| Sign in | the device flow, begun in this row | Device authorization host through the existing gesture dispatch; where a host has no device flow the gesture opens the token prompt Connect already opens. No second sign-in path is created. |
+| Sign in | the dedicated onboarding flow for the selected server | Existing device-authorization/GitHub hosts through typed gesture dispatch; supported device sign-in starts immediately, and manual/CLI alternatives keep their existing capability gates. No second credential authority is created. |
 | Sign out | `deactivate_github_identity_intent` | GitHub application host. It removes the exact binding and both token slots; the button performs no vault effect. |
 | Connect | host-profile selection, then the existing connect intent | The composition's configured host profiles and the GitHub application host. This is what replaced selecting a host in a picker. |
 | Access | nothing; it is a projection | Provider capability observation. |
@@ -96,8 +102,9 @@ returns focus on close and uses measured category widths in small windows
 their existing owning hosts. Agent/context rows share offered identities and
 per-request opt-ins; Storage actions share exact existing maintenance commands.
 BPR-0684 closes visible previews and retires pending imports while allowing
-accepted durable work to finish. General reports that window restoration is
-not yet available; RFC-0024 owns its later implementation.
+accepted durable work to finish. The standalone shell's General notice is
+replaced in the desktop composition by RFC-0035's update panel. Profile/window
+restoration belongs to RFC-0024's lifecycle, not a General preference.
 
 The source inventory above remains domain-specific. This is not a second status
 board: BPR-0593 holds the integration criterion ledger, BPR-0683 the native/human

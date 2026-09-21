@@ -11,7 +11,30 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # RFC-BPR-0018: Robust Settings Center and Preference Ownership
 
-## Current attended pointer, 2026-09-12
+## Current reconciliation, 2026-09-20
+
+The ordered 0018 → 0024 → 0025 → 0026 closeout run adopts the existing
+`close-rfc-0018` milestone. Its twenty implementation/follow-up cards are Done;
+[[BPR-0593]] records current checks and remaining acceptance. The missing
+[Settings guide](../development/settings.md) now describes the composed
+categories, defaults, persistence, resets and platform limitations.
+
+The owner's planning amendment permits updating stale design context. The
+initial fragmentation described below is historical: all seven categories are
+composed, RFC-BPR-0024 supplies the profile-owned singleton, RFC-BPR-0032 revises
+Accounts & hosts, and RFC-BPR-0034 supplies the current Appearance page and
+per-theme palettes. Their accepted observations remain bound to their original
+candidates. RFC-BPR-0035 now owns the General page's application-wide updater;
+its separate release/platform acceptance is not implied by this Settings RFC.
+These ownership corrections change none of AC-01 through AC-14.
+
+The macOS Settings review below and the later Accounts/Appearance reviews are
+accepted. Windows/Linux packaged inventories are complete on [[BPR-0730]] and
+[[BPR-0731]]. The ledger distinguishes their recorded revisions from an
+unperformed current three-platform comparison. RFC-BPR-0014 is still Proposed,
+so canonical dependency order independently prevents Auto-Verified closeout.
+
+## Accepted attended history, 2026-09-12
 
 The shared UX pack's latest prepared page is
 [RFC-BPR-0028 attended v011](../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md).
@@ -26,8 +49,10 @@ on [[BPR-0593]]. This RFC remains Proposed.
 
 ## Status and scope
 
-This is a deferred post-pack RFC. It does not alter the canonical fourteen-RFC
-sequence and blocks no pack-v2 implementation or closeout.
+This is an activated post-pack RFC with implementation and attended evidence.
+It does not alter the canonical fourteen-RFC sequence and blocks no pack-v2
+implementation or closeout. Proposed is its current acceptance/dependency state,
+not a claim that Settings remains unimplemented.
 
 **Implementation resumed by owner direction, 2026-09-07.**
 The product owner's 2026-09-04 daily-workbench amendment adds direct sign-in,
@@ -66,11 +91,11 @@ selection, retention, and diagnostics. Their ownership is intentionally split
 across core policy, application hosts, narrow stores, Qt presenters, and the
 composition root.
 
-The visible controls are not yet a coherent product surface. Appearance is
-embedded beside the review workbench; queue preferences live with queue
-controls; account and repository configuration occupy session chrome; other
-preferences are represented only by their immediate feature. This has four
-costs:
+At the registration baseline, the visible controls were not a coherent product
+surface. Appearance was embedded beside the review workbench; queue preferences
+lived with queue controls; account and repository configuration occupied session
+chrome; other preferences were represented only by their immediate feature.
+This had four costs:
 
 - reviewers cannot discover what is configurable or distinguish durable from
   session-only choices;
@@ -280,9 +305,11 @@ the sidebar, rebuild every page, or discard focus and selection.
   assignment, subscription, label, or review mutation.
 - Destructive storage/privacy actions name exact affected scopes, support
   cancellation before commitment, and produce secret-free completion evidence.
-- Automatic updates remain prohibited until RFC-BPR-0014 selects and verifies
-  an update mechanism. The reference application's update toggle is explicitly
-  not precedent.
+- Update controls require their own selected mechanism and verified authority.
+  RFC-BPR-0035 now owns the user-confirmed updater composed in General, with
+  installation/platform limits and remaining release qualification recorded in
+  its ledger. This Settings RFC grants no update or installation authority;
+  the reference application's update toggle is not precedent.
 
 ## Performance and resource limits
 
@@ -411,7 +438,7 @@ Creating these two cards does not satisfy the eligibility gate above.
 
 ## Documentation impact
 
-The settings guide must explain every category, default, durability state,
+The [settings guide](../development/settings.md) must explain every category, default, durability state,
 reset, platform difference, unavailable state, destructive operation, and
 privacy consequence. Architecture documentation must identify domain
 ownership, typed intent/projection paths, persistence schemas, generations,

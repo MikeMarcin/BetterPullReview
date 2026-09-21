@@ -112,6 +112,16 @@ windows can adopt the new authority.
 
 Settings has one presentation per profile and mounts the invoking window's
 controls over shared accepted preferences. Window geometry remains independent.
+Its seven fixed categories aggregate the existing typed domain projections and
+intents; there is no shared key/value settings authority. The appearance,
+workbench, queue, authentication, agent and history hosts keep their own
+validation, generations, persistence and effect lanes. Closing Settings cancels
+uncommitted appearance preview/import work while accepted durable operations
+finish through their host. The application-wide RFC-BPR-0035 updater is a
+separate, explicit service mounted in General. The [Settings authority
+inventory](../development/settings-authority-inventory.md) records each store,
+reset and failure scope; the [Settings guide](../development/settings.md)
+describes the corresponding user behavior.
 The global profile registry retains bounded stable window identities and focus
 order. The management host saves core lifecycle decisions before starting or
 closing windows, and before orderly Quit drains services. Failed saves preserve

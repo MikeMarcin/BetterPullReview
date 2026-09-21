@@ -22,7 +22,7 @@ there's no reason for a separate screen at all just let me open the link in
 anonymous read-only mode without an account from that first paste link."
 Two screenshots of the signed-out dark Home accompany it (the initial
 state and the state after "Read without signing in"); their visible text
-is transcribed on the [BPR-0593](../30-in-progress/BPR-0593-close-rfc-0018.md)
+is transcribed on the [BPR-0593](../50-blocked/BPR-0593-close-rfc-0018.md)
 closeout under the d10 continuation.
 
 ## What is established
