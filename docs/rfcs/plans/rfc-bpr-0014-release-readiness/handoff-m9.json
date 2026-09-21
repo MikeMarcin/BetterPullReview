@@ -1,0 +1,395 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m9-security-boundary-verification",
+    "child": "/root/rfc0014_m9",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m9-security-boundary-verification",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "41cd3688cfb0bab82ea8d2551dd848d2b0d9275e",
+  "candidate_revision": "f72013b0d245c3ef5e18b65eba7f31f250838b24",
+  "product_revision": "9409ff618c0e8c567fe266195ec8228852b18485",
+  "result": "blocked",
+  "rfc_status": "Proposed",
+  "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
+  "commits": [
+    {
+      "revision": "f72013b0d245c3ef5e18b65eba7f31f250838b24",
+      "purpose": "Bind signed Qt producer bytes to pre-sign SPDX and publisher trust"
+    },
+    {
+      "revision": "9b5edb185566283f3347ab9b381c8ccd4c84dcec",
+      "purpose": "Fail a requested crash course when native evidence is missing"
+    },
+    {
+      "revision": "bf39ecf2298270d0688a24b256661bc4c5c66d03",
+      "purpose": "Reject compile hardening overrides in emitted command evidence"
+    },
+    {
+      "revision": "d80740b9aec6527e95f96053bcd6c5c72014d3f4",
+      "purpose": "Validate MSVC linker-only guard index records explicitly"
+    },
+    {
+      "revision": "136c92aaef32fcde026b344744caee83868b7a1e",
+      "purpose": "Bind packaged inventory copies before exact PE inspection"
+    },
+    {
+      "revision": "9409ff618c0e8c567fe266195ec8228852b18485",
+      "purpose": "Verify release hardening, producer evidence and bounded local IPC"
+    },
+    {
+      "revision": "8d75ff697d8aae83a54a6396fa7a71a519ec56ba",
+      "purpose": "Claim BPR-0962"
+    }
+  ],
+  "changed_paths": [
+    "cmake/Hardening.cmake",
+    "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md",
+    "docs/issues/20-ready/BPR-0962-verify-release-trust-and-security-boundaries.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
+    "docs/security/release-policy.md",
+    "docs/verification/RFC-BPR-0014.md",
+    "scripts/verify_pe_release.py",
+    "scripts/verify_release_package.py",
+    "scripts/verify_release_security.py",
+    "scripts/verify_runtime_surface.py",
+    "src/adapters/sqlite/src/profile_activation.cpp",
+    "src/app/CMakeLists.txt",
+    "tests/CMakeLists.txt",
+    "tests/end_to_end/release_security_course.py",
+    "tests/end_to_end/runtime_surface_native_probe.py",
+    "tests/fuzz/release_diagnostic_fuzz.cpp",
+    "tests/fuzz/release_maintenance_fuzz.cpp",
+    "tests/scripts/verify_release_package_tests.py",
+    "tests/scripts/verify_release_security_tests.py",
+    "docs/verification/rfc0014-m9-security-evidence.json",
+    "docs/verification/reviews/rfc0014-m9-licensing-v001/manifest.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json",
+    "docs/issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0962:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-9-security-and-boundary-verification"
+      ]
+    },
+    {
+      "id": "m9-security-boundary-verification:exit:1",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0014.md#milestone-9-security-and-boundary-verification"
+      ]
+    },
+    {
+      "id": "m9-security-boundary-verification:exit:2",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/rfc0014-m9-security-evidence.json"
+      ]
+    }
+  ],
+  "milestone_results": {
+    "AC1": "Mechanical package inventories/source/notices and signed Qt producer provenance pass for available exact Mac/Windows candidates; independent final trust/legal/full artifact matrix pending.",
+    "AC2": "Mac tests-disabled hostile loader/MCP/private AF_UNIX production course, full Win PE maps/anchors, emitted protections and native inspector self-tests pass. Complete matrix/public active network/vault/foreign-user evidence pending.",
+    "AC3": "Defined policy; focused tidy, selected core/host/public tests, ASan/UBSan fuzz and exact secret finding review pass. Vulnerability gate fails; complete native/crash/dependency-hardening scope pending."
+  },
+  "artifacts": {
+    "mac": {
+      "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-9409ff61",
+      "executable_sha256": "8bb2ca1b11f9f859d2632a01912ae66c97375192170c86714bb04bcf34718cf1",
+      "zip_sha256": "be7ce58db455fb22980933e41267385517e6a5b3c46e186f22dd71f98f73ae3d",
+      "sbom_sha256": "7ee71d3987b75ad081cc8753a64a9b57c415d0412dbafef17282751c3d37377e",
+      "notices_sha256": "66ad759d93cbe0dca93183345516437789c7164af98319021dc92741b3516086",
+      "corresponding_source_sha256": "3b0c46045b6f4c070ab59f44124b932ce2c85dd850a480ffd0794513082b6c2e",
+      "file_count": 43,
+      "binaries": 13,
+      "first_party_units": 227,
+      "qt_records": 63,
+      "source_archives": 7,
+      "trust": "Ad-hoc seal validates; TeamIdentifier absent, no stapled ticket (stapler exit65). Not release approval."
+    },
+    "windows": {
+      "root": "C:/Users/mikem/bpr0014-m8-df273695/candidate-m9-9409ff61",
+      "expanded_root": "C:/Users/mikem/bpr0014-m8-df273695/candidate-m9-9409ff61/expanded/LocalApp/Programs/BetterPullReview",
+      "producer_root": "C:/Users/mikem/bpr0014-m8-df273695/source",
+      "msi_sha256": "07942671462b337c4cf23e5a0b50b625ed000e5fe276372243106c7557a6fff6",
+      "executable_sha256": "51efa21653e22eb27165b8a9646d85c8ca95d13a76205316e94680f50f9818bb",
+      "sbom_sha256": "719a97a690122fc3c17e981d333086a5c16a5d3b3e44de5eeb6e57104f78033a",
+      "notices_sha256": "abf01aa322bee65a52b1091c818411f289053f12094f647f9a039de03d512cff",
+      "corresponding_source_sha256": "aef5a8899112d5be75ef2e08aae0bff05ec99bcea6492f46e58ea002551d7fee",
+      "file_count": 23,
+      "binaries": 16,
+      "first_party_units": 222,
+      "qt_records": 58,
+      "source_archives": 6,
+      "trust": "MSI NotSigned; Qt publisher signatures independently Valid plus reconstructed pre-sign hashes. Administrative extraction is not a user install."
+    }
+  },
+  "verification": [
+    {
+      "criterion": "BPR-0962:AC3",
+      "outcome": "pass",
+      "revision": "bf39ecf2298270d0688a24b256661bc4c5c66d03",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"python3\", \"scripts/verify_release_security.py\", \"--build\", \"build/macos-release\", \"--root\", \"build/releases/m9-9409ff61/BetterPullReview.app\", \"--sbom\", \"build/releases/m9-9409ff61/BetterPullReview-0.1.3-macos-universal-local.spdx.json\", \"--source-revision\", \"9409ff618c0e8c567fe266195ec8228852b18485\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 2.377,
+        "stdout_tail": "pplenetworkinformation.dylib\", \"Contents/PlugIns/platforms/libqcocoa.dylib\", \"Contents/PlugIns/styles/libqmacstyle.dylib\", \"Contents/PlugIns/tls/libqsecuretransportbackend.dylib\"], \"binary_hardening\": {\"Contents/Frameworks/QtCore.framework/Versions/A/QtCore\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/Frameworks/QtGui.framework/Versions/A/QtGui\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/Frameworks/QtNetwork.framework/Versions/A/QtNetwork\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/MacOS/BetterPullReview\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/MacOS/better_pull_review_agent_supervisor\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/MacOS/better_pull_review_mcp_context_helper\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/MacOS/bpr_update_helper\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/PlugIns/networkinformation/libqapplenetworkinformation.dylib\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/PlugIns/platforms/libqcocoa.dylib\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/PlugIns/styles/libqmacstyle.dylib\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}, \"Contents/PlugIns/tls/libqsecuretransportbackend.dylib\": {\"pie_where_executable\": true, \"writable_executable_segments\": false}}, \"build_platform\": \"Darwin\", \"compile_hardening\": {\"compile_units\": 228, \"required\": [\"-fstack-protector-strong\", \"-fno-omit-frame-pointer\", \"-D_FORTIFY_SOURCE=3\"], \"third_party_external_builds\": \"separate qualification: prebuilt Qt and external KSyntaxHighlighting/LibArchive\"}, \"executable_sha256\": \"8bb2ca1b11f9f859d2632a01912ae66c97375192170c86714bb04bcf34718cf1\", \"file_count\": 43, \"first_party_compile_units\": 227, \"license_approval\": \"pending\", \"release_acceptance\": \"pending independent trust/legal, scan policy and complete native runtime/vault/crash evidence\", \"result\": \"RELEASE_SECURITY_MECHANICS_OK\", \"sbom_sha256\": \"7ee71d3987b75ad081cc8753a64a9b57c415d0412dbafef17282751c3d37377e\", \"source_revision\": \"9409ff618c0e8c567fe266195ec8228852b18485\", \"sources_notices\": {\"legal_approval\": \"pending: first-party terms, mixed syntax-data licenses, toolchain terms and corresponding build/relink obligations\", \"notices_sha256\": \"66ad759d93cbe0dca93183345516437789c7164af98319021dc92741b3516086\", \"qt_packages\": 63, \"source_archive_sha256\": \"3b0c46045b6f4c070ab59f44124b932ce2c85dd850a480ffd0794513082b6c2e\", \"source_archives\": 7}, \"symbol_evidence\": {\"Contents/Frameworks/QtCore.framework/Versions/A/QtCore\": \"llvm-nm --demangle\", \"Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus\": \"llvm-nm --demangle\", \"Contents/Frameworks/QtGui.framework/Versions/A/QtGui\": \"llvm-nm --demangle\", \"Contents/Frameworks/QtNetwork.framework/Versions/A/QtNetwork\": \"llvm-nm --demangle\", \"Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets\": \"llvm-nm --demangle\", \"Contents/MacOS/BetterPullReview\": \"llvm-nm --demangle\", \"Contents/MacOS/better_pull_review_agent_supervisor\": \"llvm-nm --demangle\", \"Contents/MacOS/better_pull_review_mcp_context_helper\": \"llvm-nm --demangle\", \"Contents/MacOS/bpr_update_helper\": \"llvm-nm --demangle\", \"Contents/PlugIns/networkinformation/libqapplenetworkinformation.dylib\": \"llvm-nm --demangle\", \"Contents/PlugIns/platforms/libqcocoa.dylib\": \"llvm-nm --demangle\", \"Contents/PlugIns/styles/libqmacstyle.dylib\": \"llvm-nm --demangle\", \"Contents/PlugIns/tls/libqsecuretransportbackend.dylib\": \"llvm-nm --demangle\"}, \"trust\": \"not-assessed\"}\n",
+        "stderr_tail": ""
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-final-audit.json"
+    },
+    {
+      "criterion": "BPR-0962:AC2",
+      "outcome": "pass",
+      "revision": "bf39ecf2298270d0688a24b256661bc4c5c66d03",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"ctest\", \"--test-dir\", \"build/dev\", \"--output-on-failure\", \"-R\", \"^(release_package_audit_contract|release_security_audit_contract|core_dependency_boundary|core_release_maintenance|application_release_maintenance|sqlite_profile_activation|sqlite_release_maintenance_files|application_release_maintenance_public_path|application_profile_activation_public_path)$\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 26.984,
+        "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start   3: core_dependency_boundary\n1/9 Test   #3: core_dependency_boundary ......................   Passed    0.30 sec\n    Start  16: release_package_audit_contract\n2/9 Test  #16: release_package_audit_contract ................   Passed    0.15 sec\n    Start  17: release_security_audit_contract\n3/9 Test  #17: release_security_audit_contract ...............   Passed    0.14 sec\n    Start  62: core_release_maintenance\n4/9 Test  #62: core_release_maintenance ......................   Passed    0.07 sec\n    Start 143: application_release_maintenance\n5/9 Test #143: application_release_maintenance ...............   Passed    0.06 sec\n    Start 160: sqlite_profile_activation\n6/9 Test #160: sqlite_profile_activation .....................   Passed    4.21 sec\n    Start 162: sqlite_release_maintenance_files\n7/9 Test #162: sqlite_release_maintenance_files ..............   Passed    0.13 sec\n    Start 403: application_release_maintenance_public_path\n8/9 Test #403: application_release_maintenance_public_path ...   Passed   16.84 sec\n    Start 407: application_profile_activation_public_path\n9/9 Test #407: application_profile_activation_public_path ....   Passed    5.04 sec\n\n100% tests passed out of 9\n\nLabel Time Summary:\nbpr_network_isolated    =  26.93 sec*proc (9 tests)\n\nTotal Test time (real) =  26.95 sec\n",
+        "stderr_tail": ""
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-final-contracts.json"
+    },
+    {
+      "criterion": "BPR-0962:AC3",
+      "outcome": "pass",
+      "revision": "bf39ecf2298270d0688a24b256661bc4c5c66d03",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"python3\", \"_coding-standard/scripts/tidy.py\", \"--build-dir\", \"build/dev\", \"--paths\", \"src/core/src/release_maintenance.cpp\", \"src/application/src/release_diagnostic_snapshot.cpp\", \"src/application/src/release_maintenance_application_host.cpp\", \"src/adapters/sqlite/src/release_maintenance_files.cpp\", \"src/adapters/sqlite/src/profile_activation.cpp\", \"src/app/src/release_maintenance_controls.cpp\", \"--warnings-as-errors\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 18.426,
+        "stdout_tail": "Running clang-tidy on 6 translation unit(s)\nCompilation database: /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/compile_commands.json\n+ /opt/homebrew/opt/llvm/bin/clang-tidy /Users/jaeger/Documents/GitHub/BetterPullReview/src/adapters/sqlite/src/profile_activation.cpp -p /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev --extra-arg=-Wno-error --extra-arg=-Wno-missing-designated-field-initializers --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --warnings-as-errors=*\n+ /opt/homebrew/opt/llvm/bin/clang-tidy /Users/jaeger/Documents/GitHub/BetterPullReview/src/adapters/sqlite/src/release_maintenance_files.cpp -p /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev --extra-arg=-Wno-error --extra-arg=-Wno-missing-designated-field-initializers --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --warnings-as-errors=*\n+ /opt/homebrew/opt/llvm/bin/clang-tidy /Users/jaeger/Documents/GitHub/BetterPullReview/src/app/src/release_maintenance_controls.cpp -p /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev --extra-arg=-Wno-error --extra-arg=-Wno-missing-designated-field-initializers --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --warnings-as-errors=*\n+ /opt/homebrew/opt/llvm/bin/clang-tidy /Users/jaeger/Documents/GitHub/BetterPullReview/src/application/src/release_diagnostic_snapshot.cpp -p /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev --extra-arg=-Wno-error --extra-arg=-Wno-missing-designated-field-initializers --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --warnings-as-errors=*\n+ /opt/homebrew/opt/llvm/bin/clang-tidy /Users/jaeger/Documents/GitHub/BetterPullReview/src/application/src/release_maintenance_application_host.cpp -p /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev --extra-arg=-Wno-error --extra-arg=-Wno-missing-designated-field-initializers --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --warnings-as-errors=*\n+ /opt/homebrew/opt/llvm/bin/clang-tidy /Users/jaeger/Documents/GitHub/BetterPullReview/src/core/src/release_maintenance.cpp -p /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev --extra-arg=-Wno-error --extra-arg=-Wno-missing-designated-field-initializers --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --warnings-as-errors=*\nclang-tidy passed.\n",
+        "stderr_tail": "3 warnings generated.\nSuppressed 4 warnings (3 in non-user code, 1 NOLINT).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n30 warnings generated.\nSuppressed 30 warnings (30 in non-user code).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n10 warnings generated.\nSuppressed 10 warnings (10 in non-user code).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n"
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-final-tidy.json"
+    },
+    {
+      "criterion": "BPR-0962:AC3",
+      "outcome": "pass",
+      "revision": "8d75ff697d8aae83a54a6396fa7a71a519ec56ba",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"build/m9-release-maintenance-fuzz\", \"-runs=100000\", \"-seed=140962\", \"-max_len=256\", \"-timeout=5\", \"-verbosity=0\", \"-print_final_stats=1\", \"-artifact_prefix=build/m9-fuzz-\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 0.745,
+        "stdout_tail": "",
+        "stderr_tail": "1::__variant_detail::_Trait)0, std::__\n\tNEW_FUNC[2/2]: 0x000100ec2a88 in bpr::core::release_maintenance_context::operator==(bpr::core::release_maintenance_context const&) const release_maintenance.hpp:154\n\tNEW_FUNC[1/1]: 0x000100ebd0cc in bpr::core::(anonymous namespace)::validate_selection(bpr::core::release_maintenance_command, std::__1::variant<std::__1::monostate, bpr::core::release_diagnostic_snapshot, bpr::core::release_maintenance_inventory> const&) release_maintenance.cpp:69\n\tNEW_FUNC[1/1]: 0x000100ebcccc in bpr::core::(anonymous namespace)::prepared_for(bpr::core::release_maintenance_state const&, bpr::core::release_maintenance_command) release_maintenance.cpp:82\n\tNEW_FUNC[1/1]: 0x000100ebb5c0 in decltype(auto) std::__1::__variant_detail::__visitation::__base::__dispatcher<1ul, 1ul>::__dispatch[abi:nqe230101]<std::__1::__variant_detail::__visitation::__variant::__value_visitor<std::__1::__convert_to_bool<std::__1::equal_to<void>>>&&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__1::monostate, bpr::core::release_diagnostic_snapshot, bpr::core::release_maintenance_inventory> const&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__1::monostate, bpr::core::release_diagnostic_snapshot, bpr::core::release_maintenance_inventory> const&>(std::__1::__variant_detail::__visitation::__variant::__value_visitor<std::__1::__convert_to_bool<std::__1::equal_to<void>>>&&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__1::monostate, bpr::core::release_diagnostic_snapshot, bpr::core::release_maintenance_inventory> const&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__\n\tNEW_FUNC[1/2]: 0x000100ebb8f0 in decltype(auto) std::__1::__variant_detail::__visitation::__base::__dispatcher<2ul, 2ul>::__dispatch[abi:nqe230101]<std::__1::__variant_detail::__visitation::__variant::__value_visitor<std::__1::__convert_to_bool<std::__1::equal_to<void>>>&&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__1::monostate, bpr::core::release_diagnostic_snapshot, bpr::core::release_maintenance_inventory> const&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__1::monostate, bpr::core::release_diagnostic_snapshot, bpr::core::release_maintenance_inventory> const&>(std::__1::__variant_detail::__visitation::__variant::__value_visitor<std::__1::__convert_to_bool<std::__1::equal_to<void>>>&&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__1::monostate, bpr::core::release_diagnostic_snapshot, bpr::core::release_maintenance_inventory> const&, std::__1::__variant_detail::__base<(std::__1::__variant_detail::_Trait)0, std::__\n\tNEW_FUNC[2/2]: 0x000100ec3470 in bpr::core::release_maintenance_inventory::operator==(bpr::core::release_maintenance_inventory const&) const release_maintenance.hpp:99\n###### Recommended dictionary. ######\n\"\\377\\017\" # Uses: 630\n\"\\000\\000\" # Uses: 642\n\"\\000\\000\\000\\000\" # Uses: 554\n\"\\377\\377\\377\\005\" # Uses: 519\n\"\\001\\000\" # Uses: 514\n\"\\377\\377\\377\\377\\377\\377\\377+\" # Uses: 391\n\"\\001\\000\\000\\001\" # Uses: 499\n\"\\367\\000\\000\\000\\000\\000\\000\\000\" # Uses: 395\n\"\\377\\377\\377\\377\\377\\377\\377\\377\" # Uses: 392\n\"\\017\\000\" # Uses: 441\n\"\\000\\001\\000\\000\\000\\000\\000\\000\" # Uses: 388\n\"5\\305\\006\\000 `\\000\\000\" # Uses: 337\n\"&\\000\" # Uses: 420\n\"\\001\\000`0\\000\\001\\312\\260\" # Uses: 317\n\"\\377\\004\" # Uses: 377\n\"\\005\\000\\000\\000\" # Uses: 328\n\"\\001\\000`@\\000\\005\\265\\020\" # Uses: 249\n\"\\004\\000\\000\\000\" # Uses: 249\n\">\\000\\000\\000\" # Uses: 198\n\" :\\003\\000p`\\000\\000\" # Uses: 173\n\"\\377*\" # Uses: 188\n\"\\003\\001\" # Uses: 128\n\"\\377\\377\\377\\377\\377\\377\\377\\002\" # Uses: 142\n\"\\377\\377\\377\\377\" # Uses: 121\n\"\\377\\377\\377\\017\" # Uses: 40\n###### End of recommended dictionary. ######\nstat::number_of_executed_units: 100000\nstat::average_exec_per_sec:     0\nstat::new_units_added:          663\nstat::slowest_unit_time_sec:    0\nstat::peak_rss_mb:              57\n"
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-fuzz-maintenance.json"
+    },
+    {
+      "criterion": "BPR-0962:AC3",
+      "outcome": "pass",
+      "revision": "8d75ff697d8aae83a54a6396fa7a71a519ec56ba",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"build/m9-release-diagnostic-fuzz\", \"-runs=100000\", \"-seed=140962\", \"-max_len=16384\", \"-timeout=5\", \"-verbosity=0\", \"-print_final_stats=1\", \"-artifact_prefix=build/m9-fuzz-\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 1.418,
+        "stdout_tail": "",
+        "stderr_tail": "INFO: Running with entropic power schedule (0xFF, 100).\nINFO: A corpus is not provided, starting from an empty corpus\n###### Recommended dictionary. ######\n\"\\001c\" # Uses: 2434\n\"v=\" # Uses: 1759\n\"\\000\\000\\000\\000\" # Uses: 940\n\"\\377\\377\\377\\021\" # Uses: 914\n\"\\377\\377\\377\\377\" # Uses: 832\n\"\\001\\000\\000\\001k#`\\211\" # Uses: 701\n\"``#k\\001\\000\\000\\000\" # Uses: 617\n\"\\317\\000\" # Uses: 481\n###### End of recommended dictionary. ######\nstat::number_of_executed_units: 100000\nstat::average_exec_per_sec:     100000\nstat::new_units_added:          117\nstat::slowest_unit_time_sec:    0\nstat::peak_rss_mb:              143\n"
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-fuzz-diagnostic.json"
+    },
+    {
+      "criterion": "BPR-0962:AC2",
+      "outcome": "pass",
+      "revision": "9409ff618c0e8c567fe266195ec8228852b18485",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"python3\", \".agents/skills/implement-rfc/scripts/qualification_guard.py\", \"--allowed-root\", \"/Users/jaeger/bpr0014-m9.y9bDRT\", \"--target-root\", \"/Users/jaeger/bpr0014-m9.y9bDRT\", \"--live-root\", \"/Users/jaeger/Documents/GitHub/BetterPullReview\", \"--live-file\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json\", \"--live-file\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json\", \"--\", \"python3\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/release_package_course.py\", \"--package\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-9409ff61/BetterPullReview.app\", \"--build\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/build/macos-release\", \"--sbom\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-9409ff61/BetterPullReview-0.1.3-macos-universal-local.spdx.json\", \"--source-revision\", \"9409ff618c0e8c567fe266195ec8228852b18485\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 18.305,
+        "stdout_tail": "{\"allowed_roots\": [\"/Users/jaeger/bpr0014-m9.y9bDRT\"], \"command_returncode\": 0, \"live_files\": [{\"after\": {\"exists\": true, \"sha256\": \"faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2\"}, \"before\": {\"exists\": true, \"sha256\": \"faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2\"}, \"path\": \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json\", \"unchanged\": true}, {\"after\": {\"exists\": true, \"sha256\": \"a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf\"}, \"before\": {\"exists\": true, \"sha256\": \"a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf\"}, \"path\": \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json\", \"unchanged\": true}], \"live_roots\": [\"/Users/jaeger/Documents/GitHub/BetterPullReview\"], \"status\": \"passed\", \"target_root\": \"/Users/jaeger/bpr0014-m9.y9bDRT\"}\n",
+        "stderr_tail": "RUNTIME_LIBRARIES_OK:15\nRUNTIME_LIBRARIES_OK:15\n{\"background_commands\": [], \"checks\": [\"relocated-exact-audit\", \"native-cocoa-idle-private-home-loader-socket-process-canary\", \"hostile-plugin-environment-keeps-packaged-loader-origins\", \"five-loader-argument-refusals-before-qt\", \"missing-and-outside-symlinked-plugin-root-refused\", \"three-removed-helpers-fail-audit-and-public-execution\", \"invalid-bundle-identity-refused\", \"four-byte-canaries-and-real-untrusted-rpath-refused-after-rehash\", \"packaged-mcp-exact-stdio-read-path-escape-and-stale-binding\"], \"executable_sha256\": \"8bb2ca1b11f9f859d2632a01912ae66c97375192170c86714bb04bcf34718cf1\", \"native_install_auth_trust_crash_acceptance\": \"pending\", \"result\": \"RELEASE_PACKAGE_COURSE_OK\", \"source_revision\": \"9409ff618c0e8c567fe266195ec8228852b18485\"}\n"
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-final-package-course-corrected.json"
+    },
+    {
+      "criterion": "BPR-0962:AC3",
+      "outcome": "pass",
+      "revision": "f72013b0d245c3ef5e18b65eba7f31f250838b24",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"python3\", \".agents/skills/implement-rfc/scripts/qualification_guard.py\", \"--allowed-root\", \"/Users/jaeger/bpr0014-m9.y9bDRT\", \"--target-root\", \"/Users/jaeger/bpr0014-m9.y9bDRT\", \"--live-root\", \"/Users/jaeger/Documents/GitHub/BetterPullReview\", \"--live-file\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json\", \"--live-file\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json\", \"--\", \"python3\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/release_security_course.py\", \"--application\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-9409ff61/BetterPullReview.app/Contents/MacOS/BetterPullReview\", \"--crash-report-root\", \"/Users/jaeger/Library/Logs/DiagnosticReports\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 9.165,
+        "stdout_tail": "{\"allowed_roots\": [\"/Users/jaeger/bpr0014-m9.y9bDRT\"], \"command_returncode\": 0, \"live_files\": [{\"after\": {\"exists\": true, \"sha256\": \"faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2\"}, \"before\": {\"exists\": true, \"sha256\": \"faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2\"}, \"path\": \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json\", \"unchanged\": true}, {\"after\": {\"exists\": true, \"sha256\": \"a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf\"}, \"before\": {\"exists\": true, \"sha256\": \"a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf\"}, \"path\": \"/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json\", \"unchanged\": true}], \"live_roots\": [\"/Users/jaeger/Documents/GitHub/BetterPullReview\"], \"status\": \"passed\", \"target_root\": \"/Users/jaeger/bpr0014-m9.y9bDRT\"}\n",
+        "stderr_tail": "{\"child_reaped\": true, \"crash\": {\"environment_canaries_absent\": true, \"reports\": [{\"bytes\": 59365, \"sha256\": \"f09cad771a40aae99c608c0532fbe77f8a22becf61f270f2597bfa7f8001bfdf\"}], \"resident_provider_source_course\": \"pending; environment memory is narrower evidence\"}, \"executable_sha256\": \"8bb2ca1b11f9f859d2632a01912ae66c97375192170c86714bb04bcf34718cf1\", \"ipc\": \"private named AF_UNIX; five hostile frames refused; actual second launch creates second window in original owner; no TCP/UDP\", \"result\": \"RELEASE_SECURITY_COURSE_OK\", \"trust_vault_native_matrix\": \"pending\"}\n"
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-crash-final-observation.json"
+    },
+    {
+      "criterion": "BPR-0962:AC2",
+      "outcome": "pass",
+      "revision": "9409ff618c0e8c567fe266195ec8228852b18485",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"cmake\", \"-DBPR_ROOT=/Users/jaeger/bpr0014-m9.y9bDRT/source-9409ff61\", \"-P\", \"/Users/jaeger/bpr0014-m9.y9bDRT/source-9409ff61/cmake/VerifyArchitectureBoundaries.cmake\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 5.543,
+        "stdout_tail": "-- Application, provider, and Qt architecture boundaries verified\n",
+        "stderr_tail": ""
+      },
+      "scope": "Command-only evidence, not complete AC or milestone acceptance",
+      "receipt": "build/m9-archive-boundaries.json"
+    }
+  ],
+  "fuzz_compile": {
+    "compiler": "/opt/homebrew/opt/llvm/bin/clang++ 23.1.1",
+    "common_args": "-std=c++23 -g -O1 -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -Isrc/core/include",
+    "maintenance_sources": [
+      "tests/fuzz/release_maintenance_fuzz.cpp",
+      "src/core/src/release_maintenance.cpp"
+    ],
+    "diagnostic_extra_include": "-Isrc/application/include",
+    "diagnostic_sources": [
+      "tests/fuzz/release_diagnostic_fuzz.cpp",
+      "src/application/src/release_diagnostic_snapshot.cpp",
+      "src/core/src/sha256.cpp"
+    ],
+    "note": "Receipt revision is claim HEAD because harnesses were first run before candidate commit; exact unchanged harness/product bytes committed at9409ff61. Both binaries and scratch removed, no sanitizer findings/reproducers."
+  },
+  "remote": {
+    "transport": "SSH aito-main-win -> native PowerShell -EncodedCommand UTF16LE; WSL uses --exec (not default shell). Guarded tar stdin transfer, never live checkout writes.",
+    "windows": {
+      "station": "bpr-win",
+      "live_root": "C:/code/git/bpr-windows",
+      "live_revision": "b9cf4edb316dceaf8c7ea75f4c7321ce353651e8",
+      "source_revision": "f72013b0d245c3ef5e18b65eba7f31f250838b24",
+      "toolchain": "MSVC19.51.36257.0/14.51.36231 VS18 Community; CMake4.4; Python3.14.7; Qt6.10.3; task-local WiX4.0.6",
+      "final_audit": "build/m9-windows-audit-final.log; 9 tests pass and RELEASE_SECURITY_MECHANICS_OK; graph/source/notices/16-image hardening exact; MSI unsigned",
+      "details": "build/m9-windows-details.log; app map159337 names SHA5d90ed6b900a789adbcb9868232cd28bbc277ee964b581e070085d199a0113f7; supervisor858 SHAce325f76f02933e63fa2c6e29e140c6d77d3e942464cd009d01141e561ae45d8; MCP2349 SHA85d4f8e2a28835f18294d40a2e1060cddf0faaa05fb7a1d4c33f2fc362eb762b",
+      "scripts": [
+        "build/m9-windows.ps1",
+        "build/m9-audit.ps1",
+        "build/m9-details.ps1",
+        "build/m9-windows-details.py"
+      ],
+      "lease": "free after commands",
+      "cleanup": "Removed owned m9-transfer only. Retained detached source/build/map, expanded MSI and old M8 artifacts unchanged."
+    },
+    "linux": {
+      "station": "bpr-linux",
+      "live_root": "/home/mmarcin/bpr-linux",
+      "live_revision": "1aabc2f3bbd619a8e26938b8c2e909e4a7058f3e",
+      "observed": "Ubuntu26.04 WSL2 x86_64/Python3.14.4; not declared24.04/RHEL10 baseline",
+      "proof": "7 initial security tests plus real runtime Unix/private-mode/owned process and sockets pass; 13 libraries; no package qualification",
+      "receipt": "build/m9-linux-course-native.log",
+      "cleanup": "Owned /home/mmarcin/bpr0014-m9-kl2m0114 removed under native lease+guard; lease free"
+    },
+    "live_project_sha256": "faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2",
+    "live_mask_sha256": {
+      "mac": "a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf",
+      "windows": "a1619aa548470dd9adcc5f4288830d3426698f9fbe6f2c8d75f7905c24bf76e0",
+      "linux": "c50f588f8093017c41a0b3c29bba9817ba3f73083da4741e4d91acb7b6d4a575"
+    },
+    "all_live_declarations_unchanged": true
+  },
+  "failures_retained": [
+    "Initial strict tidy two activation warnings corrected without behavior change.",
+    "Initial focused suite10/11: unrelated ignored nested worktree contaminates architecture scan; exact archive passes; unrelated worktree preserved.",
+    "Windows first audit path typo, installed SPDX self-inventory, MSVC CFG map records and signed Qt SPDX hash differences diagnosed and corrected; actual final audit passes.",
+    "Grype raw Mac21/Windows19 remains release blocking. Gitleaks raw source16/delta2 benign exact findings reviewed without global ignore.",
+    "Initial SSH/PowerShell/WSL quoting and tar metadata errors preserved with available unchanged-live guard receipts; no detached writer."
+  ],
+  "required_pending": [
+    "AC1 / exit 1: Independently validate exact final Windows Authenticode, macOS Developer-ID/notarization/Gatekeeper and declared Linux signatures/checksums. Current local Mac is ad-hoc and Windows MSI NotSigned; no final Linux artifact.",
+    "AC1: Owner/legal distribution terms and mixed syntax-data/Qt/toolchain source/build/relink obligations remain unapproved; attended question only covers this existing legal obligation.",
+    "AC2 / exit 2: Complete real public-operation runtime/plugin/process/network/vault/root evidence on clean macOS arm64/Intel, non-elevated Windows 10/11, Ubuntu24.04 and RHEL10. WSL26.04 inspector and elevated Windows administrative extraction are not substitutes.",
+    "AC3 / exit 2: Grype 0.119.0 fresh v6.1.9 database fails on 21 Mac/19 Windows matches, including High PCRE2 and Windows zlib. Remediate or obtain named independent source-backed applicability; lower severity and full scan coverage also need disposition. No suppression/waiver.",
+    "AC3: External Qt/KSyntaxHighlighting/LibArchive compile hardening, full PE CFG call-site coverage, native lifecycle sanitizer/fuzz scope and actual resident source/comment/token crash redaction remain pending; bounded selected harnesses/environment-canary crashes do not close these.",
+    "All M8 clean-native/account/vault/high-DPI/authentication/removal obligations, protected human candidates and prior broader-suite failures remain separate; M9 does not rewrite M8 acceptance."
+  ],
+  "review_handoff": {
+    "candidate": "rfc0014-m9-licensing-v001",
+    "manifest": "docs/verification/reviews/rfc0014-m9-licensing-v001/manifest.json",
+    "revision": "producer-9409ff61-mac-7ee71d39-win-719a97a6",
+    "fingerprint": "2ec3475e1eed532ab1455783ae8553b823f6f7ffb005ee8b057ce1be5119c577",
+    "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "event_cursor": 463,
+    "status": "ready and protected; decision null at preparation; no interpretation by this leaf",
+    "pending_decisions": [
+      "Owner/legal approval of exact distribution/source/build/relink obligations only"
+    ],
+    "server": {
+      "state": "running; explicitly handed to coordinator",
+      "pid": 49181,
+      "port": 59550,
+      "exec_session": 74251,
+      "command": [
+        "python3",
+        "-u",
+        ".agents/skills/attended-review/scripts/attended_review.py",
+        "--repo-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "serve"
+      ],
+      "url": "Complete authenticated localhost URL sent to coordinator/user, intentionally not committed. Reattach with the same serve command to retrieve it."
+    },
+    "watch_owner": "Coordinator must arm attended_review.py wait --after 463. This leaf has no lingering watcher; interpretation belongs to next engineering round.",
+    "no_automatic_acceptance": true,
+    "old_protections": "Original M8/BPR0755 candidates preserved; no old verdict transferred to M9"
+  },
+  "ownership": {
+    "writers": "sole main writer; no child agents. Other RFC worktrees and ignored .claude worktree preserved.",
+    "commands": "All engineering/remote commands reaped. Only eventual explicit review server may be handed off.",
+    "protected_candidates": "Prior M8 v001 installs/v002 recovery and unrelated BPR0755 remain protected/untouched. M9 will protect only its review packet and exact legal/artifact paths.",
+    "cleanup": "Removed 2.6GB owned scan/proof root, source/transfer archives and fuzz binaries; three synthetic OS crash reports moved to Trash (recoverable). Kept ignored redacted evidence/scripts and exact review artifacts; no credentials/private content committed."
+  },
+  "continuation": {
+    "intent": "fresh",
+    "reason": "independent-work",
+    "next_milestone": "m10-documentation-impact",
+    "detail": "M9 remains blocked. M10/BPR0963 is independently Ready through accepted M7; coordinator may assign it without claiming M9 accepted. Resume M9 for actual dependency/trust/legal/native inputs. This leaf stops at M9; no publication/closeout authority."
+  },
+  "uncertainties": [
+    "Independent publisher trust/legal, native OS/account/vault/privacy and vulnerability applicability remain pending despite mechanical checks.",
+    "Configured role/model/effort banner not independent runtime loader attestation; host_load remains not_verified.",
+    "Case-specific same-user IPC/environment crash and inspector self-tests are not cross-user/public-network/full-crash qualification."
+  ],
+  "board_state": {
+    "BPR_0962": "50-blocked / release-security-inputs",
+    "BPR_0963": "20-ready; unchanged",
+    "BPR_0965": "10-backlog; canonical IPC wording mirror only, no acceptance/status mutation"
+  },
+  "final_upkeep": {
+    "documentation": "DOCUMENTATION_OK after canonical RFC/closeout mirror reconciliation",
+    "documentation_tests": "64/64 pass, 2.159s",
+    "board": "957 cards, valid, no errors",
+    "checkpoint": "fresh-context / independent-work M10; engineering acceptance not evaluated",
+    "diff": "git diff --check passes",
+    "review_conflicts": "No conflict for handoff/ledger/card bookkeeping; only packet/artifact/legal paths protected",
+    "cleanup_receipts": [
+      "build/m9-linux-cleanup.log",
+      "build/m9-windows-cleanup.log"
+    ],
+    "removed": "2.6GB owned scan/proof root and transfers/fuzz binaries; synthetic crash reports retained recoverably in Trash",
+    "writers": "No product or repository writer remains; only explicitly handed-off attended review HTTP server."
+  }
+}

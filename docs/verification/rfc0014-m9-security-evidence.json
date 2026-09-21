@@ -1,0 +1,463 @@
+{
+  "schema": "bpr.release-security-evidence.v1",
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "milestone": "m9-security-boundary-verification",
+    "mandate": "r3",
+    "recipe": "coordinator-implementer rev2"
+  },
+  "producer": "9409ff618c0e8c567fe266195ec8228852b18485",
+  "verifier": "f72013b0d245c3ef5e18b65eba7f31f250838b24",
+  "secret_scan": {
+    "tool": "Gitleaks 8.30.1",
+    "tool_archive_sha256": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
+    "archive_sha256": "ed8671dd96c135f5d3f21cf6ab34240c07e2a5265135661408b425ffa36e32ec",
+    "source_report_sha256": "99146e424ebf41de82ce1eb4bf818c52f464c142d8483bbbcbc20bd9922decb5",
+    "source_raw_exit": 1,
+    "source_findings": [
+      {
+        "file": "docs/issues/60-done/BPR-0285-anchor-rfc-0016-verification.md",
+        "line": 648,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/issues/60-done/BPR-0285-anchor-rfc-0016-verification.md:generic-api-key:648",
+        "disposition": "false-positive",
+        "basis": "Documented digest prefix of the static fixture credential, with its generating command in BPR-0539"
+      },
+      {
+        "file": "docs/issues/60-done/BPR-0539-make-the-registered-device-course-enroll-the-grant.md",
+        "line": 79,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/issues/60-done/BPR-0539-make-the-registered-device-course-enroll-the-grant.md:generic-api-key:79",
+        "disposition": "false-positive",
+        "basis": "Documented digest prefix of the static fixture credential, with its generating command in BPR-0539"
+      },
+      {
+        "file": "docs/issues/60-done/BPR-0539-make-the-registered-device-course-enroll-the-grant.md",
+        "line": 99,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/issues/60-done/BPR-0539-make-the-registered-device-course-enroll-the-grant.md:generic-api-key:99",
+        "disposition": "false-positive",
+        "basis": "Documented digest prefix of the static fixture credential, with its generating command in BPR-0539"
+      },
+      {
+        "file": "docs/issues/60-done/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+        "line": 10,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/issues/60-done/BPR-0955-compose-maintenance-and-diagnostic-controls.md:generic-api-key:10",
+        "disposition": "false-positive",
+        "basis": "Ordinary default/Escape Cancel prose, not a key or commit ID"
+      },
+      {
+        "file": "docs/rfcs/assets/bpr-dif-integration-v1/scripts/verify_pack.py",
+        "line": 60,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/rfcs/assets/bpr-dif-integration-v1/scripts/verify_pack.py:generic-api-key:60",
+        "disposition": "false-positive",
+        "basis": "Parser assertion text Invalid/duplicate frontmatter field"
+      },
+      {
+        "file": "docs/rfcs/assets/bpr-shell-surfaces-v1/scripts/verify_pack.py",
+        "line": 56,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/rfcs/assets/bpr-shell-surfaces-v1/scripts/verify_pack.py:generic-api-key:56",
+        "disposition": "false-positive",
+        "basis": "Parser assertion text Invalid/duplicate frontmatter field"
+      },
+      {
+        "file": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m5.json",
+        "line": 68,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m5.json:generic-api-key:68",
+        "disposition": "false-positive",
+        "basis": "Ordinary default/Escape Cancel prose, not a key or commit ID"
+      },
+      {
+        "file": "docs/verification/RFC-BPR-0016.md",
+        "line": 206,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/RFC-BPR-0016.md:generic-api-key:206",
+        "disposition": "false-positive",
+        "basis": "Documented digest prefix of the static fixture credential, with its generating command in BPR-0539"
+      },
+      {
+        "file": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/attended-review-manifest.json",
+        "line": 360,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/attended-review-manifest.json:generic-api-key:360",
+        "disposition": "false-positive",
+        "basis": "Attended review subject identifier, not an authentication token"
+      },
+      {
+        "file": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/002-bpr-0332-restore-guard/identity/01-decision-manifest.json",
+        "line": 278,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/002-bpr-0332-restore-guard/identity/01-decision-manifest.json:generic-api-key:278",
+        "disposition": "false-positive",
+        "basis": "Attended review subject identifier, not an authentication token"
+      },
+      {
+        "file": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/004-bpr-0299-build/identity/01-decision-manifest.json",
+        "line": 278,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/004-bpr-0299-build/identity/01-decision-manifest.json:generic-api-key:278",
+        "disposition": "false-positive",
+        "basis": "Attended review subject identifier, not an authentication token"
+      },
+      {
+        "file": "docs/verification/reviews/run-boundary-decisions-v001/offline-review-input.json",
+        "line": 278,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/reviews/run-boundary-decisions-v001/offline-review-input.json:generic-api-key:278",
+        "disposition": "false-positive",
+        "basis": "Attended review subject identifier, not an authentication token"
+      },
+      {
+        "file": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/001-bpr-0332-document-dispatch/identity/01-decision-manifest.json",
+        "line": 278,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/001-bpr-0332-document-dispatch/identity/01-decision-manifest.json:generic-api-key:278",
+        "disposition": "false-positive",
+        "basis": "Attended review subject identifier, not an authentication token"
+      },
+      {
+        "file": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/006-bpr-0114-v009-sitting/identity/01-decision-manifest.json",
+        "line": 278,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/subjects/006-bpr-0114-v009-sitting/identity/01-decision-manifest.json:generic-api-key:278",
+        "disposition": "false-positive",
+        "basis": "Attended review subject identifier, not an authentication token"
+      },
+      {
+        "file": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/index.html",
+        "line": 435,
+        "rule": "generic-api-key",
+        "fingerprint": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/index.html:generic-api-key:435",
+        "disposition": "false-positive",
+        "basis": "Attended review subject identifier, not an authentication token"
+      },
+      {
+        "file": "tests/github_contract/github_capability_probe_tests.cpp",
+        "line": 1841,
+        "rule": "generic-api-key",
+        "fingerprint": "tests/github_contract/github_capability_probe_tests.cpp:generic-api-key:1841",
+        "disposition": "false-positive",
+        "basis": "Literal punctuation canary in the credential-redaction unit test; not a service credential"
+      }
+    ],
+    "delta": {
+      "base": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+      "tip": "9409ff618c0e8c567fe266195ec8228852b18485",
+      "commits": 70,
+      "bytes": 1281602,
+      "raw_exit": 1,
+      "report_sha256": "7872fc8ae00a55c6a1dafdeda78e9201fad1575e82038fbaf7adf58dab9dc856",
+      "findings": "Same two default/Escape prose matches in BPR-0955 and handoff-m5, committed by 42c7ac49b41fdc6b11bf072fe8a055c86ac2612e"
+    },
+    "result": "No actual secret found in the selected source/delta after exact finding review; raw failures retained; no ignores or revocations applied"
+  },
+  "vulnerability_scan": {
+    "tool": "Grype 0.119.0",
+    "tool_archive_sha256": "500c9b2b6c089d21481815f57a553fabbd441ec7d1e79d95e3aaf40c3bfc7e36",
+    "database": {
+      "schema": "v6.1.9",
+      "built": "2026-09-21T06:39:24Z",
+      "archive_sha256": "3fac8f6fb69bb80a7956703caa7fed5d66ee0c936ca0a2c8fa127e4fe7835c7a",
+      "valid": true
+    },
+    "mac": {
+      "sbom_sha256": "7ee71d3987b75ad081cc8753a64a9b57c415d0412dbafef17282751c3d37377e",
+      "report_sha256": "1ffa6e524c857f6098be448b7b765df8cdf3c073ce4262a3f1111615514af72c",
+      "exit": 2,
+      "matches": [
+        {
+          "id": "BIT-sqlite-2025-6965",
+          "severity": "High",
+          "package": "SQLite",
+          "version": "3.53.4",
+          "namespace": "bitnami"
+        },
+        {
+          "id": "CVE-2022-37434",
+          "severity": "Critical",
+          "package": "WrapZLIB",
+          "version": "1.2.12",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2022-42011",
+          "severity": "Medium",
+          "package": "DBus_Attribution_libdbus-1-headers",
+          "version": "1.13.12",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2022-42012",
+          "severity": "Medium",
+          "package": "DBus_Attribution_libdbus-1-headers",
+          "version": "1.13.12",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2022-42010",
+          "severity": "Medium",
+          "package": "DBus_Attribution_libdbus-1-headers",
+          "version": "1.13.12",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "BIT-sqlite-2024-0232",
+          "severity": "Medium",
+          "package": "SQLite",
+          "version": "3.53.4",
+          "namespace": "bitnami"
+        },
+        {
+          "id": "CVE-2026-89157",
+          "severity": "High",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89157",
+          "severity": "High",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89158",
+          "severity": "Medium",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89158",
+          "severity": "Medium",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "BIT-sqlite-2025-29088",
+          "severity": "Medium",
+          "package": "SQLite",
+          "version": "3.53.4",
+          "namespace": "bitnami"
+        },
+        {
+          "id": "CVE-2026-89160",
+          "severity": "Medium",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89160",
+          "severity": "Medium",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89156",
+          "severity": "Medium",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89156",
+          "severity": "Medium",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-27171",
+          "severity": "Medium",
+          "package": "WrapZLIB",
+          "version": "1.2.12",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-34757",
+          "severity": "Medium",
+          "package": "BundledLibpng",
+          "version": "1.6.56",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89161",
+          "severity": "High",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89161",
+          "severity": "High",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89162",
+          "severity": "Low",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89162",
+          "severity": "Low",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        }
+      ]
+    },
+    "windows": {
+      "sbom_sha256": "719a97a690122fc3c17e981d333086a5c16a5d3b3e44de5eeb6e57104f78033a",
+      "report_sha256": "67f9673a00bbacee74e4a83f62441fc21bcd0572efd5ec2fffd5dfee6d04960b",
+      "exit": 2,
+      "matches": [
+        {
+          "id": "BIT-sqlite-2025-6965",
+          "severity": "High",
+          "package": "SQLite",
+          "version": "3.53.4",
+          "namespace": "bitnami"
+        },
+        {
+          "id": "CVE-2026-85091",
+          "severity": "High",
+          "package": "BundledZLIB",
+          "version": "1.3.2",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-85091",
+          "severity": "High",
+          "package": "Gui_Attribution_zlib",
+          "version": "1.3.2",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-85091",
+          "severity": "High",
+          "package": "Network_Attribution_zlib",
+          "version": "1.3.2",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "BIT-sqlite-2024-0232",
+          "severity": "Medium",
+          "package": "SQLite",
+          "version": "3.53.4",
+          "namespace": "bitnami"
+        },
+        {
+          "id": "CVE-2026-89157",
+          "severity": "High",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89157",
+          "severity": "High",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89158",
+          "severity": "Medium",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89158",
+          "severity": "Medium",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "BIT-sqlite-2025-29088",
+          "severity": "Medium",
+          "package": "SQLite",
+          "version": "3.53.4",
+          "namespace": "bitnami"
+        },
+        {
+          "id": "CVE-2026-89160",
+          "severity": "Medium",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89160",
+          "severity": "Medium",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89156",
+          "severity": "Medium",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89156",
+          "severity": "Medium",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-34757",
+          "severity": "Medium",
+          "package": "BundledLibpng",
+          "version": "1.6.56",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89161",
+          "severity": "High",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89161",
+          "severity": "High",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89162",
+          "severity": "Low",
+          "package": "BundledPcre2",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        },
+        {
+          "id": "CVE-2026-89162",
+          "severity": "Low",
+          "package": "BundledPcre2_Attribution_pcre2-sljit",
+          "version": "10.47",
+          "namespace": "nvd:cpe"
+        }
+      ]
+    },
+    "disposition": "BLOCKED: no findings suppressed or accepted; dependency remediation or independently reviewed exact-version applicability and coverage required. WSL is not a Linux package baseline."
+  }
+}

@@ -3,8 +3,8 @@
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
 Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
 `r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m8_finalize` owns only
-`rfc-bpr-0014-release-readiness/m8-ux-ui-native-verification` on `main`.
+current child `/root/rfc0014_m9` owns only
+`rfc-bpr-0014-release-readiness/m9-security-boundary-verification` on `main`.
 The M1–M7 records below retain their original child and candidate provenance.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
@@ -1277,3 +1277,124 @@ board reports BPR-0962 Ready with no unmet dependencies. The coordinator may
 dispatch a fresh M9 implementer while preserving all M8 blockers. This leaf
 does not claim or start M9. M12 and RFC closeout continue to require accepted
 M8, M9, M11 and canonical predecessors; publication remains unauthorized.
+
+## Milestone 9 security and boundary verification
+
+M9 was independently eligible through accepted M7, entered at
+`41cd3688cfb0bab82ea8d2551dd848d2b0d9275e`, and claimed BPR-0962 in
+`8d75ff697d8aae83a54a6396fa7a71a519ec56ba`. The sole non-delegating owner is
+`/root/rfc0014_m9`, mandate r3, coordinator-implementer rev2. The
+[checkpoint](../rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json)
+preserves both authored exits. The [release security policy](../security/release-policy.md)
+defines direct gates and [sanitized scan record](rfc0014-m9-security-evidence.json)
+retains every reported vulnerability and exact secret-finding disposition.
+
+Outcome: independent engineering evidence is complete for the available scoped
+candidates; **BPR-0962 and both M9 exits remain unaccepted**, blocked by failed
+dependency policy and missing independent trust/legal/native qualification.
+No Linux/Intel, ordinary-user Windows, resident-review crash or final signing
+evidence is inferred. A signing run is not authorized by this milestone.
+
+### Exact candidates and implementation
+
+The unchanged existing release paths built producer
+`9409ff618c0e8c567fe266195ec8228852b18485` with testing disabled. Later commits
+only refine verifier/test/doc behavior, not the packaged product/build inputs.
+
+| Artifact | Exact identity and scope |
+|---|---|
+| macOS universal local ZIP | `build/releases/m9-9409ff61/BetterPullReview-0.1.3-macos-universal-local.zip`; SHA-256 `be7ce58db455fb22980933e41267385517e6a5b3c46e186f22dd71f98f73ae3d`; executable `8bb2ca1b11f9f859d2632a01912ae66c97375192170c86714bb04bcf34718cf1`; SPDX `7ee71d3987b75ad081cc8753a64a9b57c415d0412dbafef17282751c3d37377e` |
+| Windows x64 MSI | JaegAW `C:/Users/mikem/bpr0014-m8-df273695/candidate-m9-9409ff61/BetterPullReview-0.1.3-windows-x64.msi`; SHA-256 `07942671462b337c4cf23e5a0b50b625ed000e5fe276372243106c7557a6fff6`; extracted executable `51efa21653e22eb27165b8a9646d85c8ca95d13a76205316e94680f50f9818bb`; SPDX `719a97a690122fc3c17e981d333086a5c16a5d3b3e44de5eeb6e57104f78033a` |
+
+Verifier `f72013b0d245c3ef5e18b65eba7f31f250838b24` validates all first-party
+public/static PE map names, image/timestamp/base/entry/symbol addresses and
+composition anchors. It explicitly handles MSVC's wrapped linker-only CFG
+index records without exempting their names from fixture-seam scans. Helpers
+now receive `/MAP` centrally alongside explicit ASLR/DEP/CFG link flags.
+The installed Windows/Linux SPDX copy must exactly match the external copy;
+the inventory cannot recursively hash itself. Qt's seven signed Windows DLLs
+match the exact local producer and reconstruct their upstream pre-sign SHA1
+after only the signature fields are removed in memory; native Authenticode
+validates The QT Company Oy. Altered code, wrong publisher/status, mismatched
+maps and malformed hardening evidence have negative controls. Whole-artifact
+trust remains separate from these producer identities.
+
+Under mandate r3 the live RFC's obsolete “no local server” prescription and
+its mechanically required closeout mirror now prohibit local network servers,
+with only the existing bounded owner-authenticated AF_UNIX profile activation
+exception. No HTTP/TCP/UDP service, arbitrary loader, browser/Node runtime or
+new network destination is added. Tests inspect named Unix endpoints, ownership,
+0700/0600 modes, malformed/version/profile refusals and production handoff;
+same-user observations do not replace foreign-UID/race adapter tests. Core
+policy and Qt presentation ownership are unchanged. The only product-source
+change is a behavior-preserving optional-return/move correction in profile
+activation, following strict tidy; code-simplifier also guided reuse of stream
+hashing and explicit compiler-argument checks.
+
+### Verification and failures retained
+
+| Direct command/course | Result and boundary |
+|---|---|
+| `tools/release.sh --version 0.1.3 --prepare-only --skip-tests --output-dir build/releases/m9-9409ff61` | Pass, 26.346s. Offline ad-hoc seal only; strict seal verification passes, `codesign -dv` says adhoc/no TeamIdentifier, `stapler validate` exits 65 with no ticket |
+| `python3 scripts/verify_release_security.py --build build/macos-release --root build/releases/m9-9409ff61/BetterPullReview.app --sbom build/releases/m9-9409ff61/BetterPullReview-0.1.3-macos-universal-local.spdx.json --source-revision 9409ff618c0e8c567fe266195ec8228852b18485` | Pass mechanical checks: 43 files, 13 binaries, 227 first-party plus one SQLite compile unit, 63 Qt transitive package records, seven source archives. Legal/trust verdict explicitly pending |
+| Native MSVC/WiX existing `packaging/package.py`, administrative MSI extraction, final security audit under station lease and qualification guard | Pass mechanical checks: 23 files, 16 binaries, 222 first-party plus one SQLite compile unit, 58 Qt package records, six source archives; all PE ASLR/DEP/CFG declarations present and no writable/executable section. Authenticode MSI result NotSigned. Administrative extraction is not ordinary-user installation proof |
+| Complete native first-party maps | App 159,337 names, supervisor 858, MCP helper 2,349; byte-identical producers, all required composition anchors and no forbidden fixture seams. Map SHA-256 values and exact commands retained in the handoff |
+| Final focused CTest set | 9/9 pass, 26.984s: core boundary, both audit contracts, core/host maintenance, SQLite activation/maintenance and real maintenance/profile-activation public paths. Architecture contract additionally passes, 85.54s |
+| Architecture scan | Checkout fails on unrelated ignored `.claude/worktrees/agent-a17cae88115dbbb4e`. Exact `9409ff61` tracked archive passes unchanged scanner, 5.543s. Initial combined suite is honestly 10/11; no unrelated worktree was changed |
+| Focused clang-tidy 23.1.1, six policy/host/native TUs | Pass warnings-as-errors, 18.426s. Initial optional-value conversion and const-move warnings in activation corrected; non-user-header warnings remain suppressed by existing tool policy |
+| Clang 23.1.1 libFuzzer + ASan/UBSan, no recovery, seed 140962 | Two harnesses, 100,000 iterations each. Core determinism/authority/stale/selection invariants and diagnostic framing/bounds/digest/no-detail-canary invariants pass. Max input 256/16384, five-second per-input timeout; not whole-program/native-vault fuzz coverage |
+| Tests-disabled macOS hostile package course | Nine groups pass, 18.305s; two native launches each observe 15 libraries; real MCP read and stale/traversal refusal, five loader switches, hostile env/symlinks/missing helpers/wrong identity/injected bytes and RPATH all exercised |
+| Tests-disabled macOS IPC/crash course | Final verifier passes, 9.165s: five hostile frames refused; real second launch opens the second window in the original owner; private named endpoint and no TCP/UDP. Actual OS report SHA-256 `f09cad771a40aae99c608c0532fbe77f8a22becf61f270f2597bfa7f8001bfdf`, 59,365 bytes, contains none of three synthetic environment canaries. No resident-review/token crash or native matrix approval |
+| Native runtime inspector self-tests | macOS arm64: 20 libraries; Windows AMD64: 34; WSL x86_64: 13. Owned child/listener/connection observed and unrelated process excluded. Unix endpoint/mode negative control passes on macOS/WSL. Windows profile activation is unimplemented, not an empty-pipe certification |
+| Gitleaks 8.30.1 exact producer source + RFC delta | Raw exits 1: 16 source matches and two delta matches (70 commits). Exact review finds fixture digest prefixes, static canaries, review subject IDs and ordinary parser/default-Escape prose; no actual secret. No global ignore/baseline or revocation performed |
+| Grype 0.119.0, database v6.1.9 built 2026-09-21T06:39:24Z | **Fail, exit 2:** 21 macOS and 19 Windows matches. High PCRE2 10.47 and Windows zlib 1.3.2 require remediation or independent applicability; macOS WrapZLIB and broad Bitnami SQLite matches require precise source/system adjudication. No suppression, lower-severity disposition or complete coverage assertion |
+
+Initial invalid command arguments/Windows transport quoting and tar metadata
+failures are retained locally with their guard receipts. Actual native failures
+revealed and corrected the installed-SPDX self-inventory mismatch, MSVC guard
+index records and Qt pre-sign/signature distinction; none became an allow-list
+waiver. Current inspector tests pass 9/9 natively on Windows; other prior host
+contracts remain bounded to their named revisions. Raw crash contents are not
+copied into the repository; only synthetic-report identities are retained.
+
+### Remaining acceptance and continuation
+
+Critical/High and lower-severity dependency matches need a reviewed disposition,
+fresh final SBOM coverage, and either corrected dependency builds or named,
+time-bounded independent applicability evidence. Prebuilt/external dependency
+compile hardening and PE CFG call-site coverage are not proved by first-party
+flags. Final signed Windows/macOS/declared Linux artifacts still need independent
+native trust and checksum verification. Legal/owner review must resolve
+first-party terms, mixed syntax-definition licensing, upstream/toolchain terms
+and practical corresponding source/build/relink delivery.
+
+Clean native Intel, ordinary-user Windows 10/11, Ubuntu 24.04/RHEL 10 and the
+complete macOS account/vault/root/removal course remain pending with M8. WSL
+Ubuntu 26.04 is inspector-only evidence; no substitute baseline is declared.
+Actual resident source/comment/token crash canaries, public-operation network
+destinations and native credential/privacy lifecycle remain pending. Historical
+M8 human accepts retain their exact old protected installations and do not
+transfer to M9 bytes.
+
+The M9 legal-review packet is a single existing AC1 owner/legal obligation,
+not a new automated-work approval checkpoint. Acceptance of that question
+cannot waive vulnerabilities, authorize publication, or close this card.
+The [durable handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json)
+records session/candidate identity, pending obligations, exact commands, changed
+paths, local/remote writer state and cleanup. BPR-0963/M10 remains independently
+Ready through accepted M7; this leaf does not claim or start it. M12/RFC closeout
+still requires all unmet predecessors and M8/M9/M11.
+
+The companion prepared `rfc0014-m9-licensing-v001` at session
+`cbd48b91000b00f1e72e1ad62c7c384c`, cursor 463, fingerprint
+`2ec3475e1eed532ab1455783ae8553b823f6f7ffb005ee8b057ce1be5119c577`.
+It is ready/protected with no decision at preparation. Loopback server PID
+49181, port 59550, is explicitly handed to the coordinator; the authenticated
+URL is not committed. The coordinator owns the durable wait and next-round
+interpretation. All other engineering/remote commands are stopped and reaped.
+The 2.6GB disposable scan/proof tree and transfer/fuzz artifacts were removed;
+the three synthetic OS reports were moved to Trash and remain recoverable.
+Native cleanup guards retain unchanged live project/role declarations.
+Documentation passes, 64 documentation regressions pass, 957-card scoped board
+validation is clean, and the bound checkpoint selects fresh independent M10
+without evaluating or granting M9 acceptance.
