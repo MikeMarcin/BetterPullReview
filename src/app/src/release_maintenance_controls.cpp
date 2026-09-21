@@ -121,7 +121,7 @@ namespace bpr::app {
 			Effects.post([self = shared_from_this(), root = std::move(aRoot), lease = std::move(aLease), aProfile] {
 				std::shared_ptr<application::release_maintenance_storage_port> storage;
 				try {
-					const auto session = QRandomGenerator::system()->generate64();
+					const auto session = QRandomGenerator::securelySeeded().generate64();
 					if (session != 0U) {
 						storage = std::make_shared<diagnostic_storage>(root, lease, aProfile, core::application_session_id{ session });
 					}
