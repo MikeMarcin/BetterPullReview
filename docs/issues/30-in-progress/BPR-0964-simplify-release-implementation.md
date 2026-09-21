@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0964"
 title: "Simplify release implementation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957","BPR-0963"]
 milestone: "M11 Simplification"
