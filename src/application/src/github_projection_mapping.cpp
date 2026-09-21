@@ -329,6 +329,29 @@ namespace bpr::application {
 			}
 		}
 
+		for (const auto& group : aSnapshot.ReviewCommentGroups) {
+			const auto rootId = prefixed_id("public-preview-comment:", group.Root.Comment.value());
+			const auto append = [&](const github_review_comment_record& aComment, std::optional<std::string> aParent) {
+				conversations.push_back(github_conversation_projection{
+					.Id                 = prefixed_id("public-preview-comment:", aComment.Comment.value()),
+					.ParentId           = std::move(aParent),
+					.Kind               = github_conversation_kind::review_comment,
+					.AuthorLogin        = author_login(aComment.Author),
+					.Body               = aComment.Body,
+					.Path               = aComment.Path,
+					.Line               = aComment.Line,
+					.OriginalLine       = aComment.OriginalLine,
+					.AnchorAvailability = github_conversation_anchor_availability::file_level,
+					.Outdated           = aComment.Outdated,
+					.Deleted            = aComment.Deleted,
+				});
+			};
+			append(group.Root, std::nullopt);
+			for (const auto& reply : group.Replies) {
+				append(reply, rootId);
+			}
+		}
+
 		for (const auto& comment : aSnapshot.IssueComments) {
 			conversations.push_back(github_conversation_projection{
 				.Id          = prefixed_id("issue-comment:", comment.Comment.value()),
@@ -370,10 +393,12 @@ namespace bpr::application {
 			.IssueCommentCount      = aSnapshot.IssueComments.size(),
 			.ReviewThreadsAvailable = aSnapshot.ReviewThreadsAvailability
 				== github_collection_availability::available,
-			.Capabilities       = aSnapshot.CapabilityEvidence.Capabilities,
-			.CapabilityRevision = aSnapshot.CapabilityEvidence.Revision,
-			.RateLimits         = project(aSnapshot.RateLimits),
-			.Conversations      = std::move(conversations),
+			.Capabilities            = aSnapshot.CapabilityEvidence.Capabilities,
+			.CapabilityRevision      = aSnapshot.CapabilityEvidence.Revision,
+			.RateLimits              = project(aSnapshot.RateLimits),
+			.Conversations           = std::move(conversations),
+			.PublicPreview           = aSnapshot.Mode == core::github_access_mode::public_preview,
+			.ReviewCommentsAvailable = aSnapshot.ReviewCommentsAvailability == github_collection_availability::available,
 		};
 	}
 

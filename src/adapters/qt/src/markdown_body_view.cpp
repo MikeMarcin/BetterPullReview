@@ -20,6 +20,7 @@
 #include <QTextFragment>
 #include <QTextTable>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <string_view>
@@ -229,6 +230,17 @@ namespace bpr::qt {
 					format.setCellPadding(4);
 					table->setFormat(format);
 					style_table_header(*table);
+					// Keep each cell's text readable. Qt otherwise squeezes wide
+					// tables into columns only one character across; the reader
+					// already owns horizontal overflow for this bounded content.
+					for (int row = 0; row < table->rows(); ++row) {
+						for (int column = 0; column < table->columns(); ++column) {
+							auto cursor = table->cellAt(row, column).firstCursorPosition();
+							auto cell   = cursor.blockFormat();
+							cell.setNonBreakableLines(true);
+							cursor.setBlockFormat(cell);
+						}
+					}
 				}
 				style_tables(*frame, aPalette);
 			}
@@ -274,6 +286,20 @@ namespace bpr::qt {
 		}
 
 	protected:
+		void wheelEvent(QWheelEvent* aEvent) override
+		{
+			if (!aEvent->pixelDelta().isNull()) {
+				auto* vertical   = verticalScrollBar();
+				auto* horizontal = horizontalScrollBar();
+				vertical->setValue(vertical->value() - aEvent->pixelDelta().y());
+				horizontal->setValue(horizontal->value() - aEvent->pixelDelta().x());
+			} else {
+				QTextEdit::wheelEvent(aEvent);
+			}
+			// A body owns scrolling even at its end; do not page its parent.
+			aEvent->accept();
+		}
+
 		void mousePressEvent(QMouseEvent* aEvent) override
 		{
 			Pressed = aEvent->button() == Qt::LeftButton ? anchorAt(aEvent->position().toPoint()) : QString{ };
@@ -379,6 +405,7 @@ namespace bpr::qt {
 		Rendered->setAccessibleDescription(QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally."));
 		Source = new QPlainTextEdit{ Pages };
 		Source->setReadOnly(true);
+		Source->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		Source->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Source->setTabChangesFocus(true);
 		Source->setAccessibleName(QStringLiteral("Original Markdown source"));
@@ -458,6 +485,11 @@ namespace bpr::qt {
 			}
 		}
 		document->setLayoutEnabled(true);
+		// Replacing a QTextDocument directly leaves its attached view cursor
+		// tracking the importer at the end. A new body starts at its beginning.
+		Rendered->setTextCursor(QTextCursor{ document });
+		Rendered->verticalScrollBar()->setValue(0);
+		Rendered->horizontalScrollBar()->setValue(0);
 		Rendered->reset_links();
 		Notice->setText(!Fallback.isEmpty() ? Fallback : Body.empty() ? QStringLiteral("No body provided.")
 																	  : QString{ });

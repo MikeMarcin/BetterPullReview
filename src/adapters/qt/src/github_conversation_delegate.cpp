@@ -103,7 +103,7 @@ namespace bpr::qt {
 			return path;
 		}
 
-		[[nodiscard]] auto presentation_for(const QModelIndex& aIndex)
+		[[nodiscard]] auto presentation_for(const QModelIndex& aIndex, const bool aCompact)
 			-> conversation_presentation
 		{
 			auto result = conversation_presentation{
@@ -112,6 +112,12 @@ namespace bpr::qt {
 				.Facts   = { },
 			};
 
+			if (aCompact) {
+				result.Body = result.Body.simplified();
+				if (result.Body.size() > 120) {
+					result.Body = result.Body.left(120) + QChar{ 0x2026 };
+				}
+			}
 			QStringList facts;
 			if (const auto location = location_text(aIndex); !location.isEmpty()) {
 				facts.push_back(location);
@@ -279,8 +285,9 @@ namespace bpr::qt {
 		}
 	}
 
-	github_conversation_delegate::github_conversation_delegate(QObject* const aParent)
+	github_conversation_delegate::github_conversation_delegate(QObject* const aParent, const bool aCompact)
 		: QStyledItemDelegate{ aParent }
+		, Compact{ aCompact }
 	{
 	}
 
@@ -299,7 +306,7 @@ namespace bpr::qt {
 																		  : QApplication::style();
 		const auto        nativeTextRect = text_rect(nativeOption, style, aIndex);
 		const auto        metrics        = metrics_for(nativeOption, style);
-		const auto        presentation   = presentation_for(aIndex);
+		const auto        presentation   = presentation_for(aIndex, Compact);
 
 		nativeOption.text.clear();
 		style->drawControl(
@@ -381,7 +388,7 @@ namespace bpr::qt {
 			text_rect(measuringOption, style, aIndex).width()
 				- (metrics.HorizontalPadding * 2));
 		const auto height = content_height(
-			presentation_for(aIndex),
+			presentation_for(aIndex, Compact),
 			metrics,
 			static_cast<qreal>(availableWidth),
 			nativeOption.widget);

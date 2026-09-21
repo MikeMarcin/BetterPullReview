@@ -1,7 +1,7 @@
 # Native Markdown reading
 
-RFC-BPR-0036 milestone 1 provides `qt::markdown_body_view`. It is a shared
-component candidate; overview and public-conversation adoption is milestone 2.
+RFC-BPR-0036 provides `qt::markdown_body_view`, shared by the expanded PR
+overview and the complete selected public post in Read and Discuss.
 The original provider body remains the authority for source, copy and publishing.
 
 ## Reading policy
@@ -34,12 +34,26 @@ opener, filesystem capability or network capability.
 All destinations remain untrusted strings. Tab visits link text and shows its
 destination; Enter or a deliberate click emits that string to application
 admission. The widget performs no scheme parsing, relative resolution or browser
-handoff. Milestone 2 must bind this callback to current-authority core/application
-navigation and the existing browser port. Until then the component test's
-recording callback proves gestures only. Ambiguous relative links are not guessed.
+handoff. The window read host checks the exact window generation, session,
+account generation, accepted snapshot and a monotonically increasing publication
+revision before core admission. The selected post must still exist and not be
+deleted. Description and image-placeholder links use this same path. The existing
+application-owned browser port performs the effect; Qt receives no credentials.
+A failed or unavailable handoff is stated in the window status bar.
 
-Prose wraps in the reader; fenced code is nonbreaking and wide code/tables use
-the reader's horizontal scrollbar. Source has horizontal scrolling, which avoids
+Absolute HTTP(S) URLs admit DNS/IPv4 authorities and optional decimal ports,
+without userinfo, control characters, backslashes, invalid escapes or
+credential-bearing query keys. Other schemes are refused. Repository-root paths
+such as `./docs/guide.md` resolve against the accepted full head OID, never a
+default branch. A fragment addresses the current PR. Network-path, root-relative,
+parent-escaping and encoded relative paths stay readable but are refused because
+their interpretation is ambiguous here. IPv6 literals, raw Unicode URLs and other
+unsupported address forms remain available in source. No private attachment
+authentication or credential-bearing URL is manufactured.
+
+Prose wraps in the reader; fenced code and table-cell text stay on their native
+lines. Wide code/tables use the reader's horizontal scrollbar so narrow columns
+do not turn readable words into tall stacks of single characters. Source has horizontal scrolling, which avoids
 expensive wrapping of a provider-sized single line. Text, links, quote/code
 backgrounds and table borders use the inherited palette. Composition supplies
 code typography through `set_code_font`; the default is the native fixed font
@@ -85,20 +99,25 @@ platform context are in [the verification ledger](../verification/RFC-BPR-0036.m
 
 ## Initial surface inventory and integration contract
 
-| Surface | Current path | Milestone 2 action |
+| Surface | Current path | Delivered behavior |
 | --- | --- | --- |
-| PR overview | `pull_request_overview_page.cpp`, `overview_description_view` | Use the shared renderer inside the existing compact/expanded reading flow; retain RFC0037's uncapped expanded viewport, Return/Escape and file focus. |
-| Public selected conversation | `github_conversation_panel.cpp`, selected `QTreeView` and `github_conversation_delegate.cpp` | Use the shared reader for complete selected bodies/replies with their stable identities; retain thread selection, read state and reply context. |
-| Read/Discuss navigation cards | `conversation_cards_view.cpp` | Compact entries remain navigation summaries; complete public bodies are read in selected detail. Inventory any remaining complete body painting before acceptance. |
+| PR overview | `pull_request_overview_page.cpp`, `overview_description_view` | The shared renderer occupies the compact/expanded flow; the expanded viewport has no height cap and retains RFC0037 Return/Escape, source anchors and file focus. |
+| Public selected conversation | `github_conversation_panel.cpp`, selected `QTreeView` and `github_conversation_delegate.cpp` | Compact post summaries select complete bodies/replies in the shared reader; thread selection, read state and reply context retain their identities. Review summaries, GraphQL roots/replies, REST roots/replies and issue comments are included. |
+| Read/Discuss navigation cards | `conversation_cards_view.cpp` | Compact entries remain navigation summaries; the selected detail owns the complete public body. Draft entries keep their existing plain-text editing contract. |
 | AI side chat | `side_chat_panel.cpp` | Inventoried, outside initial delivery. |
 | Local review/reply editors and draft cards | `review_draft_editor.cpp`, `review_submission_editor.cpp`, draft `conversation_cards_view` entries | Preserve Markdown editing and payloads; do not silently adopt rendering in this slice. |
 
 The wrapper exposes the rendered and source text widgets for layout, focus and
 selection integration. It does not own PR geometry, the conversation model,
-publication, receipt state or accepted authority. The successor must exercise
-the actual composed overview and conversation paths, not infer them from the
-component tests. Native VoiceOver, physical input and system appearance require
-separate observed evidence if claimed; forced palettes are layout checks only.
+publication, receipt state or accepted authority. The composed acceptance course
+opens a synthetic PR through the real read host,
+reads each complete body, activates admitted links and reaches the final long
+paragraph. REST preview groups now travel in the accepted per-window projection;
+profile-wide status cannot overwrite another window's bodies. A new body starts
+at its first character; identical body/identity does not mutate either document.
+Native Cocoa rendering, accessibility interfaces, keyboard events and local
+horizontal overflow are checked. This does not claim VoiceOver certification,
+physical-input attendance or testing on unavailable platforms.
 
 ## Renderer comparison requested by the owner
 

@@ -1,3 +1,4 @@
+#include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include <cstdlib>
@@ -502,9 +503,79 @@ namespace {
 		lane.drain();
 	}
 
+	void test_markdown_link_admission()
+	{
+		struct browser final : application::device_authorization_browser_port
+		{
+			std::vector<std::string> Opened;
+			bool                     Succeeds = true;
+			auto                     open(const std::string_view aAddress) -> bool override
+			{
+				Opened.emplace_back(aAddress);
+				return Succeeds;
+			}
+		} opener;
+		reads                                                      provider;
+		application::manual_executor                               lane;
+		std::optional<application::github_pull_request_projection> projected;
+		application::github_window_read_host                       host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&](const auto& aUpdate) { if (aUpdate.Presentation.PullRequest) { projected = aUpdate.Presentation.PullRequest; } }
+		};
+		expect(host.adopt(session()), "Markdown fixture adopts accepted session");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 42 } });
+		auto call             = provider.Calls.back();
+		auto data             = snapshot(call.Request);
+		data.PullRequest.Body = "# Original\r\n\r\n[link](./guide.md)\r\n";
+		call.Complete(application::github_pull_request_success{ call.Request, data });
+		lane.drain();
+		expect(projected && projected->MarkdownContext && projected->Body == data.PullRequest.Body
+				   && host.accepted_snapshot()->PullRequest.Body == data.PullRequest.Body && opener.Opened.empty(),
+			   "acceptance preserves exact source and performs no browser effect");
+		const auto old     = *projected->MarkdownContext;
+		const auto gesture = core::markdown_link_intent{ old, { }, "./guide.md" };
+		expect(host.open_markdown_link(gesture, &opener) == core::markdown_link_result::opened
+				   && opener.Opened.back() == "https://github.com/owner/repo/blob/2222222222222222222222222222222222222222/guide.md",
+			   "current explicit gesture reaches browser with exact accepted revision");
+		expect(host.open_markdown_link({ old, "absent", "https://example.invalid" }, &opener) == core::markdown_link_result::stale, "absent body cannot lend navigation identity");
+		expect(host.open_markdown_link(gesture, nullptr) == core::markdown_link_result::unavailable, "construction cut disables browser capability");
+		expect(host.open_markdown_link({ old, { }, "file:///tmp/secret" }, &opener) == core::markdown_link_result::refused && opener.Opened.size() == 1, "hostile scheme never reaches browser");
+		for (const auto* address : { "https://user:secret@example.invalid", "https://example.invalid/?access_token=secret", "javascript:alert(1)", "//ambiguous.invalid/a", "../outside.md" }) {
+			expect(host.open_markdown_link({ old, { }, address }, &opener) == core::markdown_link_result::refused && opener.Opened.size() == 1, "credential-bearing and ambiguous destinations never reach the public host port");
+		}
+		auto foreign          = old;
+		foreign.Window.Window = core::bpr_window_id{ 99 };
+		expect(host.open_markdown_link({ foreign, { }, "https://example.invalid" }, &opener) == core::markdown_link_result::stale && opener.Opened.size() == 1, "another window cannot borrow the current body's navigation authority");
+		foreign                   = old;
+		foreign.Window.Generation = core::bpr_window_generation{ 99 };
+		expect(host.open_markdown_link({ foreign, { }, "https://example.invalid" }, &opener) == core::markdown_link_result::stale && opener.Opened.size() == 1, "a replaced window generation cannot borrow body authority");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		call = provider.Calls.back();
+		data = snapshot(call.Request); // deliberately reuses provider snapshot id
+		call.Complete(application::github_pull_request_success{ call.Request, data });
+		lane.drain();
+		expect(projected->MarkdownContext != old && host.open_markdown_link(gesture, &opener) == core::markdown_link_result::stale, "fresh body publication invalidates gestures even if provider reuses snapshot id");
+		opener.Succeeds = false;
+		expect(host.open_markdown_link({ *projected->MarkdownContext, { }, "http://example.invalid/doc" }, &opener) == core::markdown_link_result::failed, "browser failure remains explicit");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 43 } });
+		expect(host.open_markdown_link({ *projected->MarkdownContext, { }, "https://example.invalid" }, &opener) == core::markdown_link_result::stale, "authority replacement revokes current links before replacement completion");
+		const auto pending = provider.Calls.back();
+		call.Complete(application::github_pull_request_success{ call.Request, data });
+		lane.drain();
+		expect(!host.accepted_snapshot(), "late prior completion cannot restore body authority");
+		host.shutdown();
+		pending.Complete(application::github_pull_request_cancelled{ pending.Request });
+		lane.drain();
+		expect(host.is_quiescent() && host.open_markdown_link(gesture, &opener) == core::markdown_link_result::stale, "shutdown refuses gestures and drains terminals");
+	}
+
 }
 int main()
 {
+	test_markdown_link_admission();
 	test_provisional_overview_is_bounded_and_never_authority();
 	test_loading_budget_shape();
 	test_reentrant_read_publication();

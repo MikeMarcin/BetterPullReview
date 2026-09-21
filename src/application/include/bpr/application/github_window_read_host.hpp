@@ -15,6 +15,7 @@
 #include <memory>
 
 namespace bpr::application {
+	class device_authorization_browser_port;
 	enum class github_public_preview_refusal_cause : std::uint8_t {
 		/// No anonymous read authority is composed, so the mode cannot be
 		/// entered at all. This is a composition fact the host reports
@@ -81,6 +82,8 @@ namespace bpr::application {
 		[[nodiscard]] auto retire(const github_profile_session& aSession) -> bool;
 		void               advance_request_floor(core::request_id aNext) noexcept;
 		void               dispatch(const core::github_window_read_event& aEvent);
+		/// \brief Revalidates a displayed body gesture on the decision lane before the browser handoff.
+		[[nodiscard]] auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;

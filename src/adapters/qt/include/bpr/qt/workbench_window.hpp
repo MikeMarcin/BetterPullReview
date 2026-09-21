@@ -863,6 +863,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto statistics() const noexcept
 			-> workbench_window_statistics;
 
+		/// \brief Binds explicit reader gestures to current-context application policy.
+		void set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch);
+
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
@@ -1388,6 +1391,10 @@ namespace bpr::qt {
 		std::uint64_t                                      PublicPreviewNow       = 0;
 		bool                                               PublicPreviewSignedOut = false;
 		bool                                               HasGithubPullRequest   = false;
+
+		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
+		std::string                                                                  MarkdownAuthority;
+
 		/// [[BPR-0668]]. Whether the comparison gave the drawer any files.
 		bool                                                  FileRowsPresent          = false;
 		bool                                                  ApplyingQueuePreferences = false;

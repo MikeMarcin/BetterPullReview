@@ -1,5 +1,6 @@
 #include "bpr/qt/github_thread_map.hpp"
 
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "github_presentation_text.hpp"
@@ -6114,6 +6115,26 @@ namespace bpr::qt {
 	void workbench_window::apply_github_pull_request(
 		const application::github_pull_request_projection& aPullRequest)
 	{
+		const auto authority = std::to_string(aPullRequest.Profile.value()) + ":" + std::to_string(aPullRequest.Host.value()) + ":"
+			+ std::to_string(aPullRequest.Account.value()) + ":" + std::to_string(aPullRequest.Repository.value()) + ":" + std::to_string(aPullRequest.PullRequest.value());
+		if (!MarkdownAuthority.empty() && MarkdownAuthority != authority) {
+			clear_github_pull_request();
+		}
+		MarkdownAuthority   = authority;
+		const auto dispatch = [this, context = aPullRequest.MarkdownContext](const std::string& aBody, const std::string& aDestination) {
+			const auto result = context && MarkdownDispatch ? MarkdownDispatch({ *context, aBody, aDestination }) : core::markdown_link_result::unavailable;
+			QString    message;
+			switch (result) {
+			case core::markdown_link_result::opened:      message = QStringLiteral("Opened in your browser."); break;
+			case core::markdown_link_result::stale:       message = QStringLiteral("This body is no longer current. Reopen the link from the current content."); break;
+			case core::markdown_link_result::unavailable: message = QStringLiteral("Opening links is unavailable until the pull request is accepted."); break;
+			case core::markdown_link_result::refused:     message = QStringLiteral("This link cannot be opened safely. Its destination remains available in the source."); break;
+			case core::markdown_link_result::failed:      message = QStringLiteral("The browser could not open this link."); break;
+			}
+			statusBar()->showMessage(message, 8000);
+		};
+		OverviewPage->body_view()->set_link_dispatch([dispatch](const std::string& aDestination) { dispatch({ }, aDestination); });
+		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
 		HomeRequested     = false;
@@ -6138,10 +6159,14 @@ namespace bpr::qt {
 		ApplyingConversationAnchor = true;
 		ConversationPanel->adopt(
 			aPullRequest.Conversations,
-			detail::review_thread_availability_text(
-				aPullRequest.ReviewThreadsAvailable,
-				aPullRequest.ReviewThreadCount,
-				aPullRequest.Capabilities.ReviewThreads));
+			aPullRequest.PublicPreview
+				? (aPullRequest.ReviewCommentsAvailable
+					   ? QStringLiteral("Review comments are read-only in public preview. Review threads and their resolution are unavailable.")
+					   : QStringLiteral("Review comments were not observable."))
+				: detail::review_thread_availability_text(
+					  aPullRequest.ReviewThreadsAvailable,
+					  aPullRequest.ReviewThreadCount,
+					  aPullRequest.Capabilities.ReviewThreads));
 		ApplyingConversationAnchor = false;
 		synchronize_selected_conversation(
 			ConversationPanel->view()->currentIndex());
@@ -6205,8 +6230,16 @@ namespace bpr::qt {
 			aDiagnostic.BootstrapStage, aDiagnostic.CapabilityDetail);
 	}
 
+	void workbench_window::set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch)
+	{
+		MarkdownDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::clear_github_pull_request()
 	{
+		MarkdownAuthority.clear();
+		OverviewPage->body_view()->set_link_dispatch({ });
+		ConversationPanel->set_link_dispatch({ });
 		RefreshConversationAnchor.reset();
 		RefreshConversationContext.reset();
 		LastWorkbenchContext.reset();
@@ -6322,64 +6355,11 @@ namespace bpr::qt {
 
 	void workbench_window::apply_public_preview_conversation()
 	{
-		if (!PublicPreviewSignedOut || ConversationPanel == nullptr) {
-			return;
+		// Body content belongs to this window's accepted read projection. The
+		// profile-wide preview status cannot replace it with a sibling's posts.
+		if (PublicPreviewSignedOut && ConversationPanel != nullptr && !HasGithubPullRequest) {
+			ConversationPanel->clear(QStringLiteral("Review comments were not observable."));
 		}
-		if (PublicPreview.ReviewComments
-			!= application::public_preview_observation::observed) {
-			// Not an empty conversation. An unobservable conversation and an
-			// observed empty one are different answers and the wording keeps
-			// them apart.
-			ConversationPanel->clear(
-				QStringLiteral("Review comments were not observable."));
-			return;
-		}
-		std::vector<application::github_conversation_projection> conversations;
-		const auto                                               identifier = [](const std::string& aId) {
-			return std::string{ "public-preview-comment:" } + aId;
-		};
-		const auto project =
-			[](const application::public_preview_review_comment& aComment,
-			   std::string                                       aId,
-			   std::optional<std::string>                        aParent) {
-				return application::github_conversation_projection{
-					.Id           = std::move(aId),
-					.ParentId     = std::move(aParent),
-					.Kind         = application::github_conversation_kind::review_comment,
-					.AuthorLogin  = aComment.AuthorLogin,
-					.Body         = aComment.Body,
-					.Path         = aComment.Path,
-					.Line         = aComment.Line,
-					.OriginalLine = std::nullopt,
-					.DiffSide     = std::nullopt,
-					// Signed out there is no selected-revision agreement to
-					// claim, so the anchor is reported as file level rather
-					// than asserted current.
-					.AnchorAvailability = application::
-						github_conversation_anchor_availability::file_level,
-					.ReviewState
-					= application::github_review_state_projection::none,
-					// Resolution needs a reader and there is none. False here
-					// renders nothing at all, which is the absence the mode
-					// requires rather than a claim that it is unresolved.
-					.Resolved = false,
-					.Outdated = false,
-					.Deleted  = false,
-				};
-			};
-		for (const auto& group : PublicPreview.ReviewCommentGroups) {
-			auto rootId = identifier(group.Root.Id);
-			conversations.push_back(project(group.Root, rootId, std::nullopt));
-			for (const auto& reply : group.Replies) {
-				conversations.push_back(
-					project(reply, identifier(reply.Id), rootId));
-			}
-		}
-		ConversationPanel->adopt(
-			conversations,
-			QStringLiteral(
-				"Review comments are read-only in public preview. Review "
-				"threads and their resolution are unavailable."));
 	}
 
 	auto workbench_window::usage_indicator() const noexcept -> usage_ring*

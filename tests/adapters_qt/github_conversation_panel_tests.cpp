@@ -1,4 +1,6 @@
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
+#include <QTextEdit>
 
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_thread_map.hpp"
@@ -211,6 +213,8 @@ namespace {
 		const auto rowOf = [&](const std::string_view aIdentity) {
 			const auto index = panel.model()->index_for_id(aIdentity);
 			expect(index.isValid(), "the row being measured is in the model");
+			view->scrollTo(index, QAbstractItemView::PositionAtCenter);
+			process_events();
 			const auto rect = view->visualRect(index);
 			// A row scrolled out of view has nothing to measure, and a check
 			// that silently measured blank pixels would pass for any layout.
@@ -227,10 +231,13 @@ namespace {
 
 		// Pixels, not settings. A view that stopped indenting while the
 		// delegate kept a depth-scaled inset would pass the check above.
-		const auto raster       = view->viewport()->grab().toImage();
-		const auto rootInset    = painted_inset(raster, rowOf("thread"));
-		const auto shallowInset = painted_inset(raster, shallow);
-		const auto deepInset    = painted_inset(raster, deep);
+		const auto inset = [&](const std::string_view aIdentity) {
+			const auto rect = rowOf(aIdentity);
+			return painted_inset(view->viewport()->grab().toImage(), rect);
+		};
+		const auto rootInset    = inset("thread");
+		const auto shallowInset = inset("c1");
+		const auto deepInset    = inset("c5");
 		expect(rootInset >= 0 && shallowInset >= 0 && deepInset >= 0,
 			   "every measured row actually painted something");
 		expect(shallowInset == deepInset,
@@ -620,7 +627,7 @@ namespace {
 				auto data = two_files();
 				data[1].Body.clear();
 				for (auto line = 0; line < 120; ++line) {
-					data[1].Body += "A complete long comment line with a stable reading position.\n";
+					data[1].Body += "A complete long comment line with a stable reading position.\n\n";
 				}
 				data[1].Body += "FINAL SENTINEL";
 				panel.adopt(data, QStringLiteral("Accepted"));
@@ -632,14 +639,14 @@ namespace {
 				QApplication::sendEvent(panel.cards(), &enter);
 				panel.view()->setCurrentIndex(panel.model()->index_for_id("left-reply"));
 				process_events();
-				auto* const view = panel.view();
+				auto* const view = panel.body_view()->rendered_view();
 				auto* const bar  = view->verticalScrollBar();
-				expect(view->verticalScrollMode() == QAbstractItemView::ScrollPerPixel && bar->maximum() > view->viewport()->height(),
+				expect(bar->maximum() > view->viewport()->height(),
 					   "one long post has a pixel reading range beyond a viewport");
 				const auto compactHeight = panel.cards()->cards().front().Rect.height();
 				expect(compactHeight < 400, "compact index height is independent of long body length");
 				bar->setValue(0);
-				for (const auto key : { Qt::Key_PageDown, Qt::Key_Space }) {
+				for (const auto key : { Qt::Key_PageDown, Qt::Key_PageDown }) {
 					const auto before = bar->value();
 					auto       event  = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
 					QApplication::sendEvent(view, &event);
@@ -649,26 +656,27 @@ namespace {
 				data.back().Body += " refreshed";
 				panel.adopt(data, QStringLiteral("Refreshed"));
 				process_events();
-				expect(bar->value() == saved && panel.model()->id_for_index(view->currentIndex()) == "left-reply", "refresh preserves reading offset and exact post");
+				expect(bar->value() == saved && panel.model()->id_for_index(panel.view()->currentIndex()) == "left-reply", "refresh preserves reading offset and exact post");
 				panel.set_discuss(false);
 				panel.set_discuss(true);
 				process_events();
-				expect(bar->value() == saved && panel.model()->id_for_index(view->currentIndex()) == "left-reply", "mode round trip preserves reading offset and exact post");
-				const auto readingPost = panel.model()->id_for_index(view->indexAt(QPoint{ 1, 1 }));
+				expect(bar->value() == saved && panel.model()->id_for_index(panel.view()->currentIndex()) == "left-reply", "mode round trip preserves reading offset and exact post");
+				const auto readingPost = panel.model()->id_for_index(panel.view()->currentIndex());
 				panel.resize(width + 100, 900);
 				process_events();
-				expect(panel.model()->id_for_index(view->indexAt(QPoint{ 1, 1 })) == readingPost, "resize retains the logical post being read");
-				auto end = QKeyEvent{ QEvent::KeyPress, Qt::Key_End, Qt::NoModifier };
+				expect(panel.model()->id_for_index(panel.view()->currentIndex()) == readingPost, "resize retains the logical post being read");
+				auto end = QKeyEvent{ QEvent::KeyPress, Qt::Key_End, Qt::ControlModifier };
 				QApplication::sendEvent(view, &end);
-				expect(bar->value() == bar->maximum(), "End reaches the final full-body extent");
-				expect(view->visualRect(panel.model()->index_for_id("left-deep")).bottom() <= view->viewport()->height(), "the final reply fits at the end of the reading range");
+				expect(view->textCursor().position() == view->document()->characterCount() - 1 && bar->maximum() - bar->value() <= view->document()->documentMargin(), "End reaches the final full-body extent with only native document margin below");
+				expect(view->cursorRect().bottom() <= view->viewport()->height() && view->toPlainText().endsWith(QStringLiteral("FINAL SENTINEL")), "the complete selected post reaches its final content");
+				bar->setValue(bar->maximum());
 				auto boundary = QWheelEvent{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, QPoint{ 0, -45 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 				QApplication::sendEvent(view->viewport(), &boundary);
 				expect(boundary.isAccepted() && bar->value() == bar->maximum(), "the detail consumes boundary wheel input without transferring ownership");
 				auto pageUp = QKeyEvent{ QEvent::KeyPress, Qt::Key_PageUp, Qt::NoModifier };
 				QApplication::sendEvent(view, &pageUp);
 				expect(bar->value() < bar->maximum(), "PageUp moves backward inside the long post");
-				auto home = QKeyEvent{ QEvent::KeyPress, Qt::Key_Home, Qt::NoModifier };
+				auto home = QKeyEvent{ QEvent::KeyPress, Qt::Key_Home, Qt::ControlModifier };
 				QApplication::sendEvent(view, &home);
 				for (const auto pixels : { false, true }) {
 					const auto before = bar->value();

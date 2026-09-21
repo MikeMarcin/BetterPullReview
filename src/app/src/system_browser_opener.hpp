@@ -20,9 +20,9 @@ namespace bpr::app {
 	/// the object that is forwarded, so no second parse can disagree with the
 	/// first.
 	///
-	/// A value means an absolute `https` address that has a host and carries
+	/// A value means an absolute HTTP(S) address that has a host and carries
 	/// no userinfo. Everything else — a relative or unparsable string, any
-	/// other scheme, a missing host, embedded credentials — is `nullopt`.
+	/// non-web scheme, a missing host, embedded credentials — is `nullopt`.
 	[[nodiscard]] auto validated_browser_address(std::string_view aAddress)
 		-> std::optional<QUrl>;
 
@@ -74,10 +74,11 @@ namespace bpr::app {
 	/// the reviewer's own browser, which is the point of delegating
 	/// authentication at all.
 	///
-	/// The address arrives already validated twice: once by the wire parser
+	/// Device authorization arrives already validated twice: once by the wire parser
 	/// against the server authority, and once by the device-authorization
 	/// host against the compiled profile authority immediately before this
-	/// call. This refuses anything that is not an absolute `https` address
+	/// call. Markdown uses the read host’s exact window/snapshot admission.
+	/// This refuses anything that is not an absolute HTTP(S) address
 	/// with no userinfo anyway, because an opener that trusts its caller
 	/// completely is one bad call away from launching a `file:` or a
 	/// `javascript:` address, and refusing costs one parse. The refusal

@@ -25,6 +25,8 @@ class QTreeView;
 namespace bpr::qt {
 	class github_conversation_model;
 	class github_thread_map;
+	class markdown_body_view;
+	class appearance_profile;
 
 	/// \brief Presents the threaded review conversation, on its own.
 	///
@@ -119,6 +121,10 @@ namespace bpr::qt {
 
 		/// \brief Re-lays the rows after a palette or font change.
 		void relayout();
+		/// \brief Complete selected public post; the tree and cards remain navigation summaries.
+		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
+		void               set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch);
+		void               adopt_appearance(const appearance_profile& aProfile);
 
 		[[nodiscard]] auto view() const noexcept -> QTreeView*;
 		[[nodiscard]] auto thread_map() const noexcept -> github_thread_map*;
@@ -156,13 +162,17 @@ namespace bpr::qt {
 		void refresh_summary();
 		void refresh_projection();
 		void refresh_detail();
+		void refresh_body(bool aAdmitted);
 		void arrange_discuss();
 
-		QLabel*                    AvailabilityLabel = nullptr;
-		QToolButton*               RevealButton      = nullptr;
-		QStackedWidget*            Stack             = nullptr;
-		QTreeView*                 View              = nullptr;
-		github_conversation_model* Model             = nullptr;
+		QLabel*                                                     AvailabilityLabel = nullptr;
+		QToolButton*                                                RevealButton      = nullptr;
+		QStackedWidget*                                             Stack             = nullptr;
+		QTreeView*                                                  View              = nullptr;
+		QWidget*                                                    DetailPane        = nullptr;
+		markdown_body_view*                                         Body              = nullptr;
+		std::function<void(const std::string&, const std::string&)> LinkDispatch;
+		github_conversation_model*                                  Model = nullptr;
 		/// The Treeverse-style reply-structure map [[BPR-0418]] adds beside the
 		/// thread itself. It is a second *view* of the drawer's own forest, not
 		/// a second source of it, so it holds no selection authority: a click

@@ -518,6 +518,24 @@ namespace {
 			});
 		window->publish(observed);
 		QApplication::processEvents();
+		expect(window->conversation_model()->rowCount() == 0,
+			   "profile-wide preview metadata cannot lend a sibling window's conversation");
+		// The window's accepted read publication owns its own complete bodies.
+		window->publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Profile       = core::host_profile_id{ 1U },
+				.Host          = core::git_host_id{ 1U },
+				.Repository    = core::repository_id{ 1U },
+				.PullRequest   = core::pull_request_id{ 1U },
+				.Conversations = {
+					{ .Id = "public-preview-comment:1", .Kind = application::github_conversation_kind::review_comment, .AuthorLogin = "octocat", .Body = observed.ReviewCommentGroups[0].Root.Body, .Path = "src/core/model.cpp", .Line = 42U },
+					{ .Id = "public-preview-comment:2", .ParentId = "public-preview-comment:1", .Kind = application::github_conversation_kind::review_comment, .AuthorLogin = "reviewer", .Body = observed.ReviewCommentGroups[0].Replies[0].Body, .Path = "src/core/model.cpp", .Line = 42U },
+				},
+				.PublicPreview           = true,
+				.ReviewCommentsAvailable = true,
+			},
+		});
+		QApplication::processEvents();
 		expect(
 			window->conversation_model()->rowCount() == 1,
 			"the observed conversation reaches the reviewer");
@@ -614,6 +632,11 @@ auto main(int argc, char** argv) -> int
 	bool       parsed = false;
 	const auto scale  = scaleText.toDouble(&parsed);
 	expect(parsed, "expected Qt scale is numeric");
+	if (argc == 2 && std::string_view{ argv[1] } == "--conversation-only") {
+		test_review_comments_are_read_only_or_named_unobservable(scale);
+		std::cout << "public-preview-conversation-tests:pass\n";
+		return EXIT_SUCCESS;
+	}
 
 	test_the_mode_is_named_in_the_title_and_on_its_card(scale);
 	test_accounts_offer_no_public_preview_activation();

@@ -5321,6 +5321,7 @@ namespace bpr::app {
 				deviceBrowser = &RecordingBrowser;
 			}
 #endif
+			ComposedBrowser       = deviceBrowser;
 			ComposedDeviceBrowser = browserIdentity;
 			DeviceBrowserComposed = deviceBrowser != nullptr;
 			// One port, two readers. The recording sink keeps its place at the
@@ -5729,10 +5730,11 @@ namespace bpr::app {
 		core::github_identity_generation                         DeviceRefreshGeneration;
 		unregistered_device_authorization_transport              UnregisteredDeviceTransport;
 		std::unique_ptr<adapters::github::detail::github_device_authorization_transport>
-							  DeviceWireTransport;
-		bool                  DeviceCapabilityRegistered = false;
-		bool                  DeviceBrowserComposed      = false;
-		system_browser_opener SystemBrowser;
+														DeviceWireTransport;
+		bool                                            DeviceCapabilityRegistered = false;
+		bool                                            DeviceBrowserComposed      = false;
+		application::device_authorization_browser_port* ComposedBrowser            = nullptr;
+		system_browser_opener                           SystemBrowser;
 #if defined(BPR_BUILD_TESTING)
 		recording_device_authorization_browser RecordingBrowser;
 #endif
@@ -6200,6 +6202,11 @@ namespace bpr::app {
 					Host->observe_attached_read(WindowRead);
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get());
+			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
+				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
+					? WindowRead->open_markdown_link(aIntent, Profile->ComposedBrowser)
+					: core::markdown_link_result::stale;
+			});
 			Profile->Observers.insert_or_assign(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = weak, .Github = [this, weak](const application::github_presentation_update& aUpdate) {
 					if (weak.expired() || Closing){ return;
 }
@@ -12058,6 +12065,7 @@ namespace bpr::app {
 			}
 			if (auto* const conversations = Window->conversation_panel();
 				conversations != nullptr && conversations->cards() != nullptr) {
+				conversations->adopt_appearance(*AppearanceProfile);
 				// [[BPR-0648]]. The accent for my posts and the thread marks'
 				// amber; the diff's own marks take the same two colours.
 				conversations->cards()->set_colours(
