@@ -484,12 +484,16 @@ namespace bpr::app {
 				self->Decisions.post([self, failure, accepted = std::move(lease)] {
 					self->NativeBusy     = false;
 					self->UpdateLifetime = accepted;
+					if (accepted && accepted->startup_root()) {
+						self->RegistryRoot = *accepted->startup_root();
+					}
 					if (self->Quitting) {
 						return;
 					}
 					// Read-only and managed installations retain their manual startup.
 					// They never receive an installer capability in native composition.
-					if (!accepted && (failure != core::release_update_reason::read_only || !self->UpdateStartupTransaction.empty())) {
+					if ((!accepted && (failure != core::release_update_reason::read_only || !self->UpdateStartupTransaction.empty()))
+						|| (!self->UpdateStartupTransaction.empty() && (!accepted || !accepted->startup_root()))) {
 						self->finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 						self->force_shutdown(1);
 					} else {

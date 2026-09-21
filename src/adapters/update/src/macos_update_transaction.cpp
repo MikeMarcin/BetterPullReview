@@ -629,8 +629,11 @@ namespace bpr::adapters::update {
 		}
 		return state.release_active() ? reason::none : reason::recovery_required;
 	}
-	auto detail::install_transaction::prepare(const fs::path& aVerified, const core::release_update_candidate& aCandidate, const std::function<bool()>& aAuthorized) -> reason
+	auto detail::install_transaction::prepare(const fs::path& aVerified, const core::release_update_candidate& aCandidate, const std::function<bool()>& aAuthorized, const fs::path& aApplicationRoot) -> reason
 	{
+		if (!aApplicationRoot.empty() && (aApplicationRoot.string().size() > 4096U || !private_directory(aApplicationRoot))) {
+			return reason::flush_failed;
+		}
 		auto& state = *Impl;
 		if (!state.own()) {
 			return reason::busy;
@@ -678,6 +681,10 @@ namespace bpr::adapters::update {
 		}
 		state.Candidate = aCandidate;
 		state.Journal   = { { "schema", "bpr.update.transaction.v1" }, { "transaction", text(id) }, { "installed", text(state.Installed.string()) }, { "parent_inode", text(inode(state.Installed.parent_path())) }, { "directory_inode", text(inode(state.Directory)) }, { "old_inode", text(inode(state.Installed)) }, { "new_inode", text(inode(staged)) }, { "old_tree", text(*old) }, { "new_tree", text(*copied) }, { "candidate", candidate_record(aCandidate) }, { "executable", text(executable) }, { "participants", *participants } };
+		if (!aApplicationRoot.empty()) {
+			state.Journal["state_root"]       = text(aApplicationRoot.string());
+			state.Journal["state_root_inode"] = text(inode(aApplicationRoot));
+		}
 		return state.boundary(install_boundary::prepared) ? reason::none : reason::unavailable;
 	}
 	auto detail::install_transaction::replace() -> reason
@@ -777,10 +784,11 @@ namespace bpr::adapters::update {
 
 	struct release_update_installation::implementation
 	{
-		fs::path    Installed, Control, Participant;
-		std::string StartupTransaction, Identity, ParticipantInode;
-		fd_owner    Running, Owner;
-		bool        ProcessLifetime = false;
+		fs::path                Installed, Control, Participant;
+		std::optional<fs::path> StartupRoot;
+		std::string             StartupTransaction, Identity, ParticipantInode;
+		fd_owner                Running, Owner;
+		bool                    ProcessLifetime = false;
 	};
 	release_update_installation::release_update_installation(std::unique_ptr<implementation> aImpl)
 		: Impl{ std::move(aImpl) }
@@ -801,6 +809,7 @@ namespace bpr::adapters::update {
 		}
 	}
 	void release_update_installation::keep_until_process_exit() noexcept { Impl->ProcessLifetime = true; }
+	auto release_update_installation::startup_root() const -> std::optional<fs::path> { return Impl->StartupRoot; }
 	auto release_update_installation::join(fs::path aInstalled, std::string aStartupTransaction, std::string_view aRunningVersion)
 		-> std::expected<std::unique_ptr<release_update_installation>, reason>
 	{
@@ -825,6 +834,14 @@ namespace bpr::adapters::update {
 					&& active->value("phase").toInt(-1) != static_cast<int>(detail::install_boundary::after_launch))
 				|| active->value("executable").toString().toStdString() != file_digest(state->Installed / executable_name)) {
 				return std::unexpected(reason::recovery_required);
+			}
+			if (active->contains("state_root")) {
+				const fs::path root{ active->value("state_root").toString().toStdString() };
+				if (root.string().size() > 4096U || !private_directory(root)
+					|| inode(root) != active->value("state_root_inode").toString().toStdString()) {
+					return std::unexpected(reason::recovery_required);
+				}
+				state->StartupRoot = root;
 			}
 		} else if (errno != ENOENT || !aStartupTransaction.empty()) {
 			return std::unexpected(reason::recovery_required);
@@ -907,7 +924,8 @@ namespace bpr::adapters::update {
 		const auto exactVersion = std::string_view{ tag }.starts_with('v') ? std::string_view{ tag }.substr(1) : std::string_view{ tag };
 		if (aVersion != exactVersion
 			|| digest.empty() || digest != active->value("executable").toString().toStdString()
-			|| inode(Impl->Installed) != active->value("new_inode").toString().toStdString()) {
+			|| inode(Impl->Installed) != active->value("new_inode").toString().toStdString()
+			|| (Impl->StartupRoot && (!private_directory(*Impl->StartupRoot) || inode(*Impl->StartupRoot) != active->value("state_root_inode").toString().toStdString()))) {
 			return false;
 		}
 		const auto directory = Impl->Control / ("transaction-" + Impl->StartupTransaction);

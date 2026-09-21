@@ -73,8 +73,9 @@ namespace bpr::adapters::update {
 			};
 
 		public:
-			explicit native_installer(fs::path aInstalled)
+			native_installer(fs::path aInstalled, fs::path aApplicationRoot)
 				: Installed{ std::move(aInstalled) }
+				, ApplicationRoot{ std::move(aApplicationRoot) }
 			{
 				Children->Children.reserve(4U);
 				Reaper = std::jthread{ [children = Children](std::stop_token aStop) {
@@ -92,6 +93,9 @@ namespace bpr::adapters::update {
 			}
 			auto install(std::shared_ptr<const application::release_update_verified_bundle> aBundle, std::stop_token aStop, const std::function<bool()>& aAuthorized) -> reason override
 			{
+				if (ApplicationRoot.empty()) {
+					return reason::flush_failed;
+				}
 				const auto             helper = Installed / "Contents/MacOS/bpr_update_helper";
 				const std::unique_lock childLock{ Children->Mutex };
 				if (Children->Children.size() >= 4U) {
@@ -114,7 +118,7 @@ namespace bpr::adapters::update {
 				std::string    id;
 				{
 					detail::install_transaction transaction{ Installed, effects };
-					const auto                  prepared = transaction.prepare(material->Path, aBundle->candidate(), aAuthorized);
+					const auto                  prepared = transaction.prepare(material->Path, aBundle->candidate(), aAuthorized, ApplicationRoot);
 					if (prepared != reason::none) {
 						return prepared;
 					}
@@ -146,13 +150,14 @@ namespace bpr::adapters::update {
 
 		private:
 			fs::path                        Installed;
+			fs::path                        ApplicationRoot;
 			std::shared_ptr<child_registry> Children = std::make_shared<child_registry>();
 			std::jthread                    Reaper;
 		};
 	}
-	auto make_release_update_installer(fs::path aInstalled) -> std::shared_ptr<application::release_update_install_port>
+	auto make_release_update_installer(fs::path aInstalled, fs::path aApplicationRoot) -> std::shared_ptr<application::release_update_install_port>
 	{
-		return std::make_shared<native_installer>(std::move(aInstalled));
+		return std::make_shared<native_installer>(std::move(aInstalled), std::move(aApplicationRoot));
 	}
 	auto run_release_update_helper(const fs::path& aInstalled, std::string_view aTransaction, bool aRecover) -> int
 	{

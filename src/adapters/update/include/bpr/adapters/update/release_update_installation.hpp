@@ -24,6 +24,8 @@ namespace bpr::adapters::update {
 									   std::string aStartupTransaction = { }, std::string_view aRunningVersion = { }) -> std::expected<std::unique_ptr<release_update_installation>, core::release_update_reason>;
 		[[nodiscard]] auto        shutdown_requested() -> std::optional<std::string>;
 		[[nodiscard]] auto        last_result() -> std::optional<release_update_installation_result>;
+		/// \brief Exact retained application-data root bound by the installation journal.
+		[[nodiscard]] auto startup_root() const -> std::optional<std::filesystem::path>;
 		/// \brief Transfer the two bounded lifetime locks to kernel process-exit cleanup.
 		/// \details Native composition calls this once. Even desktop destruction is
 		/// not process exit; the helper must remain excluded through final teardown.
@@ -43,7 +45,7 @@ namespace bpr::adapters::update {
 	[[nodiscard]] auto run_release_update_helper(const std::filesystem::path& aInstalled,
 												 std::string_view aTransaction, bool aRecover) -> int;
 	/// \brief Native installer factory; composition must qualify its package before selecting it.
-	[[nodiscard]] auto make_release_update_installer(std::filesystem::path aInstalled)
+	[[nodiscard]] auto make_release_update_installer(std::filesystem::path aInstalled, std::filesystem::path aApplicationRoot)
 		-> std::shared_ptr<application::release_update_install_port>;
 }
 #endif

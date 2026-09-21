@@ -118,6 +118,26 @@ namespace {
 			expect(course.Effects.Launches <= 1U, "recovery never retries launch");
 		}
 	}
+	void retained_startup_root()
+	{
+		fixture    course;
+		const auto root = course.Root / "private-state";
+		fs::permissions(root, fs::perms::owner_all);
+		fs::create_directory_symlink(root, course.Root / "state-alias");
+		transaction update{ course.Installed, course.Effects };
+		expect(update.prepare(course.Staged, course.Candidate, [] { return true; }, course.Root / "state-alias") == reason::flush_failed, "aliased state root cannot authorize relaunch");
+		expect(update.prepare(course.Staged, course.Candidate, [] { return true; }, root) == reason::none && update.replace() == reason::none, "canonical private state root bound before handoff");
+		fs::rename(root, course.Root / "retained-state");
+		fs::create_directory(root);
+		fs::permissions(root, fs::perms::owner_all);
+		expect(!lease::join(course.Installed, update.identity(), "1.2.3"), "replaced state directory refuses startup before stores open");
+		fs::remove(root);
+		fs::rename(course.Root / "retained-state", root);
+		auto replacement = lease::join(course.Installed, update.identity(), "1.2.3");
+		expect(replacement && (*replacement)->startup_root() == root, "startup receives exact recorded root without environment inheritance");
+		expect((*replacement)->healthy_start("1.2.3") && update.finish() == reason::none, "retained stores permit healthy receipt and cleanup");
+		expect(read(root / "draft") == "retained draft and unresolved publication", "retained root data survives exact restart");
+	}
 	void refusal_and_failed_launch()
 	{
 		fixture     changed;
@@ -309,6 +329,7 @@ auto main(int argc, char** argv) -> int
 	}
 	cooperative_and_receipt();
 	interrupted_boundaries();
+	retained_startup_root();
 	refusal_and_failed_launch();
 	completed_boundaries();
 	cleanup_preserves_foreign_entries();

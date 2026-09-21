@@ -59,7 +59,7 @@ namespace bpr::adapters::update::detail {
 		~install_transaction();
 		install_transaction(const install_transaction&)                                  = delete;
 		auto               operator=(const install_transaction&) -> install_transaction& = delete;
-		[[nodiscard]] auto prepare(const std::filesystem::path& aVerified, const core::release_update_candidate& aCandidate, const std::function<bool()>& aAuthorized = [] { return true; }) -> core::release_update_reason;
+		[[nodiscard]] auto prepare(const std::filesystem::path& aVerified, const core::release_update_candidate& aCandidate, const std::function<bool()>& aAuthorized = [] { return true; }, const std::filesystem::path& aApplicationRoot = { }) -> core::release_update_reason;
 		[[nodiscard]] auto replace() -> core::release_update_reason;
 		[[nodiscard]] auto resume(std::string_view aTransaction) -> bool;
 		[[nodiscard]] auto abort_prepared() -> core::release_update_reason;
