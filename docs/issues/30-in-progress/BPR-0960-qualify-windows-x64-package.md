@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0960"
 title: "Qualify the Windows x64 package"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
