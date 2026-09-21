@@ -10,8 +10,6 @@
         <SetProperty Id="INSTALL_ROOT" Value="[BPR_PREVIOUS_INSTALL_ROOT]"
             Before="CostInitialize" Sequence="both"
             Condition="BPR_PREVIOUS_INSTALL_ROOT AND NOT INSTALL_ROOT"/>
-        <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALL_ROOT]"
-            After="CostFinalize" Sequence="execute"/>
     </CPackWiXFragment>
     <CPackWiXFragment Id="CM_CP_better_pull_review.exe">
         <RegistryValue Root="HKCU" Key="Software\GameCoreTech\BetterPullReview"
