@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0954"
 title: "Implement release maintenance host"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0953"]
 milestone: "M4 Imperative application host"
