@@ -182,7 +182,7 @@ job.
   Home bar, a load refusal is said under that bar, Refresh is the strip's,
   and a session failure is the card's own state and its Details.
   If the first load fails or is cancelled before any review is accepted,
-  the window returns to Home with its link preserved. A failed load shows
+  the window returns to Home with its Open bar available. A failed load shows
   the existing diagnostic and Copy details there. Enabled drawer commands
   cannot keep an empty Overview or comparison visible; a failed refresh
   retains the previously accepted review.

@@ -5352,8 +5352,8 @@ namespace bpr::qt {
 			active                = active || (projection && projection->Enabled);
 		}
 		// Drawer commands remain enabled without accepted review content. An
-		// initial read failure or cancellation belongs on Home, where its link
-		// and diagnostic remain available; a retained review stays in place.
+		// initial read failure or cancellation belongs on Home, where the Open
+		// bar and diagnostic are available; a retained review stays in place.
 		const auto readUnavailable = status == core::github_status::pull_request_failed
 			|| status == core::github_status::pull_request_cancelled;
 		const auto nothing = !HasGithubPullRequest && !comparing && !loading && (!active || readUnavailable);
