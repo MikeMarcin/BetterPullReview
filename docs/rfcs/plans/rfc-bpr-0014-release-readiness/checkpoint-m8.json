@@ -1,7 +1,7 @@
 {
   "schema": "implement-rfc.milestone-checkpoint.v1",
   "run_id": "rfc0014-20260920",
-  "segment_id": "m8-ux-ui-native-verification",
+  "segment_id": "m8-postreview-454",
   "mandate_revision": "r3",
   "selection": {
     "schema": "implement-rfc.strategy-selection.v1",
@@ -95,8 +95,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "main",
-    "source_revision": "df273695d4484c42fa7b2f0a7a3fe95c16443dc0",
+    "source_revision": "ee2e38cfab311622ff455d878279cd72cc6a46a9",
     "workflow_branch": "main",
-    "workflow_revision": "df273695d4484c42fa7b2f0a7a3fe95c16443dc0"
+    "workflow_revision": "ee2e38cfab311622ff455d878279cd72cc6a46a9"
   }
 }

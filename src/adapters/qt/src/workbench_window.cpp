@@ -5344,20 +5344,19 @@ namespace bpr::qt {
 			HomeAccount = account;
 			update_home_surface();
 		}
-		// Home is the centre until a pull request, a comparison or an active
-		// workbench gives the review chrome something to be about.
-		// "Active" is the core's word for it: the drawer command is offered
-		// only while a workbench is published. A projection with every
-		// command refused, which the host sends at launch, is not one.
-		// Any command the core offers means a workbench; hiding a QAction
-		// also disables it, so a partly refused projection must keep the
-		// review chrome and its enabled toggles.
+		// Host-projected commands also keep standalone workbench compositions
+		// visible before a GitHub snapshot or comparison has been presented.
 		auto active = false;
 		for (std::size_t index = 0U; index < core::workbench_command_count; ++index) {
 			const auto projection = command(static_cast<core::workbench_command_id>(index));
 			active                = active || (projection && projection->Enabled);
 		}
-		const auto nothing = !HasGithubPullRequest && !comparing && !loading && !active;
+		// Drawer commands remain enabled without accepted review content. An
+		// initial read failure or cancellation belongs on Home, where its link
+		// and diagnostic remain available; a retained review stays in place.
+		const auto readUnavailable = status == core::github_status::pull_request_failed
+			|| status == core::github_status::pull_request_cancelled;
+		const auto nothing = !HasGithubPullRequest && !comparing && !loading && (!active || readUnavailable);
 		const auto home    = nothing || HomeRequested || SetupDestinationNeedsHome;
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
