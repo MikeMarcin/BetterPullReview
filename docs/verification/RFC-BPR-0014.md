@@ -138,3 +138,27 @@ It binds the whole BPR-0951 acceptance section and all three milestone exits.
 Helpers report structural consistency only; the assigned implementer owns
 the completeness judgment. Focused final gate outcomes and integrated revisions
 are recorded below before handoff.
+
+Planning candidate: `75d9901382f6b1ec04f570d854c93b81889d44b4`.
+At this exact revision, the documentation gate reports `DOCUMENTATION_OK`,
+scoped board validation reports valid with 957 total cards, target-only discovery
+finds the adopted twelve-stage plan, the immutable source-copy comparison passes,
+and the scoped product/build/test/package diff against the RFC base is empty.
+Receipts are `build/rfc0014-run/m1-{documentation,board,discovery,import-fidelity,no-impact}-evidence.json`.
+
+The 64 existing documentation-verifier tests passed in 2.131 seconds during
+candidate preparation at claim revision `cec196fb` plus the planning working
+tree. Their test/script inputs did not change; hostile-fixture `ERROR` lines
+are expected rejection assertions and the suite exited zero. A negative
+checkpoint bind for M2 without accepted M1 exited 2 with unmet prerequisites,
+demonstrating that the next stage is not silently eligible. Initial staged
+whitespace inspection caught generated trailing blank lines; they were removed
+and the still-unpublished proposal receipt regenerated before the candidate
+commit. The final staged whitespace check passed.
+
+Self-review checked all twelve source stages and six suggested implementation
+slices against live owners, all nine canonical rows, per-platform metadata,
+dependency order, preserved updater amendments and absence of product edits.
+The original source files and seven historical Done cards are unchanged.
+No independent or human verdict is required for this planning milestone;
+none is claimed. Remaining native/security/parent acceptance belongs to M2–M12.

@@ -63,3 +63,26 @@ The [verification ledger](../../verification/RFC-BPR-0014.md),
 retain requirements and continuation identity. No package, live GitHub/GHES
 mutation, signing authority, publication or installed-application replacement
 is granted by this card.
+
+## Milestone 1 checkpoint
+
+Planning candidate `75d9901382f6b1ec04f570d854c93b81889d44b4` completes the
+bounded source reconciliation, adopted twelve-stage plan, fifteen live cards,
+verification/allocation/documentation ledgers and preserved routing snapshot.
+Allocation `d3d707ac` and claim `cec196fb` are ancestors. BPR-0951 alone is the
+accepted milestone-1 work; BPR-0952 is the next eligible architecture slice
+after its guarded finish. No other RFC or earlier acceptance is changed.
+
+At the candidate, documentation, scoped board validation, target-only discovery,
+source-copy fidelity, staged whitespace and no-product-diff checks pass.
+The existing 64 documentation tests pass, and the unaccepted M2 bind refuses.
+See the [ledger](../../verification/RFC-BPR-0014.md) for exact commands,
+revisions, output limits and the corrected unpublished whitespace failure.
+
+All task commands finish before handoff; no task-created worktree, review server,
+native application or external writer is retained. Existing unrelated worktrees
+are untouched. No attended candidate or protection was created. The coordinator
+preflight discrepancy remains recorded in the import record: configuration
+does not prove host loading. The successor must adopt the existing plan/base,
+claim BPR-0952 and perform M2's source inventory; native package/signing,
+human and predecessor requirements remain pending on their live cards.
