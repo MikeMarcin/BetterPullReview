@@ -16,7 +16,7 @@ Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
 ## Dependency boundary
 
-The root resolves dependencies before product subdirectories. Qt 6.10.3 is
+The root resolves dependencies before product subdirectories. Qt 6.11.2 is
 acquired by a pinned provider into the shared dependency cache and then
 resolved through its ordinary CMake config package, so discovery does not
 depend on how Qt arrived. `BPR_QT_ROOT` names an existing prefix to use

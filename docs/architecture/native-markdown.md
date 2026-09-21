@@ -138,7 +138,8 @@ notice and central-provider maintenance obligation; the inspected release notes
 record incompatible 4.x and 5.x APIs. Recent changes and named consumers show
 active maintenance, not a guarantee of future compatibility.
 
-Qt 6.10.3 is already selected by this build. Its
+Qt's native Markdown API was evaluated with 6.10.3; the current provider is
+6.11.2. Its
 [native Markdown API](https://doc.qt.io/qt-6/qtextdocument.html#MarkdownFeature-enum)
 uses [MD4C](https://doc.qt.io/qt-6/qtgui-attribution-md4c.html), an MIT-licensed
 parser already included in Qt Gui. No new shipped dependency is needed. Qt's

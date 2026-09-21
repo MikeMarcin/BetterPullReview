@@ -12,7 +12,7 @@ open native/security gates.
 ## Native inputs and outputs
 
 All distribution graphs use Release, `BUILD_TESTING=OFF`,
-`BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.10.3 and the audited dependencies.
+`BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.11.2 and the audited dependencies.
 Build from committed, clean source. `app-release` is a development build;
 `core-only` remains independently buildable/testable without Qt/providers.
 There is no new core SDK or embedding API.

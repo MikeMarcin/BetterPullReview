@@ -25,7 +25,7 @@ namespace bpr::app {
 	///
 	/// The title bar is removed with Qt's Windows native interface
 	/// (`QNativeInterface::Private::QWindowsWindow::setCustomMargins`), a private
-	/// API: it is pinned to the Qt the build provides (6.10.3) and is rechecked
+	/// API: it is pinned to the Qt the build provides (6.11.2) and is rechecked
 	/// on every Qt upgrade.
 	///
 	/// Only the `windows` platform has a title bar to replace. On any other

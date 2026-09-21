@@ -61,7 +61,8 @@ def inputs(build: Path) -> dict:
             raise ValueError(f"package requires {setting}")
     if value["schema"] != "bpr.package-inputs.v1" or Path(value["source"]).resolve() != ROOT:
         raise ValueError("package build belongs to a different source tree")
-    if value["platform"] != platform.system() or value["qt_version"] != "6.10.3":
+    qt_version = next(item["version"] for item in components(value) if item["name"] == "QtBase")
+    if value["platform"] != platform.system() or value["qt_version"] != qt_version:
         raise ValueError("native platform and pinned Qt version must match package inputs")
     return value
 
@@ -208,7 +209,7 @@ def prepare_source_asset(build: Path, info: dict, root: Path, archives: dict[str
 def qt_records(info: dict, root: Path) -> dict:
     # Match deployed runtime files to the producer's SBOM, then traverse only
     # runtime relationships. Build tools (rcc/moc/designer) are not product code.
-    upstream = json.loads((Path(info["qt_root"]) / "sbom/qtbase-6.10.3.spdx.json").read_text(encoding="utf-8"))
+    upstream = json.loads((Path(info["qt_root"]) / f"sbom/qtbase-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
     def identity(name: str) -> str:
         # ELF deployment preserves the SONAME; the producer records the full
         # versioned file behind that symlink. Both identify the same module.

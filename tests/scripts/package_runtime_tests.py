@@ -45,7 +45,7 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertNotIn("LibArchive", {item["name"] for item in runtime.components({"platform": "Windows"})})
 
     def test_runtime_module_allowlist(self):
-        for name in ("Qt6Core.dll", "libQt6Network.so.6", "libQt6XcbQpa.so.6.10.3"):
+        for name in ("Qt6Core.dll", "libQt6Network.so.6", "libQt6XcbQpa.so.6.11.2"):
             self.assertTrue(runtime.qt_library(name))
         for name in ("Qt6Cored.dll", "Qt6WebEngineCore.dll", "libQt6Sql.so.6", "libQt6Qml.so.6", "Qt6Gui.dll.bak"):
             self.assertFalse(runtime.qt_library(name))
@@ -64,6 +64,22 @@ class PackageRuntimeTests(unittest.TestCase):
             (build / "_bpr/package-inputs.json").write_text("{}")
             (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=ON\n")
             with self.assertRaisesRegex(ValueError, "BUILD_TESTING"):
+                runtime.inputs(build)
+
+    def test_package_qt_version_matches_provider_and_corresponding_source(self):
+        version = next(item["version"] for item in runtime.components({"platform": runtime.platform.system()}) if item["name"] == "QtBase")
+        self.assertIn(f'set(BPR_QT_VERSION "{version}")', (ROOT / "cmake/BprQtProvider.cmake").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            (build / "_bpr").mkdir()
+            (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=OFF\nBPR_DISTRIBUTION_BUILD:BOOL=ON\nCMAKE_BUILD_TYPE:STRING=Release\n")
+            info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": runtime.platform.system(), "qt_version": version}
+            path = build / "_bpr/package-inputs.json"
+            path.write_text(json.dumps(info))
+            self.assertEqual(runtime.inputs(build)["qt_version"], version)
+            info["qt_version"] = "6.10.3"
+            path.write_text(json.dumps(info))
+            with self.assertRaisesRegex(ValueError, "pinned Qt version"):
                 runtime.inputs(build)
 
     def test_unpinned_cached_source_is_refused_without_network(self):
@@ -85,12 +101,12 @@ class PackageRuntimeTests(unittest.TestCase):
             files = [{"SPDXID": "f-" + name, "fileTypes": ["BINARY"], "fileName": "bin/Qt6" + name + ".dll"} for name in ("Core", "Gui", "Widgets", "Network", "rcc")]
             relations = [{"spdxElementId": "p-" + name, "relatedSpdxElement": "f-" + name, "relationshipType": "CONTAINS"} for name in ("Core", "Gui", "Widgets", "Network", "rcc")]
             relations.append({"spdxElementId": "p-Core", "relatedSpdxElement": "p-pcre2", "relationshipType": "DEPENDS_ON"})
-            (root / "sbom/qtbase-6.10.3.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
+            (root / "sbom/qtbase-6.11.2.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
             stage = root / "stage"
             stage.mkdir()
             for name in ("Core", "Gui", "Widgets", "Network"):
                 (stage / ("Qt6" + name + ".dll")).touch()
-            selected = runtime.qt_records({"qt_root": str(root)}, stage)
+            selected = runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)
             self.assertEqual({item["name"] for item in selected["packages"]}, {"Core", "Gui", "Widgets", "Network", "pcre2"})
 
     def test_installed_audit_needs_source(self):
@@ -184,14 +200,14 @@ class PackageRuntimeTests(unittest.TestCase):
             (root / "sbom").mkdir()
             names = ("Core", "Gui", "Widgets", "Network")
             packages = [{"SPDXID": "p-" + name, "name": name} for name in names]
-            files = [{"SPDXID": "f-" + name, "fileTypes": ["BINARY"], "fileName": "lib/libQt6" + name + ".so.6.10.3"} for name in names]
+            files = [{"SPDXID": "f-" + name, "fileTypes": ["BINARY"], "fileName": "lib/libQt6" + name + ".so.6.11.2"} for name in names]
             relations = [{"spdxElementId": "p-" + name, "relatedSpdxElement": "f-" + name, "relationshipType": "CONTAINS"} for name in names]
-            (root / "sbom/qtbase-6.10.3.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
+            (root / "sbom/qtbase-6.11.2.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
             stage = root / "stage"
             stage.mkdir()
             for name in names:
                 (stage / ("libQt6" + name + ".so.6")).touch()
-            self.assertEqual(len(runtime.qt_records({"qt_root": str(root)}, stage)["packages"]), 4)
+            self.assertEqual(len(runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)["packages"]), 4)
 
     def test_release_prefix_is_nonpublishing(self):
         script = (ROOT / "tools/release.sh").read_text()

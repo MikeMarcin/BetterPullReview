@@ -148,6 +148,15 @@ upstream fixes remain. SQLite is already at the latest published 3.53.4.
 Historical packages and approvals remain immutable and do not transfer to
 changed inventories. M10/M12 are out of scope.
 
+The owner explicitly selected Qt 6.11.2 during this round. Its official source
+pin is `5b2e00eccaf5a4d8c14134ffa0ea8dfd0a35ae1ffc7f8d87fa4305a1ed23cf22`.
+Provider and packaging pins now agree, package input/SBOM selection follows the
+declared version, and a regression prevents stale cached Qt discovery from mixing
+old helpers with new modules. The first configure exposed that old-cache failure;
+the corrected configure and complete development build pass. Four package/source/
+security contracts and the documentation gate pass before candidate production.
+Full relevant tests, offline package audits and fresh scans are still required.
+
 ## M2 security allocation
 
 The [source allocation](../../architecture/release-readiness.md) binds all nine

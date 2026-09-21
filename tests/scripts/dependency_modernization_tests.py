@@ -661,17 +661,32 @@ class DependencyModernizationTests(unittest.TestCase):
             r"option\(\s*BPR_QT_PROVIDER\s+\"[^\"]*\"\s+ON\s*\)",
         )
         with contained_temporary_directory() as temporary_directory:
+            stale_qt = Path(temporary_directory) / "stale-qt"
+            stale_qt.mkdir()
+            marker = stale_qt / "executed"
+            (stale_qt / "Qt6Config.cmake").write_text(
+                f"file(WRITE [==[{marker}]==] stale)\n"
+                "message(FATAL_ERROR \"Cached Qt from the previous pin was selected\")\n",
+                encoding="utf-8",
+            )
+            (stale_qt / "Qt6ConfigVersion.cmake").write_text(
+                "set(PACKAGE_VERSION 6.10.3)\n"
+                "set(PACKAGE_VERSION_COMPATIBLE TRUE)\n",
+                encoding="utf-8",
+            )
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=ON",
                 "-DBUILD_TESTING=OFF",
                 "-DCMAKE_BUILD_TYPE=Release",
+                f"-DQt6_DIR={stale_qt}",
             )
             self.assertEqual(
                 configured.returncode,
                 0,
                 configured.stdout + configured.stderr,
             )
+            self.assertFalse(marker.exists(), "A stale Qt package must not execute before selecting the pin")
             audit = (
                 Path(temporary_directory)
                 / "build/_bpr/product-dependency-audit.cmake"

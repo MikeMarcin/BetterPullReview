@@ -277,7 +277,7 @@ libsecret 0.20+ development metadata is also required.
 Compatible newer installations are supported.
 
 Dependency discovery is centralized before product targets are declared.
-Qt 6.10.3 is acquired by a pinned provider and resolved in package mode,
+Qt 6.11.2 is acquired by a pinned provider and resolved in package mode,
 with `BPR_QT_ROOT` and `BPR_QT_PROVIDER=OFF` available to supply it yourself;
 Python, Git, and Linux libsecret use their standard CMake or `pkg-config`
 providers only when their selected graph needs them. SQLite 3.53.4 is

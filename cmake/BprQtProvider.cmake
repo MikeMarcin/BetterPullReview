@@ -2,9 +2,9 @@ include_guard(GLOBAL)
 
 # Pinned Qt acquisition.
 #
-# Qt is a binary dependency: the upstream project publishes prebuilt packages
-# but no plain source archive this project could verify and build in reasonable
-# time. The provider therefore mirrors the shape of BprSQLiteProvider — one
+# Qt is acquired from upstream's official prebuilt packages. Matching source
+# archives are pinned separately in packaging/dependencies.json for recipients.
+# The provider mirrors the shape of BprSQLiteProvider — one
 # pinned version, a shared cache under CPM_SOURCE_CACHE, a lock around
 # acquisition, an offline mode, and validation of what was obtained — while
 # retrieving official prebuilt packages rather than source.
@@ -13,7 +13,7 @@ include_guard(GLOBAL)
 # an ordinary find_package(Qt6 CONFIG) in BprDependencies.cmake, so nothing
 # downstream depends on how Qt arrived.
 
-set(BPR_QT_VERSION "6.10.3")
+set(BPR_QT_VERSION "6.11.2")
 set(BPR_AQTINSTALL_VERSION "3.3.0")
 
 option(
