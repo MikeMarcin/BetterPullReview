@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0593"
 title: "Verify and close RFC-BPR-0018"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689","BPR-0730","BPR-0731"]
 milestone: "Post-Pack v2"
