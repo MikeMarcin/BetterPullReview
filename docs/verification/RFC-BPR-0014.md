@@ -350,3 +350,23 @@ package installation, signing, authentication, visual/native or new-control
 acceptance. No M2 human or independent criterion exists; all later required
 verdicts remain pending. Final documentation, board, checkpoint and no-impact
 checks bind the committed allocation candidate before handoff.
+
+Allocation candidate: `fa93f89a22a189042486ccfc757e6759b982c072`.
+At that exact commit, documentation reports `DOCUMENTATION_OK`, scoped board
+validation reports 957 cards/valid, and target-only discovery finds the same
+twelve-stage plan. The product/build/test/release-tool/skill diff against M2
+entry is empty. The architecture gate passes a fresh complete `git archive`
+of this candidate, not only the earlier claim. Local receipts are
+`build/rfc0014-run/m2-{documentation,board,discovery,no-impact,architecture}-evidence.json`.
+The archive path and complete CMake command are captured in the architecture
+receipt; the disposable copies are removed after verification.
+
+All 64 documentation-verifier tests passed in 2.019 seconds during candidate
+preparation; expected hostile-fixture `ERROR` output is covered by passing
+assertions, and the suite exited zero. Script/test inputs are unchanged at the
+candidate. Staged whitespace checks passed. A direct acceptance-section
+comparison with the immutable RFC base confirms all nine canonical bullets
+remain byte-for-byte unchanged. Self-review checked the allocation against
+current source and the live criteria, including the unresolved IPC issue and
+absence of native/signing/privacy verdicts. Only BPR-0952/M2 is accepted by
+these records; M3–M12 and predecessor closeout remain open.

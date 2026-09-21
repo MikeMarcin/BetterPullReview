@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0952"
 title: "Allocate package and security ownership"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0014"]
 depends_on: ["BPR-0951"]
 milestone: "M2 Architecture allocation"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"fa93f89a22a189042486ccfc757e6759b982c072","evidence":{"kind":"artifact","detail":"docs/architecture/release-readiness.md inventories actual build/install/runtime graph, static/transitive dependencies, current publish-release skill/scripts, maintenance/credential/migration/diagnostic owners and G1-G9 gaps. docs/verification/RFC-BPR-0014.md binds source/runtime evidence and package limits. Real dev app builds; epoch maintenance and composed-host public checks pass on unchanged product inputs."}},{"criterion":"AC2","outcome":"pass","revision":"fa93f89a22a189042486ccfc757e6759b982c072","evidence":{"kind":"artifact","detail":"The allocation records one authority, exact source entry points and typed current/proposed intent/event/observation/request/delta paths, request/profile/session/revision/generation, native port admission, cancellation and quiescence. Candidate no-impact check proves no product/build/tool edits; exact tracked-source architecture check passes while preserving the unrelated nested-worktree checkout failure."}},{"criterion":"AC3","outcome":"pass","revision":"fa93f89a22a189042486ccfc757e6759b982c072","evidence":{"kind":"artifact","detail":"All nine RFC rows map concrete public checks, native/environment requirements and BPR-0953-0965 owners; successor cards carry bounded allocation notes. Documentation/board/discovery pass. All nine canonical acceptance bullets and milestone exits/selectors remain unchanged; updater exception, native/human/security/predecessor gates and no-publication authority are retained. Linux targets are declared, not qualified; IPC criterion is explicitly unresolved for M9."}}]
 ---
 
 # Allocate package and security ownership
