@@ -1,0 +1,147 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Close only RFC-BPR-0008 under coordinator owner amendment r4 so the canonical chain can advance; sole non-delegating implementer on main.",
+  "child": "/root/rfc0008_owner_closeout",
+  "mandate_revision": "r4",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0008-owner-closeout-r4-amended",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "entry_revision": "2a64e901",
+  "rfc_base_sha": "7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a",
+  "verified_candidate_revision": "fc38d1ce",
+  "product_source_revision": "2a64e901",
+  "milestone": "owner-amended-closeout",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/checkpoint-r4.json",
+  "mandate": "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/mandate-r4.md",
+  "result": {
+    "disposition": "milestone-complete",
+    "rfc": "RFC-BPR-0008",
+    "rfc_status": "Auto-Verified",
+    "card": "BPR-0242",
+    "card_status": "Done",
+    "interpretation": "Amended implemented scope complete; three standalone follow-ups stay pending. No missing observation was marked passed."
+  },
+  "commits": [
+    {
+      "revision": "998b722c",
+      "purpose": "Owner r4 acceptance amendment and explicit pending follow-up transfer"
+    },
+    {
+      "revision": "87fe0fee",
+      "purpose": "Promote dependency-eligible amended closeout to Ready"
+    },
+    {
+      "revision": "80954fee",
+      "purpose": "Guarded BPR-0242 claim"
+    },
+    {
+      "revision": "fc38d1ce",
+      "purpose": "Review d6dfca2b..2a64e901 source changes, repair exact composition pins/inventory, record passing focused evidence"
+    }
+  ],
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_review_round_trip_core_tests test_better_pull_review_review_mutation_tests test_better_pull_review_review_synchronization_tests test_better_pull_review_qt_review_draft_editor_tests app_better_pull_review",
+      "result": "Pass; no C++ rebuild needed; one resource copy."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^(core_review_round_trip|application_review_mutation|application_review_synchronization|qt_review_draft_editor|application_review_round_trip_composition_contract|application_review_submission_composition_public_path|live_mutation_isolation|live_mutation_isolation_contract)$'",
+      "result": "Initial 7/8 pass in 113.31 s. Inline composition stopped before runtime at stale full-file digest. All seven other results reused with unchanged inputs."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^application_review_round_trip_composition_contract$'",
+      "result": "Pass after reviewed repair, 1/1 in 12.20 s. Exact product bytes remain 2a64e901; repair committed fc38d1ce."
+    },
+    {
+      "command": "Network-denied run_network_isolated_test.py -> composition_contract_tests.py CompositionContractTests.test_async_mutation_host_inventory_rejects_every_direct_bypass CompositionContractTests.test_production_mutation_authority_issuers_are_language_sealed",
+      "result": "2/2 pass in 8.665 s; hostile source/issuer cases remain active."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK at evidence commit; terminal reconciliation recheck follows."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64/64 pass in 2.056 s. Printed fixture errors are expected negative cases."
+    },
+    {
+      "command": "git diff --check",
+      "result": "Pass."
+    }
+  ],
+  "deferred_followups": [
+    {
+      "id": "BPR-0143",
+      "path": "docs/issues/40-parked/BPR-0143-mixed-client-acceptance.md",
+      "state": "Parked, awaiting-live-github; standalone rfcs: []",
+      "pending": "External edit/delete/resolve/reopen, supported resolve/viewed capabilities, local-conflict/server truth, uninstall/database-loss reconstruction.",
+      "authority": "Existing four-action packet approved but unexecuted; revalidate exact identities before any future run. Additional capability/state-loss work needs separately bounded authority and disposable roots. No Actions/push."
+    },
+    {
+      "id": "BPR-0144",
+      "path": "docs/issues/40-parked/BPR-0144-acting-identity-on-a-real-account.md",
+      "state": "Parked, awaiting-live-github; standalone rfcs: []",
+      "pending": "Live Comment/Approve/Request Changes attribution under exact account on suitable designated disposable PR.",
+      "authority": "No live whole-review mutation authority inferred from prior inline publication or mixed-client approvals."
+    },
+    {
+      "id": "BPR-0641",
+      "path": "docs/issues/40-parked/BPR-0641-enable-normal-inline-publication-for-private-alpha.md",
+      "state": "Parked, human-review; standalone rfcs: []",
+      "pending": "AC4 private-PR read-only smoke/human acceptance; AC1-AC3 retained as passing.",
+      "authority": "Existing named private targets remain read-only; earlier failed observation unchanged, no success inferred from later repairs."
+    }
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": "No required decision remains within the r4-amended milestone; deferred cards retain their own pending decisions.",
+    "protected_candidates": "No historical packet, artifact, session or product source bytes changed."
+  },
+  "ownership": {
+    "repository_writer": "/root/rfc0008_owner_closeout only during this milestone; released at final handoff",
+    "other_agents_spawned": [],
+    "task_commands": "quiescent at final return",
+    "sessions_collected": [
+      51752,
+      63006,
+      43704,
+      62540
+    ],
+    "review_server": null,
+    "live_operations": [],
+    "cleanup": "No worktree, live app, review server or disposable product root created. Test-owned contained temporary directories cleaned by their synchronous runners; retained only build output and ignored local checkpoint/acceptance receipts."
+  },
+  "continuation": "Coordinator starts a fresh implementer for RFC-BPR-0009. RFC-BPR-0008 predecessor gate is clear; RFC-0009's own card/evidence still governs. Do not resume deferred live/human courses automatically.",
+  "uncertainties": [
+    "MASK workflow_preflight returned state.drift; active native role was already dispatched. No MASK or routing repair made; host_load remains not_verified.",
+    "No new independent/native/installed/release/live qualification claimed; retained Windows isolation exceptions and three deferred cards remain explicit."
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/rfcs/RFC-BPR-0008-github-review-round-trip-interactions.md",
+    "docs/rfcs/README.md",
+    "docs/verification/RFC-BPR-0008.md",
+    "docs/issues/60-done/BPR-0242-close-rfc-0008.md",
+    "docs/issues/40-parked/BPR-0143-mixed-client-acceptance.md",
+    "docs/issues/40-parked/BPR-0144-acting-identity-on-a-real-account.md",
+    "docs/issues/40-parked/BPR-0641-enable-normal-inline-publication-for-private-alpha.md",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/source.json",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/prepare-receipt.json",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/execution-selection.json",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/mandate-r4.md",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/checkpoint-entry.json",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/checkpoint-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/composition-reseal-review.md",
+    "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/handoff-r4.json"
+  ]
+}
