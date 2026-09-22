@@ -6,7 +6,7 @@ The owner explicitly directs that the Windows Defender/security disposition
 and Linux native focus/lifetime limitation become follow-up cards, and that
 RFC-BPR-0018 close against the amended accepted scope. The
 [bounded mandate](../rfcs/plans/ux-redesign-pack-0028/owner-closeout-r2.md) and
-[current criterion ledger](../issues/20-ready/BPR-0593-close-rfc-0018.md#closeout-checklist)
+[current criterion ledger](../issues/30-in-progress/BPR-0593-close-rfc-0018.md#closeout-checklist)
 record this acceptance change. It does not supply any missing observation.
 
 | Transferred obligation | Live disposition | Preserved result |
