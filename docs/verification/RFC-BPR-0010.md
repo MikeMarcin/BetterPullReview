@@ -24,20 +24,81 @@ shipped-executable system-sink course whose only substitution is the native
 display boundary. Its tray signal, notifier activation, and exact focused
 landing-row selection remain production code. The owner has now accepted
 BPR-0168's final-head v006 checkpoint after personally reading and clicking the
-native banner; BPR-0168 retains terminal identity replay behind BPR-0169.
+native banner; standalone BPR-0168 retains terminal identity replay behind
+standalone BPR-0169.
 The status vocabulary calls Qt's unreadable owner permission
 `platform_managed`, never `granted`; it permits a submission attempt without
 claiming the owner's answer.
 
-RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
-remains ordered behind RFC-BPR-0002.
+Owner amendment r4 separates the implemented local scope from those two
+unfinished observations. BPR-0244 owns the amended terminal acceptance;
+no live server comparison or new native-banner verdict is inferred.
 
-## Why this RFC can be implemented now
+## Canonical ordering
 
-`depends_on` names RFC-BPR-0007 and RFC-BPR-0008. Both remain incomplete and
-`Proposed` behind implementation, composition, owner-supplied, and ordered-
-closeout gates. Done BPR-0088 records the product owner's direction to advance
-the implementation frontier despite that open work.
+`depends_on` names RFC-BPR-0007 and RFC-BPR-0008. Both and the preceding
+RFC-BPR-0009 are Auto-Verified before this assignment. Historical BPR-0088
+authorized advancing implementation while earlier gates remained open; the
+r4 closeout follows canonical order and preserves their standalone follow-ups.
+
+## Owner-amended closeout r4 — 2026-09-21
+
+Assignment `/root/rfc0010_owner_closeout` owns only this milestone on `main`,
+under the owner's direction to unblock and land RFC-BPR-0014. The
+[mandate](../rfcs/plans/rfc-bpr-0010-owner-closeout/mandate-r4.md) and
+[adopted plan](../rfcs/plans/rfc-bpr-0010-owner-closeout/milestone-plan.json)
+preserve the immutable RFC baseline above and the original twelve-stage pack
+source. Current product/test evidence is bound to entry revision
+`ad35ca8e4079e72784fa52cfe6b63c439f383004`; this milestone edits only documentation
+and tracker state. The current dev application is
+`sha256:a0f9c85cd58e4c9d486ae39c554b16f30f4bb73e867ebfbb6c17ad21ca775d90`,
+distinct from the historical v006 native candidate.
+
+The amendment removes BPR-0169 and BPR-0168 from the terminal RFC membership
+and BPR-0244 dependency gate while retaining their exact open paths, IDs,
+dependencies and obligations. BPR-0169 is still Parked awaiting a disposable PR
+where the actor is neither author nor reviewer and an independent client that
+can observe all four server fields. Remembered sign-in exists; a missing
+subscription fact cannot count as unchanged. No live operation was performed.
+BPR-0168 remains Backlog for terminal candidate identity replay and any required
+successor native decision after BPR-0169.
+
+The owner personally accepted the v006 banner's title/body, absence of private
+content, real click and exact focused selection for executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`
+and completed BPR-0251 record
+`sha256:9576aef7f125a62d88c0f1e7928357906d47d7a1a8a8b48617f09945f4110be6`.
+Its [owner response](reviews/native-notification-delivery-v006/operator-response.md)
+and [validation record](reviews/native-notification-delivery-v006/validation-record.json)
+remain unchanged. The BPR-0220 interim replay waiver is preserved. Neither
+that checkpoint nor r4 claims a newly displayed banner from today's binary.
+
+The current checklist in BPR-0244 maps the eight amended criteria to the
+following direct evidence. Its historical table retains the original live and
+attended requirements visibly unchecked. Reuse depends on unchanged relevant
+inputs, not on the obsolete prescription to replay all evidence after every
+unrelated HEAD movement.
+
+| Command or surface | Result and limit |
+|---|---|
+| Focused dev build of the application, queue public-path target and nine component-test targets | Pass, `ninja: no work to do`; binaries match the current product sources |
+| `ctest --test-dir build/dev --output-on-failure -R '^(application_queue_composition_contract\|application_native_notification_attended_contract)$'` | 2/2 pass, 9.09 seconds. Composed Qt rule/refresh/preferences/restart/removal path and actual bundled application notification path; the latter captures only the display boundary and retains real tray/notifier/exact-selection wiring. Request, activation and signal-observation failure controls pass |
+| `ctest --test-dir build/dev --output-on-failure -R '^(core_review_queue\|core_review_queue_attention\|application_review_queue_refresh\|application_review_queue_enrollment\|application_review_queue_notification\|sqlite_queue_enrollment_storage\|qt_review_landing_model\|application_notification_delivery\|qt_system_tray_notification_sink)$'` | 9/9 pass, 6.66 seconds. Rule/role/exclusion, replay/order, scheduler, identity, durable membership/preferences, incremental model and notification privacy/delivery decisions |
+| `cmake --build --preset core-only --target test_better_pull_review_review_queue_core_tests test_better_pull_review_review_queue_attention_core_tests` then `ctest --test-dir build/core-only --output-on-failure -R '^(core_review_queue\|core_review_queue_attention)$'` | Build passes; 2/2 pass, 0.65 seconds, in the graph with no Qt/provider linkage to the core |
+| Scoped source and baseline review | Product, tests and original pack source unchanged by this milestone. Existing core/host/Qt ownership, local-only enrollment effect port and metadata-only notification type retained; current public-path checks cover the composed path beyond component success |
+| `python3 scripts/verify_documentation.py --root .` and scoped board validation | `DOCUMENTATION_OK`; 957-card identity inventory valid with zero scoped errors |
+| `python3 tests/scripts/verify_documentation_tests.py` | 64/64 pass, 1.882 seconds. Printed malformed-fixture errors are expected negative cases |
+| `git diff --check` | Pass; no product source, test source, original pack plan or protected review artifact edits |
+
+The queue public contract is a test executable using the real
+`github_application` composition and window. The native-notification contract
+executes the actual application bundle; its display substitution proves
+composition, not OS delivery. Current composition still does not discover or
+infer GitHub assignment roles from review/comment history; broader personal
+discovery remains RFC-BPR-0026 work. The historical full-suite counts below
+are provenance, not a claim of a new full-suite run. BPR-0940's unrelated broad
+workbench-layout failure remains recorded by the preceding RFC-0009 handoff;
+these focused queue checks do not clear it.
 
 ## What this RFC is, in one sentence
 
@@ -144,14 +205,14 @@ nested conventions do not select the anchor boundary and unbalanced
 declarations fail closed. Absolute, common, debug, and unknown symbol kinds or
 sections do not count. CTest treats the verifier's exit status as authoritative.
 
-## Deferred gates
+## Standalone deferred observations
 
 | Card | Gate | What is missing |
 |---|---|---|
-| BPR-0168 | A native notification is delivered and its deep link opens the right local review | v006 is accepted. The owner waived an interim replay after BPR-0220's unrelated appearance-probe change. BPR-0168 still waits behind BPR-0169 for terminal identity replay |
-| BPR-0169 | Enrolling by observer rule leaves GitHub's reviewer and subscription state untouched | A designated repository and token, inheriting BPR-0142. That the correlator cannot issue a request is structural and provable here; that the *server* also shows no change is a different claim and needs a server |
+| BPR-0168 | Later-candidate native delivery, privacy and exact local activation | v006 remains accepted for its exact executable and the BPR-0220 interim waiver is unchanged. The card remains Backlog behind BPR-0169 for terminal identity replay and any required successor verdict; it is outside the amended RFC terminal gate |
+| BPR-0169 | Independent server comparison of reviewer/requested-reviewer/subscription/label state | BPR-0142 is Done and sign-in retained. A disposable PR on which the actor is neither author nor reviewer and an independent read surface are missing. Parked, outside the amended RFC terminal gate; no live pass claimed |
 
-## Closeout replay
+## Historical closeout replay
 
 Run at commit `8903b4d`, on macOS 15.7.7 arm64 with Qt 6.11.1.
 
@@ -193,7 +254,9 @@ path through the system sink with only native display captured. BPR-0168's
 v006 checkpoint remains accepted, and the owner waived an interim replay after
 BPR-0220's unrelated appearance-probe change. Terminal identity replay still
 waits behind BPR-0169's distinct live GitHub non-mutation evidence and the
-remaining ordered closeout chain.
+follow-up sequence. Under r4 both open cards remain standalone obligations
+rather than RFC terminal gates. No new review session or successor native
+candidate was prepared because BPR-0168's live dependency remains unresolved.
 
 ## Documentation ledger
 
@@ -202,6 +265,7 @@ remaining ordered closeout chain.
 | Role semantics, observer grammar and precedence, enrollment retention and departure, the refresh schedule and its limits, notification privacy, offline behaviour, ordering, queue explanations, and keyboard access to observer-rule actions | [Review Queue](../architecture/review-queue.md) | Updated. The composed request/dedup/activation path and exact Add/Remove presenter focus positions are documented, and the remaining attended/live gates stay named without overclaiming |
 | Local private review progress | [Review Ledger](../architecture/review-ledger.md) | No impact. The queue reads what the ledger records; it adds no receipt and changes no acceptance |
 | Shared review round trip | [Review Round Trip](../architecture/review-round-trip.md) | No impact. The queue issues no mutation; enrollment is local and the correlator holds no provider |
+| RFC closeout and evidence scope | RFC/index, BPR-0244, BPR-0168/BPR-0169, README and adopted r4 plan | Owner acceptance amendment only; original observations, pending obligations and product semantics retained. No API, provider/authentication, persistence, concurrency, security, package or launch behavior changes |
 
 ## Cards
 

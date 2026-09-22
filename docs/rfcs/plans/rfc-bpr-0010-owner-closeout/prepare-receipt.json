@@ -1,0 +1,37 @@
+{
+  "state": "prepared",
+  "origin": "absent",
+  "source_evidence": null,
+  "plan": {
+    "schema": "implement-rfc.milestone-plan.v1",
+    "id": "rfc-bpr-0010-owner-closeout",
+    "scope": {
+      "rfcs": [
+        "RFC-BPR-0010"
+      ]
+    },
+    "coverage": "complete",
+    "milestones": [
+      {
+        "id": "owner-amended-closeout",
+        "outcome": "Close RFC-BPR-0010's implemented local queue, observer rules and notification composition under owner amendment r4, preserving unfinished live server observation and terminal native replay as explicit standalone follow-ups.",
+        "work": [
+          {
+            "rfc": "RFC-BPR-0010"
+          }
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "The live RFC, BPR-0244 and ledger explicitly record the r4 acceptance amendment, immutable RFC baseline, exact evidence and unchanged product semantics.",
+          "BPR-0169 remains Parked and BPR-0168 remains Backlog with original identities, paths, dependencies, pending obligations and permission limits as standalone follow-ups; the accepted v006 native observation retains its exact candidate and no new human or server result is inferred.",
+          "Focused core, refresh, enrollment, persistence, Qt, notification and public-composition checks plus the documentation gate pass on the unchanged product candidate, with evidence scope and limitations recorded.",
+          "BPR-0244 is Done and the RFC/index agree on Auto-Verified after RFC-BPR-0009; a durable handoff records exact revisions, changed paths, verification, pending obligations, command quiescence and RFC-BPR-0011 as the next canonical frontier."
+        ],
+        "boundary": "Only RFC-BPR-0010 closeout on main in /Users/jaeger/Documents/GitHub/BetterPullReview, owned exclusively by non-delegating /root/rfc0010_owner_closeout under mandate r4. Preserve the original pack plan, Done cards, protected review candidates and unrelated work. No live GitHub operation, messages to others, credentials, push, release or later-RFC engineering."
+      }
+    ],
+    "unplanned_work": []
+  },
+  "semantic_coverage": "unknown",
+  "next": "engineer reconciles intent, retains this receipt, adopts and implements"
+}

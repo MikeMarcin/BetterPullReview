@@ -3,8 +3,9 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0168"
 title: "Confirm a native notification is delivered and its link opens the review"
 status: "Backlog"
-rfcs: ["RFC-BPR-0010"]
+rfcs: []
 depends_on: ["BPR-0164","BPR-0169","BPR-0193","BPR-0223","BPR-0251"]
+metadata: {"origin_rfc":"RFC-BPR-0010","mandate_revision":"r4","deferral":"Standalone terminal-candidate native replay; accepted v006 evidence retained, not an RFC-0010 terminal gate."}
 ---
 
 # Confirm a native notification is delivered and its link opens the review
@@ -268,3 +269,24 @@ changed only the appearance probe's expected geometry count. The notification
 implementation and accepted v006 behavior did not change. This card remains
 Backlog behind BPR-0169 for terminal closeout, not on another interim banner
 review.
+
+## Standalone follow-up under owner amendment r4 — 2026-09-21
+
+The owner-directed RFC-BPR-0010 closeout preserves this card's accepted v006
+checkpoint and BPR-0220 interim waiver while transferring the still-unperformed
+terminal identity replay to standalone follow-up scope. The card remains
+Backlog at its original path with all dependencies intact, including BPR-0169.
+It is not Done, and RFC status does not supply a successor native verdict.
+
+The historical accepted executable is
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+Its owner response, raw log and validation record remain immutable. The current
+automated system-sink course captures the display call and emits the real tray
+signal; it establishes current composition, not a newly observed OS banner.
+
+After BPR-0169 is resolved, bind the then-selected executable, compare its
+identity to the accepted checkpoint and prepare any required successor native
+review. No review session is ready under this card's present dependency state.
+The [r4 mandate](../../rfcs/plans/rfc-bpr-0010-owner-closeout/mandate-r4.md)
+removes only its role in the RFC terminal gate and grants no source edit,
+live operation, release or publication authority through this historical record.
