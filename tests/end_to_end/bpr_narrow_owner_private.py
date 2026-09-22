@@ -33,7 +33,11 @@ def make_root_private(root):
         root.mkdir(mode=0o700, exist_ok=True)
         return
     root.mkdir(exist_ok=True)
-    grants = ["/grant:r", os.environ["USERDOMAIN"] + "\\" + os.environ["USERNAME"] + ":(OI)(CI)F"]
+    # [[BPR-0979]]. The grant names the token user's SID, not
+    # USERDOMAIN\\USERNAME: an OpenSSH session on a workgroup host reports
+    # USERDOMAIN=WORKGROUP, a principal icacls cannot map (error 1332), while
+    # the SID is what the product's descriptor carries in every session.
+    grants = ["/grant:r", f"*{user_sid()}:(OI)(CI)F"]
     container = appcontainer_sid()
     if container is not None:
         grants += ["/grant:r", f"*{container}:(OI)(CI)F"]
@@ -42,8 +46,19 @@ def make_root_private(root):
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def user_sid():
+    """The string SID of this process token's user."""
+    return token_sid(container=False)
+
+
 def appcontainer_sid():
     """The string SID of this process's AppContainer, or None outside one."""
+    return token_sid(container=True)
+
+
+def token_sid(container):
+    """One token read for both SIDs: TOKEN_USER and TOKEN_APPCONTAINER_INFORMATION
+    both begin with the PSID, so the same buffer cast serves each class."""
     import ctypes
     from ctypes import wintypes
     advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
@@ -61,16 +76,18 @@ def appcontainer_sid():
     try:
         is_container = wintypes.DWORD(0)
         size = wintypes.DWORD(0)
-        # TokenIsAppContainer = 29, TokenAppContainerSid = 31
-        if not advapi32.GetTokenInformation(token, 29, ctypes.byref(is_container), ctypes.sizeof(is_container),
-                                            ctypes.byref(size)):
-            raise OSError(f"TokenIsAppContainer ({ctypes.get_last_error()})")
-        if not is_container.value:
-            return None
-        advapi32.GetTokenInformation(token, 31, None, 0, ctypes.byref(size))
+        # TokenUser = 1, TokenIsAppContainer = 29, TokenAppContainerSid = 31
+        if container:
+            if not advapi32.GetTokenInformation(token, 29, ctypes.byref(is_container), ctypes.sizeof(is_container),
+                                                ctypes.byref(size)):
+                raise OSError(f"TokenIsAppContainer ({ctypes.get_last_error()})")
+            if not is_container.value:
+                return None
+        information_class = 31 if container else 1
+        advapi32.GetTokenInformation(token, information_class, None, 0, ctypes.byref(size))
         buffer = ctypes.create_string_buffer(size.value)
-        if not advapi32.GetTokenInformation(token, 31, buffer, size, ctypes.byref(size)):
-            raise OSError(f"TokenAppContainerSid ({ctypes.get_last_error()})")
+        if not advapi32.GetTokenInformation(token, information_class, buffer, size, ctypes.byref(size)):
+            raise OSError(f"GetTokenInformation({information_class}) ({ctypes.get_last_error()})")
         sid = ctypes.cast(buffer, ctypes.POINTER(ctypes.c_void_p)).contents.value
         text = wintypes.LPWSTR()
         if not advapi32.ConvertSidToStringSidW(sid, ctypes.byref(text)):

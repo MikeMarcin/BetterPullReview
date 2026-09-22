@@ -44,6 +44,13 @@ def private_fixture_parent():
         return
     if not POSIX:
         with contained_temporary_directory(prefix="bpr-activation-course-") as private:
+            # [[BPR-0979]]. The contained support inherits %TEMP%'s entries on
+            # purpose, and on a station whose %TEMP% grants another principal
+            # Modify the neighbourhood beside the Default data root refuses
+            # its parent, so the drain exits 1 naming repair-required. The
+            # profile roots under `profiles/` never saw this: they inherit the
+            # narrowed data root. Narrow the parent the way mode 0700 does.
+            make_root_private(Path(private))
             yield private
         return
     with contained_temporary_directory(prefix="bpr-activation-course-", parent="/tmp") as private:
