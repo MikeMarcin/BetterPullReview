@@ -229,7 +229,7 @@ namespace {
 		second.show();
 		QApplication::processEvents();
 		for (auto* const window : { &first, &second }) {
-			QApplication::setActiveWindow(window);
+			window->activateWindow();
 			window->setFocus();
 			QApplication::processEvents();
 			QKeyEvent press{ QEvent::KeyPress, Qt::Key_Comma, Qt::ControlModifier };

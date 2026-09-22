@@ -2,41 +2,115 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0593"
 title: "Verify and close RFC-BPR-0018"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689","BPR-0730","BPR-0731"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0018"]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
+blocked_by: "native-settings-qualification"
 ---
 
 # Verify and close RFC-BPR-0018
 
-## Current continuation, 2026-09-21
+## Current continuation checkpoint, 2026-09-21
 
-The coordinator merged main at `86fa923e` and resumed the same non-delegating
-owner and `close-rfc-0018` milestone. RFC-0014/BPR-0965 is now Auto-Verified/Done
-at `b7eb3722`, with exact r4 handoff `61907e20`: only its release/maintenance
-foundation is accepted. RFC-0038 preserves the original full native/security
-qualification obligations. This removes the former `rfc-0014-closeout` blocker;
-it does not claim package release approval or waive any RFC-0018 criterion.
+Run `rfc-0018-0026-closeout-20260920`, segment `rfc-0018`, mandate `r1`;
+sole non-delegating owner `/root/rfc0018`, milestone `close-rfc-0018`, first of
+0018 → 0024 → 0025 → 0026 on `codex/rfc-0018-0026-closeout` in the 0152
+worktree. The coordinator's current amendment resumes native station work after
+main merge `86fa923e`; the user confirms Windows and Linux stations available.
+Planning may reconcile stale facts, not weaken acceptance. This section
+supersedes the earlier checkpoint's current-state claims, not its evidence.
 
-The user confirms both target stations are available and authorizes their use
-for the remaining native courses. SSH `aito-main-win` reaches JaegAW. Live
-Windows `stn-a5155427`/`bpr-win` and WSL `stn-3f7fcc92`/`bpr-linux` match their
-recorded branches and roots; both writer leases are free. Their pre-existing
-`.mask.lock.json` changes must remain untouched. Work will use guarded external
-qualification roots, never mutate the live lane checkouts or invoke a second
-agent. Windows Smart App Control/code-integrity enforcement both report 0;
-no machine security configuration was changed.
+**Disposition: Blocked on `native-settings-qualification`; RFC not closed.**
+RFC-0014/BPR-0965 is now Auto-Verified/Done at `b7eb3722`, exact r4 handoff
+`61907e20`, for its release/maintenance foundation. RFC-0038 preserves its full
+native/security qualification. `08170fd9` removed only the satisfied canonical
+blocker; helper claim `280167ac` preceded product edits. Twenty other RFC-0018
+cards remain Done. No finish acceptance was submitted and no criterion waived.
 
-Pending: native Windows/Linux menu, Ctrl-comma, modeless singleton and window
-lifetime courses; current tests-disabled inventory including the merged
-RFC-0014 Storage & Privacy controls. Existing accepted human evidence remains
-bound to its original candidates. The merged product is byte-identical to
-`67f5e514` (only unrelated/test-course changes follow), permitting exact existing
-Qt 6.11.2 package reuse if its digest/provenance is verified. No product edit,
-remote app launch or build has occurred at this entry checkpoint.
+**Implemented.** Native Windows execution exposed a real unbound Ctrl-comma
+action: Qt's platform `Preferences` standard key is empty there. Product commit
+`2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273` binds Ctrl/Command-comma explicitly
+and scopes it to the invoking workbench, avoiding application-wide ambiguity
+with two windows. Four-scale exact-binding/two-window key regressions pass.
+The subsequent Qt 6.11 test-call upkeep uses nondeprecated `activateWindow()`.
+No host/store/credential/provider authority changed. The plan boundary includes
+this required native-entry correction; outcome and exits are unchanged.
+
+**Direct evidence and remaining blockers.** The
+[native continuation report](../../verification/BPR-0593-native-settings-continuation.md)
+contains exact stations, sources, binaries, commands, isolation and raw captures.
+
+- Current Mac tests-OFF Qt 6.11.2 bundle SHA-256
+  `cff115f8c987c7a94f89667b59cd69b46ad833cd5500cfb06f8710cf13bedeb7` passes all
+  11 Preferences/Command-comma/modeless/sibling/category/close/reopen/Quit checks
+  and strict signature verification. Quit exits 0.
+- Windows' corrected native course passed its menu/Ctrl-comma/modeless/Escape/
+  reopen prefix, then stopped before the sibling/inventory claims. Defender
+  quarantined the staged and producer images as `Trojan:Win32/Bearfoos.A!ml`,
+  threat `2147731250`; the staged file is absent. Its recorded SPDX digest is
+  `341e25b20111f48b7882d8c0a288de477cbcfd41eefc24b3bbbf861f1281e768`.
+  No restoration, exclusion, security disablement or alternate-image execution.
+  Security-owner disposition and a cleared exact candidate are prerequisites
+  for further Windows work; existing BPR-0960/0962 own broader qualification.
+- Linux's actual native **inventory-only** course passes all seven current
+  pages and native window close with exit 0, binary SHA-256
+  `8234abccb4141bbf52c91c568b25917abd2e3125f46f14e1a0073ee285b7a51e`.
+  A final rerun produces an identical capture. The full modeless/keyboard/
+  sibling course does **not** pass: mapped workbench XID `6291474` cannot retain
+  focus from Settings XID `6291484` despite bounded X11, WM and native WSLg
+  focus attempts. The observer refuses wrong-target keys. A separate two-QWidget
+  control with no BetterPullReview code reproduces that failure, then passes
+  focusing A after native close of B and exits 0. This isolates a station/Qt/
+  observer limitation, not a demonstrated Settings composition defect. Its
+  exact layer remains unresolved; this is neither unavailability nor AC-01 acceptance.
+- The current Linux build requires one retained GCC `ignored-attributes`
+  warning demotion; it is not a clean compiler-policy pass. The package
+  producer's executed baseline gate rejects Ubuntu 26.04; the configured
+  station/images supply neither Ubuntu 24.04 nor RHEL 10. This is the existing
+  BPR-0961 limit, not permission to call the build a qualified distribution.
+  AC-11's current Windows and qualified Linux package refresh remain pending.
+- Mac/Linux current controls match on six pages. Linux omits only the explicit
+  macOS-only `Use GitHub CLI` capability. General's updater rows and all seven
+  RFC-0014 maintenance buttons are refreshed. Prior comparable three-platform
+  inventories and accepted Settings/Accounts/Appearance human verdicts remain
+  bound to their original candidates; visibility grants no new maintenance,
+  updater, vault or release acceptance.
+
+**Verification.** Corrected-source focused selection passes **6/6, 27.18 s**
+(four Settings scales, effect boundary, full appearance/restart contract).
+Workbench integration passes **1/1, 20.90 s**. Architecture boundaries, changed
+C++ formatting, Mac signature and observer syntax pass. The inventory
+comparison passes **11 tests**, including missing-control/changed-state
+negative controls and explicit inventory-only limits. Prior broad legacy CLI
+failures stay linked to BPR-0915/BPR-0940, not counted as new green evidence.
+The final documentation gate, its 64 tests, board validation and diff check are
+recorded with this checkpoint. The helper bind/observation/check are renewed
+under `build/rfc0018-milestone-{checkpoint,observation,check}.json`.
+
+**Upkeep and ownership.** This slice owns the new continuation report and two
+captures, external Windows/Linux observers and bare-Qt focus control, comparison tests, one Qt test API
+update, Settings guide/authority-inventory refresh, this card/RFC/index and
+helper-repaired live links. `2d3bdbdf` owns the product action and plan boundary.
+Both configured stations were actually connected and executed under leases and
+external-root guards. Live checkouts and their dirty MASK locks are unchanged.
+Owned remote roots are `C:/Users/mikem/bpr0018-native-280167ac` and
+`/home/mmarcin/bpr0018-native-280167ac`; source/build/capture/security evidence
+is retained inert for continuation. All app/observer/build children are waited;
+both exact Windows scheduled tasks and the diagnostic RAIL bridge are stopped
+and removed. Station leases are free. No delegate, server or repository writer
+remains; no live GitHub/GHES mutation or publication occurred.
+
+**Next action.** Obtain the security disposition/cleared Windows candidate,
+resolve the native Linux focus course on a usable target, and supply its exact
+qualified package surface. Ready commands and preserved paths are in the report.
+Then rerun only affected native checks, rebind and finish BPR-0593 if its ledger
+permits. Do not recreate the satisfied RFC-0014 dependency or infer a waiver
+from its r4 scope transfer. `close-rfc-0024` is the next authored milestone but
+is not eligible while this one is unaccepted. No new attended-review session or
+server: these are security/native execution gaps, not unanswered visual verdicts.
 
 ## Previous milestone checkpoint, 2026-09-20
 
@@ -1852,7 +1926,7 @@ separately below. This does not close any RFC.
    Earlier rejects remain attached to their historical revisions. No bound
    owner ask remains.
 
-The [BPR-0750](BPR-0750-close-rfc-0029.md)
+The [BPR-0750](../30-in-progress/BPR-0750-close-rfc-0029.md)
 direct-check gaps in rows 2, 4, 5 and 7 remain separate from this milestone;
 RFC-BPR-0029 stays Accepted behind Proposed RFC-BPR-0008. RFC-BPR-0018 and
 RFC-BPR-0028 remain Proposed/open pending their own closeout and Windows/Linux
@@ -3202,7 +3276,7 @@ the pre-registration commit; registration commits are planning history.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|
-| AC-01: The shipped application exposes a native Settings action and one singleton, modeless window per available BPR profile through platform-appropriate menus and shortcuts, with the edited profile visibly identified. | `qt_settings_window` at four scales; actual two-window profile course; three real macOS app entry/lifetime courses | Current Mac Preferences/Command-comma/modeless/profile-label/single-visible-identity/two-window/close-reopen courses pass in dev, tests-OFF Release and comparable Release. Actual profile course passes (78.15 s). Windows/Linux native menu/shortcut/window-lifetime evidence remains pending; toolbar inventory openings do not supply it. | 68e0a40f, a881d9f9, BPR-0705; product 19a3dfd7/e93d9215; capture/course 138dd1d9 |
+| AC-01: The shipped application exposes a native Settings action and one singleton, modeless window per available BPR profile through platform-appropriate menus and shortcuts, with the edited profile visibly identified. | Four-scale exact-binding/two-workbench key tests; actual profile course; native Mac/Windows/Linux menu and lifetime courses | Explicit per-workbench Ctrl/Command-comma correction passes four scales and the current Mac tests-OFF 11-check native course. Prior actual profile course passes (78.15 s). Windows' corrected prefix passes before quarantine, not its full course. Linux native menu/inventory/close passes separately; full modeless/shortcut/sibling course fails exact native focus. AC-01 remains pending, with failures and isolation in the [continuation report](../../verification/BPR-0593-native-settings-continuation.md). | 68e0a40f, a881d9f9, BPR-0705; prior 138dd1d9; current product 2d3bdbdf and this checkpoint's observers |
 | AC-02: All seven initial categories are present when their capabilities are composed, with stable sidebar/page/row identities and truthful unavailable states. | Seven-page composed minimum-size/four-appearance checks; native inventory cards | Pass for the seven fixed categories and truthful unavailable rows. Current four-scale Settings course passes; later General updater is owned by RFC-0035 and identified as a platform capability. | 51c24f6b, 6c0ba02b; 19a3dfd7 r1 rerun |
 | AC-03: Appearance is migrated from the embedded workbench surface to the settings center with no duplicate authority; existing mode, typography, palette, import/preview/commit/cancel/reset, and persistence behavior remains intact. | Appearance host/store/panel evidence; full application_appearance_theme_customization_contract | Pass. Required public import/preview/cancel/commit/export/restart/FIFO course passes after its restart uses the existing composition-only probe instead of unrelated obsolete CLI setup. Every original palette, zero-write, persistence and comparison assertion remains; final contract 24.09 s. | 03a8a02e, a881d9f9, ed2b3f14; product 19a3dfd7; test upkeep 138dd1d9 |
 | AC-04: Every setting gesture becomes one typed domain intent, reaches only its owning host, and updates the control only from an accepted authoritative projection. | Domain refusal/late-result checks, Settings effect boundary, workbench composition | Focused paths pass and existing medium-review disposition is retained. Broader `qt_composed_github_scale_100` still stops at the existing BPR-0940 CLI-card assertion; the rest of that suite is not accepted by this rerun. | dd64c098, 51c24f6b, a881d9f9; 19a3dfd7 r1 rerun |
@@ -3212,10 +3286,10 @@ the pre-registration commit; registration commits are planning history.
 | AC-08: Layout and rendered evidence pass at 100%, 125%, 150%, and 200% scale in Light, Dark, High-contrast Light, and High-contrast Dark, including long text and minimum window size. | Four `qt_settings_window` scales, four appearances, seven pages, long metadata at 760x480; accepted native visuals | Current 112 rendered layout combinations pass. Original native Settings visual verdict f2fb9b06 is accepted; revised Accounts d0bb147d and Appearance c5349059 verdicts supplement their changed pages. Deterministic offscreen geometry is not a new native or three-platform visual verdict. | 6c0ba02b, d1ba791f, ed2b3f14; 19a3dfd7 r1 rerun |
 | AC-09: One-setting updates preserve sidebar selection, page scroll position, focus, unaffected persistent indexes, and all unrelated projections without routine resets. | Stable page/scroll/focus checks; accepted host and incremental workbench courses | Pass for Settings reopen, one-setting preservation and current workbench composition. Profile preferences and per-window layout retain their separate owners under RFC-0024. | 68e0a40f, dd64c098, a881d9f9; 19a3dfd7 r1 rerun |
 | AC-10: Hostile catalog, profile, rule, and row floods stop at declared limits with typed refusal; one window materializes at most one page per category; rapid previews coalesce; cancelled or superseded loads publish nothing late; and instrumentation observes zero database, vault, filesystem, network, process, or blocking-wait work on the Qt thread. | Bounded collection/coalescing tests and `qt_settings_effect_boundary`; architecture gates | Pass for declared collection limits, one page per category, coalesced preview and cancellation. Current recorded capability ports execute on worker threads and publish on the decision lane. This is the specified focused instrumentation; exhaustive native syscall/chooser/vault tracing was never supplied or claimed. | 143abbc9, e354b45e, 29bb2980, a881d9f9, 6c0ba02b; 19a3dfd7 r1 rerun |
-| AC-11: Tests-disabled packaged applications on macOS, Windows, and Linux expose the same setting inventory except for explicitly documented platform capability rows. | Tests-OFF native Mac, Windows and Linux inventories; normalized control comparison and current Mac dev/release equality | [Comparable Mac capture](../../verification/BPR-0593-macos-settings-inventory.md) at exact Windows source e93d9215 matches all seven pages' actionable controls against Windows and Linux 9bbe3604. Current Mac dev/release trees are identical and five unchanged pages still match; later General/CLI deltas and platform capabilities are documented. Current Windows/Linux refresh of those later rows remains pending, not implied by the baseline match. Prior human inventory acceptance remains preserved. | d1ba791f; e93d9215/fc77eac3; 9bbe3604/987d7766; current product 19a3dfd7; captures/comparison 138dd1d9 |
+| AC-11: Tests-disabled packaged applications on macOS, Windows, and Linux expose the same setting inventory except for explicitly documented platform capability rows. | Tests-OFF native inventories, exact candidate binding, normalized comparison with negative controls | Earlier e93d9215 Mac/Windows and 9bbe3604 Linux seven-page baseline matches; earlier 19a3dfd7 Mac dev/release equality retained. Current 2d3bdbdf Mac/Linux inventories match six pages and differ only by the explicit macOS-only CLI entry; all later updater and RFC-0014 maintenance rows are refreshed. Eleven comparison tests pass. Current Windows inventory is blocked by Defender; current Linux capture is an inventory-only native release build, not a qualified package, whose producer gate rejects the available Ubuntu 26.04 baseline (BPR-0961). AC-11 remains pending. | d1ba791f; e93d9215/fc77eac3; 9bbe3604/987d7766; prior 138dd1d9; current product 2d3bdbdf and this checkpoint's captures/comparison |
 | AC-12: Sign in starts supported device authorization directly and shows its code and browser action without Details, another Get code gesture, or pane scrolling; cancellation, expiry, and supported manual-token alternatives remain reachable. | Existing device/Home/direct setup courses and accepted subsequent shared sign-in design | Supported direct code/browser/cancel/expiry/manual flow evidence retained. Later onboarding uses the dedicated shared dialog; the old inline-row description is superseded, not a reason to restore a second code gesture. Broader legacy CLI assertions remain BPR-0940. | 01a3ada4, 1210eecc; accepted Accounts revision ed2b3f14 |
 | AC-13: User-configured servers and account selections survive restart through typed host persistence, while remembered grants reuse the existing vault path and session-only manual credentials are never presented as durable. | Saved-server GitHub.com/GHES seed/reopen public contract and device-vault binding evidence | Current four-process saved-server course passes with exact hostname/account metadata kept and offered after reopen. Existing device vault tests retain grant behavior; manual tokens remain session-only. No production credential was used. | 01a3ada4; 19a3dfd7 r1 rerun (92.67 s) |
-| AC-14: Configuration leaves the primary review surface compact, preserves tuned diff/appearance behavior, and exposes direct reconnect plus an exact pending destination handoff without changing credential or provider authority. | Compact workbench/setup/appearance evidence; current workbench and theme composition contracts | Current workbench and full appearance customization/restart compositions pass. BPR-0689 exact destination/cancel/stale-stage acceptance and subsequent dedicated sign-in flow are retained. No authority or product behavior changed in this closeout. | 554564f8, 01a3ada4, a881d9f9; product 19a3dfd7; test upkeep 138dd1d9 |
+| AC-14: Configuration leaves the primary review surface compact, preserves tuned diff/appearance behavior, and exposes direct reconnect plus an exact pending destination handoff without changing credential or provider authority. | Compact workbench/setup/appearance evidence; current workbench and theme composition contracts | Current workbench (20.90 s) and full appearance customization/restart compositions pass. BPR-0689 exact destination/cancel/stale-stage acceptance and subsequent dedicated sign-in flow are retained. This continuation corrects only Settings shortcut binding/context; it changes no credential/provider authority, stores or compact review layout. | 554564f8, 01a3ada4, a881d9f9; prior 138dd1d9; current product 2d3bdbdf and Qt 6.11 test-call upkeep |
 
 ## Completion rules
 
@@ -3656,7 +3730,7 @@ were reserved on main (`b1d4e14b`).
 
 BPR-0725 landed in this dispatch (see its verification record); the
 maintenance public path was the one course it disturbed, repaired in the
-probe. Mandate r7 added one card, [BPR-0735](../50-blocked/BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
+probe. Mandate r7 added one card, [BPR-0735](BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
 clangd reads no compile database because the project's lands in
 `build/dev` and there is no `.clangd`; filed, not started. Next: BPR-0726.
 

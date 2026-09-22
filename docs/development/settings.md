@@ -128,8 +128,8 @@ publish an agent's output. Unsupported launch capabilities remain explained.
 ## Storage & privacy
 
 The local data location is read-only. It contains repository caches, retained
-history, drafts, notes, receipts and preferences. Relocation, global purge and
-automatic retention editing are not available here.
+history, drafts, notes, receipts and preferences. Relocation, all-profiles purge
+and automatic retention editing are not available here.
 
 Prune selected epochs and Delete repository cache use the current review's exact
 accepted scope and require confirmation. Cancel is the default choice; accepted
@@ -137,17 +137,34 @@ maintenance follows its own cancellation boundary. Pruning can make an older
 comparison unavailable. These operations do not change GitHub or a developer
 working copy. They are separate from resetting preferences.
 
-Basic diagnostics contain bounded operation metadata. Advanced verbosity and
-diagnostic export remain RFC-BPR-0027 work and have no control on this page.
-Uninstalling the application leaves its local data and system credential
-entries. Use Accounts & hosts to sign out remembered device sessions before
-removing the application if you want those bindings removed.
+RFC-BPR-0014 now supplies **Preview diagnostics** and **Export preview…**.
+The read-only preview contains classified bounded metadata, not the readable
+log, private text, credentials or crash memory. Export writes exactly those
+previewed bytes to a new local file and uploads nothing. Advanced verbosity
+controls remain separate RFC-BPR-0027 work.
+
+**Prepare diagnostic cleanup…** and **Prepare profile purge…** first warn that
+the selected profile and all its producers will stop before an exact inventory
+is captured. Preparation deletes nothing. The corresponding **Clear prepared
+diagnostics…** or **Purge prepared profile data…** action requires confirmation
+of that inventory. **Cancel maintenance** does not restart a stopped profile,
+and cannot reverse an operation past its commit boundary. Shared registry and
+updater data, sibling profiles, exports and documented empty roots/locks remain.
+Purge is not uninstall or secure erasure.
+
+The [storage, diagnostics and removal guide](storage-and-diagnostics.md) gives
+the exact scope, recovery rules and residuals. Native vault/crash/full-removal
+qualification remains with RFC-BPR-0038; visible controls are not evidence of
+those pending courses. Uninstalling the application retains local state and
+system credential entries. Sign out of remembered device sessions through
+Accounts & hosts before removal if you want those bindings removed.
 
 ## Ownership and verification
 
 The [authority inventory](settings-authority-inventory.md) identifies the typed
 host, store, schema, reset and failure boundary for each group. The
-[RFC-0018 closeout](../issues/30-in-progress/BPR-0593-close-rfc-0018.md) records
+[RFC-0018 closeout](../issues/50-blocked/BPR-0593-close-rfc-0018.md) records
 which automated, native and attended claims have actually been verified. Later
 Accounts/Appearance and update work has its own acceptance; this guide does not
-turn those RFCs or the packaging dependency into closed work.
+turn those RFCs into closed work or imply release approval. The RFC-0014
+foundation dependency is accepted; its remaining qualification is RFC-0038.

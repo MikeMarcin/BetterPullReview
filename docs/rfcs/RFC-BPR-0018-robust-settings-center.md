@@ -11,7 +11,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # RFC-BPR-0018: Robust Settings Center and Preference Ownership
 
-## Current reconciliation, 2026-09-20
+## Current reconciliation, 2026-09-21
 
 The ordered 0018 → 0024 → 0025 → 0026 closeout run adopts the existing
 `close-rfc-0018` milestone. Its twenty implementation/follow-up cards are Done;
@@ -41,7 +41,20 @@ rows; neither is inferred from the baseline capture. On 2026-09-21 the merged
 RFC-BPR-0014 owner-amended foundation closeout (`b7eb3722`, exact handoff
 `61907e20`) satisfied that canonical dependency. RFC-0038 retains its full
 native/release-security qualification gaps; no release approval transfers to
-this RFC. BPR-0593 is resumed for its own remaining target-native obligations.
+this RFC.
+
+The [native continuation](../verification/BPR-0593-native-settings-continuation.md)
+found and corrected the Windows/Linux standard-key omission: `2d3bdbdf` uses
+explicit Ctrl/Command-comma scoped to the invoking workbench. Current Mac's
+full native course and focused regressions pass. Current Mac/Linux inventories
+now include the updater, explicit CLI capability distinction and seven RFC-0014
+Storage & Privacy buttons. The Linux inventory-only course passes, but its
+complete native focus/lifetime course does not. Windows' corrected candidate
+was quarantined by Defender; no security bypass was attempted. The configured
+Ubuntu 26.04 station also fails the distribution producer's declared-baseline
+gate, already tracked by BPR-0961. BPR-0593 is Blocked on these exact native
+qualification gaps, not on the now-closed RFC-0014. AC-01/AC-11 and RFC status
+remain unaccepted; prior human verdicts are preserved.
 
 ## Accepted attended history, 2026-09-12
 

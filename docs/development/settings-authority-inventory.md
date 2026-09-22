@@ -26,7 +26,7 @@ updating the later profile, sign-in and updater ownership below.
 | Native notification permission and delivery availability | Platform-managed/observed, `notification_delivery` and platform sink | BPR-0681 persists core enablement/pause choices in queue preferences, separately from platform permission. Preview uses metadata only and existing exact-target activation; ambiguous activation retains its platform refusal. |
 | Agent profile choice; host allow/require policy; selected private context | Session selection and compiled policy (`built_in_agent_profiles`, `built_in_agent_policy`); agent invocation/chat hosts | No general profile editor/store currently exists. Four compiled profiles, exact host restrictions, private note/draft opt-in are separate from agent credentials. Settings may expose accepted available choices, never broaden corporate policy or persist private content as preferences. |
 | Cache roots, catalog/ledger locations, capacity limits, retained epochs | Observed locations and compiled limits; epoch/cache/ledger hosts | Existing stores remain authorities. Prune/delete are exact-scope destructive operations, not preference resets; reuse confirmation and tombstone paths. No relocation or automatic eviction control exists. |
-| Diagnostic availability/detail/export | Observed basic logging; `diagnostic_log_port`, Quill adapter/composition | RFC-0027 advanced verbosity/export is deferred and not an existing editable preference. Present capability honestly; do not invent an export containing source, credentials, or database bytes. |
+| Diagnostic availability/detail/export and profile maintenance | RFC-0014 typed release-maintenance host, profile lifecycle and storage ports; `diagnostic_log_port`/Quill remain the local logging authority | Bounded read-only metadata preview and exact-byte local export are implemented. Cleanup/purge first stop the selected profile and prepare an exact inventory, then require confirmation; their commit boundary is independent of Settings closure. RFC-0027 advanced verbosity remains deferred. Native vault/crash/removal qualification is RFC-0038, not an implied Settings permission. |
 | Review details disclosure, modality selection, drawer filters/tree order, focused view/selection | Local interaction or retained layout according to its owner; Qt presentation plus workbench intents | Not a universal settings record. Preserve current selection and projections. Independent windows and restoration are 0024/0025 work. |
 | Startup landing and session restoration | Desktop lifecycle behavior, not an editable Settings preference | RFC-0024 supplies profile/window identity and restoration. New windows start on Home; no Settings toggle controls startup or restoration. |
 | Release account, automatic update checks and skipped version | Application-wide preferences; dedicated RFC-0035 release-update host | Separate update store and exact native GitHub.com release authority. General mounts the same panel/service as the native update action. Unsupported or managed installations are explained; Settings does not grant installation authority. See [application updates](application-updates.md). |
@@ -93,7 +93,7 @@ by those partial cards. BPR-0593 remains the canonical closeout and owns the
 actual criterion/check/result/revision ledger. Required native platform or human
 observations remain pending until obtained; this inventory invents no verdict.
 
-## Native inventory and platform rows, 2026-09-20
+## Native inventory and platform rows, 2026-09-21
 
 The [macOS inventory comparison](../verification/BPR-0593-macos-settings-inventory.md)
 now supplies a tests-disabled capture at the exact Windows source revision,
@@ -104,12 +104,20 @@ combo-name differences are normalized explicitly, not treated as missing rows.
 | Later surface | Owner and capability distinction |
 |---|---|
 | General's nine updater controls | RFC-0035, added after the Windows/Linux inventory baseline. The panel is composed on all platforms; Windows/Linux report unsupported platform. macOS also requires a trusted, writable production installation. Current local dev and ad-hoc release captures both report untrusted installation, disabling all controls except View Release. No update action was invoked. |
-| Accounts page-level Use GitHub CLI | BPR-0909/0910/0913/0915 and RFC-0015. Replaces the older per-server Connect entry and opens discovered-account setup through the shared sign-in dialog. Native configured CLI reads remain macOS-only; other platforms report unavailable. This moves presentation, not credential/provider authority. BPR-0933's trust-dialog wording remains separate. |
+| Accounts page-level Use GitHub CLI | BPR-0909/0910/0913/0915 and RFC-0015. Replaces the older per-server Connect entry and opens discovered-account setup through the shared sign-in dialog. Native configured CLI reads remain macOS-only. The current Linux composition omits this button because `cli_read_offered_here()` is false; it has three account controls where Mac has four. This moves presentation, not credential/provider authority. BPR-0933's trust-dialog wording remains separate. |
+| Storage & Privacy profile diagnostics/removal | Merged RFC-0014 foundation, now accepted at b7eb3722/61907e20. Seven buttons add bounded preview/export, two prepare/commit pairs and cancellation. Their names and enabled states match the current Mac/Linux capture; no maintenance action was invoked. Exact lifecycle, confirmation and residual rules are in the [storage guide](storage-and-diagnostics.md). |
 
-The five unaffected current pages still match the captured cross-platform
-baseline. No simultaneous current Windows/Linux updater/shared-dialog capture
-is claimed; those later rows and native menu/shortcut courses remain explicit
-target-platform evidence limits on BPR-0593.
+The [current continuation](../verification/BPR-0593-native-settings-continuation.md)
+refreshes all seven Mac/Linux pages at `2d3bdbdf`: updater controls match,
+Accounts differs only by the explicit CLI capability above, and the other five
+pages match. Six current Mac pages retain their previous controls; Storage adds
+the seven RFC-0014 buttons. GObject AT-SPI's `button`/`spin button` names are
+explicit aliases of the older `push button`/`spin box` roles, not omitted rows.
+
+Windows refresh remains blocked by Defender quarantine. Linux's inventory-only
+course is not its failed native focus/lifetime course or a qualified distribution
+package. BPR-0593 retains these precise limits; old comparable evidence remains
+valid only for its original source.
 
 ## Integrated Settings surfaces
 

@@ -2,6 +2,8 @@
 
 The e93d9215 macOS capture binds the Windows/Linux inventory baseline. Current
 macOS dev/release captures also pin the later General and CLI-entry changes.
+The 2d3bdbdf continuation compares the refreshed Mac and Linux inventories,
+without upgrading Linux's inventory-only course to native lifetime acceptance.
 This is evidence comparison, not a substitute for running a native capture.
 """
 
@@ -15,11 +17,12 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2] / "docs" / "verification"
 MAC = ROOT / "BPR-0593-macos-settings-inventory"
+CONTINUATION = ROOT / "BPR-0593-native-settings-continuation"
 ROLE_NAMES = {
-    "Button": "button", "push button": "button", "AXButton": "button",
+    "Button": "button", "push button": "button", "button": "button", "AXButton": "button",
     "CheckBox": "check", "check box": "check", "AXCheckBox": "check",
     "ComboBox": "combo", "combo box": "combo", "AXComboBox": "combo", "AXMenuButton": "combo",
-    "Spinner": "spin", "spin box": "spin", "AXIncrementor": "spin",
+    "Spinner": "spin", "spin box": "spin", "spin button": "spin", "AXIncrementor": "spin",
     "Edit": "edit", "text": "edit", "AXTextField": "edit", "AXTextArea": "edit",
 }
 # Qt's native AX/AT-SPI bridges use current choices for some combo names.
@@ -71,6 +74,8 @@ class SettingsInventoryComparison(unittest.TestCase):
         cls.baseline = load(MAC / "macos-app-release-e93d9215.json")
         cls.windows = load(ROOT / "BPR-0730-windows-settings-inventory/windows-app-release.json")
         cls.linux = load(ROOT / "BPR-0731-linux-settings-inventory/linux-app-release.json")
+        cls.continued_mac = load(CONTINUATION / "macos-app-release-2d3bdbdf.json")
+        cls.continued_linux = load(CONTINUATION / "linux-native-inventory-2d3bdbdf.json")
 
     def test_current_mac_dev_and_release_are_identical(self) -> None:
         self.assertEqual(self.dev["pages"], self.current["pages"])
@@ -79,7 +84,7 @@ class SettingsInventoryComparison(unittest.TestCase):
 
     def test_categories_match_on_every_capture(self) -> None:
         self.assertEqual(len(self.current["categories"]), 7)
-        for capture in (self.dev, self.baseline, self.windows, self.linux):
+        for capture in (self.dev, self.baseline, self.windows, self.linux, self.continued_mac, self.continued_linux):
             self.assertEqual(self.current["categories"], capture["categories"])
             self.assertEqual(capture["categories"], [page["category"] for page in capture["pages"]])
 
@@ -116,6 +121,57 @@ class SettingsInventoryComparison(unittest.TestCase):
         changed = copy.deepcopy(original)
         control = next(node for node in changed["nodes"] if node.get("type") == "AXButton")
         control["enabled"] = not control["enabled"]
+        self.assertNotEqual(controls(original), controls(changed))
+        changed["nodes"].remove(control)
+        self.assertNotEqual(controls(original), controls(changed))
+
+    def test_continued_inventories_differ_only_by_cli_capability(self) -> None:
+        for expected, observed, count in zip(self.continued_mac["pages"], self.continued_linux["pages"],
+                                             (9, 4, 35, 85, 4, 3, 11)):
+            with self.subTest(page=expected["category"]):
+                self.assertEqual(len(controls(expected)), count)
+                expected_controls = controls(expected)
+                if expected["category"] == "Accounts & hosts":
+                    # Linux does not offer native CLI discovery. Keep this one
+                    # observed capability explicit; the generic normalizer
+                    # never deletes a control.
+                    cli = ("button", "Use GitHub CLI", True, "")
+                    self.assertEqual(expected_controls.count(cli), 1)
+                    expected_controls.remove(cli)
+                self.assertEqual(expected_controls, controls(observed))
+
+    def test_six_pages_are_unchanged_since_previous_mac_capture(self) -> None:
+        for expected, observed in zip(self.current["pages"][:6], self.continued_mac["pages"][:6]):
+            with self.subTest(page=expected["category"]):
+                self.assertEqual(controls(expected), controls(observed))
+
+    def test_release_foundation_storage_additions_are_explicit(self) -> None:
+        self.assertEqual(controls(self.continued_mac["pages"][6]), [
+            *controls(self.current["pages"][6]),
+            ("button", "Preview diagnostics", True, ""),
+            ("button", "Export preview…", False, ""),
+            ("button", "Prepare diagnostic cleanup…", True, ""),
+            ("button", "Clear prepared diagnostics…", False, ""),
+            ("button", "Prepare profile purge…", True, ""),
+            ("button", "Purge prepared profile data…", False, ""),
+            ("button", "Cancel maintenance", False, ""),
+        ])
+
+    def test_inventory_only_capture_claims_no_lifetime_pass(self) -> None:
+        self.assertEqual(len(self.continued_mac["native_checks"]), 11)
+        self.assertEqual(self.continued_linux["course"], "inventory-only")
+        self.assertEqual(self.continued_linux["native_checks"], [
+            "native-menu-opens-profile-labelled-settings",
+            "seven-categories-with-current-page-heading",
+            "native-window-close-process-terminated",
+        ])
+
+    def test_new_atspi_button_alias_does_not_hide_missing_controls(self) -> None:
+        original = self.continued_linux["pages"][6]
+        changed = copy.deepcopy(original)
+        control = next(node for node in changed["nodes"] if node["name"] == "Preview diagnostics")
+        self.assertEqual(control["role"], "button")
+        control["enabled"] = False
         self.assertNotEqual(controls(original), controls(changed))
         changed["nodes"].remove(control)
         self.assertNotEqual(controls(original), controls(changed))
