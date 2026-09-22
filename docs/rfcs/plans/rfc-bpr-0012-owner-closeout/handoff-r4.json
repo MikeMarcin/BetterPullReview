@@ -1,0 +1,226 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Close only RFC-BPR-0012 on clean main under owner amendment r4; preserve truthful evidence, amend stale closeout text, retain unobserved/native/human obligations and report RFC0013 eligibility.",
+  "child": "/root/rfc0012_owner_closeout",
+  "mandate_revision": "r4",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0012-owner-closeout-r4",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "entry_revision": "9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d",
+  "rfc_base_sha": "2966ff8103dc442775425386f6a31f8ac1a391c6",
+  "product_test_candidate_revision": "9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d",
+  "terminal_scope_revision": "e1be4d13e7ba367c17148bd80d0ce71fd2bddc3b",
+  "card_closeout_revision": "e2682f99f64a7f987fa772da687b04f625706234",
+  "milestone": "owner-amended-closeout",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/checkpoint-r4.json",
+  "prior_handoff": "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/handoff-r4.json",
+  "mandate": "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/mandate-r4.md",
+  "result": {
+    "disposition": "milestone-complete",
+    "rfc_status": "Auto-Verified",
+    "card": "BPR-0507",
+    "card_status": "Done",
+    "selected_count": 24,
+    "done_count": 24,
+    "interpretation": "All nine original criteria accepted in the authored fixture/core/Qt scope. No new required human gate. Actual installed-agent behavior, agent GitHub account/approvals/live writes and current native packages remain unobserved. Later Dif cue failure remains a separate standalone follow-up; neither the failing run nor those cues are marked passed."
+  },
+  "commits": [
+    {
+      "revision": "177350ad2f170a975bd0f0c21895efc54bde4e2b",
+      "purpose": "Adopt bounded r4 plan, source/mandate and entry checkpoint; make BPR0507 Ready"
+    },
+    {
+      "revision": "abd9baee670332b2c6fefd17d01ab6a84eabe9b3",
+      "purpose": "Guarded BPR0507 claim"
+    },
+    {
+      "revision": "e69b0b9a2067c4fe24d7ff5cd03bf403a70e4d26",
+      "purpose": "Reconcile nine current criteria and historical fixes; correct UX documentation; allocate BPR0966 with exact failed Dif evidence"
+    },
+    {
+      "revision": "e2682f99f64a7f987fa772da687b04f625706234",
+      "purpose": "Guarded BPR0507 Done with nine passing records and explicit fixture limits"
+    },
+    {
+      "revision": "e1be4d13e7ba367c17148bd80d0ce71fd2bddc3b",
+      "purpose": "RFC/index/README/ledger terminal reconciliation; the following handoff-only commit records this exact candidate"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "sha256": "a0f9c85cd58e4c9d486ae39c554b16f30f4bb73e867ebfbb6c17ad21ca775d90"
+    },
+    {
+      "path": "build/dev/tests/end_to_end/better_pull_review_agent_finding_composition_public_path",
+      "sha256": "c26423eb82a5e676b681c3d31ca2187a61602c376a46522a9f393d9ab9c4b1ee"
+    },
+    {
+      "path": "build/dev/tests/end_to_end/better_pull_review_agent_chat_composition_public_path",
+      "sha256": "59dd3ced652acbaf19770b461578a1a8e7b4be4e9a653e43fdf1aa4d3c26cce0"
+    },
+    {
+      "path": "build/dev/tests/end_to_end/better_pull_review_agent_finding_canary",
+      "sha256": "484f0ceb67d38457596674d089e33f12d4bd75c2c7de31d6a2cabf0e86b8a28c"
+    },
+    {
+      "path": "build/dev/src/adapters/mcp/better_pull_review_mcp_context_helper",
+      "sha256": "28a3004ab7c2bbb624d603a32e980fdf2efdfd0c77497e73c136d47a8bd42159"
+    }
+  ],
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review test_better_pull_review_agent_finding_composition_public_path test_better_pull_review_agent_chat_composition_public_path tool_better_pull_review_mcp_context_helper",
+      "result": "Pass, no work to do; subsequent component-target build also reports no work. Exact component command retained in ledger."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_agent_(finding_composition|chat_composition|chat_construction_cut|finding_cut_finding)_contract$'",
+      "result": "3/3 pass, 36.11 s. Last selector alternative matched nothing; the actual finding-host construction cut was run by its registered name in the following batch."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --no-tests=error -j 2 -R '^(core_agent_(finding|finding_promotion|chat_scope)|application_agent_(finding_.*|chat_.*|comment_workshop_host|finding_protocol)|application_mcp_context_helper|qt_side_chat_panel|qt_finding_queue_view|qt_review_draft_editor|composed_application_hosts)$' -E '^application_agent_(chat_composition|chat_construction_cut|finding_composition)_contract$'",
+      "result": "20/21 pass, 87.26 s. All selected RFC0012 behavior passes. Later application_agent_finding_dif_context_contract fails two cues only; findings/proposal/draft/no-mutation assertions pass."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_agent_finding_dif_context_contract$'",
+      "result": "Fails again alone, 18.13 s, same dif-comment-ready-after-conversion and dif-acknowledge-after-acceptance; exact diagnostic 1:1:1:0:0:1:0. Source explains dedicated composition-page/drawer visibility mismatch; no bisect or fix performed. Durable BPR0966."
+    },
+    {
+      "command": "cmake --build --preset core-only --target test_better_pull_review_agent_finding_core_tests test_better_pull_review_agent_finding_promotion_core_tests test_better_pull_review_agent_chat_scope_core_tests test_better_pull_review_mcp_context_helper_tests; ctest --test-dir build/core-only --output-on-failure --no-tests=error -R '^(core_agent_(finding|finding_promotion|chat_scope)|application_mcp_context_helper)$'",
+      "result": "Build passes; 4/4 pass, 1.35 s, no Qt/provider graph."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_review_round_trip_composition_contract$'",
+      "result": "1/1 pass, 11.77 s; ordinary publish/refresh fixture path."
+    },
+    {
+      "command": "Reuse RFC0011 current application_agent_invocation_composition_contract, core agent context/session and tracked-source architecture evidence at 71b25a2438202411c3c1e5c046e8d4e77ae10070; git diff --quiet against entry for src tests cmake packaging",
+      "result": "No relevant input changes. Prior actual public exact-field selection passes; original chat_message mismatch fixed at a7bc3c88 and window-session assumption at d9ea1cbc. Prior working-tree architecture scan failed due to nested .claude checkout; exact tracked-source archive scan passed. Both retained, not reclassified."
+    },
+    {
+      "command": "nm -u and otool -L build/dev/src/adapters/mcp/better_pull_review_mcp_context_helper",
+      "result": "No socket/connect/bind/listen/accept/resolver imports; only libc++ and libSystem dynamic links. This is a link observation, not an OS sandbox claim."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK at Ready, reconciled criteria and terminal Auto-Verified. Final handoff state checked before commit."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64/64 pass, 1.668 s. Negative-fixture diagnostics expected."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0012 --include BPR-0966 --json; queue RFC0012; queue RFC0013",
+      "result": "958-card inventory valid, zero errors; RFC0012 24/24 Done; RFC0013 89/95 Done and all canonical predecessors Auto-Verified."
+    },
+    {
+      "command": "Baseline-to-candidate review; git diff --quiet entry -- src tests cmake packaging docs/verification/reviews docs/rfcs/plans/RFC-BPR-0012-issue-plan.md; git diff --check",
+      "result": "Product/test/build/package and historical protected paths unchanged by closeout. New documentation self-reviewed; original source plan digest f00141c6c54e755833463541a5f0dd55c5906365b65e821fa0fd6b5551e8ec0e preserved."
+    },
+    {
+      "command": "python3 /Users/jaeger/.agents/skills/implement-rfc/scripts/milestone_checkpoint.py check --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --checkpoint docs/rfcs/plans/rfc-bpr-0012-owner-closeout/checkpoint-r4.json --observation build/rfc0012-owner-closeout/observation.json --execution quiescent --json",
+      "result": "Pass: action stop at the integrated assignment boundary. Helper reports engineering_acceptance not-evaluated; the implementer owns the nine evidence judgments."
+    }
+  ],
+  "deferred_followups": [
+    {
+      "id": "BPR-0966",
+      "path": "docs/issues/10-backlog/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
+      "state": "Backlog; standalone rfcs [] with origin RFC0031/related RFC0037 and r4 provenance",
+      "pending": "Reconcile later Dif workshop cues with dedicated composition surface; exact failure retained. No product source or assertion changed."
+    },
+    {
+      "id": "optional-installed-agent-live-round-trip",
+      "path": "docs/verification/RFC-BPR-0012.md#reconciled-history-and-remaining-limits",
+      "state": "Optional unobserved external acceptance, not an authored terminal gate",
+      "pending": "Installed Codex/Claude compatibility, actual agent GitHub account/native approvals/external write behavior require separately authorized installations/accounts/targets."
+    },
+    {
+      "id": "optional-mcp-file-content",
+      "path": "docs/verification/RFC-BPR-0012.md#reconciled-history-and-remaining-limits",
+      "state": "Documented feature limitation",
+      "pending": "App-frozen MCP snapshot has alignment/binding metadata and an empty files directory. A separately scoped file-content extension needs explicit bounds and effect/privacy evidence."
+    },
+    {
+      "id": "BPR-0940",
+      "state": "Backlog under RFC0013; unchanged",
+      "pending": "Broader composed-GitHub/window expectation and rendering reconciliation, not rerun or claimed green here."
+    },
+    {
+      "id": "BPR-0958/BPR-0959/BPR-0960/BPR-0961",
+      "state": "Separately owned RFC0014 native qualification, unchanged",
+      "pending": "Current native package/authentication/vault/removal acceptance; historical process evidence does not supply it."
+    }
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": "None required for the assigned original RFC0012 fixture scope. Optional external-agent observations, BPR0966's later UI reconciliation and independently owned RFC0013/0014 human/native work remain explicit.",
+    "protected_candidates": "All historical docs/verification/reviews and original pack source bytes unchanged; dev app digest unchanged; no release package/candidate rebuilt; no review server started, altered or stopped."
+  },
+  "ownership": {
+    "repository_writer": "/root/rfc0012_owner_closeout exclusively through final return, then released",
+    "other_agents_spawned": [],
+    "writer_inventory": "Coordinator /root and this leaf are the only active agents. Prior RFC owners and RFC0014 milestone owners are completed; first RFC0011 attempt errored before work. All unrelated registered worktrees preserved.",
+    "task_commands": "Every build/test/helper/claim/finish process collected; no remaining task-owned command or listener.",
+    "sessions_collected": [
+      48861,
+      68523,
+      83870,
+      78336,
+      64238
+    ],
+    "review_server": null,
+    "live_operations": [],
+    "cleanup": "No temporary source checkout/archive, injected mutation or review server created. Ordinary ignored build outputs and acceptance/check receipts retained for reproducibility; no deletion required."
+  },
+  "continuation": {
+    "next_scope": "RFC-BPR-0013 assigned only by coordinator to a fresh implementer",
+    "canonical_prerequisites": "Every RFC0013 predecessor is now Auto-Verified",
+    "rfc0013_status": "Proposed",
+    "selected_count": 95,
+    "done_count": 89,
+    "closeout": "BPR-0617 Backlog, no unmet card dependencies, not promoted/claimed here",
+    "unfinished_cards": [
+      "BPR-0817 (Parked, Linux human-review)",
+      "BPR-0825 (Parked, Windows human-review)",
+      "BPR-0940 (Backlog, broader Qt contract drift)",
+      "BPR-0944 (Backlog, owner-deferred comparison basis)",
+      "BPR-0945 (Backlog, strict tidy diagnostics)",
+      "BPR-0617 (Backlog, RFC closeout)"
+    ],
+    "detail": "Canonical eligibility is clear; the successor must reconcile its own evidence and these obligations before terminal status. RFC0014 remains separately pending."
+  },
+  "uncertainties": [
+    "Dif workshop cue course remains red; the source visibility chain explains the mismatch but product-versus-test judgment is not supplied by this closeout.",
+    "No live external-agent, current native package, human or new independent acceptance is claimed; configured host_load remains not_verified.",
+    "Bounded helper/selector diagnostics were corrected transparently: explicit Markdown plan rejected as JSON, lane name corrected from ready to 20-ready, and executable hashes resolved via OUTPUT_NAME. None changed product or historical evidence."
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0012-ai-review-chat-findings-mcp.md",
+    "docs/verification/RFC-BPR-0012.md",
+    "docs/ux/ai-experience.md",
+    "docs/issues/10-backlog/BPR-0507-close-rfc-0012.md (moved through Ready/In Progress to Done)",
+    "docs/issues/60-done/BPR-0507-close-rfc-0012.md",
+    "docs/issues/10-backlog/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-0966--BPR-0966--4176d9c83750.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/mandate-r4.md",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/prepare-receipt.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/execution-selection.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/source.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/checkpoint-entry.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/checkpoint-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/handoff-r4.json"
+  ]
+}
