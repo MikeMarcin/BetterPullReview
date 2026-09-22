@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792","BPR-0793","BPR-0794","BPR-0795"]
 closeout_for: ["RFC-BPR-0013"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
+acceptance: [{"criterion":"Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"BPR-0623/0624/0631/0632 independently checked 515-file, 20,000-line, 1,000-thread, 32-epoch fixtures; current large-review benchmark. Pass for bounded fixtures and exact source documents. Current benchmark 22.23 s; historical 32-epoch identities remain candidate-specific. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"The recorded macOS large-review paths demonstrate input, scrolling, navigation and cooperative measurement under their stated workloads; current public selection and unavailable-content recovery remain correct.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"Current large-review, selected-file safety, unavailable-diff and held-loading courses; retained BPR-0627..0629/0751 measurements. Pass for named behavior; 98.723 ms source and 32.004 ms rapid-selection maxima. Initial load 321.700 ms is not a universal 100 ms pass. BPR-0967 owns broader performance; BPR-0940 owns benchmark visible-page reconciliation. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"Default host cache ceilings and eviction remain enforced, and historical close/prune ownership evidence retains its exact candidate and sampled-memory limits; current memory-budget failures remain explicit follow-up work.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"Current application_diff_host ceiling/eviction/cancellation tests; historical BPR-0630..0635 ownership and pressure evidence. Pass for host bounds and truthful historical evidence. Current loaded-close/resources fail before cleanup at 160 MiB sampled-growth; BPR-0967 retains exact failures. No current native memory or cleanup pass. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"Primary and secondary rate-limit policy preserves bounded backoff, Retry-After, cancellation, identity and typed queue state through the existing provider, host and Qt contracts.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"Current application_review_queue_refresh, qt_review_queue, github_paged_read and github_provider; RFC0010/BPR-0161 backoff evidence. Pass for component policy/projection. BPR-0968 retains the unobserved complete rendered throttling course. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"Offline and recovery policy retains typed unavailable or stale state and rejects stale-session completions; complete cached-review offline/restart presentation remains explicit follow-up work.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"Current queue refresh offline/recovery and stale-session rejection; retained Git/catalog history. Pass for typed policy; BPR-0969 retains the unproved cached-review offline/restart and visible freshness behavior. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"Recorded process-kill courses recover Git cache, SQLite and exact owned agent workspaces without corruption or duplicate mutations, within their stated platform and candidate boundaries.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"BPR-0616/0618/0619/0620/0621 recorded kill/restart/integrity/no-replay; BPR-0622 native ownership evidence. Pass for recorded exact courses: Windows c94e02b1/2ba02ddb, Linux 780d0a1c/48b6422b, Mac 8a03a5be. Current publication replay remains in RFC0008 r4 evidence; no new full native kill matrix. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"Custom parser and mapping boundaries retain deterministic malformed-input and property regression evidence; complete fuzz targets and corpora remain inventoried as explicit follow-up work.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"Current core_diff_compute/core_diff_semantics/core_theme_exchange, github_paged_read/provider and application_agent_finding_protocol; original parser/property inventory. Pass for deterministic regression evidence and explicit inventory. Complete fuzz target/corpus requirement remains wholly open on BPR-0970. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"The existing composed logging and backpressure courses preserve metadata-only diagnostics under their tested error conditions.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"Current application_logging, quill_logging and quill_logging_backpressure; historical BPR-0602/0606. Pass for existing composed/error/backpressure checks. BPR-0971 retains the full pathological privacy audit. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}},{"criterion":"The recorded core, host and Qt paths demonstrate bounded scaling, serialized completion, incremental updates, cancellation and stale-result rejection without claiming application-wide coverage.","outcome":"pass","revision":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","evidence":{"kind":"observation","detail":"Current epoch/diff hosts, held loading and selected-file safety; retained scale/history/index evidence. Pass for named paths only. BPR-0972 retains wider structural/active-work evidence, BPR-0940 retains non-green layout/composition, BPR-0945 strict tidy. Scope and transfers authorized by owner amendment r4 at 9991ebf64ed5b72d7e625a884424f868577ab80b; exact commands and historical candidate limits in docs/verification/RFC-BPR-0013.md."}}]
 ---
 
 # Verify and close RFC-BPR-0013
@@ -37,10 +38,14 @@ benchmark's raster shows Overview, while the unavailable raster correctly shows
 Read; BPR-0940 retains visible-source fixture reconciliation. No current full
 memory, native, fuzz, full-suite or human acceptance is inferred.
 
-The amended nine-row evidence and follow-up transfers are prepared for guarded
-completion. Final documentation/board checks and the exact final binding remain
-to be recorded before Done/Auto-Verified. No source, test, signed candidate,
-historical review packet, account or remote state changes.
+The amended nine-row evidence and follow-up transfers are accepted under r4.
+The documentation gate, all 64 documentation regressions and scoped board
+validation (964 cards, zero errors) pass; live plan structure/references and
+diff checks pass. Guarded completion records nine passing amended criteria,
+without changing any transferred failed or pending observation. The first six
+milestones and all historical review packets/source-plan bytes remain unchanged.
+The final RFC/index reconciliation and renewed handoff bind the terminal result.
+No source, test, signed candidate, account or remote state changes.
 
 ## Closeout checklist
 
@@ -566,7 +571,7 @@ historical observation.
 
 Main reserved BPR-0792 at `c26dc022` with its counter and immutable receipt.
 The separate `large-pr-returned-commit-boundary` plan amendment binds
-[BPR-0792](../60-done/BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
+[BPR-0792](BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
 without changing BPR-0643's accepted exits. Its assignment is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r2-d8-r12.json`.
 The current working candidate distinguishes a reported total from returned
@@ -855,7 +860,7 @@ and `.mask.json` edits remain outside scope.
 The `retained-stress-pr-read` milestone is accepted through its explicit
 known-limit alternative. All bound obligations and both exits pass without
 claiming a file list or selected diff. BPR-0643 is Done at `8285cb4f`.
-BPR-0642 is Done; [BPR-0643](../60-done/BPR-0643-load-the-retained-stress-test-pull-request.md)
+BPR-0642 is Done; [BPR-0643](BPR-0643-load-the-retained-stress-test-pull-request.md)
 records the exact criterion evidence. The r2 binding is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1-r2.json`.
 The owner completed wizard `.mask/sessions/wizard/bpr0643-signin`; the agent
