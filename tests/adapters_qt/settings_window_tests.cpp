@@ -193,9 +193,10 @@ namespace {
 		auto* const          action   = workbench.settings_action();
 		expect(settings != nullptr && settings->parentWidget() == &workbench,
 			   "the workbench owns a Settings window");
-		expect(action != nullptr && action->shortcut() == QKeySequence{ QKeySequence::Preferences }
-				   && action->menuRole() == QAction::PreferencesRole,
-			   "Settings is reached by the platform preferences shortcut");
+		expect(action != nullptr && action->shortcut() == QKeySequence{ Qt::CTRL | Qt::Key_Comma }
+				   && action->menuRole() == QAction::PreferencesRole
+				   && action->shortcutContext() == Qt::WindowShortcut,
+			   "Settings has explicit Command/Ctrl-comma scoped to the invoking workbench");
 		auto* const appearance = workbench.appearance_settings();
 		expect(appearance != nullptr
 				   && appearance->parentWidget() == settings->page_widget(qt::settings_page::appearance),
@@ -219,6 +220,29 @@ namespace {
 		expect(settings->isVisible() && settings->current_page() == qt::settings_page::appearance,
 			   "the action presents Settings on Appearance");
 	}
+
+	void test_settings_shortcut_selects_the_active_workbench()
+	{
+		qt::workbench_window first;
+		qt::workbench_window second;
+		first.show();
+		second.show();
+		QApplication::processEvents();
+		for (auto* const window : { &first, &second }) {
+			QApplication::setActiveWindow(window);
+			window->setFocus();
+			QApplication::processEvents();
+			QKeyEvent press{ QEvent::KeyPress, Qt::Key_Comma, Qt::ControlModifier };
+			QKeyEvent release{ QEvent::KeyRelease, Qt::Key_Comma, Qt::ControlModifier };
+			QApplication::sendEvent(window, &press);
+			QApplication::sendEvent(window, &release);
+			QApplication::processEvents();
+			expect(window->settings()->isVisible(), "the active workbench's comma shortcut is not ambiguous with its sibling");
+			auto* const other = window == &first ? &second : &first;
+			expect(!other->settings()->isVisible(), "the inactive workbench's Settings action does not receive the shortcut");
+			window->settings()->close();
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -230,6 +254,7 @@ auto main(int argc, char** argv) -> int
 	test_every_page_exists_with_a_notice();
 	test_adopting_a_panel_replaces_the_notice();
 	test_the_workbench_mounts_settings_with_the_preferences_shortcut();
+	test_settings_shortcut_selects_the_active_workbench();
 	std::cout << "settings-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }

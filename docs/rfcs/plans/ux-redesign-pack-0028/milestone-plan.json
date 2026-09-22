@@ -68,7 +68,7 @@
         "Every RFC-BPR-0018 criterion row records a direct check, result and producing commit, including the native and attended rows",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0018 and the index are reconciled to the closed status"
       ],
-      "boundary": "The RFC-BPR-0018 closeout card, RFC/index status, direct native inventory/menu evidence and bounded test-course upkeep needed to verify existing Settings behavior; no new product work. The 2026-09-20 planning amendment does not waive canonical prerequisites or accepted native/human criteria."
+      "boundary": "The RFC-BPR-0018 closeout card, RFC/index status, direct native inventory/menu evidence and bounded test-course upkeep needed to verify existing Settings behavior. Includes correcting native Settings entry defects exposed by those required courses; no new feature scope. The 2026-09-20 planning amendment and 2026-09-21 native continuation do not waive canonical prerequisites or accepted native/human criteria."
     },
     {
       "id": "close-rfc-0024",

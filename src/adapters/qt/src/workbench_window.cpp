@@ -7859,8 +7859,12 @@ namespace bpr::qt {
 		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
 		SettingsAction->setObjectName(QStringLiteral("openSettingsAction"));
 		SettingsAction->setMenuRole(QAction::PreferencesRole);
-		SettingsAction->setShortcut(QKeySequence::Preferences);
-		SettingsAction->setShortcutContext(Qt::ApplicationShortcut);
+		// Preferences has no standard binding on Windows/GNOME. Qt maps CTRL
+		// to Command on macOS; keep the explicit product shortcut on every host.
+		SettingsAction->setShortcut(QKeySequence{ Qt::CTRL | Qt::Key_Comma });
+		// Each workbench owns this action. Application scope makes sibling
+		// windows' identical shortcuts ambiguous instead of selecting the caller.
+		SettingsAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(SettingsAction);
 		ViewMenu->addSeparator();
 		ViewMenu->addAction(SettingsAction);
