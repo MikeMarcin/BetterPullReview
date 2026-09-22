@@ -116,8 +116,11 @@ explicit aliases of the older `push button`/`spin box` roles, not omitted rows.
 
 Windows refresh remains blocked by Defender quarantine. Linux's inventory-only
 course is not its failed native focus/lifetime course or a qualified distribution
-package. BPR-0593 retains these precise limits; old comparable evidence remains
-valid only for its original source.
+package. Owner amendment r2 transfers Windows' security disposition/full course/
+current inventory to Blocked BPR-0974 and Linux's full focus/lifetime course to
+Blocked BPR-0975. BPR-0593 closes only the amended accepted scope. The original
+observations retain these precise limits; old comparable evidence remains valid
+only for its original source, not a new security verdict or native course pass.
 
 ## Integrated Settings surfaces
 

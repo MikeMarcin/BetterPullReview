@@ -163,8 +163,13 @@ Accounts & hosts before removal if you want those bindings removed.
 
 The [authority inventory](settings-authority-inventory.md) identifies the typed
 host, store, schema, reset and failure boundary for each group. The
-[RFC-0018 closeout](../issues/50-blocked/BPR-0593-close-rfc-0018.md) records
+[RFC-0018 closeout](../issues/20-ready/BPR-0593-close-rfc-0018.md) records
 which automated, native and attended claims have actually been verified. Later
 Accounts/Appearance and update work has its own acceptance; this guide does not
 turn those RFCs into closed work or imply release approval. The RFC-0014
 foundation dependency is accepted; its remaining qualification is RFC-0038.
+Owner amendment r2 closes the recorded Settings scope while BPR-0974 remains
+Blocked for the Windows Defender/security disposition, complete native course
+and current inventory, and BPR-0975 remains Blocked for the Linux native
+focus/lifetime course. The finding is not declared a false positive and the
+Linux inventory-only pass is not a complete native course.

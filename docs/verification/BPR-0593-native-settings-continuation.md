@@ -1,5 +1,34 @@
 # RFC-0018 native Settings continuation, 2026-09-21
 
+## Owner-amended closeout r2 — 2026-09-21
+
+The owner explicitly directs that the Windows Defender/security disposition
+and Linux native focus/lifetime limitation become follow-up cards, and that
+RFC-BPR-0018 close against the amended accepted scope. The
+[bounded mandate](../rfcs/plans/ux-redesign-pack-0028/owner-closeout-r2.md) and
+[current criterion ledger](../issues/20-ready/BPR-0593-close-rfc-0018.md#closeout-checklist)
+record this acceptance change. It does not supply any missing observation.
+
+| Transferred obligation | Live disposition | Preserved result |
+|---|---|---|
+| Windows security disposition, full native AC-01 course and current AC-11 inventory | [BPR-0974](../issues/50-blocked/BPR-0974-dispose-windows-defender-finding-and-complete-native-settings.md), Blocked, `security-owner-disposition` | Defender quarantined the exact candidate. Native prefix only; no complete course/current inventory and no false-positive verdict. |
+| Linux full native focus/shortcut/window-lifetime AC-01 course | [BPR-0975](../issues/50-blocked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md), Blocked, `native-focus-surface` | Failure reproduced in a separate bare-Qt control. Current native inventory-only pass remains narrower evidence, not a lifetime pass. |
+
+These standalone cards (`rfcs: []`, explicit origin and r2 metadata) are not
+dependencies of the amended closeout. The original RFC native requirements,
+candidate hashes, failed courses and exact ready commands remain unchanged
+below. Other acceptance rows and existing human verdicts are not amended.
+Full RFC-0038 release qualification is neither required anew nor accepted here.
+
+The r2 slice has no product/test changes. It reuses the exact corrected product
+`2d3bdbdf` and test/observer upkeep `e7843405`, then reruns focused local and
+bookkeeping gates. Final command outcomes, helper claim/finish, r2 binding and
+quiescence are recorded on BPR-0593. The native observations below belong to r1;
+their former blocking effect is superseded only by the owner's explicit r2
+transfer, not by a successful rerun.
+
+## Prior native continuation r1
+
 Run `rfc-0018-0026-closeout-20260920`, segment `rfc-0018`, mandate `r1`;
 sole leaf owner `/root/rfc0018`, milestone `close-rfc-0018`. The owner resumed
 the same assignment after merge `86fa923e`, explicitly confirmed both remote

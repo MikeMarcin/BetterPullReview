@@ -55,7 +55,7 @@
     },
     {
       "id": "close-rfc-0018",
-      "outcome": "RFC-BPR-0018 is verified and closed against its immutable baseline with every criterion row carrying direct evidence, the documentation gate green and the index reconciled.",
+      "outcome": "RFC-BPR-0018 is verified and closed against its immutable baseline and explicit owner amendment r2, with every retained criterion carrying direct evidence, the transferred Windows and Linux native obligations preserved on open standalone BPR-0974/0975, the documentation gate green and the index reconciled.",
       "work": [
         {
           "issue": "BPR-0593"
@@ -65,10 +65,10 @@
         "attended-preparation-pack-head"
       ],
       "exit_criteria": [
-        "Every RFC-BPR-0018 criterion row records a direct check, result and producing commit, including the native and attended rows",
+        "Every owner-amended r2 RFC-BPR-0018 criterion row records its direct check, actual result and producing commit; accepted native/attended evidence retains its exact candidate and BPR-0974/0975 preserve the transferred unaccepted Windows and Linux native obligations without calling them passed",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0018 and the index are reconciled to the closed status"
       ],
-      "boundary": "The RFC-BPR-0018 closeout card, RFC/index status, direct native inventory/menu evidence and bounded test-course upkeep needed to verify existing Settings behavior. Includes correcting native Settings entry defects exposed by those required courses; no new feature scope. The 2026-09-20 planning amendment and 2026-09-21 native continuation do not waive canonical prerequisites or accepted native/human criteria."
+      "boundary": "The RFC-BPR-0018 closeout card, RFC/index status, direct native inventory/menu evidence and bounded test-course upkeep, including the corrected native Settings entry defect; no new feature scope. Owner amendment r2 in owner-closeout-r2.md explicitly transfers only Windows security disposition/full native course/current inventory to standalone BPR-0974 and Linux native focus/lifetime course to standalone BPR-0975. No failed observation becomes a pass; other criteria, canonical prerequisites and historical human verdicts remain unchanged. Stop at this milestone boundary."
     },
     {
       "id": "close-rfc-0024",

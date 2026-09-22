@@ -39,7 +39,7 @@ platform work and stays in Backlog until the Windows station takes it
 - The packaged inventory on Windows matches the dev build's, with each
   difference named as a documented capability row.
 - The captures or the recorded inventory are linked from the
-  [BPR-0593](../50-blocked/BPR-0593-close-rfc-0018.md) closeout ledger's AC-11 row.
+  [BPR-0593](../20-ready/BPR-0593-close-rfc-0018.md) closeout ledger's AC-11 row.
 - Where a person must look at it, an attended candidate on that station.
 
 ## Evidence
@@ -73,7 +73,7 @@ that the page shown matched it.
   12, 15 and 13, with **0 differing nodes**.
 - So no platform capability row needs documenting, and there is no defect.
 
-**The ledger link.** The AC-11 row in the [BPR-0593](../50-blocked/BPR-0593-close-rfc-0018.md)
+**The ledger link.** The AC-11 row in the [BPR-0593](../20-ready/BPR-0593-close-rfc-0018.md)
 ledger links this inventory. The integrator added that link in main commit
 `4b56435e`.
 
@@ -91,5 +91,5 @@ match that the agent-captured tree settles.
 Asked when the station takes this: "After we sort all the MacOS and
 platform agnostic stuff out". It stays in Backlog behind the macOS and
 platform-agnostic cards of the pack (BPR-0725 through BPR-0729, BPR-0734
-and the Home cards BPR-0732 and BPR-0733); the [BPR-0593](../50-blocked/BPR-0593-close-rfc-0018.md)
+and the Home cards BPR-0732 and BPR-0733); the [BPR-0593](../20-ready/BPR-0593-close-rfc-0018.md)
 closeout records the order.

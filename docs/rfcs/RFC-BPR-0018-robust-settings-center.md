@@ -6,12 +6,38 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0014"]
 pack_version: "post-v2"
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"mandate_revision":"r2","deferred_followups":["BPR-0974","BPR-0975"]}
 ---
 
 # RFC-BPR-0018: Robust Settings Center and Preference Ownership
 
-## Current reconciliation, 2026-09-21
+## Owner amendment r2 — 2026-09-21
+
+The owner explicitly directs the remaining Windows Defender/security
+disposition and Linux native focus/lifetime limitation to standalone follow-up
+cards, then closes this RFC against the amended accepted scope. The
+[bounded mandate](plans/ux-redesign-pack-0028/owner-closeout-r2.md) and
+[[BPR-0593]] record the distinction between this acceptance change and actual
+observations. It is not a false-positive verdict, a Linux course pass or a
+release approval.
+
+[[BPR-0974]] remains Blocked for security-owner disposition of the exact
+quarantined Windows candidate, then its complete native menu/shortcut/lifetime
+course and current inventory refresh. [[BPR-0975]] remains Blocked for the
+Linux native focus/shortcut/lifetime course, preserving the bare-Qt control's
+reproduction. Their original obligations and failure evidence remain intact;
+neither card is a dependency of this amended closeout. Broader native package
+and release-security qualification remains RFC-0038/BPR-0960–0962.
+
+Only AC-01 and AC-11 terminal scope changes below. All other acceptance and
+candidate-bound Settings/Accounts/Appearance human verdicts are unchanged.
+The current Mac native course, exact shortcut regressions, baseline
+three-platform inventory and current Mac/Linux inventory refresh retain their
+direct evidence. RFC-0014's accepted foundation (`b7eb3722`, exact handoff
+`61907e20`) satisfies the canonical prerequisite. Prior checkpoints below are
+historical, not current blocking or status claims.
+
+## Prior r1 reconciliation, 2026-09-21
 
 The ordered 0018 → 0024 → 0025 → 0026 closeout run adopts the existing
 `close-rfc-0018` milestone. Its twenty implementation/follow-up cards are Done;
@@ -70,14 +96,15 @@ one-pane verdict remains bound to its own bundle. The initial fifteen-candidate
 included this RFC's macOS Settings candidate [[BPR-0683]] and its digest-bound
 offline page. Those decisions do not complete this RFC's Settings closeout. The bound
 `attended-preparation-pack-head` milestone and remaining exits are recorded
-on [[BPR-0593]]. This RFC remains Proposed.
+on [[BPR-0593]]. This history alone did not close the RFC; the r2 amendment
+above separately governs the terminal scope.
 
 ## Status and scope
 
 This is an activated post-pack RFC with implementation and attended evidence.
 It does not alter the canonical fourteen-RFC sequence and blocks no pack-v2
-implementation or closeout. Proposed is its current acceptance/dependency state,
-not a claim that Settings remains unimplemented.
+implementation or closeout. Owner amendment r2 bounds terminal acceptance;
+open BPR-0974/0975 preserve the remaining native obligations independently.
 
 **Implementation resumed by owner direction, 2026-09-07.**
 The product owner's 2026-09-04 daily-workbench amendment adds direct sign-in,
@@ -372,9 +399,15 @@ the sidebar, rebuild every page, or discard focus and selection.
 
 ## Acceptance criteria
 
-- AC-01: The shipped application exposes a native Settings action and one singleton,
-  modeless window per available BPR profile through platform-appropriate menus
-  and shortcuts, with the edited profile visibly identified.
+Owner amendment r2 changes only AC-01 and AC-11 terminal scope. Their original
+wording and unsatisfied native portions are retained immediately after this
+list. A transferred observation is not a passing observation.
+
+- AC-01: The shipped application exposes the profile-identified singleton Settings
+  window with explicit per-workbench Ctrl/Command-comma binding, verified by
+  the composed profile and four-scale key courses and the complete macOS native
+  menu/shortcut/window-lifetime course; remaining Windows and Linux native
+  courses are preserved as unaccepted standalone BPR-0974 and BPR-0975.
 - AC-02: All seven initial categories are present when their capabilities are composed,
   with stable sidebar/page/row identities and truthful unavailable states.
 - AC-03: Appearance is migrated from the embedded workbench surface to the settings
@@ -400,9 +433,10 @@ the sidebar, rebuild every page, or discard focus and selection.
   previews coalesce; cancelled or superseded loads publish nothing late; and
   instrumentation observes zero database, vault, filesystem, network, process,
   or blocking-wait work on the Qt thread.
-- AC-11: Tests-disabled packaged applications on macOS, Windows, and Linux expose the
-  same setting inventory except for explicitly documented platform capability
-  rows.
+- AC-11: The recorded tests-disabled macOS, Windows and Linux baseline inventories
+  match except for documented platform capability rows, and the current
+  macOS/Linux inventories refresh later updater, CLI and maintenance rows;
+  the current Windows refresh remains unaccepted on standalone BPR-0974.
 - AC-12: Sign in starts supported device authorization directly and shows its code and
   browser action without Details, another Get code gesture, or pane scrolling;
   cancellation, expiry, and supported manual-token alternatives remain reachable.
@@ -412,6 +446,22 @@ the sidebar, rebuild every page, or discard focus and selection.
 - AC-14: Configuration leaves the primary review surface compact, preserves tuned
   diff/appearance behavior, and exposes direct reconnect plus an exact pending
   destination handoff without changing credential or provider authority.
+
+## Original native criteria — retained as follow-ups
+
+- Original AC-01: The shipped application exposes a native Settings action and
+  one singleton, modeless window per available BPR profile through
+  platform-appropriate menus and shortcuts, with the edited profile visibly
+  identified. Windows' complete course remains on BPR-0974; Linux's complete
+  native focus/lifetime course remains on BPR-0975.
+- Original AC-11: Tests-disabled packaged applications on macOS, Windows, and
+  Linux expose the same setting inventory except for explicitly documented
+  platform capability rows. Current Windows refresh remains on BPR-0974.
+
+The broader target-native verification matrix below still describes those
+product obligations, not a claim that the missing observations passed. R2
+explicitly removes only the named follow-ups from this RFC's terminal gate.
+
 ## Verification matrix
 
 | Claim | Direct surface | Proof |
