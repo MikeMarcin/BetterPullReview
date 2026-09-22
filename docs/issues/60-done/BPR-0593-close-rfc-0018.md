@@ -26,7 +26,8 @@ to open standalone cards; it does not turn a failed course into a pass.
 
 **Disposition: milestone complete for the owner-amended r2 scope.**
 RFC-BPR-0018 and its canonical index are Auto-Verified; this card is finished
-through the shared helper after claim `95e64b4c`. The accepted amendment and
+through the shared helper at `be51ba9269d90c1ac308886d14f514775757d6f1` after
+claim `95e64b4c`. The accepted amendment and
 standalone follow-ups are committed at `eadf48af`. No product or test bytes
 change in this r2 slice. This is not whole-pack or release acceptance.
 
@@ -102,7 +103,7 @@ its sole unfinished dependency after this finish. No successor work or new
 attended session is started here. BPR-0974/0975 remain independent unresolved
 follow-ups, not blockers recreated on RFC-0018 or prerequisites added to 0024.
 The final r2 bind/observation/check use
-`build/rfc0018-milestone-{checkpoint,observation,check}.json`; the checker is a
+`build/rfc0018-r2-milestone-{checkpoint,observation,check}.json`; the checker is a
 consistency guard, not the source of engineering acceptance.
 
 ## Prior r1 continuation checkpoint, 2026-09-21
