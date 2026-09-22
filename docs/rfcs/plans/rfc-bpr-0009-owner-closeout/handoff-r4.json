@@ -1,0 +1,155 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Close only RFC-BPR-0009 on main under explicit coordinator owner amendment r4; preserve implemented outcomes and transfer unobserved collaborator comprehension to a durable standalone follow-up.",
+  "child": "/root/rfc0009_owner_closeout",
+  "mandate_revision": "r4",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0009-owner-closeout-r4-amended",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "entry_revision": "02e419b8d878620c55447ddb3d5d53683dca3f91",
+  "rfc_base_sha": "29516d7aae0b61b79571f836c92533459882f5d2",
+  "product_test_candidate_revision": "02e419b8d878620c55447ddb3d5d53683dca3f91",
+  "amendment_revision": "0474e55ac9bf771d1f57354afcb82081523478d8",
+  "card_closeout_revision": "d859d3df9cbee8c88ebfd51cd32d3d78f9c03eb9",
+  "terminal_scope_revision": "439b2d154f6ee119a0675fbd667a2544adfb1b1c",
+  "milestone": "owner-amended-closeout",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/checkpoint-r4.json",
+  "prior_handoff": "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/handoff-r4.json",
+  "mandate": "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/mandate-r4.md",
+  "result": {
+    "disposition": "milestone-complete",
+    "rfc_status": "Auto-Verified",
+    "card": "BPR-0243",
+    "card_status": "Done",
+    "selected_count": 10,
+    "done_count": 10,
+    "interpretation": "Amended implemented scope complete after RFC0008. BPR0153 stays Parked and unobserved; no human result inferred. The pre-existing broad workbench failure remains recorded under BPR0940."
+  },
+  "commits": [
+    {
+      "revision": "0474e55ac9bf771d1f57354afcb82081523478d8",
+      "purpose": "Owner r4 acceptance amendment, standalone BPR0153 transfer, adopted closeout plan, focused evidence, and BPR0243 Ready"
+    },
+    {
+      "revision": "fa9f868fdfa5429bce58c3ea36360f002a38ef68",
+      "purpose": "Guarded BPR0243 claim"
+    },
+    {
+      "revision": "d859d3df9cbee8c88ebfd51cd32d3d78f9c03eb9",
+      "purpose": "Guarded BPR0243 Done with eight passing amended criteria and rebound milestone checkpoint"
+    },
+    {
+      "revision": "439b2d154f6ee119a0675fbd667a2544adfb1b1c",
+      "purpose": "Auto-Verified RFC/index/README/ledger reconciliation; a following handoff-only commit records this terminal candidate"
+    }
+  ],
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review test_better_pull_review_defect_workflow_core_tests test_better_pull_review_defect_correlation_tests test_better_pull_review_review_ledger_host_tests test_better_pull_review_sqlite_review_ledger_tests test_better_pull_review_qt_defect_card_tests",
+      "result": "Pass, ninja: no work to do. Additional workbench-window and review-mutation-host target builds also up to date."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^application_defect_composition_contract$'",
+      "result": "Pass, 1/1, 52.91 seconds. Actual application runs GitHub.com and GHES fixture seed/reopen with exact defect identity, lifecycle, /2 count, navigation, durable history and zero private reopen writes."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^(core_defect_workflow|application_defect_correlation|application_review_ledger_host|sqlite_review_ledger_storage|qt_defect_card|qt_workbench_window_scale_100)$'",
+      "result": "5/6 pass in 2.77 seconds. Only broad qt_workbench_window_scale_100 fails at 'the epoch row is the first row of the client area and as wide as it'. Existing BPR0940 already owns that exact failure; it occurs before the defect checks and is not counted as passing."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^application_review_mutation_application_host$'",
+      "result": "Pass, 1/1, 0.13 seconds. Separate thread-resolution capability/grant admission/refusal and completion remain tested; no live operation."
+    },
+    {
+      "command": "Source/type inspection and unchanged RFC0008 r4 evidence reuse",
+      "result": "Publication records have no severity/category fields; correlator routes evidence to core; local lifecycle and shared thread-resolution gestures remain distinct. Existing exact live comment/reply and core/coordinator/publication safety evidence reused without replaying live work."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK before and after Done/Auto-Verified reconciliation, including terminal_scope_revision."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64/64 pass in 2.113 seconds. Printed invalid-fixture errors are expected negative cases."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0009 --json; queue --rfc RFC-BPR-0009 --json",
+      "result": "Valid, zero errors. Ten selected cards, all ten Done, no next card. BPR0153 remains separately Parked."
+    },
+    {
+      "command": "git diff --check and entry-to-final changed-path inspection",
+      "result": "Pass. No source, test, build configuration, original pack plan or protected review artifact changes."
+    },
+    {
+      "command": "milestone_checkpoint.py check --checkpoint docs/rfcs/plans/rfc-bpr-0009-owner-closeout/checkpoint-r4.json --observation build/rfc0009-owner-closeout/observation.json --execution quiescent --json",
+      "result": "At terminal_scope_revision: action stop, engineering_acceptance not-evaluated, unchanged valid plan/obligation binding. Recheck after the handoff-only commit. Helper checks binding consistency; engineering acceptance remains the implementer's evidence-backed judgment."
+    }
+  ],
+  "deferred_followups": [
+    {
+      "id": "BPR-0153",
+      "path": "docs/issues/40-parked/BPR-0153-github-only-collaborator-comprehension.md",
+      "state": "Parked, human-review; standalone rfcs: [] with origin_rfc RFC-BPR-0009 and mandate_revision r4",
+      "pending": "A concrete defect/disposable PR, an unfamiliar collaborator identified by the owner, then an authorized exact publication/reply course and their interpretation of corrective work without local severity/category.",
+      "authority": "Existing sign-in retained; no new token, message, publication, Actions or push authority. Earlier BPR0142 comment is not a suitable comprehension defect."
+    }
+  ],
+  "existing_failure": {
+    "id": "BPR-0940",
+    "path": "docs/issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md",
+    "state": "Backlog under RFC-BPR-0013; unchanged",
+    "failure": "Broad workbench epoch-row layout assertion reproduces at scale100. Prior r23 baseline control already records the same failure. Dedicated actual-app defect trace passes; no full-window-suite success claimed."
+  },
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": "No required human decision remains inside amended RFC0009 terminal scope. BPR0153 retains its missing inputs and pending comprehension verdict.",
+    "protected_candidates": "All existing review artifacts, historical decisions, protected candidates and original pack source bytes preserved; no review server started."
+  },
+  "ownership": {
+    "repository_writer": "/root/rfc0009_owner_closeout exclusively during this milestone; released at final return",
+    "other_agents_spawned": [],
+    "writer_inventory": "Coordinator /root and this leaf active; prior implementers completed. No other active engineering writer.",
+    "task_commands": "All collected; quiescent at return",
+    "sessions_collected": [
+      68929,
+      77621,
+      5166,
+      80310
+    ],
+    "review_server": null,
+    "live_operations": [],
+    "cleanup": "No worktree, live user profile, remote target or review server created. Registered fixture course cleaned its owned data root. Only ignored local acceptance/observation receipts and ordinary build outputs retained; no task-owned temporary source or background command remains."
+  },
+  "continuation": "Coordinator starts a fresh implementer for RFC-BPR-0010. Canonical predecessor/order gate is clear; BPR0169 remains Parked awaiting-live-github, BPR0168 Backlog depends on it, and BPR0244 Backlog depends on both. Later RFCs are not closed and no follow-up live/human course is automatically authorized.",
+  "uncertainties": [
+    "BPR0153 collaborator comprehension remains unobserved.",
+    "BPR0940 broad workbench layout remains failed.",
+    "No new independent, live, native-package, installed or release acceptance claimed. Strategy host_load remains not_verified; no routing or MASK repair attempted."
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/architecture/defect-workflow.md",
+    "docs/issues/10-backlog/BPR-0243-close-rfc-0009.md (moved through Ready/In Progress to Done)",
+    "docs/issues/60-done/BPR-0243-close-rfc-0009.md",
+    "docs/issues/40-parked/BPR-0153-github-only-collaborator-comprehension.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0009-defect-fix-verification-workflow.md",
+    "docs/verification/RFC-BPR-0009.md",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/checkpoint-entry.json",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/checkpoint-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/execution-selection.json",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/mandate-r4.md",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/prepare-receipt.json",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/source.json",
+    "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/handoff-r4.json"
+  ]
+}
