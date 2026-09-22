@@ -50,15 +50,17 @@ the four missing behaviors are not accepted by those baseline passes.
 | AC-03: Windows in one profile share accepted review data and preferences while retaining independent open PRs, navigation, layout, and restoration records. | Two-window shared data and independent navigation/restore course | Multi-window course passes 77.82 s at `6f8e44e4`: shared appearance, receipt/note/defect and server-conversation fanout with independent selection, scroll, comparison and geometry (BPR-0713/0714/0976/0977). | `8d072d14` (BPR-0976), `9210330a` (BPR-0977) |
 | AC-04: Shared draft/note edit conflicts retain the rejected candidate text and never silently overwrite accepted work; publishing still uses the existing exact-authority mutation path. | Concurrent expected-revision draft/note edits and existing publication-boundary checks | BPR-0703/0704 evidence retained (schema-6 note CAS, protected editor candidates, publication boundary course 13.12 s); not re-run in this segment, no relevant source change since. | BPR-0703/0704 commits |
 | AC-05: Default migration preserves existing appearance, sign-in bindings, private data, and retained history through interruption and restart without duplicate adoption or cross-profile fallback. | Seeded legacy Default migration with interrupted/repeated adoption and fake vault | BPR-0691/0693/0706 evidence retained (bounded preflight, interrupted/CAS adoption, schema-2 bindings, six transactional interruption points); `application_profile_startup_public_path` 2.35 s reruns Default adoption at `6f8e44e4`. | BPR-0691/0693/0706 commits |
-| AC-06: Repeated launches admit one runtime owner per profile; explicit new windows and concurrent different profiles work, and closing one window leaves other consumers usable. | Repeated launches, explicit New Window, owner contention and consumer-aware close | POSIX: `application_profile_activation_public_path` 5.61 s and `application_profile_owner_admission_public_path` 2.66 s pass at `d5a2426c`; two-account course proves independent owners and close-leaves-sibling. **Windows transport implemented (`d5a2426c`) but unbuilt/unrun/unobserved on Windows; BPR-0979 human-pending.** | `a654669c` (BPR-0712), `d5a2426c` (BPR-0979) |
-| AC-07: Window restoration preserves independent sessions, distinguishes explicit window close from application quit, and exposes the retained Resume destination without fabricating unavailable content. | Quit/close/reopen multi-window sessions, retained Resume and unavailable-content cases | BPR-0707/0709/0710 evidence retained; `application_profile_window_layout_public_path` (BPR-0977) adds native geometry across Close/Quit/restart offscreen. **Native focus/geometry observation pending: BPR-0977 human-pending, attended candidate `BPR-0977-native-geometry-v001`.** | `9210330a` (BPR-0977) |
+| AC-06: Repeated launches admit one runtime owner per profile; explicit new windows and concurrent different profiles work, and closing one window leaves other consumers usable. | Repeated launches, explicit New Window, owner contention and consumer-aware close | POSIX: `application_profile_activation_public_path` 5.61 s and `application_profile_owner_admission_public_path` 2.66 s pass at `d5a2426c`; two-account course proves independent owners and close-leaves-sibling. Windows station `bpr-win` at `1cd7f2f1`: `sqlite_profile_activation` 5.83 s and `application_profile_activation_public_path` 12.98 s pass (`build/bpr0979-windows/ctest-final.log`), real processes over the named pipe under the offscreen platform. **The native Windows desktop observation of repeated launch/`--new-window` remains BPR-0979's human-pending record, attended candidate `BPR-0979-windows-activation-v001`.** | `a654669c` (BPR-0712), `d5a2426c` and `1cd7f2f1` (BPR-0979) |
+| AC-07: Window restoration preserves independent sessions, distinguishes explicit window close from application quit, and exposes the retained Resume destination without fabricating unavailable content. | Quit/close/reopen multi-window sessions, retained Resume and unavailable-content cases | BPR-0707/0709/0710 evidence retained; `application_profile_window_layout_public_path` (BPR-0977) adds native geometry across Close/Quit/restart offscreen. Native macOS focus/geometry/lifecycle: owner accept on `BPR-0977-native-geometry-v001` (bundle `6c830b41…`, decision `ec0c5993`), BPR-0977 Done at `3cf05584`. | `9210330a`, `3cf05584` (BPR-0977) |
 | AC-08: Settings and sign-out are scoped to the invoking profile, with one Settings window per profile and no effects or late completions reaching another profile. | Same-profile Settings singleton and sign-out with stale cross-profile completion attempts | Multi-window course: one Settings shell per profile; two-account course: Work sign-out with a held read terminal retires only Work, Default's vault/read lane/review/preferences unchanged, Default refreshes afterwards. | `6f8e44e4` (BPR-0978) |
 | AC-09: Typed core/host/Qt boundaries, bounded persistence, stale-result rejection, and failure isolation hold through the composed multi-window application path. | Core replay, manual-executor host and composed multi-window failure/identity tests | `check_boundaries` passes at `d5a2426c`; host/core tests from BPR-0976/0977; composed courses above. Pre-existing `test_network_isolation_manifest` red is [[BPR-0962]]'s, not this RFC's. | `d5a2426c` |
 
-The RFC does not close in this segment: [[BPR-0715]] (exact signed-out native
-acceptance), [[BPR-0977]] (native focus/geometry) and [[BPR-0979]] (Windows
-station build/tests/native activation) are human- or native-pending with their
-exact candidates below. No row is weakened or waived.
+The RFC does not close yet: [[BPR-0715]] (owner accept on
+`BPR-0715-signed-out-open-v004`, decision `b1eb8efb`, Done at `6622d1d6`)
+and [[BPR-0977]] (Done at `3cf05584`) are finished on their exact candidates;
+[[BPR-0979]] remains human-pending for the one native Windows desktop
+observation named in its first record, with its Windows contract and public
+course now passing on the station. No row is weakened or waived.
 
 ## Completion rules
 
@@ -574,5 +576,47 @@ reconciled to a closed status because the native/human rows above are
 pending. Next engineering round: consume the two attended verdicts and the
 Windows station results, finish BPR-0715/0977/0979 from their own acceptance,
 then claim BPR-0595 and close. No task-owned command remains except the
+handed-off attended review server; no push, live provider mutation or
+credential was used.
+
+## Current continuation — 2026-09-22, post-attended round, mandate r2
+
+Session `8d2c2e32…` handed back at event 9 with two owner accepts on bundle
+`6c830b41…` (`d5a2426c`): `BPR-0715-signed-out-open-v004` (decision
+`b1eb8efb`) and `BPR-0977-native-geometry-v001` (decision `ec0c5993`). Both
+were applied only to those candidates. [[BPR-0977]] is Done at `3cf05584`.
+[[BPR-0715]] is Done at `6622d1d6` by an explicit-path move: the board
+finish refuses because the protected historical operator packet of the
+2026-09-10 (v003) attended session links the parked path, so, as for
+BPR-0729 (`73371ea1`), the packet stays byte-identical, the five live links
+were repaired and the documentation gate resolves the historical locator
+through the unique card filename. The two candidates' protections were released and the server
+(pid 90267) stopped.
+
+Windows station `bpr-win` was reachable over the configured SSH and used
+without editing its live checkout: the branch head built in a task-owned
+clone (`C:/Users/mikem/bpr0979-044e8779`, `windows-dev`, MSVC 19.51, Qt
+6.11.2). `sqlite_profile_activation` passed at once (5.85 s). The public
+course failed twice in its own Windows fixture narrowing, not the product:
+`USERDOMAIN\USERNAME` is `WORKGROUP\mikem` in an OpenSSH session, which
+icacls cannot map, and the `%TEMP%`-inherited fixture parent grants another
+principal Modify, so the Default owner's workspace neighbourhood refused it.
+`1cd7f2f1` grants the token user's SID and narrows the parent; at that
+commit both rows pass on the station (5.83 s, 12.98 s,
+`build/bpr0979-windows/`), and the macOS activation (5.6 s) and window-layout
+(23.5 s) courses still pass. [[BPR-0979]] is finished human-pending at
+`40d79dff`: its bounds/isolation and test rows pass; the native Windows
+desktop observation of repeated launch and `--new-window` is the one
+remaining record, prepared as attended candidate
+`BPR-0979-windows-activation-v001` (Debug image `674c68dc…` on the station,
+revision `windows-dev-674c68dc-1cd7f2f1-2026-09-22`) in the same session,
+served for the owner. No tests-disabled Windows image was built; Defender
+reported nothing during the run.
+
+This card stays in Backlog with exactly one unmet dependency, [[BPR-0979]],
+and the RFC and index stay open; AC-06's native Windows row is the only
+pending item. The idle MSBuild worker nodes the task builds left on the
+station were stopped; the task clone and logs remain in place, inert, for
+the pending observation. No task-owned command remains except the
 handed-off attended review server; no push, live provider mutation or
 credential was used.
