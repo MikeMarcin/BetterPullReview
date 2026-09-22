@@ -29,15 +29,38 @@ checklist governs closeout. All earlier dated continuation statements are histor
 | State | Criterion | Check and result | Evidence and revision |
 |---|---|---|---|
 | [x] | A BetterPullReview comment is readable and replyable in the GitHub web UI with no tool-specific marker. | Existing exact designated publication, reply-return and owner appearance decision; unchanged evidence reused. | BPR-0142: `f4978aae`, `460c9ff4`, web-comment-appearance-v001; ledger. |
-| [ ] | Fixture synchronization accepts external creation, edits, deletion, resolution and reopening without duplication or local overwrite; the recorded live web reply returns after refresh. | `application_review_synchronization`; historical web reply preserved; remaining live cases stay pending on BPR-0143. | Fresh local replay pending; BPR-0138 and BPR-0142. |
-| [ ] | Unsupported resolve/unresolve and viewed/unviewed capabilities degrade explicitly in the composed application; supported live capability round trips remain with BPR-0143. | Real inline editor composition contract; no supported live-case pass inferred. | Fresh composition replay pending; BPR-0229. |
-| [ ] | Comment, Approve and Request Changes bind the selected account and ordinary GitHub review semantics through local wire, provider and public-composition evidence; real-account attribution remains with BPR-0144. | Reuse BPR-0610/0613/0614 wire/policy/provider/recovery evidence; current `application_review_submission_composition_public_path`. | Fresh public replay pending; implementation integration `2bc5841a`. |
-| [ ] | Mutation retries are idempotent or guarded against duplication. | Coordinator and real inline editor lost-result/retry course. | Fresh local replay pending; durable BPR-0263/0614/0615 recovery evidence reused. |
-| [ ] | No automated test can mutate a non-designated live repository/PR. | `live_mutation_isolation` and `live_mutation_isolation_contract`; prior native Mac/Linux/Windows evidence retains its measured Windows exceptions. | Fresh local replay pending; BPR-0235 and exact v011 live course. |
-| [ ] | Fixture server-truth reconciliation and durable indeterminate-write recovery pass; live mixed-client, uninstall and database-loss acceptance remains with BPR-0143. | Current synchronization/coordinator/public courses plus unchanged exact BPR-0263/0614/0615 durable recovery evidence. | Fresh local replay pending; state-loss/live limitations remain on BPR-0143. |
-| [ ] | Head movement between draft and publish cannot silently submit against the wrong revision. | Core/host exact target/head refusal and real inline editor stale-head course. | Fresh local replay pending; BPR-0136/0137/0229. |
-| [ ] | Mutation legality and stale-head policy are core-tested without HTTP/Qt; host safe-target/idempotency tests and Qt draft/action tests prove no provider bypass. | Core, coordinator, Qt editor and real inline composition contract. | Fresh local replay pending; BPR-0135/0139/0229. |
+| [x] | Fixture synchronization accepts external creation, edits, deletion, resolution and reopening without duplication or local overwrite; the recorded live web reply returns after refresh. | `application_review_synchronization` passes; historical web reply preserved; remaining live cases stay pending on BPR-0143. | `2a64e901` product bytes, 2026-09-21 replay; BPR-0138 and BPR-0142. |
+| [x] | Unsupported resolve/unresolve and viewed/unviewed capabilities degrade explicitly in the composed application; supported live capability round trips remain with BPR-0143. | Real inline editor composition contract passes after reviewed pin/inventory repair; no supported live-case pass inferred. | `2a64e901` product bytes with the BPR-0242 test repair, 12.20 seconds; BPR-0229. |
+| [x] | Comment, Approve and Request Changes bind the selected account and ordinary GitHub review semantics through local wire, provider and public-composition evidence; real-account attribution remains with BPR-0144. | Reuse BPR-0610/0613/0614 wire/policy/provider/recovery evidence; current `application_review_submission_composition_public_path` passes. | `2a64e901`, 2.24 seconds; implementation integration `2bc5841a`. |
+| [x] | Mutation retries are idempotent or guarded against duplication. | Coordinator and real inline editor lost-result/retry course pass. | Current product `2a64e901` plus reviewed test repair; durable BPR-0263/0614/0615 recovery evidence reused. |
+| [x] | No automated test can mutate a non-designated live repository/PR. | `live_mutation_isolation` and `live_mutation_isolation_contract` pass; prior native Mac/Linux/Windows evidence retains its measured Windows exceptions. | `2a64e901`, 110.06/0.16 seconds; BPR-0235 and exact v011 live course. |
+| [x] | Fixture server-truth reconciliation and durable indeterminate-write recovery pass; live mixed-client, uninstall and database-loss acceptance remains with BPR-0143. | Current synchronization/coordinator/public courses pass; unchanged exact BPR-0263/0614/0615 durable recovery evidence reused. | Product `2a64e901`; state-loss/live limitations remain on BPR-0143. |
+| [x] | Head movement between draft and publish cannot silently submit against the wrong revision. | Core/host exact target/head refusal and real inline editor stale-head course pass. | Product `2a64e901` plus reviewed test repair; BPR-0136/0137/0229. |
+| [x] | Mutation legality and stale-head policy are core-tested without HTTP/Qt; host safe-target/idempotency tests and Qt draft/action tests prove no provider bypass. | Core, coordinator, Qt editor and real inline composition pass; two source-cut/issuer-seal negatives pass in the network-denied runner. | Product `2a64e901` plus reviewed test repair; negative controls 2/2, 8.665 seconds. |
 | [x] | Ordinary inline publication retains exact per-gesture authority and its passing local implementation evidence; unfinished private-PR smoke acceptance remains with BPR-0641. | Reuse BPR-0641 AC1–AC3 exact-grant and production selection records; AC4 explicitly pending on the standalone card. | `50f364b8`, local 27/27 and tests-disabled build/launch; no new live smoke or publication claim. |
+
+## Verification and execution record — r4
+
+The current build succeeds. Initial focused check: 7/8 pass, 113.31 seconds;
+the inline composition contract stops on a stale full-file pin before runtime.
+The [source review and reseal](../../rfcs/plans/rfc-bpr-0008-owner-closeout/composition-reseal-review.md)
+covers `d6dfca2b..2a64e901`, all 28 app-scope commits and nine new composition
+files. The exact production mutation branch remains unchanged; no product
+source, negative control or authority check is removed. The repaired contract
+passes in 12.20 seconds and its two hostile-source/issuer-seal subtests pass
+in 8.665 seconds. The seven unchanged passing checks are reused.
+
+Documentation structure, all 64 documentation verifier regressions and diff
+hygiene pass. The RFC baseline remains immutable. Fifty-seven completed RFC
+cards retain their evidence; only this closeout remains in the amended queue.
+The three transferred cards remain pending, with no replacement IDs needed.
+This slice performs no live GitHub, credential, installed-package, native
+platform or human-acceptance course and no push/release.
+
+Simplification/self-review: only the two stale digests and exact source lists
+change in the test contract. Existing checks and negative controls remain.
+The RFC amendment, original rows and follow-up links make acceptance changes
+distinct from observations. No required independent review is self-certified.
 
 ## Original checklist before owner amendment r4
 

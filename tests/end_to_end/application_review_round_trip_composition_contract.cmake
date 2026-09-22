@@ -40,6 +40,8 @@ endfunction()
 #
 # Every value is the SHA-256 of LF-normalized bytes. The functions below compute
 # them, and both the checks and step 3 use those same functions.
+# BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
+# docs/rfcs/plans/rfc-bpr-0008-owner-closeout/composition-reseal-review.md.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -58,7 +60,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"e04f598b6134379950fcf1698aa5a6eb21ac72a04ac05d04d4b7c241d248e0d5"
+		"b6139008a8dd0873eded8bf5c362e7f2c72220cbafb6636c3779a937d71a5855"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -77,6 +79,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
         "include/bpr/app/profile_desktop.hpp"
+        "include/bpr/app/release_maintenance_controls.hpp"
+        "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
 		"main.cpp"
 		"src/designated_live_macos_supervisor.cpp"
@@ -86,12 +90,19 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"src/designated_live_macos_supervisor_launch.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/installed_runtime.cpp"
+        "src/installed_runtime.hpp"
+        "src/platform_credential_vault.cpp"
+        "src/platform_credential_vault.hpp"
         "src/profile_desktop.cpp"
+        "src/release_maintenance_controls.cpp"
+        "src/release_update_desktop.cpp"
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
+        "update_helper_main.cpp"
     )
     set(bpr_production_app_manifest "")
     foreach(relative_source IN LISTS bpr_production_app_sources)
@@ -124,6 +135,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
         "include/bpr/app/profile_desktop.hpp"
+        "include/bpr/app/release_maintenance_controls.hpp"
+        "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
 		"src/designated_live_macos_capsule_identity.cpp"
@@ -140,8 +153,14 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application_fixture_access.hpp"
         "src/github_public_path_fixture.cpp"
         "src/github_public_path_fixture.hpp"
+        "src/installed_runtime.cpp"
+        "src/installed_runtime.hpp"
         "src/large_review_fixture.hpp"
+        "src/platform_credential_vault.cpp"
+        "src/platform_credential_vault.hpp"
         "src/profile_desktop.cpp"
+        "src/release_maintenance_controls.cpp"
+        "src/release_update_desktop.cpp"
         "src/review_submission_fixture.cpp"
         "src/review_submission_fixture.hpp"
         "src/review_submission_workflow.cpp"
@@ -151,6 +170,7 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
+        "update_helper_main.cpp"
     )
     file(GLOB_RECURSE bpr_actual_app_sources
         LIST_DIRECTORIES false
@@ -175,7 +195,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "218b5e0150e19f840b86ac59a87195722a0dc91afa13cf8eee6c292133ca3847"
+        "33f9ce4b69561afc4a2eec398b6d9ab207723936255ce2f409a6910fe1522404"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
