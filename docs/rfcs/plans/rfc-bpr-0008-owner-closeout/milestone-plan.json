@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0008-owner-closeout",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0008"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "owner-amended-closeout",
+      "outcome": "Close the implemented RFC-BPR-0008 scope under owner amendment r4 while preserving every unfinished live or human acceptance obligation as an explicit nonblocking follow-up.",
+      "work": [
+        {
+          "rfc": "RFC-BPR-0008"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The live RFC, BPR-0242 and verification ledger distinguish observed implementation evidence from r4 acceptance changes, preserving the immutable RFC baseline and prior decisions.",
+        "BPR-0143, BPR-0144 and BPR-0641 retain their exact pending work, previous evidence, protected packet links and permission limits as durable follow-ups outside RFC-BPR-0008 terminal scope.",
+        "The current candidate passes focused public-composition and safety checks, the documentation gate and its tests, with no fabricated live, native or human result.",
+        "BPR-0242 is Done and RFC-BPR-0008 and the canonical index agree on Auto-Verified; the durable checkpoint names commits, changed paths, verification, pending follow-ups, command ownership and RFC-BPR-0009 as the next canonical scope."
+      ],
+      "boundary": "Sole non-delegating rfc-implementer /root/rfc0008_owner_closeout on main, assignment owner amendment r4. Documentation and closeout only unless a focused regression requires an in-scope correction. No live GitHub mutation, credential change, release, push, later-RFC engineering, historical packet edit or invented human verdict. The source-only pack issue plan remains unchanged."
+    }
+  ],
+  "unplanned_work": []
+}

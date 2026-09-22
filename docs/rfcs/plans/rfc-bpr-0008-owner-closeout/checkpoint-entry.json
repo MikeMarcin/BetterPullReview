@@ -1,0 +1,81 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0008-owner-closeout",
+  "mandate_revision": "r4",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0008",
+  "binding": {
+    "plan_id": "rfc-bpr-0008-owner-closeout",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/milestone-plan.json",
+    "milestone_id": "owner-amended-closeout",
+    "definition_fingerprint": "sha256:44925dcc57f38d8166b87fce3d0d3829400ca1f751605b8132f523f2dfd63979",
+    "obligations": [
+      {
+        "id": "RFC-BPR-0008:*",
+        "source": "RFC-BPR-0008",
+        "selector": null,
+        "source_fingerprint": "sha256:5fda751af1655e0dfe951ed464e0dd7f45621a869f35384b3104e0936da96e6f"
+      }
+    ],
+    "obligation_fingerprint": "sha256:b2023dedb3b60c9469ef7d8d375bc28cd6d28624699d26e004f559b042f32d48",
+    "exit_criteria": [
+      {
+        "id": "owner-amended-closeout:exit:1",
+        "text": "The live RFC, BPR-0242 and verification ledger distinguish observed implementation evidence from r4 acceptance changes, preserving the immutable RFC baseline and prior decisions."
+      },
+      {
+        "id": "owner-amended-closeout:exit:2",
+        "text": "BPR-0143, BPR-0144 and BPR-0641 retain their exact pending work, previous evidence, protected packet links and permission limits as durable follow-ups outside RFC-BPR-0008 terminal scope."
+      },
+      {
+        "id": "owner-amended-closeout:exit:3",
+        "text": "The current candidate passes focused public-composition and safety checks, the documentation gate and its tests, with no fabricated live, native or human result."
+      },
+      {
+        "id": "owner-amended-closeout:exit:4",
+        "text": "BPR-0242 is Done and RFC-BPR-0008 and the canonical index agree on Auto-Verified; the durable checkpoint names commits, changed paths, verification, pending follow-ups, command ownership and RFC-BPR-0009 as the next canonical scope."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "owner-amended-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "2a64e90105d3866e65b3618b33bf8ffb29f89405",
+    "workflow_branch": "main",
+    "workflow_revision": "2a64e90105d3866e65b3618b33bf8ffb29f89405"
+  }
+}

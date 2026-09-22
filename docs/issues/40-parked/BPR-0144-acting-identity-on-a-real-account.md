@@ -3,12 +3,23 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0144"
 title: "Confirm review identity on a real account"
 status: "Parked"
-rfcs: ["RFC-BPR-0008"]
+rfcs: []
 depends_on: ["BPR-0142","BPR-0610","BPR-0613","BPR-0614","BPR-0615"]
 parked_on: "awaiting-live-github"
+metadata: {"origin_rfc":"RFC-BPR-0008","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0008 closeout dependency"}
 ---
 
 # Confirm review identity on a real account
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers the real-account observations out of RFC-BPR-0008's
+terminal gate. This card remains Parked with all three review dispositions
+unobserved on a live account. Its implemented wire/core/provider/recovery/public
+workflow evidence is reused by the [amended RFC](../../rfcs/RFC-BPR-0008-github-review-round-trip-interactions.md#owner-amendment-r4--2026-09-21);
+that is not acceptance of this card. Its unchanged next course still requires
+the suitable disposable PR/account, exact candidate, bounded operation authority
+and workflow-trigger check below. No remote operation ran in the r4 closeout.
 
 RFC-BPR-0008 requires that reviews appear under the authenticated user's
 identity with ordinary GitHub semantics. BPR-0137 proves the acting identity is

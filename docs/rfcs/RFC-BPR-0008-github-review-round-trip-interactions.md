@@ -6,13 +6,17 @@ area: "BPR"
 milestone: "M3 Collaborative Round Trip"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0007"]
 pack_version: 2
+metadata: {"milestone_plan":{"id":"rfc-bpr-0008-owner-closeout","path":"docs/rfcs/plans/rfc-bpr-0008-owner-closeout/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0008: GitHub Review Synchronization and Round-Trip Interactions
 
 ## Summary
 
-Read and write ordinary GitHub review comments, replies, reviews, file viewed state, and thread resolution while preserving mixed-client interoperability and user identity.
+Implement ordinary GitHub comment and whole-review publication, bounded
+synchronization, explicit capability degradation and exact acting identity.
+The owner-amended closeout below separates implemented behavior from deferred
+live mixed-client, capability and private-target qualification.
 
 
 ## Motivation
@@ -54,17 +58,47 @@ comparison controller. Mapping uncertainty remains visible; the UI cannot
 attach a comment to an arbitrary neighboring line or independently position
 the two top panes.
 
+## Owner amendment r4 — 2026-09-21
+
+The owner directed completion of RFC-BPR-0014 with unfinished external/native
+work retained as durable follow-ups. The coordinator explicitly assigned the
+same amendment to this blocking canonical predecessor; the
+[mandate and bounded plan](plans/rfc-bpr-0008-owner-closeout/mandate-r4.md)
+record that scope interpretation. This changes acceptance, not observations.
+
+RFC-0008 closes its implemented core/host/Qt/publication scope using the existing
+designated live comment/reply evidence and focused local checks. Three existing
+cards remain parked as standalone follow-ups, with their original IDs, paths,
+partial decisions and permission boundaries intact:
+
+- [[BPR-0143]] retains live external edit/delete/resolve/reopen, supported
+  resolve/viewed capability round trips, local-conflict/server-truth and
+  uninstall/database-loss qualification. Its four-action approval is not an
+  execution result or authority for the additional state-loss course.
+- [[BPR-0144]] retains real Comment, Approve and Request Changes attribution
+  on a separately authorized suitable disposable PR/account.
+- [[BPR-0641]] retains its unfinished private-PR smoke acceptance. The ordinary
+  inline-publication implementation and prior passing local records remain valid.
+
+These are explicitly outside this RFC's terminal gate; none is marked passed
+or Done. Live Enterprise qualification remains skipped under its separate prior
+owner direction. The original pack issue plan and dated evidence remain
+unchanged. Product, credential, automated-test and remote-mutation boundaries
+are not relaxed. An Auto-Verified status under this amendment is not complete
+live interoperability, native-package or release qualification.
+
 ## Acceptance criteria
 
 - A BetterPullReview comment is readable and replyable in the GitHub web UI with no tool-specific marker.
-- A comment created or edited externally appears correctly after refresh.
-- Resolve/unresolve and viewed/unviewed state use native GitHub capabilities when available and degrade explicitly when not.
-- Reviews appear under the authenticated user's identity with ordinary GitHub semantics.
+- Fixture synchronization accepts external creation, edits, deletion, resolution and reopening without duplication or local overwrite; the recorded live web reply returns after refresh.
+- Unsupported resolve/unresolve and viewed/unviewed capabilities degrade explicitly in the composed application; supported live capability round trips remain with BPR-0143.
+- Comment, Approve and Request Changes bind the selected account and ordinary GitHub review semantics through local wire, provider and public-composition evidence; real-account attribution remains with BPR-0144.
 - Mutation retries are idempotent or guarded against duplication.
 - No automated test can mutate a non-designated live repository/PR.
-- Uninstall, mixed-client, database-loss, and server-truth acceptance tests pass.
+- Fixture server-truth reconciliation and durable indeterminate-write recovery pass; live mixed-client, uninstall and database-loss acceptance remains with BPR-0143.
 - Head movement between draft and publish cannot silently submit against the wrong revision.
 - Mutation legality and stale-head policy are core-tested without HTTP/Qt; host safe-target/idempotency tests and Qt draft/action tests prove no provider bypass.
+- Ordinary inline publication retains exact per-gesture authority and its passing local implementation evidence; unfinished private-PR smoke acceptance remains with BPR-0641.
 
 ## Verification matrix
 

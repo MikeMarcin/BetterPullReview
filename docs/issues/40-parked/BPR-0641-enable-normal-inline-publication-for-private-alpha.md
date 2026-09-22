@@ -3,14 +3,27 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0641"
 title: "Enable normal inline publication for the Mac private alpha"
 status: "Parked"
-rfcs: ["RFC-BPR-0008"]
+rfcs: []
 depends_on: ["BPR-0615"]
 priority: "P1"
 parked_on: "human-review"
+metadata: {"origin_rfc":"RFC-BPR-0008","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; existing AC1-AC3 pass, AC4 remains pending"}
 acceptance: [{"criterion":"AC1 ordinary production inline Publish selects the accepted authenticated PR with a short-lived one-use grant bound to session, generation, target, actor, proposal/body, selection and exact retained diff publication","outcome":"pass","revision":"50f364b8","evidence":{"kind":"observation","detail":"Production compose_review_mutation selects the observed accepted handoff unless attended mode is set; the private review_mutation_user_authority_issuer mints a user_one_shot grant bound to the complete publication request, session, generation, target and actor, expiring after five minutes. application_review_round_trip_composition_contract repinned the production mutation-branch digest and drove the fixture editor Publish through per-gesture grants."}},{"criterion":"AC2 stale-head, endpoint identity, wrong-target, cancellation and durable duplicate-prevention remain intact; automated builds cannot issue normal production authority; attended designated lane stays separately scoped","outcome":"pass","revision":"50f364b8","evidence":{"kind":"command","detail":"ctest --test-dir build/dev -R focused 27-selector set passed 27/27 (427.95 s); includes application_review_mutation_application_host, application_review_mutation, live_review_mutation_provider, live_review_mutation_restart_recovery, sqlite_review_mutation_recovery_storage, live_mutation_isolation, live_mutation_isolation_contract, architecture_boundaries and the network isolation selectors. Host test asserts the issuer returns no grant under BPR_APPLICATION_TESTING."}},{"criterion":"AC3 focused host tests prove altered request/actor/target and replay refusal plus sequential distinct publications; real composition exercises the normal editor and unchanged source-line flow; local GHES contracts pass; live Enterprise verification skipped by owner instruction","outcome":"pass","revision":"50f364b8","evidence":{"kind":"command","detail":"test_user_grants_bind_exact_requests_and_allow_successive_gestures passed inside application_review_mutation_application_host; application_review_round_trip_composition_contract (54.91 s), application_github_public_path_ghes_3_18, application_public_path_ghes_cli_unavailable, application_device_authorization_ghes_refusal, application_epoch_persistence_ghes-3_18 and application_anonymous_public_preview_ghes_refusal passed. No live Enterprise course was run."}},{"criterion":"AC4 the tests-disabled Mac production app builds and launches with direct observations and limitations recorded; private-PR smoke waits for an owner-named target","outcome":"pending","revision":"50f364b8","evidence":{"kind":"observation","detail":"cmake --preset app-release and cmake --build --preset app-release succeeded; the post-build codesign sealed the bundle with the Developer ID identity and codesign --verify --deep --strict passed. The launched process stayed alive 12 s, rendered the workbench with the GitHub.com native HTTPS profile unauthenticated, wrote nothing to stderr and exited cleanly on SIGTERM. The owner-named private PR smoke check and attended sign-in were not performed in this session; that human step remains open."}}]
 ---
 
 # Enable normal inline publication for the Mac private alpha
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this card's remaining private-PR smoke acceptance
+out of RFC-BPR-0008's terminal gate. The card remains Parked for human review;
+AC1–AC3 keep their recorded implementation evidence and AC4 remains pending.
+The failed historical private-target read is not relabeled a success. No owner
+verdict, new private-target observation or publication is inferred from later
+loading repairs. Next: resume the read-only course below on an exact current
+candidate when scheduled; retain its named targets and permission limits.
+The [amended RFC](../../rfcs/RFC-BPR-0008-github-review-round-trip-interactions.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0008.md) make this deferral discoverable.
 
 Owner-approved scope: [private-alpha route](../../development/private-alpha.md).
 RFC_BASE_SHA: `ae4480bc`. Keep full RFC closeout on BPR-0242; live account and

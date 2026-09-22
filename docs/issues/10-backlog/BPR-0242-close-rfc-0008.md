@@ -4,15 +4,42 @@ id: "BPR-0242"
 title: "Verify and close RFC-BPR-0008"
 status: "Backlog"
 rfcs: ["RFC-BPR-0008"]
-depends_on: ["BPR-0142","BPR-0143","BPR-0144","BPR-0229","BPR-0234","BPR-0235","BPR-0241"]
+depends_on: ["BPR-0142","BPR-0229","BPR-0234","BPR-0235","BPR-0241"]
 closeout_for: ["RFC-BPR-0008"]
+metadata: {"mandate_revision":"r4","deferred_followups":["BPR-0143","BPR-0144","BPR-0641"]}
 ---
 
 # Verify and close RFC-BPR-0008
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`.
 
+## Owner amendment r4 — 2026-09-21
+
+The coordinator's bounded assignment closes this canonical predecessor under
+the owner's direction to land RFC-BPR-0014 and retain unfinished external/native
+work as durable follow-ups. The [mandate](../../rfcs/plans/rfc-bpr-0008-owner-closeout/mandate-r4.md)
+and live RFC record the acceptance change separately from evidence. BPR-0143,
+BPR-0144 and BPR-0641 remain parked at their original paths, now standalone
+follow-ups with explicit origin metadata. No missing live/human result passes.
+The original checklist below is retained as historical scope; this current
+checklist governs closeout. All earlier dated continuation statements are history.
+
 ## Closeout checklist
+
+| State | Criterion | Check and result | Evidence and revision |
+|---|---|---|---|
+| [x] | A BetterPullReview comment is readable and replyable in the GitHub web UI with no tool-specific marker. | Existing exact designated publication, reply-return and owner appearance decision; unchanged evidence reused. | BPR-0142: `f4978aae`, `460c9ff4`, web-comment-appearance-v001; ledger. |
+| [ ] | Fixture synchronization accepts external creation, edits, deletion, resolution and reopening without duplication or local overwrite; the recorded live web reply returns after refresh. | `application_review_synchronization`; historical web reply preserved; remaining live cases stay pending on BPR-0143. | Fresh local replay pending; BPR-0138 and BPR-0142. |
+| [ ] | Unsupported resolve/unresolve and viewed/unviewed capabilities degrade explicitly in the composed application; supported live capability round trips remain with BPR-0143. | Real inline editor composition contract; no supported live-case pass inferred. | Fresh composition replay pending; BPR-0229. |
+| [ ] | Comment, Approve and Request Changes bind the selected account and ordinary GitHub review semantics through local wire, provider and public-composition evidence; real-account attribution remains with BPR-0144. | Reuse BPR-0610/0613/0614 wire/policy/provider/recovery evidence; current `application_review_submission_composition_public_path`. | Fresh public replay pending; implementation integration `2bc5841a`. |
+| [ ] | Mutation retries are idempotent or guarded against duplication. | Coordinator and real inline editor lost-result/retry course. | Fresh local replay pending; durable BPR-0263/0614/0615 recovery evidence reused. |
+| [ ] | No automated test can mutate a non-designated live repository/PR. | `live_mutation_isolation` and `live_mutation_isolation_contract`; prior native Mac/Linux/Windows evidence retains its measured Windows exceptions. | Fresh local replay pending; BPR-0235 and exact v011 live course. |
+| [ ] | Fixture server-truth reconciliation and durable indeterminate-write recovery pass; live mixed-client, uninstall and database-loss acceptance remains with BPR-0143. | Current synchronization/coordinator/public courses plus unchanged exact BPR-0263/0614/0615 durable recovery evidence. | Fresh local replay pending; state-loss/live limitations remain on BPR-0143. |
+| [ ] | Head movement between draft and publish cannot silently submit against the wrong revision. | Core/host exact target/head refusal and real inline editor stale-head course. | Fresh local replay pending; BPR-0136/0137/0229. |
+| [ ] | Mutation legality and stale-head policy are core-tested without HTTP/Qt; host safe-target/idempotency tests and Qt draft/action tests prove no provider bypass. | Core, coordinator, Qt editor and real inline composition contract. | Fresh local replay pending; BPR-0135/0139/0229. |
+| [x] | Ordinary inline publication retains exact per-gesture authority and its passing local implementation evidence; unfinished private-PR smoke acceptance remains with BPR-0641. | Reuse BPR-0641 AC1–AC3 exact-grant and production selection records; AC4 explicitly pending on the standalone card. | `50f364b8`, local 27/27 and tests-disabled build/launch; no new live smoke or publication claim. |
+
+## Original checklist before owner amendment r4
 
 Reuse passing evidence when its source, configuration, fixture and dependency
 inputs are unchanged. Remaining live rows require their own direct observations;
