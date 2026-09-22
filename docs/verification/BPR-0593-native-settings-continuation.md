@@ -6,7 +6,7 @@ The owner explicitly directs that the Windows Defender/security disposition
 and Linux native focus/lifetime limitation become follow-up cards, and that
 RFC-BPR-0018 close against the amended accepted scope. The
 [bounded mandate](../rfcs/plans/ux-redesign-pack-0028/owner-closeout-r2.md) and
-[current criterion ledger](../issues/30-in-progress/BPR-0593-close-rfc-0018.md#closeout-checklist)
+[current criterion ledger](../issues/60-done/BPR-0593-close-rfc-0018.md#closeout-checklist)
 record this acceptance change. It does not supply any missing observation.
 
 | Transferred obligation | Live disposition | Preserved result |
@@ -21,9 +21,30 @@ below. Other acceptance rows and existing human verdicts are not amended.
 Full RFC-0038 release qualification is neither required anew nor accepted here.
 
 The r2 slice has no product/test changes. It reuses the exact corrected product
-`2d3bdbdf` and test/observer upkeep `e7843405`, then reruns focused local and
-bookkeeping gates. Final command outcomes, helper claim/finish, r2 binding and
-quiescence are recorded on BPR-0593. The native observations below belong to r1;
+`2d3bdbdf` and test/observer upkeep `e7843405`. Amendment/follow-up commit
+`eadf48af` precedes the shared claim `95e64b4c`. The canonical main reservation
+`97067055` is incorporated as `bbba8973`, preserving counter and receipt.
+
+| R2 executed check | Result and exact limit |
+|---|---|
+| `ctest --preset dev --output-on-failure -j 1 -R '^(qt_settings_window(_scale_(125\|150\|200))?\|qt_settings_effect_boundary\|application_appearance_theme_customization_contract)$'` | 6/6, 27.78 s at bbba8973; full appearance contract 25.10 s. Unchanged product/test inputs, not a new Windows/Linux native course. |
+| `ctest --preset dev --output-on-failure -j 1 -R '^application_workbench_composition_contract$'` | 1/1, 21.61 s at 95e64b4c. |
+| `python3 tests/scripts/settings_inventory_comparison_tests.py` | 11 tests pass at bbba8973, including negative controls and explicit inventory-only scope. |
+| `python3 scripts/verify_documentation.py --root .` and `python3 tests/scripts/verify_documentation_tests.py` | DOCUMENTATION_OK and 64 tests pass. The tests' intentional invalid-fixture diagnostics are expected; final terminal-state gate is repeated after finish. |
+| Shared board validation, explicit `verify_closeout_card` and `git diff --check` | Valid 967-card board, all 14 canonical criteria/base present, clean diff; final post-finish receipts retained. |
+| Read-only native station/lease probes | No owned apps/tasks/processes; both leases free. Windows image remains absent/quarantined; live roots and pre-existing dirty MASK locks unchanged. No application relaunched. |
+
+Documentation commands use
+`PYTHONPATH=/Users/jaeger/.agents/skills/implement-rfc/scripts` because the
+checkout's managed helper deployment is missing; no global MASK repair was
+performed. Generated evidence is
+`build/rfc0018-r2-{focused,inventory,integration,documentation-tests,documentation-final,board-final,closeout-final,diff-final}.json`
+and the `windows-quiescence`, `windows-lease`, `linux-quiescence` JSON receipts.
+The per-criterion BPR-0593 ledger retains actual producing commits and earlier
+native/human evidence. No broad full-suite or release pass is asserted.
+
+Final helper finish, r2 binding and quiescence are recorded on BPR-0593.
+The native observations below belong to r1;
 their former blocking effect is superseded only by the owner's explicit r2
 transfer, not by a successful rerun.
 

@@ -55,4 +55,4 @@ verification matrix names; the closeout ledger keeps its "exhaustive OS instrume
 unproven" wording. Windows and Linux packaged inventory are platform work split to
 [BPR-0730](BPR-0730-windows-packaged-settings-inventory.md) and
 [BPR-0731](BPR-0731-linux-packaged-settings-inventory.md), which the
-[BPR-0593](../30-in-progress/BPR-0593-close-rfc-0018.md) closeout now depends on. Done.
+[BPR-0593](BPR-0593-close-rfc-0018.md) closeout now depends on. Done.

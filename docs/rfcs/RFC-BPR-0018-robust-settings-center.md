@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0018"
 title: "Robust Settings Center and Preference Ownership"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0014"]
@@ -36,6 +36,13 @@ three-platform inventory and current Mac/Linux inventory refresh retain their
 direct evidence. RFC-0014's accepted foundation (`b7eb3722`, exact handoff
 `61907e20`) satisfies the canonical prerequisite. Prior checkpoints below are
 historical, not current blocking or status claims.
+
+**Status: Auto-Verified for the r2 accepted scope.** The closeout ledger retains
+all fourteen criterion/check/result/revision rows and exact earlier human
+verdicts. Current focused Settings checks pass 6/6, the workbench integration
+passes 1/1 and inventory comparison passes 11 tests; documentation/board and
+explicit closeout checks are recorded on BPR-0593. This status does not close
+BPR-0974/0975 or imply full Windows/Linux native-course or release acceptance.
 
 ## Prior r1 reconciliation, 2026-09-21
 

@@ -163,7 +163,7 @@ Accounts & hosts before removal if you want those bindings removed.
 
 The [authority inventory](settings-authority-inventory.md) identifies the typed
 host, store, schema, reset and failure boundary for each group. The
-[RFC-0018 closeout](../issues/30-in-progress/BPR-0593-close-rfc-0018.md) records
+[RFC-0018 closeout](../issues/60-done/BPR-0593-close-rfc-0018.md) records
 which automated, native and attended claims have actually been verified. Later
 Accounts/Appearance and update work has its own acceptance; this guide does not
 turn those RFCs into closed work or imply release approval. The RFC-0014
