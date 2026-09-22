@@ -76,6 +76,18 @@ mapping remains visible.
 
 ## Verification matrix
 
+Owner closeout amendment r4 (2026-09-21), applied by explicit coordinator
+assignment: retain the nine criteria above and the original BPR-0496 fixture
+acceptance scope. BPR-0507 reconciles stale closeout text and current evidence
+after RFC-BPR-0008 through RFC-BPR-0011 became Auto-Verified. The full-agent
+criterion is accepted through the local full-agent no-backchannel course and
+ordinary RFC0008 fixture synchronization, as authored; it does not claim a
+live external-agent GitHub write, installed-agent compatibility, independent
+authentication, native approvals or package qualification. Those remain
+unobserved follow-ups in the [verification ledger](../verification/RFC-BPR-0012.md#owner-amended-closeout-r4--2026-09-21).
+The later Dif workshop-cue failure is preserved separately as BPR-0966; its
+test is not described as passing and no RFC0012 criterion is removed.
+
 | Claim | Direct surface | Proof |
 |---|---|---|
 | No automatic invocation | UI/event integration | Exercise refresh/navigation/comment arrival and inspect process launches |

@@ -26,6 +26,12 @@ Target-only discovery found no adopted live plan. Preserve the original
 twelve-stage pack source at `docs/rfcs/plans/RFC-BPR-0012-issue-plan.md` and
 adopt a bounded plan for the remaining verification/closeout outcome.
 Historical Done cards and protected review packets retain their bytes.
+The original source plan's SHA-256 is
+`f00141c6c54e755833463541a5f0dd55c5906365b65e821fa0fd6b5551e8ec0e`.
+The resolver recognizes no live/legacy convention for this imported filename;
+preparation therefore records `origin: absent`, while this explicit path and
+digest retain the authored source. Passing that Markdown as the helper's
+explicit JSON `--plan` correctly refused parsing and published nothing.
 
 This assignment owns documentation/tracker closeout, proportionate local
 verification and any necessary in-scope correction. No live agent, GitHub
