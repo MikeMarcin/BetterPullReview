@@ -245,7 +245,8 @@ Runtime inspection must account for designated native HTTPS/vault adapters,
 installed Git, configured `gh` and its helper residual risks, agent supervisor,
 stdio MCP helper, system browser, macOS updater helper/trust commands and
 profile activation. **G9:** `sqlite/profile_activation.cpp` implements a
-bounded owner-authenticated AF_UNIX listener under the profile lease, while old
+bounded owner-authenticated AF_UNIX listener (a local named pipe on Windows
+since [[BPR-0979]]) under the profile lease, while old
 security prose and the RFC's row 3 use broad no-listener/no-local-server wording.
 M9 must explicitly reconcile that existing IPC contract and verify its owner,
 peer, frame, lifetime and no-network-service limits before accepting row 3.

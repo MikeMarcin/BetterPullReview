@@ -4,15 +4,22 @@
 
 #include "bpr/core/sha256.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+	#include "../../native/windows_private_storage.hpp"
+#else
 	#include <cerrno>
 	#include <fcntl.h>
 	#include <poll.h>
@@ -24,12 +31,47 @@
 
 namespace bpr::adapters::sqlite {
 	namespace {
-		using outcome = application::profile_activation_outcome;
-#if !defined(_WIN32)
+		using outcome                           = application::profile_activation_outcome;
 		using clock_type                        = std::chrono::steady_clock;
 		constexpr auto        deadline_interval = std::chrono::seconds{ 2 };
 		constexpr std::size_t frame_size        = 16U;
 		using frame                             = std::array<unsigned char, frame_size>;
+
+		/// \brief The one request both launches agree on: magic, version, intent, profile.
+		auto make_frame(core::bpr_profile_id aProfile, core::profile_launch_intent aIntent) -> frame
+		{
+			frame result{ 'B', 'P', 'R', 'A', 1, static_cast<unsigned char>(aIntent), 0, 0 };
+			for (std::size_t index = 0; index < 8U; ++index) {
+				result[8U + index] = static_cast<unsigned char>((aProfile.value() >> (index * 8U)) & 255U);
+			}
+			return result;
+		}
+
+		/// \brief Admits exactly one complete frame for this profile, or nothing.
+		auto frame_intent(const frame& aInput, core::bpr_profile_id aProfile) -> std::optional<core::profile_launch_intent>
+		{
+			const auto intent   = static_cast<core::profile_launch_intent>(aInput[5]);
+			const auto expected = make_frame(aProfile, intent);
+			if ((intent != core::profile_launch_intent::activate && intent != core::profile_launch_intent::new_window) || !std::equal(expected.begin(), expected.end(), aInput.begin())) {
+				return std::nullopt;
+			}
+			return intent;
+		}
+
+		/// \brief Names the endpoint by a digest of the canonical root, so both launches agree.
+		auto endpoint_digest(std::span<const std::uint8_t> aNative) -> std::string
+		{
+			const auto                 digest = core::sha256(aNative);
+			constexpr std::string_view hex{ "0123456789abcdef" };
+			std::string                result;
+			for (std::size_t index = 0; index < 8U; ++index) {
+				const auto byte = static_cast<unsigned>(digest[index]);
+				result.push_back(hex[byte >> 4U]);
+				result.push_back(hex[byte & 15U]);
+			}
+			return result;
+		}
+#if !defined(_WIN32)
 
 		class socket_handle
 		{
@@ -145,20 +187,10 @@ namespace bpr::adapters::sqlite {
 			return std::nullopt;
 		}
 
-		/// \brief Names the endpoint by a digest of the canonical root, so both launches agree.
 		auto endpoint_name(const std::filesystem::path& aRoot) -> std::string
 		{
-			const auto                 native = aRoot.lexically_normal().string();
-			const auto                 digest = core::sha256({ reinterpret_cast<const std::uint8_t*>(native.data()), native.size() });
-			constexpr std::string_view hex{ "0123456789abcdef" };
-			std::string                result{ "bpr-activate-" };
-			for (std::size_t index = 0; index < 8U; ++index) {
-				const auto byte = static_cast<unsigned>(digest[index]);
-				result.push_back(hex[byte >> 4U]);
-				result.push_back(hex[byte & 15U]);
-			}
-			result += ".sock";
-			return result;
+			const auto native = aRoot.lexically_normal().string();
+			return "bpr-activate-" + endpoint_digest({ reinterpret_cast<const std::uint8_t*>(native.data()), native.size() }) + ".sock";
 		}
 
 		auto resolve_endpoint(const std::filesystem::path& aRoot)
@@ -195,15 +227,6 @@ namespace bpr::adapters::sqlite {
 		{
 			struct stat info{ };
 			return ::lstat(aPath, &info) == 0 && S_ISSOCK(info.st_mode) && info.st_uid == ::geteuid() && (info.st_mode & 0777U) == 0600U;
-		}
-
-		auto make_frame(core::bpr_profile_id aProfile, core::profile_launch_intent aIntent) -> frame
-		{
-			frame result{ 'B', 'P', 'R', 'A', 1, static_cast<unsigned char>(aIntent), 0, 0 };
-			for (std::size_t index = 0; index < 8U; ++index) {
-				result[8U + index] = static_cast<unsigned char>((aProfile.value() >> (index * 8U)) & 255U);
-			}
-			return result;
 		}
 
 		auto send_bytes(int aSocket, const void* aData, std::size_t aSize) -> ssize_t
@@ -320,15 +343,16 @@ namespace bpr::adapters::sqlite {
 					Client = socket_handle{ };
 					return std::nullopt;
 				}
-				const auto intent   = static_cast<core::profile_launch_intent>(Input[5]);
-				const auto expected = make_frame(Profile, intent);
-				if ((intent != core::profile_launch_intent::activate && intent != core::profile_launch_intent::new_window) || !std::equal(expected.begin(), expected.end(), Input.begin())) {
+				frame received{ };
+				std::copy_n(Input.begin(), frame_size, received.begin());
+				const auto intent = frame_intent(received, Profile);
+				if (!intent) {
 					Client = socket_handle{ };
 					return std::nullopt;
 				}
 				auto reply = std::make_shared<native_reply>(std::move(Client), Lease);
 				Pending    = reply;
-				return application::profile_activation_request{ intent, std::move(reply) };
+				return application::profile_activation_request{ *intent, std::move(reply) };
 			}
 
 		private:
@@ -359,22 +383,338 @@ namespace bpr::adapters::sqlite {
 			}
 			return false;
 		}
+#else
+		// [[BPR-0979]]. The Windows rendezvous is an owner-private named pipe. It has
+		// no filesystem entry to leave behind, so there is no stale-socket recovery and
+		// nothing to unlink; the name is derived from the canonical root exactly as
+		// the POSIX endpoint is. One 16-byte message is the whole request, so message
+		// mode lets the pipe itself delimit the frame: a shorter, longer or split
+		// message is refused rather than reassembled.
+		using native_storage::private_security;
+		using native_storage::private_security_attributes;
+		using native_storage::validate_private_security;
+		using native_storage::windows_handle;
+		using native_storage::windows_object_kind;
+		// One instance travels with a delivered request while a second keeps the name
+		// bound, so the name is never free for another process to take while an owner lives.
+		constexpr DWORD pipe_instances = 2U;
+		constexpr DWORD pipe_buffer    = 64U;
+
+		auto pipe_name(const std::wstring& aCanonicalRoot) -> std::wstring
+		{
+			const auto digest = endpoint_digest({ reinterpret_cast<const std::uint8_t*>(aCanonicalRoot.data()), aCanonicalRoot.size() * sizeof(wchar_t) });
+			return L"\\\\.\\pipe\\bpr-activate-" + std::wstring{ digest.begin(), digest.end() };
+		}
+
+		auto resolve_endpoint(const std::filesystem::path& aRoot)
+			-> std::expected<std::filesystem::path, profile_activation_endpoint_failure>
+		{
+			// The root still gates the rendezvous: a caller cannot meet on a root it does not own.
+			if (!detail::validate_private_storage_root(aRoot)) {
+				return std::unexpected(profile_activation_endpoint_failure::root_refused);
+			}
+			const auto canonical = native_storage::canonical_windows_root(aRoot);
+			if (!canonical) {
+				return std::unexpected(profile_activation_endpoint_failure::unavailable);
+			}
+			return std::filesystem::path{ pipe_name(canonical->native()) };
+		}
+
+		/// \brief Whether the process at the other end of the pipe runs as this user.
+		auto same_user(HANDLE aPipe, const bool aServerSide, const private_security& aSecurity) -> bool
+		{
+			DWORD process = 0U;
+			if ((aServerSide ? ::GetNamedPipeClientProcessId(aPipe, &process) : ::GetNamedPipeServerProcessId(aPipe, &process)) == 0 || process == 0U) {
+				return false;
+			}
+			const windows_handle peer{ ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process) };
+			if (!peer.valid()) {
+				return false;
+			}
+			windows_handle token;
+			if (::OpenProcessToken(peer.Value, TOKEN_QUERY, &token.Value) == 0) {
+				return false;
+			}
+			DWORD required = 0U;
+			(void)::GetTokenInformation(token.Value, TokenUser, nullptr, 0U, &required);
+			if (required == 0U || ::GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+				return false;
+			}
+			auto information = std::vector<std::byte>(required);
+			if (::GetTokenInformation(token.Value, TokenUser, information.data(), required, &required) == 0) {
+				return false;
+			}
+			const auto* user = reinterpret_cast<const TOKEN_USER*>(information.data());
+			return user->User.Sid != nullptr && ::IsValidSid(user->User.Sid) != 0 && ::EqualSid(user->User.Sid, aSecurity.sid()) != 0;
+		}
+
+		/// \brief One overlapped operation, polled without blocking the effect lane.
+		class pipe_operation
+		{
+		public:
+			enum class state : std::uint8_t { pending,
+											  complete,
+											  failed };
+			pipe_operation()
+				: Event{ ::CreateEventW(nullptr, TRUE, FALSE, nullptr) }
+			{
+				Overlapped.hEvent = Event.Value;
+			}
+			pipe_operation(const pipe_operation&)                    = delete;
+			auto operator=(const pipe_operation&) -> pipe_operation& = delete;
+			~pipe_operation()                                        = default;
+			[[nodiscard]] auto valid() const noexcept -> bool { return Event.valid(); }
+			[[nodiscard]] auto overlapped() noexcept -> OVERLAPPED* { return &Overlapped; }
+			void               reset() noexcept
+			{
+				Overlapped        = OVERLAPPED{ };
+				Overlapped.hEvent = Event.Value;
+				(void)::ResetEvent(Event.Value);
+			}
+			/// \brief Polls once; `aBytes` and `aError` describe a finished operation.
+			auto poll(HANDLE aPipe, DWORD& aBytes, DWORD& aError) -> state
+			{
+				aBytes = 0U;
+				if (::GetOverlappedResult(aPipe, &Overlapped, &aBytes, FALSE) != 0) {
+					aError = ERROR_SUCCESS;
+					return state::complete;
+				}
+				aError = ::GetLastError();
+				return aError == ERROR_IO_INCOMPLETE || aError == ERROR_IO_PENDING ? state::pending : state::failed;
+			}
+			/// \brief Waits until the deadline for a client-side step; cancels what did not finish.
+			auto await(HANDLE aPipe, clock_type::time_point aDeadline, std::stop_token aStop, DWORD& aBytes, DWORD& aError) -> bool
+			{
+				while (!aStop.stop_requested() && clock_type::now() < aDeadline) {
+					const auto result = poll(aPipe, aBytes, aError);
+					if (result == state::complete) {
+						return true;
+					}
+					if (result == state::failed) {
+						return false;
+					}
+					const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(aDeadline - clock_type::now()).count();
+					(void)::WaitForSingleObject(Event.Value, static_cast<DWORD>(std::clamp<long long>(remaining, 1, 20)));
+				}
+				(void)::CancelIoEx(aPipe, &Overlapped);
+				DWORD ignored = 0U;
+				(void)::GetOverlappedResult(aPipe, &Overlapped, &ignored, TRUE);
+				aError = ERROR_TIMEOUT;
+				return false;
+			}
+
+		private:
+			windows_handle Event;
+			OVERLAPPED     Overlapped{ };
+		};
+
+		class native_reply final : public application::profile_activation_reply
+		{
+		public:
+			native_reply(windows_handle aPipe, std::shared_ptr<application::profile_runtime_lease> aLease)
+				: Pipe(std::move(aPipe))
+				, Lease(std::move(aLease))
+			{ }
+			~native_reply() override { complete(outcome::indeterminate); }
+			void complete(outcome aOutcome) noexcept override
+			{
+				const std::lock_guard lock{ Mutex };
+				if (!Pipe.valid()) {
+					return;
+				}
+				if (aOutcome == outcome::queued || aOutcome == outcome::refused) {
+					const std::array<unsigned char, 2> response{ 1U, aOutcome == outcome::queued ? static_cast<unsigned char>(1U) : static_cast<unsigned char>(2U) };
+					pipe_operation                     write;
+					if (write.valid() && (::WriteFile(Pipe.Value, response.data(), static_cast<DWORD>(response.size()), nullptr, write.overlapped()) != 0 || ::GetLastError() == ERROR_IO_PENDING)) {
+						DWORD bytes = 0U;
+						DWORD error = ERROR_SUCCESS;
+						// Bounded: a peer that never drains its own reply cannot hold the effect lane.
+						(void)write.await(Pipe.Value, clock_type::now() + deadline_interval, { }, bytes, error);
+					}
+				}
+				// Closing without DisconnectNamedPipe keeps a delivered reply readable;
+				// an unanswered request simply sees the pipe break, which is indeterminate.
+				Pipe = windows_handle{ };
+				Lease.reset();
+			}
+			auto pending() -> bool
+			{
+				const std::lock_guard lock{ Mutex };
+				return Pipe.valid();
+			}
+
+		private:
+			std::mutex                                          Mutex;
+			windows_handle                                      Pipe;
+			std::shared_ptr<application::profile_runtime_lease> Lease;
+		};
+
+		/// \brief Creates one instance carrying exactly the owner-private descriptor this adapter writes.
+		auto create_instance(const std::wstring& aName, const private_security& aSecurity, const bool aFirst) -> windows_handle
+		{
+			private_security_attributes attributes;
+			if (!attributes.initialize(aSecurity, windows_object_kind::regular_file)) {
+				return windows_handle{ };
+			}
+			return windows_handle{ ::CreateNamedPipeW(aName.c_str(),
+													  PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | (aFirst ? FILE_FLAG_FIRST_PIPE_INSTANCE : 0U),
+													  PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+													  pipe_instances, pipe_buffer, pipe_buffer, 0U, attributes.attributes()) };
+		}
+
+		class native_server final : public application::profile_activation_server
+		{
+		public:
+			native_server(windows_handle aListener, std::wstring aName, private_security aSecurity, core::bpr_profile_id aProfile, std::shared_ptr<application::profile_runtime_lease> aLease)
+				: Listener(std::move(aListener))
+				, Name(std::move(aName))
+				, Security(std::move(aSecurity))
+				, Profile(aProfile)
+				, Lease(std::move(aLease))
+			{
+				arm();
+			}
+			~native_server() override
+			{
+				if (auto reply = Pending.lock()) {
+					reply->complete(outcome::indeterminate);
+				}
+				release_listener();
+			}
+			auto receive() -> std::optional<application::profile_activation_request> override
+			{
+				if (auto reply = Pending.lock(); reply && reply->pending()) {
+					return std::nullopt;
+				}
+				if (!Listener.valid()) {
+					Listener = create_instance(Name, Security, false);
+					if (!Listener.valid()) {
+						return std::nullopt;
+					}
+					arm();
+				}
+				DWORD bytes = 0U;
+				DWORD error = ERROR_SUCCESS;
+				if (!Connected) {
+					const auto connected = Connect.poll(Listener.Value, bytes, error);
+					if (connected == pipe_operation::state::pending) {
+						return std::nullopt;
+					}
+					if (connected == pipe_operation::state::failed || !same_user(Listener.Value, true, Security)) {
+						drop_client();
+						return std::nullopt;
+					}
+					Connected = true;
+					Deadline  = clock_type::now() + deadline_interval;
+					Read.reset();
+					// One bounded read, one byte wider than a frame so an overlong message is refused.
+					if (::ReadFile(Listener.Value, Input.data(), static_cast<DWORD>(Input.size()), nullptr, Read.overlapped()) == 0 && ::GetLastError() != ERROR_IO_PENDING && ::GetLastError() != ERROR_MORE_DATA) {
+						drop_client();
+						return std::nullopt;
+					}
+				}
+				if (clock_type::now() >= Deadline) {
+					drop_client();
+					return std::nullopt;
+				}
+				const auto read = Read.poll(Listener.Value, bytes, error);
+				if (read == pipe_operation::state::pending) {
+					return std::nullopt;
+				}
+				frame received{ };
+				std::copy_n(Input.begin(), frame_size, received.begin());
+				const auto intent = read == pipe_operation::state::complete && bytes == frame_size ? frame_intent(received, Profile) : std::nullopt;
+				if (!intent) {
+					drop_client();
+					return std::nullopt;
+				}
+				// The connected instance travels with the reply; a fresh instance keeps the name bound.
+				auto instance = std::move(Listener);
+				Connected     = false;
+				Listener      = create_instance(Name, Security, false);
+				if (Listener.valid()) {
+					arm();
+				}
+				auto reply = std::make_shared<native_reply>(std::move(instance), Lease);
+				Pending    = reply;
+				return application::profile_activation_request{ *intent, std::move(reply) };
+			}
+
+		private:
+			void arm()
+			{
+				Connected = false;
+				Connect.reset();
+				if (::ConnectNamedPipe(Listener.Value, Connect.overlapped()) != 0) {
+					return;
+				}
+				const auto error = ::GetLastError();
+				if (error == ERROR_PIPE_CONNECTED) {
+					(void)::SetEvent(Connect.overlapped()->hEvent);
+				} else if (error != ERROR_IO_PENDING) {
+					release_listener();
+				}
+			}
+			/// \brief Discards the peer and returns the same instance to waiting, so the name stays bound.
+			void drop_client()
+			{
+				if (!Listener.valid()) {
+					return;
+				}
+				(void)::CancelIoEx(Listener.Value, nullptr);
+				(void)::DisconnectNamedPipe(Listener.Value);
+				arm();
+			}
+			void release_listener()
+			{
+				if (Listener.valid()) {
+					(void)::CancelIoEx(Listener.Value, nullptr);
+					(void)::DisconnectNamedPipe(Listener.Value);
+					Listener = windows_handle{ };
+				}
+				Connected = false;
+			}
+
+			windows_handle                                      Listener;
+			std::wstring                                        Name;
+			private_security                                    Security;
+			core::bpr_profile_id                                Profile;
+			std::shared_ptr<application::profile_runtime_lease> Lease;
+			pipe_operation                                      Connect;
+			pipe_operation                                      Read;
+			bool                                                Connected = false;
+			std::array<unsigned char, frame_size + 1U>          Input{ };
+			clock_type::time_point                              Deadline;
+			std::weak_ptr<native_reply>                         Pending;
+		};
+
+		/// \brief Opens the owner's pipe, waiting only while the single free instance is busy.
+		auto open_endpoint(const std::wstring& aName, clock_type::time_point aDeadline, std::stop_token aStop) -> windows_handle
+		{
+			while (!aStop.stop_requested() && clock_type::now() < aDeadline) {
+				windows_handle pipe{ ::CreateFileW(aName.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL, 0U, nullptr, OPEN_EXISTING,
+												   FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr) };
+				if (pipe.valid()) {
+					return pipe;
+				}
+				if (::GetLastError() != ERROR_PIPE_BUSY) {
+					return windows_handle{ };
+				}
+				(void)::WaitNamedPipeW(aName.c_str(), 20U);
+			}
+			return windows_handle{ };
+		}
 #endif
 	}
 
 	auto profile_activation_endpoint(const std::filesystem::path& aRoot)
 		-> std::expected<std::filesystem::path, profile_activation_endpoint_failure>
 	{
-#if defined(_WIN32)
-		(void)aRoot;
-		return std::unexpected(profile_activation_endpoint_failure::platform_unsupported);
-#else
 		try {
 			return resolve_endpoint(aRoot);
 		} catch (...) {
 			return std::unexpected(profile_activation_endpoint_failure::unavailable);
 		}
-#endif
 	}
 
 	auto describe_profile_activation_endpoint_failure(const profile_activation_endpoint_failure aFailure) noexcept -> const char*
@@ -392,12 +732,6 @@ namespace bpr::adapters::sqlite {
 	auto make_profile_activation_server(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, std::shared_ptr<application::profile_runtime_lease> aLease)
 		-> std::expected<std::shared_ptr<application::profile_activation_server>, outcome>
 	{
-#if defined(_WIN32)
-		(void)aRoot;
-		(void)aProfile;
-		(void)aLease;
-		return std::unexpected(outcome::unavailable);
-#else
 		try {
 			if (aProfile.value() == 0U || !detail::validates_profile_runtime_lease(aRoot, aLease)) {
 				return std::unexpected(outcome::unavailable);
@@ -406,6 +740,19 @@ namespace bpr::adapters::sqlite {
 			if (!path) {
 				return std::unexpected(outcome::unavailable);
 			}
+#if defined(_WIN32)
+			auto security = private_security::load();
+			if (!security) {
+				return std::unexpected(outcome::unavailable);
+			}
+			// The first instance is the ownership claim: an existing name, whoever holds
+			// it, refuses this owner rather than being joined or replaced.
+			auto listener = create_instance(path->native(), *security, true);
+			if (!listener.valid()) {
+				return std::unexpected(outcome::unavailable);
+			}
+			return std::make_shared<native_server>(std::move(listener), path->native(), std::move(*security), aProfile, std::move(aLease));
+#else
 			const auto address = endpoint_address(*path);
 			if (!address) {
 				return std::unexpected(outcome::unavailable);
@@ -435,22 +782,15 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(outcome::unavailable);
 			}
 			return std::make_shared<native_server>(std::move(listener), aRoot, *path, aProfile, std::move(aLease));
+#endif
 		} catch (...) {
 			return std::unexpected(outcome::unavailable);
 		}
-#endif
 	}
 
 	auto send_profile_activation(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, core::profile_launch_intent aIntent, std::stop_token aStop)
 		-> std::expected<outcome, outcome>
 	{
-#if defined(_WIN32)
-		(void)aRoot;
-		(void)aProfile;
-		(void)aIntent;
-		(void)aStop;
-		return std::unexpected(outcome::unavailable);
-#else
 		bool sent = false;
 		try {
 			if (aStop.stop_requested() || aProfile.value() == 0U || (aIntent != core::profile_launch_intent::activate && aIntent != core::profile_launch_intent::new_window)) {
@@ -460,6 +800,39 @@ namespace bpr::adapters::sqlite {
 			if (!path) {
 				return std::unexpected(outcome::unavailable);
 			}
+#if defined(_WIN32)
+			const auto security = private_security::load();
+			if (!security) {
+				return std::unexpected(outcome::unavailable);
+			}
+			const auto deadline = clock_type::now() + deadline_interval;
+			auto       pipe     = open_endpoint(path->native(), deadline, aStop);
+			DWORD      mode     = PIPE_READMODE_MESSAGE;
+			// The owner is authenticated before a byte is sent: its process runs as this
+			// user and the pipe carries exactly the owner-private descriptor this adapter writes.
+			if (!pipe.valid() || !same_user(pipe.Value, false, *security) || !validate_private_security(pipe.Value, *security, windows_object_kind::regular_file)
+				|| ::SetNamedPipeHandleState(pipe.Value, &mode, nullptr, nullptr) == 0 || aStop.stop_requested()) {
+				return std::unexpected(outcome::unavailable);
+			}
+			const auto     request = make_frame(aProfile, aIntent);
+			pipe_operation write;
+			DWORD          bytes = 0U;
+			DWORD          error = ERROR_SUCCESS;
+			if (!write.valid() || (::WriteFile(pipe.Value, request.data(), static_cast<DWORD>(request.size()), nullptr, write.overlapped()) == 0 && ::GetLastError() != ERROR_IO_PENDING)) {
+				return std::unexpected(outcome::unavailable);
+			}
+			sent = true;
+			if (!write.await(pipe.Value, deadline, aStop, bytes, error) || bytes != request.size()) {
+				return std::unexpected(outcome::indeterminate);
+			}
+			std::array<unsigned char, 2> response{ };
+			pipe_operation               read;
+			if (!read.valid() || (::ReadFile(pipe.Value, response.data(), static_cast<DWORD>(response.size()), nullptr, read.overlapped()) == 0 && ::GetLastError() != ERROR_IO_PENDING)
+				|| !read.await(pipe.Value, deadline, aStop, bytes, error) || bytes != response.size() || response[0] != 1U || (response[1] != 1U && response[1] != 2U)) {
+				return std::unexpected(outcome::indeterminate);
+			}
+			return response[1] == 1U ? outcome::queued : outcome::refused;
+#else
 			const auto address = endpoint_address(*path);
 			if (!address || !private_socket(address->sun_path)) {
 				return std::unexpected(outcome::unavailable);
@@ -501,9 +874,9 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(outcome::indeterminate);
 			}
 			return response[1] == 1U ? outcome::queued : outcome::refused;
+#endif
 		} catch (...) {
 			return std::unexpected(sent ? outcome::indeterminate : outcome::unavailable);
 		}
-#endif
 	}
 }

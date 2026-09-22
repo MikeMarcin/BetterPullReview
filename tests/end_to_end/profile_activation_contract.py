@@ -11,8 +11,17 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bpr_narrow_owner_private import make_root_private  # noqa: E402
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+
+# [[BPR-0979]]. On Windows the rendezvous is a named pipe: it has no runtime
+# directory, no filesystem entry and nothing to unlink, so the endpoint steps
+# below are POSIX-only and the "unavailable" course (a removed endpoint while
+# the owner lives) has no Windows equivalent. The routing, MRU, New Window,
+# second-profile, owner death and closing-owner courses run on both.
+POSIX = os.name == "posix"
 
 
 @contextlib.contextmanager
@@ -32,6 +41,10 @@ def private_fixture_parent():
     configured = os.environ.get("BPR_TEST_SOCKET_ROOT")
     if configured is not None:
         yield configured
+        return
+    if not POSIX:
+        with contained_temporary_directory(prefix="bpr-activation-course-") as private:
+            yield private
         return
     with contained_temporary_directory(prefix="bpr-activation-course-", parent="/tmp") as private:
         yield private
@@ -125,12 +138,16 @@ def main():
         assert result.returncode == 0 and "APPLICATION_ICON_OK" in result.stdout, result
     with private_fixture_parent() as parent, contained_temporary_directory(prefix="act-", parent=parent) as temporary:
         root = Path(temporary).resolve()
-        os.chmod(root, 0o700)
-        # The product's own test of the parent, so a shared one fails here by name.
-        shared = root.parent.lstat()
-        owner_only = (stat.S_ISDIR(shared.st_mode) and shared.st_uid == os.geteuid()
-                      and shared.st_mode & (stat.S_IWGRP | stat.S_IWOTH) == 0)
-        assert owner_only, f"{root.parent} is not owner-only, so an owner's workspace recovery would refuse"
+        # [[BPR-0875]]. `os.chmod(root, 0o700)` says "only me" on POSIX; on
+        # Windows the narrowing helper writes the one-grant descriptor the
+        # profile registry admits.
+        make_root_private(root)
+        if POSIX:
+            # The product's own test of the parent, so a shared one fails here by name.
+            shared = root.parent.lstat()
+            owner_only = (stat.S_ISDIR(shared.st_mode) and shared.st_uid == os.geteuid()
+                          and shared.st_mode & (stat.S_IWGRP | stat.S_IWOTH) == 0)
+            assert owner_only, f"{root.parent} is not owner-only, so an owner's workspace recovery would refuse"
         processes = []
         logs = []
 
@@ -204,17 +221,18 @@ def main():
             # root for it. A wrong derivation fails here naming both what it
             # expected and what is actually there, rather than silently finding
             # nothing to unlink.
-            endpoint = activation_endpoint(root)
-            assert endpoint.exists(), (
-                f"owner activation endpoint was not created at {endpoint}; "
-                f"the runtime directory holds "
-                f"{sorted(path.name for path in endpoint.parent.glob('bpr-activate-*.sock'))}"
-            )
-            endpoint.unlink()
-            sender = start("unavailable", 1, "unavailable")
-            assert sender[0].wait(timeout=35) == 0
-            wait_marker(sender, "ACTIVATION_UNAVAILABLE")
-            assert owner[0].poll() is None and windows(root, 1) == before
+            if POSIX:
+                endpoint = activation_endpoint(root)
+                assert endpoint.exists(), (
+                    f"owner activation endpoint was not created at {endpoint}; "
+                    f"the runtime directory holds "
+                    f"{sorted(path.name for path in endpoint.parent.glob('bpr-activate-*.sock'))}"
+                )
+                endpoint.unlink()
+                sender = start("unavailable", 1, "unavailable")
+                assert sender[0].wait(timeout=35) == 0
+                wait_marker(sender, "ACTIVATION_UNAVAILABLE")
+                assert owner[0].poll() is None and windows(root, 1) == before
             quit_owner(other)
             quit_owner(owner)
             restarted = start("owner", 1, "restarted")

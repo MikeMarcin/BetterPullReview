@@ -125,8 +125,13 @@ The owner's management host remains the sole window allocator. A sender has no
 runtime or window; bounded queued/refused/indeterminate results never authorize
 retry or lock stealing. Exact MRU reactivation, new-window admission, different
 profiles, lost endpoints and owner death use independent real fixture processes.
-Windows transport, oversized native socket addresses and packaged focus evidence
-remain unavailable/unverified. The global registry's existing compare-and-set conflicts still require explicit Reload
+BPR-0979 adds the Windows transport: an owner-private local named pipe bound
+under the same lease, same frame and same acknowledgement, with the peer
+process's token user checked on both ends and a second instance keeping the
+name bound while a request is pending. Its adapter contract and the public
+activation course are registered for the Windows lane and are not yet run
+there; oversized POSIX socket addresses and packaged focus evidence remain
+unavailable/unverified. The global registry's existing compare-and-set conflicts still require explicit Reload
 Profiles before retry; this foundation does not add automatic cross-process
 preference synchronization or native package evidence.
 

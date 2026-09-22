@@ -120,6 +120,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # Contained, std::filesystem::canonical of the test root (lease) or of the
     # Git executable (sparse cache) throws "Access is denied" and aborts.
     "sqlite_profile_runtime_lease": "dos-volume-name",
+    # [[BPR-0979]]. The activation contract now binds a real lease over the same
+    # canonical private root before creating its named pipe, and its public course
+    # composes the same profile roots as the BPR-0806 rows; both pinned by that
+    # shape, not yet measured contained on Windows.
+    "sqlite_profile_activation": "dos-volume-name",
+    "application_profile_activation_public_path": "dos-volume-name",
     # BPR-0813: measured on JaegAW 2026-09-17. Contained, the contract's scratch
     # root stops at `canonical: Access is denied.` of the temporary directory.
     "sqlite_private_store_open": "dos-volume-name",

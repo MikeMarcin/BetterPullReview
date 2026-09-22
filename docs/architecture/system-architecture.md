@@ -92,8 +92,17 @@ versioned frame; the decision lane routes it through existing management policy.
 Acknowledgement follows the actual activation or successfully opened window.
 Busy/closing owners refuse, and uncertain delivery never causes an automatic
 retry or competing runtime. The sender changes no window registry state.
-Windows transport and POSIX socket paths beyond the native address bound remain
-unavailable; those roots retain exclusive ownership and explicit contention.
+On Windows the desktop binds the first instance of an owner-private message-mode
+named pipe under the same lease ([[BPR-0979]]): the name is digested from the
+canonical root, the descriptor names only this user (and, contained, the
+package), the peer process's token user is checked on both ends, one 16-byte
+message is the whole request and the acknowledgement is the same two bytes.
+A second instance keeps the name bound while a delivered request is pending, so
+the name is never free while an owner lives, and nothing is left behind when it
+exits. POSIX socket paths beyond the native address bound remain unavailable;
+those roots retain exclusive ownership and explicit contention. The Windows
+transport has no native station evidence yet; its adapter and public courses are
+registered for the Windows lane and remain pending there.
 
 The profile runtime owns private storage roots,
 authentication, provider capabilities, queue refresh, preferences, logging,
