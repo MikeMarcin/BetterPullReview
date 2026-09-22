@@ -1,16 +1,85 @@
 # RFC-BPR-0014 verification and planning ledger
 
 RFC base: `d0a8a6dda005af12b3818234f4878a9f48a44146`.
-Mandate `r1`, amended by the owner's explicit release-workflow reuse instruction
-`r2` and prescription-modernization instruction `r3`, authorizes this run;
-current child `/root/rfc0014_m10` owns only
-`rfc-bpr-0014-release-readiness/m10-documentation-impact` on `main` under
-coordinator-implementer rev2. The earlier records below retain their original
-child and candidate provenance; M8/M9 remain blocked.
+Mandate `r1`, release-workflow reuse `r2` and prescription modernization `r3`
+remain history. Explicit owner amendment `r4` now assigns sole implementer
+`/root/rfc0014_owner_closeout` the amended M12 foundation closeout on main
+under coordinator-implementer rev2, entry
+`4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`. Earlier records retain their
+original owners/candidates and then-current gates. M8/M9 stay unaccepted under
+RFC0038; they are not converted into passes by RFC0014 terminal-scope amendment.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
-[live closeout](../issues/10-backlog/BPR-0965-close-rfc-0014.md) retains
-all nine canonical acceptance criteria and the predecessor gate.
+[live closeout](../issues/20-ready/BPR-0965-close-rfc-0014.md) retains
+the nine amended foundation criteria and the predecessor gate. All nine former
+release criteria are preserved verbatim in
+[RFC0038](../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md).
+
+## Owner amendment r4 foundation closeout
+
+The owner explicitly directs RFC0014 to land now, filing unfinished work as
+follow-ups and amending the RFC or opening a later RFC as needed. The
+[mandate](../rfcs/plans/rfc-bpr-0014-release-readiness/mandate-owner-closeout-r4.md)
+accepts only the implemented packaging/maintenance foundation. BPR0958–0962
+retain their criteria, paths, blocked states and evidence as standalone
+RFC0038 follow-ups; allocated BPR0973 owns successor closeout. Their native,
+trust, vault, privacy, license/source-access/retention and security-policy work
+is not waived. All former criteria and the
+[exact residual map](RFC-BPR-0038.md) remain durable.
+
+The shared plan retains every M1–M11 definition, including pending M8/M9,
+extends scope to RFC0038, amends only M12 and adds successor M13. The
+preservation-only amendment helper refuses changed authorized scope as expected.
+R4 supplies separate owner authority; no helper certifies engineering truth.
+The authored import, source receipt and historical checkpoints/handoffs stay
+unchanged. Completed M1–M7/M10/M11 acceptance is not reset.
+
+RFC0001–0013 are now Auto-Verified; BPR0617 is Done at entry. Exact retained
+Qt 6.11.2 producers remain Mac `92c4e159` and Windows `67f5e514`, not
+new packages from this bookkeeping revision. Source stays a separate
+version-bound release asset. Actual JaegAW Windows/WSL evidence is retained
+for its precise operations, not treated as clean desktop or declared Linux
+baseline qualification. No sign/notarize/publish/remote action is authorized.
+
+Current raw Grype results remain 32 Mac / 30 Windows, exit 2, and broader
+374/415 development / 75/84 serial Qt results remain failed suites. Historical
+21/19 scans and narrower later fixes remain exact-candidate history.
+Mac licensing-v003 was accepted at event 477; Windows v002 remains unanswered
+at hand-back 478. All eight attended candidate protections remain intact;
+no review server or fresh human acceptance is required for this amended M12.
+
+### Current r4 verification
+
+Product/test/build/package inputs are unchanged from entry
+`4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; this is a documentation/tracker
+scope split, not a new release candidate. The scoped source/test/build/package
+diff from the immutable base spans 113 files (11,844 added / 1,316 removed),
+including interleaved work. Prior milestone evidence covers its assigned
+changes; r4 does not claim a fresh exhaustive whole-repository review.
+
+| Check | Exact result and interpretation |
+|---|---|
+| Build six core/host/storage/Qt/composed-maintenance/activation targets | `cmake --build --preset dev --target test_release_maintenance_core test_release_maintenance_host test_release_maintenance_files test_release_maintenance_panel test_release_maintenance_public_path test_profile_activation_public_path -j 6`: exit 0, no work to do. |
+| 14-course focused CTest selection | 13/14 pass in 123.58s: architecture contract/negative release seams, source/package/security mechanics, core/host/storage, three Qt scales, real maintenance public path (16.98s), profile activation (5.15s). Raw exit 8 retained in `build/rfc0014-r4-focused.json`. |
+| Network-manifest failure | Checkout scan sees unrelated ignored `.claude/worktrees/agent-a17cae88115dbbb4e`. Independently, `release_update_native_https` registers one loopback port but the pinned authority inventory expects zero. Tracked-source diagnostic removes duplicate-registration errors but also correctly rejects different absolute source/build roots; it is not a full pass. BPR0962 AC2/AC3 owns exact-authority reconciliation and matching clean-root rerun. No source, threshold or allowlist was changed. |
+| Tracked-source architecture | Complete `git archive` of entry in `/tmp/bpr0014-r4-tracked.aEejaK`; unchanged `VerifyArchitectureBoundaries.cmake` passes (5.660s). No ignored worktree removed and checker unmodified. |
+| Exact Mac source publication preflight | `packaging/verify_release_sources.py` on retained 92c4e159 ZIP/SPDX/separate source: `RELEASE_SOURCE_ASSET_OK`, exit 0 (0.128s). Offline relationship check is not publication or recipient-access/retention approval. |
+| Retained Mac/Windows artifact integrity | Fresh SHA-256 matches all seven locally retained package/SPDX/source/executable identities plus the curated remediation record in the successor ledger. No artifact changed. |
+| Local Mac seal | `codesign --verify --deep --strict --verbose=2` exact retained app: exit 0, valid on disk. Ad-hoc seal only; no Developer ID/notary/Gatekeeper conclusion. |
+| Full old-Mac package/security audits at current source | Both refuse `package-build-source-drift`, exit 1 (0.262s / 0.240s). Current Qt provider adds the later Windows-only aqtinstall pin. Do not relax this conservative guard or relabel the old package. Original producer 92c4e159 exact successful audits remain bounded history; current fresh contract tests pass. |
+| Documentation | Gate `DOCUMENTATION_OK`; 64/64 verifier regressions pass (1.980s). Negative-fixture ERROR lines are expected. |
+| Scope preservation | All M1–M11 objects unchanged, nine original criteria verbatim in RFC0038, five blocked Acceptance sections unchanged; current shared-plan structural validation and 965-card board validation pass. |
+| Review protections | Session cursor 478, host null, eight protected candidates. Canonical sorted protected-state digest remains `8e0dfe98db18c4d6d01d3b94417507094899a7ff3bb4d136ad785ea28043a59c`; no decision changed. |
+
+The preservation-only amendment check's refusal is expected for explicit new
+owner scope. Updating the generated plan view initially reported stale output;
+rendering the separate proposal and applying that exact generated text resolves
+it. Neither is a product failure or acceptance proof. Initial command lookup
+for the evidence helper used the repository scripts directory; the configured
+skill's helper was then used, with no work lost.
+
+Final acceptance and command cleanup follow the guarded card finish. Remaining
+stage sections below are historical evidence, not current instructions.
 
 ## Inherited evidence and limits
 
@@ -30,10 +99,12 @@ M2 must inspect reusable inputs before carrying any evidence forward.
 The historical package README contains older foundation platform observations;
 they are not current package certification.
 
-## Acceptance and direct verification plan
+## Original release acceptance and direct verification plan — transferred intact
 
-Every row is pending full RFC acceptance. The closeout stores the verbatim
-criteria; the row numbers below follow their existing order, not new requirements.
+These historical rows remain pending full release qualification under RFC0038.
+Its closeout stores the verbatim original criteria; row numbers retain the
+original order. Later M9 records and the successor ledger supersede older
+candidate counts/decisions below without rewriting their history.
 
 | RFC row | Direct falsifiable check and terminal observation | Owning cards | Current disposition |
 |---|---|---|---|

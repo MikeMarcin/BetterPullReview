@@ -56,7 +56,7 @@ before every listed dependency is `Auto-Verified`.
 | [RFC-BPR-0011](RFC-BPR-0011-ai-agent-profiles-context-supplements.md) | AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements | Auto-Verified | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0012](RFC-BPR-0012-ai-review-chat-findings-mcp.md) | AI Review Findings, Comment Workshop, Side Chat, and MCP Context | Auto-Verified | RFC-BPR-0008, RFC-BPR-0011 |
 | [RFC-BPR-0013](RFC-BPR-0013-performance-resilience-resource-limits.md) | Performance, Resource Limits, Resilience, and Recovery | Auto-Verified | RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012 |
-| [RFC-BPR-0014](RFC-BPR-0014-cross-platform-packaging-security-release.md) | Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness | Proposed | RFC-BPR-0013 |
+| [RFC-BPR-0014](RFC-BPR-0014-cross-platform-packaging-security-release.md) | Release Packaging and Maintenance Foundation | Proposed | RFC-BPR-0013 |
 
 On 2026-09-20 the owner closed RFC-BPR-0013's selected-diff investigation under
 an explicit acceptance amendment: the unusual-target comparison-basis and
@@ -119,21 +119,23 @@ broader structural evidence; BPR-0817/0825/0940/0944/0945 retain their existing
 human/layout/comparison/tidy obligations. RFC0033 remains associated with
 BPR-0817. No failed or missing observation is marked passing.
 
-RFC-BPR-0014 is the next canonical RFC and remains Proposed. BPR-0617 is no
-longer a dependency blocker, but BPR-0965 still waits for BPR-0958–0962 native,
-trust and security acceptance. This status change supplies no package or release
-qualification and changes none of those five cards.
+RFC-BPR-0014 owner amendment r4 separates implemented foundation closeout from
+complete release qualification. BPR-0617 is Done; BPR-0965 now verifies only the
+explicitly amended foundation. RFC-BPR-0038 retains all nine original release
+criteria and owns unchanged-criteria Blocked BPR-0958–0962 plus BPR-0973
+closeout. The transfer supplies no native, trust, licensing, vulnerability or
+publication acceptance.
 
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).
 
-RFC-BPR-0014's [live twelve-stage plan](plans/rfc-bpr-0014-release-readiness/milestone-plan.json)
-now maps the authored pack-v2 stages to BPR-0951–0965. Its
+RFC-BPR-0014's [extended shared plan](plans/rfc-bpr-0014-release-readiness/milestone-plan.json)
+keeps M1–M11 unchanged, amends M12 under r4 and adds RFC0038's M13. Its
 [verification ledger](../verification/RFC-BPR-0014.md) distinguishes inherited
 icon/private-macOS-release evidence from pending clean Windows, macOS
 Intel/Apple Silicon and Linux package/security acceptance. BPR-0965 retains
-RFC-BPR-0013 and canonical closeout ordering; implementation planning changes
-no RFC status or native requirement.
+RFC-BPR-0013 and canonical closeout ordering. M8/M9 remain unaccepted under
+the successor; completing RFC0014 does not complete the shared qualification plan.
 
 ## Additional RFCs
 
@@ -167,6 +169,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0035](RFC-BPR-0035-github-release-auto-updater.md) | GitHub Release Auto-Updater | Proposed | Milestones 1–3 accepted; M4 source `518c384a` fixes the native menu and documents recovery/security. Owner amendment r3 defers Intel validation to nonblocking BPR-0950; BPR-0949 is Done under its Apple Silicon scope. BPR-0911 is Blocked on live private-release/vault AC-03; BPR-0912 remains Backlog with RFC-BPR-0014/canonical-order gates. Full M4/RFC acceptance remains open |
 | [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed, while canonical predecessor eligibility remains pending |
 | [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Technical implementation and BPR-0927 closeout accepted at `e4096e05`; RFC-BPR-0008 and RFC-BPR-0013 are now closed, while RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 must still become Auto-Verified; Markdown remains separate under RFC-BPR-0036 |
+| [RFC-BPR-0038](RFC-BPR-0038-native-package-release-security-qualification.md) | Native Package and Release Security Qualification | Proposed | Owner r4 successor to RFC0014: unchanged Blocked BPR0958–0962 retain all native/trust/license/privacy/security gaps; BPR0973 owns closeout after actual qualification and canonical predecessors |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.

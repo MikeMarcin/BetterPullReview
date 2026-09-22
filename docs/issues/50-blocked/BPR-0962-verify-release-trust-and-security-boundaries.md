@@ -3,7 +3,7 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0962"
 title: "Verify release trust and security boundaries"
 status: "Blocked"
-rfcs: ["RFC-BPR-0014"]
+rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-0957"]
 milestone: "M9 Security and boundary verification"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
@@ -15,6 +15,36 @@ blocked_by: "release-security-inputs"
 Bounded work from the immutable RFC-BPR-0014 authored issue plan. The live
 RFC and its owner amendments remain authoritative. Reuse inherited evidence
 only for unchanged inputs; this card is unaccepted until its direct criteria pass.
+
+## Owner amendment r4 — successor qualification
+
+This unchanged-criteria standalone follow-up now belongs to
+[RFC-BPR-0038](../../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md).
+RFC-0014 closes only its implemented foundation. No pending criterion, native
+observation, trust/security gate or human decision is accepted by this transfer.
+Paths, blocked state and exact historical evidence remain intact. The
+[successor ledger](../../verification/RFC-BPR-0038.md) records the latest Qt 6.11.2
+candidates, completed PE mechanics, raw 32/30 Grype failures and unanswered
+Windows licensing-v002 decision; earlier records below remain historical.
+
+## R4 current-check follow-up — network-isolation manifest
+
+At unchanged source `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`, the
+14-test closeout selection passes 13 but fails `test_network_isolation_manifest`.
+The checkout-wide scan counts an unrelated ignored nested worktree's test
+registrations. Separately, the actual registration in
+`tests/github_contract/CMakeLists.txt` gives `release_update_native_https`
+one loopback port, while `MACOS_LOOPBACK_AUTHORITIES` in
+`scripts/verify_test_network_isolation.py` has no corresponding entry and
+expects zero. This mismatch remains when inspecting tracked source separately;
+that diagnostic run also refuses mismatched absolute source/build command paths
+and is not a passing full manifest gate.
+
+AC2/AC3 follow-up: reconcile the exact closed-fixture authority with the pinned
+manifest, retain hostile authority tests, then run the full manifest on a clean
+matching source/build pair without weakening isolation. Do not remove another
+owner's nested checkout or count this existing failure as a pass. No source or
+test change was made by r4. The receipts are summarized in the r4 ledger.
 
 ## Acceptance
 

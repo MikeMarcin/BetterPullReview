@@ -10,8 +10,11 @@ telemetry service or automatic diagnostic/crash upload.
 This packet describes the implementation inspected at `59226c62` for
 RFC-BPR-0014 M10, mandate r3. It is a security-review input, not release approval.
 The [M8/M9 evidence ledger](../verification/RFC-BPR-0014.md) retains exact
-artifacts, failures and native gaps. Its revised macOS package was produced at
-`1c429749`; the Windows candidate predates the separate-source correction.
+artifacts, failures and native gaps. R4 closes only the implemented foundation;
+[RFC-BPR-0038](../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md)
+retains complete release qualification. Current Qt 6.11.2 macOS producer
+`92c4e159` and Windows producer `67f5e514` both use separate version-bound
+source assets. Earlier records remain candidate-specific history.
 
 ## Release qualification
 
@@ -21,20 +24,23 @@ Silicon, and Linux x86_64 on Ubuntu 24.04 and RHEL 10. Linux's glibc floor is
 completed support certifications. The [package guide](../development/release-packages.md)
 names toolchains, runtime prerequisites and installation routes.
 
-As of the 2026-09-21 M9 handoff:
+At the Qt 6.11.2 hand-back 478 (2026-09-22 UTC), retained by owner amendment r4:
 
 - macOS has an offline ad-hoc candidate, not final Developer ID/notarization/
   Gatekeeper acceptance. The Windows MSI is unsigned; there is no final Linux
   package. Native Intel, declared Linux baselines, clean ordinary-user Windows
   desktops and the complete clean-account/vault/removal courses remain pending.
-- Grype 0.119.0 with the recorded v6.1.9 database returned exit 2: 21 macOS and
-  19 Windows matches. High PCRE2 and Windows zlib matches and all lower-severity
+- Grype 0.119.0 with the recorded v6.1.9 database returned exit 2: 32 macOS and
+  30 Windows matches. Critical/High and all lower-severity
   findings remain undisposed. A match is not proof of exploitability; the
   [release policy](release-policy.md) still blocks distribution until remediation
   or a named independent, exact-version applicability disposition. Moving the
-  source ZIP did not change these dependency records or resolve the findings.
-- The owner accepted only the exact revised macOS licensing/source-delivery
-  criterion at event 469, hand-back 470. That accepts no vulnerability, trust,
+  source ZIP did not resolve findings. Qt 6.11.2 removes the old libpng match,
+  while twelve Tika MIME-data matches per platform and source-backed applicability
+  proposals still require independent disposition; historical 21/19 failures remain.
+- The owner accepted only the exact Qt 6.11.2 macOS licensing/source-delivery
+  v003 criterion at event 477, hand-back 478. Windows v002 remains unanswered.
+  That accepts no vulnerability, trust,
   native-matrix or publication claim. The source URL remains unpublished;
   recipient access and retention must still be fulfilled during distribution.
 - Native active-operation network/vault checks, foreign-user IPC, external
@@ -159,4 +165,4 @@ redistribution includes that asset. Source retention and practical replacement/
 relinking obligations survive removal of an application copy. Windows/Linux and
 managed packages use manual distribution. Only eligible trusted macOS installs
 use the [qualified updater exception](release-updater.md), with explicit
-download/install gestures; this does not waive RFC-0014's matrix or release gates.
+download/install gestures; this does not waive RFC-0038's matrix or release gates.

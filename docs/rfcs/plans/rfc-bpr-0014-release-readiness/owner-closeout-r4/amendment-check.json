@@ -1,0 +1,6 @@
+{
+  "state": "invalid",
+  "diagnostic": "amendment cannot change plan identity or authorized scope",
+  "truncated": false,
+  "interpretation": "Expected preservation-only refusal: explicit owner mandate r4 separately authorizes terminal scope transfer to RFC0038. Structural validation and exact preservation of M1–M11 still required; this is not a tool approval or M8/M9 acceptance."
+}

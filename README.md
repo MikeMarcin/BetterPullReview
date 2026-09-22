@@ -253,7 +253,10 @@ does not certify a signed, notarized, or installable package.
 The [package guide](docs/development/release-packages.md) covers per-user
 installation, declared platform/toolchain baselines, dependency notices,
 separate corresponding-source assets and independent signature checks.
-RFC-BPR-0014 release acceptance remains pending: current macOS/Windows candidates
+RFC-BPR-0014's owner-amended scope is the implemented packaging/maintenance
+foundation. Full release qualification remains pending under
+[RFC-BPR-0038](docs/rfcs/RFC-BPR-0038-native-package-release-security-qualification.md):
+current macOS/Windows candidates
 lack final release trust, dependency vulnerability findings remain unresolved,
 and the complete native install/authentication/vault/removal matrix is open.
 Package definitions and a universal binary do not establish that acceptance.
@@ -327,8 +330,9 @@ built from a controlled two-file staging directory as the existing
 `PKG_CONFIG_PATH`, and `CPM_SOURCE_CACHE` when discovery needs help.
 Configure BetterPullReview as the top-level project. Top-level dependency-provider
 hooks are rejected, and repository plus built-in CMake modules are loaded from
-trusted absolute paths. RFC-BPR-0014 owns application installation and package
-qualification; it does not require a separate core SDK or general CMake embedding
+trusted absolute paths. RFC-BPR-0014 owns the application installation/package
+foundation; RFC-BPR-0038 owns remaining native and release-security qualification.
+Neither requires a separate core SDK or general CMake embedding
 support. The core remains independently buildable and testable without Qt/providers.
 
 ```sh

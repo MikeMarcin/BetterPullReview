@@ -2,9 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0965"
 title: "Verify and close RFC-BPR-0014"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0014"]
-depends_on: ["BPR-0617", "BPR-0958", "BPR-0959", "BPR-0960", "BPR-0961", "BPR-0962", "BPR-0963", "BPR-0964"]
+depends_on: ["BPR-0617", "BPR-0957", "BPR-0963", "BPR-0964"]
 closeout_for: ["RFC-BPR-0014"]
 milestone: "M12 Verification and RFC closeout"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
@@ -23,9 +23,10 @@ this run does not reset or extend their acceptance.
 
 ## Acceptance
 
-- AC1: Complete every canonical RFC criterion below against exact delivered
-  artifacts and the real tests-disabled composition, retaining required native,
-  human and independently verified trust evidence.
+- AC1: Verify every owner-amended foundation criterion below against its exact
+  producing evidence and current focused public checks. Preserve all nine
+  original release criteria in RFC-BPR-0038 and all BPR-0958–0962 native, human,
+  trust and security obligations as unaccepted successor work.
 - AC2: Reconcile the final scoped diff against the immutable base, all live
   cards, architecture conformance, documentation, failures and owner amendments.
 - AC3: Close only after RFC-BPR-0013 and all canonical predecessors are
@@ -36,17 +37,32 @@ this run does not reset or extend their acceptance.
 
 | Criterion | Direct check and accountable work | Current result and revision |
 |---|---|---|
-| Clean Windows, macOS Intel/Apple Silicon, and Linux test environments install, launch, authenticate, open a fixture PR, and uninstall successfully. | BPR-0958–0961; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
-| Package signatures/notarization verify independently. | BPR-0962; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
-| Runtime dependency scan shows no WebEngine, browser engine, Node, local network server, arbitrary plugin loader, or undeclared network endpoint. The existing bounded owner-authenticated profile-activation AF_UNIX IPC is the sole declared listener exception; verify its owner/peer/frame/lifetime boundary and absence of network-service capability. | BPR-0962; exact-candidate procedure in the RFC-0014 verification ledger | M9 mirrors the live RFC's mandate-r3 IPC clarification only; complete native acceptance remains pending |
-| SBOM, license notices, source-offer obligations, and checksums match the delivered artifacts. | BPR-0956 and BPR-0962; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
-| Hardened build settings, static analysis, sanitizers, fuzzers, secret scans, and vulnerability scans pass release policy. | BPR-0962; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
-| Credential vaults, file permissions, cache locations, retention, purge, and uninstall behavior match documentation. | BPR-0953–0955 and BPR-0958–0961; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
-| Diagnostic and crash artifacts pass canary redaction and contain no source/comment bodies by default. | BPR-0953–0955 and BPR-0962; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
-| Corporate security overview clearly states network destinations, data stored, subprocesses, credentials, AI boundary, logging, and removal. | BPR-0963; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
-| Delivered target/dependency graphs and runtime inspection prove the functional core remains Qt/provider-free and all effects are reachable only through the packaged host/composition path. | BPR-0952, BPR-0956 and BPR-0962; exact-candidate procedure in the RFC-0014 verification ledger | Not run for the complete RFC matrix at `d0a8a6dda005af12b3818234f4878a9f48a44146`; inherited evidence remains bounded |
+| Windows, universal macOS and baseline Linux package definitions reuse the existing release workflow and document target prerequisites without claiming complete native qualification. | Implemented M6 package definitions; M9 Qt 6.11.2 Mac/Windows artifacts; Linux is a declared target, not qualified support. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| The existing publish-release path provides build, checksum, signing, notarization and independent trust-verification mechanisms; available offline package evidence remains distinct from release trust or publication authority. | Existing publish-release/release scripts reused. Offline Mac seal and unsigned Windows mechanics are not independent release trust. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| Available exact-candidate package and hostile-boundary checks verify declared composition, dependencies, loader restrictions and bounded profile-activation IPC; missing native runtime evidence remains explicitly assigned. | Recorded M7/M9 negative controls, tests-disabled Mac public/IPC course and exact Windows PE maps; successor owns missing native courses. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| Qt 6.11.2 package inventories bind SBOMs, notices, checksums and separate version-bound corresponding-source assets; exact licensing decisions and unfulfilled distribution obligations remain distinct. | Mac producer 92c4e159, Windows producer 67f5e514; separate source assets and exact inventory audits. Mac v003 accepted, Windows v002 unanswered. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| Release-policy hardening, analysis, sanitizer, fuzz, secret and vulnerability mechanics have recorded exact-candidate results, with failed scans and unobserved coverage preserved as open qualification work. | Recorded focused hardening/tidy/fuzz and raw Grype 32/30 exit-2 findings; broad 374/415 and Qt 75/84 failures stay open. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| Typed core, host and Qt maintenance paths implement bounded diagnostic cleanup and explicit profile purge through retained-lease retirement and recovery, with direct public-path verification and documented residuals. | Accepted M3–M6 typed maintenance/retirement/recovery plus current composed maintenance checks; real native vault matrix remains pending. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| Metadata-only diagnostic preview/export and hostile canary checks preserve source/secret boundaries; full resident-material crash and native privacy qualification remains open. | Recorded metadata-only export and hostile canary course; full resident-material crash and native privacy remains with BPR0962. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| Corporate security overview clearly states network destinations, data stored, subprocesses, credentials, AI boundary, logging, and removal. | Accepted M10 packet and r4 update accurately distinguish implementation, platform targets and release blockers. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
+| Tracked-source architecture checks and available exact-package graph/composition evidence preserve the Qt/provider-free functional core and host-owned effects without claiming whole-matrix certification. | Recorded tracked-source archive and exact Mac/Windows package audits; no standalone core SDK or whole-matrix pass inferred. | Retained exact evidence at r4 entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`; current closeout checks in progress |
 
-## Verification and execution record
+## Current owner and scope
+
+Sole owner `/root/rfc0014_owner_closeout`, mandate r4, run
+`rfc0014-owner-closeout-20260921`, segment `rfc0014-owner-closeout-r4`,
+entry `4f2c3bdb5855ba0fb509889cdbe08d7cf534acab`, main.
+RFC0001–0013 are Auto-Verified and BPR-0617 is Done. The
+[owner mandate](../../rfcs/plans/rfc-bpr-0014-release-readiness/mandate-owner-closeout-r4.md)
+amends only terminal scope: accept the implemented foundation while retaining
+all original release requirements under RFC0038/BPR0973 and the unchanged
+Blocked BPR0958–0962. This is not release/native/security acceptance.
+
+## Historical verification and execution record
+
+The stage records below retain the prior exact evidence and then-current
+ownership/gates. The current r4 scope above explicitly supersedes their
+closeout prerequisites; it does not convert pending observations into passes.
 
 The current owner is `/root/rfc0014_m5`, assignment milestone 5, mandate r3
 (preserving r1/r2), run `rfc0014-20260920`, segment

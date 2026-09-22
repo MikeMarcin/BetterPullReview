@@ -3,7 +3,7 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0961"
 title: "Qualify the Linux x64 packages"
 status: "Blocked"
-rfcs: ["RFC-BPR-0014"]
+rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["linux"]
@@ -16,6 +16,17 @@ blocked_by: "declared-linux-baselines"
 Bounded work from the immutable RFC-BPR-0014 authored issue plan. The live
 RFC and its owner amendments remain authoritative. Reuse inherited evidence
 only for unchanged inputs; this card is unaccepted until its direct criteria pass.
+
+## Owner amendment r4 — successor qualification
+
+This unchanged-criteria standalone follow-up now belongs to
+[RFC-BPR-0038](../../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md).
+RFC-0014 closes only its implemented foundation. No pending criterion, native
+observation, trust/security gate or human decision is accepted by this transfer.
+Paths, blocked state and exact historical evidence remain intact. The
+[successor ledger](../../verification/RFC-BPR-0038.md) records the latest Qt 6.11.2
+candidates, completed PE mechanics, raw 32/30 Grype failures and unanswered
+Windows licensing-v002 decision; earlier records below remain historical.
 
 ## Acceptance
 

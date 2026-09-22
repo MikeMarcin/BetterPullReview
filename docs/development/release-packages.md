@@ -1,7 +1,8 @@
 # Local release packages
 
-RFC-BPR-0014 supplies package definitions and available-host composition
-evidence. The native matrix, release trust and vulnerability gates remain open;
+RFC-BPR-0014 supplies the package/maintenance foundation; RFC-BPR-0038 owns
+remaining native and release-security qualification. Available-host composition
+evidence is candidate-specific. The native matrix, release trust and vulnerability gates remain open;
 the exact macOS source-distribution approval has the limits recorded below.
 The existing project `publish-release` skill and
 `tools/release.sh` remain the sole macOS release workflow. GitHub Actions is not
@@ -217,7 +218,8 @@ the local seal; it cannot satisfy the Developer ID/notarization checks.
 
 The [release security policy](../security/release-policy.md) defines emitted
 hardening, analysis, sanitizer/fuzz, secret and vulnerability gates. M9's recorded
-21 macOS / 19 Windows Grype matches remain unresolved, as do the full native
+32 macOS / 30 Windows Qt 6.11.2 Grype matches remain unresolved (both raw gates
+exit 2; earlier 21/19 reports remain historical), as do the full native
 vault/privacy/runtime matrix and external dependency hardening. The
 [corporate security packet](../security/corporate-security-overview.md) records
 their implications. A completed documentation milestone changes none of these

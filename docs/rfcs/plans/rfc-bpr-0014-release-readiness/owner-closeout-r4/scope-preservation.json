@@ -1,0 +1,13 @@
+{
+  "schema": "bpr.rfc-owner-amendment-preservation.v1",
+  "entry_revision": "4f2c3bdb5855ba0fb509889cdbe08d7cf534acab",
+  "mandate_revision": "r4",
+  "result": "pass",
+  "checks": [
+    "All 11 M1–M11 milestone objects are byte-equivalent after JSON normalization, including unaccepted M8/M9 outcomes/exits.",
+    "All nine former RFC0014 acceptance bullets transferred verbatim to RFC0038.",
+    "BPR0958–0962 Acceptance sections are identical, all remain Blocked, only RFC association/current-scope context changes.",
+    "No src/tests/cmake/packaging/tools/scripts/CMake or protected review/immutable authored-plan edit from entry."
+  ],
+  "limits": "Structural and text preservation only; no new native/security/trust/human acceptance."
+}
