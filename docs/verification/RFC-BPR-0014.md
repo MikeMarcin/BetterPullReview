@@ -1838,3 +1838,52 @@ M12 remains ineligible through M8/M9 and canonical prerequisites. No Developer-I
 signing, notarization, tag, push, upload or publication occurred. The updated
 [handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json) records
 the fresh review session cursor and exact remaining obligations.
+
+## M9 licensing-v003 partial decision finalization
+
+At clean `b88c88b0654afea3bf44f83c6ddf8e0684a3b2b8`, sole implementer
+`/root/rfc0014_m9_finalize` consumes only the M9 hand-back 478 under mandate r3
+and coordinator-implementer rev2. Session `cbd48b91000b00f1e72e1ad62c7c384c`
+recorded human accept `a3a22f09-afe9-4386-8d2d-e784f1e0ee9e` at event 477
+(`2026-09-22T00:07:20.717179+00:00`), then handed back at
+`2026-09-22T00:07:24.929299+00:00`.
+
+The decision applies only to `rfc0014-m9-licensing-v003`, fingerprint
+`fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a`,
+macOS producer `92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf`. Its existing
+owner/legal criterion covers exact distribution terms and source/build/relink
+obligations: separate version-bound source ZIP, installed reference/digest and
+notices, equivalent recipient access, continuing retention and replacement
+instructions. The saved note is empty. No additional legal opinion, actual
+source publication, vulnerability disposition, security, trust, native-matrix
+or release authorization is inferred.
+
+Windows `rfc0014-m9-windows-licensing-v002`, fingerprint
+`e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74`,
+producer `67f5e51407a883e4469cee6008048a001f7c13b3`, has a null decision
+and remains explicitly pending in event 478. The partial hand-back is not a
+Windows accept, rejection or waiver. Its unchanged ready inventory can be
+reviewed later without discarding its protection or transferring macOS approval.
+
+Read-only SHA-256 checks match all seven macOS and six locally retained Windows
+artifact identities. The existing `packaging/verify_release_sources.py` checks
+the actual macOS app ZIP, SPDX and separate source asset at producer `92c4e159`
+and returns `RELEASE_SOURCE_ASSET_OK`. This mechanical result has no human
+approval authority. The manifests and curated Grype evidence are unchanged;
+prior exact package/public/native checks retain their original bounded scope.
+No rebuild or repeated broad suite is required for this bookkeeping-only change.
+
+The card and both M9 exits remain pending. Raw Grype stays failed at 32 macOS /
+30 Windows matches, with historical 21/19 failures retained. Independent
+security-owner applicability, final distribution trust, Windows licensing,
+Linux artifacts and the complete native/vault/crash/privacy/hardening scope
+remain required. M10/M11 are already accepted; the scoped queue has no eligible
+next card, and M12 requires M8/M9 plus BPR-0617/canonical predecessors.
+
+The [handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json)
+records durable decision capture before stopping PID 63428, the subsequent
+process/listener and protection checks, documentation/board verification and
+the quiescent checkpoint. All eight candidate protections and every historical
+decision are preserved; stopping the host neither releases nor accepts Windows.
+Only the review server is retired. No candidate or source asset is deleted;
+no signing, notarization, tag, push, upload or publication occurs.

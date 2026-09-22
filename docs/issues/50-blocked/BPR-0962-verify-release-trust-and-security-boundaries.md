@@ -202,6 +202,41 @@ decisions, final trust and full native/privacy/hardening evidence. M10/M11 are
 already accepted; M12 has no eligibility while M8/M9 remain pending. No signing,
 notarization, tag, push, upload or publication is authorized or performed.
 
+## M9 licensing-v003 partial decision finalization
+
+Sole implementer `/root/rfc0014_m9_finalize` resumes only decision finalization
+at clean `b88c88b0654afea3bf44f83c6ddf8e0684a3b2b8`, mandate r3 and
+coordinator-implementer rev2 unchanged. Session
+`cbd48b91000b00f1e72e1ad62c7c384c` saved human accept
+`a3a22f09-afe9-4386-8d2d-e784f1e0ee9e` at event 477 and handed back at 478.
+It applies only to macOS `rfc0014-m9-licensing-v003`, fingerprint
+`fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a`,
+producer `92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf`.
+
+The exact owner/legal distribution and source/build/relink criterion is
+accepted: separate version-bound source asset, installed reference/digest and
+notices, equivalent recipient access, ongoing retention and replacement
+instructions. The human note is empty; no supporting legal opinion is inferred.
+The unpublished source URL and ongoing recipient obligations remain distinct
+from an observed distribution. This is not security, vulnerability, independent
+trust, native-matrix or release approval.
+
+Windows `rfc0014-m9-windows-licensing-v002`, fingerprint
+`e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74`,
+producer `67f5e51407a883e4469cee6008048a001f7c13b3`, has **no decision**
+and is explicitly pending at hand-back. No skipped or unanswered item is accepted
+or rejected by inference. All eight protections and historical decisions remain.
+
+All 13 locally available macOS/Windows inventory digests still match, and the
+actual macOS ZIP/SPDX/source preflight passes without changing candidate bytes.
+The [partial-decision ledger](../../verification/RFC-BPR-0014.md#m9-licensing-v003-partial-decision-finalization)
+and handoff bind the decision and requested server retirement. BPR-0962 remains
+Blocked on `release-security-inputs`; both M9 exits remain pending. The raw
+Grype failures (32 macOS / 30 Windows), historical 21/19 failures and independent
+trust/native/privacy/hardening gaps are unchanged. M10/M11 are accepted, but
+there is no eligible successor; M12 still requires M8/M9 and canonical
+predecessor acceptance. No signing, publication or remote release mutation.
+
 ## M2 security allocation
 
 The [source allocation](../../architecture/release-readiness.md) binds all nine

@@ -14,16 +14,20 @@
     "effort": "max",
     "strategy": "coordinator-implementer",
     "recipe_revision": "2",
-    "scope": "M9 BPR-0962 AC3 in-repository dependency remediation, including explicit owner-selected Qt 6.11.2. No M10/M12 work or delegation; no Developer-ID signing, notarization, publication, tag, push or upload."
+    "scope": "M9 decision finalization only after hand-back 478. Apply exact macOS licensing-v003 accept; preserve Windows pending and all independent blockers/protections. Stop inherited review server after durable capture; no M12, delegation or release mutation."
   },
   "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
-  "entry_revision": "08d129d0b04d2cac2649013b16b315cf7ccf929e",
-  "candidate_revision": "67f5e51407a883e4469cee6008048a001f7c13b3",
+  "entry_revision": "b88c88b0654afea3bf44f83c6ddf8e0684a3b2b8",
+  "candidate_revision": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
   "product_revision": "67f5e51407a883e4469cee6008048a001f7c13b3",
   "result": "blocked",
   "rfc_status": "Proposed",
   "binding_ref": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
   "commits": [
+    {
+      "revision": "b88c88b0654afea3bf44f83c6ddf8e0684a3b2b8",
+      "purpose": "Durable Qt 6.11.2 remediation handoff; entry to licensing-v003 decision finalization"
+    },
     {
       "revision": "a7fcab795baae4f056df68115bdd46a600d671e4",
       "purpose": "Resume blocked BPR-0962 after accepted M10/M11"
@@ -98,33 +102,9 @@
     }
   ],
   "changed_paths": [
-    "README.md",
-    "cmake/BprDependencies.cmake",
-    "cmake/BprQtProvider.cmake",
-    "docs/architecture/native-markdown.md",
-    "docs/architecture/release-readiness.md",
-    "docs/development/build-and-test.md",
-    "docs/development/release-packages.md",
     "docs/issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md",
-    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
-    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
-    "docs/security/release-policy.md",
     "docs/verification/RFC-BPR-0014.md",
-    "docs/verification/reviews/rfc0014-m9-licensing-v003/manifest.json",
-    "docs/verification/reviews/rfc0014-m9-windows-licensing-v002/manifest.json",
-    "docs/verification/rfc0014-m9-dependency-remediation.json",
-    "packaging/dependencies.json",
-    "packaging/package_runtime.py",
-    "src/app/src/windows_title_row_host.hpp",
-    "tests/end_to_end/release_package_course.py",
-    "tests/end_to_end/release_security_course.py",
-    "tests/end_to_end/runtime_surface_native_probe.py",
-    "tests/scripts/dependency_modernization_tests.py",
-    "tests/scripts/designated_live_macos_capsule_tests.py",
-    "tests/scripts/package_runtime_tests.py",
-    "tests/scripts/release_source_assets_tests.py",
-    "tests/scripts/verify_release_package_tests.py",
-    "tests/scripts/verify_release_security_tests.py",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
     "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json"
   ],
   "acceptance_records": [
@@ -136,7 +116,8 @@
         "docs/verification/RFC-BPR-0014.md#m9-post-review-source-distribution-correction",
         "docs/verification/RFC-BPR-0014.md#m9-licensing-v002-decision-finalization",
         "docs/verification/RFC-BPR-0014.md#m9-dependency-remediation-after-m11",
-        "docs/verification/rfc0014-m9-dependency-remediation.json"
+        "docs/verification/rfc0014-m9-dependency-remediation.json",
+        "docs/verification/RFC-BPR-0014.md#m9-licensing-v003-partial-decision-finalization"
       ]
     },
     {
@@ -147,7 +128,8 @@
         "docs/verification/RFC-BPR-0014.md#m9-post-review-source-distribution-correction",
         "docs/verification/RFC-BPR-0014.md#m9-licensing-v002-decision-finalization",
         "docs/verification/RFC-BPR-0014.md#m9-dependency-remediation-after-m11",
-        "docs/verification/rfc0014-m9-dependency-remediation.json"
+        "docs/verification/rfc0014-m9-dependency-remediation.json",
+        "docs/verification/RFC-BPR-0014.md#m9-licensing-v003-partial-decision-finalization"
       ]
     },
     {
@@ -156,12 +138,13 @@
       "evidence_refs": [
         "docs/verification/rfc0014-m9-security-evidence.json",
         "docs/verification/RFC-BPR-0014.md#m9-dependency-remediation-after-m11",
-        "docs/verification/rfc0014-m9-dependency-remediation.json"
+        "docs/verification/rfc0014-m9-dependency-remediation.json",
+        "docs/verification/RFC-BPR-0014.md#m9-licensing-v003-partial-decision-finalization"
       ]
     }
   ],
   "milestone_results": {
-    "AC1": "Exact official Qt 6.11.2 macOS ZIP/source and native Windows MSI/source inventories rebuilt and mechanically audited. New macOS licensing-v003 and Windows licensing-v002 are ready/protected and await separate human decisions. Historical macOS v002 accept is preserved, not transferred. Mac ad-hoc, MSI NotSigned; independent final trust and Linux inventory remain pending.",
+    "AC1": "macOS licensing-v003 owner/legal distribution/source/build/relink and recipient access/retention criterion accepted at event 477/hand-back 478 for exact producer 92c4e159 and fingerprint fd1f4466. Windows licensing-v002 has no decision and remains pending, fingerprint e19c8c77. Both inventories and separate-source bindings reverified without changed bytes. Mac ad-hoc, MSI NotSigned; independent final trust and Linux obligations remain pending. Neither AC1 nor M9 is accepted.",
     "AC2": "Guarded exact macOS tests-disabled relocation/loader/MCP course passes; exact Windows staged and administrative-extracted MSI producer-byte, PE-map and hardening audits pass. Native ordinary-user installation/UI/account/vault, Intel/Linux matrix, external dependency hardening and full runtime/privacy/crash evidence remain pending.",
     "AC3": "Owner-selected official Qt 6.11.2 upgraded coherently, but bundled PCRE2 remains 10.47 and Windows zlib 1.3.2. Grype 0.119.0 with fresh DB 2026-09-21T06:39:24Z fails on 32 macOS/30 Windows matches, both exit 2. Source-backed per-match applicability is recorded without independent security-owner acceptance or suppression. Full build passes; raw suite 374/415 and serial Qt 75/84 failures retained; two owned failures fixed and focused rechecked. All nine Qt failures reproduce with old Qt 6.10.3. Focused contracts/static/docs/secret-delta checks complete, not blanket acceptance."
   },
@@ -364,7 +347,7 @@
     ]
   },
   "required_pending": [
-    "AC1 / exit 1: Separate owner/legal decisions for exact macOS licensing-v003 and Windows licensing-v002, including source/build/relink, recipient access and retention. Historical accept 42661017 applies only to old macOS licensing-v002 / fingerprint da5616 / producer 1c429749.",
+    "AC1 / exit 1: Windows licensing-v002 owner/legal decision remains pending for fingerprint e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74 / producer 67f5e514, including source/build/relink, recipient access and retention. macOS accept a3a22f09 applies only to licensing-v003 / fingerprint fd1f4466 / producer 92c4e159. Historical v002 accept 42661017 remains bound to producer 1c429749; no approval transfers to Windows/Linux or changed bytes.",
     "AC1 / exit 1: Independent final Windows Authenticode and macOS Developer-ID/notarization/Gatekeeper; declared Linux artifact/signature/checksum/source inventory. Current macOS is ad-hoc and MSI NotSigned. No signing/publication authority supplied.",
     "AC3 / exit 2: Raw Grype gate fails 32 macOS/30 Windows (Critical/High included), both exit 2 using fresh 2026-09-21T06:39:24Z DB. Obtain named independent source-backed security-owner applicability dispositions with expiry/recheck or newly qualified fixed producer; no suppression/waiver or acceptance exists. Original 21/19 failures retained.",
     "AC3: Official Qt 6.11.2 still bundles PCRE2 10.47 and Windows zlib 1.3.2. Released PCRE2 10.48 and unreleased zlib fix are not present in these official binaries. A custom patched Qt producer needs its own full source/provenance/native qualification; Qt 6.11.3 is scheduled, not available.",
@@ -375,8 +358,8 @@
   ],
   "review_handoff": {
     "session": "cbd48b91000b00f1e72e1ad62c7c384c",
-    "event_cursor": 476,
-    "status": "Both new static candidates ready and protected; new decisions not interpreted in this engineering round.",
+    "event_cursor": 478,
+    "status": "Human macOS accept at event 477 and hand-back 478 consumed by this finalization. Windows has no decision and remains pending. Both candidates remain ready/protected.",
     "candidates": [
       {
         "id": "rfc0014-m9-licensing-v003",
@@ -384,7 +367,23 @@
         "revision": "producer-92c4e159-mac-b0b94e7f-source-2532ba6a",
         "fingerprint": "fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a",
         "producer": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
-        "pending_decision": "Owner/legal exact macOS distribution/source/build/relink and recipient access/retention criterion only."
+        "pending_decision": null,
+        "decision": {
+          "candidate": "rfc0014-m9-licensing-v003",
+          "fingerprint": "fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a",
+          "decision_id": "a3a22f09-afe9-4386-8d2d-e784f1e0ee9e",
+          "outcome": "accept",
+          "note": "",
+          "saved_at": "2026-09-22T00:07:20.717179+00:00",
+          "actor": "human",
+          "decision_sequence": 477,
+          "hand_back_sequence": 478,
+          "hand_back_time": "2026-09-22T00:07:24.929299+00:00",
+          "producer_revision": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+          "approved_scope": "Only the existing owner/legal criterion for exact Qt 6.11.2 macOS licensing-v003: distribution terms, separate version-bound corresponding-source asset, installed reference/digest/provenance/notices, build/relink/replacement instructions, equivalent recipient access and retention.",
+          "excluded_scope": "Vulnerability dispositions, security acceptance, independent publisher/distribution trust, native matrix, publication/release authorization, Windows/Linux and any changed inventory. Empty human note preserved; no supporting legal opinion inferred."
+        },
+        "outcome": "accepted for exact existing owner/legal criterion only"
       },
       {
         "id": "rfc0014-m9-windows-licensing-v002",
@@ -392,11 +391,13 @@
         "revision": "producer-67f5e514-win-b34099e6-source-11babc5f",
         "fingerprint": "e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74",
         "producer": "67f5e51407a883e4469cee6008048a001f7c13b3",
-        "pending_decision": "Owner/legal exact Windows distribution/source/build/relink and recipient access/retention criterion only."
+        "pending_decision": "Owner/legal exact Windows distribution/source/build/relink and recipient access/retention criterion only.",
+        "decision": null,
+        "outcome": "pending; not accepted or rejected"
       }
     ],
     "server": {
-      "state": "Running; explicitly handed off to coordinator as the sole remaining task-owned command.",
+      "state": "Stopped through authenticated companion stop after durable decision capture. PID63428 and listener53424 absent, session host null; original exec3449 reaped with exit0.",
       "pid": 63428,
       "port": 53424,
       "exec_session": 3449,
@@ -408,9 +409,9 @@
         "/Users/jaeger/Documents/GitHub/BetterPullReview",
         "serve"
       ],
-      "url": "Complete authenticated loopback URL sent directly to coordinator; token intentionally not committed."
+      "url": "Retired authenticated loopback URL intentionally not committed. Reopen the same preserved session with serve when Windows review is requested."
     },
-    "watch_owner": "Coordinator /root was asked to adopt the server and arm attended_review.py wait after sequence 476 before ending its turn. This leaf has no watcher and consumes no new decision. Review interpretation belongs to the next engineering round.",
+    "watch_owner": "Coordinator handed back at 478. This finalization consumes only the recorded macOS decision and retires the host as requested. Windows pending review remains resumable; no watch is rearmed.",
     "no_automatic_acceptance": true,
     "excluded_scope": "Vulnerability dispositions, security acceptance, independent trust, native matrix and publication/release approval.",
     "historical_accept": "licensing_v002_finalization_state.review_handoff.decision",
@@ -418,23 +419,23 @@
   },
   "ownership": {
     "writers": "Sole main writer /root/rfc0014_m9_finalize; no children. Main writer ownership releases at final handoff. Other worktrees and live remote declarations preserved.",
-    "commands": "All engineering build/test/scan/remote commands finished. Only review server PID63428/exec3449 remains, explicitly transferred to coordinator. No task-owned remote writer, application or watcher remains.",
+    "commands": "All finalization checks complete; review server PID63428/exec3449 stopped and reaped, host null. No task-owned engineering command, application, remote writer or watcher remains.",
     "protected_candidates": "Eight protected candidates: six unchanged historical plus two new platform licensing inventories. No resume-development or unrelated/historical release.",
     "cleanup": {
-      "removed": "Consumed old-Qt comparison build, extracted Qt/source scan copies, duplicate source tar/download and empty guarded Cocoa scratch root only. Logs/hashes remain and source is reproducible from the exact commits/source assets.",
-      "retained": "Current native candidate/source/SPDX/notices, raw scans/advisories/receipts, current build trees and remote disposable producer/maps; all six historical protected inventories untouched.",
-      "remote": "station-writer free; live bpr-windows remains at its pre-existing revision with only its pre-existing .mask.lock.json modification. No task-owned remote process remains."
+      "removed": "Only inherited loopback server retired; no file, candidate, package, source asset, log, installation or protection deleted.",
+      "retained": "All eight protected inventories/decisions and earlier qualification cleanup retained. Windows remains ready/protected/undecided.",
+      "remote": "No remote command or mutation in this decision-only round; inherited quiescent stations and dirty MASK state preserved."
     }
   },
   "continuation": {
     "intent": "stop",
     "reason": "pending-obligation",
     "next_milestone": null,
-    "detail": "Stop this bounded M9 engineering round at required independent security/legal/trust/native inputs. M10/M11 already accepted; M12 remains ineligible through M8/M9 and canonical prerequisites. Coordinator owns the attended-review watch and must dispatch fresh engineering after actual decisions/inputs. No release authority."
+    "detail": "M9 remains blocked after exact macOS licensing-v003 acceptance. Windows licensing has no decision; security/Grype, independent trust and native/privacy/hardening inputs remain required. M10/M11 accepted, no eligible successor; M12 gated by M8/M9 and canonical prerequisites. Review host retired as requested; unchanged candidates/protections remain resumable later. No release authority."
   },
   "uncertainties": [
     "Source-backed applicability is proposed evidence, not independent security-owner acceptance. Official Qt 6.11.2 contains unfixed upstream versions; scan coverage and exact reachability gaps remain explicit.",
-    "Current two licensing inventories require fresh decisions; historic v002 approval neither transfers nor satisfies security/native/trust acceptance.",
+    "The exact macOS licensing-v003 criterion is accepted; Windows licensing-v002 remains explicitly undecided. Neither the new nor historical macOS accept supplies security/native/trust/release acceptance.",
     "All nine Qt failures reproduce with old Qt; no assertion that every remaining broader test failure is pre-existing or harmless.",
     "Configured role/model/effort banner is not independent runtime-loader attestation; host_load remains not_verified."
   ],
@@ -451,11 +452,33 @@
     "historical_protections": "Exact six-candidate projection before/after SHA66da43e97e746e8548b4af09057b9c3aa2c7262013fdb44f98e127b93667fd63"
   },
   "final_upkeep": {
-    "evidence": "docs/verification/rfc0014-m9-dependency-remediation.json",
-    "checks": "After final handoff edits, documentation returned DOCUMENTATION_OK, scoped board validation returned valid=true with 957 cards/no errors, and git diff --check passed. Quiescent milestone observation is recorded under build/m9-remediation.VaTqWL and reported with the exact handoff commit.",
-    "checkpoint_observation": "build/m9-remediation.VaTqWL/checkpoint-observation.json",
-    "acceptance": "BPR-0962 and both M9 exit records remain pending; helper does not confer engineering acceptance.",
-    "cleanup": "Only consumed task-owned diagnostic trees/copies and empty scratch removed; logs/hashes and protected candidates/source assets retained."
+    "scope": "Decision-only finalization; four explicit bookkeeping paths, no product, package, manifest, requirement or candidate mutation.",
+    "artifact_identity": "All13 recorded locally available artifact hashes match. Exact actual macOS ZIP/SPDX/source preflight returns RELEASE_SOURCE_ASSET_OK. Both manifest hashes and curated vulnerability evidence SHA30ca5020 remain unchanged.",
+    "documentation": {
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK"
+    },
+    "documentation_tests": {
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "exit_code": 0,
+      "result": "64 regressions pass; expected fixture refusal diagnostics are not failures"
+    },
+    "board": "Scoped issue_board.py validate: valid=true,957cards,no errors. Queue next=null; BPR-0962 Blocked/release-security-inputs and M12 waiting on BPR-0617,BPR-0958 through BPR-0962. M10/M11 acceptance unchanged.",
+    "diff": "git diff --check passes; diff outside the four authorized bookkeeping paths from b88c88b0 is empty.",
+    "review_protection": "All eight protections and full decisions preserved. Snapshot SHA8e0dfe98 before/after stop identical; Windows decision null. No conflicts, resume-development or release of protection.",
+    "checkpoint_observation": "build/m9-v003-finalize-observation.json binds final commit; check reports stop with engineering_acceptance not-evaluated. All BPR-0962/M9 exit records pending.",
+    "self_review": "Human accept bound to exact macOS criterion/fingerprint/producer only; empty note preserved. Windows unanswered item not accepted/rejected. No security/trust/native/release promotion, no changed acceptance criteria.",
+    "commands": "Authenticated stop exit0; PID/listener absent, host null; exec3449 reaped exit0. All other owned checks finished, no watcher rearmed.",
+    "cleanup": "Only inherited review server retired; no candidate, source asset, log, installation or protection removed."
   },
   "prior_round": {
     "child": "/root/rfc0014_m9",
@@ -1030,6 +1053,171 @@
     "historical_protection_projection": "jq -c '[.candidates[]|select(.protected)|select(.id != \"rfc0014-m9-licensing-v003\" and .id != \"rfc0014-m9-windows-licensing-v002\")|{id,revision,fingerprint,protected,phase,paths,resources,resource_versions,decision}]|sort_by(.id)' .mask/attended-review/session.json | shasum -a 256",
     "preservation": "Projection hash before preparation and after both new ready candidates is identical. All six historical protections and complete decisions retained; eight protections now active.",
     "workflow_checkpoint": "Bound at product 67f5e514 with identical definition/obligation/prerequisite fingerprints. Final observation at build/m9-remediation.VaTqWL/checkpoint-observation.json binds the containing final handoff commit, not the older product producer.",
-    "publication": "None"
+    "publication": "None",
+    "changed_paths": [
+      "README.md",
+      "cmake/BprDependencies.cmake",
+      "cmake/BprQtProvider.cmake",
+      "docs/architecture/native-markdown.md",
+      "docs/architecture/release-readiness.md",
+      "docs/development/build-and-test.md",
+      "docs/development/release-packages.md",
+      "docs/issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md",
+      "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
+      "docs/security/release-policy.md",
+      "docs/verification/RFC-BPR-0014.md",
+      "docs/verification/reviews/rfc0014-m9-licensing-v003/manifest.json",
+      "docs/verification/reviews/rfc0014-m9-windows-licensing-v002/manifest.json",
+      "docs/verification/rfc0014-m9-dependency-remediation.json",
+      "packaging/dependencies.json",
+      "packaging/package_runtime.py",
+      "src/app/src/windows_title_row_host.hpp",
+      "tests/end_to_end/release_package_course.py",
+      "tests/end_to_end/release_security_course.py",
+      "tests/end_to_end/runtime_surface_native_probe.py",
+      "tests/scripts/dependency_modernization_tests.py",
+      "tests/scripts/designated_live_macos_capsule_tests.py",
+      "tests/scripts/package_runtime_tests.py",
+      "tests/scripts/release_source_assets_tests.py",
+      "tests/scripts/verify_release_package_tests.py",
+      "tests/scripts/verify_release_security_tests.py",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json"
+    ],
+    "handoff_revision": "b88c88b0654afea3bf44f83c6ddf8e0684a3b2b8"
+  },
+  "licensing_v003_finalization_round": {
+    "assignment": "Only M9 decision finalization after hand-back 478, by sole non-delegating /root/rfc0014_m9_finalize, mandate r3 and coordinator-implementer rev2. No M12 or publication authority.",
+    "entry_revision": "b88c88b0654afea3bf44f83c6ddf8e0684a3b2b8",
+    "preparation_handoff": {
+      "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+      "event_cursor": 476,
+      "status": "Both new static candidates ready and protected; new decisions not interpreted in this engineering round.",
+      "candidates": [
+        {
+          "id": "rfc0014-m9-licensing-v003",
+          "manifest": "docs/verification/reviews/rfc0014-m9-licensing-v003/manifest.json",
+          "revision": "producer-92c4e159-mac-b0b94e7f-source-2532ba6a",
+          "fingerprint": "fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a",
+          "producer": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+          "pending_decision": "Owner/legal exact macOS distribution/source/build/relink and recipient access/retention criterion only."
+        },
+        {
+          "id": "rfc0014-m9-windows-licensing-v002",
+          "manifest": "docs/verification/reviews/rfc0014-m9-windows-licensing-v002/manifest.json",
+          "revision": "producer-67f5e514-win-b34099e6-source-11babc5f",
+          "fingerprint": "e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74",
+          "producer": "67f5e51407a883e4469cee6008048a001f7c13b3",
+          "pending_decision": "Owner/legal exact Windows distribution/source/build/relink and recipient access/retention criterion only."
+        }
+      ],
+      "server": {
+        "state": "Running; explicitly handed off to coordinator as the sole remaining task-owned command.",
+        "pid": 63428,
+        "port": 53424,
+        "exec_session": 3449,
+        "command": [
+          "python3",
+          "-u",
+          ".agents/skills/attended-review/scripts/attended_review.py",
+          "--repo-root",
+          "/Users/jaeger/Documents/GitHub/BetterPullReview",
+          "serve"
+        ],
+        "url": "Complete authenticated loopback URL sent directly to coordinator; token intentionally not committed."
+      },
+      "watch_owner": "Coordinator /root was asked to adopt the server and arm attended_review.py wait after sequence 476 before ending its turn. This leaf has no watcher and consumes no new decision. Review interpretation belongs to the next engineering round.",
+      "no_automatic_acceptance": true,
+      "excluded_scope": "Vulnerability dispositions, security acceptance, independent trust, native matrix and publication/release approval.",
+      "historical_accept": "licensing_v002_finalization_state.review_handoff.decision",
+      "old_protections": "All six historical protections and exact decisions unchanged; total eight active protections."
+    },
+    "changed_paths": [
+      "docs/issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md",
+      "docs/verification/RFC-BPR-0014.md",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m9.json",
+      "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m9.json"
+    ],
+    "decision": {
+      "candidate": "rfc0014-m9-licensing-v003",
+      "fingerprint": "fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a",
+      "decision_id": "a3a22f09-afe9-4386-8d2d-e784f1e0ee9e",
+      "outcome": "accept",
+      "note": "",
+      "saved_at": "2026-09-22T00:07:20.717179+00:00",
+      "actor": "human",
+      "decision_sequence": 477,
+      "hand_back_sequence": 478,
+      "hand_back_time": "2026-09-22T00:07:24.929299+00:00",
+      "producer_revision": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+      "approved_scope": "Only the existing owner/legal criterion for exact Qt 6.11.2 macOS licensing-v003: distribution terms, separate version-bound corresponding-source asset, installed reference/digest/provenance/notices, build/relink/replacement instructions, equivalent recipient access and retention.",
+      "excluded_scope": "Vulnerability dispositions, security acceptance, independent publisher/distribution trust, native matrix, publication/release authorization, Windows/Linux and any changed inventory. Empty human note preserved; no supporting legal opinion inferred."
+    },
+    "windows": {
+      "candidate": "rfc0014-m9-windows-licensing-v002",
+      "fingerprint": "e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74",
+      "producer_revision": "67f5e51407a883e4469cee6008048a001f7c13b3",
+      "decision": null,
+      "status": "Explicitly pending at hand-back 478; no inferred acceptance or rejection."
+    },
+    "protection_snapshot_sha256": "8e0dfe98db18c4d6d01d3b94417507094899a7ff3bb4d136ad785ea28043a59c",
+    "protection_snapshot_command": "jq -c '[.candidates[]|select(.protected)|{id,revision,fingerprint,protected,phase,paths,resources,resource_versions,decision}]|sort_by(.id)' .mask/attended-review/session.json | shasum -a 256",
+    "artifact_identity": "All 13 locally available reviewed artifact digests match: seven macOS and six Windows, including exact binary package, SPDX, source asset and installed legal material; no bytes modified.",
+    "source_preflight": {
+      "command": [
+        "python3",
+        "packaging/verify_release_sources.py",
+        "--app-zip",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-local.zip",
+        "--sbom",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+        "--source-archive",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip",
+        "--version",
+        "0.1.3",
+        "--source-revision",
+        "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf"
+      ],
+      "exit_code": 0,
+      "result": {
+        "asset": {
+          "name": "BetterPullReview-0.1.3-macos-universal-corresponding-source.zip",
+          "sha256": "2532ba6aaa2137deb709f201faa453214425e52cc3bec5389cbe898210663329",
+          "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.3/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip"
+        },
+        "legal_approval": "pending separately; offline preflight cannot verify recipient access or retention",
+        "result": "RELEASE_SOURCE_ASSET_OK",
+        "source_revision": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf"
+      },
+      "scope": "Mechanical identity check only; generic legal-pending text does not interpret the separately recorded human decision."
+    },
+    "manifest_sha256": {
+      "macos": "69e1cdc2d5559d9cde2308c2ec56cbf0ac297e10ed403ec10cb42a0218af054c",
+      "windows": "1b1f1973974565f0334db4283135a4b43ceeffb137fbdddc11674439f086f40d"
+    },
+    "unchanged_scan_record_sha256": "30ca502097e2eb6e0d7dda1da8076306e0cabbb7ce30fd6b04314b429caf5bce",
+    "checkpoint": "Rebound to finalization entry b88c88b0 with unchanged mandate/definition/obligation/prerequisite fingerprints; no requirement or acceptance exit changed.",
+    "server_stop": {
+      "command": [
+        "python3",
+        ".agents/skills/attended-review/scripts/attended_review.py",
+        "--repo-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "stop"
+      ],
+      "exit_code": 0,
+      "result": {
+        "stopped": true
+      },
+      "postcondition": "PID 63428 absent, no TCP listener on port 53424, session host null and cursor478 unchanged. All eight protection/decision records match the before-stop projection SHA-256.",
+      "exec_session": {
+        "id": 3449,
+        "exit_code": 0,
+        "result": "Reaped successfully; no remaining output or command."
+      }
+    },
+    "reused_evidence": "Existing exact package/public/native mechanics, focused contracts/static/secret evidence and all raw failed scans/tests retain their scope. No candidate rebuild or repeated broad suite.",
+    "next_action": "No eligible successor: M10/M11 accepted; M12 waits on M8/M9 and canonical prerequisites. Windows licensing remains pending and resumable without re-preparing unchanged bytes. Obtain independent security/trust/native inputs.",
+    "protection_after_stop_sha256": "8e0dfe98db18c4d6d01d3b94417507094899a7ff3bb4d136ad785ea28043a59c"
   }
 }
