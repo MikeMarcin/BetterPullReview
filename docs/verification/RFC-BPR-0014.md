@@ -85,9 +85,12 @@ RFC0038/BPR0973, unchanged pending criteria, plan preservation and current check
 Guarded claim `0dc3009c683b171d1da299e8985734abf09d718e` starts BPR0965.
 Its current nine-row checklist accepts only the bounded foundation; each row
 names producing revisions and explicit limits. AC1–AC3 are accepted under r4,
-with no M8/M9 acceptance. The guarded finish commits the RFC/index
-Auto-Verified state and Done card together after current documentation and
-scope checks; the final handoff records that exact resulting revision.
+with no M8/M9 acceptance. Guarded finish
+`b7eb372249114a0d92a08d6f792e176211b16300` commits RFC/index Auto-Verified
+and BPR0965 Done together. Final queue is 17/17 Done; post-commit documentation,
+plan/board and bound quiescent checkpoint checks pass. The
+[durable r4 handoff](../rfcs/plans/rfc-bpr-0014-release-readiness/handoff-owner-closeout-r4.json)
+records exact commands, failures, candidate identities, scope and continuation.
 
 The original fourteen-RFC pack is complete under its explicit owner amendments.
 RFC0038 remains Proposed with five Blocked qualification cards and Backlog

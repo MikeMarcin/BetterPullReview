@@ -1,0 +1,237 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Close RFC-BPR-0014/BPR-0965 now on clean main under explicit owner amendment r4; preserve implemented M1–M7/M10/M11 outcomes and truthful M8/M9 evidence; transfer all unfinished qualification to durable follow-ups/successor without invented passes.",
+  "child": "/root/rfc0014_owner_closeout",
+  "mandate_revision": "r4",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0014-owner-closeout-r4",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "entry_revision": "4f2c3bdb5855ba0fb509889cdbe08d7cf534acab",
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "product_test_candidate_revision": "4f2c3bdb5855ba0fb509889cdbe08d7cf534acab",
+  "terminal_scope_and_card_revision": "b7eb372249114a0d92a08d6f792e176211b16300",
+  "milestone": "m12-verification-rfc-closeout",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-owner-closeout-r4.json",
+  "mandate": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/mandate-owner-closeout-r4.md",
+  "result": {
+    "disposition": "milestone-complete",
+    "rfc_status": "Auto-Verified",
+    "card": "BPR-0965",
+    "card_status": "Done",
+    "selected_count": 17,
+    "done_count": 17,
+    "original_pack": "RFC0001–0014 Auto-Verified under explicit owner amendments",
+    "interpretation": "Nine amended foundation rows accepted. All nine former release criteria retained verbatim in RFC0038; five native/security cards remain Blocked. All M1–M11 plan objects unchanged, including unaccepted M8/M9. Extended shared plan remains incomplete under successor; no release qualification or authority implied."
+  },
+  "commits": [
+    {
+      "revision": "29adb0ab2926746fc5d008c8b227cc4700c90e8b",
+      "purpose": "Explicit r4 scope split, successor RFC0038, BPR0973 allocation/counter/receipt, unchanged-criteria follow-up reassociation, shared plan/mandate/preservation, operator documentation/current evidence and guarded Ready promotion."
+    },
+    {
+      "revision": "0dc3009c683b171d1da299e8985734abf09d718e",
+      "purpose": "Guarded BPR0965 claim."
+    },
+    {
+      "revision": "b7eb372249114a0d92a08d6f792e176211b16300",
+      "purpose": "Guarded BPR0965 Done, accepted nine-row foundation checklist, RFC/index Auto-Verified atomically, checkpoint/acceptance and integration ledger. The subsequent documentation-only commit contains this exact handoff."
+    }
+  ],
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target test_release_maintenance_core test_release_maintenance_host test_release_maintenance_files test_release_maintenance_panel test_release_maintenance_public_path test_profile_activation_public_path -j 6",
+      "result": "Exit 0, ninja no work to do; exact current product inputs."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^(core_release_maintenance|application_release_maintenance|sqlite_release_maintenance_files|qt_release_maintenance_scale_(100|125|200)|application_release_maintenance_public_path|application_profile_activation_public_path|release_source_assets_contract|release_package_audit_contract|release_security_audit_contract|rfc0017_release_absence_negative_control|test_network_isolation_manifest|architecture_boundary_contract)$'",
+      "result": "13/14 pass, raw exit 8, 123.58s. Public maintenance 16.98s, activation 5.15s, all three Qt scales and package/source/security/architecture-negative contracts pass. Network manifest fails; not reported as a green whole selection.",
+      "receipt": "build/rfc0014-r4-focused.json"
+    },
+    {
+      "command": "verify_test_network_isolation.py with complete entry git archive as --root and actual build/dev manifest",
+      "result": "Source-only duplicate registration diagnostics disappear but exact absolute source/build paths correctly refuse; release_update_native_https one-port versus pinned-zero mismatch remains. Not a passing full gate. BPR0962 AC2/AC3 owns exact-authority reconciliation and matching clean-source/build rerun.",
+      "receipt": "build/rfc0014-r4-network-manifest.json"
+    },
+    {
+      "command": "git archive 4f2c3bdb5855ba0fb509889cdbe08d7cf534acab, then cmake -DBPR_ROOT=/tmp/bpr0014-r4-tracked.aEejaK -P /tmp/bpr0014-r4-tracked.aEejaK/cmake/VerifyArchitectureBoundaries.cmake",
+      "result": "Exit 0, architecture boundaries verified, 5.660s. Entire tracked source includes every consumer file; unrelated ignored nested checkout excluded without modifying it or weakening checker.",
+      "receipt": "build/rfc0014-r4-architecture.json"
+    },
+    {
+      "command": "python3 packaging/verify_release_sources.py --app-zip build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-local.zip --sbom build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-local.spdx.json --source-archive build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip --version 0.1.3 --source-revision 92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+      "result": "RELEASE_SOURCE_ASSET_OK, exit 0, 0.128s. First orientation preflight also passed. No upload/sign/notarize or recipient-access/retention approval.",
+      "receipt": "build/rfc0014-r4-source-preflight.json"
+    },
+    {
+      "command": "shasum -a 256 on seven locally retained Mac/Windows package/SPDX/source/executable identities and curated remediation JSON; codesign --verify --deep --strict --verbose=2 exact retained Mac app",
+      "result": "Every recorded digest matches successor ledger; local ad-hoc seal exit 0. Historical Windows executable identity is retained, not freshly rehashed remotely. No independent trust claim."
+    },
+    {
+      "command": "python3 scripts/verify_release_package.py and verify_release_security.py --build build/macos-release --root build/releases/m9-qt6112-92c4e159/BetterPullReview.app --sbom build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-local.spdx.json --source-revision 92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+      "result": "Both exit 1, package-build-source-drift (0.262s / 0.240s): current provider includes later Windows-only pinned aqtinstall acquisition change. Conservative guard left intact; old artifacts not relabeled current-source release candidates. Exact original successful producer audits remain bounded retained evidence.",
+      "receipts": [
+        "build/rfc0014-r4-package.json",
+        "build/rfc0014-r4-security.json"
+      ]
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py",
+      "result": "DOCUMENTATION_OK before scope commit, claim/finish and after atomic closeout. Regressions 64/64 pass, 1.980s; expected negative-fixture diagnostics, no verifier changed.",
+      "receipt": "build/rfc0014-r4-documentation-tests.json"
+    },
+    {
+      "command": "milestone_plan.py check; issue_board.py validate/queue for RFC0014/RFC0038; git diff --check; explicit normalized object/criterion preservation comparisons",
+      "result": "Plan structurally valid/references resolved. 965 cards valid, no errors. RFC0014 17/17 Done; RFC0038 0/6 Done, five Blocked and one Backlog. Nine original criteria verbatim, M1–M11 objects unchanged, five Acceptance sections unchanged. No src/tests/cmake/packaging/tools/scripts/CMake/publish-release/protected-review/import-source change from entry."
+    },
+    {
+      "command": "milestone_checkpoint.py check --execution quiescent, current binding and accepted M1–M7/M10/M11",
+      "result": "At b7eb372249114a0d92a08d6f792e176211b16300: action stop at assigned integrated boundary. Engineering acceptance explicitly not-evaluated by helper; this leaf owns the r4 judgment.",
+      "receipt": "build/rfc0014-r4-observation.json"
+    }
+  ],
+  "artifacts": [
+    {
+      "platform": "macOS universal",
+      "producer": "92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf",
+      "package_sha256": "65cbeb97be3252c2b7e4346fe8033842671030c660744af41943eeecdffeb22c",
+      "sbom_sha256": "b0b94e7fc1deabf16d0fe59af8ff5d19732cab859fa5887e3477f1258dd09b2c",
+      "separate_source_sha256": "2532ba6aaa2137deb709f201faa453214425e52cc3bec5389cbe898210663329"
+    },
+    {
+      "platform": "Windows x64",
+      "producer": "67f5e51407a883e4469cee6008048a001f7c13b3",
+      "package_sha256": "0174d9ce46537601ffca81295eed3bcea31c7fc5666e35613b8e4d6810178ef6",
+      "sbom_sha256": "b34099e6a7e957dc64916a649c2c036ce16ad26dcf0e1c9507b05a7fa979494b",
+      "separate_source_sha256": "11babc5ff5cc7865344835685223d4757bddfa433a4517d56fe9975f39436b3b"
+    }
+  ],
+  "followups": {
+    "rfc": "RFC-BPR-0038",
+    "status": "Proposed",
+    "ledger": "docs/verification/RFC-BPR-0038.md",
+    "allocated_closeout": "BPR-0973",
+    "reservation": "docs/issues/_reservations/BPR-0973--BPR-0973--255d749fb42b.json",
+    "next_id": "BPR-0974",
+    "cards": [
+      {
+        "id": "BPR-0958",
+        "status": "Blocked",
+        "pending": "Clean Apple Silicon account/authentication/default Keychain, complete exact rendered course, full native purge/residuals."
+      },
+      {
+        "id": "BPR-0959",
+        "status": "Blocked",
+        "pending": "Native Intel full package/auth/render/vault/purge/uninstall; no Rosetta/slice substitute."
+      },
+      {
+        "id": "BPR-0960",
+        "status": "Blocked",
+        "pending": "Clean Windows10/11 non-elevated desktops, auth/high-DPI/accessibility/Credential Manager/purge; completed PE mechanics retained."
+      },
+      {
+        "id": "BPR-0961",
+        "status": "Blocked",
+        "pending": "Declared Ubuntu24.04/RHEL10 native DEB/RPM complete courses; Ubuntu26.04 WSL inspector probes remain narrower evidence."
+      },
+      {
+        "id": "BPR-0962",
+        "status": "Blocked",
+        "pending": "Final independent trust; unanswered Windows and future Linux licensing; actual equivalent source access/retention; raw Grype32/30 failures and independent applicability; external hardening/full PE CFG/sanitizer/fuzz/runtime/vault/foreign-user IPC/resident-material crash/privacy; broad test failures and current network-manifest discrepancy."
+      },
+      {
+        "id": "BPR-0973",
+        "status": "Backlog",
+        "pending": "All nine original release criteria, five prerequisite cards and canonical-order successor closeout."
+      }
+    ],
+    "other_ownership": "Existing RFC0035/BPR0911/0912/0950 updater and BPR0940/0945/0967–0972 related broad-test/quality work untouched; BPR0962 coordinates relevant release evidence, not a silent duplicate or acceptance."
+  },
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "event_cursor": 478,
+    "host": null,
+    "pending_decisions": [
+      {
+        "id": "rfc0014-m9-windows-licensing-v002",
+        "revision": "producer-67f5e514-win-b34099e6-source-11babc5f",
+        "fingerprint": "e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74",
+        "decision": null
+      }
+    ],
+    "latest_scoped_accept": {
+      "id": "rfc0014-m9-licensing-v003",
+      "decision_id": "a3a22f09-afe9-4386-8d2d-e784f1e0ee9e",
+      "fingerprint": "fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a",
+      "event": 477,
+      "limit": "Exact Mac licensing/source inventory only; not security/native/trust/release approval."
+    },
+    "protected_count": 8,
+    "protected_projection_sha256": "8e0dfe98db18c4d6d01d3b94417507094899a7ff3bb4d136ad785ea28043a59c",
+    "interpretation": "No required human criterion remains inside explicitly amended M12. Transferred question stays pending for a fresh authorized attended assignment. Existing eight protections, M8 accepts, old rejected/accepted licensing candidates and unrelated BPR0755 remain unchanged. Companion conflicts check found none for scoped writes; no server was started."
+  },
+  "ownership": {
+    "repository_writer": "/root/rfc0014_owner_closeout exclusively until final return, then released",
+    "delegated_agents": [],
+    "commands": "All task-owned commands complete and results collected; no build/test/native app/helper/server process or remote station writer remains.",
+    "sessions_collected": [
+      31007,
+      75668,
+      77181
+    ],
+    "review_server": null,
+    "remote_operations": [],
+    "worktrees": "All six registered main/RFC18–26/RFC36/RFC37/superseded/ignored checkouts remain; no other worktree created/edited/removed. Main alone advanced through listed commits; other observed revisions unchanged.",
+    "project_sha256": "faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2",
+    "mask_lock_sha256": "a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf",
+    "cleanup": "Only task-owned complete tracked-source temp archive moved recoverably from /tmp/bpr0014-r4-tracked.aEejaK to /Users/jaeger/.Trash/bpr0014-r4-tracked.aEejaK. Initial rm-f cleanup was rejected before execution; safer move succeeded. Ignored evidence receipts retained; every protected fixture/package/source asset unchanged. No user data removed."
+  },
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "integrated-boundary",
+    "detail": "Assigned RFC0014/BPR0965 r4 foundation closeout is integrated; original pack is terminal. Pending M8/M9 now belong to RFC0038 and require fresh coordinator/user assignment and actual missing inputs. No successor work is authorized by this return."
+  },
+  "required_pending": [],
+  "uncertainties": [
+    "Full native/release trust/security/legal qualification is still pending under RFC0038, not erased by r4. Latest raw vulnerability and broad test failures remain real.",
+    "Current network-manifest mismatch is retained on BPR0962; no isolation weakening or root-cleanup shortcut used.",
+    "Old exact Mac artifact is not a current-source package because the strict source guard refuses later provider drift. Fresh source-sidecar/hash/seal success is narrower than a full re-audit.",
+    "Preservation-only amendment helper refused scope change as designed; explicit owner r4 supplies separate authority. Generated view briefly stale during JSON amendment then mechanically regenerated and verified.",
+    "Configured route host_load remains not_verified and existing MASK observations are not repaired. No new independent review, legal opinion or release authority is claimed."
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/development/release-packages.md",
+    "docs/issues/10-backlog/BPR-0973-close-rfc-0038.md",
+    "docs/issues/50-blocked/BPR-0958-qualify-macos-arm64-package.md",
+    "docs/issues/50-blocked/BPR-0959-qualify-macos-intel-package.md",
+    "docs/issues/50-blocked/BPR-0960-qualify-windows-x64-package.md",
+    "docs/issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md",
+    "docs/issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md",
+    "docs/issues/60-done/BPR-0951-import-and-plan-rfc-0014.md",
+    "docs/issues/60-done/BPR-0965-close-rfc-0014.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/README.md",
+    "docs/issues/_reservations/BPR-0973--BPR-0973--255d749fb42b.json",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/RFC-BPR-0038-native-package-release-security-qualification.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-owner-closeout-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/mandate-owner-closeout-r4.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/owner-closeout-r4/acceptance.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/owner-closeout-r4/amendment-check.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/owner-closeout-r4/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/owner-closeout-r4/scope-preservation.json",
+    "docs/security/corporate-security-overview.md",
+    "docs/verification/RFC-BPR-0014.md",
+    "docs/verification/RFC-BPR-0038.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-owner-closeout-r4.json"
+  ]
+}
