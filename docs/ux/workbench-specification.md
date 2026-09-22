@@ -181,6 +181,11 @@ job.
   Their jobs moved rather than disappearing: a pull request is named in the
   Home bar, a load refusal is said under that bar, Refresh is the strip's,
   and a session failure is the card's own state and its Details.
+  If the first load fails or is cancelled before any review is accepted,
+  the window returns to Home with its Open bar available. A failed load shows
+  the existing diagnostic and Copy details there. Enabled drawer commands
+  cannot keep an empty Overview or comparison visible; a failed refresh
+  retains the previously accepted review.
 - Every gesture on the page emits a semantic application intent. Show Review
   Threads is Qt-local presentation behavior that selects, expands, scrolls
   to, and focuses the first available review thread.
@@ -739,6 +744,30 @@ answered differently would be a disagreement the reviewer could see.
 The map maps whichever threads the drawer is currently showing, so its summary
 counts across them. A projection equal to the one already mapped is skipped
 rather than relaid, because the drawer re-adopts on every anchor change.
+
+## Profile storage and privacy
+
+The profile Settings shell mounts **Storage & privacy** independently of GitHub
+sign-in. **Preview diagnostics** renders the exact frozen metadata document;
+**Export preview…** chooses a new local file. Existing files are refused and
+there is no upload action. Seven actions follow core command projections; status
+updates preserve an unchanged preview's selection/scroll and never reset the
+review models.
+
+**Prepare diagnostic cleanup…** and **Prepare profile purge…** warn that all
+work in that profile stops and unsaved work must be finished first. Preparation
+deletes nothing. A second confirmation binds the displayed profile and complete
+prepared inventory; Cancel is default/Escape at both stages. An authority or
+selection change dismisses a stale dialog. Cancellation after preparation does
+not restart the profile, and an irreversible failure can require recovery.
+
+The terminal distinguishes local export, cleared diagnostics, purged/stopped
+profile, cancellation, refusal and recovery-required cleanup. Residuals include
+shared registry/updater data, exports and sibling profiles. Follow the
+[operator steps](../development/storage-and-diagnostics.md) and
+[typed maintenance contract](../architecture/release-maintenance.md). Component
+rendering/public-path evidence does not supply the still-pending complete native
+accessibility, vault, purge or uninstall qualification.
 
 ## Command placement
 

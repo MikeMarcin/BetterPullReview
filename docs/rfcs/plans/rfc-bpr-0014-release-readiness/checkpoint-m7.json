@@ -1,0 +1,84 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m7-focused-tests-fixtures",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m7-focused-tests-fixtures",
+    "definition_fingerprint": "sha256:bc6b9e152b3d9d93a5ea637353f0cd10d89b3282dec77efce2384cb091a4efc8",
+    "obligations": [
+      {
+        "id": "BPR-0957:*",
+        "source": "BPR-0957",
+        "selector": null,
+        "source_fingerprint": "sha256:90934d988ccc4290240e8977a52c52b2747ec160207c9e44b6b8f5b8063e4245"
+      }
+    ],
+    "obligation_fingerprint": "sha256:91cc92b2dfe37cc484a1b59d9766a14d8ed9acdb36993c327170325e9f96c915",
+    "exit_criteria": [
+      {
+        "id": "m7-focused-tests-fixtures:exit:1",
+        "text": "Direct checks fail when an essential packaged capability or boundary is broken."
+      },
+      {
+        "id": "m7-focused-tests-fixtures:exit:2",
+        "text": "Exact-candidate focused integration checks pass and tests-disabled package audits exclude fixture seams."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:b173572b9951eb9baea8ebe414cfa2cdde0072ac609470cfd2159b2f432da00a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "988f2d34d0245c86520ac4b7234b4997c0258928",
+    "workflow_branch": "main",
+    "workflow_revision": "988f2d34d0245c86520ac4b7234b4997c0258928"
+  }
+}

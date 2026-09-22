@@ -16,7 +16,7 @@ Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
 ## Dependency boundary
 
-The root resolves dependencies before product subdirectories. Qt 6.10.3 is
+The root resolves dependencies before product subdirectories. Qt 6.11.2 is
 acquired by a pinned provider into the shared dependency cache and then
 resolved through its ordinary CMake config package, so discovery does not
 depend on how Qt arrived. `BPR_QT_ROOT` names an existing prefix to use
@@ -33,8 +33,9 @@ an installed package. Python, Git, Threads, and `PkgConfig` are selected
 explicitly from CMake's built-in module providers regardless of
 `CMAKE_FIND_PACKAGE_PREFER_CONFIG`; package redirects for provider-owned names
 are rejected before any redirect script can execute.
-BetterPullReview must be the top-level project until RFC-BPR-0014 adds its
-install/export development package. `CMAKE_PROJECT_TOP_LEVEL_INCLUDES` is
+BetterPullReview configures as the audited top-level project. RFC-BPR-0014 adds
+application installation/package rules, not a separate core SDK or general
+embedding API. `CMAKE_PROJECT_TOP_LEVEL_INCLUDES` is
 rejected so a dependency provider cannot intercept audited discovery. The
 repository modules, CTest, and CMake's built-in find modules are loaded through
 trusted absolute paths rather than caller-controlled `CMAKE_MODULE_PATH`.
@@ -47,7 +48,14 @@ source-ID checks, and copies only the verified `sqlite3.c` and `sqlite3.h` into
 a controlled build-tree staging directory. The static
 `BetterPullReview::SQLite3` target never includes the broader CPM extraction
 directory. CPM is not used to fetch Qt or to replace caller-installed platform
-packages.
+packages. Qt 6.11.2 uses aqtinstall 3.3.0 on macOS/Linux. On Windows, that
+released installer cannot locate Qt 6.11's changed repository layout, so the
+provider pins upstream merge `8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b`
+([aqtinstall PR 1000](https://github.com/miurahr/aqtinstall/pull/1000)). This is
+an explicitly unreleased, build-only installer revision, not a modified Qt
+runtime. Its acquisition requires Git on `PATH`; the installed Qt version is
+still checked exactly. A preinstalled official 6.11.2 prefix can instead be
+supplied through `BPR_QT_ROOT`, including offline builds.
 
 KSyntaxHighlighting 6.28.1 is acquired the same way, with
 extra-cmake-modules 6.28.0 as a pinned transitive build input. Caller-installed
@@ -104,6 +112,14 @@ ctest --preset core-only --output-on-failure
 Both presets use out-of-source directories under ignored `build/`.
 Both also have schema-12 workflow presets, for example
 `cmake --workflow --preset core-only`.
+
+Distribution uses `macos-release`, `windows-app-release` or `linux-package`,
+each with Release, tests disabled and distribution runtime restrictions. The
+[package operator guide](release-packages.md) names the required native
+baselines/toolchains and existing `publish-release` workflow. Ordinary
+`app-release` builds are not distribution qualification. Exact package audits
+bind source, compile/link graph, installed bytes, SPDX/notices and the separate
+source asset; they do not supply publisher trust or native acceptance.
 
 ## Dif asset maintenance
 
@@ -2724,7 +2740,8 @@ sanitized error summary. Unknown capability error message/type/code prose stays
 useful. Filtering happens while the native adapter still owns the active
 credential, before any summary reaches Quill. Authentication bodies, headers,
 request URLs and source/review bodies are excluded. Local prose can still name
-a service or account; identity anonymization and export are deferred.
+a service or account. RFC-0014's separate metadata export omits that prose;
+general identity anonymization of the readable log remains deferred.
 
 Epoch preparation also records fixed `epoch_stage`, `failure_domain`, `failure`
 and optional `pack_failure` names. These distinguish catalog/cache access,
@@ -2736,19 +2753,25 @@ so its earlier adapter detail may already be unavailable. Logging refusal or
 backpressure does not change the history result.
 
 One owner-only file survives quit and appends across launches. The 16 MiB cap
-stops further recording; this version does not rotate or delete logs. To start a
-fresh file, quit the app and move or remove that exact file yourself. Symlinked,
-shared-permission or already-locked targets are refused. Windows file logging
-currently reports unavailable; runtime evidence covers macOS, not native Linux.
+stops further recording; automatic rotation is not implemented. RFC-0014 extends
+the same Quill sink with Windows private ACL/handle support and composes explicit
+diagnostic cleanup under the profile retirement barrier. Symlinked,
+shared-permission or already-locked targets are refused. Implementation and
+component evidence do not complete the native package/logging matrix.
 
 Summary storage is capped at 2,048 bytes. Each admitted producer has a dropping
 64 KiB queue, with at most 16 admitted thread identities and bounded backend
 transit buffers. Normal backend flushing uses Quill's 200 ms minimum interval;
 ordinary shutdown drains after producer quiescence. This is not crash durability
 or a hard filesystem-latency guarantee. Full/unavailable/drop states are exposed
-through the typed logging port; no Settings indicator or console fallback exists
-in this foundation. Rotation, retention, verbose/privacy controls, anonymization,
-export and expanded event coverage remain BPR-0603 work.
+through the typed logging port. Storage & privacy now offers bounded preview,
+local export, clear and profile purge through a separate typed maintenance host.
+The export contains only classified operation/outcome and numeric HTTP/drop
+metadata, not a copy of the raw log. Follow the
+[storage and diagnostics guide](storage-and-diagnostics.md) for exact labels,
+limits, stopped-profile behavior and failure/recovery. Rotation, broad verbosity,
+optional context capture and expanded event coverage remain BPR-0603 work;
+RFC-0014 does not claim those deferred controls or complete crash redaction.
 
 Focused checks:
 

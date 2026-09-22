@@ -51,11 +51,26 @@ namespace bpr::app {
 			std::uint64_t                                          StartupSerial        = 0;
 			bool                                                   Started              = false;
 			bool                                                   Closing              = false;
+			bool                                                   MaintenanceClosing   = false;
 			bool                                                   WindowPublished      = false;
 			bool                                                   ActivationPolling    = false;
 			bool                                                   ActivationSubmitting = false;
 			std::shared_ptr<application::profile_activation_reply> ActivationReply;
 			core::profile_launch_intent                            ActivationIntent = core::profile_launch_intent::activate;
+		};
+		struct maintenance_entry
+		{
+			std::unique_ptr<release_maintenance_controls>                Controls;
+			std::function<void(application::release_maintenance_result)> Completion;
+			bool                                                         Retired = false;
+			bool                                                         Failed  = false;
+			auto                                                         result() const -> application::release_maintenance_result
+			{
+				if (Failed) {
+					return std::unexpected(core::release_maintenance_reason::recovery_required);
+				}
+				return { };
+			}
 		};
 
 	public:
@@ -132,7 +147,7 @@ namespace bpr::app {
 		auto current(core::bpr_window_context aContext) const noexcept -> bool
 		{
 			const auto found = Runtimes.find(aContext.Profile);
-			if (Quitting || UpdatePreparing || !Host || !Host->current(aContext) || found == Runtimes.end() || found->second.Closing) {
+			if (Quitting || UpdatePreparing || !Host || !Host->current(aContext) || found == Runtimes.end() || found->second.Closing || found->second.MaintenanceClosing) {
 				return false;
 			}
 			const auto selected = found->second.Windows.find(aContext.Window);
@@ -157,7 +172,7 @@ namespace bpr::app {
 		}
 		void quit_for_update(std::function<void(bool)> aPrepared)
 		{
-			if (Quitting || UpdatePreparing || !Host || !Projection.Ready || Projection.Busy || PendingLaunch
+			if (Quitting || UpdatePreparing || !Maintenance.empty() || !Host || !Projection.Ready || Projection.Busy || PendingLaunch
 				|| std::ranges::any_of(Runtimes, [](const auto& aEntry) { return !aEntry.second.Runtime || !aEntry.second.RecoveryReady || aEntry.second.Closing || !aEntry.second.Runtime->desktop_update_ready(); })) {
 				if (aPrepared) {
 					aPrepared(false);
@@ -226,6 +241,10 @@ namespace bpr::app {
 				return;
 			}
 			Quitting = true;
+			for (auto& [profile, maintenance] : Maintenance) {
+				static_cast<void>(profile);
+				maintenance.Controls->shutdown();
+			}
 			if (Updater) {
 				Updater->shutdown();
 			}
@@ -255,12 +274,19 @@ namespace bpr::app {
 			}
 			finish_initial(std::unexpected(github_application_startup_failure::cancelled));
 		}
-		auto base_quiescent() const noexcept -> bool { return Quitting && Runtimes.empty() && (!Host || Host->is_quiescent()) && Effects.idle() && (!Updater || Updater->quiescent()); }
+		auto base_quiescent() const noexcept -> bool { return Quitting && Runtimes.empty() && Maintenance.empty() && (!Host || Host->is_quiescent()) && Effects.idle() && (!Updater || Updater->quiescent()); }
 		auto is_quiescent() const noexcept -> bool { return base_quiescent() && !NativeBusy && (UpdateShutdownTransaction.empty() || UpdateAcknowledged); }
 		auto exit_code() const noexcept -> int { return ExitCode; }
 		void publish(const application::profile_management_projection& aProjection) override
 		{
 			Projection = aProjection;
+			if (aProjection.Failure && aProjection.Failure->Profile && aProjection.Failure->Operation == application::profile_management_operation::close
+				&& aProjection.Failure->Reason != application::profile_management_failure::busy) {
+				const auto pending = Maintenance.find(*aProjection.Failure->Profile);
+				if (pending != Maintenance.end()) {
+					pending->second.Failed = true;
+				}
+			}
 			if (UpdatePreparing && aProjection.Failure && aProjection.Failure->Operation == application::profile_management_operation::quit) {
 				complete_update_prepare(false);
 			}
@@ -387,7 +413,7 @@ namespace bpr::app {
 				return;
 			}
 			auto& entry = found->second;
-			if (entry.Closing || entry.Windows.contains(aCommand.Context.Window)) {
+			if (entry.Closing || entry.MaintenanceClosing || entry.Windows.contains(aCommand.Context.Window)) {
 				static_cast<void>(Host->complete_open(aCommand.Context, std::unexpected(application::profile_management_failure::busy)));
 				return;
 			}
@@ -719,7 +745,7 @@ namespace bpr::app {
 		/// desktop with no window is activated, through the existing open intent.
 		void application_state_changed(const Qt::ApplicationState aState)
 		{
-			if (aState != Qt::ApplicationActive || Quitting || !Runtimes.empty() || !Host || PendingLaunch) {
+			if (aState != Qt::ApplicationActive || Quitting || !Runtimes.empty() || !Maintenance.empty() || !Host || PendingLaunch) {
 				return;
 			}
 			if (LastEmptyOutcome != empty_desktop_outcome::stay_resident || !Projection.Ready || Projection.Busy || Projection.Closing) {
@@ -749,7 +775,7 @@ namespace bpr::app {
 			}
 			entry.ActivationReply  = std::move(aRequest->Reply);
 			entry.ActivationIntent = aRequest->Intent;
-			if (Quitting || UpdatePreparing || entry.Closing || !entry.WindowPublished || !Host || !Projection.Ready || Projection.Busy || Projection.Closing || PendingLaunch) {
+			if (Quitting || UpdatePreparing || entry.Closing || entry.MaintenanceClosing || !entry.WindowPublished || !Host || !Projection.Ready || Projection.Busy || Projection.Closing || PendingLaunch) {
 				complete_activation(entry, application::profile_activation_outcome::refused);
 				return;
 			}
@@ -763,7 +789,7 @@ namespace bpr::app {
 		}
 		void poll_activation(core::bpr_profile_id aProfile, runtime_entry& aEntry)
 		{
-			if (Quitting || aEntry.Closing || !aEntry.Runtime || aEntry.ActivationPolling || aEntry.ActivationReply) {
+			if (Quitting || aEntry.Closing || aEntry.MaintenanceClosing || !aEntry.Runtime || aEntry.ActivationPolling || aEntry.ActivationReply) {
 				return;
 			}
 			auto endpoint = aEntry.Runtime->desktop_activation_server();
@@ -793,6 +819,10 @@ namespace bpr::app {
 			} else if (const auto* create = std::get_if<application::new_bpr_window_intent>(&aIntent)) {
 				profile = create->Profile;
 				launch  = core::profile_launch_intent::new_window;
+			}
+			if (profile && Maintenance.contains(*profile)) {
+				Host->report_runtime_admission_failure(*profile, application::profile_management_failure::busy);
+				return;
 			}
 			if (profile && !Runtimes.contains(*profile) && Projection.Ready && !Projection.Busy && !PendingLaunch) {
 				// Admission precedes the management host's durable generation reservation.
@@ -852,7 +882,7 @@ namespace bpr::app {
 			if (Updater) {
 				Updater->attach(*presented);
 			}
-			const auto weak            = weak_from_this();
+			const auto weak = weak_from_this();
 			presented->installEventFilter(this);
 			presented->set_profile_management_dispatch(
 				[weak, aContext](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && self->current(aContext)){ self->dispatch(std::move(aIntent));
@@ -1051,6 +1081,13 @@ namespace bpr::app {
 			entry.Runtime->set_window_admission([weak](core::bpr_window_context aContext) {const auto self=weak.lock();return self && self->current(aContext); });
 			entry.Runtime->set_desktop_quit_handler([weak](int aExitCode) {if (const auto self=weak.lock()){ self->quit(aExitCode);
 } });
+			entry.Runtime->set_maintenance_retirement([weak, aProfile](auto aCompletion) {
+				if (const auto self = weak.lock()) {
+					self->retire_for_maintenance(aProfile, std::move(aCompletion));
+				} else {
+					aCompletion(std::unexpected(core::release_maintenance_reason::unavailable));
+				}
+			});
 			if (Quitting || entry.Closing) {
 				entry.Closing = true;
 				if (entry.Windows.empty()) {
@@ -1088,6 +1125,68 @@ namespace bpr::app {
 				if (aProfile == Initial && Completion) {
 					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					force_shutdown(1);
+				}
+			}
+		}
+		void retire_for_maintenance(core::bpr_profile_id aProfile, std::function<void(application::release_maintenance_result)> aCompletion)
+		{
+			using reason = core::release_maintenance_reason;
+			if (Quitting || UpdatePreparing || !Host || Projection.Busy) {
+				aCompletion(std::unexpected(reason::busy));
+				return;
+			}
+			const auto retained = Maintenance.find(aProfile);
+			if (retained != Maintenance.end()) {
+				if (retained->second.Completion) {
+					aCompletion(std::unexpected(reason::busy));
+					return;
+				}
+				if (retained->second.Retired) {
+					aCompletion(retained->second.result());
+					return;
+				}
+				retained->second.Failed     = false;
+				retained->second.Completion = std::move(aCompletion);
+				return;
+			}
+			const auto found = Runtimes.find(aProfile);
+			if (found == Runtimes.end() || !found->second.Runtime || found->second.Closing) {
+				aCompletion(std::unexpected(reason::unavailable));
+				return;
+			}
+			auto controls = found->second.Runtime->take_maintenance();
+			if (!controls) {
+				aCompletion(std::unexpected(reason::unavailable));
+				return;
+			}
+			Maintenance.emplace(aProfile, maintenance_entry{ std::move(controls), std::move(aCompletion) });
+			found->second.MaintenanceClosing = true;
+			complete_activation(found->second, application::profile_activation_outcome::refused);
+		}
+		void poll_maintenance()
+		{
+			for (auto position = Maintenance.begin(); position != Maintenance.end();) {
+				auto&      maintenance = position->second;
+				const auto runtime     = Runtimes.find(position->first);
+				if (runtime == Runtimes.end()) {
+					maintenance.Retired = true;
+				}
+				if (maintenance.Completion && (maintenance.Retired || maintenance.Failed)) {
+					auto completion = std::exchange(maintenance.Completion, { });
+					completion(maintenance.result());
+				} else if (maintenance.Completion && !Quitting && !Projection.Busy && Host) {
+					const auto selected = std::ranges::find_if(runtime->second.Windows, [](const auto& aWindow) { return !aWindow.second.Closing; });
+					if (selected != runtime->second.Windows.end() && !Host->begin_close(selected->second.Context)) {
+						maintenance.Failed = true;
+					}
+				}
+				if (maintenance.Controls->closing() && maintenance.Controls->quiescent() && !maintenance.Completion && maintenance.Retired) {
+					position = Maintenance.erase(position);
+					if (Maintenance.empty() && Runtimes.empty() && !Quitting) {
+						desktop_emptied();
+					}
+				} else {
+					++position;
 				}
 			}
 		}
@@ -1139,6 +1238,9 @@ namespace bpr::app {
 					continue;
 				}
 				if (entry.Runtime && entry.Runtime->profile_shutdown_cleanup_failed()) {
+					if (auto maintenance = Maintenance.find(position->first); maintenance != Maintenance.end()) {
+						maintenance->second.Failed = true;
+					}
 					// [[BPR-0875]]. This is the exit 1 a person gets from a real
 					// quit, so the cleanup that caused it is named on the way out
 					// rather than left to a bisect.
@@ -1149,10 +1251,20 @@ namespace bpr::app {
 				}
 				position = Runtimes.erase(position);
 				if (Runtimes.empty() && !Quitting) {
-					desktop_emptied();
+					if (Maintenance.empty()) {
+						desktop_emptied();
+					}
+#if defined(__APPLE__)
+					else {
+						// Retained Settings has no menu of its own after the last
+						// workbench retires. Keep the real Quit action reachable.
+						present_desktop_menu();
+					}
+#endif
 				}
 			}
-			if (EmptyDesktopQuit && !Quitting && Runtimes.empty()) {
+			poll_maintenance();
+			if (EmptyDesktopQuit && !Quitting && Runtimes.empty() && Maintenance.empty()) {
 				quit_empty_desktop();
 			}
 			if (is_quiescent()) {
@@ -1178,6 +1290,7 @@ namespace bpr::app {
 		std::unique_ptr<release_update_desktop>                                     Updater;
 		unsigned                                                                    UpdateAccountPoll = 0U;
 		std::map<core::bpr_profile_id, runtime_entry>                               Runtimes;
+		std::map<core::bpr_profile_id, maintenance_entry>                           Maintenance;
 		application::profile_management_projection                                  Projection;
 		std::optional<std::pair<core::bpr_profile_id, core::profile_launch_intent>> PendingLaunch;
 		QTimer                                                                      Poll;
@@ -1201,7 +1314,7 @@ namespace bpr::app {
 		std::optional<profile_desktop_startup_result>                  PendingHealthyStart;
 		QElapsedTimer                                                  HealthyStartWait;
 #endif
-		int                       ExitCode = 0;
+		int ExitCode = 0;
 	};
 
 	auto native_empty_desktop_policy() -> empty_desktop_policy

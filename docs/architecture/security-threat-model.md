@@ -13,11 +13,18 @@
 
 1. GitHub.com or configured GHES host
 2. BetterPullReview native process
-3. Installed Git process and the opt-in GitHub CLI read process boundary
+3. Installed Git process and the opt-in GitHub CLI process boundary
 4. Configured AI agent processes
 5. Operating-system credential vault and trust store
 6. Untrusted repository content, comments, commit messages, diffs, and theme files
 7. App-owned bare repositories, private refs, and the review-epoch catalog
+8. Delivered package/dependency/signing provenance and separate source assets
+9. Profile maintenance, local activation IPC and the qualified macOS updater
+
+The [corporate security packet](../security/corporate-security-overview.md)
+consolidates the current network, data and process inventory. Historical component
+observations below retain their candidate-specific limits; they do not establish
+RFC-BPR-0014 release acceptance.
 
 ## In-process architecture boundary
 
@@ -210,7 +217,10 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
 ## Baseline posture
 
 - No hosted BetterPullReview service.
-- No product-owned listening-socket or local-web-server implementation.
+- No TCP/UDP server or local web service. The existing owner-authenticated,
+  owner-private AF_UNIX profile activation listener is the sole declared listener
+  exception under RFC-BPR-0014 mandate r3; it admits only bounded activation
+  intents under the exact profile lease. It grants no network-service capability.
 - No embedded browser, HTML renderer, JavaScript runtime, CDN, remote font, analytics, or telemetry.
 - No general plugin system or remote theme/highlighter download.
 - No repository code execution, hooks, submodules, filters, textconv, external diff, build, or test invocation.
@@ -1066,11 +1076,14 @@ finalization clears the flag atomically and preserves the old tombstone. A PR
 with no latest live epoch, a partially deleted pair, or an ordinary unchanged
 observation cannot use this exception.
 
-Credentials and sensitive source content are absent from ref names, SQLite,
-process arguments and environments, diagnostics, logs, crash artifacts,
-fixtures, and verification output. Security tests use synthetic repositories
-and canaries and inspect both tracked and on-disk surfaces. No live private
-repository or GitHub mutation is required.
+The Git/epoch path keeps credentials and source bodies out of ref names,
+catalog metadata, process arguments/environment and its diagnostic records.
+This is not a blanket claim about all SQLite or disk content: the private review
+ledger intentionally stores notes/drafts, retained Git/workspaces hold source,
+and updater recovery can hold review text. Default diagnostic exports omit them.
+Complete native crash redaction with resident source/comment/token canaries is
+still pending. Security courses use synthetic repositories and canaries; no live
+private content is needed for these checks.
 
 ## RFC-BPR-0016 device authorization boundary
 
@@ -1172,6 +1185,27 @@ whether an unattended Windows gate may make outbound contact at all, and it is
 open.
 
 ## Security evidence
+
+RFC-BPR-0014's [release policy](../security/release-policy.md) binds the final
+package, producer, emitted protections, dependency inventory and independent
+trust checks. The 2026-09-21 M9 Grype reports fail with 21 macOS / 19 Windows
+matches; no vulnerability suppression or applicability approval is recorded.
+The exact revised macOS source-distribution approval does not resolve those
+findings or qualify changed artifacts. Clean-account/vault, native matrix,
+external dependency hardening and full crash-privacy obligations remain open.
+
+Profile maintenance introduces one exact local deletion/export capability,
+not a general cleanup service. Its core authorizes a captured selection;
+the host drains producers while retaining the lease, validates native identities,
+deletes exact vault keys before binding metadata, and journals the irreversible
+boundary. Unknown or changed entries refuse; startup recovers before stores open.
+Shared registry/updater state, recovered draft text, sibling profiles and exports
+are excluded. The [maintenance contract](release-maintenance.md) specifies
+request/generation checks, cancellation, durability and hostile tests; the
+[operator guide](../development/storage-and-diagnostics.md) states residuals.
+Default exports contain only classified metadata; local logs and OS crash reports
+are distinct surfaces. Neither a digest nor a passing environment-canary crash
+proves all source and secret material absent.
 
 Required release evidence includes threat-model review, SBOM, dependency inventory, secret scan, static analysis, sanitizers, parser fuzzing, hardened build flags, signed package verification, mutation-target tests, and diagnostics redaction tests.
 

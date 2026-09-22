@@ -105,6 +105,27 @@ BetterPullReview is implemented as a deterministic functional core inside an imp
 - BetterPullReview must tolerate comments, edits, deletions, replies, resolutions, and reviews created by other clients.
 - Uninstalling BetterPullReview may lose private workflow state but cannot lose or corrupt shared review history.
 
+## Local maintenance and removal
+
+Settings → Storage & privacy provides a local diagnostic preview/export and
+explicit diagnostic cleanup/profile purge. Diagnostic export saves only the
+exact previewed classified metadata to a new local file; it uploads nothing.
+The readable log and external OS crash reports have separate privacy limits.
+
+Preparing destructive maintenance stops the selected profile and drains its
+producers before capturing an exact inventory. Confirmation applies only to
+that inventory; cancellation does not resume the profile. Purge deletes known
+credential bindings before their metadata and requires recovery after an
+irreversible failure. Shared registry/updater state, updater draft recovery,
+sibling profiles, exports and documented empty roots/locks remain. Uninstall
+removes program files, not all local data or reviews already on GitHub.
+
+The [operator guide](../development/storage-and-diagnostics.md) and
+[maintenance contract](release-maintenance.md) distinguish these implemented
+controls from pending native vault, crash and full-removal acceptance. The
+[corporate security packet](../security/corporate-security-overview.md) describes
+the current release posture; no pending platform behavior is promised here.
+
 ## GitHub CLI profile milestone
 
 RFC-BPR-0015's amended first read milestone has a qualified macOS fixture

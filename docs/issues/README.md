@@ -31,3 +31,22 @@ matrix.
 The RFC index (`../rfcs/README.md`) remains the sequencing authority. Existing narrow product-owner exceptions and required real-platform evidence remain valid. Split portable and platform work only when the portable portion can be verified independently. [HISTORY.md](HISTORY.md) retains the historical narrative; it is not a duplicate live ledger.
 
 Closeout runs `python3 scripts/verify_documentation.py --root .` and records direct criterion/check/result/revision evidence. Specialized RFC-0016/17 historical contracts remain repository verification tools under `scripts/verification/rfc0016_attended_contract/`.
+
+RFC-0014 owner amendment r4 accepts only the implemented release foundation.
+RFC-0038/BPR-0973 now owns complete native and release-security qualification;
+unchanged-criteria BPR-0958–0962 remain Blocked as standalone follow-ups.
+Historical M8 has partial native candidates, not platform-matrix acceptance.
+BPR-0958's original source/map and maintenance questions are accepted only for
+their exact candidate. A reproduced initial-load failure now returns to Home;
+its exact revised recovery question was accepted at hand-back 460. BPR-0958
+is Blocked on clean-account Keychain/authentication, full purge and residual
+evidence; the three scoped human accepts do not complete native qualification.
+BPR-0959 needs a native Intel Mac; BPR-0960 needs clean ordinary-user Windows
+10/11 desktop/auth/vault evidence; M9 completed exact PE mechanics but not those
+native courses. BPR-0961 needs
+the declared Ubuntu 24.04/RHEL 10 environments. The
+[M8 ledger](../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
+retains the observed fixes and exact limitations. The
+[successor ledger](../verification/RFC-BPR-0038.md) preserves Qt 6.11.2,
+separate source assets, raw 32/30 Grype failures and the unanswered Windows
+licensing-v002 question at cursor 478. No release approval is implied.

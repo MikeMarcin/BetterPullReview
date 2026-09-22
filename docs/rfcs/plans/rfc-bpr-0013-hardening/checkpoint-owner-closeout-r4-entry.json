@@ -1,0 +1,93 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0013-owner-closeout-r4",
+  "mandate_revision": "r4",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0013",
+  "binding": {
+    "plan_id": "rfc-bpr-0013-hardening",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "milestone_id": "verify-rfc-0013",
+    "definition_fingerprint": "sha256:8bd6396ca90702d7d01609cfcdc48c086f48623ef7e53eff3473a8430304dff1",
+    "obligations": [
+      {
+        "id": "BPR-0617:*",
+        "source": "BPR-0617",
+        "selector": null,
+        "source_fingerprint": "sha256:f89e96b3aaf682649f09004359c6a1834a7012c6efca3b09ad16807102d88d55"
+      },
+      {
+        "id": "RFC-BPR-0013:*",
+        "source": "RFC-BPR-0013",
+        "selector": null,
+        "source_fingerprint": "sha256:341bb66a941dad8b0f736c8b47cf55b20c85050694d291fec88b49d2430c29b5"
+      }
+    ],
+    "obligation_fingerprint": "sha256:4e1f0c78e72515a84c9911581ece01c6769f5336920222675026ae26b12556d1",
+    "exit_criteria": [
+      {
+        "id": "verify-rfc-0013:exit:1",
+        "text": "Reconcile the legacy plan's pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline"
+      },
+      {
+        "id": "verify-rfc-0013:exit:2",
+        "text": "Every amended RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; every original unsatisfied requirement retains a durable follow-up and is not marked passing"
+      },
+      {
+        "id": "verify-rfc-0013:exit:3",
+        "text": "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate; known unrelated or explicitly transferred failures retain their exact evidence"
+      },
+      {
+        "id": "verify-rfc-0013:exit:4",
+        "text": "BPR-0617 is Done and RFC-BPR-0013 and the canonical index are Auto-Verified after RFC-BPR-0008/0010/0012; owner amendment r4 changes only RFC0013 terminal acceptance and preserves all follow-up obligations"
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:255dafdd7ff42f4e4543393f5430969c23e4e0d9470fedfcfca8722c4dfe993c",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "default-cache-byte-pressure",
+    "durable-agent-workspace-recovery",
+    "retained-stress-pr-read",
+    "large-pr-returned-commit-boundary",
+    "review-thread-null-anchor-read",
+    "selected-diff-exact-epoch-pair",
+    "verify-rfc-0013"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "3efe61dfcf6874d35400bf777a7e86dbbf0a4693",
+    "workflow_branch": "main",
+    "workflow_revision": "3efe61dfcf6874d35400bf777a7e86dbbf0a4693"
+  }
+}

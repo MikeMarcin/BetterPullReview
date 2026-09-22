@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0013"
 title: "Performance, Resource Limits, Resilience, and Recovery"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "M6 Production Readiness"
 depends_on: ["RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0007","RFC-BPR-0008","RFC-BPR-0010","RFC-BPR-0012"]
@@ -64,6 +64,26 @@ structural counters accompany latency results.
 
 ## Acceptance criteria
 
+Owner amendment r4 on 2026-09-21 defines the terminal scope below. The original
+criteria remain immediately afterward, with every unsatisfied part transferred
+explicitly in the [current ledger](../verification/RFC-BPR-0013.md). This is a
+change to acceptance, not evidence that the transferred requirements passed.
+
+- Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content.
+- The recorded macOS large-review paths demonstrate input, scrolling, navigation and cooperative measurement under their stated workloads; current public selection and unavailable-content recovery remain correct.
+- Default host cache ceilings and eviction remain enforced, and historical close/prune ownership evidence retains its exact candidate and sampled-memory limits; current memory-budget failures remain explicit follow-up work.
+- Primary and secondary rate-limit policy preserves bounded backoff, Retry-After, cancellation, identity and typed queue state through the existing provider, host and Qt contracts.
+- Offline and recovery policy retains typed unavailable or stale state and rejects stale-session completions; complete cached-review offline/restart presentation remains explicit follow-up work.
+- Recorded process-kill courses recover Git cache, SQLite and exact owned agent workspaces without corruption or duplicate mutations, within their stated platform and candidate boundaries.
+- Custom parser and mapping boundaries retain deterministic malformed-input and property regression evidence; complete fuzz targets and corpora remain inventoried as explicit follow-up work.
+- The existing composed logging and backpressure courses preserve metadata-only diagnostics under their tested error conditions.
+- The recorded core, host and Qt paths demonstrate bounded scaling, serialized completion, incremental updates, cancellation and stale-result rejection without claiming application-wide coverage.
+
+## Original acceptance criteria — retained after r4 amendment
+
+These original wider requirements remain product follow-up obligations. They no
+longer gate this RFC's terminal status under the owner's explicit r4 direction.
+
 - Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content.
 - UI input, scrolling, and navigation remain responsive while background work runs.
 - Memory and cache usage remain within documented budgets and recover after closing/pruning reviews.
@@ -86,6 +106,36 @@ structural counters accompany latency results.
 
 ## Documentation impact
 
+### Owner amendment r4 — 2026-09-21
+
+The owner requires RFC0013 to close for the same RFC0014-unblocking reason as
+RFC0008–0012. The [bounded assignment](plans/rfc-bpr-0013-hardening/mandate-owner-closeout-r4.md)
+adopts the existing plan and changes only its final verification milestone.
+The six completed milestones, original source plan and historical observations
+remain intact. All canonical predecessors are now Auto-Verified.
+
+The broad performance-budget paragraph above is a follow-up requirement beyond
+the recorded hardware/course evidence. BPR-0967 owns remaining platform/input/
+memory measurements and the current Mac loaded-close/resources failures at the
+unchanged 160 MiB sampled-growth limit. BPR-0968 owns full rendered primary and
+secondary backoff; BPR-0969 owns cached-review offline/restart freshness;
+BPR-0970 owns complete parser/mapping fuzz targets and corpora; BPR-0971 owns
+the pathological logging/privacy inventory; BPR-0972 owns wider structural
+and active-work evidence. These are standalone Backlog work, not passes.
+
+BPR-0817 retains the Linux pre-existing-parent visibility/exit decision and its
+RFC0033 association. BPR-0825 retains the Windows shared-descriptor decision.
+BPR-0940 retains composed GitHub/window-layout failures; BPR-0944 retains
+comparison-basis and partial-pane work; BPR-0945 retains strict-tidy diagnostics.
+Only their RFC0013 association is removed. Their status, evidence and pending
+decisions remain unchanged. None requires another owner loading test here.
+
+Current exact-candidate checks and prior candidate-specific results are recorded
+separately. No current all-platform performance, fuzz, full-suite, native-package,
+human or release acceptance is implied by Auto-Verified. The broader original
+plan instruction to finish every card is superseded only for these explicitly
+transferred obligations. RFC0014 retains its own acceptance requirements.
+
 ### Owner closeout amendment — 2026-09-20
 
 The owner accepts the completed selected-diff milestone with the unusual
@@ -95,12 +145,11 @@ placing the missing-earlier explanation in the left pane. The current both-pane
 refusal is not accepted as a fixed anomaly. BPR-0794/0795 are Done under this
 amendment; no new target read, owner retest or attended candidate is required.
 
-The [RFC-wide closeout reconciliation](../verification/RFC-BPR-0013.md) preserves
-all original rows and classifies every follow-up. RFC status remains Proposed:
-canonical predecessors RFC-BPR-0008/0010/0012 and BPR-0507 are not closed, and
-the original full fuzz, broader native-budget and remaining composed acceptance
-gaps have not been waived or proved. BPR-0617 remains their closeout owner.
-This is the exact limit of the authorized closeout, not a terminal-status claim.
+That narrower amendment left RFC0013 Proposed because its predecessors and
+wider acceptance were then open. The original full-fuzz, broader native-budget
+and remaining composed gaps were not proved. The later r4 amendment above
+explicitly supersedes that stopping boundary and transfers the unproved work;
+it does not alter the original observations.
 
 ### Retained implementation and review history
 

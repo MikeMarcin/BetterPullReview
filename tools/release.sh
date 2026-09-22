@@ -15,6 +15,7 @@ NOTARY_PROFILE="${APPLE_NOTARY_PROFILE:-${DEFAULT_NOTARY_PROFILE}}"
 ALLOW_DIRTY=0
 SKIP_NOTARIZE=0
 SKIP_TESTS=0
+PREPARE_ONLY=0
 OUTPUT_DIR=""
 REQUESTED_VERSION=""
 
@@ -31,6 +32,8 @@ Options:
   --output-dir DIR       Artifact directory (default: build/releases/VERSION).
   --skip-tests           Skip the dev build and test preset.
   --skip-notarize        Build signed artifacts without submitting them to Apple.
+  --prepare-only        Local deployment, notices/source, audit and ZIP only;
+                        ad-hoc seal, no Keychain lookup or Apple submissions.
   --allow-dirty          Permit uncommitted source changes.
   -h, --help             Show this help.
 
@@ -195,12 +198,29 @@ verify_dependency_policy() {
     while IFS= read -r -d '' binary; do
         is_mach_o "${binary}" || continue
         for architecture in arm64 x86_64; do
+            local minimum
+            minimum="$(otool -arch "${architecture}" -l "${binary}" |
+                awk '$1 == "minos" { print $2 } $1 == "cmd" && $2 == "LC_VERSION_MIN_MACOSX" { getline; getline; print $2 }')"
+            [[ -n "${minimum}" ]] || fail "Deployment floor is absent: ${binary} (${architecture})"
+            awk -v minimum="${minimum}" 'BEGIN { split(minimum,v,"."); exit !(v[1] < 13 || (v[1] == 13 && v[2] == 0)) }' || \
+                fail "Mach-O exceeds macOS 13 floor: ${minimum} (${binary}, ${architecture})"
             while IFS= read -r dependency; do
                 dependency="${dependency#"${dependency%%[![:space:]]*}"}"
                 dependency="${dependency%% (compatibility version*}"
                 [[ -n "${dependency}" ]] || continue
                 case "${dependency}" in
-                    /System/Library/*|/usr/lib/*|@loader_path/*|@executable_path/*)
+                    /System/Library/*|/usr/lib/*)
+                        [[ "${dependency}" != *'/../'* ]] || fail "Noncanonical system dependency: ${dependency}"
+                        ;;
+                    @loader_path/*|@executable_path/*)
+                        python3 - "${bundle}" "${binary}" "${dependency}" <<'PY'
+import pathlib, sys
+bundle, binary, dependency = pathlib.Path(sys.argv[1]).resolve(), pathlib.Path(sys.argv[2]), sys.argv[3]
+base = binary.parent if dependency.startswith('@loader_path/') else bundle / 'Contents/MacOS'
+resolved = (base / dependency.split('/', 1)[1]).resolve(strict=True)
+if not resolved.is_relative_to(bundle):
+    raise SystemExit('relative dependency escapes the packaged runtime')
+PY
                         ;;
                     @rpath/*)
                         [[ -e "${bundle}/Contents/Frameworks/${dependency#@rpath/}" ]] || \
@@ -216,11 +236,13 @@ verify_dependency_policy() {
 
     while IFS= read -r -d '' binary; do
         is_mach_o "${binary}" || continue
-        while IFS= read -r rpath; do
-            [[ "${rpath}" == @loader_path* ]] || \
-                fail "Packaged runtime has an untrusted RPATH: ${rpath} (${binary})"
-        done < <(otool -arch arm64 -l "${binary}" |
-            awk '$1 == "cmd" && $2 == "LC_RPATH" { getline; getline; print $2 }')
+        for architecture in arm64 x86_64; do
+            while IFS= read -r rpath; do
+                [[ "${rpath}" == @loader_path* ]] || \
+                    fail "Packaged runtime has an untrusted RPATH: ${rpath} (${binary}, ${architecture})"
+            done < <(otool -arch "${architecture}" -l "${binary}" |
+                awk '$1 == "cmd" && $2 == "LC_RPATH" { getline; getline; print $2 }')
+        done
         lipo "${binary}" -verify_arch arm64 x86_64 >/dev/null || \
             fail "Packaged runtime is not universal: ${binary}"
     done < <(find "${bundle}/Contents" -type f -print0)
@@ -302,6 +324,10 @@ while [[ $# -gt 0 ]]; do
             SKIP_NOTARIZE=1
             shift
             ;;
+        --prepare-only)
+            PREPARE_ONLY=1
+            shift
+            ;;
         --allow-dirty)
             ALLOW_DIRTY=1
             shift
@@ -335,14 +361,17 @@ require_command hdiutil
 require_command install_name_tool
 require_command lipo
 require_command otool
-require_command security
 require_command shasum
-require_command xcrun
+require_command python3
 
-security find-identity -v -p codesigning 2>/dev/null |
-    grep -Fq "\"${CODESIGN_IDENTITY}\"" || fail "Codesigning identity is unavailable: ${CODESIGN_IDENTITY}"
+if [[ "${PREPARE_ONLY}" == "0" ]]; then
+    require_command security
+    require_command xcrun
+    security find-identity -v -p codesigning 2>/dev/null |
+        grep -Fq "\"${CODESIGN_IDENTITY}\"" || fail "Codesigning identity is unavailable: ${CODESIGN_IDENTITY}"
+fi
 
-if [[ "${SKIP_NOTARIZE}" == "0" ]]; then
+if [[ "${PREPARE_ONLY}" == "0" && "${SKIP_NOTARIZE}" == "0" ]]; then
     require_command spctl
     [[ -n "${NOTARY_PROFILE}" ]] || fail "A notarytool Keychain profile is required"
 fi
@@ -398,6 +427,27 @@ cat >"${STAGED_APP}/Contents/Resources/qt.conf" <<'EOF'
 Plugins = PlugIns
 EOF
 verify_dependency_policy "${STAGED_APP}"
+log "Preparing exact third-party notices and corresponding source"
+SOURCE_ASSET="${APP_NAME}-${REQUESTED_VERSION}-macos-universal-corresponding-source.zip"
+SOURCE_PATH="${OUTPUT_DIR}/${SOURCE_ASSET}"
+python3 "${ROOT_DIR}/packaging/package_runtime.py" notices --build "${BUILD_DIR}" --root "${STAGED_APP}" --source-archive "${SOURCE_PATH}"
+
+if [[ "${PREPARE_ONLY}" == "1" ]]; then
+    ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal-local"
+    LOCAL_APP="${OUTPUT_DIR}/${APP_NAME}.app"
+    LOCAL_ZIP="${OUTPUT_DIR}/${ASSET_BASE}.zip"
+    [[ ! -e "${LOCAL_APP}" && ! -e "${LOCAL_ZIP}" ]] || fail "Use a fresh output directory for local preparation"
+    log "Sealing the local candidate with an offline ad-hoc signature"
+    codesign --force --deep --sign - --timestamp=none "${STAGED_APP}"
+    codesign --verify --deep --strict "${STAGED_APP}"
+    verify_relocated_launch "${STAGED_APP}" "${STAGING_ROOT}/smoke-profile"
+    ditto "${STAGED_APP}" "${LOCAL_APP}"
+    python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${LOCAL_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json" --source-archive "${SOURCE_PATH}"
+    ditto -c -k --keepParent "${LOCAL_APP}" "${LOCAL_ZIP}"
+    (cd "${OUTPUT_DIR}" && shasum -a 256 "${ASSET_BASE}.zip" "${ASSET_BASE}.spdx.json" "${SOURCE_ASSET}" > "${ASSET_BASE}.sha256")
+    log "Local candidate: ${LOCAL_APP}; not Developer-ID signed, notarized, Gatekeeper-qualified or published"
+    exit 0
+fi
 
 log "Signing nested code and application with Developer ID"
 sign_nested_code "${STAGED_APP}"
@@ -444,10 +494,13 @@ fi
 
 log "Creating the release ZIP and checksums"
 ditto -c -k --keepParent "${STAGED_APP}" "${ZIP_PATH}"
+python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${STAGED_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json" --source-archive "${SOURCE_PATH}"
 (
     cd "${OUTPUT_DIR}"
     shasum -a 256 "$(basename "${DMG_PATH}")" >"$(basename "${DMG_CHECKSUM_PATH}")"
     shasum -a 256 "$(basename "${ZIP_PATH}")" >"$(basename "${ZIP_CHECKSUM_PATH}")"
+    shasum -a 256 "${ASSET_BASE}.spdx.json" >"${ASSET_BASE}.spdx.json.sha256"
+    shasum -a 256 "${SOURCE_ASSET}" >"${SOURCE_ASSET}.sha256"
 )
 
 cat <<EOF
@@ -458,6 +511,7 @@ Release package complete
   Team:    ${TEAM_ID}
   DMG:     ${DMG_PATH}
   ZIP:     ${ZIP_PATH}
+  Source:  ${SOURCE_PATH}
   SHA-256: ${DMG_CHECKSUM_PATH}
            ${ZIP_CHECKSUM_PATH}
 EOF

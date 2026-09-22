@@ -1,4 +1,172 @@
-# RFC-BPR-0013 closeout reconciliation — 2026-09-20
+# RFC-BPR-0013 verification ledger
+
+## Owner-amended closeout r4 — 2026-09-21
+
+The owner explicitly requires RFC0013 to close to unblock RFC0014 under the
+same r4 direction applied to RFC0008–0012. This amendment accepts the bounded
+implemented hardening scope and transfers every unproved broader obligation
+below. It does not claim that the original full matrix passed. BPR-0617 is
+Done at `71d6a1109926de25b363550d04ed9fb505b99e14`; RFC/index are
+Auto-Verified under that explicitly amended scope.
+
+Assignment `/root/rfc0013_owner_closeout`, run
+`rfc0014-owner-closeout-20260921`, segment `rfc0013-owner-closeout-r4`;
+coordinator-implementer recipe revision 2, non-delegating leaf.
+Entry/product test candidate: `3efe61dfcf6874d35400bf777a7e86dbbf0a4693`.
+Immutable RFC baseline: `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`.
+The [mandate](../rfcs/plans/rfc-bpr-0013-hardening/mandate-owner-closeout-r4.md)
+binds scope and previous handoffs. All predecessor RFCs now are Auto-Verified.
+The six completed live-plan milestones and their original exits are unchanged;
+only `verify-rfc-0013` and terminal acceptance are explicitly amended.
+
+### Acceptance and follow-up mapping
+
+The current RFC contains nine narrowed criteria; the original nine remain
+immediately afterward. The original matrix and historical reconciliation below
+retain their meaning. The current BPR-0617 checklist contains exact canonical
+criterion text.
+
+| Current criterion | Direct evidence | Acceptance boundary |
+|---|---|---|
+| AC1 | BPR-0623/0624/0631/0632 independently checked 515-file, 20,000-line, 1,000-thread, 32-epoch fixtures; current large-review benchmark. | Pass for bounded fixtures and exact source documents. Current benchmark 22.23 s; historical 32-epoch identities remain candidate-specific. |
+| AC2 | Current large-review, selected-file safety, unavailable-diff and held-loading courses; retained BPR-0627..0629/0751 measurements. | Pass for named behavior; 98.723 ms source and 32.004 ms rapid-selection maxima. Initial load 321.700 ms is not a universal 100 ms pass. BPR-0967 owns broader performance; BPR-0940 owns benchmark visible-page reconciliation. |
+| AC3 | Current application_diff_host ceiling/eviction/cancellation tests; historical BPR-0630..0635 ownership and pressure evidence. | Pass for host bounds and truthful historical evidence. Current loaded-close/resources fail before cleanup at 160 MiB sampled-growth; BPR-0967 retains exact failures. No current native memory or cleanup pass. |
+| AC4 | Current application_review_queue_refresh, qt_review_queue, github_paged_read and github_provider; RFC0010/BPR-0161 backoff evidence. | Pass for component policy/projection. BPR-0968 retains the unobserved complete rendered throttling course. |
+| AC5 | Current queue refresh offline/recovery and stale-session rejection; retained Git/catalog history. | Pass for typed policy; BPR-0969 retains the unproved cached-review offline/restart and visible freshness behavior. |
+| AC6 | BPR-0616/0618/0619/0620/0621 recorded kill/restart/integrity/no-replay; BPR-0622 native ownership evidence. | Pass for recorded exact courses: Windows c94e02b1/2ba02ddb, Linux 780d0a1c/48b6422b, Mac 8a03a5be. Current publication replay remains in RFC0008 r4 evidence; no new full native kill matrix. |
+| AC7 | Current core_diff_compute/core_diff_semantics/core_theme_exchange, github_paged_read/provider and application_agent_finding_protocol; original parser/property inventory. | Pass for deterministic regression evidence and explicit inventory. Complete fuzz target/corpus requirement remains wholly open on BPR-0970. |
+| AC8 | Current application_logging, quill_logging and quill_logging_backpressure; historical BPR-0602/0606. | Pass for existing composed/error/backpressure checks. BPR-0971 retains the full pathological privacy audit. |
+| AC9 | Current epoch/diff hosts, held loading and selected-file safety; retained scale/history/index evidence. | Pass for named paths only. BPR-0972 retains wider structural/active-work evidence, BPR-0940 retains non-green layout/composition, BPR-0945 strict tidy. |
+
+### Durable unfinished work
+
+| Card | State and remaining obligation |
+|---|---|
+| [BPR-0967](../issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md) | Backlog, standalone: remaining hardware/platform/input/memory budgets, unsampled peaks and current Mac resource failures. |
+| [BPR-0968](../issues/10-backlog/BPR-0968-verify-rendered-primary-and-secondary-rate-limit-recovery.md) | Backlog, standalone: complete rendered primary/secondary backoff and recovery. |
+| [BPR-0969](../issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md) | Backlog, standalone: cached-review offline/restart and visible freshness. |
+| [BPR-0970](../issues/10-backlog/BPR-0970-cover-custom-parser-and-mapping-boundaries-with-fuzzing.md) | Backlog, standalone: full diff/mapping, Markdown, settings/theme, API, Git-output and AI-output fuzz targets/corpora/campaigns. |
+| [BPR-0971](../issues/10-backlog/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md) | Backlog, standalone: complete pathological diagnostic/privacy inventory and large/error courses. |
+| [BPR-0972](../issues/10-backlog/BPR-0972-verify-application-wide-active-set-and-changed-set-scaling.md) | Backlog, standalone: broader active/changed-set, structural and concurrent-work evidence. |
+| [BPR-0817](../issues/40-parked/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md) | Parked, RFC0033 association retained: existing writable-parent visibility and orderly-exit policy. Prior native successes and unanswered questions unchanged. |
+| [BPR-0825](../issues/40-parked/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md) | Parked, standalone: shared Windows private-descriptor ownership decision. Native supervisor/ACE/junction fixes remain accepted only as recorded. |
+| [BPR-0940](../issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md) | Backlog, standalone: existing composed GitHub/window-layout failures and current benchmark visible-page mismatch. |
+| [BPR-0944](../issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md) | Backlog, standalone: Whole PR basis, readable partial pane and missing-earlier explanation. Not fixed. |
+| [BPR-0945](../issues/10-backlog/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md) | Backlog, standalone: existing strict-tidy header diagnostics. No tidy pass inferred. |
+
+BPR-0934 Overview folder collapse remains RFC0037 work. BPR-0966's later Dif
+workshop cue mismatch remains a separate follow-up from RFC0012. No historical
+Done card is reopened and no parked human question is answered by this transfer.
+The scope transfer does not certify RFC0014 native, trust, vault, crash,
+vulnerability, licensing or publication obligations.
+
+### Current direct verification
+
+All commands ran on the entry product source above. No product/test/build/package
+input changed in this assignment. Builds for the public application, benchmark,
+selected-file safety, logging and parser/provider targets report no work to do.
+The initial guessed target `test_selected_file_safety_public_path` was rejected
+before building; the registered `test_setup_destination_public_path` succeeded.
+
+1. `ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^(application_selected_file_safety_public_path|application_large_review_benchmark|application_unavailable_diff_public_path|application_large_review_loaded_close|application_large_review_resources)$'`
+   passes **3/5**, 86.50 s. Large review 22.23 s, unavailable content 15.50 s
+   and selected-file safety 22.87 s pass; both memory courses fail as detailed below.
+2. `ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^(application_epoch_host|application_diff_host|application_review_queue_refresh|qt_review_queue|qt_composed_loading_scale_100|application_logging|quill_logging|quill_logging_backpressure|core_diff_semantics|core_theme_exchange)$'`
+   passes **10/10**, 7.28 s. Fixed ignored log:
+   `build/rfc0013-owner-closeout/focused.log`.
+3. `ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^(core_diff_compute|application_agent_finding_protocol|github_paged_read|github_provider)$'`
+   passes **4/4**, 15.10 s. Fixed ignored log:
+   `build/rfc0013-owner-closeout/parsers.log`.
+4. Unchanged repeat `ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_large_review_(loaded_close|resources)$'`
+   fails **2/2**, 26.69 s. Fixed ignored log:
+   `build/rfc0013-owner-closeout/memory-recheck.log`, SHA-256
+   `a6634710efb5129ff8b262a11b7b040b9bdb4dee3dbe387d9bebd5a148f8f3ee`.
+   The first CTest temporary log was replaced by a subsequent test inventory;
+   the repeat preserves complete failure output under this explicit path.
+5. Documentation gate, its 64 behavior tests, scoped board validation and final
+   checkpoint checks are recorded at terminal reconciliation below. Existing
+   RFC0008–0012 current evidence is reused only where relevant inputs are unchanged;
+   no new independent, installed-agent, native-package or private-target run occurs.
+
+The ordinary benchmark checks 515 files, 1,000 exact threads/comments, 30
+account reads, exact large/final source documents, 32 rapid choices (31 during
+diff work), 1,000 wheel events and zero scroll index/geometry/measurement
+rebuilds. It records 83 measurement batches with 82 input callbacks,
+maximum 4.355 ms gap, 98.723 ms large-source and 32.004 ms rapid-selection
+timer maxima. Initial paged load is 321.700 ms maximum; that is not a blanket
+100 ms input pass. The 2-entry cache is 3,521,024 bytes.
+
+Direct raster inspection shows the ordinary benchmark window on **Overview**,
+not visible source; exact hidden source documents do not establish a readable
+diff. BPR-0940 retains this fixture/presentation mismatch. The unavailable-diff
+raster shows **Read**, cleared panes and an explicit comparison-work-limit
+message. Prior signed r23 safe source/anchor evidence remains tied to its own
+candidate and is not promoted to current visible-source or private-target proof.
+
+Current resource failure is at the unchanged 167,772,160-byte (160 MiB)
+sampled growth threshold, before either cleanup course:
+loaded-close grows 192,217,376 bytes; resources grows 191,136,128 bytes.
+Both have a one-entry 3,517,688-byte cache and zero diff/epoch jobs at that sample.
+The leak/retention cause is unknown. Current Qt is 6.11.2 Debug/Fusion on arm64
+macOS 26.6.2; older passing memory measurements used Qt 6.10.3. A toolkit change
+is context, not demonstrated causation. Neither later close/prune correctness
+nor destruction memory was reached in these failed runs. BPR-0967 owns diagnosis
+and a justified correction, without suppressing tests or silently raising bounds.
+Old successful JSON/raster files beside the benchmark are not current memory
+evidence; the failing repeat log is authoritative for these runs.
+
+Current app SHA-256:
+`a0f9c85cd58e4c9d486ae39c554b16f30f4bb73e867ebfbb6c17ad21ca775d90`.
+Current benchmark SHA-256:
+`5af04df6d21e5ce3b79e935d3e73c34f30dcdd7522adc2f35070c970e05f2ec1`.
+The review-server/session and signed artifacts were not created or changed.
+Source-only architecture evidence from the preceding owner round remains bounded
+by its exact tracked inputs; the nested unrelated checkout is preserved.
+
+### Documentation and architecture disposition
+
+The original planning stages are reconciled by the retained six milestones and
+per-criterion history: compact core/index and cancellation work; bounded host
+cache/job/recovery; incremental Qt and composed large-review fixtures; actual
+native ownership and security negatives; prior recorded simplification/review.
+No new runtime policy or dependency is introduced here. Core/host/Qt ownership,
+typed intents/events/observations/requests/deltas, authority, concurrency,
+persistence, authentication, package and security behavior have **no runtime
+change**. Documentation impact is the explicit terminal-scope amendment,
+follow-up discovery, current evidence and canonical ordering.
+
+### Terminal reconciliation
+
+The owner amendment, follow-up allocation and Ready promotion were committed at
+`9991ebf64ed5b72d7e625a884424f868577ab80b`; guarded claim is
+`1a039572f50203e18f16aa11a0483ab0287d6aa8`; guarded Done is
+`71d6a1109926de25b363550d04ed9fb505b99e14`, with nine evidence records.
+Documentation gate and all 64 documentation regressions pass; scoped validation
+is valid with 964 total cards. The selected RFC scope is now 90 cards, all Done.
+Plan structure/references and diff checks pass. The first six milestones remain
+identical; original source-plan and historical review packets are unchanged.
+
+Baseline-to-entry source/test inventory spans 1,047 changed files and interleaved
+RFC work. It is provenance for the recorded criteria, not a new review of every
+interleaved feature. Entry-to-terminal source/tests/CMake/package and historical
+review/source-plan paths are byte-unchanged. The current documentation diff was
+self-reviewed against the mandate and each original acceptance row.
+
+The final
+[checkpoint](../rfcs/plans/rfc-bpr-0013-hardening/checkpoint-owner-closeout-r4.json)
+and [handoff](../rfcs/plans/rfc-bpr-0013-hardening/handoff-owner-closeout-r4.json)
+bind terminal revision `a94a6cca2eb9b10618dc111eb540a28cf0d30dff` and command
+quiescence. The checkpoint check returns `stop` at this assigned integrated
+boundary; it does not evaluate engineering truth. The coordinator may assign a
+fresh RFC0014 owner: the predecessor gate is clear, but BPR-0965 still has five
+unfinished dependencies BPR-0958–0962. Its native and security requirements were
+not amended by this task.
+
+## Historical 2026-09-20 reconciliation
+
+The entire record below is historical. Its Proposed predecessors and unwaived
+wider-scope stopping boundary were true at r22; r4 explicitly supersedes those
+requirements. No original observation or rejection is rewritten.
 
 ## Disposition
 

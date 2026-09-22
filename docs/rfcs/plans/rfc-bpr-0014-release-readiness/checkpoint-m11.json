@@ -1,0 +1,84 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-20260920",
+  "segment_id": "m11-simplification",
+  "mandate_revision": "r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m11-simplification",
+    "definition_fingerprint": "sha256:8dd12f2d403cdfc94451c50860d17f29bae2329b22ebbf157a9cb8d7783148b0",
+    "obligations": [
+      {
+        "id": "BPR-0964:*",
+        "source": "BPR-0964",
+        "selector": null,
+        "source_fingerprint": "sha256:22af5acfa2fab1cbd7b62f70903791642248b3c8445520ddbd3cd6154234d5bb"
+      }
+    ],
+    "obligation_fingerprint": "sha256:2950643e80bbc4086f7e007db9afcd7963f0ef182c6388ead7fcb3bbc7c785c9",
+    "exit_criteria": [
+      {
+        "id": "m11-simplification:exit:1",
+        "text": "A concise simplification/self-review pass is recorded against the changed scope."
+      },
+      {
+        "id": "m11-simplification:exit:2",
+        "text": "Any corrections pass focused affected checks plus coherent integration evidence."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:8969f99c1f5b2479f0201b097acc62bd5ad5884086330a1c0294431b95fe9509",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "aed1172fdfaa46c0057c16a9bff9fa10724c41f8",
+    "workflow_branch": "main",
+    "workflow_revision": "aed1172fdfaa46c0057c16a9bff9fa10724c41f8"
+  }
+}

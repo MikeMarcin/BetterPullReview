@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0973"
+  ],
+  "reserve_for": "rfc0014-owner-closeout-r4",
+  "purpose": "RFC-BPR-0038 native package and release-security qualification closeout, preserving RFC0014 M8/M9 residuals",
+  "created": "2026-09-22T03:08:09.846925+00:00",
+  "base": "4f2c3bdb5855ba0fb509889cdbe08d7cf534acab"
+}

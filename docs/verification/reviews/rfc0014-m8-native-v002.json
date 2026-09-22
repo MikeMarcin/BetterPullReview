@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0958-initial-load-recovery-v002",
+      "title": "macOS: recover from the first failed review load",
+      "revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d / macOS payload ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618",
+      "paths": [
+        "build/releases/m8-recovery-80481e80",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "tests/end_to_end/rfc0015_cli_read_fixture.py"
+      ],
+      "metadata": {
+        "card": "BPR-0958",
+        "criterion": "AC2",
+        "source_revision": "80481e80d60f739db4c7eaea5e2eb8716ace2b4d",
+        "executable_sha256": "ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618",
+        "scope": "Only the revised initial-load failure recovery; original v001 source/map/focus and maintenance decisions remain accepted for their bound candidate. Not clean-account, vault, full-card or matrix acceptance.",
+        "mandate_revision": "r3"
+      },
+      "criteria": [
+        "When the first pull-request load fails, does Home clearly show the failure and a usable next step instead of leaving an empty Overview?"
+      ],
+      "content": "This is the actual tests-disabled universal app in a fresh disposable HOME. Unlock the Mac, run the command, and before choosing either sign-in or GitHub CLI paste the supplied synthetic pull-request link and press Return. This deliberately repeats the ordering that exposed the bug: without CLI selection the native anonymous reader asks github.com for the synthetic repository and is expected to receive 404 (a network refusal also exercises the same recovery). It is a read-only request, not local fixture data or authentication. Expected: Home reappears, the refusal and Copy details are visible, and the Open bar and sign-in/CLI choices are available. The accepted-destination contract still clears submitted text; paste again to retry. Judge only whether that recovery is clear and usable. Quit with Command-Q before the five-minute bound. Do not sign in, add a server, or open another repository. If the load unexpectedly succeeds, report that rather than accepting a failure you did not see. The earlier two human accepts remain unchanged; this does not approve clean-account authentication, Keychain or purge.",
+      "resources": [
+        "install:/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery/home/Applications/BetterPullReview.app",
+        "fixture:/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery/home/Applications/BetterPullReview.app": "ba8facaec459aa10464fadd76396dae372349dfd89c2c4a53ddc4eda281e7618"
+      },
+      "launch": {
+        "label": "Launch the isolated recovery candidate (five-minute bound)",
+        "command": "/opt/homebrew/bin/python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts/qualification_guard.py --allowed-root /Users/jaeger/bpr0014-m8-postreview.Xk8OSi --target-root /Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery --live-root /Users/jaeger/Documents/GitHub/BetterPullReview --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json -- /opt/homebrew/bin/python3 /Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture.py launch --directory /Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery --app /Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery/home/Applications/BetterPullReview.app/Contents/MacOS/BetterPullReview --cmake-cache /Users/jaeger/bpr0014-m8-postreview.Xk8OSi/review-recovery/CMakeCache.txt --seconds 300"
+      },
+      "copy": [
+        {
+          "label": "Synthetic link to open before choosing GitHub CLI",
+          "value": "https://github.com/octo-org/review-repository/pull/17"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "state": "prepared",
+  "origin": "absent",
+  "source_evidence": null,
+  "plan": {
+    "schema": "implement-rfc.milestone-plan.v1",
+    "id": "rfc-bpr-0012-owner-closeout",
+    "scope": {
+      "rfcs": [
+        "RFC-BPR-0012"
+      ]
+    },
+    "coverage": "complete",
+    "milestones": [
+      {
+        "id": "owner-amended-closeout",
+        "outcome": "Close RFC-BPR-0012's implemented explicit findings, comment workshop, revision-aware chat and read-only MCP composition under owner amendment r4, preserving truthful evidence and every unobserved follow-up.",
+        "work": [
+          {
+            "rfc": "RFC-BPR-0012"
+          }
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "The live RFC, BPR-0507 and verification ledger retain the immutable RFC baseline, original nine criteria, owner amendments and exact current and historical evidence.",
+          "Focused current public composition, negative controls, core, host, Qt and MCP checks pass; stale documentation is reconciled and unobserved installed-agent, live GitHub, human and native-package scope remains explicit.",
+          "The final diff is reviewed against the RFC baseline, all selected criteria and documentation impacts are accounted for, documentation and board gates pass, and BPR-0507 is Done with RFC/index Auto-Verified after RFC-BPR-0011.",
+          "A durable checkpoint and handoff record candidate revisions, changed paths, commands, verification, protected candidates, pending obligations, command quiescence and RFC-BPR-0013 eligibility."
+        ],
+        "boundary": "Only RFC-BPR-0012 closeout on main in /Users/jaeger/Documents/GitHub/BetterPullReview; exclusive non-delegating engineering owner /root/rfc0012_owner_closeout under mandate r4. Preserve original pack source, historical Done cards, existing review candidates and unrelated changes. No live agent, GitHub operation, credential, message to another person, push, release or later-RFC engineering."
+      }
+    ],
+    "unplanned_work": []
+  },
+  "semantic_coverage": "unknown",
+  "next": "engineer reconciles intent, retains this receipt, adopts and implements"
+}

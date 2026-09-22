@@ -3,13 +3,25 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0944"
 title: "Investigate Whole PR comparison basis and preserve available source"
 status: "Backlog"
-rfcs: ["RFC-BPR-0013"]
+rfcs: []
 depends_on: []
 priority: P1
-metadata: {"source":"BPR-0943 exact selected endpoint diagnosis","decision_required":"product comparison contract","owner_deferral":"2026-09-20 RFC-0013 closeout amendment; investigate later, do not implement in the selected-diff closeout"}
+metadata: {"source":"BPR-0943 exact selected endpoint diagnosis","decision_required":"product comparison contract","owner_deferral":"2026-09-20 RFC-0013 closeout amendment; investigate later, do not implement in the selected-diff closeout","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
 ---
 
 # Investigate Whole PR comparison basis and preserve available source
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this remaining work out of RFC-BPR-0013 terminal
+acceptance. This card keeps its ID, path, status, dependencies and all historical
+evidence; only the RFC0013 association is removed. The
+[amended RFC](../../rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
+retain its origin and continuation.
+
+Pending: Whole PR comparison basis, readable partial pane and missing-earlier explanation; the anomaly is not fixed.
+No owner decision, native observation or repair is supplied by this transfer.
 
 The current contract retains and selects the exact latest base-branch tip and
 head for Whole PR. GitHub changed-file metadata describes a merge-base/head

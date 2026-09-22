@@ -2,7 +2,7 @@
 #define BPR_APPLICATION_RELEASE_MAINTENANCE_APPLICATION_HOST_HPP
 
 #include "bpr/application/port.hpp"
-#include "bpr/core/release_maintenance.hpp"
+#include "bpr/application/release_maintenance_projection.hpp"
 
 #include <expected>
 #include <memory>
@@ -62,14 +62,6 @@ namespace bpr::application {
 							 std::function<void(release_maintenance_result)> aCompletion) = 0;
 	};
 
-	/// \brief Bounded provider-free state for maintenance controls, independent of sign-in.
-	struct release_maintenance_projection
-	{
-		core::release_maintenance_state                             State;
-		std::array<core::release_maintenance_command_projection, 7> Commands;
-		std::shared_ptr<const std::string>                          Preview;
-		core::release_maintenance_output                            Delta;
-	};
 	class release_maintenance_projection_port
 	{
 	public:

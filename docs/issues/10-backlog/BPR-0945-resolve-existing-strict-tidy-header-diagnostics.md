@@ -3,13 +3,25 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0945"
 title: "Resolve existing strict tidy diagnostics in shared Qt and Home headers"
 status: "Backlog"
-rfcs: ["RFC-BPR-0013"]
+rfcs: []
 depends_on: []
 priority: P2
-metadata: {"origin":"r23 focused integration","scope":"Unchanged shared-header diagnostics, outside BPR-0941..0943"}
+metadata: {"origin":"r23 focused integration","scope":"Unchanged shared-header diagnostics, outside BPR-0941..0943","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
 ---
 
 # Resolve existing strict tidy diagnostics in shared headers
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this remaining work out of RFC-BPR-0013 terminal
+acceptance. This card keeps its ID, path, status, dependencies and all historical
+evidence; only the RFC0013 association is removed. The
+[amended RFC](../../rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
+retain its origin and continuation.
+
+Pending: Canonical strict tidy header diagnostics; no broad suppression or passing tidy result is inferred.
+No owner decision, native observation or repair is supplied by this transfer.
 
 The canonical tidy helper, with the proper macOS SDK and warnings promoted to
 errors, reports two shared-header diagnostics while checking the r23 touched

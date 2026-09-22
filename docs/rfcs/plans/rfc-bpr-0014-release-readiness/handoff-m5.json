@@ -1,0 +1,588 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m5-qt-presentation-adapter",
+    "child": "/root/rfc0014_m5",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m5-qt-presentation-adapter",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "result": "milestone-complete",
+  "rfc_status": "Proposed",
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "d2539a90b387eedd119748d019a1490633227158",
+  "candidate_revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+  "commits": {
+    "claim": "46a32a100c2cd348fb07014dcc1357b8e8a51047",
+    "implementation": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+    "correction": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+    "acceptance": "42c7ac49b41fdc6b11bf072fe8a055c86ac2612e"
+  },
+  "changed_paths": [
+    "src/application/include/bpr/application/release_maintenance_projection.hpp",
+    "src/application/include/bpr/application/release_maintenance_application_host.hpp",
+    "src/application/src/release_maintenance_application_host.cpp",
+    "src/adapters/qt/CMakeLists.txt",
+    "src/adapters/qt/include/bpr/qt/release_maintenance_panel.hpp",
+    "src/adapters/qt/src/release_maintenance_panel.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/CMakeLists.txt",
+    "src/app/include/bpr/app/release_maintenance_controls.hpp",
+    "src/app/src/release_maintenance_controls.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/adapters_qt/CMakeLists.txt",
+    "tests/adapters_qt/release_maintenance_panel_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/release_maintenance_public_path_tests.cpp",
+    "docs/architecture/release-maintenance.md",
+    "docs/architecture/release-readiness.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/verification/RFC-BPR-0014.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m5.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m5.json",
+    "docs/issues/60-done/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+    "docs/issues/20-ready/BPR-0956-compose-cross-platform-release-packages.md",
+    "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md"
+  ],
+  "moves": [
+    {
+      "from": "docs/issues/20-ready/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+      "via": "docs/issues/30-in-progress/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+      "to": "docs/issues/60-done/BPR-0955-compose-maintenance-and-diagnostic-controls.md"
+    },
+    {
+      "from": "docs/issues/10-backlog/BPR-0956-compose-cross-platform-release-packages.md",
+      "to": "docs/issues/20-ready/BPR-0956-compose-cross-platform-release-packages.md"
+    }
+  ],
+  "milestone_results": {
+    "AC1": "Pass: real profile Settings mounts signed-out native-host metadata preview and exact new-file export, with full accepted Target. Controlled host/storage/lifecycle course exercises all seven command presentations and exact clear/purge confirmation. Existing epoch retention remains unchanged.",
+    "AC2": "Pass: actual Settings hierarchy at 100/125/200%, keyboard/focus, one polite accessible status, default/Escape Cancel, exact inventory context, stale dialog dismissal, cancellation and partial cleanup. Actual Cocoa desktop/native-root export/refusal/shutdown passed using a deterministic Qt save picker. Full final archive passes unchanged architecture gate; no Qt effects.",
+    "AC3": "Pass: unchanged preview keeps document/selection/focus, equivalent actions never toggle availability, ordinary diagnostic publications reset no workbench model. Shared Settings owner-transfer regression and existing selected-review multi-window course pass; source no-impact recorded for epoch/diff/native/provider/release owners.",
+    "exit_1": "Pass for authored M5 boundary: live diagnostic actions and controlled destructive actions reach real typed host policy and truthful terminal presentation. Complete production destructive lifecycle composition explicitly remains M6.",
+    "exit_2": "Pass: rendered, accessibility, confirmation, incremental and public no-impact evidence above; no human or delivered-package verdict inferred.",
+    "boundary": "Live Clear/Purge are false and the native diagnostic wrapper refuses non-preview preparation and all erase calls. M6 must compose actual retirement/recovery/store/logger/vault lifetimes before enabling them; merely flipping flags is invalid.",
+    "self_review": "Applied code-simplifier: removed unused factory/button cache, kept effect-free presentation API, corrected shared Settings page ownership and focus-preserving command adoption. Existing core policy, native authority, update/release workflow unchanged.",
+    "plan_change": "No authored stage, selector, exit or canonical RFC criterion changed. User r3 and coordinator explicitly preserve M5 presentation versus M6 complete destructive composition; no obsolete release path duplicated."
+  },
+  "verification": [
+    {
+      "criterion": "mandate r3 preserves all canonical acceptance",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "python3",
+        "-c",
+        "import subprocess; p=\"docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md\"; section=lambda s:s.split(\"## Acceptance criteria\\n\",1)[1].split(\"\\n## Verification matrix\",1)[0]; base=section(subprocess.check_output([\"git\",\"show\",\"d0a8a6dda005af12b3818234f4878a9f48a44146:\"+p],text=True)); current=section(subprocess.check_output([\"git\",\"show\",\"HEAD:\"+p],text=True)); assert base==current; assert sum(line.startswith(\"- \") for line in current.splitlines())==9; print(\"All nine canonical acceptance bullets unchanged\")"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.054
+    },
+    {
+      "criterion": "AC2 effect-free Qt boundary",
+      "outcome": "fail",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "cmake",
+        "-DBPR_ROOT=/private/tmp/bpr0014-m5-architecture.yhyyuT",
+        "-P",
+        "/private/tmp/bpr0014-m5-architecture.yhyyuT/cmake/VerifyArchitectureBoundaries.cmake"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 3.88
+    },
+    {
+      "criterion": "AC2 native macOS composed diagnostic terminal",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "env",
+        "QT_QPA_PLATFORM=cocoa",
+        "QT_SCALE_FACTOR=1",
+        "BPR_AUTOMATED_TEST_BOUNDARY=1",
+        "BPR_MAINTENANCE_PUBLIC_RENDER=/private/tmp/bpr0014-m5-qualification.BTJO45/public-cocoa.png",
+        "python3",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts/qualification_guard.py",
+        "--allowed-root",
+        "/private/tmp/bpr0014-m5-qualification.BTJO45",
+        "--target-root",
+        "/private/tmp/bpr0014-m5-qualification.BTJO45",
+        "--live-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.md",
+        "--",
+        "python3",
+        "-I",
+        "-S",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/scripts/run_network_isolated_test.py",
+        "--sandbox-exec",
+        "/usr/bin/sandbox-exec",
+        "--profile-template",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+        "--loopback-port-count",
+        "0",
+        "--",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/release_maintenance_public_path"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.682
+    },
+    {
+      "criterion": "AC1 Qt-free host presentation boundary",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "core-only",
+        "--target",
+        "test_release_maintenance_host",
+        "-j4"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.132
+    },
+    {
+      "criterion": "AC1 independent host API",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/core-only",
+        "--output-on-failure",
+        "-R",
+        "^application_release_maintenance$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.292
+    },
+    {
+      "criterion": "M5 integration candidate build",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "--target",
+        "app_better_pull_review",
+        "test_release_maintenance_panel",
+        "test_release_maintenance_public_path",
+        "test_better_pull_review_qt_settings_window_tests",
+        "test_profile_multi_window_public_path",
+        "test_release_maintenance_host",
+        "-j4"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 17.488
+    },
+    {
+      "criterion": "M5 documentation structure",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.745
+    },
+    {
+      "criterion": "M5 documentation verifier regression",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.3
+    },
+    {
+      "criterion": "AC3 exact retained history owner is unchanged",
+      "outcome": "pass",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "d2539a90b387eedd119748d019a1490633227158",
+        "HEAD",
+        "--",
+        "src/application/src/epoch_application_host.cpp",
+        "src/application/src/epoch_runtime_ports.cpp",
+        "src/application/src/profile_epoch_actor_registry.cpp",
+        "src/application/include/bpr/application/epoch_application_host.hpp",
+        "src/adapters/qt/src/epoch_comparison_control.cpp"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.015
+    },
+    {
+      "criterion": "AC2 final effect-free Qt and process boundary",
+      "outcome": "pass",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "command": [
+        "cmake",
+        "-DBPR_ROOT=/private/tmp/bpr0014-m5-architecture-final.et7Lad",
+        "-P",
+        "/private/tmp/bpr0014-m5-architecture-final.et7Lad/cmake/VerifyArchitectureBoundaries.cmake"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.669
+    },
+    {
+      "criterion": "M5 corrected composition build",
+      "outcome": "pass",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "--target",
+        "app_better_pull_review",
+        "test_release_maintenance_public_path",
+        "-j4"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.659
+    },
+    {
+      "criterion": "AC2 final native macOS composed diagnostic terminal",
+      "outcome": "pass",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "command": [
+        "env",
+        "QT_QPA_PLATFORM=cocoa",
+        "QT_SCALE_FACTOR=1",
+        "BPR_AUTOMATED_TEST_BOUNDARY=1",
+        "BPR_MAINTENANCE_PUBLIC_RENDER=/private/tmp/bpr0014-m5-qualification.BTJO45/public-cocoa.png",
+        "python3",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts/qualification_guard.py",
+        "--allowed-root",
+        "/private/tmp/bpr0014-m5-qualification.BTJO45",
+        "--target-root",
+        "/private/tmp/bpr0014-m5-qualification.BTJO45",
+        "--live-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.md",
+        "--",
+        "python3",
+        "-I",
+        "-S",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/scripts/run_network_isolated_test.py",
+        "--sandbox-exec",
+        "/usr/bin/sandbox-exec",
+        "--profile-template",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/cmake/sandbox/macos-network-deny.sb",
+        "--loopback-port-count",
+        "0",
+        "--",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/release_maintenance_public_path"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.355
+    },
+    {
+      "criterion": "M5 final changed-source formatting",
+      "outcome": "pass",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "command": [
+        "python3",
+        "_coding-standard/scripts/format_check.py",
+        "--root",
+        ".",
+        "src/app/src/release_maintenance_controls.cpp"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.106
+    },
+    {
+      "criterion": "AC1 AC2 corrected composition public path",
+      "outcome": "pass",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^application_release_maintenance_public_path$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.52
+    },
+    {
+      "criterion": "M5 corrected composition static analysis",
+      "outcome": "pass",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "command": [
+        "python3",
+        "_coding-standard/scripts/tidy.py",
+        "--root",
+        ".",
+        "--build-dir",
+        "build/dev",
+        "--warnings-as-errors",
+        "--paths",
+        "src/app/src/release_maintenance_controls.cpp"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.074
+    },
+    {
+      "criterion": "AC3 changed-surface style",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "python3",
+        "_coding-standard/scripts/format_check.py",
+        "--root",
+        ".",
+        "src/adapters/qt/include/bpr/qt/release_maintenance_panel.hpp",
+        "src/adapters/qt/src/release_maintenance_panel.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/app/include/bpr/app/release_maintenance_controls.hpp",
+        "src/app/src/release_maintenance_controls.cpp",
+        "src/app/src/github_application.cpp",
+        "src/application/include/bpr/application/release_maintenance_projection.hpp",
+        "src/application/include/bpr/application/release_maintenance_application_host.hpp",
+        "src/application/src/release_maintenance_application_host.cpp",
+        "tests/adapters_qt/release_maintenance_panel_tests.cpp",
+        "tests/end_to_end/release_maintenance_public_path_tests.cpp"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.053
+    },
+    {
+      "criterion": "AC1 AC2 AC3 focused rendered and public integration",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^(qt_release_maintenance_scale_(100|125|200)|application_release_maintenance_public_path|application_release_maintenance|qt_settings_window|application_profile_multi_window_public_path)$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 82.834
+    },
+    {
+      "criterion": "AC3 no-impact reused owners and release paths",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "d2539a90b387eedd119748d019a1490633227158",
+        "HEAD",
+        "--",
+        "src/core",
+        "src/adapters/github",
+        "src/adapters/git",
+        "src/adapters/sqlite",
+        "src/adapters/mcp",
+        "src/adapters/logging",
+        "src/adapters/qt/src/epoch_comparison_control.cpp",
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "src/adapters/qt/src/diff_link_map.cpp",
+        "src/application/src/epoch_maintenance_application_host.cpp",
+        "tools/release.sh",
+        "tools/publish-release.sh",
+        ".codex/skills/publish-release/SKILL.md",
+        "CMakePresets.json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.017
+    },
+    {
+      "criterion": "AC1 production effect boundary",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "python3",
+        "_coding-standard/scripts/tidy.py",
+        "--root",
+        ".",
+        "--build-dir",
+        "build/dev",
+        "--warnings-as-errors",
+        "--paths",
+        "src/adapters/qt/src/release_maintenance_panel.cpp",
+        "src/app/src/release_maintenance_controls.cpp",
+        "src/application/src/release_maintenance_application_host.cpp"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 11.088
+    },
+    {
+      "criterion": "AC3 new tests changed-surface static analysis",
+      "outcome": "pass",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "command": [
+        "/opt/homebrew/opt/llvm/bin/clang-tidy",
+        "tests/adapters_qt/release_maintenance_panel_tests.cpp",
+        "tests/end_to_end/release_maintenance_public_path_tests.cpp",
+        "-p",
+        "build/dev",
+        "--extra-arg=-Wno-error",
+        "--extra-arg=-Wno-missing-designated-field-initializers",
+        "--extra-arg=-isysroot",
+        "--extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+        "--warnings-as-errors=*",
+        "--line-filter=[{\"name\":\"tests/adapters_qt/release_maintenance_panel_tests.cpp\"},{\"name\":\"tests/end_to_end/release_maintenance_public_path_tests.cpp\"}]"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 8.622
+    }
+  ],
+  "verification_limits": [
+    "Source evidence a34fc07f is reused only where 13a7d052 changes no relevant input; final correction changes one Qt random generator call and receives its own public/native/build/static/architecture checks.",
+    "Unfiltered tidy on both new tests and untouched settings_window_tests.cpp reports pre-existing home_view_state.hpp:35 bugprone-signed-bitwise; unchanged header is not declared clean. Production new TUs pass strict tidy; new tests pass full checks restricted to their changed source.",
+    "Cocoa is native macOS widget/effect evidence, not attended VoiceOver/native-picker, clean install, OS-vault continuity or tests-disabled delivered package acceptance.",
+    "Architecture scan uses a complete git archive to avoid unrelated ignored nested worktree; checker and unrelated worktree unchanged.",
+    "The qualification guard compares four explicitly selected live declarations only; it is cooperative, not a filesystem sandbox. Network-isolated runner blocks external network. Native test roots are explicitly disposable."
+  ],
+  "corrections": [
+    "Early capture-name build error and incorrect build target corrected before candidate.",
+    "Waited for native keyboard button-dismissal animation; corrected cancellation and export-refusal wording.",
+    "Shared Settings shell can exchange owner pages: panel is re-adopted by the active page, proven through two real windows.",
+    "Cocoa test driver initially retained the default filename; early export remained under the disposable root. Driver now sets and verifies the actual filename field before accepting. Runner removed old temporary root.",
+    "Full candidate scanner initially matched QRandomGenerator::system as a forbidden shell API. Securely seeded generator preserves fresh identity without modifying checker; final scan passes.",
+    "Initial broad tidy failure retained as inherited-header limitation; unchanged baseline test reproduces it. No broad formatting or unrelated header edit."
+  ],
+  "rendered_artifacts": [
+    {
+      "path": "build/rfc0014-run/m5-public-cocoa.png",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "sha256": "e3da816faf14ad162c6a462bcdf5c07b2ce50f4d03ee6cc7276d9f6c39e4ba1d"
+    },
+    {
+      "path": "build/dev/tests/end_to_end/maintenance-public.png",
+      "revision": "13a7d0522137eeb4ab147ff9d563de62aa978035",
+      "sha256": "24a8f12d0ae8b770baf24c3c1c6d8df692db3d61ecd591336fddae3333ba5019"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/maintenance-100-preview.png",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "sha256": "22ba1121692ffef20df5bc8d5efeeaf778ec5085e8f5b5aba4f809104341778f"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/maintenance-125-purge-confirmation.png",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "sha256": "325a90deaf72837f9d8ce5611aaaf5ff030605b4be011193e5b29661e59c732c"
+    },
+    {
+      "path": "build/dev/tests/adapters_qt/maintenance-200-recovery.png",
+      "revision": "a34fc07ffe49e21d03edce174bd28a0d5fb37a8a",
+      "sha256": "060ee74dae339474a86640321ae11e85a16cead68581bc246cbefeb23db6b2c4"
+    }
+  ],
+  "remote_station_observations": {
+    "mode": "Read-only SSH and app inventory; no dispatch/launch/build/fetch/remote writes",
+    "ssh": "aito-main-win -> JaegAW",
+    "windows": {
+      "station": "bpr-win",
+      "station_id": "stn-a5155427",
+      "root": "C:/code/git/bpr-windows",
+      "environment": "windows-native",
+      "branch": "windows-lane",
+      "head": "b9cf4edb316dceaf8c7ea75f4c7321ce353651e8",
+      "dirty": [
+        ".mask.lock.json"
+      ],
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "thread": "01a0ad7c-172d-7bd1-877f-b92372b3f09b",
+      "host": "remote-control:env_e_6a925c2980dc832da3493cea2cb4d944",
+      "managed_visibility": "Exact bpr-win task visible, notLoaded",
+      "tools": "Python and CMake found; Ninja/cl not found in SSH shell; native developer-toolchain activation not investigated",
+      "lease": "unverified: MASK skill link exists but station_lease.py path did not resolve; no launch/repair performed"
+    },
+    "linux": {
+      "station": "bpr-linux",
+      "station_id": "stn-3f7fcc92",
+      "root": "/home/mmarcin/bpr-linux",
+      "environment": "Ubuntu WSL2, ext4",
+      "branch": "linux-lane",
+      "head": "1aabc2f3bbd619a8e26938b8c2e909e4a7058f3e",
+      "dirty": [
+        ".mask.lock.json"
+      ],
+      "kernel": "Linux 6.18.33.2-microsoft-standard-WSL2 x86_64 GNU/Linux",
+      "recorded_thread": "01a0ad7c-5112-7230-ace9-1cf4715ea864",
+      "managed_visibility": "Not established by this discovery",
+      "tools": [
+        "/home/mmarcin/.local/bin/cmake",
+        "/home/mmarcin/.local/bin/ninja",
+        "/usr/bin/clang++"
+      ],
+      "display": {
+        "DISPLAY": ":0",
+        "WAYLAND_DISPLAY": "wayland-0"
+      },
+      "lease": "station-writer: free via installed station_lease.py status",
+      "limits": "SSH/native Linux command availability only, not GUI, Qt, baseline distro or package qualification"
+    }
+  },
+  "review_handoff": {
+    "required_at_m5": false,
+    "session": null,
+    "url": null,
+    "event_cursor": null,
+    "pending_decisions": [],
+    "limits": "No independent/human review claimed. M8 native/attended package courses remain pending; no server or protected candidate created."
+  },
+  "ownership": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "exclusive_writer": "/root/rfc0014_m5",
+    "index": "empty before guarded finish",
+    "background_commands": [],
+    "review_servers": [],
+    "spawned_agents": [],
+    "task_worktrees": [],
+    "protected_candidates": [],
+    "external_writers": "Unrelated RFC0018-0026 worktree advanced to 1b1c62dce63acbcc7020aa5102d234ca94543e6e; other prior worktrees preserved. Main stayed on this child's expected commits.",
+    "cleanup": "Completed: removed exact task-owned two archive trees/tars and disposable qualification directory after copying the final Cocoa image. They are reproducible; normal build output and ignored receipts/screenshots retained."
+  },
+  "pending_later": [
+    "M6 complete multi-window/producer retirement, original-owner recovery, store/logger closure, retained vault/lease composition and actual tests-disabled maintenance/package selection.",
+    "M6 package/install/dependency/SBOM/license/source-offer gaps using authoritative publish-release/release scripts; no publication/sign/notary authority inferred.",
+    "M8 clean native Windows10/11 MSVC, Ubuntu24.04/RHEL10, macOS Apple Silicon/Intel package/auth/render/uninstall and required attended acceptance.",
+    "M9 exact package trust, real vault/crash artifacts, privacy/hardening/runtime inspection and G9 profile-activation IPC reconciliation.",
+    "M10-M12 final docs/simplification/full RFC closeout, canonical predecessors RFC0008/BPR0242 and RFC0013/BPR0617 remain open.",
+    "MASK drift/incomplete and host_load not_verified remain unresolved configuration observations."
+  ],
+  "next_action": "Coordinator starts a fresh sole non-delegating rfc-implementer for m6-composition-public-path / Ready BPR-0956 under r3/rev2, reads this handoff and M4 native contract, reconciles writers, claims before edits. This child stops at M5."
+}

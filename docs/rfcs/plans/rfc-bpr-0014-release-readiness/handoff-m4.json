@@ -1,0 +1,279 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m4-imperative-application-host",
+    "child": "/root/rfc0014_m4",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m4-imperative-application-host",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "result": "milestone-complete",
+  "rfc_status": "Proposed",
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "a9146cac58e584b3c7f225eabe8b31d39eed6bf7",
+  "candidate_revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+  "commits": {
+    "claim": "a578f8ec07fb1dd1eb98192e61ab8473152b023b",
+    "implementation": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+    "acceptance": "2475b4ba5af545236ac0f68f1738bc76f09685a3"
+  },
+  "changed_paths": [
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/release_maintenance_application_host.hpp",
+    "src/application/src/release_maintenance_application_host.cpp",
+    "src/application/include/bpr/application/release_diagnostic_snapshot.hpp",
+    "src/application/src/release_diagnostic_snapshot.cpp",
+    "src/application/include/bpr/application/release_profile_cleanup.hpp",
+    "src/application/src/release_profile_cleanup.cpp",
+    "src/adapters/sqlite/CMakeLists.txt",
+    "src/adapters/sqlite/include/bpr/adapters/sqlite/release_maintenance_files.hpp",
+    "src/adapters/sqlite/src/release_maintenance_files.cpp",
+    "src/adapters/sqlite/src/catalog_database.cpp",
+    "src/adapters/sqlite/src/catalog_database.hpp",
+    "src/adapters/native/storage_failure.hpp",
+    "src/adapters/native/windows_private_storage.hpp",
+    "src/adapters/logging/CMakeLists.txt",
+    "src/adapters/logging/include/bpr/logging/quill_log.hpp",
+    "src/adapters/logging/src/quill_log.cpp",
+    "tests/application/CMakeLists.txt",
+    "tests/application/release_maintenance_host_tests.cpp",
+    "tests/sqlite_contract/CMakeLists.txt",
+    "tests/sqlite_contract/release_maintenance_files_tests.cpp",
+    "tests/logging/CMakeLists.txt",
+    "tests/logging/quill_logging_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/application_logging_tests.cpp",
+    "tests/end_to_end/profile_management_public_path_tests.cpp",
+    "tests/end_to_end/profile_multi_window_public_path_tests.cpp",
+    "docs/architecture/release-maintenance.md",
+    "docs/architecture/release-readiness.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m4.json",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/handoff-m4.json",
+    "docs/verification/RFC-BPR-0014.md",
+    "docs/issues/60-done/BPR-0954-implement-release-maintenance-host.md",
+    "docs/issues/20-ready/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+    "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md"
+  ],
+  "moves": [
+    {
+      "from": "docs/issues/20-ready/BPR-0954-implement-release-maintenance-host.md",
+      "via": "docs/issues/30-in-progress/BPR-0954-implement-release-maintenance-host.md",
+      "to": "docs/issues/60-done/BPR-0954-implement-release-maintenance-host.md"
+    },
+    {
+      "from": "docs/issues/10-backlog/BPR-0955-compose-maintenance-and-diagnostic-controls.md",
+      "to": "docs/issues/20-ready/BPR-0955-compose-maintenance-and-diagnostic-controls.md"
+    }
+  ],
+  "milestone_results": {
+    "AC1": "Pass: narrow provider-free host/storage/lifecycle/projection/local-output ports, immutable bounded snapshot/inventory, genuine retained root lease, POSIX and Windows private native file mechanisms, exact remembered credential cleanup before metadata and durable inventory/receipt recovery. Existing retention and store-specific migration owners reused; actual public retention and store regression courses pass. Explicit root/lock/shared-state/empty-workspace/export residuals documented; no complete uninstall claim.",
+    "AC2": "Pass: 13 host/storage/vault courses plus six actual logger/profile/retention courses at exact candidate. Manual lanes and native roots cover reordering, cancellation/commit, stale retirement, typed terminal refusal, reentrancy, shutdown, canaries, private permissions, exact vault keys, process interruption, torn/foreign receipt and replaced-object/corrupt-journal refusal. Focused new-TU ASan/UBSan and eight Windows source/test TUs pass; Windows native/MSVC execution stays M8, not waived.",
+    "AC3": "Pass: deterministic M3 core unchanged; effect lanes return typed events, only decision lane transitions core. Metadata classifier omits every unframed prose tail. Native inventory and excluded scopes cannot traverse developer/GitHub/sibling/shared state. Complete candidate architecture archive and source no-impact checks pass.",
+    "exit_1": "Pass: required effects enforce exact authority/private-root boundaries; reuse and residual dispositions are source-backed. Actual UI/lifecycle composition and delivered package uninstall remain assigned M5/M6/M8.",
+    "exit_2": "Pass: direct failure/cancel/stale/restart/shutdown evidence without duplicated core semantic policy.",
+    "plan_change": "No milestone selector, exit, platform outcome, nine canonical acceptance bullets or publication authority changed. Under r3, whole-profile purge uses one exact manifest-validated inventory journal for cache objects and catalog being deleted, rather than a second per-cache transaction history; ordinary retention preserves its existing catalog recovery and unfinished original-owner state refuses purge. Full rationale in release-maintenance.md.",
+    "self_review": "Used code-simplifier guidance on the changed surface; shared native admission and completion/cleanup paths, bounded one-job state, explicit effect/decision separation. Fixed an effect failure reason rejected by core terminal policy using a negative test. Replaced a mutable journal credential flag with a digest-bound append-only receipt and added corrupt/torn/replaced-object counterexamples. No delegated/independent/human review claimed."
+  },
+  "verification": [
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^application_epoch_maintenance_public_path$'",
+      "revision": "M4 claim plus preparation working tree",
+      "result": "Early shortest existing public composition passed in 47.91s; rerun at exact candidate below."
+    },
+    {
+      "command": "cmake --build --preset core-only --target test_release_maintenance_host test_release_maintenance_files test_better_pull_review_sqlite_storage_contract_tests test_better_pull_review_sqlite_behavior_contract_tests test_better_pull_review_sqlite_review_ledger_tests test_better_pull_review_review_mutation_recovery_storage_tests test_better_pull_review_queue_enrollment_tests test_better_pull_review_workbench_settings_tests test_better_pull_review_appearance_settings_tests test_device_binding_storage test_profile_runtime_lease test_better_pull_review_window_review_restoration_storage_tests test_better_pull_review_application_github_credential_vault_tests -j4",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "receipt": "build/rfc0014-run/m4-core-build-evidence.json",
+      "result": "pass, 0.505s"
+    },
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review test_quill_logging test_application_logging test_profile_management_public_path test_profile_multi_window_public_path -j4",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "receipt": "build/rfc0014-run/m4-dev-build-evidence.json",
+      "result": "pass, 6.314s"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --root . --build-dir build/core-only --warnings-as-errors --paths src/application/src/release_maintenance_application_host.cpp src/application/src/release_diagnostic_snapshot.cpp src/application/src/release_profile_cleanup.cpp src/adapters/sqlite/src/release_maintenance_files.cpp tests/application/release_maintenance_host_tests.cpp tests/sqlite_contract/release_maintenance_files_tests.cpp",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "receipt": "build/rfc0014-run/m4-tidy-evidence.json",
+      "result": "pass, six new host/native/test TUs, clang-tidy 23.1.1"
+    },
+    {
+      "command": "x86_64-w64-mingw32-g++ -std=c++23 -Wall -Wextra -Werror -Wno-missing-field-initializers -Wconversion -Wsign-conversion -Wshadow=local -fmax-errors=5 -fsyntax-only -Isrc/application/include -Isrc/core/include -Isrc/adapters/sqlite/include -Isrc/adapters/logging/include -Ibuild/core-only/_bpr/sqlite/3.53.4 -isystem build/dev/_bpr/quill/quill-13.0.0/include src/adapters/sqlite/src/release_maintenance_files.cpp src/adapters/sqlite/src/catalog_database.cpp src/adapters/logging/src/quill_log.cpp src/application/src/release_maintenance_application_host.cpp src/application/src/release_diagnostic_snapshot.cpp src/application/src/release_profile_cleanup.cpp tests/application/release_maintenance_host_tests.cpp tests/sqlite_contract/release_maintenance_files_tests.cpp",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "receipt": "build/rfc0014-run/m4-windows-source-evidence.json",
+      "result": "pass, 8.734s, GCC 16.2.0 warnings-as-errors. Source/type checks only; not MSVC link/native runtime"
+    },
+    {
+      "command": "ctest --test-dir build/core-only --output-on-failure -R '^(application_release_maintenance|sqlite_release_maintenance_files|sqlite_appearance_settings_storage|sqlite_workbench_settings_storage|sqlite_device_binding_storage|sqlite_profile_runtime_lease|sqlite_epoch_catalog_storage_contract|sqlite_epoch_catalog_behavior_contract|sqlite_review_ledger_storage|sqlite_review_mutation_recovery_storage|sqlite_queue_enrollment_storage|sqlite_window_review_restoration_storage|application_github_credential_vault)$' -j4",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "13/13 pass, 43.33s",
+      "receipt": "build/rfc0014-run/m4-core-tests-evidence.json"
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^(quill_logging|quill_logging_backpressure|application_logging|application_profile_management_public_path|application_profile_multi_window_public_path|application_epoch_maintenance_public_path)$' -j2",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "6/6 pass, 81.22s; retention seed/prune/restart/cache-delete/restart course 50.80s",
+      "receipt": "build/rfc0014-run/m4-public-tests-evidence.json",
+      "limits": "Tests-enabled development executable and native macOS private roots; no delivered package, native Windows/Linux, human or independent trust evidence."
+    },
+    {
+      "commands": [
+        "/usr/bin/clang++ -std=c++23 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I src/application/include -I src/core/include -I src/adapters/sqlite/include -I build/core-only/_bpr/sqlite/3.53.4 src/application/src/release_maintenance_application_host.cpp src/application/src/release_diagnostic_snapshot.cpp src/application/src/release_profile_cleanup.cpp src/adapters/sqlite/src/release_maintenance_files.cpp tests/sqlite_contract/release_maintenance_files_tests.cpp build/core-only/src/adapters/sqlite/libbetter_pull_review_adapter_sqlite.a build/core-only/src/application/libbetter_pull_review_application.a build/core-only/src/core/libbetter_pull_review_core.a build/core-only/third_party/sqlite/libbetter_pull_review_sqlite3.a -o build/rfc0014-run/m4-native-asan",
+        "env ASAN_OPTIONS=abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-native-asan"
+      ],
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "Compile and native course pass; no sanitizer findings",
+      "receipts": [
+        "build/rfc0014-run/m4-sanitizer-native-build-evidence.json",
+        "build/rfc0014-run/m4-sanitizer-native-evidence.json"
+      ],
+      "limits": "New application/native/test TUs instrumented, existing static dependencies not instrumented. Binary/dSYM removed after verification."
+    },
+    {
+      "commands": [
+        "/usr/bin/clang++ -std=c++23 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I src/application/include -I src/core/include src/application/src/release_maintenance_application_host.cpp src/application/src/release_diagnostic_snapshot.cpp src/application/src/release_profile_cleanup.cpp tests/application/release_maintenance_host_tests.cpp build/core-only/src/application/libbetter_pull_review_application.a build/core-only/src/core/libbetter_pull_review_core.a -o build/rfc0014-run/m4-host-asan",
+        "env ASAN_OPTIONS=abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-host-asan"
+      ],
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "Compile and host course pass; no sanitizer findings",
+      "receipts": [
+        "build/rfc0014-run/m4-sanitizer-host-build-evidence.json",
+        "build/rfc0014-run/m4-sanitizer-host-evidence.json"
+      ],
+      "limits": "New application/test TUs instrumented; not package-wide sanitizer qualification. Binary/dSYM removed."
+    },
+    {
+      "commands": [
+        "git archive --format=tar --output=/Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-candidate.tar 19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+        "tar -xf /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-candidate.tar -C /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-candidate.jloLnD",
+        "cmake -DBPR_ROOT=/Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-candidate.jloLnD -P /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0014-run/m4-candidate.jloLnD/cmake/VerifyArchitectureBoundaries.cmake"
+      ],
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "Pass, 6.435s, complete tracked candidate; temporary directory created with mktemp beforehand and removed after check",
+      "receipt": "build/rfc0014-run/m4-architecture-evidence.json",
+      "limits": "Avoids unrelated ignored nested worktree previously diagnosed in M2; neither worktree nor checker altered."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths src/adapters/sqlite/src/catalog_database.cpp src/adapters/logging/src/quill_log.cpp tests/logging/quill_logging_tests.cpp",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "Pass, three additional affected TUs, clang-tidy 23.1.1; existing tooling suppresses non-user-code warnings",
+      "receipt": "build/rfc0014-run/m4-adapter-tidy-evidence.json"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py --root . followed by the 20 changed .hpp/.cpp files listed in m4-format-evidence.json",
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "Pass, 20 files, clang-format 23.1.1",
+      "receipt": "build/rfc0014-run/m4-format-evidence.json"
+    },
+    {
+      "commands": [
+        "python3 scripts/verify_documentation.py --root .",
+        "python3 tests/scripts/verify_documentation_tests.py",
+        "issue_board.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview validate --rfc RFC-BPR-0014 --json",
+        "milestone_plan.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview discover --target RFC-BPR-0014 --json",
+        "git diff --check"
+      ],
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "DOCUMENTATION_OK; 64/64 pass, 2.156s (hostile-fixture ERROR lines expected); 957 cards valid; same 12-stage plan; clean whitespace",
+      "receipts": [
+        "build/rfc0014-run/m4-documentation-evidence.json",
+        "build/rfc0014-run/m4-documentation-tests-evidence.json",
+        "build/rfc0014-run/m4-board-evidence.json",
+        "build/rfc0014-run/m4-discovery-evidence.json"
+      ]
+    },
+    {
+      "commands": [
+        "git diff --exit-code a9146cac58e584b3c7f225eabe8b31d39eed6bf7 HEAD -- src/core src/app src/adapters/qt src/adapters/github src/adapters/git src/adapters/mcp tools/release.sh tools/publish-release.sh .codex/skills/publish-release/SKILL.md CMakePresets.json",
+        "Compare canonical RFC Acceptance criteria section bytes to immutable RFC_BASE_SHA"
+      ],
+      "revision": "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+      "result": "Pass: named owners/release inputs unchanged, nine canonical acceptance bullets identical",
+      "receipts": [
+        "build/rfc0014-run/m4-reuse-no-impact-evidence.json",
+        "build/rfc0014-run/m4-acceptance-fidelity-evidence.json"
+      ]
+    },
+    {
+      "command": "Preparation compiler/tidy/style checks and helper dry runs",
+      "result": "Initial capture/suffix and extracted error-enum compile mistakes, bracing/exception/format findings and illegal core failure terminal were corrected before exact-candidate checks. Initial move --to ready dry-run rejected unknown lane without mutation; canonical 20-ready succeeded. rm -f cleanup was refused; non-force removal of the validated exact disposable paths succeeded. No outstanding failure hidden."
+    }
+  ],
+  "release_workflow_reuse": {
+    "skill": ".codex/skills/publish-release/SKILL.md",
+    "result": "Complete skill read. Existing tools/release.sh, tools/publish-release.sh, skill and CMakePresets unchanged. No release, signing, notarization, remote preflight, tag, push or publication command."
+  },
+  "review": {
+    "session": null,
+    "url": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected_candidates": [],
+    "detail": "M4 has no required attended/independent decision. No server/session created. M5 rendered/human and M8/M9 native/security acceptance remain pending, not self-certified."
+  },
+  "ownership": {
+    "sole_writer": "/root/rfc0014_m4",
+    "child_agents": [],
+    "task_owned_running_commands": [],
+    "handed_off_server": null,
+    "task_created_worktrees": [],
+    "release_on_return": true,
+    "repository_writers_reconciled": "Main/index matched expected claim/candidate/acceptance before each guarded write. Only assigned scoped paths changed. Other worktrees appeared/advanced independently and were preserved; they are observations, not immutable protected acceptance candidates.",
+    "worktrees": [
+      {
+        "path": "/Users/jaeger/.codex/worktrees/0152/BetterPullReview",
+        "revision": "08b8fd67292fad5ee762850b53dd1b07f5f863db",
+        "detail": "New unrelated rfc-0018-0026 closeout worktree, initially observed at M4 source candidate; separately advancing."
+      },
+      {
+        "path": "/Users/jaeger/.codex/worktrees/14a8/BetterPullReview",
+        "revision": "5ad552a5ce7d1ccb5aa11d21f06314950c5bd0ae"
+      },
+      {
+        "path": "/Users/jaeger/.codex/worktrees/714d/BetterPullReview",
+        "revision": "b00016107082460b215f7832e617325ba05c479b",
+        "detail": "Unrelated RFC0037, earlier observed f6103a7dc874caa0483b9efd93c7c1d14153410b; separate writer retained."
+      },
+      {
+        "path": "/Users/jaeger/Documents/GitHub/BetterPullReview.superseded-worktrees/bpr-dif-integration-rfc-3c2904",
+        "revision": "8ee34d1f4504d30644a12256a99f596acfa681e9"
+      },
+      {
+        "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/agent-a17cae88115dbbb4e",
+        "revision": "de6bc6bf1ffd34277199d40773a629bdab3fdec4"
+      }
+    ],
+    "cleanup": "Removed only validated M4 full source archive/tar and two sanitizer executables/dSYM directories; reproducible from exact candidate. Retained local ignored evidence receipts and normal build outputs. All own exec sessions completed; no task app/worker/review server remains. No registered worktree or unrelated candidate modified."
+  },
+  "pending_obligations": [
+    "M5-M12 remain open; only BPR0954 and the two M4 exits accepted. Ready BPR0955 owns typed maintenance/diagnostic controls, signed-out access, exact/default-cancel confirmations, truthful partial errors, native save gesture, keyboard/focus/accessibility and bounded projections.",
+    "M5/M6 must wire the actual lifecycle: stop ingress, invalidate windows, drain existing Git/workspace/MCP owners, close stores/logger while retaining runtime lease and independent vault worker; wait for host is_quiescent including queued decisions. Cancelled preparation must not silently restart producers; successful purge stops the runtime.",
+    "recover() runs on an effect lane after actual owner quiescence and before fresh host admission. Unknown/changed entries, corrupt initial journal and unfinished original-owner recovery fail closed. Original owner or explicit repair is required; never generic root recursion.",
+    "Ordinary retention/per-store schema migration keep their existing owners. Full-profile cache inventory journal is the documented r3 prescription change; no RFC0027 umbrella/context ring or broad logger controls were activated.",
+    "Root/runtime lock, excluded shared registry/updater/sibling containers, relevant empty parents/adjacent workspace and user exports intentionally remain. All-profiles/shared registry and package uninstall belong to M6/M8; documentation must preserve these actual residuals.",
+    "Windows implementation and registrations are source-complete but MSVC linking/native Windows ACL/vault/lifecycle execution is not run on this Mac. Linux native qualification and real OS-vault continuity remain M8. BPR0885/BPR0891 overlap source repairs but stay unclaimed with their own criteria/native acceptance.",
+    "G1 production MCP helper filename/copy/install/dependency, G2-G4/G7 package routes/full static-transitive inventory/notices/source offers/macOS13 floor/Linux glibc2.39 Ubuntu24.04/RHEL10 and CPU/C++ runtime baselines remain M6-M9.",
+    "G8/G9 release-policy hardening/scans, native diagnostic/crash canaries and authenticated AF_UNIX activation versus old no-local-server criterion remain unresolved.",
+    "Clean Windows10/11 x64, macOS Intel/Apple Silicon and Linux DEB/RPM install/auth/render/remove; independent package trust and any required human verdicts remain pending.",
+    "RFC0013/BPR0617 and canonical predecessor closeout remain open; inherited earliest closure frontier is RFC0008/BPR0242, to be re-read before any RFC closeout. RFC0014 remains Proposed.",
+    "Updater policy and BPR0950 Intel deferral/BPR0911-BPR0912 live private-service gates are separate and unchanged. Existing publish-release/release paths remain authoritative and publication remains unauthorized.",
+    "MASK drift/incomplete and host_load not_verified remain explicit unresolved configuration observations."
+  ],
+  "next_action": "Coordinator starts a fresh sole non-delegating rfc-implementer for m5-qt-presentation-adapter on main under mandate r3/rev2; read this handoff, live card/plan/contract and claim Ready BPR0955. This child stops at M4. No remote/publication authority added.",
+  "continuation_evidence": "docs/issues/10-backlog/BPR-0965-close-rfc-0014.md",
+  "current_checkpoint": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m4.json",
+  "runtime_final_observation": "build/rfc0014-run/m4-observation.json",
+  "runtime_final_check": "build/rfc0014-run/m4-final-check.json",
+  "mechanical_check_scope": "Final observation/check bind bookkeeping HEAD after this handoff commit. Product acceptance remains the exact source candidate; helper structural consistency does not replace engineering judgment."
+}

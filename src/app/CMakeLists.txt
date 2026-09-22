@@ -5,6 +5,8 @@ if(BPR_BUILD_QT)
             src/foundation_application.cpp
             src/github_application.cpp
             src/profile_desktop.cpp
+            src/platform_credential_vault.cpp
+            src/release_maintenance_controls.cpp
             src/release_update_desktop.cpp
             src/review_submission_workflow.cpp
             src/system_browser_opener.cpp
@@ -51,6 +53,8 @@ if(BPR_BUILD_QT)
             "${PROJECT_SOURCE_DIR}/src/application/src"
     )
     target_compile_features(better_pull_review_composition PUBLIC cxx_std_23)
+    target_compile_definitions(better_pull_review_composition PRIVATE
+        "BPR_MCP_HELPER_FILE_NAME=\"$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>\"")
     bpr_enable_hardening(better_pull_review_composition)
     bpr_enable_warnings(better_pull_review_composition)
     if(MSVC)
@@ -123,7 +127,19 @@ if(BPR_BUILD_QT)
     bpr_add_executable(
         app_better_pull_review
         main.cpp
+        src/installed_runtime.cpp
     )
+    if(BPR_DISTRIBUTION_BUILD)
+        target_compile_definitions(app_better_pull_review PRIVATE BPR_DISTRIBUTION_BUILD=1)
+    endif()
+    add_dependencies(app_better_pull_review tool_better_pull_review_mcp_context_helper)
+    set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS
+        "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>")
+    add_custom_command(TARGET app_better_pull_review POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>"
+            "$<TARGET_FILE_DIR:app_better_pull_review>/$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>"
+        VERBATIM)
     if(APPLE)
         bpr_add_executable(tool_bpr_update_helper update_helper_main.cpp)
         set_target_properties(tool_bpr_update_helper PROPERTIES OUTPUT_NAME bpr_update_helper)
@@ -421,13 +437,6 @@ if(BPR_BUILD_QT)
     endif()
     bpr_enable_hardening(app_better_pull_review)
     bpr_enable_warnings(app_better_pull_review)
-    # An MSVC-linked image carries no symbol table, so the composed-host
-    # gate reads the linker's map of the image instead: every public and
-    # static symbol the linker kept, beside the executable as <name>.map
-    # (BPR-0364). Nothing else consumes it.
-    if(MSVC)
-        target_link_options(app_better_pull_review PRIVATE /MAP)
-    endif()
 
     if(BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE)
         if(NOT APPLE OR BUILD_TESTING)

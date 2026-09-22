@@ -66,6 +66,23 @@ This document turns the deterministic-functional-core / imperative-host / Qt-pre
 | ARCH-Q4 | Qt owns visual-only mechanics | Focus/layout/accessibility tests | Core emits focus/popup/animation/widget commands |
 | ARCH-Q5 | Workers never touch Qt | Worker-executor Qt/provider boundary contract plus thread-affinity instrumentation | Worker retains or mutates a widget, Qt model, or provider object |
 
+## RFC-BPR-0014 maintenance and package checks
+
+| ID | Requirement | Direct proof | Failure examples |
+|---|---|---|---|
+| ARCH-R1 | Compact core owns maintenance legality and complete request/selection identity | `core_release_maintenance` and core-only graph | File/vault API in core; stale target exports or deletes; wrapped request generation |
+| ARCH-R2 | Host owns one physical job, frozen preview, bounded inventory and serialized commit/terminal delivery | `application_release_maintenance`, `sqlite_release_maintenance_files` | Reordered success precedes commit boundary; changed object is deleted; callback outlives owner |
+| ARCH-R3 | Destructive preparation drains the selected profile while retaining lease and independent vault worker | `application_release_maintenance_public_path` plus native vault/restart course | Store/logger writes after preparation; metadata erased before credentials; cancellation silently restarts producers |
+| ARCH-R4 | Qt presents exact seven commands/preview/confirmations incrementally | `qt_release_maintenance_scale_100/125/200`, actual Settings public path | Widget performs an effect; stale dialog grants a new target; status resets review/preview state |
+| ARCH-R5 | Tests-disabled package contains required composition/helpers and exact dependency/source closure | `verify_release_package.py`, `verify_release_security.py`, hostile package course and independent native trust | Missing MCP/supervisor/update helper; fixture seam; untrusted plugin; mismatched SPDX or source sidecar |
+
+These are check definitions, not a full-matrix verdict. The
+[RFC-0014 ledger](RFC-BPR-0014.md) binds executed candidates and pending native,
+trust, vulnerability and crash criteria. Core isolation requires no separately
+distributed SDK. The [maintenance contract](../architecture/release-maintenance.md)
+defines the typed intent/prepared/commit/terminal/delta path and fixed limits;
+the [corporate packet](../security/corporate-security-overview.md) maps its effects.
+
 ## Performance checks
 
 | ID | Requirement | Direct proof | Failure examples |

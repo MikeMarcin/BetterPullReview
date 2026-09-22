@@ -3,9 +3,10 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0169"
 title: "Confirm observer enrollment leaves GitHub's reviewer state untouched"
 status: "Parked"
-rfcs: ["RFC-BPR-0010"]
+rfcs: []
 depends_on: ["BPR-0142"]
 parked_on: "awaiting-live-github"
+metadata: {"origin_rfc":"RFC-BPR-0010","mandate_revision":"r4","deferral":"Standalone live server non-mutation observation; not an RFC-0010 terminal gate."}
 ---
 
 # Confirm observer enrollment leaves GitHub's reviewer state untouched
@@ -54,3 +55,18 @@ that it stayed unchanged. Preserve sign-in. No GitHub write is required or
 authorized by this observer-only check; no Actions, push or paid CI may run.
 BPR-0168 retains its accepted native notification evidence and still waits on
 this card; no redundant notification approval is requested.
+
+## Standalone follow-up under owner amendment r4 — 2026-09-21
+
+The owner-directed RFC-BPR-0010 closeout transfers this unobserved external
+criterion to standalone follow-up scope. It does not mark it passed. This card
+stays Parked on `awaiting-live-github`, with its original ID, path, BPR-0142
+dependency and required direct evidence intact. BPR-0168's terminal native
+replay still depends on it; neither card gates the amended RFC closeout.
+
+Next action: obtain a suitable disposable PR on which the actor is neither
+author nor reviewer and an independent client that can read all four fields.
+Preserve remembered sign-in; no new token or GitHub write is required by this
+observation. A missing subscription fact remains a limitation. The
+[r4 mandate](../../rfcs/plans/rfc-bpr-0010-owner-closeout/mandate-r4.md) grants no
+live operation, publication, message, push or Actions authority.

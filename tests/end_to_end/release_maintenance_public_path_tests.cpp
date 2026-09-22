@@ -1,0 +1,268 @@
+#include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
+#include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/desktop_menu_bar.hpp"
+#include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/release_maintenance_panel.hpp"
+#include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
+#include "bpr/qt/workbench_landing.hpp"
+
+#include <QAbstractItemModel>
+#include <QAction>
+#include <QApplication>
+#include <QDir>
+#include <QElapsedTimer>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListView>
+#include <QMessageBox>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QTemporaryDir>
+#include <QThread>
+
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+
+namespace {
+	using namespace bpr;
+	using command = core::release_maintenance_command;
+	void expect(bool aValue, const char* aMessage)
+	{
+		if (!aValue) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+	void until(const std::function<bool()>& aCondition, const char* aMessage)
+	{
+		QElapsedTimer timer;
+		timer.start();
+		while (!aCondition() && timer.elapsed() < 15000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		expect(aCondition(), aMessage);
+	}
+	auto read(const std::filesystem::path& aPath) -> std::string
+	{
+		std::ifstream file{ aPath, std::ios::binary };
+		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
+	}
+	void choose(qt::release_maintenance_panel& aPanel, const QString& aDestination)
+	{
+		aPanel.action(command::export_diagnostics)->trigger();
+		QFileDialog* dialog = nullptr;
+		for (auto* candidate : aPanel.findChildren<QFileDialog*>(QStringLiteral("releaseMaintenanceSaveDialog"))) {
+			if (candidate->isVisible()) {
+				dialog = candidate;
+			}
+		}
+		expect(dialog && dialog->isVisible(), "public Export action opens save selection");
+		dialog->setDirectory(QFileInfo{ aDestination }.absolutePath());
+		auto* filename = dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+		expect(filename, "deterministic save chooser exposes its filename field");
+		filename->setText(QFileInfo{ aDestination }.fileName());
+		expect(dialog->selectedFiles() == QStringList{ aDestination }, "save chooser retains the exact selected filename");
+		static_cast<QDialog*>(dialog)->accept();
+	}
+	void confirm(qt::release_maintenance_panel& aPanel, command aCommand)
+	{
+		aPanel.action(aCommand)->trigger();
+		auto* dialog = aPanel.findChild<QMessageBox*>(QStringLiteral("releaseMaintenanceConfirmation"));
+		expect(dialog && dialog->isVisible(), "public destructive action requires an explicit confirmation");
+		for (auto* button : dialog->buttons()) {
+			if (dialog->buttonRole(button) == QMessageBox::DestructiveRole) {
+				button->click();
+				return;
+			}
+		}
+		expect(false, "destructive confirmation button exists");
+	}
+}
+
+auto main(int aArgc, char** aArgv) -> int
+{
+	QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+	QApplication application{ aArgc, aArgv };
+	QApplication::setQuitOnLastWindowClosed(false);
+	QTemporaryDir temporary{ qEnvironmentVariable("QUALIFICATION_TARGET_ROOT", QDir::tempPath()) + QStringLiteral("/maintenance-XXXXXX") };
+	expect(temporary.isValid(), "disposable app root exists");
+	const auto parent = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+	const auto root   = parent / "data";
+	expect(adapters::sqlite::create_storage_root_owner_private(root), "private application root");
+	app::detail::github_public_path_fixture_options options;
+	options.ApplicationDataRoot      = root;
+	options.RegisteredDeviceCourse   = true;
+	options.IndependentWindowReads   = true;
+	options.RepeatReadSessions       = true;
+	app::github_application* owner   = nullptr;
+	auto                     desktop = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::profile_window_restoration_v1, options,
+		[&](auto aResult) { if (aResult) { owner = *aResult; } });
+	until([&] { return owner && !owner->windows().empty(); }, "real profile desktop starts");
+	const auto first  = owner->windows().front();
+	auto*      window = owner->window(first);
+	expect(window, "real workbench available");
+	window->show();
+	window->open_settings(qt::settings_page::storage_and_privacy);
+	auto* settings = window->settings();
+	expect(settings && settings->isVisible(), "Storage and privacy is reachable in real Settings");
+	auto* panel = dynamic_cast<qt::release_maintenance_panel*>(settings->findChild<QWidget*>(QStringLiteral("releaseMaintenancePanel")));
+	expect(panel, "real composition selects maintenance panel");
+	until([&] { return panel->action(command::preview_diagnostics)->isEnabled(); }, "native diagnostic capability is admitted independently of sign-in");
+	expect(panel->action(command::prepare_clear)->isEnabled() && panel->action(command::prepare_purge)->isEnabled(), "desktop composes the retirement and native cleanup capabilities");
+	unsigned                             resets = 0U;
+	std::vector<QMetaObject::Connection> observers;
+	for (auto* model : window->findChildren<QAbstractItemModel*>()) {
+		observers.push_back(QObject::connect(model, &QAbstractItemModel::modelReset, window, [&] { ++resets; }));
+	}
+	{
+		std::ofstream hostile{ root / "logs/diagnostics.log", std::ios::app };
+		hostile << "2026-09-21T01:00:00Z v=1 op=application outcome=failed request=99 http_status=0 summary=sanitized dropped=0 detail=BPR_CANARY_SECRET_1 BPR_CANARY_SOURCE_1 BPR_CANARY_COMMENT_1\nlegacy BPR_CANARY_SOURCE_2\n";
+	}
+	expect(read(root / "logs/diagnostics.log").find("BPR_CANARY_SOURCE_2") != std::string::npos, "hostile legacy diagnostics actually reach the selected native log");
+	auto* button = panel->findChild<QPushButton*>(QStringLiteral("releaseMaintenanceCommand0"));
+	button->setFocus();
+	QKeyEvent press{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+	QKeyEvent release{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+	QApplication::sendEvent(button, &press);
+	QApplication::sendEvent(button, &release);
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "keyboard preview reaches native host and accepted projection");
+	auto* preview = panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"));
+	expect(preview && preview->isReadOnly(), "exact export text is selectable read-only preview");
+	const auto bytes = preview->toPlainText().toStdString();
+	expect(bytes.starts_with("bpr-diagnostics-v1\n") && bytes.find("request=") == std::string::npos && bytes.find("detail=") == std::string::npos, "actual log is reduced to metadata");
+	expect(bytes.find("BPR_CANARY_") == std::string::npos && bytes.find("legacy") == std::string::npos, "public preview excludes secret, source, comment and malformed legacy bodies");
+	settings->resize(960, 680);
+	QApplication::processEvents();
+	const auto capture = qEnvironmentVariable("BPR_MAINTENANCE_PUBLIC_RENDER");
+	if (!capture.isEmpty()) {
+		expect(settings->grab().save(capture), "actual composed Settings screenshot");
+	}
+	const auto destination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/diagnostic-é.txt");
+	choose(*panel, destination);
+	auto* status = panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceStatus"));
+	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "native export terminal returns to actual Settings");
+	const auto exported = read(app::native_filesystem_path(destination));
+	if (exported != bytes) {
+		std::cerr << "diagnostic-export-mismatch: preview-bytes=" << bytes.size() << " exported-bytes=" << exported.size()
+				  << " destination-exists=" << QFileInfo::exists(destination) << '\n';
+	}
+	expect(exported == bytes, "export bytes equal exact preview including non-ASCII save path");
+	panel->action(command::preview_diagnostics)->trigger();
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "new explicit preview is required for another export");
+	choose(*panel, destination);
+	until([&] { return status->text().contains(QStringLiteral("export was refused")); }, "existing destination is refused with actionable local-file guidance");
+	expect(read(app::native_filesystem_path(destination)) == bytes, "failed export cannot overwrite an existing destination");
+	expect(resets == 0U, "ordinary maintenance publications reset no workbench model");
+	for (const auto& observer : observers) {
+		QObject::disconnect(observer);
+	}
+	panel->action(command::preview_diagnostics)->trigger();
+	settings->close();
+	until([&] { return status->text().contains(QStringLiteral("Cancelled")); }, "closing Settings cancels pending preview through exact identity");
+	window->home_landing()->primary_button()->click();
+	until([&] { return window->session_panel()->status() == core::github_status::session_ready; }, "public sign-in reaches the fixture account");
+	window->home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
+	window->home_open_action()->trigger();
+	until([&] { return owner->status(first)->EpochStatus == core::epoch_status::ready; }, "real Git producer publishes an exact epoch");
+	window->modality()->action(qt::review_modality::read)->trigger();
+	auto* files = window->files_drawer()->contents_view();
+	auto* model = window->files_drawer()->contents();
+	until([&] { return model->index_for_file(core::file_identity_of("review.cpp")).isValid(); }, "exact fixture file is selectable");
+	files->selectionModel()->setCurrentIndex(model->index_for_file(core::file_identity_of("review.cpp")), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+	auto* comparison = window->comparison_surface();
+	until([&] { return comparison->current_result() && comparison->current_semantic_index() && !comparison->geometry_pending() && comparison->isVisible(); }, "selected fixture diff reaches the real workbench");
+	expect(comparison->current_result()->Alignment.Key.File == core::file_identity_of("review.cpp") && comparison->link_map(), "one accepted alignment drives the comparison and DiffLinkMap");
+	auto* newWindow = window->findChild<QAction*>(QStringLiteral("newBprWindowAction"));
+	expect(newWindow && newWindow->isEnabled(), "New Window remains available after diagnostics");
+	newWindow->trigger();
+	until([&] { return owner->windows().size() == 2U; }, "same profile admits another real window");
+	const auto contexts = owner->windows();
+	const auto second   = contexts.front() == first ? contexts.back() : contexts.front();
+	auto*      sibling  = owner->window(second);
+	expect(sibling, "second workbench is available");
+	sibling->open_settings(qt::settings_page::storage_and_privacy);
+	expect(sibling->settings() == settings && panel->parentWidget() == settings->page_widget(qt::settings_page::storage_and_privacy) && panel->isVisible(), "profile panel follows the shared Settings shell to a new window owner");
+	panel->action(command::preview_diagnostics)->trigger();
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "transferred panel still reaches the profile host");
+	window->open_settings(qt::settings_page::storage_and_privacy);
+	expect(panel->parentWidget() == settings->page_widget(qt::settings_page::storage_and_privacy) && panel->isVisible(), "returning Settings ownership does not lose or duplicate the panel");
+	expect(settings->findChildren<QWidget*>(QStringLiteral("releaseMaintenancePanel")).size() == 1, "shared Settings has one maintenance surface");
+	const auto lifetime = owner->liveness();
+	confirm(*panel, command::prepare_clear);
+	until([&] { return panel->action(command::clear_diagnostics)->isEnabled() || status->text().contains(QStringLiteral("failed")) || status->text().contains(QStringLiteral("prevents")); }, "native preparation drains two actual windows and all profile producers");
+	if (!panel->action(command::clear_diagnostics)->isEnabled()) {
+		std::cerr << status->text().toStdString() << '\n';
+	}
+	expect(panel->action(command::clear_diagnostics)->isEnabled(), "actual log inventory is prepared after retirement");
+	expect(lifetime.expired() && desktop->runtime(core::default_bpr_profile_id) == nullptr, "entire original runtime and every store owner are destroyed before confirmation");
+	expect(settings->isVisible() && panel->isVisible(), "maintenance-only Settings survives window retirement");
+#if defined(__APPLE__)
+	expect(desktop->desktop_menu() && desktop->desktop_menu()->quit_action()->isEnabled(), "maintenance-only Settings retains the native Quit action");
+#endif
+	expect(!adapters::sqlite::acquire_profile_runtime_lease(root), "maintenance retains exclusive native profile ownership");
+	panel->action(command::cancel)->trigger();
+	expect(status->text().contains(QStringLiteral("Cancelled")) && desktop->runtime(core::default_bpr_profile_id) == nullptr, "cancel does not restart producers");
+	confirm(*panel, command::prepare_clear);
+	until([&] { return panel->action(command::clear_diagnostics)->isEnabled(); }, "retired profile can prepare a fresh inventory");
+	{
+		std::ofstream changed{ root / "logs/diagnostics.log", std::ios::app };
+		changed << "changed after preparation\n";
+	}
+	confirm(*panel, command::clear_diagnostics);
+	until([&] { return status->text().contains(QStringLiteral("changed")); }, "real confirmation revalidates the prepared inventory");
+	expect(std::filesystem::exists(root / "logs/diagnostics.log"), "changed inventory deletes nothing");
+	confirm(*panel, command::prepare_clear);
+	until([&] { return panel->action(command::clear_diagnostics)->isEnabled(); }, "explicit retry prepares the changed inventory");
+	confirm(*panel, command::clear_diagnostics);
+	until([&] { return status->text().contains(QStringLiteral("files were cleared")); }, "real diagnostic deletion reaches a truthful terminal");
+	expect(!std::filesystem::exists(root / "logs" / "diagnostics.log") && std::filesystem::exists(root / "state" / "v1" / "review-queue.sqlite3"), "clear removes only diagnostics");
+	confirm(*panel, command::prepare_purge);
+	until([&] { return panel->action(command::purge_profile)->isEnabled() || status->text().contains(QStringLiteral("prevents")) || status->text().contains(QStringLiteral("partial")); }, "native full-profile inventory returns");
+	if (!panel->action(command::purge_profile)->isEnabled()) {
+		std::cerr << status->text().toStdString() << '\n';
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ root }) {
+			std::cerr << entry.path().lexically_relative(root) << '\n';
+		}
+	}
+	expect(panel->action(command::purge_profile)->isEnabled(), "complete real profile can be purged");
+	confirm(*panel, command::purge_profile);
+	until([&] { return status->text().contains(QStringLiteral("data was purged")); }, "exact profile purge completes through real Settings");
+	expect(!std::filesystem::exists(root / "state" / "v1" / "device-bindings.sqlite3") && !std::filesystem::exists(root / "state" / "v1" / "review-queue.sqlite3"), "private stores and binding metadata are removed");
+	expect(read(app::native_filesystem_path(destination)) == bytes, "exported user file survives profile purge");
+#if defined(__APPLE__)
+	desktop->desktop_menu()->quit_action()->trigger();
+#else
+	settings->close();
+	desktop->quit();
+#endif
+	until([&] { return desktop->is_quiescent(); }, "desktop drains maintenance before releasing root and workers");
+	expect(desktop->exit_code() == 0, "orderly real desktop shutdown succeeds");
+	desktop.reset();
+	expect(adapters::sqlite::acquire_profile_runtime_lease(root).has_value(), "closing maintenance releases the retained lease");
+	{
+		std::ofstream journal{ root / ".bpr-maintenance-v1", std::ios::binary };
+		journal << "interrupted invalid journal";
+	}
+	std::filesystem::permissions(root / ".bpr-maintenance-v1", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+	bool refused = false;
+	desktop      = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::profile_window_restoration_v1, options,
+		[&](auto aResult) { expect(!aResult, "unrecovered profile must never be admitted"); refused = true; });
+	until([&] { return refused && desktop->is_quiescent(); }, "startup executes maintenance recovery before any fresh producer");
+	expect(!std::filesystem::exists(root / "logs/diagnostics.log") && !std::filesystem::exists(root / "state/v1/review-queue.sqlite3"), "failed recovery opens neither profile stores nor logger");
+	expect(read(root / ".bpr-maintenance-v1") == "interrupted invalid journal", "failed recovery preserves evidence without fallback deletion");
+	desktop.reset();
+	std::cout << "release-maintenance-public-path:pass real-settings signed-out-preview exact-local-export exclusive-destination no-model-reset selected-fixture-diff shared-settings-owner two-window-retirement cancel-no-restart stale-inventory clear purge retained-lease startup-recovery-refusal\n";
+	return EXIT_SUCCESS;
+}

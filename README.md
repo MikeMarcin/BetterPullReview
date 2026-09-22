@@ -68,14 +68,43 @@ propagates per-request cancellation through live observation, submission, and
 native HTTPS, revokes admission on identity replacement and shutdown, and durably
 reconciles an indeterminate attempted publication from server truth after
 restart without a second POST.
+
+RFC-BPR-0008 is Auto-Verified under the owner's r4 closeout amendment.
+Its [ledger](docs/verification/RFC-BPR-0008.md) separates the implemented and
+locally verified publication paths from pending live mixed-client/state-loss
+checks (BPR-0143), real whole-review attribution (BPR-0144), and private-PR smoke
+acceptance (BPR-0641). Those cards remain parked follow-ups; RFC status does not
+claim those observations or complete release qualification.
+
 Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
-separate Publish action is still the only shared path. The shipped workbench now
-offers explicit built-in agent profiles and carries one reviewer gesture through
-core host policy, exact accepted context, an isolated exact-head workspace, the
-real process adapter, and visible terminal projection. Windows launch remains
-fail-closed pending target-native containment evidence.
+separate Publish action is still the only shared path.
+RFC-BPR-0009 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0009.md) records the verified local defect
+workflow while BPR-0153 remains parked for an unfamiliar GitHub collaborator's
+comprehension and reply. No collaborator verdict is inferred from RFC status.
+
+The shipped workbench now offers explicit built-in agent profiles and carries
+one reviewer gesture through core host policy, exact accepted context, an
+isolated exact-head workspace, the real process adapter, and visible terminal
+projection. Windows uses the native suspended-start/Job Object backend; its
+component evidence does not qualify the RFC-0014 installed-package matrix.
+
+RFC-BPR-0011 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0011.md) binds the verified local fixture
+and public invocation paths plus candidate-specific historical native evidence.
+Installed-agent compatibility, actual agent GitHub authentication and human
+judgment of the existing-checkout warning remain unobserved; no release or
+native package acceptance follows from this status.
+
+RFC-BPR-0012 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0012.md) records the verified local findings,
+workshop, revision-aware chat and read-only MCP paths. The later Dif workshop
+cue mismatch remains a separate BPR-0966 follow-up. Installed-agent behavior,
+live agent GitHub identity and native package qualification remain unobserved;
+the status preserves the original fixture acceptance scope.
+
 The shipped landing surface now accepts local repository, author, and path
 observer rules, persists the exact matched reason, restores it across a restart,
 and removes the projected item when its only local rule is deleted. Explicit
@@ -83,6 +112,13 @@ role, observer-reason, attention-bucket, repository, and quiet/current filters
 sit above the core order; repository and pull-request-number sorts activate only
 when selected, and the private preferences survive restart without persisting a
 derived filtered queue.
+
+RFC-BPR-0010 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0010.md) records the verified local queue and
+notification composition. BPR-0169 remains parked for an independent live
+GitHub state comparison; BPR-0168 retains the accepted v006 native checkpoint
+and the later-candidate replay obligation as a standalone backlog follow-up.
+RFC status supplies neither a new server observation nor a new native verdict.
 
 RFC-BPR-0015's amended first read milestone has a qualified macOS fixture
 path. Native HTTPS remains the default. The tests-disabled macOS composition
@@ -147,13 +183,17 @@ returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that
 any particular private pull request can render.
 
-RFC-BPR-0013's selected-diff hardening is accepted with one explicitly deferred
-edge case: provider “modified” metadata can disagree with the selected base-tip
-comparison. A missing required side currently makes the comparison unavailable.
-BPR-0944 tracks preserving the readable side, explaining the missing side in
+RFC-BPR-0013 is Auto-Verified under owner amendment r4 for its documented bounded
+hardening scope. The [closeout ledger](docs/verification/RFC-BPR-0013.md) preserves
+the original wider requirements as BPR-0967–0972 follow-ups, including current
+Mac memory-budget failures, broader native performance, rendered offline/backoff,
+fuzzing and diagnostic/structural coverage. Existing human, layout and tidy
+follow-ups remain open; this status does not qualify a release.
+
+Provider “modified” metadata can still disagree with the selected base-tip
+comparison. A missing required side makes the comparison unavailable.
+BPR-0944 retains preserving the readable side, explaining the missing side in
 its pane, and deciding comparison semantics; that behavior is not implemented.
-The [closeout ledger](docs/verification/RFC-BPR-0013.md) distinguishes this
-owner deferral from the RFC's remaining acceptance and canonical-order gates.
 
 Manual credentials use a Qt-owned password input and remain session-only.
 Device sign-in is remembered across orderly quits: tokens stay in the platform
@@ -208,6 +248,28 @@ presentation facts. Both RFCs are `Auto-Verified` after the focused native,
 rendered, memory, resource, and core-only closeout. The selected-graph evidence
 does not certify a signed, notarized, or installable package.
 
+## Installation, privacy and release status
+
+The [package guide](docs/development/release-packages.md) covers per-user
+installation, declared platform/toolchain baselines, dependency notices,
+separate corresponding-source assets and independent signature checks.
+RFC-BPR-0014 is Auto-Verified for its owner-amended packaging/maintenance
+foundation, completing the original RFC pack. Full release qualification remains pending under
+[RFC-BPR-0038](docs/rfcs/RFC-BPR-0038-native-package-release-security-qualification.md):
+current macOS/Windows candidates
+lack final release trust, dependency vulnerability findings remain unresolved,
+and the complete native install/authentication/vault/removal matrix is open.
+Package definitions and a universal binary do not establish that acceptance.
+
+Use Settings → Storage & privacy to preview and export bounded diagnostic
+metadata or prepare explicit diagnostic cleanup/profile purge. Preparation
+stops that profile; cancellation does not restart it. Uninstalling program
+files retains private state. The [storage and removal guide](docs/development/storage-and-diagnostics.md)
+names included data, credentials, recovery and residuals. The
+[corporate security overview](docs/security/corporate-security-overview.md)
+describes actual network destinations, subprocesses, AI and privacy boundaries,
+with current qualification gaps.
+
 ## Application updates
 
 The [Settings guide](docs/development/settings.md) describes all seven
@@ -260,7 +322,7 @@ libsecret 0.20+ development metadata is also required.
 Compatible newer installations are supported.
 
 Dependency discovery is centralized before product targets are declared.
-Qt 6.10.3 is acquired by a pinned provider and resolved in package mode,
+Qt 6.11.2 is acquired by a pinned provider and resolved in package mode,
 with `BPR_QT_ROOT` and `BPR_QT_PROVIDER=OFF` available to supply it yourself;
 Python, Git, and Linux libsecret use their standard CMake or `pkg-config`
 providers only when their selected graph needs them. SQLite 3.53.4 is
@@ -271,8 +333,9 @@ built from a controlled two-file staging directory as the existing
 `PKG_CONFIG_PATH`, and `CPM_SOURCE_CACHE` when discovery needs help.
 Configure BetterPullReview as the top-level project. Top-level dependency-provider
 hooks are rejected, and repository plus built-in CMake modules are loaded from
-trusted absolute paths. RFC-BPR-0014 owns application installation and package
-qualification; it does not require a separate core SDK or general CMake embedding
+trusted absolute paths. RFC-BPR-0014 owns the application installation/package
+foundation; RFC-BPR-0038 owns remaining native and release-security qualification.
+Neither requires a separate core SDK or general CMake embedding
 support. The core remains independently buildable and testable without Qt/providers.
 
 ```sh

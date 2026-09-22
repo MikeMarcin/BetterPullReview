@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "rfc0014-m9-licensing-v003",
+      "title": "Review Qt 6.11.2 macOS licensing inventory",
+      "revision": "producer-92c4e159-mac-b0b94e7f-source-2532ba6a",
+      "criteria": [
+        "Has the designated owner/legal reviewer approved the distribution terms and corresponding-source/build/relink obligations for this exact Qt 6.11.2 macOS inventory, including equivalent recipient access and retention?"
+      ],
+      "content": "BPR-0962 AC1 only. The owner-selected Qt upgrade changes the licensing/source inventory, so the accepted macOS licensing-v002 decision does not transfer. The ad-hoc universal macOS app retains seven upstream source payloads and 63 Qt package records. QtBase is now 6.11.2, with source archive SHA-256 5b2e00eccaf5a4d8c14134ffa0ea8dfd0a35ae1ffc7f8d87fa4305a1ed23cf22; Qt's Apache Tika MIME XML attribution and its Apache-2.0 notice remain included. The separate version-bound corresponding-source asset model is unchanged: no source ZIP is embedded in the installed application; installed provenance, notices and source offer bind the exact release URL, digest and producer. Both binary and corresponding-source assets must reach every recipient at no extra charge through equivalent access, including offline/corporate copies and a fallback after private-repository access changes. Retention is indefinite until the accountable distribution owner documents that all applicable obligations ended, and never ends while matching binaries remain distributed. Build, Qt replacement/relinking and local verification instructions remain in SOURCE-OFFERS.txt. The prospective v0.1.3 source URL is unpublished. Review first-party distribution terms, mixed syntax-data licenses, upstream/toolchain terms and practical build/relink material for these exact bytes. Approval here does not approve vulnerabilities, security, signatures, native behavior or publication. Fresh Grype remains FAILED with 32 macOS / 30 Windows raw matches; no security-owner waiver exists. Producer 92c4e1594b7a8836d69d79404d1d12a7ddf9bbcf; macOS package SHA-256 65cbeb97be3252c2b7e4346fe8033842671030c660744af41943eeecdffeb22c; SPDX b0b94e7fc1deabf16d0fe59af8ff5d19732cab859fa5887e3477f1258dd09b2c; separate source 2532ba6aaa2137deb709f201faa453214425e52cc3bec5389cbe898210663329. Package/source mechanics pass; legal/owner acceptance remains pending.",
+      "paths": [
+        "docs/verification/reviews/rfc0014-m9-licensing-v003",
+        "build/releases/m9-qt6112-92c4e159"
+      ],
+      "resources": [],
+      "copy": [
+        {
+          "label": "Exact binary package",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-local.zip"
+        },
+        {
+          "label": "Installed source offer and replacement instructions",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview.app/Contents/Resources/ThirdParty/SOURCE-OFFERS.txt"
+        },
+        {
+          "label": "Installed notices and exact source reference",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview.app/Contents/Resources/ThirdParty/THIRD-PARTY-NOTICES.txt"
+        },
+        {
+          "label": "Separate version-bound corresponding source",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip"
+        },
+        {
+          "label": "Installed source provenance",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json"
+        },
+        {
+          "label": "Exact SPDX inventory",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-qt6112-92c4e159/BetterPullReview-0.1.3-macos-universal-local.spdx.json"
+        }
+      ]
+    }
+  ]
+}

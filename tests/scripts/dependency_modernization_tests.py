@@ -462,7 +462,10 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue(audit.is_file(), audit)
         records = re.findall(r"\[==\[([^\n]+)\]==\]", audit.read_text(encoding="utf-8"))
         self.assertTrue(records)
-        modes = {record.split("|", 2)[1] for record in records}
+        if any(record.startswith("LibArchive|") for record in records):
+            self.assertIn("LibArchive|CPM_PINNED|BetterPullReview::ReleaseArchive", records)
+        modes = {record.split("|", 2)[1] for record in records
+                 if record != "LibArchive|CPM_PINNED|BetterPullReview::ReleaseArchive"}
         self.assertTrue(
             modes
             <= {"CMAKE_CONFIG", "CMAKE_MODULE", "PKG_CONFIG", "TOOLCHAIN", "PINNED_ARCHIVE"}
@@ -518,6 +521,31 @@ class DependencyModernizationTests(unittest.TestCase):
         diagnostic = configured.stdout + configured.stderr
         self.assertIn("caller-installed Qt", diagnostic)
         self.assertIn("re-enable the pinned provider", diagnostic)
+
+    def test_windows_qt_611_uses_the_pinned_upstream_repository_layout_fix(self):
+        with contained_temporary_directory() as temporary_directory:
+            script = Path(temporary_directory) / "installer.cmake"
+            script.write_text(
+                f'include("{ROOT.as_posix()}/cmake/BprQtProvider.cmake")\n'
+                'bpr_qt_installer_requirement(requirement)\n'
+                'message(STATUS "REQUIREMENT:${requirement}")\n'
+                'set(BPR_QT_VERSION "6.10.3")\n'
+                'bpr_qt_installer_requirement(legacy_requirement)\n'
+                'message(STATUS "LEGACY:${legacy_requirement}")\n'
+            )
+            for system in ("Windows", "Darwin", "Linux"):
+                with self.subTest(system=system):
+                    result = subprocess.run(
+                        ["cmake", f"-DCMAKE_SYSTEM_NAME={system}", "-P", str(script)],
+                        text=True, capture_output=True, check=True,
+                    )
+                    expected = (
+                        "git+https://github.com/miurahr/aqtinstall.git@"
+                        "8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b"
+                        if system == "Windows" else "aqtinstall==3.3.0"
+                    )
+                    self.assertIn("REQUIREMENT:" + expected, result.stdout)
+                    self.assertIn("LEGACY:aqtinstall==3.3.0", result.stdout)
 
     def test_qt_provider_keeps_every_mechanism_it_replaced_the_old_policy_with(
         self,
@@ -661,17 +689,32 @@ class DependencyModernizationTests(unittest.TestCase):
             r"option\(\s*BPR_QT_PROVIDER\s+\"[^\"]*\"\s+ON\s*\)",
         )
         with contained_temporary_directory() as temporary_directory:
+            stale_qt = Path(temporary_directory) / "stale-qt"
+            stale_qt.mkdir()
+            marker = stale_qt / "executed"
+            (stale_qt / "Qt6Config.cmake").write_text(
+                f"file(WRITE [==[{marker}]==] stale)\n"
+                "message(FATAL_ERROR \"Cached Qt from the previous pin was selected\")\n",
+                encoding="utf-8",
+            )
+            (stale_qt / "Qt6ConfigVersion.cmake").write_text(
+                "set(PACKAGE_VERSION 6.10.3)\n"
+                "set(PACKAGE_VERSION_COMPATIBLE TRUE)\n",
+                encoding="utf-8",
+            )
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=ON",
                 "-DBUILD_TESTING=OFF",
                 "-DCMAKE_BUILD_TYPE=Release",
+                f"-DQt6_DIR={stale_qt}",
             )
             self.assertEqual(
                 configured.returncode,
                 0,
                 configured.stdout + configured.stderr,
             )
+            self.assertFalse(marker.exists(), "A stale Qt package must not execute before selecting the pin")
             audit = (
                 Path(temporary_directory)
                 / "build/_bpr/product-dependency-audit.cmake"

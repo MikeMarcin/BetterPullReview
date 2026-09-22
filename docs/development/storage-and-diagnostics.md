@@ -1,0 +1,153 @@
+# Storage, diagnostics and removal
+
+These instructions describe the composed RFC-BPR-0014 maintenance controls.
+The [native qualification ledger](../verification/RFC-BPR-0014.md) still has
+open clean-account, credential-vault, crash-privacy and complete removal courses.
+An implemented control or passing fixture does not certify every platform.
+
+## Locate the selected profile
+
+The application uses Qt's `AppLocalDataLocation` with organization and application
+both named `BetterPullReview`. Typical base locations are:
+
+| Platform | Base location |
+|---|---|
+| macOS | `~/Library/Application Support/BetterPullReview/BetterPullReview` |
+| Windows | `%LOCALAPPDATA%\BetterPullReview\BetterPullReview` |
+| Linux | `$XDG_DATA_HOME/BetterPullReview/BetterPullReview`, normally `~/.local/share/BetterPullReview/BetterPullReview` |
+
+OS redirection and managed environments can change the base. The legacy/default
+profile uses that base; isolated profiles use `profiles/<opaque root identity>`
+under it. A profile's display name or numeric CLI ID is not that directory name.
+Confirm the selected profile in Settings before maintenance. Root admission
+rejects unsafe permissions and symlink/reparse substitutions; it does not make
+an arbitrary path safe because it resembles one of these examples.
+
+Native private directories/files use owner-only modes on POSIX and validated
+private ACLs/handles on Windows. A kernel-held exclusive lease prevents two
+writers from owning the same profile. Same-user/admin access, backups and disk
+encryption are separate OS controls. Do not copy or edit live databases, remove
+locks, or treat a root directory as a recursive deletion target.
+
+## Inventory and retention
+
+| Data | Location relative to the admitted profile root | Removal behavior |
+|---|---|---|
+| Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
+| Retained Git data | Managed repository/cache/catalog layout and its identity manifests | No automatic TTL/LRU pruning. Exact epoch pruning leaves tombstones and does not promise immediate byte reclamation. Explicit repository-cache deletion removes that cache's bytes; never-observed history cannot be recovered. |
+| Agent and MCP material | Adjacent `<profile-root-leaf>-agent-workspaces-v1` ownership area; profile `agent-workspace-ownership-v1` and `mcp-snapshot` | Original owners reconcile active/interrupted work before purge. Populated or unknown workspace state can block it; no broad sweep is used. Existing developer checkouts are outside purge. |
+| Diagnostics | `logs/diagnostics.log` | Appends across launches up to 16 MiB. Recording stops at the cap; no automatic rotation. Explicit diagnostic cleanup removes the prepared log. |
+| Shared/excluded state | `profiles/`, `updates/`, `state/v1/profile-registry.sqlite3`, `release-update.sqlite3`, `update-draft-recovery.sqlite3` and their admitted sidecars | Current-profile purge excludes them. Updater draft recovery may contain private text even when stored within a profile. There is no general all-profiles/updater-storage removal UI. |
+| Credentials | Native Keychain/Credential Manager/Secret Service; tokens are outside SQLite | Sign out deletes exact access/refresh slots. Profile purge deletes known remembered bindings through their existing owner before removing binding metadata. |
+
+Manual-token sessions are session-only and remove their exact slots on orderly
+quit. Settled device grants survive orderly quit and are revalidated on restart.
+Sign out also disables the resumable binding; replacing a device grant with a
+manual token removes the previous grant. A crash or missing binding metadata
+can leave unresumable vault material. Neither purge nor uninstall enumerates a
+whole credential namespace. External `gh` and AI credentials belong to those
+applications and are not removed by BetterPullReview.
+
+## Preview and export diagnostics
+
+1. Open Settings for the intended profile, then **Storage & privacy** and
+   **Preview diagnostics**. This local operation is available without GitHub
+   sign-in when the profile and storage are admitted.
+2. Inspect the exact read-only preview and omission counts. It contains fixed
+   operation/outcome codes and numeric HTTP status/drop counts. It excludes the
+   readable log's prose, timestamps/request identities, paths, source/comment
+   bodies, private notes/drafts, agent output, databases and crash memory.
+3. Choose **Export preview…** and a new local filename. Existing files are
+   refused. Export writes those same frozen bytes; later log appends are not
+   silently added. Nothing is uploaded. Share only through your approved channel.
+
+Input work is bounded to 16 MiB, 65,536 records and 8,192 bytes per line; output
+is at most 1,024 records and 256 KiB. Unknown/incomplete records are omitted and
+counted. A missing/unsafe log, changed target or limit refusal is not a successful
+empty export. After an export failure, preview again and choose a new filename.
+If publication succeeded before a final durability failure, the selected file
+may remain; inspect it before retrying. Cancel before the commit boundary is
+advisory, and an operation already committed may still report success.
+
+The readable log is not the export. Its bounded, sanitized service-error prose
+may retain identity information. Do not send raw logs, databases, MCP snapshots
+or OS crash reports as if they had passed the preview's policy. BetterPullReview
+does not automatically upload them; OS crash collection has its own settings.
+Current crash evidence does not establish redaction of resident source/comments/
+tokens across the supported matrix.
+
+## Clear diagnostics or purge a profile
+
+1. Finish or save work in every window of the selected profile. In **Storage &
+   privacy**, select **Prepare diagnostic cleanup…** or **Prepare profile purge…**.
+2. Read the preparation warning and choose **Stop profile and prepare**. This
+   retires its windows and drains producers/stores before inventory; it deletes
+   nothing. Cancel is the default. Once stopped, cancellation does not restart
+   the profile automatically.
+3. Inspect the prepared profile, categories and exact entry count. Use **Clear
+   prepared diagnostics…** or **Purge prepared profile data…** to confirm that
+   inventory. Clear removes only the prepared diagnostics. Purge includes the
+   profile's private stores, retained history, managed agent/MCP material and
+   exact remembered credential bindings. GitHub reviews and developer worktrees
+   are unaffected.
+4. Read the terminal result. Close the maintenance-only Settings shell to release
+   ownership, then reopen the profile deliberately if needed. Other profiles
+   have independent lifetimes.
+
+Preparation refuses unknown/changed entries, unsafe roots, pending original-owner
+recovery or more than 4,096 targets. Do not bypass a refusal with a directory
+delete. Reconcile the named owning feature and prepare again. During irreversible
+cleanup, cancellation cannot roll back deleted files. A failure may require
+recovery and keep the profile stopped.
+
+The `.bpr-maintenance-v1` journal binds the original inventory and credential
+receipt. On restart, recovery runs under the lease before any producer/store
+opens. It can finish deletion of that exact inventory; it refuses corrupt,
+foreign, new or replaced objects. Preserve the journal and remaining private
+files if startup refuses. Do not edit the journal, reconstruct credential keys
+from labels or remove a lock to force admission. There is no general repair or
+secure-erasure command; obtain an exact-scope operator diagnosis.
+
+Purge intentionally leaves the profile root/runtime lock, excluded shared stores
+and containers, sibling profiles, external exports and admitted empty workspace/
+state parents. It does not erase backups or guarantee physical erasure from
+SSD/WAL/journal media. Keep those residuals in a corporate removal inventory.
+
+## Migration, update and uninstall
+
+Each SQLite store validates its application/schema identity and performs its own
+transactional migration. Future-version, foreign or corrupt stores can be
+refused; optional-store failures may leave a visibly limited/session-only UI.
+There is no generic migration switch and no promise that an older application
+can open data written by a newer one. If preserving private state, quit every
+owner and use a consistent corporate backup of the exact stores/sidecars;
+copying one live `.sqlite3` file is not a backup protocol. A filesystem backup
+does not back up or authorize credentials in a native vault.
+
+For complete departure, first finish or reconcile attempted publications and
+any active updater transaction, sign out of each native account, then perform
+explicit profile cleanup while the app is still installed. Inspect every
+profile and the excluded shared/update/export locations separately. If a native
+credential deletion fails, retain its binding/recovery metadata for diagnosis.
+Deleting metadata first can remove the exact key needed for cleanup.
+
+After normal Quit, remove the macOS app from its chosen Applications folder;
+use Windows Installed apps/MSI uninstall; remove a Linux per-user versioned
+installation or use the corresponding DEB/RPM package-manager removal. These
+remove program files and retain user state. Package removal cannot retract
+reviews already published to GitHub. Keep the matching source asset available
+for recipients under the [distribution policy](release-packages.md).
+
+Windows/Linux and managed packages update manually. The separate
+[macOS update/recovery guide](application-updates.md) owns the qualified helper,
+healthy-start receipt, backup and sibling transaction directory. A current-profile
+purge does not replace that recovery procedure or erase updater draft text.
+
+Implementation owners are `profile_storage_root.cpp`, `release_maintenance_files.cpp`
+and `profile_runtime_lease.cpp` under `src/adapters/sqlite/src/`,
+`src/application/src/release_profile_cleanup.cpp`,
+`src/application/src/release_diagnostic_snapshot.cpp`,
+`src/app/src/profile_desktop.cpp` and
+`src/adapters/qt/src/release_maintenance_panel.cpp`. The
+[maintenance contract](../architecture/release-maintenance.md) records typed
+authority, failure ordering, direct tests and remaining native evidence.

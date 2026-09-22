@@ -6,8 +6,9 @@
 // error mode a child inherits from the launcher covers the loader and crash
 // boxes; this covers the CRT's own, which is an in-process setting and has
 // to be made in every test executable. bpr_add_executable links this unit
-// into every non-application executable under MSVC, so a failure is an exit
-// code and a line on stderr, which is what CTest can act on.
+// into non-application executables in tests-enabled MSVC builds, so a failure
+// is an exit code and a line on stderr, which is what CTest can act on. It is
+// absent from the shipped helpers in a tests-disabled distribution graph.
 //
 // On every other toolchain this unit is empty.
 #if defined(_MSC_VER)

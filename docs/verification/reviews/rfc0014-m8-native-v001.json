@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0958-native-diff-v001",
+      "title": "macOS: source, map and keyboard usability",
+      "revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15 / macOS payload 5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54",
+      "paths": [
+        "build/releases/m8-6ad71635",
+        "tests/end_to_end/rfc0015_cli_read_fixture.py"
+      ],
+      "metadata": {
+        "card": "BPR-0958",
+        "criterion": "AC2",
+        "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+        "executable_sha256": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54",
+        "scope": "Human interaction judgment only; not whole-card or platform-matrix acceptance",
+        "mandate_revision": "r3"
+      },
+      "criteria": [
+        "At your normal Retina display setting, is the selected review.cpp source comparison, its single correspondence map, and the visible keyboard focus usable and legible?"
+      ],
+      "content": "This is the actual tests-disabled universal candidate, not a mockup. The closed local GitHub CLI fixture supplies only synthetic octo-reviewer/review-repository data and cannot publish. Run the command, choose Use GitHub CLI, accept the fixture read consent, paste the supplied link and choose Start review. Expected source: earlier values 11–16, later values 21–26; one replacement map and one shared comparison position. Focus the map, press Return, then Tab into source. Inspect your normal window/display size; record an issue if focus, layout or text is unclear. Quit with Command-Q when finished. The bounded launcher allows five minutes; rerun it if needed. Do not choose device sign-in, add a server, or open another repository. Acceptance answers only this question; real-vault cleanup, clean-account authentication and other platforms remain pending.",
+      "resources": [
+        "install:/Users/jaeger/bpr0014-m8.hqGy0H/review-diff/home/Applications/BetterPullReview.app",
+        "fixture:/Users/jaeger/bpr0014-m8.hqGy0H/review-diff"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/bpr0014-m8.hqGy0H/review-diff/home/Applications/BetterPullReview.app": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54"
+      },
+      "launch": {
+        "label": "Launch this isolated native candidate (five-minute bound)",
+        "command": "/opt/homebrew/bin/python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts/qualification_guard.py --allowed-root /Users/jaeger/bpr0014-m8.hqGy0H --target-root /Users/jaeger/bpr0014-m8.hqGy0H/review-diff --live-root /Users/jaeger/Documents/GitHub/BetterPullReview --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json -- /opt/homebrew/bin/python3 /Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture.py launch --directory /Users/jaeger/bpr0014-m8.hqGy0H/review-diff --app /Users/jaeger/bpr0014-m8.hqGy0H/review-diff/home/Applications/BetterPullReview.app/Contents/MacOS/BetterPullReview --cmake-cache /Users/jaeger/bpr0014-m8.hqGy0H/review-diff/CMakeCache.txt --seconds 300"
+      },
+      "copy": [
+        {
+          "label": "Closed fixture pull request",
+          "value": "https://github.com/octo-org/review-repository/pull/17"
+        }
+      ]
+    },
+    {
+      "id": "BPR-0958-maintenance-clarity-v001",
+      "title": "macOS: maintenance scope and confirmation clarity",
+      "revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15 / macOS payload 5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54",
+      "paths": [
+        "build/releases/m8-6ad71635",
+        "tests/end_to_end/rfc0015_cli_read_fixture.py"
+      ],
+      "metadata": {
+        "card": "BPR-0958",
+        "criterion": "AC2",
+        "source_revision": "6ad716350c7f2e02a1b00370ea49cd5b77ce4c15",
+        "executable_sha256": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54",
+        "scope": "Human interaction judgment only; not whole-card or platform-matrix acceptance",
+        "mandate_revision": "r3"
+      },
+      "criteria": [
+        "Do the diagnostic-preview, profile-retirement confirmation and post-retirement messages make their local scope, cancellation behavior and next action clear?"
+      ],
+      "content": "This separate disposable profile contains no real credentials. Run the command. Open Settings, select Storage & privacy, and Preview diagnostics. Inspect the local-only/export disclosure. Choose Prepare diagnostic cleanup: Cancel is the default; cancel once, then prepare again if you want to inspect the retired-profile state. Preparation closes the review window but deletes nothing. Optional clearing affects only this disposable fixture's diagnostics. Command-Q must still quit while Settings remains open. The full-profile purge buttons are deliberately unavailable because this isolated HOME has no default Keychain; do not approve that missing capability. The launcher allows five minutes and can be rerun. Do not configure real sign-in. This decision covers wording and interaction clarity only, not actual credential deletion or the entire card.",
+      "resources": [
+        "install:/Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance/home/Applications/BetterPullReview.app",
+        "fixture:/Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance/home/Applications/BetterPullReview.app": "5ffa68c9b90e829cd18e73511b66c94f17099be965a781392bd916d46a0afd54"
+      },
+      "launch": {
+        "label": "Launch this isolated native candidate (five-minute bound)",
+        "command": "/opt/homebrew/bin/python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts/qualification_guard.py --allowed-root /Users/jaeger/bpr0014-m8.hqGy0H --target-root /Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance --live-root /Users/jaeger/Documents/GitHub/BetterPullReview --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json --live-file /Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json -- /opt/homebrew/bin/python3 /Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture.py launch --directory /Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance --app /Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance/home/Applications/BetterPullReview.app/Contents/MacOS/BetterPullReview --cmake-cache /Users/jaeger/bpr0014-m8.hqGy0H/review-maintenance/CMakeCache.txt --seconds 300"
+      },
+      "copy": [
+        {
+          "label": "Closed fixture pull request",
+          "value": "https://github.com/octo-org/review-repository/pull/17"
+        }
+      ]
+    }
+  ]
+}

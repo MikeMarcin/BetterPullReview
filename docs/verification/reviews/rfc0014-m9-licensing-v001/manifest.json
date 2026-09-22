@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "rfc0014-m9-licensing-v001",
+      "title": "Review M9 distribution licensing obligations",
+      "revision": "producer-9409ff61-mac-7ee71d39-win-719a97a6",
+      "criteria": [
+        "Has the designated owner/legal reviewer approved the distribution terms and corresponding-source/build/relink obligations for these exact M9 package inventories?"
+      ],
+      "content": "BPR-0962 AC1 only. This is a legal/owner disposition, not security, package-trust, native-matrix or release approval. Current status is NOT APPROVED: first-party distribution terms, mixed KSyntaxHighlighting definition licenses, Qt and other third-party terms, Microsoft redistribution terms, and practical corresponding-source/build/relink material remain unresolved. The mechanics found 63 Qt records/seven source archives on macOS and 58 Qt records/six source archives on Windows, and exact notice bytes were retained. Review the named files and provide the accountable approval and supporting terms/material in your note. If anything is missing, Reject with the missing obligation or leave this pending; do not accept merely because files exist. Grype separately fails release policy (21 macOS/19 Windows matches), and no signature or native acceptance is supplied by this question. Producer 9409ff618c0e8c567fe266195ec8228852b18485; macOS ZIP be7ce58db455fb22980933e41267385517e6a5b3c46e186f22dd71f98f73ae3d and SPDX 7ee71d3987b75ad081cc8753a64a9b57c415d0412dbafef17282751c3d37377e; Windows MSI 07942671462b337c4cf23e5a0b50b625ed000e5fe276372243106c7557a6fff6 and SPDX 719a97a690122fc3c17e981d333086a5c16a5d3b3e44de5eeb6e57104f78033a.",
+      "paths": [
+        "docs/verification/reviews/rfc0014-m9-licensing-v001",
+        "build/releases/m9-9409ff61",
+        "build/releases/m9-windows-legal",
+        "build/m9-windows.spdx.json"
+      ],
+      "resources": [],
+      "copy": [
+        {
+          "label": "macOS notices — exact local file",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-9409ff61/BetterPullReview.app/Contents/Resources/ThirdParty/THIRD-PARTY-NOTICES.txt"
+        },
+        {
+          "label": "macOS source offers — exact local file",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-9409ff61/BetterPullReview.app/Contents/Resources/ThirdParty/SOURCE-OFFERS.txt"
+        },
+        {
+          "label": "macOS corresponding sources — exact local file",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-9409ff61/BetterPullReview.app/Contents/Resources/ThirdParty/corresponding-source.zip"
+        },
+        {
+          "label": "Windows notices — exact copied file",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-windows-legal/THIRD-PARTY-NOTICES.txt"
+        },
+        {
+          "label": "Windows source offers — exact copied file",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-windows-legal/SOURCE-OFFERS.txt"
+        },
+        {
+          "label": "Windows inventory — exact copied file",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/m9-windows.spdx.json"
+        }
+      ]
+    }
+  ]
+}

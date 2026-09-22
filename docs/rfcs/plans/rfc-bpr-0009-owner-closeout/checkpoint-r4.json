@@ -1,0 +1,81 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0009-owner-closeout-r4-amended",
+  "mandate_revision": "r4",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0009",
+  "binding": {
+    "plan_id": "rfc-bpr-0009-owner-closeout",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/milestone-plan.json",
+    "milestone_id": "owner-amended-closeout",
+    "definition_fingerprint": "sha256:d2f0ef751e45d5fb841266e5dee48c2d797ad1a2feec6829f9914b98af7e7871",
+    "obligations": [
+      {
+        "id": "RFC-BPR-0009:*",
+        "source": "RFC-BPR-0009",
+        "selector": null,
+        "source_fingerprint": "sha256:6b4d39a909cd23f86b8b2c3fefcc16e48c30d705d19bc39744681ee4d61e4451"
+      }
+    ],
+    "obligation_fingerprint": "sha256:849e1b00c8cc5c372d91bdc83bb7442a52c8739a6ec4558967de63eb3b11464c",
+    "exit_criteria": [
+      {
+        "id": "owner-amended-closeout:exit:1",
+        "text": "The live RFC, BPR-0243 and ledger explicitly record the r4 acceptance amendment, immutable RFC baseline, exact evidence and unchanged product semantics."
+      },
+      {
+        "id": "owner-amended-closeout:exit:2",
+        "text": "BPR-0153 remains Parked with its original identity, path, pending collaborator/target/publication obligations and permission limits as a standalone follow-up; no human result is inferred."
+      },
+      {
+        "id": "owner-amended-closeout:exit:3",
+        "text": "Focused lifecycle, host, persistence, Qt and shipped-composition checks plus the documentation gate pass on the unchanged product candidate, with evidence reuse and limitations recorded."
+      },
+      {
+        "id": "owner-amended-closeout:exit:4",
+        "text": "BPR-0243 is Done and the RFC/index agree on Auto-Verified after RFC-BPR-0008; a durable handoff records exact revisions, changed paths, verification, pending obligations, command quiescence and RFC-BPR-0010 as the next canonical frontier."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "owner-amended-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "fa9f868fdfa5429bce58c3ea36360f002a38ef68",
+    "workflow_branch": "main",
+    "workflow_revision": "fa9f868fdfa5429bce58c3ea36360f002a38ef68"
+  }
+}

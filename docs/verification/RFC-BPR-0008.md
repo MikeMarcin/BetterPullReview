@@ -2,10 +2,11 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: **one designated source-line comment has published through the shipped
-application and appeared correctly in GitHub; web reply-return is also observed; subjective, mixed-client and
-all review-disposition acceptance remain open.** RFC-BPR-0001 through 0007 are
-Auto-Verified; RFC-BPR-0008 remains Proposed.
+Status: **Auto-Verified under owner amendment r4; BPR-0242 is Done.**
+RFC-BPR-0001 through 0007 are Auto-Verified. The existing designated publication, web reply-return and owner
+appearance decision are accepted. Unfinished live mixed-client/state-loss,
+review-attribution and private-PR smoke work remain pending as standalone
+BPR-0143, BPR-0144 and BPR-0641 follow-ups, not RFC-0008 terminal gates.
 
 BPR-0256 v011 used the exact signed macOS capsule at production source
 `a35eccaa`, restored MikeMarcin automatically, loaded the exact designated
@@ -13,10 +14,71 @@ history and sent one comment at RIGHT line 1. GitHub and the app's refreshed
 projection agreed. [The result](reviews/designated-live-review-publication-v011/attended-result.md)
 records the text, identity, comment link, clean quit, detach and retained sign-in.
 BPR-0235 is Done: the live criterion and prior native Mac/Linux/Windows
-boundary evidence are complete with documented Windows exceptions. BPR-0142
-still needs a web reply returned to the app and subjective acceptance; BPR-0143
-and BPR-0144 retain their separate live sequences. No extra mutation or human
-verdict is inferred from the single comment.
+boundary evidence retain their documented Windows exceptions. BPR-0142 is Done
+after the reply-return and appearance decision recorded below. No extra
+mutation or human verdict is inferred from those exact courses.
+
+## Owner-amended closeout r4 — 2026-09-21
+
+The [live amendment](../rfcs/RFC-BPR-0008-github-review-round-trip-interactions.md#owner-amendment-r4--2026-09-21)
+records the coordinator's explicit assignment to close this predecessor under
+the owner's direction to land RFC-0014 while retaining unfinished external/native
+work as durable follow-ups. This is a changed acceptance scope, not a claim that
+unobserved work passed. The original baseline and all dated records remain.
+
+| Implemented scope | Evidence | Limit |
+|---|---|---|
+| Ordinary comment and web reply | BPR-0142 exact v011 publication, reply-return and owner web-appearance decision | Does not prove every mixed-client or state-loss case. |
+| Core legality, moved-head refusal, exact target, synchronization, Qt editor | Fresh `core_review_round_trip`, `application_review_mutation`, `application_review_synchronization`, `qt_review_draft_editor` pass on `2a64e901` product bytes | Fixture evidence; no new external-client action. |
+| Inline public editor → host → provider → refreshed projection, stale-head refusal and lost-result retry | Current `application_review_round_trip_composition_contract` passes after reviewed test-pin/inventory repair, 12.20 seconds | Testing grants and provider; no live publication. |
+| Comment/Approve/Request Changes and account identity | Current `application_review_submission_composition_public_path` passes, 2.24 seconds; reuse BPR-0610/0613/0614/0615 wire, provider, durable recovery and compile-seal records | Real attribution remains BPR-0144. |
+| Automated mutation isolation | Current `live_mutation_isolation` and `live_mutation_isolation_contract` pass, 110.06/0.16 seconds; BPR-0235 native evidence reused | Prior Windows uncontained exceptions remain documented; no stronger universal isolation claim. |
+| Exact per-gesture ordinary production authority | BPR-0641 AC1–AC3 at `50f364b8`; production inline branch digest remains unchanged across the reviewed range | Private-PR smoke AC4 remains pending. |
+| No provider bypass or external issuer | Both focused `CompositionContractTests` source-cut/issuer-seal cases pass inside the network-denied runner, 8.665 seconds | Implementer review and deterministic negatives, not an independent review. |
+
+Initial focused run: seven of eight pass in 113.31 seconds. The eighth stopped
+before the runtime course because the full-file digest pin last matched
+`d6dfca2b`; it had drifted through later reviewed features. The
+[reseal review](../rfcs/plans/rfc-bpr-0008-owner-closeout/composition-reseal-review.md)
+lists all 28 intervening app-scope commits through `2a64e901`, records current
+authority checks and includes all nine new app source/header files in both the
+exact source inventory and production content manifest. The narrow production
+mutation branch remains byte-identical. No production source, negative case or
+authority check changed. The repaired test passed its real fixture public path;
+the other seven checks retain unchanged inputs. This is not a claimed eight-of-eight
+initial pass or a full application-wide matrix.
+
+The focused build completed with no C++ rebuild needed. Documentation structure,
+64 verifier regression tests and `git diff --check` pass. No new native platform,
+installed-package, live target, credential or release course ran. Review/packet
+bytes and task-independent build candidates are preserved. `workflow_preflight`
+reported existing MASK `state.drift`; the native leaf was already dispatched,
+no setup was changed and observed host loading is not claimed.
+
+The three pending cards retain their existing parked paths, original acceptance
+records, source/packet identities and explicit `origin_rfc`/`mandate_revision`
+metadata. Their `rfcs: []` makes them standalone follow-ups; the links below and
+live RFC preserve discoverability without allocating replacement IDs:
+
+- [[BPR-0143]]: external edit/delete/resolve/reopen, supported native
+  resolve/viewed round trips, local-conflict/server-truth, uninstall and
+  database-loss reconstruction. Four actions were approved but did not run;
+  broader state-loss/capability work still needs its own bounded authority.
+- [[BPR-0144]]: live Comment/Approve/Request Changes attribution, suitable
+  disposable PR/account, exact candidate and operation authority.
+- [[BPR-0641]]: unfinished read-only private-PR smoke and human acceptance;
+  AC1–AC3 pass, AC4 remains pending. The recorded failed private-target read
+  remains a failure, without inferring success from later fixes.
+
+No required human decision remains in this amended closeout, so no new attended
+session/server is opened. Future follow-up owners must revalidate candidates and
+use the configured review companion when their human acceptance becomes ready.
+
+Acceptance amendment commit: `998b722c`; source review, repaired composition
+contract and current verification record: `fc38d1ce`. The
+[durable handoff](../rfcs/plans/rfc-bpr-0008-owner-closeout/handoff-r4.json)
+binds the final closeout candidate, command ownership and continuation.
+RFC-BPR-0009 is now unblocked by RFC-BPR-0008; its own acceptance still governs.
 
 ## Historical implementation and candidate progression
 
@@ -107,7 +169,7 @@ implementation while those RFCs were unfinished. Closure order is unchanged.
 | Functional core | Draft and publish semantic state, review command legality, the shared/private distinction, target and head revalidation policy, and acceptance or rejection of mutation results. It emits semantic proposals, never HTTP | Qt-free and provider-free replay tests; the `core-only` preset links no provider |
 | Application host | Synchronization, mutation coordination, acting identity, exact selected-diff admission, opaque execution authority, asynchronous effects, per-request cancellation, supersession, idempotency, reconciliation, and shutdown quiescence | Focused host/provider tests plus fixture executable evidence |
 | Qt adapter | Editors, exact semantic-selection emission, pending-review presentation, progress, errors, and action binding. A widget never calls a mutation endpoint | Qt adapter tests asserting distinct side/line selections produce intent and no widget holds a provider |
-| Composition root | Wiring the asynchronous host into the real application; ordinary launches have no grant and the sole production issuer is an attended one-shot bootstrap | Selected public-path evidence through the real executable against the fixture provider, sealed issuer/source cuts, tests-disabled Release linkage, and static live-manifest proof |
+| Composition root | Wiring the asynchronous host into the real application; ordinary per-gesture publication uses BPR-0641's exact one-use issuer, while the designated attended bootstrap remains separate | Selected public-path evidence through the real executable against the fixture provider, sealed issuer/source cuts, tests-disabled Release linkage, and static live-manifest proof |
 
 GitHub remains the authority after every mutation: the host re-reads server
 state rather than assuming its own request succeeded as sent.
@@ -184,7 +246,7 @@ anchor boundary and unbalanced declarations fail closed. Absolute, common,
 debug, and unknown symbol kinds or sections do not count. CTest treats the
 verifier's exit status as authoritative.
 
-## Deferred gates
+## Historical deferred-gate inventory before r4
 
 Three acceptance criteria cannot be satisfied on this host, and each names
 exactly what is missing.
@@ -241,12 +303,11 @@ reachable. It also records that weakening the coordinator's target check to let
 a test through would remove the property the test exists to exercise. BPR-0235
 adds the process-boundary isolation the current structural inventory lacks.
 
-## Closeout blockers
+## Closeout disposition
 
-RFC-BPR-0001 through 0007 are Auto-Verified. BPR-0256 and BPR-0235 are Done.
-RFC-BPR-0008 remains Proposed until BPR-0142's reply-return/subjective acceptance,
-BPR-0143's mixed-client cases and BPR-0144's three review dispositions have their
-own evidence. The one published source-line comment does not close those cards.
+RFC-BPR-0001 through 0007, BPR-0142, BPR-0256 and BPR-0235 are complete.
+The r4 section above owns the current acceptance scope. BPR-0143/0144/0641
+remain pending follow-ups; terminal RFC status does not complete those cards.
 
 ## Current attended frontier — 2026-09-05
 

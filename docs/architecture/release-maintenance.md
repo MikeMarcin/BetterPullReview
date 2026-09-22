@@ -5,8 +5,13 @@ the [release allocation](release-readiness.md). The public core API is
 `src/core/include/bpr/core/release_maintenance.hpp`; its implementation and
 direct course are `src/core/src/release_maintenance.cpp` and
 `tests/core/release_maintenance_tests.cpp`. M4, BPR-0954, adds the host/native
-contract below; M5 owns controls and M6 their public composition.
-It is not evidence that a diagnostic export or profile purge is already shipped.
+contract below; M5, BPR-0955, mounts the diagnostic path and verifies the
+maintenance presentation. M6, BPR-0956, supplies the retained-lease destructive
+lifecycle and tests-disabled package composition described at the end. The M3–M5
+sections retain their stage-specific obligations; M5's disabled destructive
+capabilities are historical, not the current composition. Native vault, crash
+privacy and full package removal remain M8/M9 obligations. Current user steps
+and residuals are in [Storage, diagnostics and removal](../development/storage-and-diagnostics.md).
 
 ## Authority and state
 
@@ -291,3 +296,101 @@ profile public courses exercise the changed real sink. Cross-compilation is
 only Windows source/contract evidence: MSVC linking and native Windows ACL,
 vault and lifecycle execution, Linux qualification, native crash artifacts,
 Qt controls and tests-disabled delivered packages remain M5–M9 obligations.
+
+## M5 Settings presentation and bounded composition
+
+`release_maintenance_projection.hpp` is the effect-free presentation boundary:
+compact core state, seven command projections, a shared immutable preview,
+the admitted operation's identity for terminal wording, and a diagnostic reason.
+It exposes neither an effect request nor a storage/output/vault port. The Qt
+`release_maintenance_panel` translates gestures only; it does not determine
+command eligibility, read files, perform deletion, choose credential keys or
+construct a native output capability.
+
+Storage & privacy in the real profile Settings shell includes the new panel
+alongside the existing epoch/cache retention controls. Those controls retain
+their own policy, dispatcher and confirmation; no second retention owner was
+introduced. `release_maintenance_controls` in `src/app` creates native diagnostic
+storage on an owned worker under the retained runtime lease, then publishes on
+the Qt decision lane. Its local capability is independent of GitHub sign-in.
+The save picker supplies only a local filename and the complete accepted
+`Target`; native output admission and writing happen on the worker. Existing
+destinations are refused, not overwritten. Failed export needs a new preview.
+The shared panel follows the profile Settings shell when its invoking window
+changes; retirement drains the host and worker before releasing profile ownership.
+
+Destructive presentation is complete against the real application host with
+controlled storage/lifecycle capabilities: preparation warns that work and
+stores stop, explicitly asks the user to finish/save unsaved work, and performs
+no deletion. Final clear/purge confirmation identifies the profile, exact
+inventory count, included categories and retained residuals. Cancel is the
+default and Escape action at both stages. Confirm/cancel echo the full context
+that was displayed, not a reconstructed current target. Authority, pending or
+prepared-selection changes dismiss stale dialogs. Settings/page dismissal
+cancels the exact current target; cancelling a save chooser alone retains the
+preview. Status distinguishes actual success, refusal, advisory cancellation,
+stopped runtime and recovery-required partial cleanup, without promising a
+rollback or silent producer restart.
+
+The live M5 composition deliberately supplies `Clear=false` and `Purge=false`,
+and its storage wrapper refuses non-diagnostic preparation/deletion. The real
+multi-window retirement, ingress/generation invalidation, Git/workspace/MCP
+recovery, store/logger closure and independently retained vault worker are M6
+obligations. The existing general shutdown path is not proof that those owners
+have closed while the maintenance host and root lease remain usable. Enabling
+destructive commands before that barrier exists would violate the M4 contract.
+This preserves the authored M5 presentation/M6 composition boundary, rather
+than treating a widget test as production purge acceptance. Native all-profile
+removal, uninstall, credential continuity and delivered packages remain open.
+
+Projection updates touch seven actions and the small status/summary surfaces.
+An unchanged preview pointer does not rewrite its document, selection or scroll;
+equivalent command projections do not disable/re-enable focused controls.
+Status changes emit one polite accessibility announcement. Labels, profile names
+and the preview are plain text. There is no stylesheet, custom font or platform
+style override. No comparison, review, navigation or history model is reset.
+
+Direct courses are `qt_release_maintenance_scale_100/125/200` (rendered real
+Settings/widget hierarchy, typed host, manual lanes and controlled effects) and
+`application_release_maintenance_public_path` (actual profile desktop, native
+private roots, keyboard preview, exact UTF-8 local export, existing-file refusal,
+shared Settings ownership and shutdown). Cocoa execution supplies native macOS
+widget/effect evidence but uses a deterministic Qt save picker. It is neither
+an attended VoiceOver/native-picker verdict nor tests-disabled package acceptance.
+
+## M6 retained-lease maintenance composition
+
+The desktop now supplies a concrete retirement callback to the same maintenance
+host. Destructive capabilities exist only with that callback; purge additionally
+requires the native vault capability. Preparation transfers the invoking
+profile's Settings shell and one maintenance panel to a desktop-owned holder,
+unmounts borrowed window pages, refuses profile ingress/activation, and retires
+every window through the existing generation/registry lane. Original Git,
+workspace, MCP, credential and shutdown owners drain their work. The desktop
+destroys the complete original runtime only after shutdown completes: its
+stores, ports and Quill sink cannot keep writing behind a successful barrier.
+Cleanup failure returns recovery-required, never a successful preparation.
+
+The maintenance holder retains the original exclusive root lease, its own
+effect worker and an independently constructed native vault/worker. Binding
+stores are opened lazily after retirement, so exact credential cleanup precedes
+binding metadata removal. No old window, provider or runtime is restarted by
+cancel, clear, purge or retry. The maintenance-only Settings shell remains
+usable for explicit re-preparation; closing it drains the maintenance host and
+releases the lease. Another profile's runtime is not purged or retired.
+
+Fresh startup executes the existing native maintenance recovery under the
+exclusive lease before profile stores, logger or new producers open. An invalid
+or unrecoverable receipt refuses admission and preserves evidence. Unknown
+objects still fail closed: the expanded inventory recognizes only the real
+Git isolation files, empty isolation-directory shells and fixed 16-hex epoch
+ref grammar, not arbitrary descendants left by a producer.
+
+The direct public course starts an actual fixture PR and `review.cpp`, opens a
+second window, retires both window surfaces, and proves the
+original profile owner expires while the native lease stays held. It covers
+cancellation without restart, changed-inventory refusal, explicit retry,
+diagnostic-only clear, full populated-profile purge, preserved external export,
+lease release and corrupt-receipt startup refusal. The native vault is composed;
+real persistent credential/crash continuity and all-target acceptance remain
+M8/M9 evidence, not inferred from the fixture's synthetic sign-in.

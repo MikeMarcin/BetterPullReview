@@ -1,0 +1,47 @@
+#ifndef BPR_QT_RELEASE_MAINTENANCE_PANEL_HPP
+#define BPR_QT_RELEASE_MAINTENANCE_PANEL_HPP
+
+#include "bpr/application/release_maintenance_projection.hpp"
+
+#include <QPointer>
+#include <QWidget>
+#include <array>
+
+class QAction;
+class QDialog;
+class QLabel;
+class QPlainTextEdit;
+class QPushButton;
+
+namespace bpr::qt {
+	/// \brief Profile maintenance gestures and exact preview presentation, with no effect capability.
+	class release_maintenance_panel final : public QWidget
+	{
+	public:
+		explicit release_maintenance_panel(QWidget* aParent = nullptr);
+		void               set_dispatch(application::release_maintenance_dispatch aDispatch);
+		void               set_profile_label(const QString& aLabel);
+		void               adopt(const application::release_maintenance_projection& aProjection);
+		[[nodiscard]] auto action(core::release_maintenance_command aCommand) const -> QAction*;
+
+	protected:
+		void hideEvent(QHideEvent* aEvent) override;
+
+	private:
+		void                                        activate(core::release_maintenance_command aCommand);
+		void                                        confirm(core::release_maintenance_intent aIntent, bool aPreparation);
+		void                                        choose_export(core::release_maintenance_intent aIntent);
+		void                                        dismiss_dialog();
+		void                                        dispatch(core::release_maintenance_intent aIntent);
+		application::release_maintenance_dispatch   Dispatch;
+		application::release_maintenance_projection Projection;
+		std::array<QAction*, 7>                     Actions{ };
+		QLabel*                                     Scope   = nullptr;
+		QLabel*                                     Status  = nullptr;
+		QLabel*                                     Summary = nullptr;
+		QPlainTextEdit*                             Preview = nullptr;
+		QPointer<QDialog>                           Dialog;
+		QString                                     ProfileLabel;
+	};
+}
+#endif

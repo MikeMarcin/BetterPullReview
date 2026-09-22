@@ -365,12 +365,19 @@ namespace {
 		write(repository / "HEAD", "ref: refs/heads/unused\n");
 		write(repository / "config", "[core]\n bare = true\n");
 		write(repository / "objects/pack" / ("pack-" + std::string(40U, 'b') + ".pack"), "synthetic pack fixture");
-		write(repository / "refs/betterpullreview/v1/scope" / std::string(64U, 'c') / "epoch/1/head", std::string(40U, 'd'));
+		write(repository / "refs/betterpullreview/v1/scope" / std::string(64U, 'c') / "epoch/000000000000000a/head", std::string(40U, 'd'));
 		write(root.Path / "locks/v1" / (cache + ".lock"), "");
+		for (const auto name : { "config-global", "config-system", "attributes-system" }) {
+			write(root.Path / name, "");
+		}
+		expect(adapters::sqlite::create_storage_root_owner_private(root.Path / "tmp"), "private Git temporary directory");
 		auto                                        owner = lease(root.Path);
 		adapters::sqlite::release_maintenance_files files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U } };
 		auto                                        candidate = files.prepare(context(files, command::prepare_purge), { });
 		expect(candidate.has_value(), "closed cache layout included in full profile inventory");
+		write(root.Path / "tmp/unfinished", "unresolved producer data");
+		expect(!files.prepare(context(files, command::prepare_purge), { }), "Git isolation descendants must be recovered by their owner");
+		fs::remove(root.Path / "tmp/unfinished");
 		write(repository / "developer-file.cpp", "must remain unknown");
 		expect(!files.prepare(context(files, command::prepare_purge), { }), "unknown repository entry blocks purge");
 		fs::remove(repository / "developer-file.cpp");

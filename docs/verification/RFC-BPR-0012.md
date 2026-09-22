@@ -2,45 +2,165 @@
 
 RFC base: `2966ff8103dc442775425386f6a31f8ac1a391c6`
 
-Status: **partially implemented; claims are verified row by row.** BPR-0496
-allocated the card set on 2026-09-01, when RFC-BPR-0012 was the first RFC in
-the pack with no implementation at all. Since then BPR-0497 through BPR-0503
-have landed the core finding, promotion, and chat-scope semantics, the host's
-finding decode and delivery, the read-only MCP context helper, the Qt
-side-chat panel, and the Qt finding queue and comment workshop, BPR-0504
-has composed every one of them into the shipped workbench, BPR-0513 has placed
-both panels in the conversations drawer, and BPR-0514 has composed the chat
-*session* — one send on the shipped panel now reaches one agent turn on the
-existing launch path and one delivered reply, which BPR-0517 has made a
-question rather than a session start by carrying the reviewer's typed message
-into the agent's own input frame exactly once. BPR-0505 then wrote the
-documentation and BPR-0506 made the behaviour-preserving pass and filled
-**Simplification** and **Closeout preparation** below.
+Status: **Auto-Verified under owner amendment r4, 2026-09-21.**
+BPR-0507 is Done at `e2682f99f64a7f987fa772da687b04f625706234` with all
+nine criterion records; all 24 associated RFC0012 cards are Done. This status
+does not claim the separately recorded Dif, live-agent or native-package gaps
+are resolved.
 
-No row reads `Planned`. Every one of the nine reads `Verified` and names the
-card and the command that settles it. That is a statement about labels, not a
-statement that the RFC is finished: **Closeout preparation** names what is not
-delivered, and one row records a command that does not currently pass for a
-reason belonging to another card.
+## Owner-amended closeout r4 — 2026-09-21
 
-RFC-BPR-0012 stays `Proposed`. No card here makes a closure claim, and closure
-remains ordered behind RFC-BPR-0008 and RFC-BPR-0011.
+Assignment: `/root/rfc0012_owner_closeout`, exclusively on `main`, under the
+coordinator's explicit owner amendment r4. The [mandate and adopted
+plan](../rfcs/plans/rfc-bpr-0012-owner-closeout/mandate-r4.md) preserve the
+immutable RFC baseline above and the original twelve-stage source plan.
+The [preceding handoff](../rfcs/plans/rfc-bpr-0011-owner-closeout/handoff-r4.json)
+establishes RFC0008 through RFC0011 as Auto-Verified. The canonical predecessor
+gate is clear.
 
-## Why this RFC can be implemented now
+This amendment reconciles BPR-0507's obsolete “owning cards are not yet
+implemented” text and the ledger's dated open findings. All nine RFC acceptance
+criteria remain unchanged. BPR-0496 explicitly selected fixture processes,
+core/Qt checks and the ordinary RFC0008 fixture synchronization path; it
+introduced no mandatory installed-agent, live-GitHub or new target-native
+criterion. Those observations are still unobserved. The full-agent fixture
+proves the local launch/publication boundary and ordinary synchronization
+composition; it does not establish an installed agent's real GitHub account,
+native approvals or external write behavior.
 
-`depends_on` names RFC-BPR-0008 and RFC-BPR-0011. Both are substantially
-implemented on available targets: RFC-BPR-0008's review-mutation host,
-coordinator, and round-trip composition contract are composed and exercised,
-and RFC-BPR-0011's profile policy, revision binding, context supplement,
-portable protocol loop, workspace, launch panel, and composed invocation path
-are composed and exercised, with the Windows lifecycle green target-native on
-2026-08-26/27.
+The exact product/test candidate is
+`9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d`. Planning/claim commits change no
+product, test, build or package input. The dev build reports no work to do.
+SHA-256 identities:
 
-The RFC index records the product owner's exception: implementation, tests,
-documentation, security review, and simplification for RFC-BPR-0005 through
-RFC-BPR-0014 may proceed while earlier RFCs remain `Proposed`, and each such
-RFC ends its available-target work at a closeout card in `10-backlog/`. This
-RFC's closeout card is BPR-0507.
+| Artifact | SHA-256 |
+|---|---|
+| Dev application | `a0f9c85cd58e4c9d486ae39c554b16f30f4bb73e867ebfbb6c17ad21ca775d90` |
+| Finding public-course executable | `c26423eb82a5e676b681c3d31ca2187a61602c376a46522a9f393d9ab9c4b1ee` |
+| Chat public-course executable | `59dd3ced652acbaf19770b461578a1a8e7b4be4e9a653e43fdf1aa4d3c26cce0` |
+| Finding canary | `484f0ceb67d38457596674d089e33f12d4bd75c2c7de31d6a2cabf0e86b8a28c` |
+| Dev MCP helper | `28a3004ab7c2bbb624d603a32e980fdf2efdfd0c77497e73c136d47a8bd42159` |
+
+### Current criterion decisions
+
+Each row below is accepted in the original local/fixture scope. The dated
+claim matrix later in this ledger preserves the original observations and
+negative controls; its historical HEAD references are not assertions about
+today's candidate.
+
+| Criterion | Current decision and direct evidence |
+|---|---|
+| Explicit visible commands | Pass. Core entry-point legality, side-chat Qt gestures, real chat Send/finding launch and all six construction cuts pass; the chat course confirms the typed message arrives once and the three gesture routes share one invocation dispatch. |
+| Reviewable workshop, original retained | Pass. `qt_review_draft_editor`, `qt_finding_queue_view`, the workshop host and the four-turn workshop-press course pass. Original/proposed values, explicit acceptance, no-revision reopening and unrelated-session pairing are asserted. |
+| Path/line/OID validation and stale identity | Pass. `core_agent_finding`, `application_agent_finding_protocol` and current stale/continued/anchored-continuation public courses pass. Frozen bindings remain exact; refused realignment stays unanchored. |
+| Promotion stays local until Publish | Pass. Core promotion and the real finding conversion/workshop course assert exact proposed/accepted draft bytes and zero submissions, target observations and stored GitHub comments. |
+| Full-agent normal synchronization | Pass in the authored fixture scope. `application_agent_finding_full_agent_contract` records zero application GitHub mutation; `application_review_round_trip_composition_contract` passes through the ordinary publication/refresh path. No live full-agent write or independently authenticated agent is claimed. |
+| Stale chat and explicit continuation | Pass. `application_agent_chat_stale_contract`, `application_agent_chat_continued_contract`, `application_agent_chat_anchored_continuation_contract` and the side-chat panel verify both choices, old-session identity and current/old alignment behavior. |
+| Read-only MCP boundary | Pass. The real helper canary passes in both dev and core-only graphs, enumerates the exact tool set and checks forbidden path, symlink, network-name, write-name, credential and stale-binding requests. The helper links the MCP adapter and core only. |
+| Private context requires selection | Pass, reusing unchanged exact input evidence. RFC0011's current `application_agent_invocation_composition_contract` at `71b25a2438202411c3c1e5c046e8d4e77ae10070` verifies the whole child map, selected notes/draft and absent unselected canaries; core session/context suites pass there. `git diff --quiet` confirms all src/tests/cmake/package inputs are unchanged through this candidate. |
+| Core isolation and typed re-entry | Pass. All three new core suites and the helper pass in core-only; protocol, host, Qt and public courses pass with exact session/binding delivery and constructor-presence evidence. |
+
+### Current commands and results
+
+- `cmake --build --preset dev --target app_better_pull_review test_better_pull_review_agent_finding_composition_public_path test_better_pull_review_agent_chat_composition_public_path tool_better_pull_review_mcp_context_helper`:
+  pass, no work to do.
+- `ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_agent_(finding_composition|chat_composition|chat_construction_cut|finding_cut_finding)_contract$'`:
+  3/3 pass, 36.11 s. The final alternative is an unmatched initial selector;
+  the actual finding-host cut is included by its registered name in the next run.
+- `cmake --build --preset dev --target test_better_pull_review_agent_finding_core_tests test_better_pull_review_agent_finding_promotion_core_tests test_better_pull_review_agent_chat_scope_core_tests test_better_pull_review_agent_finding_protocol_tests test_better_pull_review_agent_comment_workshop_host_tests test_better_pull_review_mcp_context_helper_tests test_better_pull_review_qt_side_chat_panel_tests test_better_pull_review_qt_finding_queue_view_tests test_better_pull_review_qt_review_draft_editor_tests`:
+  pass, no work to do.
+- `ctest --test-dir build/dev --output-on-failure --no-tests=error -j 2 -R '^(core_agent_(finding|finding_promotion|chat_scope)|application_agent_(finding_.*|chat_.*|comment_workshop_host|finding_protocol)|application_mcp_context_helper|qt_side_chat_panel|qt_finding_queue_view|qt_review_draft_editor|composed_application_hosts)$' -E '^application_agent_(chat_composition|chat_construction_cut|finding_composition)_contract$'`:
+  **20/21 pass**, 87.26 s. Every selected RFC0012 behavior passes. The later
+  `application_agent_finding_dif_context_contract` fails its two workshop
+  cue assertions; this run is not reported as green.
+- `ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_agent_finding_dif_context_contract$'`:
+  **fails again**, 18.13 s, same comment-ready/acknowledge assertions.
+  [[BPR-0966]] records the source explanation and unresolved presentation
+  judgment; the proposed/accepted text and zero-mutation assertions pass.
+- `cmake --build --preset core-only --target test_better_pull_review_agent_finding_core_tests test_better_pull_review_agent_finding_promotion_core_tests test_better_pull_review_agent_chat_scope_core_tests test_better_pull_review_mcp_context_helper_tests`,
+  then `ctest --test-dir build/core-only --output-on-failure --no-tests=error -R '^(core_agent_(finding|finding_promotion|chat_scope)|application_mcp_context_helper)$'`:
+  build passes; 4/4 pass, 1.35 s, without Qt/provider linkage.
+- `ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_review_round_trip_composition_contract$'`:
+  1/1 pass, 11.77 s.
+- Architecture boundary evidence is reused from RFC0011's tracked-source export
+  of `71b25a2438202411c3c1e5c046e8d4e77ae10070`; the product/test/build inputs
+  are unchanged. Its working-checkout scan encountered the unrelated nested
+  `.claude` worktree, while the exact tracked-source scan passed. That
+  environmental failure remains recorded and the worktree is untouched.
+- `nm -u` finds no socket/connect/bind/listen/accept/resolver imports in the
+  current MCP helper; `otool -L` lists only libc++ and libSystem. These are
+  link observations of the hashed executable, not an OS sandbox claim.
+- `python3 scripts/verify_documentation.py --root .`: `DOCUMENTATION_OK`.
+  `python3 tests/scripts/verify_documentation_tests.py`: 64/64 pass, 1.668 s;
+  printed negative-fixture diagnostics are expected. Scoped board validation
+  including BPR-0966 reports 958 cards, zero errors. `git diff --check` passes.
+  The durable handoff records the repeated terminal documentation/board and
+  final checkpoint results.
+
+### Reconciled history and remaining limits
+
+- The `chat_message` field-count regression was corrected by
+  `a7bc3c880d598e3e2295ef2061b0c38cc8971063` on 2026-09-02. The later
+  hard-coded application-session assumption was corrected by BPR-0826
+  (`d9ea1cbcec2dc8a3109fae91405f8d0c2b311198`) with recorded Mac,
+  Windows and Linux evidence. Neither historical failure is a current pass
+  by relabeling; the current inherited public course actually passes.
+- BPR-0533 delivered the six workshop operations at `43ce2b74` and
+  `ce85d5d3`; BPR-0538 fixed ended-turn reopening at `e5e78c3f`.
+  The current workshop-press and editor suites pass. The former “specification
+  only” and “wait until the draft changes” statements no longer describe the
+  product.
+- BPR-0532 delivered bounded old-pair realignment, recorded at `cf6cb8e9`;
+  the current anchored and refused-continuation courses both pass. The owner's
+  earlier acceptance of an unanchored refusal remains valid.
+- The old side-chat button-row clipping note does not describe the current
+  source: `workbench_window` stacks those four buttons in a `QVBoxLayout`,
+  already present in `6bd0c342`. This source observation is not a new native
+  rendering verdict. The broader window/composed-GitHub failures remain
+  [[BPR-0940]] under RFC0013; those full suites are not claimed green.
+- The helper snapshot contains binding/alignment metadata and an empty
+  `files/` directory. No file-content serving is claimed for app-frozen
+  snapshots. A separately scoped extension would need explicit source bounds
+  and new effect/privacy evidence; this remains a documented optional follow-up.
+- Installed Codex/Claude compatibility, real full-agent GitHub identity and
+  approvals, live round trips, and current target-native package behavior remain
+  unobserved follow-ups. Native release qualification remains with RFC0014's
+  BPR-0958 through BPR-0961; historical process courses do not satisfy it.
+- [[BPR-0966]] is a new standalone follow-up to RFC0031/0037's workshop
+  presentation interaction. The dedicated composition page hides the AI
+  drawer, while the later Dif course expects its two cues. The r4 RFC0012
+  closeout neither changes those assertions nor claims they passed.
+- No required human decision is ready or outstanding for the assigned RFC0012
+  fixture scope. No attended session/server, new live operation, or independent
+  acceptance is invented.
+
+### Closeout review and documentation impact
+
+The baseline-to-candidate inventory maps the finding/schema/promotion/chat core,
+protocol/delivery/workshop/realignment hosts, MCP helper and Qt/public paths to
+the 23 completed RFC0012 cards. Their prior negative controls and native records
+retain their exact revisions. The current public predicates, one-dispatch
+composition, helper link line, stale identity and explicit draft acceptance
+were inspected. No product source changed in this closeout, so there is no
+new source simplification or authority boundary requiring an independent review.
+
+The RFC, index, README, this ledger and BPR-0507 carry current status and scope.
+The AI UX guide corrects the obsolete no-Markdown and ended-workshop statements
+without changing the plain-text workshop contract. Core policy, host ports,
+asynchronous identity, persistence, provider/credential boundaries and package
+composition have no semantic change. Protected review packets, the imported
+pack source and historical Done cards retain their bytes.
+
+## Original planning and implementation history
+
+BPR-0496 allocated the original card set on 2026-09-01, when RFC0012 had no
+implementation. BPR-0497 through BPR-0504 supplied the core, host, helper and
+composed Qt paths; BPR-0513/0514/0517 made the visible chat session carry the
+reviewer's message. BPR-0505 documented them and BPR-0506 recorded its
+simplification and remaining issues. That available-target phase ended at
+BPR-0507 while RFC0008/0011 were still Proposed. Their r4 closeouts now clear
+the predecessor gate. The detailed observations below are historical evidence;
+the current criterion decisions and pending limits above govern this closeout.
 
 ## What this RFC is, in one sentence
 
@@ -59,7 +179,7 @@ times over in its non-goals — no automatic invocation, no automatic
 publication, no treating confidence as proof — and the product contract
 forbids automatically publishing AI output.
 
-Planned structural expression: a validated finding converts into exactly one
+Implemented structural expression: a validated finding converts into exactly one
 `review_draft_command`, one `defect_command`, or one private-note payload, and
 the promotion result type has no field, overload, or branch that could produce
 a `review_publication_proposal`. The host has no edge from agent output to the
@@ -75,14 +195,13 @@ A finding's path, line range, and OIDs validate against RFC-BPR-0004's
 `agent_revision_binding`. An anchor that does not validate is shown as
 unanchored; one whose revision moved is shown as stale.
 
-Planned structural expression: no coordinate, y-position, viewport offset, or
+Implemented structural expression: no coordinate, y-position, viewport offset, or
 ribbon path is representable in the finding or anchor type, and the guard that
 says so reads the type rather than a construction site.
 
 ## Architecture allocation
 
-Restating the RFC's own allocation section, with the evidence each region will
-carry:
+The original allocation, with the evidence delivered by the completed cards:
 
 | Region | Selected responsibility | Planned evidence |
 |---|---|---|
@@ -108,7 +227,7 @@ moves off `Planned` only when its card lands with direct evidence.
 | Verified | Full-agent GitHub changes round-trip through normal synchronization without a private backchannel. | Composed end-to-end over the RFC-BPR-0008 fixture path | `application_agent_finding_composition_contract`, `application_agent_finding_full_agent_contract`, `application_review_round_trip_composition_contract`, `composed_application_hosts` | The resulting GitHub state arrives only through RFC-BPR-0008 synchronization; a second edge from the agent host would appear as a mutation call outside it | **Verified** (BPR-0504, 2026-09-02): read two ways, because either alone would be weaker. A complete full-agent launch — real child process, its own workspace, a returned structured payload, a promotion, and an acceptance — records **zero** GitHub mutation calls of every kind, so nothing left the application while the agent was working or after it finished. And the composition source names `review_mutation_coordinator` zero times, carries exactly one `ReviewMutationHost->publish(` call site — the reviewer's own `begin_publish` branch — one `->submit(`, no `.submit(`, and no `observe_target` at all, so there is no second edge for a backchannel to travel along. The positive direction, that a publication does round-trip through that one path, is `application_review_round_trip_composition_contract`, which pins this same file by digest and was repinned and re-run green in this slice |
 | Verified | The side chat shows stale state after head movement and offers new-session or explicit old-revision continuation. | Core session state and the Qt side-chat panel | `core_agent_session`, `core_agent_chat_scope`, `qt_side_chat_panel` | After `head_moved` the session offers exactly two continuations, retargets neither, and the panel starts neither by itself | **Core half** (BPR-0499, 2026-09-01): `offer_agent_continuations` carries `observe_agent_session`'s verdict, offers a two-element `std::array` of continuations, and names the session's own binding as the only continuation target. **The panel half is verified** (BPR-0502, 2026-09-02): `qt_side_chat_panel` presents a stale projection as stale with the core's own `head_moved` name, offers exactly the two-element `agent_continuation` array core defined, and emits nothing while doing it — the intent count after presenting a stale session is zero, and the send action is disabled until the reviewer answers. Each continuation emits exactly one `choose_chat_continuation_intent` when and only when it is chosen, carrying `ContinueAgainst` — the session's own binding, asserted unequal to the moved head — because the projection type has no field the observed revision could occupy. Making either continuation start itself on presentation fails `presenting a stale session starts neither continuation`, both restored byte-exact by md5. **Constructing the panel in the shipped application is verified** (BPR-0504, 2026-09-02): the panel is composed beside the agent host under the same fixture and production split, and `refresh_agent_authority` presents it with the session's own binding, so its head-OID field carries the accepted head rather than anything the panel computed. Cutting its construction leaves the start gesture intact and takes presentations and intents to zero, and `composed_application_hosts` fails by name when the construction is deleted. **The panel is on screen** (BPR-0513, 2026-09-02): placement moved into `workbench_window`, which composes both panels in its conversations drawer and hands them out; the application now adopts them and sets the dispatch rather than constructing a second pair nobody could see. The panel's member aggregate is untouched, `qt_side_chat_panel`'s guard still compiles unchanged, and collapsing the drawer hides both placed surfaces with it **The composed session is verified** (BPR-0514, 2026-09-02): `application::agent_chat_session_host` owns the chat's session in the shipped application and asks the core for every answer it gives — `offer_agent_continuations` first, then `decide_agent_action`, `next_agent_chat_turn`, and `admit_private_context`. `application_agent_chat_stale_contract` moves the head under a live session and the session is not retargeted: the projection reports `head_moved` with `Required` true, the panel disables Send and offers exactly the core's two continuations, and a send delivered on the panel's own composed dispatch edge is refused `session_stale (head_moved)` and named on the shipped agent panel. Choosing `start_new_session` then starts exactly one session — the continuation and started counts each rise by one, the adopted count does not, the new session is bound to the revision now under review while the old one keeps the revision it was asked about, and no process starts. `composed_application_hosts` fails by name — *required exact demangled anchor is absent: agent chat session application host constructor* — when the composed object is deleted, restored byte-exact by md5 **Both continuations are now driven** (BPR-0517, 2026-09-02): `application_agent_chat_continued_contract` takes the other one. From the same stale projection - the head moved by the shipped refresh gesture against the seeded recording, so the new revision is a real one - choosing `continue_against_old_revision` raises the continuation count by one and starts and adopts nothing; the chat keeps the session identity and the binding it was asked about, which is asserted unequal to the revision now under review; `Required` clears while the core's `head_moved` verdict stays; and no process starts. The reviewer then points at something again and asks a second question, and exactly one further turn is dispatched under the session they kept: the turn handed to the launch path carries that session's own id and old-revision binding and the second message's exact bytes, a second process runs, a second validated delivery comes back, and GitHub mutation stays 0/0/0 throughout **The context now follows the session** (BPR-0521, 2026-09-02): the same course asserts, immediately after the second send and before the run, that one revision is said three times — the binding the MCP helper is pinned to, the binding record the frozen snapshot carries on disk, and the kept session's own binding are byte-equal in `adapters::mcp::encode_revision_binding` spelling, and are not the head the reviewer moved to — and that the freeze count rose by one, so the record is that turn's rather than the first turn's. `dispatch_agent_invocation` composes the supplement, the pin, and the snapshot from the session's binding when the chat's session names a revision the epoch host has moved past; `agent_invocation_host` runs that turn under the continued session instead of admitting one bound to the current head, so the frozen snapshot's `Binding` is the session's `Binding` by construction and the chat is no longer silently retargeted after the turn — `SessionsAdopted` does not move and `Session->Binding` is still the kept one. A caller that disagrees with itself is refused by name: `Context.Binding` must equal `ContinuedSession->Binding` or the host answers `agent_continuation_binding_mismatch` and runs nothing. Deleting the one composition line — `turnBinding = aTurnSession->Binding;` at `src/app/src/github_application.cpp:5173` — fails the course as `agent-chat-composition-failure:continued-old-revision-composition`, with the pinned and recorded bindings printed as the moved head, restored byte-exact by md5 `f2df57bb9bc597101d5cb8d196bb7ad8` |
 | Verified | The MCP helper exposes only documented read-only operations and cannot access credentials, network, writes, or unrelated filesystem content. | The helper's stdio canary | `application_mcp_context_helper` | The advertised tool list is compared exactly against the source enumeration, and a sweep over every refusal — connect, listener bind, read above the snapshot root, symlink escape, and each write, draft, publish, and note name — refuses each while the parent holds planted secrets | **Verified** (BPR-0501, 2026-09-02): the shipped `tool_better_pull_review_mcp_context_helper` speaks newline-delimited JSON-RPC 2.0 over stdio — `initialize`, `tools/list`, `tools/call` — and advertises four read-only tools over one frozen snapshot pinned to one `agent_revision_binding`. The advertised list is compared against three independent sources: the `enum class mcp_tool` text read out of the header, the compiled `mcp_tools` array, and a list written in the canary, so a tool added to the first two still fails. The refusal sweep drives twenty-one entries through the real executable — a URL argument, a `//host:port` authority, a UNC authority, `net/connect`, `net/listen`, `../../../etc/passwd`, `/etc/passwd`, `../binding`, a real directory symlink out of the snapshot on both path-taking tools, ten write/draft/publish/note/network tool names, and a helper started with `--listen 127.0.0.1:8080` — and each is refused by its own exact typed cause with no result beside it. Nineteen scripted negative controls each removed one check, rebuilt, and made the canary fail; every restore was byte-exact by md5 and the restored tree builds and passes. The child's complete environment reduces to exactly `BPR_MCP_SNAPSHOT_ROOT` and `BPR_MCP_PINNED_BINDING` while the parent holds planted GitHub, Anthropic, and AWS secrets, and no secret value reaches either child channel. Head movement with the pin unchanged makes every call `revision_binding_stale` and re-reads nothing. **No socket surface survives**: `nm -u` on the shipped binary shows no socket, connect, bind, listen, accept, or resolver import among its 84 undefined symbols, so `LOOPBACK_PORT_COUNT` stays 0 and `test_network_isolation_manifest` is not required. **Constructing and supervising the helper inside the shipped application is verified** (BPR-0504, 2026-09-02): `application::mcp_context_helper_supervisor` is composed beside the agent host with its own process launcher — a shared one would let one cancel stop whichever child the reviewer did not mean — and is pinned, on the reviewer's own launch gesture, to a snapshot root the application froze from the same values the finding validator uses. The composed course starts the shipped `tool_better_pull_review_mcp_context_helper` and reads back all four read-only tools. The launch is asserted whole rather than sampled: no argument vector at all, so `--listen` is not a flag this side could pass; a working directory that is the pinned snapshot root and names no URI scheme and no network or UNC authority; and an environment of exactly the two names `adapters::mcp::mcp_environment_allowlist` declares, compared element for element against the supervisor's own `environment_names()` so a rename fails rather than diverges. Cutting the construction leaves the gesture intact, writes no snapshot at all, and refuses the start as `no_helper` |
-| Verified | Private notes and drafts are never included without explicit selection. | Core session opt-in, the context supplement, and the composed course | `core_agent_context_supplement`, `core_agent_chat_scope`, `application_agent_invocation_composition_contract` | A session without the per-session opt-in carries zero notes and zero drafts even when both exist for the review, and the composed course keeps its existing zero note and draft counts | **Core half verified** (BPR-0499, 2026-09-01): `agent_private_context_optin` is keyed by session id with notes and drafts separately default-off, and the two-argument `build_agent_supplement` carries zero of both without it; the host now builds through the opt-in overload keyed to the session (BPR-0500, with a source-order assertion that the ungated overload is unreachable from the host); **The composed course is verified** (BPR-0504, 2026-09-02; read again and settled by BPR-0506, 2026-09-02): `application_agent_invocation_composition_contract` proves this claim by *selection*, not by absence. The seeded review holds two private notes and one draft; the course selects note 246 and the current draft, then compares the child's whole decoded stdin field for field against an expected map in which `note.count` and `draft.count` are each exactly `1` and `note.0.text` and `draft.0.text` are the selected bytes. The unselected note — whose text carries `BPR_UNSELECTED_NOTE_0250`, `viewport`, `coordinate`, `qt_index`, and `BPR_CREDENTIAL_CANARY_0250` — is asserted absent from that stdin, and `contains_forbidden_context` sweeps every field key and every field value for those canaries plus `BPR_UNSELECTED_DRAFT_0247`. The **What will prove it** cell says the composed course keeps *zero* note and draft counts. It does not, and it should not: a course that carried zero of everything would pass a zero-count assertion without ever showing that explicit selection is the thing deciding. The plan's wording is left standing so it can still be compared against the outcome. **This row's command does not pass at HEAD** (BPR-0506, 2026-09-02) for a reason that is not this claim's: BPR-0517 added the `chat_message` field to `encode_agent_supplement` and did not add it to this course's `expected_context_fields` builder, so the exact field-map comparison sees 162 actual fields against 161 expected and the course exits non-zero with every note-and-draft assertion above it satisfied. That is BPR-0517's regression, carried here rather than repaired here, and it is named again under **Closeout preparation**. **The message is not a way around the opt-in** (BPR-0517, 2026-09-02): `core_agent_context_supplement` adds the case. A supplement built with a typed message and no opt-in carries the question and zero notes and zero drafts; a message keyed to another session refuses the whole build under both the plain and the gated overload, so an opt-in this session did make cannot admit a question it did not type; the type is exactly a session identity and the words, asserted by size, so there is no field on it a note, a draft, or a selection could occupy; a message at `maximum_chat_message_bytes` is admitted and the byte past it refuses the build whole rather than truncating it |
+| Verified | Private notes and drafts are never included without explicit selection. | Core session opt-in, the context supplement, and the composed course | `core_agent_context_supplement`, `core_agent_chat_scope`, `application_agent_invocation_composition_contract` | A session without the per-session opt-in carries zero notes and zero drafts even when both exist for the review, and the composed course keeps its existing zero note and draft counts | **Core half verified** (BPR-0499, 2026-09-01): `agent_private_context_optin` is keyed by session id with notes and drafts separately default-off, and the two-argument `build_agent_supplement` carries zero of both without it; the host now builds through the opt-in overload keyed to the session (BPR-0500, with a source-order assertion that the ungated overload is unreachable from the host); **The composed course is verified** (BPR-0504, 2026-09-02; read again and settled by BPR-0506, 2026-09-02): `application_agent_invocation_composition_contract` proves this claim by *selection*, not by absence. The seeded review holds two private notes and one draft; the course selects note 246 and the current draft, then compares the child's whole decoded stdin field for field against an expected map in which `note.count` and `draft.count` are each exactly `1` and `note.0.text` and `draft.0.text` are the selected bytes. The unselected note — whose text carries `BPR_UNSELECTED_NOTE_0250`, `viewport`, `coordinate`, `qt_index`, and `BPR_CREDENTIAL_CANARY_0250` — is asserted absent from that stdin, and `contains_forbidden_context` sweeps every field key and every field value for those canaries plus `BPR_UNSELECTED_DRAFT_0247`. The **What will prove it** cell says the composed course keeps *zero* note and draft counts. It does not, and it should not: a course that carried zero of everything would pass a zero-count assertion without ever showing that explicit selection is the thing deciding. The plan's wording is left standing so it can still be compared against the outcome. **Historical command failure** (BPR-0506, 2026-09-02) for a reason that is not this claim's: BPR-0517 added the `chat_message` field to `encode_agent_supplement` and did not add it to this course's `expected_context_fields` builder, so the exact field-map comparison sees 162 actual fields against 161 expected and the course exits non-zero with every note-and-draft assertion above it satisfied. That is BPR-0517's regression, carried here rather than repaired here, and it is named again under **Closeout preparation**. **The message is not a way around the opt-in** (BPR-0517, 2026-09-02): `core_agent_context_supplement` adds the case. A supplement built with a typed message and no opt-in carries the question and zero notes and zero drafts; a message keyed to another session refuses the whole build under both the plain and the gated overload, so an opt-in this session did make cannot admit a question it did not type; the type is exactly a session identity and the words, asserted by size, so there is no field on it a note, a draft, or a selection could occupy; a message at `maximum_chat_message_bytes` is admitted and the byte past it refuses the build whole rather than truncating it |
 | Verified | Finding/chat/promotion decisions are core-tested without agent/Qt dependencies; host protocol tests and Qt workflow tests prove all results re-enter through typed revision-bound events. | All three regions | `ctest --preset core-only -R '^core_agent_'`, `application_agent_finding_protocol`, `qt_side_chat_panel`, `qt_finding_queue_view` | The core suites link `BetterPullReview::Core` only, the delivered event's binding is compared field for field against the session's, and deleting the validation call at the decode-to-core seam fails an invalid-anchor case | **The Qt half is verified** (BPR-0502 and BPR-0503, 2026-09-02): both Qt suites link `BetterPullReview::AdapterQt` only and run under `bpr_add_network_isolated_test`. `qt_finding_queue_view` presents an `application::agent_finding_delivery` — the typed, revision-bound value BPR-0500 delivers, verdict included — and offers exactly the six actions `docs/ux/ai-experience.md` names, each emitting one `finding_action_intent` carrying the session, the ordinal, the finding, and the verdict. A table sweeps all six against `finding_queue_action_count`, so a seventh action declared without a case fails at compile time on `expression evaluates to '6 == 7'`; dropping one action's intent fails `add_to_private_notes must emit exactly one intent, no more and no fewer`. Ten disclosed fields are swept and each must move alone, so freezing the presented confidence or anchor state fails `the confidence field did not move` and `the anchor state field did not move`. Neither widget holds a provider, a network address, a store, or a process: both member sets are one aggregate bound by name, and a `void*` store member added to either fails to compile. The core-only link line and the host decode evidence this row also names are BPR-0497's and BPR-0500's, already recorded above and not re-run here. **The composed workbench is verified** (BPR-0504, 2026-09-02): the host's typed `deliver_findings` is the one new edge out of `agent_invocation_host`, and it reaches `application::agent_finding_host`, which holds the delivery so a verdict is *read* rather than supplied — `agent_finding_action_request` has no verdict field a widget could forge one into. Every outcome is presented, refusal included: a refused conversion is named on the shipped agent panel rather than dropped, which the workshop construction cut exercises directly by making the same conversion produce a presented refusal and no draft **Settled** (BPR-0506, 2026-09-02): the label read `Qt half verified` while this cell already recorded the composed workbench as verified, so it was stale rather than weak. The row's own core command was re-run in this slice rather than referred to — `ctest --preset core-only -R '^core_agent_'`, six suites green in 1.00 s — so the core-only link line the claim names is evidence this slice produced |
 
 Four `State` cells were relabelled by BPR-0506 on 2026-09-02. None of them is a
@@ -122,7 +241,7 @@ recorded the composed workbench. *Private notes and drafts* read
 `Core half verified` and still carried a leftover `Planned` phrase for a course
 that had landed. Relabelling was the whole of the change; no result text was
 weakened, and the one row whose command does not currently pass says so in its
-own cell.
+own cell. The current r4 reconciliation above records the later repair.
 
 ## Placement decision (BPR-0501)
 
@@ -157,8 +276,8 @@ BPR-0503 was asked to record the comment workshop's before/after surface rather
 than assume it, and to justify a renderer in this ledger if it chose one.
 **Plain text, in the editor's existing presentation.**
 
-The premise the card offered survives contact with the code. There is no
-Markdown or rich-text rendering surface anywhere in the tree:
+At BPR-0503's 2026-09-02 candidate there was no Markdown or rich-text
+rendering surface in the tree:
 `grep -rn 'setMarkdown\|setHtml\|Qt::RichText\|toHtml\|cmark\|md4c' src/`
 returns nothing, and the single `QTextDocument` include in
 `src/adapters/qt/src/measured_alignment_axis.cpp` measures plain-text block
@@ -431,8 +550,11 @@ the switch a fifth enumerator has to be argued about at.
 
 ## Closeout preparation
 
-RFC-BPR-0012 stays **`Proposed`**. No closure claim is made anywhere in this
-ledger, and closure order is unchanged: it is ordered behind RFC-BPR-0008 and
+This section preserves BPR-0506's 2026-09-02 checkpoint. Its status, open
+items and HEAD failures are historical; the r4 reconciliation above records
+what was subsequently delivered and the remaining limits.
+
+At that checkpoint RFC-BPR-0012 stayed **`Proposed`**. No closure claim was made by that slice; its closure order was it is ordered behind RFC-BPR-0008 and
 RFC-BPR-0011. RFC-BPR-0008's closeout (BPR-0242) waits on its attended
 live-GitHub cards, and RFC-BPR-0011's (BPR-0245) waits on RFC-BPR-0008
 through RFC-BPR-0010 closing in order; RFC-BPR-0002 through RFC-BPR-0005 are
@@ -516,8 +638,7 @@ Named rather than left for a reader to infer from silence:
   `application_agent_chat_continued_contract` keeps proving the refusal
   path's invariant. The claim rows above are unchanged: they describe
   staleness and the offered choice, not the anchoring of the continued turn.
-- **`application_agent_invocation_composition_contract` does not pass at
-  HEAD.** BPR-0517 added the `chat_message` field to `encode_agent_supplement`
+- **Historical `application_agent_invocation_composition_contract` failure.** BPR-0517 added the `chat_message` field to `encode_agent_supplement`
   and did not add it to this course's `expected_context_fields` builder, so the
   exact whole-map comparison sees 162 actual fields against 161 expected and
   the course exits non-zero. Every note-and-draft and canary-absence assertion

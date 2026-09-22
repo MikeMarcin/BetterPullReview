@@ -1,0 +1,218 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Close only RFC-BPR-0011 on clean main under owner amendment r4; preserve truthful current and historical evidence, amend stale closeout acceptance where necessary, and retain unobserved/native/human obligations as explicit follow-ups.",
+  "child": "/root/rfc0011_owner_closeout_retry",
+  "mandate_revision": "r4",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0011-owner-closeout-r4",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "entry_revision": "71b25a2438202411c3c1e5c046e8d4e77ae10070",
+  "rfc_base_sha": "29516d7aae0b61b79571f836c92533459882f5d2",
+  "product_test_candidate_revision": "71b25a2438202411c3c1e5c046e8d4e77ae10070",
+  "product_executable_sha256": "a0f9c85cd58e4c9d486ae39c554b16f30f4bb73e867ebfbb6c17ad21ca775d90",
+  "public_invocation_driver_sha256": "55b92b981a8d35a19bf02f3c52184af389ec5b412656b9a0a32ecde902abae39",
+  "hostile_canary_sha256": "c863579add03490d3928516b5997e46ec9292fd91373023e44f19720dfe73e31",
+  "amendment_revision": "d826da1e21913b4cdc98c667a3a0f430b97862fd",
+  "card_closeout_revision": "7613b8d9d0912b0022b04d4f5ca9f82ef96f1818",
+  "terminal_scope_revision": "41b7b8b7485213dec7f508a555f3680b048f2ff9",
+  "milestone": "owner-amended-closeout",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/checkpoint-r4.json",
+  "prior_handoff": "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/handoff-r4.json",
+  "mandate": "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/mandate-r4.md",
+  "result": {
+    "disposition": "milestone-complete",
+    "rfc_status": "Auto-Verified",
+    "card": "BPR-0245",
+    "card_status": "Done",
+    "selected_count": 27,
+    "done_count": 27,
+    "interpretation": "All nine criteria accepted in the recorded r4 fixture/public-composition scope. No mandatory RFC0011 human gate remains. Historical native observations and BPR0332's actual owner decision remain candidate-specific. Optional installed compatibility/live identity/wording observations and separately owned RFC0013/0014 obligations remain unobserved; no new pass inferred."
+  },
+  "commits": [
+    {
+      "revision": "6785e117307b198ddf450f78798730381e47233e",
+      "purpose": "Adopt bounded closeout plan and r4 mandate, retain entry checkpoint and make BPR0245 Ready"
+    },
+    {
+      "revision": "ef168f58dc0b5826f874ba8a4180a1df0e2c0c94",
+      "purpose": "Guarded BPR0245 claim"
+    },
+    {
+      "revision": "d826da1e21913b4cdc98c667a3a0f430b97862fd",
+      "purpose": "Reviewed r4 amendment and current criterion evidence; corrected stale Windows decision and predecessor claims"
+    },
+    {
+      "revision": "7613b8d9d0912b0022b04d4f5ca9f82ef96f1818",
+      "purpose": "Guarded BPR0245 Done with nine passing records bound to amended evidence and unchanged product candidate"
+    },
+    {
+      "revision": "41b7b8b7485213dec7f508a555f3680b048f2ff9",
+      "purpose": "RFC/index/README/ledger Auto-Verified reconciliation; following handoff-only commit records this terminal candidate"
+    }
+  ],
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review test_better_pull_review_agent_invocation_composition_public_path test_better_pull_review_qt_agent_launch_canary_tests test_better_pull_review_agent_profile_core_tests test_better_pull_review_agent_session_core_tests test_better_pull_review_agent_context_supplement_core_tests test_better_pull_review_agent_launch_tests test_better_pull_review_agent_protocol_loop_tests test_better_pull_review_agent_workspace_tests test_better_pull_review_agent_invocation_host_tests test_better_pull_review_qt_agent_launch_panel_tests",
+      "result": "Pass, ninja: no work to do. App digest unchanged before/after."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^application_agent_invocation_(composition|construction_cut|launcher_construction_cut|gesture_cut)_contract$'",
+      "result": "4/4 pass in 38.10 s. Public real-child seed/reopen exact context/durable session/workspace cleanup and separate host/launcher/gesture zero-effect controls."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^(core_agent_profile|core_agent_session|core_agent_context_supplement|application_agent_launch|application_agent_protocol_loop|application_agent_workspace|application_agent_invocation_host|qt_agent_launch_panel|qt_agent_launch_canary|application_agent_invocation_(cancellation|staleness|cleanup_retry|workspace_diagnostic)_contract|architecture_boundaries|composed_application_hosts)$'",
+      "result": "14/15 pass in 154.34 s. Every product check passes. architecture_boundaries fails because its recursive scan includes the unrelated .claude/worktrees/agent-a17cae88115dbbb4e checkout and reports duplicate GitHub-adapter ownership. Original checkout preserved; failure not reported as a pass."
+    },
+    {
+      "command": "git archive --format=tar --output=/tmp/bpr-rfc0011-architecture.EWAQW3/candidate.tar 71b25a2438202411c3c1e5c046e8d4e77ae10070; extract into /tmp/bpr-rfc0011-architecture.EWAQW3/source; cmake -DBPR_ROOT=/tmp/bpr-rfc0011-architecture.EWAQW3/source -P /tmp/bpr-rfc0011-architecture.EWAQW3/source/cmake/VerifyArchitectureBoundaries.cmake",
+      "result": "Pass: application, provider and Qt architecture boundaries verified against exact tracked candidate. Archive sha256 cdddbae8828577393ce9427daeb158c286083e94b569c462ee768f0e8ce79bee. Snapshot now in Trash and reproducible from Git."
+    },
+    {
+      "command": "cmake --build --preset core-only --target test_better_pull_review_agent_profile_core_tests test_better_pull_review_agent_session_core_tests test_better_pull_review_agent_context_supplement_core_tests test_better_pull_review_agent_protocol_loop_tests; ctest --test-dir build/core-only --output-on-failure --no-tests=error -R '^(core_agent_profile|core_agent_session|core_agent_context_supplement|application_agent_protocol_loop)$'",
+      "result": "Build passes; 4/4 pass in 0.98 s, no Qt/provider linkage."
+    },
+    {
+      "command": "Scoped baseline-to-current source inventory and exact path review",
+      "result": "Mapped profile/session/context/host/workspace/process/panel changes to completed cards and prior critical reviews. Current allowlist iteration, separate argv/input, public full-context predicate and zero-effect cuts inspected. No changed product source requiring a new simplification or independent review."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK at Ready, amended criteria, terminal Auto-Verified and final handoff states."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64/64 pass in 2.071 s. Negative-fixture diagnostics expected."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0011 --json; queue --rfc RFC-BPR-0011 --json; queue --rfc RFC-BPR-0012 --json",
+      "result": "957-card inventory valid, zero errors; RFC0011 27/27 Done. RFC0012 23/24 Done, BPR0507 Backlog without unmet card dependencies."
+    },
+    {
+      "command": "git diff --quiet 71b25a2438202411c3c1e5c046e8d4e77ae10070 -- src tests cmake packaging docs/verification/reviews docs/rfcs/plans/RFC-BPR-0011-issue-plan.md; git diff --check",
+      "result": "Pass; product/test/build/package and protected historical paths unchanged."
+    },
+    {
+      "command": "python3 /Users/jaeger/.agents/skills/implement-rfc/scripts/milestone_checkpoint.py check --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --checkpoint docs/rfcs/plans/rfc-bpr-0011-owner-closeout/checkpoint-r4.json --observation build/rfc0011-owner-closeout/observation.json --execution quiescent --json",
+      "result": "Pass: action stop at integrated boundary. Engineering acceptance not evaluated by helper; the implementer owns the criterion judgments above."
+    }
+  ],
+  "preserved_native_evidence": [
+    {
+      "card": "BPR-0240",
+      "candidate": "8e952928 and dated 2026-08-26/27 runs; assignment-order assertion 88a8c063",
+      "scope": "Windows four-protocol canary, Job Object pre-resume assignment and descendant lifecycle; original observations only"
+    },
+    {
+      "card": "BPR-0476",
+      "candidate": "b594abed",
+      "scope": "Windows non-ASCII wrapper path pass, exact original failure under reverted adapter, restored pass"
+    },
+    {
+      "card": "BPR-0622",
+      "candidate": "c94e02b1 integrated 2ba02ddb",
+      "scope": "Windows guarded supervisor/workspace recovery; docs/verification/BPR-0622-windows-native-evidence.md preserves its initial composition session mismatch and native limits"
+    },
+    {
+      "card": "BPR-0826",
+      "candidate": "559377700d52f37d6c094cd646200c67ab20eeb5",
+      "scope": "Windows corrected public seed/reopen passes 26.85 s; docs/verification/BPR-0826-windows-rerun.md"
+    },
+    {
+      "card": "BPR-0622/BPR-0826",
+      "candidate": "780d0a1c",
+      "scope": "Linux all eight invocation rows and ownership/recovery confirmation; docs/verification/dsp2-linux-confirmation.md"
+    }
+  ],
+  "deferred_followups": [
+    {
+      "id": "optional-installed-agent-compatibility",
+      "path": "docs/verification/RFC-BPR-0011.md#preserved-native-evidence-and-follow-ups",
+      "state": "Optional, unobserved; not a new terminal gate",
+      "pending": "Installed Codex/Claude/corporate harness compatibility and actual independently authenticated GitHub access require separately authorized targets/accounts. This assignment runs only local canaries."
+    },
+    {
+      "id": "optional-existing-checkout-wording",
+      "path": "docs/verification/RFC-BPR-0011.md#preserved-native-evidence-and-follow-ups",
+      "state": "Optional human judgment, unobserved; not a new terminal gate",
+      "pending": "Judge whether the actual uncommitted-work tooltip is sufficient against a named future UI candidate. Existing criterion accepts explicit per-run choice and attached disclosure; no human verdict claimed."
+    },
+    {
+      "id": "BPR-0825",
+      "path": "docs/issues/40-parked/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md",
+      "state": "Parked under RFC0013; unchanged",
+      "pending": "Owner-private descriptor ownership decision; recorded native supervision limits remain"
+    },
+    {
+      "id": "BPR-0875",
+      "path": "docs/issues/30-in-progress/BPR-0875-shutdown-cleanup-fails-thirteen-windows-rows-without-naming-its-source.md",
+      "state": "In Progress under RFC0013; unchanged",
+      "pending": "Remaining Windows round-trip confirmation; later Linux evidence does not supply it"
+    },
+    {
+      "id": "BPR-0958/BPR-0959/BPR-0960/BPR-0961",
+      "state": "Blocked under RFC0014; unchanged",
+      "pending": "Current native package, authentication, vault/removal and platform qualification. No acceptance inferred from historical process courses"
+    },
+    {
+      "id": "BPR-0940",
+      "state": "Existing broader workbench layout failure under RFC0013; unchanged",
+      "pending": "Not rerun or cleared by this focused agent closeout"
+    }
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": "No mandatory human decision remains in assigned RFC0011 amended scope. The optional wording judgment and separately owned RFC0013/0014 pending decisions remain untouched.",
+    "preserved_decision": "BPR0332: accepted run-boundary-decisions-v001, batch bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b, subject decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch; no new interpretation or decision.",
+    "protected_candidates": "Original pack plan and all docs/verification/reviews bytes unchanged; current dev app digest unchanged; no release candidate rebuilt; no review server started or stopped."
+  },
+  "ownership": {
+    "repository_writer": "/root/rfc0011_owner_closeout_retry exclusively through final return, then released",
+    "other_agents_spawned": [],
+    "writer_inventory": "Coordinator /root and this leaf only active in assigned main lane; earlier RFC owners completed; first RFC0011 owner errored before any work. Other registered worktrees, including nested .claude, remain outside ownership and untouched.",
+    "task_commands": "All build/test/helper/claim/finish commands collected; process-name inspection found no remaining ctest/ninja/agent canary/invocation process. Quiescent at final return.",
+    "sessions_collected": [
+      97864,
+      24229,
+      6825,
+      55827,
+      71796,
+      85608,
+      11956
+    ],
+    "review_server": null,
+    "live_operations": [],
+    "cleanup": "Exact task-owned architecture archive/source export moved recoverably to /Users/jaeger/.Trash/bpr-rfc0011-architecture.EWAQW3. It is reproducible from the entry revision. Ordinary ignored build/test outputs and acceptance/check receipts retained; no task-owned temporary source or background command remains."
+  },
+  "continuation": "Coordinator may assign a fresh RFC-BPR-0012 implementer. Canonical predecessor gate is now clear. BPR0507 is Backlog, no unmet card dependencies, 23/24 RFC0012 cards Done; not promoted or claimed here. Its acceptance remains for the successor.",
+  "uncertainties": [
+    "Working-checkout architecture_boundaries remains sensitive to the unrelated nested .claude worktree; exact tracked-source gate passes, and no scanner/worktree mutation was made.",
+    "No installed agent, live GitHub, current native Windows/Linux package, human wording or new independent acceptance is claimed. Configured route host_load remains not_verified.",
+    "One draft patch safely refused due to unmatched context; a generated draft duplicated prose because JavaScript replacement strings interpreted a regex suffix. Diff self-review caught it before commit; the final ledger was rebuilt from tracked text using literal replacement and reviewed.",
+    "Forced recursive cleanup was automatically rejected because rm -f style commands are prohibited. Recoverable Trash disposal succeeded; no permission escalation or deletion of unrelated work occurred.",
+    "An initial diagnostic hash probe used the target name rather than OUTPUT_NAME and found no file; the actual driver/canary paths were resolved and hashed successfully."
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0011-ai-agent-profiles-context-supplements.md",
+    "docs/verification/RFC-BPR-0011.md",
+    "docs/issues/10-backlog/BPR-0245-close-rfc-0011.md (moved through Ready/In Progress to Done)",
+    "docs/issues/60-done/BPR-0245-close-rfc-0011.md",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/mandate-r4.md",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/prepare-receipt.json",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/execution-selection.json",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/source.json",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/checkpoint-entry.json",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/checkpoint-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0011-owner-closeout/handoff-r4.json"
+  ]
+}

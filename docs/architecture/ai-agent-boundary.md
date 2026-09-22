@@ -201,19 +201,23 @@ that supervisor to observe this interval directly. Busy, substituted and
 symlinked guard files refuse before child execution. A requested guard on an
 unsupported platform refuses rather than dropping lifetime protection.
 
-The durable workspace registry and host handoff are still BPR-0622 work in
-progress. Only the fixture currently supplies this reference; the new lock
-primitive is not evidence that production abandoned workspaces are reclaimed.
-The registry must supply original ownership and scope, and exclusive access
-alone must never authorize deletion of an arbitrary path.
+The completed BPR-0622 path supplies this guard from durable workspace ownership
+in production. `github_application.cpp` schedules ordinary startup recovery on
+the Git effect lane through `recover_installed_agent_workspaces`; the installed
+Git adapter validates bounded journal, scope and original native identities
+before reclaiming an abandoned workspace. Live owners are preserved. Missing,
+ambiguous or substituted ownership causes visible repair/refusal; neither a
+directory name nor an exclusive lock alone authorizes removal. Historical roots
+without durable authority remain outside this recovery path.
 
-The Mac `application_agent_crash_recovery` course force-kills the real
-composition during a running local canary session, checks child termination,
-Git fsck/exact refs and SQLite integrity/session identity, then reopens twice
-without replay and explicitly starts the next session. Normal cleanup removes
-that new workspace. The interrupted workspace currently survives unchanged:
-its cleanup capability was only in memory. BPR-0622 tracks durable exact
-ownership and reclamation; preservation is not complete resource recovery.
+The `application_agent_crash_recovery` and materialization-recovery courses
+force-kill the real composition, check child termination, Git/SQLite identity
+and repeated ordinary recovery without replay, then explicitly start the next
+session. Where durable ownership exists they require workspace reclamation;
+the earlier BPR-0621 orphan-preservation result is historical. BPR-0622 records
+native Windows, Linux and macOS evidence, summarized in the
+[RFC-0013 ledger](../verification/RFC-BPR-0013.md). That evidence does not certify
+the RFC-0014 installed-package or complete purge matrix.
 The composed-path contract observes the portable process launcher through a
 test-only delegating probe: the real panel gesture must produce one launcher
 `run`, one host process start, and the real child canary. A distinct launcher
@@ -389,7 +393,7 @@ so rather than pick the reassuring answer.
 | The composed portable launcher is constructed and invoked once by the real panel gesture | `application_agent_invocation_composition_contract`, `application_agent_invocation_launcher_construction_cut_contract` |
 | Removing the host or disconnecting the gesture cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
 | A Windows child whose Job Object assignment fails never runs its first statement, and teardown stops a spawned grandchild's heartbeat | `qt_agent_launch_canary` (Windows-conditional: `test_windows_assignment_failure_has_no_pre_assignment_side_effect`, `test_timeout_terminates_the_descendant_process_tree`), target-native 2026-08-27 |
-| Composed agent-session SIGKILL preserves Git/SQLite state without replay, and the next explicit session succeeds | `application_agent_crash_recovery` (Mac; interrupted workspace reclamation remains BPR-0622) |
+| Composed agent-session death preserves Git/SQLite state without replay, reclaims durably owned abandoned workspaces and permits the next explicit session | `application_agent_crash_recovery`, `application_agent_materialization_crash_recovery`, `agent_workspace_ownership` (BPR-0622's exact native candidates) |
 | Existing-checkout mode needs a choice | `application_agent_workspace` |
 | Dirty state is reported, unknown stays unknown | `application_agent_workspace` |
 | The launch surface only emits intents | `qt_agent_launch_panel` |

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0966"
+  ],
+  "reserve_for": "rfc0012-r4-dif-followup",
+  "purpose": "",
+  "created": "2026-09-22T02:24:02.639986+00:00",
+  "base": "abd9baee670332b2c6fefd17d01ab6a84eabe9b3"
+}

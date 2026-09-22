@@ -3,13 +3,25 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0940"
 title: "Reconcile legacy composed GitHub assertions with current reading and sign-in contracts"
 status: "Backlog"
-rfcs: ["RFC-BPR-0013"]
+rfcs: []
 depends_on: []
 priority: P2
-metadata: {"origin":"r20-usable-review-amendments integration verification","scope":"Broader pre-existing composed Qt contract drift; not part of BPR-0935 through BPR-0939 acceptance"}
+metadata: {"origin":"r20-usable-review-amendments integration verification","scope":"Broader pre-existing composed Qt contract drift; not part of BPR-0935 through BPR-0939 acceptance","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
 ---
 
 # Reconcile legacy composed GitHub assertions
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this remaining work out of RFC-BPR-0013 terminal
+acceptance. This card keeps its ID, path, status, dependencies and all historical
+evidence; only the RFC0013 association is removed. The
+[amended RFC](../../rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
+retain its origin and continuation.
+
+Pending: Complete composed GitHub and workbench-window layout reconciliation at the existing scales; known failures remain open.
+No owner decision, native observation or repair is supplied by this transfer.
 
 The broad `qt_composed_github_scale_100` suite is not green during the r22
 integration pass. Focused new loading, visual, CLI, core/host and actual
@@ -38,6 +50,17 @@ the separate owner-requested CLI warning cleanup.
 - AC3: Run the complete composed GitHub Qt suite at its existing scale registrations and record the exact revision and results.
 
 ## Evidence
+
+At r4 source `3efe61dfcf6874d35400bf777a7e86dbbf0a4693`, the ordinary
+`application_large_review_benchmark` passes its exact source-document,
+navigation, 1,000-wheel and stale-selection assertions, but direct inspection
+of its new `large-review-window.png` shows the current Overview page. The
+hidden documents being exact does not prove readable on-screen source. Extend
+AC1–AC3's current-entry-path reconciliation to this benchmark render and assert
+the intended visible Read surface without weakening its existing data checks.
+The separate unavailable-diff render correctly shows Read and the typed limit.
+No whole-window or visible selected-source acceptance is inferred from the
+ordinary benchmark's passing process result.
 
 See the [r22 bounded evidence](../../verification/rfc-bpr-0013-usable-review-20260920.md).
 The current failure is durable and remains open; no full-suite acceptance is claimed.

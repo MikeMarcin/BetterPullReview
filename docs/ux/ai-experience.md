@@ -24,7 +24,7 @@ Expanding from selected lines to an entire file, PR, or repository requires an e
 
 ## Comment workshop
 
-Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Since BPR-0533 those six are a typed set in the tree, offered as controls on the proposed-revision surface: pressing one starts one agent turn through the single `workshop_comment` entry point, the six close with a tooltip until that turn's proposal arrives, and the proposal names the operation it answered. `docs/architecture/ai-agent-boundary.md` carries the same statement. Results stay in the local editor until the user publishes through normal GitHub review controls.
+Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Since BPR-0533 those six are a typed set in the tree, offered as controls on the proposed-revision surface: pressing one starts one agent turn through the single `workshop_comment` entry point, and the proposal names the operation it answered. The controls close with a tooltip while the turn runs. Since BPR-0538 they reopen when it ends, including a turn that returns no revision; that outcome explains why no revision appeared. Results stay in the local editor until the user publishes through normal GitHub review controls.
 
 ## AI findings
 
@@ -115,8 +115,9 @@ fallback; a fresh session at the new head anchors as usual.
 
 Plain text, on two `QPlainTextEdit` surfaces shown at once: the reviewer's
 original and the agent's proposed revision, each read from its own source.
-There is no Markdown or rich-text rendering anywhere in the tree, and adding one
-here was refused with the reason recorded in
+This workshop preserves the original plain-text contract even though other
+read-only surfaces now render Markdown under RFC-BPR-0036. The original choice
+is recorded in
 `docs/verification/RFC-BPR-0012.md` under **Surface decision (BPR-0503)** — the
 comparison is between the reviewer's bytes and the agent's bytes, and a renderer
 would show neither, least of all a proposal differing only by a backtick or a
@@ -140,8 +141,8 @@ send reaches one agent turn through the composed side-chat session host
   single `core::agent_entry_point` `workshop_comment`, and
   `application::agent_comment_workshop_host` turns that turn's converted
   outcome into one before/after proposal that names the operation asked for.
-  A turn that ends without a revision leaves the six closed until the draft
-  changes ([[BPR-0538]]).
+  A turn that ends without a revision reopens the six and shows its reason
+  beside the proposal area ([[BPR-0538]]).
 - **The MCP helper's frozen snapshot carries alignment facts, not file bytes.**
   Its `binding` and `alignment` records are written from the same values the
   finding validator uses, and `files/` is created empty, so `list_snapshot_files`

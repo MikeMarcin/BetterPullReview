@@ -3,12 +3,35 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0143"
 title: "Mixed-client acceptance against a designated repository"
 status: "Parked"
-rfcs: ["RFC-BPR-0008"]
+rfcs: []
 depends_on: ["BPR-0142"]
 parked_on: "awaiting-live-github"
+metadata: {"origin_rfc":"RFC-BPR-0008","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0008 closeout dependency"}
 ---
 
 # Mixed-client acceptance against a designated repository
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this unfinished acceptance out of RFC-BPR-0008's
+terminal scope. This card remains Parked; no live case is newly passed. Its
+original path preserves the approved immutable packet and all historical
+evidence below. The [amended RFC](../../rfcs/RFC-BPR-0008-github-review-round-trip-interactions.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0008.md) retain the explicit handoff.
+
+This follow-up also owns the wider unreplayed closeout obligations: native
+resolve/unresolve and viewed/unviewed behavior where supported, explicit
+capability degradation, an editable-local conflict resolved in favor of server
+truth, and the designated uninstall/database-loss course that reopens and
+reconstructs the shared review without losing GitHub content. Preserve the
+exact server identities, author/text/version and postconditions for each case.
+Fake-provider or restart-recovery success does not prove these live sequences.
+
+Next: revalidate the existing approved four-action packet and target before
+execution through a permitted course. Obtain the separately bounded authority
+and disposable local roots for the additional capability/state-loss work.
+Inspect applicable workflow triggers first; no GitHub Actions, push, broad
+deletion or extra message is authorized by this deferral.
 
 RFC-BPR-0008 requires that mixed-client edits, replies, deletion, resolution,
 and reopening are preserved. BPR-0138 proves the reconciliation against a fake

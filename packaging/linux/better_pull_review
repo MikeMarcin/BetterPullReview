@@ -1,0 +1,3 @@
+#!/bin/sh
+# Managed packages own this fixed installation; no PATH or current-directory lookup.
+exec /usr/lib/betterpullreview/better_pull_review "$@"

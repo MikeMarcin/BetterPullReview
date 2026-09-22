@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "4f2c3bdb5855ba0fb509889cdbe08d7cf534acab",
+      "evidence": {
+        "kind": "command",
+        "detail": "Nine owner-amended foundation rows have exact producing evidence. Current 13/14 checks pass including real maintenance/activation, all three Qt scales and package/source/security contracts; sole network-manifest failure explicitly transferred to BPR0962, not counted passing. Exact source preflight/hashes/ad-hoc seal and tracked-source architecture pass. Old full package/security audits correctly refuse later build-source drift; original successful producer audits remain separately bounded. No original release/native/security criterion is newly accepted."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "29adb0ab2926746fc5d008c8b227cc4700c90e8b",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Owner r4 mandate, RFC0038 ledger/closeout, allocated BPR0973/counter/receipt and scope-preservation record retain all nine original criteria verbatim, M1–M11 objects unchanged, BPR0958–0962 Acceptance sections unchanged/Blocked. Immutable base d0a8a6dda005af12b3818234f4878a9f48a44146 retained; source/test/build/package diff from entry is empty. All eight protected review candidates unchanged, cursor478."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "0dc3009c683b171d1da299e8985734abf09d718e",
+      "evidence": {
+        "kind": "observation",
+        "detail": "All canonical RFC0001–0013 Auto-Verified at entry; accepted M1–M7/M10/M11 reused. Current documentation gate and 64/64 regressions pass; board/plan/diff validation pass. This guarded finish commits BPR0965 Done plus RFC0014/index Auto-Verified together; final durable handoff binds resulting commit and completed command cleanup. Only amended foundation closes; successor remains unaccepted and no release action occurs."
+      }
+    }
+  ]
+}

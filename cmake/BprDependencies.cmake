@@ -117,14 +117,19 @@ function(bpr_configure_dependencies)
             )
         endforeach()
         bpr_require_dependency_target_absent(Qt6::rcc "Qt6 CoreTools")
+        set(qt_version_arguments "${BPR_QT_MINIMUM_VERSION}")
         if(BPR_QT_PROVIDER)
             bpr_acquire_qt(bpr_qt_prefix)
             bpr_expose_qt_runtime("${bpr_qt_prefix}")
-            list(APPEND CMAKE_PREFIX_PATH "${bpr_qt_prefix}")
+            list(PREPEND CMAKE_PREFIX_PATH "${bpr_qt_prefix}")
+            # A cached Qt6_DIR from the previous pin outranks prefix search.
+            # Never mix its CMake helpers with the newly acquired modules.
+            set(Qt6_DIR "${bpr_qt_prefix}/lib/cmake/Qt6" CACHE PATH "Pinned Qt package" FORCE)
+            set(qt_version_arguments "${BPR_QT_VERSION}" EXACT)
         endif()
         find_package(
             Qt6
-            ${BPR_QT_MINIMUM_VERSION}
+            ${qt_version_arguments}
             CONFIG
             QUIET
             COMPONENTS Core Gui Widgets Network
@@ -156,6 +161,7 @@ function(bpr_configure_dependencies)
         # Qt's resource macro runs outside this function. Preserve the package
         # namespace it uses to address the already-proven Qt6::rcc target.
         set(QT_CMAKE_EXPORT_NAMESPACE Qt6 PARENT_SCOPE)
+        set(BPR_PRODUCT_QT_VERSION "${Qt6_VERSION}" PARENT_SCOPE)
 
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             bpr_reject_dependency_redirect(PkgConfig)

@@ -768,6 +768,9 @@ namespace {
 		};
 		readHost = &host;
 		expect(host.adopt(loading_session()), "held read adopts synthetic session");
+		// The shipped workbench publishes drawer commands even with no review.
+		window.publish(application::workbench_projection{
+			.Commands = core::project_workbench_commands({ }) });
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{ .Commands = enabled_commands() } });
 		window.resize(900, 720);
@@ -1550,6 +1553,8 @@ namespace {
 		// bar, where the pull request was named, rather than on Accounts & hosts.
 		QApplication::processEvents();
 		publish_session_ready(firstLoadWindow);
+		firstLoadWindow.publish(application::workbench_projection{
+			.Commands = core::project_workbench_commands({ }) });
 		firstLoadWindow.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Status = core::github_status_delta{
@@ -1573,6 +1578,8 @@ namespace {
 		auto* const firstLoadDetails = firstLoadWindow.home_open_details_button();
 		expect(
 			presentation_state(firstLoadWindow) == QStringLiteral("cancelled")
+				&& firstLoadWindow.showing_home()
+				&& !firstLoadWindow.comparison_surface()->isVisible()
 				&& firstLoadStack->currentWidget() == firstLoadEmpty
 				&& required_label(firstLoadWindow, "githubEmptyStateTitle")
 						->text()
@@ -1624,6 +1631,9 @@ namespace {
 		});
 		expect(
 			presentation_state(firstLoadWindow) == QStringLiteral("error")
+				&& firstLoadWindow.showing_home()
+				&& firstLoadNotice->isVisible()
+				&& !firstLoadWindow.comparison_surface()->isVisible()
 				&& firstLoadStack->currentWidget() == firstLoadEmpty
 				&& required_label(firstLoadWindow, "githubEmptyStateTitle")
 						->text()
@@ -1643,6 +1653,10 @@ namespace {
 			"Copy details, and the empty page that carries it is not shown too");
 		capture_layout_state(
 			firstLoadWindow, QStringLiteral("first-load-error"));
+		firstLoadWindow.publish(application::workbench_projection{
+			.Commands = core::project_workbench_commands({ }) });
+		expect(firstLoadWindow.showing_home() && firstLoadNotice->isVisible(),
+			   "later drawer commands cannot hide an initial read failure");
 
 		qt::workbench_window refreshWindow{
 			qt::workbench_intent_dispatch{ },
@@ -1686,6 +1700,7 @@ namespace {
 		expect(
 			presentation_state(refreshWindow)
 					== QStringLiteral("loaded-cancelled")
+				&& !refreshWindow.showing_home()
 				&& refreshStack->currentWidget() != refreshEmpty
 				&& required_label(refreshWindow, "pullRequestTitle")->text()
 					== retainedTitle

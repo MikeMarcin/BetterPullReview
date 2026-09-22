@@ -174,16 +174,32 @@ Remove avoidable duplication and broad capabilities in the changed implementatio
 
 ## m12-verification-rfc-closeout
 
-Complete the live acceptance/conformance matrices, all required cards and dependency-ordered RFC/index closeout.
+Accept the owner-amended RFC-BPR-0014 packaging and maintenance foundation, transfer every incomplete original release requirement to RFC-BPR-0038, and close RFC0014 in canonical order.
 
 **Work:** `BPR-0965`
 
-**Prerequisites:** m8-ux-ui-native-verification, m9-security-boundary-verification, m11-simplification
+**Prerequisites:** m11-simplification
 
 **Completion:**
 
-- Every RFC acceptance criterion has direct exact-artifact evidence and every required native/human/external obligation is satisfied.
-- RFC-BPR-0013 and canonical predecessors are Auto-Verified, all scoped cards are Done, and RFC/index/documentation gates agree.
-- The final diff against immutable RFC_BASE_SHA, integrated revision, command quiescence and cleanup are recorded.
+- Every amended RFC0014 foundation criterion has direct producing-revision evidence; all original release criteria and BPR0958–0962 obligations remain explicitly pending under RFC0038 without invented acceptance.
+- RFC-BPR-0013 and canonical predecessors are Auto-Verified, all RFC0014-scoped cards are Done, and the amended RFC/index/documentation gates agree.
+- The final diff against immutable RFC_BASE_SHA, integrated revision, exact protected candidates, command quiescence and cleanup are recorded.
 
-**Boundary:** This is the sole RFC closeout boundary; prior milestones do not close the RFC.
+**Boundary:** Owner amendment r4 accepts only RFC0014's implemented foundation. M1–M11 definitions remain unchanged, including pending M8/M9. RFC0038 M13, not M12, now owns complete native and release-security qualification. No publication or independent approval is implied.
+
+## m13-release-qualification-closeout
+
+Complete RFC-BPR-0038's original full native package and release-security acceptance against exact final artifacts.
+
+**Work:** `BPR-0973`
+
+**Prerequisites:** m8-ux-ui-native-verification, m9-security-boundary-verification, m12-verification-rfc-closeout
+
+**Completion:**
+
+- Every original release criterion retained in RFC0038 has complete exact-artifact native, human, independent trust, license/source-access/retention and security-policy evidence.
+- BPR0958–0962 and BPR0973 are Done, canonical predecessors are Auto-Verified, and RFC0038/index/ledger/documentation agree without waiver by RFC0014 closure.
+- Final candidate and integrated identities, baseline diff, protected-review state, command ownership and cleanup are recorded; publication requires separate authority.
+
+**Boundary:** Separate successor acceptance. Do not claim any native, security, legal or trust pass from the r4 scope transfer or earlier mechanical evidence.

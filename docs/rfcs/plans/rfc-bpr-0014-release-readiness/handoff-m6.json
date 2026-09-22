@@ -1,0 +1,413 @@
+{
+  "assignment": {
+    "rfc": "RFC-BPR-0014",
+    "plan": "rfc-bpr-0014-release-readiness",
+    "milestone": "m6-composition-public-path",
+    "child": "/root/rfc0014_m6",
+    "mandate_revision": "r3",
+    "run_id": "rfc0014-20260920",
+    "segment_id": "m6-composition-public-path",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "role": "rfc-implementer",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "strategy": "coordinator-implementer",
+    "recipe_revision": "2"
+  },
+  "rfc_base_sha": "d0a8a6dda005af12b3818234f4878a9f48a44146",
+  "entry_revision": "b908246e72bb2a9de75ff9c913af6ac321354311",
+  "candidate_revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
+  "result": "milestone-complete",
+  "rfc_status": "Proposed",
+  "commits": [
+    {
+      "revision": "b8515c7cdd83a12fd329bc7f010a9d7c02b343eb",
+      "purpose": "Claim eligible BPR-0956 before edits"
+    },
+    {
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "purpose": "Retained-lease retirement/recovery, production helpers, installed runtime and package paths"
+    },
+    {
+      "revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
+      "purpose": "Correct SPDX input versus final-byte assertions; regression test"
+    },
+    {
+      "revision": "c4d64313a20d34cb2b41719d2f01d65fa90b12f7",
+      "purpose": "Durable blocked checkpoint awaiting Mac unlock"
+    },
+    {
+      "revision": "02325a491d9062bd274a19e5c31572d8fefe3c64",
+      "purpose": "Resume original M6 claim after user unlock; no product change"
+    },
+    {
+      "revision": "2589f07f2897f3f19b6e408edfdd2be487892b0d",
+      "purpose": "Guarded finish accepts BPR-0956 against exact unchanged final package and native UI evidence"
+    }
+  ],
+  "changed_paths": [
+    "CMakeLists.txt",
+    "CMakePresets.json",
+    "cmake/BprDependencies.cmake",
+    "docs/architecture/release-maintenance.md",
+    "docs/architecture/release-readiness.md",
+    "docs/development/release-packages.md",
+    "docs/issues/30-in-progress/BPR-0956-compose-cross-platform-release-packages.md",
+    "docs/rfcs/RFC-BPR-0014-cross-platform-packaging-security-release.md",
+    "docs/rfcs/plans/rfc-bpr-0014-release-readiness/checkpoint-m6.json",
+    "packaging/DISTRIBUTION.txt",
+    "packaging/DeployRuntime.cmake.in",
+    "packaging/Install.cmake",
+    "packaging/README.md",
+    "packaging/dependencies.json",
+    "packaging/linux/better_pull_review",
+    "packaging/package.py",
+    "packaging/package_runtime.py",
+    "src/adapters/sqlite/src/release_maintenance_files.cpp",
+    "src/app/CMakeLists.txt",
+    "src/app/include/bpr/app/github_application.hpp",
+    "src/app/include/bpr/app/release_maintenance_controls.hpp",
+    "src/app/main.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/installed_runtime.cpp",
+    "src/app/src/installed_runtime.hpp",
+    "src/app/src/platform_credential_vault.cpp",
+    "src/app/src/platform_credential_vault.hpp",
+    "src/app/src/profile_desktop.cpp",
+    "src/app/src/release_maintenance_controls.cpp",
+    "tests/CMakeLists.txt",
+    "tests/end_to_end/release_maintenance_public_path_tests.cpp",
+    "tests/scripts/package_runtime_tests.py",
+    "tests/sqlite_contract/release_maintenance_files_tests.cpp",
+    "tools/publish-release.sh",
+    "tools/release.sh"
+  ],
+  "milestone_results": [
+    {
+      "id": "BPR-0956:AC1",
+      "outcome": "pass",
+      "scope": "Package/install implementation and core isolation; unavailable Windows/Linux native acceptance remains M8"
+    },
+    {
+      "id": "BPR-0956:AC2",
+      "outcome": "pass",
+      "scope": "Reused macOS pipeline, declared native closure, exact artifact SBOM/checksums/notices/source mechanics. Native trust and distribution approval remain M9"
+    },
+    {
+      "id": "BPR-0956:AC3",
+      "outcome": "pass",
+      "scope": "Exact final tests-disabled package native fixture PR17/review.cpp passed after unlock; one comparison map/shared scrollbar, normal Quit and unchanged live config. Unavailable native matrix remains M8."
+    },
+    {
+      "id": "m6-composition-public-path:exit:1",
+      "outcome": "pass"
+    },
+    {
+      "id": "m6-composition-public-path:exit:2",
+      "outcome": "pass"
+    }
+  ],
+  "artifact": {
+    "root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556",
+    "source_clean": true,
+    "tests_disabled": true,
+    "distribution_build": true,
+    "app": "BetterPullReview.app",
+    "executable_sha256": "d31b371b1aad6caef369bdf60212b0a156b913ee7834d1f88b7424c8d8221852",
+    "zip": "BetterPullReview-0.1.3-macos-universal-local.zip",
+    "zip_sha256": "c0fe65a9978b9786f40953349806492afe7c3cce24e4de659901d92586c1306c",
+    "sbom": "BetterPullReview-0.1.3-macos-universal-local.spdx.json",
+    "sbom_sha256": "4fb15f0fd7ec256355fa39b6b75b096812512e4527a1e14a74eb6642360aa7fe",
+    "corresponding_source_sha256": "3b0c46045b6f4c070ab59f44124b932ce2c85dd850a480ffd0794513082b6c2e",
+    "file_count": 43,
+    "package_count": 71,
+    "relationship_count": 144,
+    "trust": "offline ad-hoc local seal only; not Developer-ID/notarized/Gatekeeper/release qualified",
+    "equivalence": "All 43 installed file records and executable bytes identical to clean build/releases/m6-65dd7dd4; corrected external SPDX only"
+  },
+  "verification": [
+    {
+      "criterion": "AC2 corrected exact clean universal local package",
+      "outcome": "pass",
+      "revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"tools/release.sh\", \"--version\", \"0.1.3\", \"--prepare-only\", \"--skip-tests\", \"--output-dir\", \"build/releases/m6-da12f556\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 18.55,
+        "stdout_tail": "==> Skipping tests\n==> Building the universal tests-disabled application\n-- CPM: Adding package BprLibArchive@3.8.9 (3.8.9 at /Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprlibarchive/0c70)\n-- CPM: Adding package BprExtraCmakeModules@6.28.0 (6.28.0 at /Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprextracmakemodules/93eb)\n-- CPM: Adding package BprKSyntaxHighlighting@6.28.1 (6.28.1 at /Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprksyntaxhighlighting/8f28)\n-- CPM: Adding package BprSQLite@3.53.4 (3.53.4 at /Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache/bprsqlite/0c51)\n-- Configuring done (1.5s)\n-- Generating done (0.1s)\n-- Build files have been written to: /Users/jaeger/Documents/GitHub/BetterPullReview/build/macos-release\n[1/1] Copying OS X Content src/app/BetterPullReview.app/Contents/Resources/LibArchive-NOTICES.txt\n==> Deploying the required Qt runtime\n==> Preparing exact third-party notices and corresponding source\n==> Sealing the local candidate with an offline ad-hoc signature\n==> Local candidate: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/BetterPullReview.app; not Developer-ID signed, notarized, Gatekeeper-qualified or published\n",
+        "stderr_tail": "/A/QtCore (for architecture arm64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtCore.framework/Versions/A/QtCore (for architecture x86_64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtCore.framework/Versions/A/QtCore (for architecture arm64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets (for architecture x86_64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets (for architecture arm64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets (for architecture x86_64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets (for architecture arm64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtNetwork.framework/Versions/A/QtNetwork (for architecture x86_64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtNetwork.framework/Versions/A/QtNetwork (for architecture arm64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtNetwork.framework/Versions/A/QtNetwork (for architecture x86_64)\n/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app/Contents/Frameworks/QtNetwork.framework/Versions/A/QtNetwork (for architecture arm64)\n/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/.staging.Sz4pRl/BetterPullReview.app: replacing existing signature\n"
+      }
+    },
+    {
+      "criterion": "AC1 Qt-provider-free core and host",
+      "outcome": "pass",
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"ctest\", \"--test-dir\", \"build/core-only\", \"--output-on-failure\", \"-R\", \"^(core_release_maintenance|application_release_maintenance)$\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 0.147,
+        "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/core-only\n    Start  53: core_release_maintenance\n1/2 Test  #53: core_release_maintenance ..........   Passed    0.06 sec\n    Start 134: application_release_maintenance\n2/2 Test #134: application_release_maintenance ...   Passed    0.07 sec\n\n100% tests passed out of 2\n\nLabel Time Summary:\nbpr_network_isolated    =   0.13 sec*proc (2 tests)\n\nTotal Test time (real) =   0.14 sec\n",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "criterion": "AC3 exact candidate maintenance public path",
+      "outcome": "pass",
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"ctest\", \"--test-dir\", \"build/dev\", \"--output-on-failure\", \"-R\", \"^application_release_maintenance_public_path$\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 16.385,
+        "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 401: application_release_maintenance_public_path\n1/1 Test #401: application_release_maintenance_public_path ...   Passed   16.36 sec\n\n100% tests passed out of 1\n\nLabel Time Summary:\nbpr_network_isolated    =  16.36 sec*proc (1 test)\n\nTotal Test time (real) =  16.38 sec\n",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "criterion": "M6 documentation gate",
+      "outcome": "pass",
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "evidence": {
+        "kind": "command",
+        "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+        "exit_code": 0,
+        "elapsed_seconds": 0.536,
+        "stdout_tail": "DOCUMENTATION_OK\n",
+        "stderr_tail": ""
+      }
+    },
+    {
+      "criterion": "M6 integration",
+      "outcome": "pass",
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "--output-on-failure",
+        "-R",
+        "^(core_release_maintenance|application_release_maintenance|sqlite_release_maintenance_files|qt_release_maintenance_scale_(100|125|200)|application_release_maintenance_public_path|application_profile_startup_public_path|application_profile_multi_window_public_path|package_runtime_contract)$"
+      ],
+      "result": "10/10, 98.05s",
+      "log": "build/m6-candidate-tests.log"
+    },
+    {
+      "criterion": "Final package contracts",
+      "outcome": "pass",
+      "revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
+      "command": [
+        "python3",
+        "tests/scripts/package_runtime_tests.py"
+      ],
+      "result": "11/11, 0.008s"
+    },
+    {
+      "criterion": "Architecture boundary",
+      "outcome": "pass",
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "command": [
+        "cmake",
+        "-DBPR_ROOT=/private/tmp/bpr0014-m6-architecture.lHVEbA",
+        "-P",
+        "/private/tmp/bpr0014-m6-architecture.lHVEbA/cmake/VerifyArchitectureBoundaries.cmake"
+      ],
+      "result": "Complete committed archive passes; avoids unrelated ignored nested worktree without modifying it/checker"
+    },
+    {
+      "criterion": "Style and static analysis",
+      "outcome": "pass",
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "result": "Nine touched C++ files format pass; changed ranges only in large composition files. Strict tidy passes platform_credential_vault.cpp/release_maintenance_controls.cpp. installed_runtime.cpp passes using dev compile database plus -DBPR_DISTRIBUTION_BUILD=1; universal database cannot supply a single compiler job",
+      "logs": [
+        "build/m6-tidy.log",
+        "build/m6-runtime-tidy-single.log"
+      ]
+    },
+    {
+      "criterion": "Final file/artifact and runtime-path audit",
+      "outcome": "pass",
+      "revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
+      "result": "All 43 installed SHA256 records and ZIP/SBOM checksums match. 0 stale producer package verification codes. Existing dependency scan passes. MCP both slices link only system libc++/libSystem. Forbidden -platformpluginpath fails pre-startup with INSTALLED_RUNTIME_REFUSED. Tests-off graph, selected fixture symbols and byte markers absent"
+    },
+    {
+      "criterion": "Documentation verifier tests",
+      "outcome": "pass",
+      "revision": "65dd7dd4add669606f67f39da05e6b420effec77",
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "result": "64/64"
+    },
+    {
+      "criterion": "Earlier working packaged native comparison",
+      "outcome": "pass",
+      "revision": "working tree before 65dd7dd4; not final acceptance",
+      "result": "Native CUA: Use GitHub CLI -> read-only consent -> PR17 -> Start review at review.cpp; 11-16 earlier and 21-26 later, one replacement, one Diff correspondence map and one shared comparison scrollbar; screenshot/AX observed; normal Quit exit0. Guard live files unchanged",
+      "artifact": "build/releases/m6-working-v3/BetterPullReview.app",
+      "executable_sha256": "2983c9382ffb8c495cd367b194dc4e751f57bd0b5548142feee1da013b4ea613"
+    },
+    {
+      "criterion": "AC3/M6 exit2 exact final packaged native UI",
+      "outcome": "pass",
+      "revision": "da12f5568f8ab207d8a75451cda9b3de1a49df63",
+      "execution_bookkeeping_revision": "02325a491d9062bd274a19e5c31572d8fefe3c64",
+      "command": [
+        "python3",
+        "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/qualification_guard.py",
+        "--allowed-root",
+        "/Users/jaeger/bpr-m6-final.NqToKm",
+        "--target-root",
+        "/Users/jaeger/bpr-m6-final.NqToKm",
+        "--live-root",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json",
+        "--live-file",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json",
+        "--",
+        "python3",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture.py",
+        "launch",
+        "--directory",
+        "/Users/jaeger/bpr-m6-final.NqToKm/fixture",
+        "--app",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+        "--cmake-cache",
+        "/Users/jaeger/Documents/GitHub/BetterPullReview/build/macos-release/CMakeCache.txt",
+        "--seconds",
+        "300"
+      ],
+      "fixture_pid": 99461,
+      "app": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/BetterPullReview.app",
+      "executable_sha256": "d31b371b1aad6caef369bdf60212b0a156b913ee7834d1f88b7424c8d8221852",
+      "base_commit": "a61a212aa0484929bc5f20a26e9a7c1c6541c726",
+      "head_commit": "3b60c8324eee117ce72e6446fe640d85a60b37a2",
+      "result": "Native CUA: Use GitHub CLI, read-only local fixture consent, PR17, Start review at review.cpp. AX and screenshot show earlier int review_line_1..6=11..16 and later=21..26; Diff ready with1 semantic change, one selected replacement Diff correspondence map and one Shared comparison position scrollbar. Normal Quit exit0; qualification guard passed. No in-product fixture hook or alternative UI.",
+      "live_files": [
+        {
+          "path": ".mask/skill-config/implement-rfc/project.json",
+          "sha256": "faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2",
+          "unchanged": true
+        },
+        {
+          "path": ".mask.lock.json",
+          "sha256": "a4fed1b59ba66fb1e048566c769acb7b5a16e4be2f52688a2e9ec4a24e13dfaf",
+          "unchanged": true
+        }
+      ],
+      "cleanup": "Post-Quit CUA snapshot reopened same app bare asPID99796. Closed immediately with no further interaction; process checks show99461/99796 absent. Verify future Quit via launcher/process state, not an app snapshot.",
+      "evidence_storage": "Native AX/screenshot were directly observed through CUA in this task; no local screenshot checked in.",
+      "base_blob": "3456e31deaf7dc9a4c9a56b384c1b0ee9ff24e5b",
+      "head_blob": "1522997381f979112468fccd2be62e69f93b96c9",
+      "fixture_cleanup": "Completed final fixture moved to Trash after exact Git object verification; preserved command is historical and must use a newly prepared canonical disposable fixture on future runs."
+    }
+  ],
+  "verification_limits": [
+    "First final replay was interrupted by locked Mac and timed out. User unlocked; exact unchanged final artifact replay subsequently passed. Earlier working-v3 success is not used as final acceptance.",
+    "verify_runtime_surface.py hardcodes QT_QPA_PLATFORM=offscreen; offscreen is intentionally absent from package. Attempt failed before inspection and is not counted as runtime security evidence. Native-platform audit adaptation belongs to M7/M9.",
+    "PUBLIC_PATH_OK and NATIVE_PLATFORM_VAULT_SELECTED are existing unguarded production self-test status strings, not valid fixture-absence markers; initial broad check was corrected, not product code.",
+    "Windows MSI/Linux DEB/RPM/per-user archive definitions have source and closed-data tests only. Native build/install/upgrade/uninstall, licensed CRT input, signatures and legal approval remain pending.",
+    "The public native vault is composed independently but fixture sign-in does not prove real durable vault/crash continuity.",
+    "Qualification guard is cooperative declaration/hash evidence, not a sandbox; external gh fixture is local-only and accepts its closed route set."
+  ],
+  "remote_station_observations": {
+    "mode": "Read-only SSH/discovery only; no mutation/repair/build/checkout/dispatch",
+    "ssh": "aito-main-win -> JaegAW",
+    "windows": {
+      "station": "bpr-win",
+      "station_id": "stn-a5155427",
+      "root": "C:/code/git/bpr-windows",
+      "branch": "windows-lane",
+      "head": "b9cf4edb316dceaf8c7ea75f4c7321ce353651e8",
+      "dirty": [
+        ".mask.lock.json"
+      ],
+      "visual_studio": "C:/Program Files/Microsoft Visual Studio/18/Community",
+      "smart_app_control_state": 0,
+      "guard": "Installed implement-rfc link exists but scripts/station_lease.py does not resolve; no guarded writer launch",
+      "limits": "WiX unavailable in SSH PATH; native developer activation/CRT notice/toolchain not qualified"
+    },
+    "linux": {
+      "station": "bpr-linux",
+      "station_id": "stn-3f7fcc92",
+      "root": "/home/mmarcin/bpr-linux",
+      "branch": "linux-lane",
+      "head": "1aabc2f3bbd619a8e26938b8c2e909e4a7058f3e",
+      "dirty": [
+        ".mask.lock.json"
+      ],
+      "os": "Ubuntu26.04 Resolute WSL2 x86_64",
+      "compiler": "clang21.1.8",
+      "display": ":0; wayland-0",
+      "lease": "free via installed station_lease.py status",
+      "limits": "Not declared Ubuntu24.04/RHEL10; packaging guard intentionally refuses this baseline"
+    }
+  },
+  "review_handoff": {
+    "required_at_m6": false,
+    "session": null,
+    "url": null,
+    "event_cursor": null,
+    "pending_decisions": [],
+    "limits": "No required human verdict at M6. User supplied Mac unlock only; deterministic native UI acceptance was performed by the M6 owner. No attended-review server/protection."
+  },
+  "ownership": {
+    "exclusive_writer": "/root/rfc0014_m6",
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "branch": "main",
+    "background_commands": [],
+    "review_servers": [],
+    "spawned_agents": [],
+    "task_worktrees": [],
+    "protected_candidates": [],
+    "external_writers": "Main remained on expected child commits. Unrelated worktrees preserved; RFC0018-0026 observed at7358ee9234831c1b191d16054404392c0ded7217; RFC0036 at5ad552a5ce7d1ccb5aa11d21f06314950c5bd0ae; RFC0037 atb00016107082460b215f7832e617325ba05c479b.",
+    "cleanup": "All exact task-owned probe/fixture/archive roots moved to /Users/jaeger/.Trash and are recoverable: bpr-m6-public.RbYEqK, bpr-m6-public.ZcDjVs, bpr0014-m6-architecture.lHVEbA, bpr-m6-final.NqToKm. No running app/debugger/helper. Normal ignored build/package/evidence output retained."
+  },
+  "moves": {
+    "BPR_0956": "Done via guarded finish2589f07f2897f3f19b6e408edfdd2be487892b0d",
+    "BPR_0957": "Ready; no M7 work claimed or started"
+  },
+  "pending_later": [
+    "M8 Windows10/11 native MSVC/per-user MSI, Ubuntu24.04/RHEL10 native package and AppleSilicon/Intel clean install/UI/auth/uninstall courses, plus actual human criteria.",
+    "M9 independent exact trust/SBOM/license/source approval, vault/crash/privacy/hardening/runtime checks and G9 activation IPC reconciliation.",
+    "M10-M12 remaining authored stages and canonical predecessor gates RFC0008/BPR0242 and RFC0013/BPR0617.",
+    "MASK drift/incomplete and host_load not_verified unchanged."
+  ],
+  "next_action": {
+    "milestone": "m7-focused-tests-fixtures",
+    "issue": "BPR-0957",
+    "owner": "Coordinator starts a fresh sole non-delegating rfc-implementer under r3/rev2 for Ready BPR-0957.",
+    "detail": "Read this handoff, bound checkpoint, live plan/card and installed contract; reconcile writers and claim before editing. Reuse exact source/artifact and unchanged passing evidence. M7 owns missing-helper/capability and hostile public negative controls, exact tests-disabled seam audits and native-platform runtime audit selection. This M6 child stops at the accepted boundary; no publication authority. The prior final fixture is now recoverably trashed; recreate it with rfc0015_cli_read_fixture.py prepare in a newly admitted canonical disposable directory before any later replay.",
+    "preserved_replay_command": [
+      "python3",
+      "/Users/jaeger/.mask/store/v1/476fade48867ee5b431367831a457b47620495cfa4b3e7a64ab5a1d1a86c8deb/payload/implement-rfc/scripts/qualification_guard.py",
+      "--allowed-root",
+      "/Users/jaeger/bpr-m6-final.NqToKm",
+      "--target-root",
+      "/Users/jaeger/bpr-m6-final.NqToKm",
+      "--live-root",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview",
+      "--live-file",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json",
+      "--live-file",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask.lock.json",
+      "--",
+      "python3",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture.py",
+      "launch",
+      "--directory",
+      "/Users/jaeger/bpr-m6-final.NqToKm/fixture",
+      "--app",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m6-da12f556/BetterPullReview.app/Contents/MacOS/BetterPullReview",
+      "--cmake-cache",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview/build/macos-release/CMakeCache.txt",
+      "--seconds",
+      "300"
+    ],
+    "ui_note": "Launch under external fixture before selecting the app. Verify exact review.cpp values and map. After normal Quit, use launcher/process observations; a CUA snapshot can reopen a bare app."
+  }
+}

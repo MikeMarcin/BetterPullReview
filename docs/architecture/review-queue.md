@@ -339,12 +339,17 @@ two-process public contract changes every filter and the alternate sort through
 the real Qt controls, reopens the same store, and observes the exact preference
 with zero provider mutations.
 
-## What is not proven here
+## Acceptance scope and pending observations
+
+Owner amendment r4 closes the implemented local queue and notification
+composition scope separately from the following standalone observations.
+The accepted native checkpoint remains bound to its recorded executable; local
+fixtures do not establish live server state or a new platform banner.
 
 | Card | What it needs |
 |---|---|
-| BPR-0168 | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
-| BPR-0169 | A designated repository and token. That the correlator cannot issue a request is structural and settled here; that GitHub's own reviewer state is also unchanged needs a server to answer |
+| BPR-0168 | v006 native banner text/privacy/click/selection is accepted for executable `sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`. Terminal candidate identity replay and any required successor verdict remain Backlog behind BPR-0169 |
+| BPR-0169 | A disposable PR on which the actor is neither author nor reviewer, plus an independent client able to read reviewer, requested-reviewer, subscription and label state before and after each local rule. Remembered sign-in exists; the live comparison remains Parked and unobserved |
 
 ## Public-preview boundary
 

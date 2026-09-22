@@ -67,6 +67,10 @@ option(
 )
 
 include("${CMAKE_ROOT}/Modules/CTest.cmake")
+option(BPR_DISTRIBUTION_BUILD "Restrict the product to its deployed runtime" OFF)
+if(BPR_DISTRIBUTION_BUILD AND (BUILD_TESTING OR NOT BPR_BUILD_QT))
+    message(FATAL_ERROR "Distribution builds require the tests-disabled application graph")
+endif()
 option(
     BPR_ENABLE_CODING_TARGETS
     "Enable BetterPullReview coding-standard utility targets"
@@ -120,8 +124,9 @@ function(bpr_add_executable target)
         # that waits for a person. Every automated executable gets the unit
         # that routes those to stderr instead, so a failure is an exit code
         # CTest can act on rather than a dialog an unattended run stalls on
-        # (BPR-0434). It is empty on every other toolchain.
-        if(MSVC)
+        # (BPR-0434). Shipped tools are also non-application executables, but
+        # must not inherit test-only CRT/crash policy in a distribution graph.
+        if(MSVC AND BUILD_TESTING)
             target_sources(
                 "${target}"
                 PRIVATE
@@ -141,6 +146,9 @@ add_subdirectory(src/core)
 add_subdirectory(src/application)
 add_subdirectory(src/adapters)
 add_subdirectory(src/app)
+if(BPR_DISTRIBUTION_BUILD)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/packaging/Install.cmake")
+endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

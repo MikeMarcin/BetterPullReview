@@ -174,6 +174,32 @@ callbacks submit that bounded summary and fixed operation facts without changing
 request acceptance, retries or terminal delivery. Quill is pinned centrally and
 excluded from core-only builds. Advanced controls remain RFC-BPR-0027 phase 2.
 
+## Release maintenance and packaged ownership
+
+RFC-BPR-0014 composes `release_maintenance_application_host` through
+`src/app/src/release_maintenance_controls.cpp` and the profile desktop. The
+core owns one compact pending operation, exact prepared selection, command
+legality and stale/cancellation decisions. The host owns frozen diagnostic
+bytes, bounded inventory, effect/decision delivery and recovery; the Qt panel
+receives seven command projections and the exact preview, never a file/vault port.
+
+`release_maintenance_authority` binds BPR profile, runtime session and admitted
+root identity. Requests/events additionally carry request, generation,
+operation and complete selection descriptor. Destructive preparation retires
+all windows/producers of that profile before storage inventory, while a desktop
+holder retains the native root lease, maintenance worker and separate vault
+worker. Stores and logger close before cleanup. Cancellation does not restart
+the old runtime; startup recovery runs before any replacement stores open.
+The [maintenance contract](release-maintenance.md) owns the detailed typed
+intents, prepared/commit/terminal events, deltas, limits and direct tests.
+
+The tests-disabled package binds the actual application, agent supervisor,
+stdio MCP helper and macOS updater helper to its file inventory and selected
+build graph. Core remains independently buildable without Qt/providers; no
+standalone SDK is implied. The [package guide](../development/release-packages.md)
+and [corporate packet](../security/corporate-security-overview.md) distinguish
+these mechanisms from pending native, trust, vulnerability and crash acceptance.
+
 ## Build-target and dependency direction
 
 The initial target shape should be equivalent to:

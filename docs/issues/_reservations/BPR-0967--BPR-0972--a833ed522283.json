@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0967",
+    "BPR-0968",
+    "BPR-0969",
+    "BPR-0970",
+    "BPR-0971",
+    "BPR-0972"
+  ],
+  "reserve_for": "rfc0013-owner-closeout-r4",
+  "purpose": "",
+  "created": "2026-09-22T02:39:29.810967+00:00",
+  "base": "3efe61dfcf6874d35400bf777a7e86dbbf0a4693"
+}

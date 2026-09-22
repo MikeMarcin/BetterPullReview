@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "rfc0014-m9-licensing-v002",
+      "title": "Review the revised M9 source distribution",
+      "revision": "producer-1c429749-mac-d47ebc07-source-37b01065",
+      "criteria": [
+        "Has the designated owner/legal reviewer approved the distribution terms and corresponding-source/build/relink obligations for this exact revised macOS M9 inventory, including equivalent recipient access and source retention?"
+      ],
+      "content": "BPR-0962 AC1 only. Your rejection of v001 requested a separate version-bound source asset. This candidate implements that packaging disposition: the 68,541,007-byte source ZIP sits beside the 40,411,580-byte app ZIP, and no corresponding-source ZIP remains inside the app or app ZIP. Both installed notices and SOURCE-OFFERS.txt name the exact v0.1.3 release asset, producer commit and SHA-256. All seven original upstream source payloads and all prior notice bytes are retained. Qt replacement and local macOS resealing instructions remain intact. Publication requires the source ZIP and its checksum in the same private release; its offline preflight verifies the references inside the actual app ZIP. Corporate/offline recipients must receive the exact source asset alongside binaries, and distributors must preserve equivalent access after repository-access changes. Retention is indefinite until the accountable distribution owner documents that all applicable obligations ended, and never ends while matching binaries remain distributed. No source asset has been published; the URL is the planned immutable release location, not evidence of current access. Current legal status remains NOT APPROVED: first-party terms, mixed syntax-data licensing, upstream/toolchain terms and practical build/relink material still require accountable disposition. Provide approval and its supporting terms/material, reject with the missing obligation, or leave this pending. This question binds only the new macOS inventory. The Windows/Linux pipeline is corrected and its driver/layout contracts pass offline, but no revised native Windows/Linux artifact is offered or accepted here. This is not security, independent trust, native-matrix or release authorization. Grype's previous 21 macOS/19 Windows findings remain unresolved. Producer 1c429749aff4c09c6dc88da930d3344cd2d33c36; app ZIP SHA-256 06c1c17e427bc1aa9a2566ccb295165faee7aa2e8b5716728b9218eaeb527b25; SPDX d47ebc072f819496fdebefe16542f00ee8b940a03f29a7535cede2123a094a74; source ZIP 37b0106584fb897a798c0cd048f46fd2051599835f399b8808774af76cfc02af. Source revision and all artifact identities are recorded in the M9 handoff.",
+      "paths": [
+        "docs/verification/reviews/rfc0014-m9-licensing-v002",
+        "build/releases/m9-source-1c429749"
+      ],
+      "resources": [],
+      "copy": [
+        {
+          "label": "Revised source offer and replacement instructions",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview.app/Contents/Resources/ThirdParty/SOURCE-OFFERS.txt"
+        },
+        {
+          "label": "Preserved notices with the exact source reference",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview.app/Contents/Resources/ThirdParty/THIRD-PARTY-NOTICES.txt"
+        },
+        {
+          "label": "Separate version-bound corresponding source asset",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-corresponding-source.zip"
+        },
+        {
+          "label": "Exact source asset and upstream provenance",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json"
+        },
+        {
+          "label": "Revised macOS inventory",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/releases/m9-source-1c429749/BetterPullReview-0.1.3-macos-universal-local.spdx.json"
+        }
+      ]
+    }
+  ]
+}
