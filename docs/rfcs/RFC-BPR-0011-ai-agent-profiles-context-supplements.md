@@ -69,6 +69,25 @@ cannot become source truth or durable context identity.
 - Prompts/context are sent over stdin or structured protocol, not command-line arguments.
 - Provider-policy and staleness decisions are core-tested without agent processes/Qt; host process-boundary tests and Qt explicit-invocation tests prove no credential or authority bypass.
 
+## Owner-amended closeout scope — 2026-09-21
+
+Owner amendment r4 accepts the nine criteria through the RFC's named local
+fixture processes and public application composition, with focused current
+checks and candidate-specific historical native evidence. BPR-0245 no longer
+requires replay after unrelated HEAD movement. The identity canary proves
+isolation by changing only the child's synthetic identity; it is not a live
+GitHub authentication observation. Product behavior and credential, policy,
+revision and explicit-invocation requirements are unchanged.
+
+The [verification ledger](../verification/RFC-BPR-0011.md#owner-amended-closeout-r4--2026-09-21)
+binds current evidence and the preserved Windows/Linux records. Installed
+Codex/Claude compatibility and human judgment of the existing-checkout risk
+wording remain unobserved optional follow-ups. Native package qualification
+remains with RFC-BPR-0014; BPR-0825 retains its separate owner decision and
+BPR-0875 its remaining Windows measurement under RFC-BPR-0013. None is marked
+passed by RFC0011 status. The [bounded closeout mandate](plans/rfc-bpr-0011-owner-closeout/mandate-r4.md)
+records the acceptance amendment separately from these observations.
+
 ## Verification matrix
 
 | Claim | Direct surface | Proof |
