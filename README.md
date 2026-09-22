@@ -99,6 +99,13 @@ sit above the core order; repository and pull-request-number sorts activate only
 when selected, and the private preferences survive restart without persisting a
 derived filtered queue.
 
+RFC-BPR-0010 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0010.md) records the verified local queue and
+notification composition. BPR-0169 remains parked for an independent live
+GitHub state comparison; BPR-0168 retains the accepted v006 native checkpoint
+and the later-candidate replay obligation as a standalone backlog follow-up.
+RFC status supplies neither a new server observation nor a new native verdict.
+
 RFC-BPR-0015's amended first read milestone has a qualified macOS fixture
 path. Native HTTPS remains the default. The tests-disabled macOS composition
 has explicit

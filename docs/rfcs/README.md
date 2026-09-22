@@ -52,7 +52,7 @@ before every listed dependency is `Auto-Verified`.
 | [RFC-BPR-0007](RFC-BPR-0007-local-review-ledger-actionability.md) | Local Review Ledger, File and Conversation Receipts, and Actionability | Auto-Verified | RFC-BPR-0003, RFC-BPR-0005 |
 | [RFC-BPR-0008](RFC-BPR-0008-github-review-round-trip-interactions.md) | GitHub Review Synchronization and Round-Trip Interactions | Auto-Verified | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0009](RFC-BPR-0009-defect-fix-verification-workflow.md) | Defect Classification, Fix Claims, and Verification | Auto-Verified | RFC-BPR-0008 |
-| [RFC-BPR-0010](RFC-BPR-0010-review-queue-observers-notifications.md) | Review Queue, Observer Rules, and Local Notifications | Proposed | RFC-BPR-0007, RFC-BPR-0008 |
+| [RFC-BPR-0010](RFC-BPR-0010-review-queue-observers-notifications.md) | Review Queue, Observer Rules, and Local Notifications | Auto-Verified | RFC-BPR-0007, RFC-BPR-0008 |
 | [RFC-BPR-0011](RFC-BPR-0011-ai-agent-profiles-context-supplements.md) | AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements | Proposed | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0012](RFC-BPR-0012-ai-review-chat-findings-mcp.md) | AI Review Findings, Comment Workshop, Side Chat, and MCP Context | Proposed | RFC-BPR-0008, RFC-BPR-0011 |
 | [RFC-BPR-0013](RFC-BPR-0013-performance-resilience-resource-limits.md) | Performance, Resource Limits, Resilience, and Recovery | Proposed | RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012 |
@@ -62,7 +62,7 @@ On 2026-09-20 the owner closed RFC-BPR-0013's selected-diff investigation under
 an explicit acceptance amendment: the unusual-target comparison-basis and
 partial-pane anomaly is deferred to BPR-0944, not marked fixed. BPR-0794/0795
 are Done. The [RFC-0013 reconciliation](../verification/RFC-BPR-0013.md)
-retains its remaining wider acceptance gaps and the Proposed 0010/0012
+retains its remaining wider acceptance gaps and the remaining Proposed
 predecessors; BPR-0617 therefore remains Backlog and RFC-0013 remains Proposed.
 No new attended review or repeat owner loading check is requested by that amendment.
 
@@ -82,8 +82,17 @@ records passing lifecycle, persistence, Qt defect-card and shipped multi-defect
 composition evidence. BPR-0153 remains a standalone parked follow-up for the
 unobserved GitHub-only collaborator comprehension/reply criterion; no human
 verdict is inferred. The existing broad workbench layout failure remains open
-on BPR-0940 under RFC-0013 and is not described as a passing suite. RFC-BPR-0010
-is the next canonical closure frontier; RFCs 0010–0014 retain their own gates.
+on BPR-0940 under RFC-0013 and is not described as a passing suite.
+
+RFC-BPR-0010 now closes through BPR-0244 under the same explicit r4 assignment.
+Its [ledger](../verification/RFC-BPR-0010.md#owner-amended-closeout-r4--2026-09-21)
+records current local queue, durable rule/preferences and notification
+composition checks, preserving the exact accepted v006 native checkpoint.
+BPR-0169 remains Parked for independent live server non-mutation observation;
+BPR-0168 remains Backlog for terminal candidate identity replay and any required
+successor native verdict after BPR-0169. Both are standalone follow-ups, and
+neither pending result is inferred from RFC status. RFC-BPR-0011 is the next
+canonical closure frontier; RFCs 0011–0014 retain their own gates.
 
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).

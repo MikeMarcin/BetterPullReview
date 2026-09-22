@@ -2,9 +2,10 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **observer-rule enrollment, the landing workflow, durable queue
+Status: **Auto-Verified under owner amendment r4.** Observer-rule enrollment,
+the landing workflow, durable queue
 filter/sort preferences, notification requests, and activation selection are
-composed.**
+composed.
 BPR-0159 through BPR-0170 delivered the deterministic queue,
 refresh, enrollment, model, notification request, and durable store components.
 Done BPR-0239 adds the RFC-allocated filters and explicit alternate sorts above
@@ -31,8 +32,10 @@ The status vocabulary calls Qt's unreadable owner permission
 claiming the owner's answer.
 
 Owner amendment r4 separates the implemented local scope from those two
-unfinished observations. BPR-0244 owns the amended terminal acceptance;
-no live server comparison or new native-banner verdict is inferred.
+unfinished observations. BPR-0244 is Done with eight passing amended criteria;
+all 27 RFC-associated cards are Done. The RFC and index agree on Auto-Verified
+after RFC-BPR-0009. No live server comparison or new native-banner verdict is
+inferred, and RFC-BPR-0011 is the next canonical closeout frontier.
 
 ## Canonical ordering
 

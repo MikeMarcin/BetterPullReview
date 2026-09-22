@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0010"
 title: "Review Queue, Observer Rules, and Local Notifications"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "M4 Review Discovery"
 depends_on: ["RFC-BPR-0007","RFC-BPR-0008"]
