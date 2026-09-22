@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0976",
+    "BPR-0977",
+    "BPR-0978",
+    "BPR-0979"
+  ],
+  "reserve_for": "rfc0024-closeout-r2",
+  "purpose": "RFC-0024 closeout slices: shared server conversation fanout, native geometry/focus lifecycle, two-profile two-account isolation, and Windows activation handoff",
+  "created": "2026-09-22T05:38:18.811488+00:00",
+  "base": "9706705581810e2c93d143ac573282597cb6bd01"
+}
