@@ -8,7 +8,7 @@ depends_on: ["BPR-0710", "BPR-0711", "BPR-0813", "BPR-0932"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"origin":"rfc0024-closeout-r2"}
 parked_on: "human-review"
-acceptance: [{"criterion":"Native Windows repeated ordinary launch activates the owner profile's MRU window; explicit New Window creates another window without a second owner.","outcome":"pending","revision":"d5a2426cf4de339d3ff9c15bd5f793c9383e928d","evidence":{"kind":"observation","detail":"Implemented as an owner-private local named pipe under the runtime lease; not built, run or observed on Windows. The Windows station must build this head, run sqlite_profile_activation and application_profile_activation_public_path, and observe MRU activation and --new-window on the native desktop.","path":"docs/issues/30-in-progress/BPR-0979-implement-windows-profile-activation-handoff.md#implementation--2026-09-22"}},{"criterion":"Concurrent profiles and owner shutdown/restart remain isolated; malformed, cross-profile, untrusted endpoint and timed-out requests fail closed within explicit bounds, with no credential or arbitrary-command transport.","outcome":"pending","revision":"d5a2426cf4de339d3ff9c15bd5f793c9383e928d","evidence":{"kind":"observation","detail":"The Windows contract branch covers lease/authority refusals, duplicate listener, exact-root routing across two client processes, refused/indeterminate outcomes, six hostile frames, a split frame and a stalled peer, mirroring the POSIX contract that passes here (4.49 s); the same source bounds apply (two seconds, one 16-byte message, two-byte reply, no credential or command). Unrun on Windows, so pending.","path":"docs/issues/30-in-progress/BPR-0979-implement-windows-profile-activation-handoff.md#implementation--2026-09-22"}},{"criterion":"Focused native Windows adapter/public tests and POSIX regressions pass. Unrun native acceptance remains pending and cannot be inferred from compile success or another platform.","outcome":"pending","revision":"d5a2426cf4de339d3ff9c15bd5f793c9383e928d","evidence":{"kind":"artifact","detail":"POSIX regressions pass on macOS: sqlite_profile_activation, sqlite_profile_runtime_lease, application_profile_activation_public_path, application_profile_owner_admission_public_path, check_boundaries, format, tidy and documentation gates (build/bpr0979-focused.log, bpr0979-boundaries.log, bpr0979-tidy.log, bpr0979-docs.log); test_network_isolation_manifest fails only on BPR-0962's pre-existing rows. The Windows adapter/public tests are registered but unrun.","path":"docs/issues/30-in-progress/BPR-0979-implement-windows-profile-activation-handoff.md#implementation--2026-09-22"}}]
+acceptance: [{"criterion":"Native Windows repeated ordinary launch activates the owner profile's MRU window; explicit New Window creates another window without a second owner.","outcome":"pending","revision":"1cd7f2f1ae1410aaab38bd0610ecd0d2063032ef","evidence":{"kind":"observation","detail":"On the bpr-win station (JaegAW, Windows 11 10.0.26200, MSVC 19.51, Qt 6.11.2) application_profile_activation_public_path passes at this commit (12.98 s, PROFILE_ACTIVATION_OK, build/bpr0979-windows/ctest-final.log): real Windows processes, ordinary activation reaching the owner's exact MRU window through QApplication::activeWindow(), explicit New Window admitted without a second owner, an independent second profile, owner death/recovery and the closing-owner refusal, all under the offscreen platform. The same gestures observed on the native Windows desktop (repeated ordinary launch, then --new-window) remain a human/native observation; candidate C:/Users/mikem/bpr0979-044e8779/source/build/windows-dev/src/app/Debug/better_pull_review.exe, sha256 674c68dc0f777c47fa7233bea0f21178bf24f9b52aa05b7fd23a418c18f3d4ef, attended candidate BPR-0979-windows-activation-v001.","path":"docs/issues/40-parked/BPR-0979-implement-windows-profile-activation-handoff.md#windows-station--2026-09-22"}},{"criterion":"Concurrent profiles and owner shutdown/restart remain isolated; malformed, cross-profile, untrusted endpoint and timed-out requests fail closed within explicit bounds, with no credential or arbitrary-command transport.","outcome":"pass","revision":"1cd7f2f1ae1410aaab38bd0610ecd0d2063032ef","evidence":{"kind":"command","detail":"ctest --preset windows-dev -R '^(sqlite_profile_activation|application_profile_activation_public_path)$' --output-on-failure -V on bpr-win at this commit: sqlite_profile_activation Passed 5.83 s (profile-activation-tests:pass; the Windows branch's authority and lease refusals, duplicate listener, drained-name rebind, missing owner, two client processes routed by exact root, refused New Window, timed-out and closing-owner indeterminacy, six hostile frames, a split frame and a stalled peer) and application_profile_activation_public_path Passed 12.98 s (second profile independent, owner death/recovery, closing-owner refusal). The same bounds as POSIX: two seconds, one 16-byte message, two-byte reply, no credential or command. macOS regression at the same commit: activation 5.6 s, window layout 23.5 s.","path":"build/bpr0979-windows/ctest-final.log"}},{"criterion":"Focused native Windows adapter/public tests and POSIX regressions pass. Unrun native acceptance remains pending and cannot be inferred from compile success or another platform.","outcome":"pass","revision":"1cd7f2f1ae1410aaab38bd0610ecd0d2063032ef","evidence":{"kind":"artifact","detail":"Windows: windows-dev Debug build of test_profile_activation, test_profile_activation_public_path and app_better_pull_review at this commit; 2/2 rows pass (build/bpr0979-windows/ctest-final.log; configure.log, build*.log and the two diagnosed failures ctest2.log/ctest3.log retained). The two failures were the course's own Windows fixture narrowing (USERDOMAIN principal, %TEMP%-inherited parent), fixed in tests/end_to_end/bpr_narrow_owner_private.py and profile_activation_contract.py with no product change. POSIX: build/bpr0979-focused.log at d5a2426c plus the activation and window-layout courses rerun at this commit. Native desktop acceptance stays pending in the first record.","path":"docs/issues/40-parked/BPR-0979-implement-windows-profile-activation-handoff.md#windows-station--2026-09-22"}}]
 ---
 
 # Implement bounded Windows profile activation and New Window handoff
@@ -103,3 +103,70 @@ success or another platform's pass cannot substitute; the `GetSecurityInfo`
 read of the pipe's descriptor on the client side is an assumption the
 station run will confirm or refute (a refutation surfaces as `unavailable`,
 the pre-existing behavior, and fails the contract by name).
+
+### Windows station — 2026-09-22
+
+Station `bpr-win` (JaegAW, Windows 11 Home 10.0.26200, `windows-native`),
+reached through the configured SSH `aito-main-win`; its live checkout
+`C:/code/git/bpr-windows` (`windows-lane`, HEAD `b9cf4edb`, dirty MASK lock)
+was read for objects only and not edited. The branch head travelled as a
+git bundle into the task-owned clone
+`C:/Users/mikem/bpr0979-044e8779/source`, configured with the repository's
+`windows-dev` preset (Visual Studio 18 2026, MSVC 19.51.36257, Debug) and
+`-DBPR_QT_ROOT=C:/Users/mikem/bpr0014-m9-qt6112-92c4e159/qt/6.11.2/msvc2022_64`
+(the pinned Qt 6.11.2 already on the host); CMake 4.4.2, Python 3.14.6.
+Windows Defender reported no detection during the run.
+
+At `044e8779` the adapter contract's Windows branch passed at once:
+`sqlite_profile_activation` **Passed 5.85 s**, `profile-activation-tests:pass`
+(`build/bpr0979-windows/ctest.log`). So the named pipe, its owner-private
+descriptor, the client's `GetSecurityInfo` read of it, the token-user checks,
+message-mode framing, the six hostile frames, the split frame, the stalled
+peer and the two client processes routed by exact root behave on Windows as
+the source claimed; the `unavailable` refutation named above did not occur.
+
+`application_profile_activation_public_path` failed twice before it passed,
+neither time in the product:
+
+- The first run could not launch `better_pull_review.exe`: only the two test
+  targets had been built (`ctest.log`). Building `app_better_pull_review`
+  fixed that.
+- The second run (`ctest2.log`) failed in the course's own fixture
+  narrowing: `bpr_narrow_owner_private.py` granted `USERDOMAIN\USERNAME`,
+  and an OpenSSH session on this workgroup host reports
+  `USERDOMAIN=WORKGROUP`, a principal icacls cannot map (exit 1332). The
+  helper now grants the token user's SID through the same token read that
+  already produced the AppContainer SID.
+- The third run (`ctest3.log`) reached `OWNER_READY`, both activations,
+  `MRU_FOCUSED`/`MRU_ACTIVATED` and the second profile, then the Default
+  owner's orderly drain exited 1 with
+  `PROFILE_QUIT_CLEANUP_SOURCE:agent-workspace-recovery:…:repair-required`.
+  The course's Windows fixture parent inherits `%TEMP%`'s entries, and this
+  host's `%TEMP%` grants `JaegAW\CodexSandboxUsers` and a second SID Modify,
+  so the neighbourhood beside the Default data root refused its parent; the
+  profile-2 owner under `profiles/` released cleanly because it inherits the
+  narrowed root. The course now narrows its parent as mode 0700 does on
+  POSIX. Product source is unchanged.
+
+Both fixes are `1cd7f2f1`, fetched and checked out on the station; the rows
+were rebuilt and rerun there at that exact commit
+(`build/bpr0979-windows/ctest-final.log`): `sqlite_profile_activation`
+**Passed 5.83 s**, `application_profile_activation_public_path` **Passed
+12.98 s**, `PROFILE_ACTIVATION_OK`, 2/2. Executable digests at `1cd7f2f1`:
+`profile_activation.exe` `8c2c3314…`, `profile_activation_public_path.exe`
+`b4200f86…`, `better_pull_review.exe` (Debug, tests enabled)
+`674c68dc0f777c47fa7233bea0f21178bf24f9b52aa05b7fd23a418c18f3d4ef`. On macOS
+the same commit passes the activation course (5.6 s) and the window-layout
+course (23.5 s), the other user of the narrowed descriptor.
+
+What this proves: real Windows processes, the named pipe under the runtime
+lease, ordinary activation reaching the owner's exact MRU window through Qt
+(`QApplication::activeWindow()`), explicit New Window admitted by the owner
+without a second owner, a second profile independent, owner death and
+recovery, and the closing-owner refusal — under the offscreen platform. What
+remains: the same repeated ordinary launch and `--new-window` observed on the
+native Windows desktop, a human/native observation this run cannot
+self-certify. The candidate for it is the Debug application above on the
+station; a tests-disabled `windows-app-release` image was not built here
+([[BPR-0974]] records that host's Defender quarantine of the last such
+image). The task root is left in place, inert, for that observation.
