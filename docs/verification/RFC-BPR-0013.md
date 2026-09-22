@@ -6,8 +6,8 @@ The owner explicitly requires RFC0013 to close to unblock RFC0014 under the
 same r4 direction applied to RFC0008–0012. This amendment accepts the bounded
 implemented hardening scope and transfers every unproved broader obligation
 below. It does not claim that the original full matrix passed. BPR-0617 is
-being completed through the guarded board workflow; RFC/index terminal state
-will be reconciled after the final documentation and board gates.
+Done at `71d6a1109926de25b363550d04ed9fb505b99e14`; RFC/index are
+Auto-Verified under that explicitly amended scope.
 
 Assignment `/root/rfc0013_owner_closeout`, run
 `rfc0014-owner-closeout-20260921`, segment `rfc0013-owner-closeout-r4`;
@@ -137,8 +137,26 @@ follow-up discovery, current evidence and canonical ordering.
 
 ### Terminal reconciliation
 
-Pending final guarded card completion, documentation/board checks and handoff.
-The exact amended milestone will be rebound after its live card changes.
+The owner amendment, follow-up allocation and Ready promotion were committed at
+`9991ebf64ed5b72d7e625a884424f868577ab80b`; guarded claim is
+`1a039572f50203e18f16aa11a0483ab0287d6aa8`; guarded Done is
+`71d6a1109926de25b363550d04ed9fb505b99e14`, with nine evidence records.
+Documentation gate and all 64 documentation regressions pass; scoped validation
+is valid with 964 total cards. The selected RFC scope is now 90 cards, all Done.
+Plan structure/references and diff checks pass. The first six milestones remain
+identical; original source-plan and historical review packets are unchanged.
+
+Baseline-to-entry source/test inventory spans 1,047 changed files and interleaved
+RFC work. It is provenance for the recorded criteria, not a new review of every
+interleaved feature. Entry-to-terminal source/tests/CMake/package and historical
+review/source-plan paths are byte-unchanged. The current documentation diff was
+self-reviewed against the mandate and each original acceptance row.
+
+The final checkpoint and handoff beside the live plan bind the terminal revision
+and command quiescence. The coordinator may assign a
+fresh RFC0014 owner: the predecessor gate is clear, but BPR-0965 still has five
+unfinished dependencies BPR-0958–0962. Its native and security requirements were
+not amended by this task.
 
 ## Historical 2026-09-20 reconciliation
 

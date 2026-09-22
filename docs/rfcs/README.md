@@ -55,16 +55,15 @@ before every listed dependency is `Auto-Verified`.
 | [RFC-BPR-0010](RFC-BPR-0010-review-queue-observers-notifications.md) | Review Queue, Observer Rules, and Local Notifications | Auto-Verified | RFC-BPR-0007, RFC-BPR-0008 |
 | [RFC-BPR-0011](RFC-BPR-0011-ai-agent-profiles-context-supplements.md) | AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements | Auto-Verified | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0012](RFC-BPR-0012-ai-review-chat-findings-mcp.md) | AI Review Findings, Comment Workshop, Side Chat, and MCP Context | Auto-Verified | RFC-BPR-0008, RFC-BPR-0011 |
-| [RFC-BPR-0013](RFC-BPR-0013-performance-resilience-resource-limits.md) | Performance, Resource Limits, Resilience, and Recovery | Proposed | RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012 |
+| [RFC-BPR-0013](RFC-BPR-0013-performance-resilience-resource-limits.md) | Performance, Resource Limits, Resilience, and Recovery | Auto-Verified | RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012 |
 | [RFC-BPR-0014](RFC-BPR-0014-cross-platform-packaging-security-release.md) | Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness | Proposed | RFC-BPR-0013 |
 
 On 2026-09-20 the owner closed RFC-BPR-0013's selected-diff investigation under
 an explicit acceptance amendment: the unusual-target comparison-basis and
 partial-pane anomaly is deferred to BPR-0944, not marked fixed. BPR-0794/0795
-are Done. The [RFC-0013 reconciliation](../verification/RFC-BPR-0013.md)
-retains its remaining wider acceptance gaps and the remaining Proposed
-predecessors; BPR-0617 therefore remains Backlog and RFC-0013 remains Proposed.
-No new attended review or repeat owner loading check is requested by that amendment.
+are Done. That amendment left the wider acceptance and then-open predecessors
+unresolved. The later r4 terminal amendment below explicitly supersedes that
+stopping boundary; no historical target observation is upgraded to a pass.
 
 On 2026-09-21, owner amendment r4 to land RFC-BPR-0014 was applied by explicit
 coordinator assignment to RFC-BPR-0008's blocking closeout. BPR-0242 closes its
@@ -82,7 +81,7 @@ records passing lifecycle, persistence, Qt defect-card and shipped multi-defect
 composition evidence. BPR-0153 remains a standalone parked follow-up for the
 unobserved GitHub-only collaborator comprehension/reply criterion; no human
 verdict is inferred. The existing broad workbench layout failure remains open
-on BPR-0940 under RFC-0013 and is not described as a passing suite.
+on BPR-0940, now a standalone r4 follow-up, and is not described as a passing suite.
 
 RFC-BPR-0010 now closes through BPR-0244 under the same explicit r4 assignment.
 Its [ledger](../verification/RFC-BPR-0010.md#owner-amended-closeout-r4--2026-09-21)
@@ -108,10 +107,22 @@ fixture/core/Qt acceptance criteria. Its
 records current finding, chat, workshop, MCP and ordinary synchronization
 checks, and reconciles the completed historical fixes. The broader run's Dif
 workshop-cue failure is preserved as standalone BPR-0966; no pass is inferred
-for it, live external-agent behavior or native packages. RFC-BPR-0013 is now
-the canonical closure frontier with every predecessor Auto-Verified. Its own
-unresolved cards and acceptance still govern BPR-0617; RFCs 0013–0014 remain
-Proposed.
+for it, live external-agent behavior or native packages. That closure cleared
+RFC-BPR-0013's predecessor gate.
+
+RFC-BPR-0013 now closes through BPR-0617 under r4. Its
+[ledger](../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
+accepts the recorded bounded hardening scope and preserves all original wider
+criteria as explicit follow-ups: BPR-0967–0972 for platform/performance/current
+memory failures, rendered backoff/offline, fuzzing, pathological privacy and
+broader structural evidence; BPR-0817/0825/0940/0944/0945 retain their existing
+human/layout/comparison/tidy obligations. RFC0033 remains associated with
+BPR-0817. No failed or missing observation is marked passing.
+
+RFC-BPR-0014 is the next canonical RFC and remains Proposed. BPR-0617 is no
+longer a dependency blocker, but BPR-0965 still waits for BPR-0958–0962 native,
+trust and security acceptance. This status change supplies no package or release
+qualification and changes none of those five cards.
 
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).
@@ -155,7 +166,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0034](RFC-BPR-0034-appearance-page-and-per-theme-colours.md) | Appearance Page and Per-Theme Colour Customisation | Proposed | Imported 2026-09-13 after owner review of the Appearance page; rebuilds the page as a theme strip, one-line rows with info-glyph popovers, a labelled preview and a colours card for the theme on screen, and changes the appearance store to one customised palette per theme with a migration; RFC-BPR-0006 and RFC-BPR-0018 |
 | [RFC-BPR-0035](RFC-BPR-0035-github-release-auto-updater.md) | GitHub Release Auto-Updater | Proposed | Milestones 1–3 accepted; M4 source `518c384a` fixes the native menu and documents recovery/security. Owner amendment r3 defers Intel validation to nonblocking BPR-0950; BPR-0949 is Done under its Apple Silicon scope. BPR-0911 is Blocked on live private-release/vault AC-03; BPR-0912 remains Backlog with RFC-BPR-0014/canonical-order gates. Full M4/RFC acceptance remains open |
 | [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed, while canonical predecessor eligibility remains pending |
-| [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Technical implementation and BPR-0927 closeout accepted at `e4096e05`; RFC-BPR-0008 is now closed, while RFC-BPR-0013, RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 must still become Auto-Verified; Markdown remains separate under RFC-BPR-0036 |
+| [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Technical implementation and BPR-0927 closeout accepted at `e4096e05`; RFC-BPR-0008 and RFC-BPR-0013 are now closed, while RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 must still become Auto-Verified; Markdown remains separate under RFC-BPR-0036 |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.

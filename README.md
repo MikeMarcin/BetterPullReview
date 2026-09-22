@@ -183,13 +183,17 @@ returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that
 any particular private pull request can render.
 
-RFC-BPR-0013's selected-diff hardening is accepted with one explicitly deferred
-edge case: provider “modified” metadata can disagree with the selected base-tip
-comparison. A missing required side currently makes the comparison unavailable.
-BPR-0944 tracks preserving the readable side, explaining the missing side in
+RFC-BPR-0013 is Auto-Verified under owner amendment r4 for its documented bounded
+hardening scope. The [closeout ledger](docs/verification/RFC-BPR-0013.md) preserves
+the original wider requirements as BPR-0967–0972 follow-ups, including current
+Mac memory-budget failures, broader native performance, rendered offline/backoff,
+fuzzing and diagnostic/structural coverage. Existing human, layout and tidy
+follow-ups remain open; this status does not qualify a release.
+
+Provider “modified” metadata can still disagree with the selected base-tip
+comparison. A missing required side makes the comparison unavailable.
+BPR-0944 retains preserving the readable side, explaining the missing side in
 its pane, and deciding comparison semantics; that behavior is not implemented.
-The [closeout ledger](docs/verification/RFC-BPR-0013.md) distinguishes this
-owner deferral from the RFC's remaining acceptance and canonical-order gates.
 
 Manual credentials use a Qt-owned password input and remain session-only.
 Device sign-in is remembered across orderly quits: tokens stay in the platform
