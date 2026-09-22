@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0978"
 title: "Verify concurrent two-account same-server profile isolation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0701", "BPR-0702"]
 priority: "P1"
