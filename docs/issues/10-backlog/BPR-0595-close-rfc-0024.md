@@ -4,7 +4,7 @@ id: "BPR-0595"
 title: "Verify and close RFC-BPR-0024"
 status: "Backlog"
 rfcs: ["RFC-BPR-0024"]
-depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704", "BPR-0705", "BPR-0706", "BPR-0707", "BPR-0708", "BPR-0709", "BPR-0710", "BPR-0711", "BPR-0712", "BPR-0713", "BPR-0714", "BPR-0715"]
+depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704", "BPR-0705", "BPR-0706", "BPR-0707", "BPR-0708", "BPR-0709", "BPR-0710", "BPR-0711", "BPR-0712", "BPR-0713", "BPR-0714", "BPR-0715", "BPR-0976", "BPR-0977", "BPR-0978", "BPR-0979"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0024"]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
@@ -33,6 +33,15 @@ criteria and the first bounded foundations. Partial profile product checks are r
 Canonical terminal prerequisites remain required.
 
 ## Closeout checklist
+
+Planning reconciliation on 2026-09-21 adds required slices BPR-0976,
+BPR-0977, BPR-0978 and BPR-0979 to the planned cards and dependencies.
+The [authorized reconciliation](../../rfcs/plans/ux-redesign-pack-0028/rfc-0024-planning-reconciliation.md)
+expands the stale closeout-only milestone to the full retained RFC behavior.
+RFC-0018 and BPR-0242 are Done. BPR-0715's native decision remains under
+candidate-specific evidence review. Baseline `444d215c` passes the signed-out
+public course and all 18 focused profile/window selectors (132.246 seconds);
+the four missing behaviors are not accepted by those baseline passes.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|

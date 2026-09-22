@@ -13,7 +13,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Design accepted; registration only; implementation requires a later request.**
+**Design accepted; implementation activated; acceptance remains pending.**
 The product owner approved this daily-workbench design and its Chrome-like
 profile amendment on 2026-09-04. Registration grants no implementation,
 credential, remote-mutation, platform-evidence, or closeout exception. This RFC
@@ -22,7 +22,15 @@ The requested workstream is RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025,
 RFC-BPR-0026, in that order. The canonical index remains the order authority.
 
 Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
-Entry: [[BPR-0594]]. Closeout: [[BPR-0595]]. These cards remain in backlog.
+Entry: [[BPR-0594]] is Done. Closeout: [[BPR-0595]] remains in backlog while
+required implementation and native/human evidence are incomplete.
+The owner's ordered-pack implementation mandate and planning amendment are
+recorded in the [2026-09-21 reconciliation](plans/ux-redesign-pack-0028/rfc-0024-planning-reconciliation.md).
+The prior registration-only restriction is superseded by that mandate, not by
+an inferred waiver. The immutable baseline, all nine criteria, remote-mutation
+limits and native/human acceptance requirements are unchanged. Required
+remaining slices are [[BPR-0976]], [[BPR-0977]], [[BPR-0978]] and [[BPR-0979]];
+[[BPR-0715]] retains its exact native signed-out acceptance obligation.
 
 ## Problem and outcome
 
