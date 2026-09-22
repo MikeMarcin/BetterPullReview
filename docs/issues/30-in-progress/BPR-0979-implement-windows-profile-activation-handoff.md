@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0979"
 title: "Implement bounded Windows profile activation and New Window handoff"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0710", "BPR-0711", "BPR-0813", "BPR-0932"]
 priority: "P1"
