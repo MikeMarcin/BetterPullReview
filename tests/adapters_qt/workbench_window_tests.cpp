@@ -6320,6 +6320,17 @@ namespace {
 		window.publish(offered);
 		process_events();
 		expect(intents.size() == asked, "a later epoch publish does not ask again");
+		panel->filter_unresolved_button()->setChecked(false);
+		panel->filter_unread_button()->setChecked(true);
+		window.choose_home(true);
+		window.publish(application::github_presentation_update{
+			.PullRequest              = application::github_pull_request_projection{ .ReviewThreadsAvailable = true },
+			.PreserveWindowNavigation = true,
+		});
+		process_events();
+		expect(window.showing_home() && !panel->filter_unresolved_button()->isChecked()
+				   && panel->filter_unread_button()->isChecked() && intents.size() == asked,
+			   "a sibling server observation preserves Home, user filters and the chosen comparison");
 	}
 
 	// [[BPR-0661]]. With "when fully seen", reaching the end of the shared
@@ -8304,6 +8315,11 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (QCoreApplication::arguments().contains(QStringLiteral("--shared-snapshot-navigation"))) {
+		test_comments_filter_and_return_comparison_preferences_apply_on_open();
+		std::cout << "shared-snapshot-navigation:pass\n";
+		return EXIT_SUCCESS;
+	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();

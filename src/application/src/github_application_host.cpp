@@ -1140,7 +1140,7 @@ namespace bpr::application {
 			}
 			return true;
 		}
-		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow)
+		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow, const bool aFreshSnapshot)
 		{
 			if (Closing || !aWindow) {
 				return;
@@ -1152,6 +1152,19 @@ namespace bpr::application {
 			AcceptedSnapshot = aWindow->accepted_snapshot();
 			static_cast<void>(merge(RateLimits, aWindow->rate_limits()));
 			publish_public_preview();
+			if (!aFreshSnapshot || Closing || SharedSnapshotSequence == std::numeric_limits<std::uint64_t>::max()) {
+				return;
+			}
+			// Copy the bounded attachment set before publishing to any sibling:
+			// its callback may detach itself or another window.
+			std::vector<std::shared_ptr<github_window_read_host>> windows;
+			windows.reserve(AttachedWindows.size());
+			for (const auto& slot : AttachedWindows) {
+				if (!slot.Detaching) {
+					windows.push_back(slot.Host);
+				}
+			}
+			aWindow->share_snapshot(windows, ++SharedSnapshotSequence);
 		}
 		void detach_window(const core::bpr_window_context aContext)
 		{
@@ -4089,6 +4102,7 @@ namespace bpr::application {
 
 		std::shared_ptr<github_window_read_host> ReadWindow;
 		std::vector<window_slot>                 AttachedWindows;
+		std::uint64_t                            SharedSnapshotSequence = 0U;
 		std::optional<github_profile_session>    PublishedSession;
 		bool                                     PrimaryReadClosed       = false;
 		bool                                     ExplicitPrimaryAttached = false;
@@ -4506,7 +4520,7 @@ namespace bpr::application {
 
 	auto github_application_host::attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool { return Implementation->attach_window(aWindow); }
 	void github_application_host::detach_window(const core::bpr_window_context aWindow) { Implementation->detach_window(aWindow); }
-	void github_application_host::observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow) { Implementation->observe_attached_read(aWindow); }
+	void github_application_host::observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow, const bool aFreshSnapshot) { Implementation->observe_attached_read(aWindow, aFreshSnapshot); }
 
 	auto github_application_host::accepted_snapshot() const noexcept
 		-> const std::optional<github_pull_request_snapshot>&

@@ -929,6 +929,16 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_workbench_window_tests)
 bpr_enable_warnings(test_better_pull_review_qt_workbench_window_tests)
 
+bpr_add_network_isolated_test(
+    NAME qt_shared_snapshot_navigation
+    COMMAND test_better_pull_review_qt_workbench_window_tests --shared-snapshot-navigation
+)
+set_tests_properties(qt_shared_snapshot_navigation PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "shared-snapshot-navigation:pass"
+    TIMEOUT 30
+)
+
 foreach(bpr_workbench_window_scale IN ITEMS 100 125 200)
     if(bpr_workbench_window_scale STREQUAL "100")
         set(bpr_workbench_window_scale_factor "1.0")

@@ -914,7 +914,7 @@ namespace bpr::qt {
 		void apply_github_transition(
 			const application::github_transition_projection& aTransition);
 		void apply_github_pull_request(
-			const application::github_pull_request_projection& aPullRequest);
+			const application::github_pull_request_projection& aPullRequest, bool aPreserveWindowNavigation);
 		void apply_github_content_command(
 			const core::github_command_projection& aCommand);
 		void apply_github_host_diagnostic(

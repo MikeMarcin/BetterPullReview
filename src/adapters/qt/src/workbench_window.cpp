@@ -6018,7 +6018,7 @@ namespace bpr::qt {
 			}
 		}
 		if (aUpdate.PullRequest.has_value()) {
-			apply_github_pull_request(*aUpdate.PullRequest);
+			apply_github_pull_request(*aUpdate.PullRequest, aUpdate.PreserveWindowNavigation);
 		}
 		for (const auto& diagnostic : aUpdate.HostDiagnostics) {
 			apply_github_host_diagnostic(diagnostic);
@@ -6112,7 +6112,7 @@ namespace bpr::qt {
 	}
 
 	void workbench_window::apply_github_pull_request(
-		const application::github_pull_request_projection& aPullRequest)
+		const application::github_pull_request_projection& aPullRequest, const bool aPreserveWindowNavigation)
 	{
 		const auto authority = std::to_string(aPullRequest.Profile.value()) + ":" + std::to_string(aPullRequest.Host.value()) + ":"
 			+ std::to_string(aPullRequest.Account.value()) + ":" + std::to_string(aPullRequest.Repository.value()) + ":" + std::to_string(aPullRequest.PullRequest.value());
@@ -6136,7 +6136,9 @@ namespace bpr::qt {
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
-		HomeRequested     = false;
+		if (!aPreserveWindowNavigation) {
+			HomeRequested = false;
+		}
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->set_pull_request_author(
 				QString::fromStdString(aPullRequest.AuthorLogin));
@@ -6174,7 +6176,7 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
-		if (OpenOnOverview) {
+		if (OpenOnOverview && !aPreserveWindowNavigation) {
 			OpenOnOverview = false;
 			// [[BPR-0661]]. The modality is the reviewer's preference: the
 			// overview the design opens on, Read, or the one last used here.
@@ -6183,12 +6185,14 @@ namespace bpr::qt {
 		// [[BPR-0661]]. The drawer's first filter and the comparison on return
 		// are the reviewer's preferences too; the comparison waits until the
 		// history offers it.
-		FirstFilterApplied    = false;
-		ReturnComparisonAsked = false;
-		apply_first_comments_filter();
-		ReturnComparisonPending = Behaviour.ReturnComparison
-			!= application::review_return_comparison::whole_pr;
-		honour_return_comparison();
+		if (!aPreserveWindowNavigation) {
+			FirstFilterApplied    = false;
+			ReturnComparisonAsked = false;
+			apply_first_comments_filter();
+			ReturnComparisonPending = Behaviour.ReturnComparison
+				!= application::review_return_comparison::whole_pr;
+			honour_return_comparison();
+		}
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
 		// [[BPR-0657]]. Resolve is offered once the provider and the server

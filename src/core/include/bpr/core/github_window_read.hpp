@@ -4,6 +4,8 @@
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/profile_window.hpp"
 
+#include <cstdint>
+
 namespace bpr::core {
 	/// Profile-owned identity observed by one independent window read lane.
 	struct github_window_session
@@ -35,6 +37,10 @@ namespace bpr::core {
 		[[nodiscard]] auto apply(bpr_window_context              aWindow,
 								 const github_window_read_event& aEvent) -> github_window_read_output;
 		void               advance_request_floor(request_id aNext) noexcept;
+		/// Accept an already-admitted profile sibling's server observation.
+		/// Only snapshot identity changes; requests and window navigation do not.
+		/// The profile owner orders observations, including reentrant delivery.
+		[[nodiscard]] auto share_snapshot(const github_window_read& aSource, std::uint64_t aSequence) noexcept -> bool;
 		/// Accept at most one provisional metadata observation for this exact
 		/// pending request, without changing command or snapshot authority.
 		[[nodiscard]] auto accept_overview_observation(bpr_window_context                  aWindow,
@@ -48,6 +54,7 @@ namespace bpr::core {
 		std::optional<github_window_session> Session;
 		github_identity_generation           RetiredGeneration{ };
 		bool                                 OverviewObserved = false;
+		std::uint64_t                        SharedSnapshotSequence = 0U;
 	};
 }
 

@@ -6188,7 +6188,7 @@ namespace bpr::app {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
 					Window->publish(aUpdate.Presentation);
-					Host->observe_attached_read(WindowRead);
+					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get());
 			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
@@ -14167,6 +14167,12 @@ namespace bpr::app {
 		const auto found = aApplication.Sessions.find(aContext);
 		if (found != aApplication.Sessions.end() && !found->second->Closing && found->second->ReadDecision) {
 			found->second->ReadDecision->hold(aHold);
+		}
+	}
+	void detail::github_application_fixture_access::stage_server_conversation(github_application& aApplication, std::string aThread, const bool aAddedAndResolved)
+	{
+		if (aApplication.Implementation->Fixture) {
+			aApplication.Implementation->Fixture->stage_server_conversation(std::move(aThread), aAddedAndResolved);
 		}
 	}
 	auto detail::github_application_fixture_access::held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t

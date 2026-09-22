@@ -72,6 +72,8 @@ namespace bpr::app::detail {
 		[[nodiscard]] auto git_executable() const
 			-> const std::filesystem::path&;
 		void               prepare_review_mutation(core::review_mutation_target aTarget);
+		/// Change only the fake server's next read, never the accepted host state.
+		void               stage_server_conversation(std::string aThread, bool aAddedAndResolved);
 		void               report_review_mutation_target(core::review_mutation_target aTarget);
 		[[nodiscard]] auto review_mutation_provider() noexcept
 			-> application::review_mutation_port&;

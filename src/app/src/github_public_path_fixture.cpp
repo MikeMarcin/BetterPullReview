@@ -1199,6 +1199,7 @@ namespace bpr::app::detail {
 			{
 				std::vector<std::pair<std::string, std::string>> Replies;
 				std::optional<bool>                              Resolved;
+				std::optional<std::string>                       RootBody;
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
 			mutable std::mutex                    Mutex;
@@ -1544,6 +1545,11 @@ namespace bpr::app::detail {
 				}
 				auto       comments = node.value(QStringLiteral("comments")).toObject();
 				auto       posts    = comments.value(QStringLiteral("nodes")).toArray();
+				if (!posts.isEmpty() && overlay->second.RootBody) {
+					auto rootPost = posts.first().toObject();
+					rootPost.insert(QStringLiteral("bodyText"), QString::fromStdString(*overlay->second.RootBody));
+					posts.replace(0, rootPost);
+				}
 				const auto rootId   = posts.isEmpty()
 					? QString{ }
 					: posts.at(0).toObject().value(QStringLiteral("id")).toString();
@@ -3447,6 +3453,18 @@ namespace bpr::app::detail {
 		core::review_mutation_target aTarget)
 	{
 		Implementation->Mutation->prepare(std::move(aTarget));
+	}
+
+	void github_public_path_fixture_components::stage_server_conversation(std::string aThread, const bool aAddedAndResolved)
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		auto&                  overlay = Implementation->Recording->ThreadOverlays[std::move(aThread)];
+		overlay.Resolved               = aAddedAndResolved;
+		overlay.RootBody               = aAddedAndResolved ? "Edited server root" : "Reopened server root";
+		overlay.Replies.clear();
+		if (aAddedAndResolved) {
+			overlay.Replies.emplace_back("PRRC_shared_server_reply", "New server reply");
+		}
 	}
 
 	void github_public_path_fixture_components::report_review_mutation_target(
