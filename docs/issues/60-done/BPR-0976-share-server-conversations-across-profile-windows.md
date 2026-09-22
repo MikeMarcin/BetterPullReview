@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0976"
 title: "Share server conversations across exact-authority profile windows"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0697", "BPR-0699", "BPR-0706"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"origin":"rfc0024-closeout-r2"}
+acceptance: [{"criterion":"Exact-authority sibling windows receive accepted added/edited/deleted and resolve/reopen conversation state without moving either view.","outcome":"pass","revision":"8d072d1413eb545fefd31e056cd6879dc26502e1","evidence":{"kind":"artifact","detail":"Composed refresh, rendered reply/root/resolution and no model-reset/selection/scroll/comparison/Home-or-Discuss change: 4/4 pass in 80.270s; focused Qt pass.","path":"docs/issues/30-in-progress/BPR-0976-share-server-conversations-across-profile-windows.md#direct-evidence"}},{"criterion":"Different profiles/accounts/PRs, retired sessions and detached or navigating windows cannot receive inapplicable updates; delivery is bounded and reentrant safe without extra reads.","outcome":"pass","revision":"8d072d1413eb545fefd31e056cd6879dc26502e1","evidence":{"kind":"artifact","detail":"Core/host tests pass including pending navigation, profile/session boundaries, recipient detach and nested newer completion. Removing only fanout fails the intended sibling assertion; restored before verification.","path":"docs/issues/30-in-progress/BPR-0976-share-server-conversations-across-profile-windows.md#direct-evidence"}},{"criterion":"Shortest composed refresh path, discriminating negative tests, core/host and architecture checks pass.","outcome":"pass","revision":"8d072d1413eb545fefd31e056cd6879dc26502e1","evidence":{"kind":"artifact","detail":"Final 6/6 focused tests and both real composition contracts pass 34.177s. Boundaries, changed-lines format, documentation and diff checks pass. Full legacy Qt suite's pre-existing epoch assertion remains BPR-0940, not accepted.","path":"docs/issues/30-in-progress/BPR-0976-share-server-conversations-across-profile-windows.md#direct-evidence"}}]
 ---
 
 # Share server conversations across exact-authority profile windows
