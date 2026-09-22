@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0976"
 title: "Share server conversations across exact-authority profile windows"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0697", "BPR-0699", "BPR-0706"]
 priority: "P1"
