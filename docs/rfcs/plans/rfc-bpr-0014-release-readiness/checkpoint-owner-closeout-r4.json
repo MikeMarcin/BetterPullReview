@@ -1,0 +1,89 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0014-owner-closeout-r4",
+  "mandate_revision": "r4",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0014",
+  "binding": {
+    "plan_id": "rfc-bpr-0014-release-readiness",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+    "milestone_id": "m12-verification-rfc-closeout",
+    "definition_fingerprint": "sha256:118a14316c0cdcc028171383274ba10cef7063e9ff37b9831b1851f2f180f717",
+    "obligations": [
+      {
+        "id": "BPR-0965:*",
+        "source": "BPR-0965",
+        "selector": null,
+        "source_fingerprint": "sha256:ccfe0aa13c9de6eb0b7d3cee968976075629a5001b5258b9efd6d31d7de21448"
+      }
+    ],
+    "obligation_fingerprint": "sha256:ac6e55500500ef167630bdb8a6e42cc4a6a6229a26db1819939029f043248fd1",
+    "exit_criteria": [
+      {
+        "id": "m12-verification-rfc-closeout:exit:1",
+        "text": "Every amended RFC0014 foundation criterion has direct producing-revision evidence; all original release criteria and BPR0958–0962 obligations remain explicitly pending under RFC0038 without invented acceptance."
+      },
+      {
+        "id": "m12-verification-rfc-closeout:exit:2",
+        "text": "RFC-BPR-0013 and canonical predecessors are Auto-Verified, all RFC0014-scoped cards are Done, and the amended RFC/index/documentation gates agree."
+      },
+      {
+        "id": "m12-verification-rfc-closeout:exit:3",
+        "text": "The final diff against immutable RFC_BASE_SHA, integrated revision, exact protected candidates, command quiescence and cleanup are recorded."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:ec900a5528b814639f9f18c0f61ffcb9e1705fe1d4837fe4cdf6aea5ba4d993d",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "m1-pack-import-planning",
+    "m2-architecture-allocation",
+    "m3-deterministic-functional-core",
+    "m4-imperative-application-host",
+    "m5-qt-presentation-adapter",
+    "m6-composition-public-path",
+    "m7-focused-tests-fixtures",
+    "m8-ux-ui-native-verification",
+    "m9-security-boundary-verification",
+    "m10-documentation-impact",
+    "m11-simplification",
+    "m12-verification-rfc-closeout",
+    "m13-release-qualification-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "0dc3009c683b171d1da299e8985734abf09d718e",
+    "workflow_branch": "main",
+    "workflow_revision": "0dc3009c683b171d1da299e8985734abf09d718e"
+  }
+}

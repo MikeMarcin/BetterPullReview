@@ -10,7 +10,7 @@ original owners/candidates and then-current gates. M8/M9 stay unaccepted under
 RFC0038; they are not converted into passes by RFC0014 terminal-scope amendment.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
-[live closeout](../issues/30-in-progress/BPR-0965-close-rfc-0014.md) retains
+[live closeout](../issues/60-done/BPR-0965-close-rfc-0014.md) retains
 the nine amended foundation criteria and the predecessor gate. All nine former
 release criteria are preserved verbatim in
 [RFC0038](../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md).
@@ -78,8 +78,29 @@ it. Neither is a product failure or acceptance proof. Initial command lookup
 for the evidence helper used the repository scripts directory; the configured
 skill's helper was then used, with no work lost.
 
-Final acceptance and command cleanup follow the guarded card finish. Remaining
-stage sections below are historical evidence, not current instructions.
+### M12 acceptance and integration
+
+R4 scope split `29adb0ab2926746fc5d008c8b227cc4700c90e8b` records
+RFC0038/BPR0973, unchanged pending criteria, plan preservation and current checks.
+Guarded claim `0dc3009c683b171d1da299e8985734abf09d718e` starts BPR0965.
+Its current nine-row checklist accepts only the bounded foundation; each row
+names producing revisions and explicit limits. AC1–AC3 are accepted under r4,
+with no M8/M9 acceptance. The guarded finish commits the RFC/index
+Auto-Verified state and Done card together after current documentation and
+scope checks; the final handoff records that exact resulting revision.
+
+The original fourteen-RFC pack is complete under its explicit owner amendments.
+RFC0038 remains Proposed with five Blocked qualification cards and Backlog
+BPR0973. This is not release approval. No new human question is required for
+amended M12; the transferred Windows licensing-v002 question remains unanswered.
+All historical packets, accepted candidates, prior raw failures and unrelated
+worktrees are untouched. No task-created remote writer, station lease, review
+server or native application exists. All test/diagnostic processes finished.
+Only the disposable tracked-source archive is moved recoverably to
+`/Users/jaeger/.Trash/bpr0014-r4-tracked.aEejaK`; ignored command receipts
+and all protected package/fixture artifacts remain for continuation.
+
+Remaining stage sections below are historical evidence, not current instructions.
 
 ## Inherited evidence and limits
 

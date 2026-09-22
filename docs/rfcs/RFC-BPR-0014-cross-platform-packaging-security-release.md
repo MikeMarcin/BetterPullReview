@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0014"
 title: "Release Packaging and Maintenance Foundation"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "M6 Production Readiness"
 depends_on: ["RFC-BPR-0013"]
@@ -42,6 +42,10 @@ A corporate-acceptable tool needs more than source-level security claims. The de
 - The security packet documents the typed effect path, credential-bearing host capabilities, agent/process boundaries, serialized decision lane, lifecycle/shutdown order, and the direct conformance evidence from `verification/architecture-conformance.md`.
 
 ## Terminal scope — owner amendment r4
+
+Auto-Verified covers only the foundation criteria below. BPR-0965 records
+their exact checks and the unchanged release stop conditions. It is not a
+release readiness, native support or distribution approval.
 
 The owner explicitly directed RFC-0014 to land now, with unfinished work filed
 as follow-ups and a later RFC where necessary. This changes terminal scope:

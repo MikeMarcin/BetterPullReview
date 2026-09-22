@@ -48,6 +48,6 @@ criteria, original source fidelity, nine RFC rows, architecture/documentation/
 platform obligations, the twelve-stage plan, exact-candidate documentation/
 board/discovery checks and 64 passing verifier tests. The negative M2 bind
 refuses unmet M1 acceptance. Allocation is `d3d707ac`; claim is `cec196fb`.
-The [live closeout](../30-in-progress/BPR-0965-close-rfc-0014.md) retains pending
+The [live closeout](BPR-0965-close-rfc-0014.md) retains pending
 RFC criteria and the next architecture milestone. Only this planning card is
 accepted; the RFC stays Proposed.

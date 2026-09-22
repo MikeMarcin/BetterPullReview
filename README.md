@@ -253,8 +253,8 @@ does not certify a signed, notarized, or installable package.
 The [package guide](docs/development/release-packages.md) covers per-user
 installation, declared platform/toolchain baselines, dependency notices,
 separate corresponding-source assets and independent signature checks.
-RFC-BPR-0014's owner-amended scope is the implemented packaging/maintenance
-foundation. Full release qualification remains pending under
+RFC-BPR-0014 is Auto-Verified for its owner-amended packaging/maintenance
+foundation, completing the original RFC pack. Full release qualification remains pending under
 [RFC-BPR-0038](docs/rfcs/RFC-BPR-0038-native-package-release-security-qualification.md):
 current macOS/Windows candidates
 lack final release trust, dependency vulnerability findings remain unresolved,

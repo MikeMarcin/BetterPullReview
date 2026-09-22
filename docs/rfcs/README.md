@@ -56,7 +56,7 @@ before every listed dependency is `Auto-Verified`.
 | [RFC-BPR-0011](RFC-BPR-0011-ai-agent-profiles-context-supplements.md) | AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements | Auto-Verified | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0012](RFC-BPR-0012-ai-review-chat-findings-mcp.md) | AI Review Findings, Comment Workshop, Side Chat, and MCP Context | Auto-Verified | RFC-BPR-0008, RFC-BPR-0011 |
 | [RFC-BPR-0013](RFC-BPR-0013-performance-resilience-resource-limits.md) | Performance, Resource Limits, Resilience, and Recovery | Auto-Verified | RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012 |
-| [RFC-BPR-0014](RFC-BPR-0014-cross-platform-packaging-security-release.md) | Release Packaging and Maintenance Foundation | Proposed | RFC-BPR-0013 |
+| [RFC-BPR-0014](RFC-BPR-0014-cross-platform-packaging-security-release.md) | Release Packaging and Maintenance Foundation | Auto-Verified | RFC-BPR-0013 |
 
 On 2026-09-20 the owner closed RFC-BPR-0013's selected-diff investigation under
 an explicit acceptance amendment: the unusual-target comparison-basis and
@@ -119,9 +119,9 @@ broader structural evidence; BPR-0817/0825/0940/0944/0945 retain their existing
 human/layout/comparison/tidy obligations. RFC0033 remains associated with
 BPR-0817. No failed or missing observation is marked passing.
 
-RFC-BPR-0014 owner amendment r4 separates implemented foundation closeout from
-complete release qualification. BPR-0617 is Done; BPR-0965 now verifies only the
-explicitly amended foundation. RFC-BPR-0038 retains all nine original release
+RFC-BPR-0014 is Auto-Verified under owner amendment r4 for its implemented
+foundation, completing the original fourteen-RFC pack. BPR-0965 is Done for
+that explicitly amended scope. RFC-BPR-0038 retains all nine original release
 criteria and owns unchanged-criteria Blocked BPR-0958–0962 plus BPR-0973
 closeout. The transfer supplies no native, trust, licensing, vulnerability or
 publication acceptance.
@@ -146,7 +146,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 
 | RFC | Title | Status | Eligibility |
 |---|---|---|---|
-| [RFC-BPR-0015](RFC-BPR-0015-github-cli-production-enablement.md) | Opt-in GitHub CLI Account Profile | Proposed | Mac CLI read and fixture publication qualified; RFC-BPR-0014 and remaining closeout evidence gate canonical status |
+| [RFC-BPR-0015](RFC-BPR-0015-github-cli-production-enablement.md) | Opt-in GitHub CLI Account Profile | Proposed | Mac CLI read and fixture publication qualified; RFC-BPR-0014 is now closed, while remaining closeout evidence still gates canonical status |
 | [RFC-BPR-0016](RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Auto-Verified | Closed 2026-09-04 at `0d19c990` by [BPR-0285](../issues/60-done/BPR-0285-anchor-rfc-0016-verification.md): RFC-BPR-0002 was Auto-Verified first, the recorded distributable identity is admitted, and the final-head course replayed green target-native on macOS, Linux, and Windows x64 |
 | [RFC-BPR-0017](RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Auto-Verified | Closed 2026-09-04 by BPR-0309 after RFC-BPR-0002 eligibility, validated owner build decision, focused macOS evidence and clean review of `d9006237`; macOS enabled, Linux/Windows unavailable |
 | [RFC-BPR-0018](RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Proposed | RFC-BPR-0014 closed or an explicit post-pack frontier exception, plus a complete existing-setting authority and persistence inventory |
