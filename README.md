@@ -91,6 +91,13 @@ isolated exact-head workspace, the real process adapter, and visible terminal
 projection. Windows uses the native suspended-start/Job Object backend; its
 component evidence does not qualify the RFC-0014 installed-package matrix.
 
+RFC-BPR-0011 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0011.md) binds the verified local fixture
+and public invocation paths plus candidate-specific historical native evidence.
+Installed-agent compatibility, actual agent GitHub authentication and human
+judgment of the existing-checkout warning remain unobserved; no release or
+native package acceptance follows from this status.
+
 The shipped landing surface now accepts local repository, author, and path
 observer rules, persists the exact matched reason, restores it across a restart,
 and removes the projected item when its only local rule is deleted. Explicit

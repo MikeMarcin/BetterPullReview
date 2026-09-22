@@ -53,7 +53,7 @@ before every listed dependency is `Auto-Verified`.
 | [RFC-BPR-0008](RFC-BPR-0008-github-review-round-trip-interactions.md) | GitHub Review Synchronization and Round-Trip Interactions | Auto-Verified | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0009](RFC-BPR-0009-defect-fix-verification-workflow.md) | Defect Classification, Fix Claims, and Verification | Auto-Verified | RFC-BPR-0008 |
 | [RFC-BPR-0010](RFC-BPR-0010-review-queue-observers-notifications.md) | Review Queue, Observer Rules, and Local Notifications | Auto-Verified | RFC-BPR-0007, RFC-BPR-0008 |
-| [RFC-BPR-0011](RFC-BPR-0011-ai-agent-profiles-context-supplements.md) | AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements | Proposed | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
+| [RFC-BPR-0011](RFC-BPR-0011-ai-agent-profiles-context-supplements.md) | AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements | Auto-Verified | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0012](RFC-BPR-0012-ai-review-chat-findings-mcp.md) | AI Review Findings, Comment Workshop, Side Chat, and MCP Context | Proposed | RFC-BPR-0008, RFC-BPR-0011 |
 | [RFC-BPR-0013](RFC-BPR-0013-performance-resilience-resource-limits.md) | Performance, Resource Limits, Resilience, and Recovery | Proposed | RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012 |
 | [RFC-BPR-0014](RFC-BPR-0014-cross-platform-packaging-security-release.md) | Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness | Proposed | RFC-BPR-0013 |
@@ -91,8 +91,18 @@ composition checks, preserving the exact accepted v006 native checkpoint.
 BPR-0169 remains Parked for independent live server non-mutation observation;
 BPR-0168 remains Backlog for terminal candidate identity replay and any required
 successor native verdict after BPR-0169. Both are standalone follow-ups, and
-neither pending result is inferred from RFC status. RFC-BPR-0011 is the next
-canonical closure frontier; RFCs 0011–0014 retain their own gates.
+neither pending result is inferred from RFC status.
+
+RFC-BPR-0011 closes through BPR-0245 under the same r4 assignment. Its
+[ledger](../verification/RFC-BPR-0011.md#owner-amended-closeout-r4--2026-09-21)
+binds current local process/public-composition checks and exact historical
+Windows/Linux evidence. Installed-agent compatibility, live agent identity
+and human judgment of the existing-checkout wording remain unobserved optional
+follow-ups. Native package qualification and the separately owned
+BPR-0825/BPR-0875 obligations remain open; RFC status supplies none of those
+observations. RFC-BPR-0012 is the next canonical closure frontier, with
+BPR-0507 in Backlog and no unmet card dependencies. RFCs 0012–0014 retain their
+own acceptance gates.
 
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).

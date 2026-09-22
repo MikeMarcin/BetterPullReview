@@ -2,8 +2,8 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **the implemented explicit-invocation scope is verified for owner-amended
-closeout r4.** BPR-0245 owns the terminal transition after RFC-BPR-0010.
+Status: **Auto-Verified under owner-amended closeout r4.** BPR-0245 is Done
+after RFC-BPR-0010; all 27 associated RFC0011 cards are Done.
 The current macOS fixture path passes from a real workbench gesture through
 core policy, exact selected context, durable session admission, a pinned
 workspace, the process adapter, typed terminal projection and exact cleanup.
@@ -101,6 +101,12 @@ and candidate limits; core state and typed policy, host effect/credential
 authority, persistence, request/generation/cancellation and Qt projection have
 no implementation impact. Their existing architecture allocation remains
 authoritative.
+
+BPR-0245's guarded finish is `7613b8d9d0912b0022b04d4f5ca9f82ef96f1818`,
+following the reviewed amendment/evidence commit
+`d826da1e21913b4cdc98c667a3a0f430b97862fd`. The RFC/index now agree on
+Auto-Verified. BPR-0507 is the next canonical closeout card for RFC-BPR-0012:
+Backlog with no unmet card dependencies, not claimed by this milestone.
 
 ### Preserved native evidence and follow-ups
 
