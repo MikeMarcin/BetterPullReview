@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0977"
 title: "Persist independent native window geometry and verify focus lifecycle"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0707", "BPR-0708", "BPR-0711", "BPR-0932"]
 priority: "P1"
