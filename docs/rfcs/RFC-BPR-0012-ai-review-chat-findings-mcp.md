@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "M5 Explicit AI Assistance"
 depends_on: ["RFC-BPR-0008","RFC-BPR-0011"]
 pack_version: 2
+metadata: {"milestone_plan":{"id":"rfc-bpr-0012-owner-closeout","path":"docs/rfcs/plans/rfc-bpr-0012-owner-closeout/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0012: AI Review Findings, Comment Workshop, Side Chat, and MCP Context
