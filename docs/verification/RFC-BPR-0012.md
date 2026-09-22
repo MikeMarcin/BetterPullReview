@@ -2,8 +2,11 @@
 
 RFC base: `2966ff8103dc442775425386f6a31f8ac1a391c6`
 
-Status: **implemented; owner-amended closeout verified on 2026-09-21.**
-BPR-0507 owns the terminal card/RFC transition after the documentation gates.
+Status: **Auto-Verified under owner amendment r4, 2026-09-21.**
+BPR-0507 is Done at `e2682f99f64a7f987fa772da687b04f625706234` with all
+nine criterion records; all 24 associated RFC0012 cards are Done. This status
+does not claim the separately recorded Dif, live-agent or native-package gaps
+are resolved.
 
 ## Owner-amended closeout r4 — 2026-09-21
 

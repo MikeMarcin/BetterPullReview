@@ -98,6 +98,13 @@ Installed-agent compatibility, actual agent GitHub authentication and human
 judgment of the existing-checkout warning remain unobserved; no release or
 native package acceptance follows from this status.
 
+RFC-BPR-0012 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0012.md) records the verified local findings,
+workshop, revision-aware chat and read-only MCP paths. The later Dif workshop
+cue mismatch remains a separate BPR-0966 follow-up. Installed-agent behavior,
+live agent GitHub identity and native package qualification remain unobserved;
+the status preserves the original fixture acceptance scope.
+
 The shipped landing surface now accepts local repository, author, and path
 observer rules, persists the exact matched reason, restores it across a restart,
 and removes the projected item when its only local rule is deleted. Explicit

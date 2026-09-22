@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0012"
 title: "AI Review Findings, Comment Workshop, Side Chat, and MCP Context"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "M5 Explicit AI Assistance"
 depends_on: ["RFC-BPR-0008","RFC-BPR-0011"]
