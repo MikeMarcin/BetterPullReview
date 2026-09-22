@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0008"
 title: "GitHub Review Synchronization and Round-Trip Interactions"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "M3 Collaborative Round Trip"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0007"]

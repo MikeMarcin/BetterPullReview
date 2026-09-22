@@ -11,7 +11,8 @@
   "branch": "main",
   "entry_revision": "2a64e901",
   "rfc_base_sha": "7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a",
-  "verified_candidate_revision": "fc38d1ce",
+  "verified_candidate_revision": "fc38d1ce1df4d625731fee10d0ea77b2156ad47c",
+  "card_closeout_revision": "4989f781f77902bfac98254cee9874cbd00b386e",
   "product_source_revision": "2a64e901",
   "milestone": "owner-amended-closeout",
   "checkpoint": "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/checkpoint-r4.json",
@@ -40,6 +41,10 @@
     {
       "revision": "fc38d1ce",
       "purpose": "Review d6dfca2b..2a64e901 source changes, repair exact composition pins/inventory, record passing focused evidence"
+    },
+    {
+      "revision": "4989f781",
+      "purpose": "Guarded BPR-0242 completion to Done with ten passing amended criteria"
     }
   ],
   "verification": [
@@ -61,11 +66,15 @@
     },
     {
       "command": "python3 scripts/verify_documentation.py --root .",
-      "result": "DOCUMENTATION_OK at evidence commit; terminal reconciliation recheck follows."
+      "result": "DOCUMENTATION_OK at evidence commit and after terminal card/index/RFC reconciliation."
     },
     {
       "command": "python3 tests/scripts/verify_documentation_tests.py",
-      "result": "64/64 pass in 2.056 s. Printed fixture errors are expected negative cases."
+      "result": "64/64 pass after terminal reconciliation in 2.354 s; earlier run also passed in 2.056 s. Printed fixture errors are expected negative cases."
+    },
+    {
+      "command": "issue_board.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview validate --rfc RFC-BPR-0008 --json",
+      "result": "Valid; zero errors. RFC-0008 queue has 58 selected cards, all 58 Done, no next card. RFC-0009's own queue retains BPR-0153 Parked and BPR-0243 Backlog waiting on it."
     },
     {
       "command": "git diff --check",

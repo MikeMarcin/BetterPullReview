@@ -2,9 +2,8 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: **owner-amended r4 closeout verified locally; terminal board/index
-reconciliation is the remaining step.** RFC-BPR-0001 through 0007 are
-Auto-Verified. The existing designated publication, web reply-return and owner
+Status: **Auto-Verified under owner amendment r4; BPR-0242 is Done.**
+RFC-BPR-0001 through 0007 are Auto-Verified. The existing designated publication, web reply-return and owner
 appearance decision are accepted. Unfinished live mixed-client/state-loss,
 review-attribution and private-PR smoke work remain pending as standalone
 BPR-0143, BPR-0144 and BPR-0641 follow-ups, not RFC-0008 terminal gates.
@@ -74,6 +73,12 @@ live RFC preserve discoverability without allocating replacement IDs:
 No required human decision remains in this amended closeout, so no new attended
 session/server is opened. Future follow-up owners must revalidate candidates and
 use the configured review companion when their human acceptance becomes ready.
+
+Acceptance amendment commit: `998b722c`; source review, repaired composition
+contract and current verification record: `fc38d1ce`. The
+[durable handoff](../rfcs/plans/rfc-bpr-0008-owner-closeout/handoff-r4.json)
+binds the final closeout candidate, command ownership and continuation.
+RFC-BPR-0009 is now unblocked by RFC-BPR-0008; its own acceptance still governs.
 
 ## Historical implementation and candidate progression
 
