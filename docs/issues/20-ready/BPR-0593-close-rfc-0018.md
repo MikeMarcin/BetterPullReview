@@ -2,18 +2,43 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0593"
 title: "Verify and close RFC-BPR-0018"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689","BPR-0730","BPR-0731"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0018"]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
-blocked_by: "rfc-0014-closeout"
 ---
 
 # Verify and close RFC-BPR-0018
 
-## Current milestone checkpoint, 2026-09-20
+## Current continuation, 2026-09-21
+
+The coordinator merged main at `86fa923e` and resumed the same non-delegating
+owner and `close-rfc-0018` milestone. RFC-0014/BPR-0965 is now Auto-Verified/Done
+at `b7eb3722`, with exact r4 handoff `61907e20`: only its release/maintenance
+foundation is accepted. RFC-0038 preserves the original full native/security
+qualification obligations. This removes the former `rfc-0014-closeout` blocker;
+it does not claim package release approval or waive any RFC-0018 criterion.
+
+The user confirms both target stations are available and authorizes their use
+for the remaining native courses. SSH `aito-main-win` reaches JaegAW. Live
+Windows `stn-a5155427`/`bpr-win` and WSL `stn-3f7fcc92`/`bpr-linux` match their
+recorded branches and roots; both writer leases are free. Their pre-existing
+`.mask.lock.json` changes must remain untouched. Work will use guarded external
+qualification roots, never mutate the live lane checkouts or invoke a second
+agent. Windows Smart App Control/code-integrity enforcement both report 0;
+no machine security configuration was changed.
+
+Pending: native Windows/Linux menu, Ctrl-comma, modeless singleton and window
+lifetime courses; current tests-disabled inventory including the merged
+RFC-0014 Storage & Privacy controls. Existing accepted human evidence remains
+bound to its original candidates. The merged product is byte-identical to
+`67f5e514` (only unrelated/test-course changes follow), permitting exact existing
+Qt 6.11.2 package reuse if its digest/provenance is verified. No product edit,
+remote app launch or build has occurred at this entry checkpoint.
+
+## Previous milestone checkpoint, 2026-09-20
 
 Run `rfc-0018-0026-closeout-20260920`, segment `rfc-0018`, mandate `r1`;
 owner `/root/rfc0018`, non-delegating `rfc-implementer`. Assignment: first
@@ -3631,7 +3656,7 @@ were reserved on main (`b1d4e14b`).
 
 BPR-0725 landed in this dispatch (see its verification record); the
 maintenance public path was the one course it disturbed, repaired in the
-probe. Mandate r7 added one card, [BPR-0735](BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
+probe. Mandate r7 added one card, [BPR-0735](../50-blocked/BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
 clangd reads no compile database because the project's lands in
 `build/dev` and there is no `.clangd`; filed, not started. Next: BPR-0726.
 

@@ -8,7 +8,7 @@
 - **State.** Both inventories are captured, and they are identical.
   - This file and its two captures are the Linux AC-11 evidence.
   - The card stays in Backlog, unmoved. Moving it rewrites links in
-    [BPR-0593](../issues/50-blocked/BPR-0593-close-rfc-0018.md) and BPR-0683,
+    [BPR-0593](../issues/20-ready/BPR-0593-close-rfc-0018.md) and BPR-0683,
     and this dispatch forbids BPR-0593 edits.
   - Linking this inventory from BPR-0593's AC-11 ledger row is main's step, as
     `4b56435e` did for BPR-0730.

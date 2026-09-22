@@ -37,8 +37,11 @@ dev/release trees also match, and real Preferences/Command-comma/same-profile
 window courses pass. The required appearance restart contract is repaired and
 passes without production changes. The ledger still requires Windows/Linux
 native menu/shortcut courses and a current refresh of the later updater/CLI
-rows; neither is inferred from the baseline capture. RFC-BPR-0014 remains
-Proposed, so canonical dependency order independently prevents Auto-Verified.
+rows; neither is inferred from the baseline capture. On 2026-09-21 the merged
+RFC-BPR-0014 owner-amended foundation closeout (`b7eb3722`, exact handoff
+`61907e20`) satisfied that canonical dependency. RFC-0038 retains its full
+native/release-security qualification gaps; no release approval transfers to
+this RFC. BPR-0593 is resumed for its own remaining target-native obligations.
 
 ## Accepted attended history, 2026-09-12
 
