@@ -10,7 +10,7 @@ original owners/candidates and then-current gates. M8/M9 stay unaccepted under
 RFC0038; they are not converted into passes by RFC0014 terminal-scope amendment.
 The [import record](../rfcs/assets/rfc-bpr-0014-planning-v1.LIVE_IMPORT.md)
 establishes the baseline and provenance. The
-[live closeout](../issues/20-ready/BPR-0965-close-rfc-0014.md) retains
+[live closeout](../issues/30-in-progress/BPR-0965-close-rfc-0014.md) retains
 the nine amended foundation criteria and the predecessor gate. All nine former
 release criteria are preserved verbatim in
 [RFC0038](../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md).
