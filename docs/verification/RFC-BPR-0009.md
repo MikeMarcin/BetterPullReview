@@ -2,15 +2,16 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **the policy, durable authority, and shipped defect workflow are
-composed.** BPR-0146 through BPR-0150 delivered the lifecycle, evidence policy,
+Status: **Auto-Verified under owner amendment r4.** The policy, durable
+authority and shipped defect workflow are composed. BPR-0146 through BPR-0150
+delivered the lifecycle, evidence policy,
 correlator, Qt card, and anchor history. BPR-0238 supplied the schema-versioned
 identity-scoped durable authority. BPR-0230 now connects accepted ordinary
 threads and real selected comparisons to that authority and presents a durable
 multi-defect queue through the shipped workbench.
 
 Owner amendment r4 narrows terminal acceptance to the implemented scope.
-BPR-0243 owns that closeout; BPR-0153 remains a standalone parked follow-up for
+BPR-0243 is Done; BPR-0153 remains a standalone parked follow-up for
 the unobserved collaborator-comprehension/reply criterion. The amendment does
 not count that human observation as passed.
 
@@ -195,9 +196,21 @@ finds the published prose sufficient and replies without local metadata.
 
 ## Closeout disposition
 
-RFC-BPR-0008's predecessor gate is clear. BPR-0243 owns final documentation,
-tracker consistency and terminal status for the amended scope. BPR-0153 is a
-pending standalone follow-up, and BPR-0940 remains an explicitly failed broad
-layout course outside this milestone. Neither is newly accepted. BPR-0152's
-historical no-closeout statement remains true for its dated implementation
-slice; BPR-0243 is the current closeout authority.
+RFC-BPR-0008's predecessor gate is clear. BPR-0243 is Done at
+`d859d3df9cbee8c88ebfd51cd32d3d78f9c03eb9` with eight passing amended
+criterion records bound to product/test source `02e419b8`. The owner amendment
+and evidence landed at `0474e55a`; the guarded claim was `fa9f868f`.
+RFC-BPR-0009 and the canonical index now agree on Auto-Verified.
+
+The documentation gate, board validation and `git diff --check` pass; all 64
+documentation verifier regressions pass in 2.113 seconds. Seven focused
+product tests pass across the public composition and component/host runs;
+the eighth, broad `qt_workbench_window_scale_100`, fails exactly as already
+tracked by BPR-0940. No product/test source changed. No full-suite, native
+package, live service, independent-review or release acceptance is claimed.
+
+BPR-0153 remains a pending standalone follow-up, and BPR-0940 remains an
+explicitly failed broad layout course outside this milestone. Neither is newly
+accepted. BPR-0152's historical no-closeout statement remains true for its
+dated implementation slice; BPR-0243 is the current closeout authority.
+RFC-BPR-0010 is the next canonical scope for a fresh coordinator assignment.

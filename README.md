@@ -79,12 +79,18 @@ claim those observations or complete release qualification.
 Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
-separate Publish action is still the only shared path. The shipped workbench now
-offers explicit built-in agent profiles and carries one reviewer gesture through
-core host policy, exact accepted context, an isolated exact-head workspace, the
-real process adapter, and visible terminal projection. Windows uses the native
-suspended-start/Job Object backend; its component evidence does not qualify the
-RFC-0014 installed-package matrix.
+separate Publish action is still the only shared path.
+RFC-BPR-0009 is Auto-Verified under the owner's r4 closeout amendment. Its
+[ledger](docs/verification/RFC-BPR-0009.md) records the verified local defect
+workflow while BPR-0153 remains parked for an unfamiliar GitHub collaborator's
+comprehension and reply. No collaborator verdict is inferred from RFC status.
+
+The shipped workbench now offers explicit built-in agent profiles and carries
+one reviewer gesture through core host policy, exact accepted context, an
+isolated exact-head workspace, the real process adapter, and visible terminal
+projection. Windows uses the native suspended-start/Job Object backend; its
+component evidence does not qualify the RFC-0014 installed-package matrix.
+
 The shipped landing surface now accepts local repository, author, and path
 observer rules, persists the exact matched reason, restores it across a restart,
 and removes the projected item when its only local rule is deleted. Explicit

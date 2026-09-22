@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0009"
 title: "Defect Classification, Fix Claims, and Verification"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "M3 Collaborative Round Trip"
 depends_on: ["RFC-BPR-0008"]
