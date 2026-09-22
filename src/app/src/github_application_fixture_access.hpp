@@ -213,6 +213,8 @@ namespace bpr::app::detail {
 		core::profile_launch_intent ProfileLaunchIntent             = core::profile_launch_intent::activate;
 		/// Bounded recorded PR 17/18 reads, independently repeatable per request.
 		bool IndependentWindowReads = false;
+		/// Two same-server accounts selected only by the test-owned BPR profile.
+		bool DistinctProfileAccounts = false;
 	};
 
 	struct queue_notification_fixture_evidence

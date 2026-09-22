@@ -14079,8 +14079,12 @@ namespace bpr::app {
 		auto       policy   = std::move(aOptions.EmptyDesktopPolicy);
 		aOptions.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
 		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
-            auto next = aProfile == options.Profile ? options : detail::github_public_path_fixture_options{};
+            auto next = aProfile == options.Profile || options.DistinctProfileAccounts ? options : detail::github_public_path_fixture_options{};
 			next.DifCatalog = options.DifCatalog;
+			if (aProfile != options.Profile && options.DistinctProfileAccounts) {
+				next.BeforeFilesPage = {};
+				next.SharedDeviceVault.reset();
+			}
             if (!aRoot.empty()) { next.ApplicationDataRoot = aRoot; next.GitExecutable = options.GitExecutable; }
             next.Profile = aProfile;
             next.ProfileLaunchIntent = aIntent;

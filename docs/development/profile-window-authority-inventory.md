@@ -128,4 +128,19 @@ profiles, lost endpoints and owner death use independent real fixture processes.
 Windows transport, oversized native socket addresses and packaged focus evidence
 remain unavailable/unverified. The global registry's existing compare-and-set conflicts still require explicit Reload
 Profiles before retry; this foundation does not add automatic cross-process
-preference synchronization, two-account acceptance or native package evidence.
+preference synchronization or native package evidence.
+
+BPR-0978 records the concurrent two-account course
+(`application_profile_two_account_isolation_public_path`): Default and a
+seeded Work profile run at once on one registry root, each signed in to the
+same fixture server as a different account (the fixture substitutes a
+distinct viewer id, node id and login for every non-Default profile when a
+course asks for `DistinctProfileAccounts`). The course reads the same pull
+request under both accounts, writes a reviewed-head receipt in each profile
+and checks the ledger rows directly under each private root and exact
+account, changes Work's appearance without moving Default's, and signs Work
+out while a Work refresh terminal is held: the release cannot revive Work's
+retired session, Default's vault slot, read lane, review and preferences are
+unchanged, and Default still refreshes afterwards. Replacing the ledger scope's
+account with a constant fails the course at the exact-account row, so the
+partition it checks is the product's, not the fixture's.

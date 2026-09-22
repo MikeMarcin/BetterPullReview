@@ -2741,6 +2741,18 @@ set_tests_properties(application_profile_multi_window_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "profile-multi-window-public-path:pass")
 
+# [[BPR-0978]]. Two concurrent profiles, two accounts on one fixture server.
+bpr_add_executable(test_profile_two_account_isolation_public_path profile_two_account_isolation_public_path_tests.cpp)
+target_link_libraries(test_profile_two_account_isolation_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+target_compile_definitions(test_profile_two_account_isolation_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_profile_two_account_isolation_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_profile_two_account_isolation_public_path)
+bpr_enable_warnings(test_profile_two_account_isolation_public_path)
+bpr_add_network_isolated_test(NAME application_profile_two_account_isolation_public_path WINDOWS_UNCONTAINED COMMAND test_profile_two_account_isolation_public_path)
+set_tests_properties(application_profile_two_account_isolation_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240
+    PASS_REGULAR_EXPRESSION "profile-two-account-isolation-public-path:pass")
+
 bpr_add_executable(test_profile_owner_admission_public_path profile_owner_admission_public_path_tests.cpp)
 if(UNIX)
     bpr_add_executable(test_profile_activation_public_path profile_activation_public_path_tests.cpp)

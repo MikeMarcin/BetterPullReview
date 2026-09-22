@@ -98,6 +98,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # make_storage_root_owner_private refusing the package temp root exactly as
     # the BPR-0806 profile rows do; both pass uncontained.
     "application_profile_multi_window_public_path": "dos-volume-name",
+    # [[BPR-0978]]. The same two-profile registry, private-root and fixture
+    # composition as the BPR-0806 profile rows above, so the same refusal;
+    # pinned by that shape, not yet measured contained on Windows.
+    "application_profile_two_account_isolation_public_path": "dos-volume-name",
     "application_setup_destination_public_path": "dos-volume-name",
     # BPR-0622: measured on JaegAW 2026-09-17. Contained, the canary course exits
     # 3 with no output at std::filesystem::canonical of its root argument, the

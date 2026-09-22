@@ -1181,6 +1181,7 @@ namespace bpr::app::detail {
 			// its start once it is consumed, so the product's re-read is
 			// served with the mutation overlay rather than refused.
 			bool                                        RepeatReads          = false;
+			bool                                        DistinctAccount      = false;
 			std::size_t                                 AccountReadCalls     = 0U;
 			std::size_t                                 SmartAcquireCalls    = 0U;
 			std::size_t                                 SmartAcquireRefusals = 0U;
@@ -1543,14 +1544,14 @@ namespace bpr::app::detail {
 					node.insert(QStringLiteral("viewerCanResolve"), !*overlay->second.Resolved);
 					node.insert(QStringLiteral("viewerCanUnresolve"), *overlay->second.Resolved);
 				}
-				auto       comments = node.value(QStringLiteral("comments")).toObject();
-				auto       posts    = comments.value(QStringLiteral("nodes")).toArray();
+				auto comments = node.value(QStringLiteral("comments")).toObject();
+				auto posts    = comments.value(QStringLiteral("nodes")).toArray();
 				if (!posts.isEmpty() && overlay->second.RootBody) {
 					auto rootPost = posts.first().toObject();
 					rootPost.insert(QStringLiteral("bodyText"), QString::fromStdString(*overlay->second.RootBody));
 					posts.replace(0, rootPost);
 				}
-				const auto rootId   = posts.isEmpty()
+				const auto rootId = posts.isEmpty()
 					? QString{ }
 					: posts.at(0).toObject().value(QStringLiteral("id")).toString();
 				for (const auto& [identifier, body] : overlay->second.Replies) {
@@ -1673,6 +1674,17 @@ namespace bpr::app::detail {
 					State->LastReadOperation = static_cast<int>(aRequest.Wire.Operation);
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+				// [[BPR-0978]]. A second profile's account is a different actor
+				// entirely: database id, node id and login all change together, so
+				// the recorded octo-reviewer records keep their own consistent
+				// identity beside the substituted viewer.
+				if (State->DistinctAccount && aRequest.Wire.Operation == read_operation::get_viewer_identity) {
+					auto identity = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					identity.insert(QStringLiteral("id"), static_cast<qint64>(State->Descriptor.AccountId.value()));
+					identity.insert(QStringLiteral("node_id"), QStringLiteral("U_fixture_other_profile_viewer"));
+					identity.insert(QStringLiteral("login"), QStringLiteral("other-profile-reviewer"));
+					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
+				}
 				if (aRequest.Wire.Operation == read_operation::list_review_threads
 					&& !State->ThreadOverlays.empty()) {
 					response->Body = overlay_review_threads(response->Body, State->ThreadOverlays);
@@ -3173,7 +3185,11 @@ namespace bpr::app::detail {
 					"GitHub public-path installed Git is unavailable"
 				};
 			}
-			auto served = descriptor(aFixture);
+			auto       served          = descriptor(aFixture);
+			const auto distinctAccount = aOptions.DistinctProfileAccounts && aOptions.Profile != core::default_bpr_profile_id;
+			if (distinctAccount) {
+				served.AccountId = core::github_account_id{ 1000U + aOptions.Profile.value() };
+			}
 			if (aOptions.ModifiedMissingEndpointCourse) {
 				if (aFixture != github_public_path_fixture::profile_window_restoration_v1
 					|| aOptions.EpochPhase != github_epoch_fixture_phase::single) {
@@ -3225,6 +3241,7 @@ namespace bpr::app::detail {
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
 			Recording->RepeatReads             = aOptions.RepeatReadSessions;
+			Recording->DistinctAccount         = distinctAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
