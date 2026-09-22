@@ -1,0 +1,182 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0013-hardening",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0013"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "default-cache-byte-pressure",
+      "outcome": "The selected Mac application exceeds its unchanged default 64 MiB immutable diff/index byte budget through real stored large-review selections, evicts the exact old key, rematerializes it on public revisit, and releases bounded owners on close.",
+      "work": [
+        {
+          "issue": "BPR-0635"
+        },
+        {
+          "issue": "BPR-0751"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-0635 records exact public refresh/epoch/file selection, default-byte eviction and weak ownership release before 64 entries, exact source and stale-result-safe revisit",
+        "The measured Mac workload records timing, input, native footprint, cache/jobs and close/drain/destruction evidence without claiming a universal platform budget",
+        "The relevant composed public path, integration-focused checks, documentation gate and diff checks pass; BPR-0635 is accepted on its own criteria",
+        "BPR-0751 attributes and bounds the existing 32-epoch public history projection pause without relaxing exact-data or timing limits"
+      ],
+      "boundary": "The current available Mac resource-budget slice after completed BPR-0612 Glaze migration; preserve previous entry, loaded-close and prune evidence and broader RFC obligations; include the separate BPR-0751 history projection preservation repair before BPR-0635 acceptance"
+    },
+    {
+      "id": "durable-agent-workspace-recovery",
+      "outcome": "Durable exact ownership reclaims interrupted disposable agent workspaces across actual process death on eligible native platforms without harming live or unowned roots.",
+      "work": [
+        {
+          "issue": "BPR-0622"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-0622 proves exact durable ownership, lifetime exclusion, bounded records, crash points, twice-repeated recovery, substitution/live-owner negatives and refusal for untrusted evidence",
+        "Eligible Windows and Linux native guard and composed recovery evidence are recorded; Mac-only evidence does not close platform-specific requirements"
+      ],
+      "boundary": "Platform-bound recovery capability; unavailable Windows/Linux evidence remains open"
+    },
+    {
+      "id": "retained-stress-pr-read",
+      "outcome": "The owner-retained stress pull request has a privacy-preserving diagnostic failure class and either reads correctly on the Mac public path or reports its explicit known limit.",
+      "work": [
+        {
+          "issue": "BPR-0643"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-0642 is Done and BPR-0643 records the diagnostic failure class for the exact owner-retained target",
+        "The Mac candidate opens the target read-only with correct file list and readable selected diff, or presents and records the explicit refusal reason; no live write occurs"
+      ],
+      "boundary": "Owner-retained target needs available signed read authority; no production mutation or repository content retention"
+    },
+    {
+      "id": "large-pr-returned-commit-boundary",
+      "outcome": "A read-only large pull request distinguishes its reported total commits from the at-most-250 commits available through the bounded pull-request endpoint, then reaches the next truthful product result without fabricating history.",
+      "work": [
+        {
+          "issue": "BPR-0792"
+        }
+      ],
+      "depends_on": [
+        "retained-stress-pr-read"
+      ],
+      "exit_criteria": [
+        "The reported total and returned commit records remain distinct; exact bounded records and accepted head are required, with malformed or over-cap pages refused atomically",
+        "Focused positive and negative parser checks, documentation gate, and an integration-focused selected path pass",
+        "The exact owner-retained target receives one read-only gh-authorized parsed attempt and a tests-disabled public product-path attempt where feasible; file list and selected diff or the next metadata-only refusal are recorded without live write or credential transfer"
+      ],
+      "boundary": "Separate RFC-0013 follow-up to terminal BPR-0643 under mandate r12; preserve the 250-record cap, existing authentication/session state, and all RFC closeout prerequisites"
+    },
+    {
+      "id": "review-thread-null-anchor-read",
+      "outcome": "The exact owner-retained pull request either renders a truthful file list and readable selected diff after bounded review-thread normalization or reports the next explicit metadata-only refusal without fabricating a line anchor.",
+      "work": [
+        {
+          "issue": "BPR-0793"
+        }
+      ],
+      "depends_on": [
+        "large-pr-returned-commit-boundary"
+      ],
+      "exit_criteria": [
+        "BPR-0793 attributes the review-thread refusal with a metadata-only read through the existing gh account and preserves all private response content outside repository artifacts",
+        "A thread with a nullable line anchor retains its exact LINE subject, ID, path, side, comments and unavailable-anchor presentation; malformed identities, pagination, limits and file-subject coordinates still refuse atomically",
+        "Focused parser/core/projection checks, one composed read-path check, documentation gate and selected integration verification pass",
+        "One tests-disabled Mac product-path read of EpicGames/UnrealEngine#1773 records a visible correct file list and readable selected diff or the next explicit metadata-only refusal; no live write or account change occurs"
+      ],
+      "boundary": "Separate RFC-0013 follow-up to terminal BPR-0643 and BPR-0792 under mandate r13; preserve the 250-record commit endpoint cap, existing auth/session boundary and all RFC closeout prerequisites"
+    },
+    {
+      "id": "selected-diff-exact-epoch-pair",
+      "outcome": "The owner-retained large pull request displays its correct file list and a readable selected diff through one exact accepted epoch pair, or retains the unresolved product refusal without inventing history or object residency. Every pull request also shows loading promptly; small reviews complete asynchronously while only large reviews qualify for on-demand objects. Owner-amended usable-review scope adds legible syntax/edit layering, persisted tab geometry, measured CLI setup, early safe Overview observations and semantically consistent file status colors. Further owner-observed r22 defects require neutral filenames with semantic details, non-actionable folder gestures and truthful selected endpoint material. The owner subsequently accepts this bounded milestone with the diagnosed unusual-target comparison-basis and partial-pane anomaly deferred to BPR-0944; no fix to that anomaly is inferred.",
+      "work": [
+        {
+          "issue": "BPR-0794"
+        },
+        {
+          "issue": "BPR-0795"
+        },
+        {
+          "issue": "BPR-0935"
+        },
+        {
+          "issue": "BPR-0936"
+        },
+        {
+          "issue": "BPR-0937"
+        },
+        {
+          "issue": "BPR-0938"
+        },
+        {
+          "issue": "BPR-0939"
+        },
+        {
+          "issue": "BPR-0941"
+        },
+        {
+          "issue": "BPR-0942"
+        },
+        {
+          "issue": "BPR-0943"
+        }
+      ],
+      "depends_on": [
+        "review-thread-null-anchor-read"
+      ],
+      "exit_criteria": [
+        "BPR-0794 attributes selected_file_stale and the absent exact epoch pair with metadata-only evidence and tests the failure through the public composition",
+        "The responsible transition or host mapping preserves exact authority, accepted anchor and Git-object checks, bounded history and stale-result rejection",
+        "Focused positive and negative checks, a composed public path, documentation gate and one integration-focused check pass",
+        "Owner-amended 2026-09-20: retain the observed real-target loading and independent signed tests-disabled safe production-path source/anchor proof; record and defer the UnrealEngine#1773 comparison-basis and partial-pane anomaly to BPR-0944 without claiming it fixed. No repeat target read or owner retest is required; no live write or account change occurs.",
+        "Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition",
+        "BPR-0935 directly verifies keep dark-mode syntax legible across intraline edit emphasis, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0936 directly verifies render source tabs at the selected persisted width, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0937 directly verifies measure and reduce redundant cli connection work safely, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0938 directly verifies show useful overview observations before complete pr loading, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0939 directly verifies match file drawer added and removed colors to overview, with exact candidate, regressions and rendered or measured public-path evidence",
+        "BPR-0941 keeps names neutral while operation markers and independent plus/minus counts use semantic colors, proven through rendered production composition across themes",
+        "BPR-0942 makes folders structurally non-actionable for file selection and preserves the current diff across mouse, keyboard, expansion and model rebuild gestures",
+        "BPR-0943 attributes the real modified-file empty-earlier observation and proves exact endpoint resolution or explicit unavailable state through a failing-before production-composed regression and safe native rendered evidence"
+      ],
+      "boundary": "Separate mandate r14 follow-up to terminal BPR-0643, BPR-0792 and BPR-0793; retain all RFC-0013 predecessor, native-platform, human and closeout obligations; mandate r16 adds BPR-0795 loading and size-qualified policy without replacing BPR-0794 exact-target acceptance; mandate r20 explicitly adds BPR-0935 through BPR-0939 after owner-observed r21 selected-diff success, preserving prior exact source/anchor obligations and keeping BPR-0934 folder collapse separate; mandate r21 adds BPR-0941..0943 after owner-observed signed r22 defects without rewriting Done-card acceptance or private-target obligations; mandate r22-owner-closeout-deferral explicitly supersedes only the remaining exact-target exit with recorded later investigation under BPR-0944, including available-right source and a left-pane missing-earlier explanation. Original RFC-wide acceptance and canonical predecessor gates are not waived."
+    },
+    {
+      "id": "verify-rfc-0013",
+      "outcome": "The owner-amended RFC-BPR-0013 terminal scope is verified against its immutable baseline, genuine unobserved acceptance remains in durable follow-ups, and RFC/card/index state closes truthfully after its canonical predecessors.",
+      "work": [
+        {
+          "issue": "BPR-0617"
+        },
+        {
+          "rfc": "RFC-BPR-0013"
+        }
+      ],
+      "depends_on": [
+        "default-cache-byte-pressure",
+        "durable-agent-workspace-recovery",
+        "retained-stress-pr-read",
+        "large-pr-returned-commit-boundary",
+        "review-thread-null-anchor-read",
+        "selected-diff-exact-epoch-pair"
+      ],
+      "exit_criteria": [
+        "Reconcile the legacy plan's pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
+        "Every amended RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; every original unsatisfied requirement retains a durable follow-up and is not marked passing",
+        "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate; known unrelated or explicitly transferred failures retain their exact evidence",
+        "BPR-0617 is Done and RFC-BPR-0013 and the canonical index are Auto-Verified after RFC-BPR-0008/0010/0012; owner amendment r4 changes only RFC0013 terminal acceptance and preserves all follow-up obligations"
+      ],
+      "boundary": "Final RFC closeout under owner amendment r4 on 2026-09-21. The first six milestones and their candidate-specific acceptance remain unchanged. Broader native performance, rendered backoff/offline, full parser fuzzing, pathological diagnostics, application-wide structural evidence and existing BPR-0817/0825/0940/0944/0945 work transfer to durable follow-ups. No missing observation is marked passed; no new native, human, independent or release acceptance and no other RFC engineering is authorized."
+    }
+  ],
+  "unplanned_work": []
+}

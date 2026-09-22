@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792","BPR-0793","BPR-0794","BPR-0795"]
 closeout_for: ["RFC-BPR-0013"]
@@ -11,7 +11,58 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — owner closeout amendment, 2026-09-20
+## Current frontier — owner amendment r4, 2026-09-21
+
+The coordinator assigns only this final RFC0013 milestone to
+`/root/rfc0013_owner_closeout` under mandate r4. Entry is
+`3efe61dfcf6874d35400bf777a7e86dbbf0a4693`, clean `main`.
+RFC0008–0012 and every explicit dependency are now Done/Auto-Verified.
+The [assignment](../../rfcs/plans/rfc-bpr-0013-hardening/mandate-owner-closeout-r4.md)
+explicitly supersedes the narrower r22 stopping boundary below.
+
+The original nine wider requirements remain recorded in the RFC and ledger.
+BPR-0967..0972 now retain native performance/current memory failures, rendered
+backoff, cached offline/restart, full fuzzing, pathological diagnostic privacy
+and broader structural evidence. BPR-0817/0825 keep their human decisions;
+BPR-0940/0944/0945 keep their layout/comparison/tidy work. Their RFC0013
+association is removed under r4; status and evidence are preserved, and BPR-0817
+retains RFC0033. The first six live-plan milestones are unchanged.
+
+Current verification is 3/5 public courses (two genuine memory failures),
+10/10 focused core/host/Qt/logging courses and 4/4 parser/provider courses.
+The memory failures repeat 2/2 at the unchanged 160 MiB sampled-growth limit,
+before close/prune. Historical memory successes keep their original candidate
+and Qt version; current host cache ceilings pass separately. The ordinary
+benchmark's raster shows Overview, while the unavailable raster correctly shows
+Read; BPR-0940 retains visible-source fixture reconciliation. No current full
+memory, native, fuzz, full-suite or human acceptance is inferred.
+
+The amended nine-row evidence and follow-up transfers are prepared for guarded
+completion. Final documentation/board checks and the exact final binding remain
+to be recorded before Done/Auto-Verified. No source, test, signed candidate,
+historical review packet, account or remote state changes.
+
+## Closeout checklist
+
+Current owner amendment r4, 2026-09-21. Every row below is the exact amended
+criterion. The producing product candidate is
+`3efe61dfcf6874d35400bf777a7e86dbbf0a4693` unless a historical revision is
+named. The [ledger](../../verification/RFC-BPR-0013.md) preserves the original
+wider matrix and all unproved scope; transferred requirements are not passes.
+
+| Criterion | Direct check / scope | Result and revision |
+|---|---|---|
+| Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623/0624/0631/0632 independently checked 515-file, 20,000-line, 1,000-thread, 32-epoch fixtures; current large-review benchmark. | Pass for bounded fixtures and exact source documents. Current benchmark 22.23 s; historical 32-epoch identities remain candidate-specific. |
+| The recorded macOS large-review paths demonstrate input, scrolling, navigation and cooperative measurement under their stated workloads; current public selection and unavailable-content recovery remain correct. | Current large-review, selected-file safety, unavailable-diff and held-loading courses; retained BPR-0627..0629/0751 measurements. | Pass for named behavior; 98.723 ms source and 32.004 ms rapid-selection maxima. Initial load 321.700 ms is not a universal 100 ms pass. BPR-0967 owns broader performance; BPR-0940 owns benchmark visible-page reconciliation. |
+| Default host cache ceilings and eviction remain enforced, and historical close/prune ownership evidence retains its exact candidate and sampled-memory limits; current memory-budget failures remain explicit follow-up work. | Current application_diff_host ceiling/eviction/cancellation tests; historical BPR-0630..0635 ownership and pressure evidence. | Pass for host bounds and truthful historical evidence. Current loaded-close/resources fail before cleanup at 160 MiB sampled-growth; BPR-0967 retains exact failures. No current native memory or cleanup pass. |
+| Primary and secondary rate-limit policy preserves bounded backoff, Retry-After, cancellation, identity and typed queue state through the existing provider, host and Qt contracts. | Current application_review_queue_refresh, qt_review_queue, github_paged_read and github_provider; RFC0010/BPR-0161 backoff evidence. | Pass for component policy/projection. BPR-0968 retains the unobserved complete rendered throttling course. |
+| Offline and recovery policy retains typed unavailable or stale state and rejects stale-session completions; complete cached-review offline/restart presentation remains explicit follow-up work. | Current queue refresh offline/recovery and stale-session rejection; retained Git/catalog history. | Pass for typed policy; BPR-0969 retains the unproved cached-review offline/restart and visible freshness behavior. |
+| Recorded process-kill courses recover Git cache, SQLite and exact owned agent workspaces without corruption or duplicate mutations, within their stated platform and candidate boundaries. | BPR-0616/0618/0619/0620/0621 recorded kill/restart/integrity/no-replay; BPR-0622 native ownership evidence. | Pass for recorded exact courses: Windows c94e02b1/2ba02ddb, Linux 780d0a1c/48b6422b, Mac 8a03a5be. Current publication replay remains in RFC0008 r4 evidence; no new full native kill matrix. |
+| Custom parser and mapping boundaries retain deterministic malformed-input and property regression evidence; complete fuzz targets and corpora remain inventoried as explicit follow-up work. | Current core_diff_compute/core_diff_semantics/core_theme_exchange, github_paged_read/provider and application_agent_finding_protocol; original parser/property inventory. | Pass for deterministic regression evidence and explicit inventory. Complete fuzz target/corpus requirement remains wholly open on BPR-0970. |
+| The existing composed logging and backpressure courses preserve metadata-only diagnostics under their tested error conditions. | Current application_logging, quill_logging and quill_logging_backpressure; historical BPR-0602/0606. | Pass for existing composed/error/backpressure checks. BPR-0971 retains the full pathological privacy audit. |
+| The recorded core, host and Qt paths demonstrate bounded scaling, serialized completion, incremental updates, cancellation and stale-result rejection without claiming application-wide coverage. | Current epoch/diff hosts, held loading and selected-file safety; retained scale/history/index evidence. | Pass for named paths only. BPR-0972 retains wider structural/active-work evidence, BPR-0940 retains non-green layout/composition, BPR-0945 strict tidy. |
+
+## Historical frontier — owner closeout amendment, 2026-09-20
 
 The owner explicitly deferred the unusual UnrealEngine#1773 comparison-basis
 and partial-pane anomaly to later investigation. BPR-0944 now owns preserving
@@ -1009,7 +1060,7 @@ BPR-0621 (composed AI-session state recovery, Done), and BPR-0622 (durable
 workspace reclamation, open). Allocate later slices after inspecting retained product coverage; do not introduce a parallel
 performance subsystem or fabricate timing budgets before measurement.
 
-## Closeout checklist
+## Historical r22 closeout matrix
 
 Current reconciliation, 2026-09-20. The [RFC-wide ledger](../../verification/RFC-BPR-0013.md)
 records exact evidence, amendments and remaining boundaries. Original gaps are

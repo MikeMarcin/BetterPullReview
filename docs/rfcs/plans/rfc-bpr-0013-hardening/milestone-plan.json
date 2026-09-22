@@ -152,7 +152,7 @@
     },
     {
       "id": "verify-rfc-0013",
-      "outcome": "All original RFC-BPR-0013 acceptance rows and architectural hardening stages have direct evidence against the immutable baseline and the RFC/card/index state is truthful under canonical order.",
+      "outcome": "The owner-amended RFC-BPR-0013 terminal scope is verified against its immutable baseline, genuine unobserved acceptance remains in durable follow-ups, and RFC/card/index state closes truthfully after its canonical predecessors.",
       "work": [
         {
           "issue": "BPR-0617"
@@ -170,12 +170,12 @@
         "selected-diff-exact-epoch-pair"
       ],
       "exit_criteria": [
-        "Reconcile the legacy plan’s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
-        "Every RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; no deferred criterion is marked passing",
-        "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate",
-        "BPR-0617, RFC-BPR-0013 and the canonical index agree; earlier Proposed RFC-BPR-0008/0010/0012 prevent Auto-Verified and Done until their own prerequisites close"
+        "Reconcile the legacy plan's pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
+        "Every amended RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; every original unsatisfied requirement retains a durable follow-up and is not marked passing",
+        "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate; known unrelated or explicitly transferred failures retain their exact evidence",
+        "BPR-0617 is Done and RFC-BPR-0013 and the canonical index are Auto-Verified after RFC-BPR-0008/0010/0012; owner amendment r4 changes only RFC0013 terminal acceptance and preserves all follow-up obligations"
       ],
-      "boundary": "Final RFC closeout only; preserves earlier live/human and cross-platform gates without authorizing other RFC engineering"
+      "boundary": "Final RFC closeout under owner amendment r4 on 2026-09-21. The first six milestones and their candidate-specific acceptance remain unchanged. Broader native performance, rendered backoff/offline, full parser fuzzing, pathological diagnostics, application-wide structural evidence and existing BPR-0817/0825/0940/0944/0945 work transfer to durable follow-ups. No missing observation is marked passed; no new native, human, independent or release acceptance and no other RFC engineering is authorized."
     }
   ],
   "unplanned_work": []

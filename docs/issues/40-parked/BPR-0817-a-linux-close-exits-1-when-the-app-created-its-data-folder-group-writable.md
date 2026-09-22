@@ -3,16 +3,28 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0817"
 title: "A Linux close exits 1 when the app created its data folder group-writable"
 status: "Parked"
-rfcs: ["RFC-BPR-0013", "RFC-BPR-0033"]
+rfcs: ["RFC-BPR-0033"]
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
-metadata: {"found_by":"bpr-linux during BPR-0799","found_at":"17f495fea40f6985c0d2f6b0430c7a71062f8085","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+metadata: {"found_by":"bpr-linux during BPR-0799","found_at":"17f495fea40f6985c0d2f6b0430c7a71062f8085","run":"run-20260916-stations","dispatch":"dsp-001-r2","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
 parked_on: "human-review"
 acceptance: [{"criterion":"On the Linux station under umask 0002, a fresh data root is created owner-only, and closing the last window exits 0 with the neighbourhood created","outcome":"pass","revision":"1c6eaf21","evidence":{"kind":"observation","detail":"Native WSLg course on the tests-disabled image sha256 9b9ef069…f4a with umask 0002 and a fresh XDG root: the data root's parent and the root are 0700, and the neighbourhood is created 0700. Caption close, caption close, File > Quit and caption close all exit 0, with no chooser seen. Umask 0022 also exits 0 twice. On the pre-fix image the same course exits 1 and leaves the parent 0775. application_profile_startup_public_path asserts the same for a fresh nested install under umask 0002. Logs: task-20260917-lnx-build/native/course-candidate2-*.json and focused-0817.ctest.log."}},{"criterion":"With a pre-existing 775 parent, the refusal is visible to the person, and the exit code follows the recorded decision","outcome":"pending","revision":"1c6eaf21","evidence":{"kind":"freeform","detail":"Owner decision needed; RFC-BPR-0013, -0033 and -0024 do not decide it. With a pre-existing 0775 parent the refusal holds and nothing is repaired (agent_workspace_ownership, native), and the close still exits 1 because exit semantics were not changed. The refusal appears only in the agent panel, which an AT-SPI walk shows is not showing at Home, and the diagnostics log records no failure. Q1: should a refused agent workspace recovery still turn an otherwise orderly quit into exit 1, or should the quit exit 0 with the refusal reported only in the application? Q2: is the agent panel message enough, or must the refusal also be visible at Home, for example in the window status bar, as RFC-BPR-0033 reports failed profile operations?"}},{"criterion":"application_profile_management_public_path passes under the stock /tmp on Linux, and still passes on macOS","outcome":"pass","revision":"1c6eaf21 (Linux); 99712ec3 and 143509c3 (macOS)","evidence":{"kind":"command","detail":"Reconciled the existing macOS evidence already recorded in this card body (99712ec3, 3.59s) with the unchanged-source 2026-09-20 closeout rerun: application_profile_management_public_path passes 3.77s in build/rfc0013-resume-20260919/r24-closeout-focused.log. Linux stock-/tmp course remains passing at 1c6eaf21. Only the existing-writable-parent visibility/exit-policy decision remains pending; no owner answer is inferred."}}]
 ---
 
 # BPR-0817: A Linux close exits 1 when the app created its data folder group-writable
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this remaining work out of RFC-BPR-0013 terminal
+acceptance. This card keeps its ID, path, status, dependencies and all historical
+evidence; only the RFC0013 association is removed. The RFC0033 association is retained. The
+[amended RFC](../../rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
+retain its origin and continuation.
+
+Pending: Linux pre-existing-parent visibility and orderly-exit policy; fresh-root and native acceptance already recorded remain intact.
+No owner decision, native observation or repair is supplied by this transfer.
 
 ## Defect
 

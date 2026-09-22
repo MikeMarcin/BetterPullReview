@@ -3,15 +3,27 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0825"
 title: "Harden the Windows workspace supervisor and recovery after BPR-0622's critical review"
 status: "Parked"
-rfcs: ["RFC-BPR-0013"]
+rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
-metadata: {"found_by":"dsp-002 rfc-reviewer-critical of windows-lane 743c59d7..c94e02b1 (no blocking findings)","found_at":"2ba02ddbe59bf6e07302cbb7460f61cc9cad2627","run":"run-20260916-stations","dispatch":"dsp-002"}
+metadata: {"found_by":"dsp-002 rfc-reviewer-critical of windows-lane 743c59d7..c94e02b1 (no blocking findings)","found_at":"2ba02ddbe59bf6e07302cbb7460f61cc9cad2627","run":"run-20260916-stations","dispatch":"dsp-002","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
 parked_on: "human-review"
 ---
 
 # BPR-0825: Harden the Windows workspace supervisor and recovery after BPR-0622's critical review
+
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this remaining work out of RFC-BPR-0013 terminal
+acceptance. This card keeps its ID, path, status, dependencies and all historical
+evidence; only the RFC0013 association is removed. The
+[amended RFC](../../rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
+retain its origin and continuation.
+
+Pending: Windows owner-private descriptor ownership; prior supervisor, ACE and junction repairs and their native evidence remain intact.
+No owner decision, native observation or repair is supplied by this transfer.
 
 ## Origin
 

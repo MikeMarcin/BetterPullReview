@@ -1,0 +1,52 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-0967"
+title: "Measure and reconcile native large-review resource budgets"
+status: "Backlog"
+rfcs: []
+depends_on: []
+priority: "P1"
+metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693"}
+---
+
+# Measure and reconcile native large-review resource budgets
+
+## Transferred obligation
+
+Original RFC0013 performance-budget paragraph and acceptance rows 2–3, including full active-work responsiveness and sampled/peak memory on declared target hardware.
+
+Owner amendment r4 on 2026-09-21 transfers this work from RFC0013 terminal
+acceptance. The [amended RFC](../../rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
+retain its provenance. This card is unfinished; no observation is supplied by
+the transfer and it creates no RFC0014 release qualification.
+
+The historical macOS Qt 6.10.3 courses passed provisional 100 ms input and 160/96 MiB sampled growth/cleanup budgets at their recorded candidates. The r4 closeout at source 3efe61dfcf6874d35400bf777a7e86dbbf0a4693, Debug Qt 6.11.2 arm64, freshly runs the current public benchmark successfully, but both application_large_review_loaded_close and application_large_review_resources fail at the unchanged 167,772,160-byte growth bound before close/prune. The first loaded-close sample is 197,149,656 bytes versus 4,932,232 baseline (192,217,424 bytes growth). The cause is unproved; a changed Qt version is context, not attribution. Later cleanup assertions were not reached. No threshold was changed or failed run called passing. The fixed-path repeat is retained in build/rfc0013-owner-closeout/memory-recheck.log; the RFC ledger records its result.
+
+## Acceptance
+
+The unchanged repeat fails 2/2 in 26.69 seconds. Loaded-close growth is
+192,217,376 bytes (197,231,528 minus 5,014,152); resources growth is
+191,136,128 bytes (196,133,872 minus 4,997,744). Each cache is one entry at
+3,517,688 bytes with no diff/epoch job at that sample, so the complete process
+footprint is distinct from the bounded diff cache. No source attribution or
+leak diagnosis follows from these counters. The repeat log SHA-256 is
+`a6634710efb5129ff8b262a11b7b040b9bdb4dee3dbe387d9bebd5a148f8f3ee`.
+
+The passing ordinary benchmark records a 321.700 ms initial metadata/load
+timer gap, 98.723 ms large-source and 32.004 ms rapid-selection maxima. Its
+pass is not a blanket 100 ms responsiveness observation for every phase.
+The large-review render currently shows Overview while its source-document
+assertions are exact; BPR-0940 owns that fixture/presentation reconciliation.
+
+- AC1: Attribute the current Mac growth failure with exact artifact, hardware, toolkit and representative workload evidence; distinguish retained live owners, transient peaks, allocator retention and leak evidence before changing policy or thresholds.
+- AC2: Preserve existing cache ceilings, exact source/anchors, eviction/revisit, close/prune ownership and timing assertions. A repair needs a failing-before control and the complete affected public courses; a budget change requires measured justification and an explicit documented amendment.
+- AC3: Establish justified target-specific launch, metadata, first-render, navigation, drawers, theme/fallback, active-work input/cancellation and memory/cache budgets on actual eligible Windows/Linux/macOS hardware. Report unsampled peaks and unavailable platforms explicitly.
+
+## Continuation
+
+Start with the inventory or diagnosis above on a separately assigned exact
+candidate. Reuse relevant passing evidence with its actual input limits.
+Use safe fixtures; no live account, private-target access, remote mutation or
+release is authorized by this card. Required native or human evidence remains
+pending until actually observed.
