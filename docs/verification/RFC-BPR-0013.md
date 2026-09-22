@@ -152,8 +152,12 @@ interleaved feature. Entry-to-terminal source/tests/CMake/package and historical
 review/source-plan paths are byte-unchanged. The current documentation diff was
 self-reviewed against the mandate and each original acceptance row.
 
-The final checkpoint and handoff beside the live plan bind the terminal revision
-and command quiescence. The coordinator may assign a
+The final
+[checkpoint](../rfcs/plans/rfc-bpr-0013-hardening/checkpoint-owner-closeout-r4.json)
+and [handoff](../rfcs/plans/rfc-bpr-0013-hardening/handoff-owner-closeout-r4.json)
+bind terminal revision `a94a6cca2eb9b10618dc111eb540a28cf0d30dff` and command
+quiescence. The checkpoint check returns `stop` at this assigned integrated
+boundary; it does not evaluate engineering truth. The coordinator may assign a
 fresh RFC0014 owner: the predecessor gate is clear, but BPR-0965 still has five
 unfinished dependencies BPR-0958–0962. Its native and security requirements were
 not amended by this task.

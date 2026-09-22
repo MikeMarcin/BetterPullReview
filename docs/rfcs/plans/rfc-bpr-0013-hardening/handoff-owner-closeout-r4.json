@@ -1,0 +1,262 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Close only RFC-BPR-0013/BPR-0617 on clean main under owner amendment r4, preserving implemented outcomes and truthful evidence, explicitly transferring genuine unfinished acceptance to durable follow-ups and reporting RFC0014 eligibility.",
+  "child": "/root/rfc0013_owner_closeout",
+  "mandate_revision": "r4",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0013-owner-closeout-r4",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "entry_revision": "3efe61dfcf6874d35400bf777a7e86dbbf0a4693",
+  "rfc_base_sha": "d4d9e61d9224ef869ca4de9725c2bf52c5df701a",
+  "product_test_candidate_revision": "3efe61dfcf6874d35400bf777a7e86dbbf0a4693",
+  "terminal_scope_revision": "a94a6cca2eb9b10618dc111eb540a28cf0d30dff",
+  "card_closeout_revision": "71d6a1109926de25b363550d04ed9fb505b99e14",
+  "milestone": "verify-rfc-0013",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-owner-closeout-r4.json",
+  "mandate": "docs/rfcs/plans/rfc-bpr-0013-hardening/mandate-owner-closeout-r4.md",
+  "prior_rfc_handoff": "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-rfc0013-closeout-d7-r22.json",
+  "prior_canonical_handoff": "docs/rfcs/plans/rfc-bpr-0012-owner-closeout/handoff-r4.json",
+  "result": {
+    "disposition": "milestone-complete",
+    "rfc_status": "Auto-Verified",
+    "card": "BPR-0617",
+    "card_status": "Done",
+    "selected_count": 90,
+    "done_count": 90,
+    "interpretation": "Nine explicitly amended bounded criteria accepted. First six milestone definitions/exits unchanged. Original nine wider criteria retained in RFC and historical ledger with all unproved scope transferred; current memory failures are not passing. No product/test/threshold or signed candidate change."
+  },
+  "commits": [
+    {
+      "revision": "9991ebf64ed5b72d7e625a884424f868577ab80b",
+      "purpose": "Owner r4 terminal amendment, original requirements retained, six follow-up IDs/counter/receipt, existing five cards transferred, live plan/reviewed evidence and Ready promotion"
+    },
+    {
+      "revision": "1a039572f50203e18f16aa11a0483ab0287d6aa8",
+      "purpose": "Guarded BPR0617 claim"
+    },
+    {
+      "revision": "71d6a1109926de25b363550d04ed9fb505b99e14",
+      "purpose": "Guarded BPR0617 Done with nine exact amended acceptance records"
+    },
+    {
+      "revision": "a94a6cca2eb9b10618dc111eb540a28cf0d30dff",
+      "purpose": "RFC/index/README/ledger Auto-Verified reconciliation; following documentation-only commit records this handoff"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "sha256": "a0f9c85cd58e4c9d486ae39c554b16f30f4bb73e867ebfbb6c17ad21ca775d90"
+    },
+    {
+      "path": "build/dev/tests/end_to_end/better_pull_review_large_review",
+      "sha256": "5af04df6d21e5ce3b79e935d3e73c34f30dcdd7522adc2f35070c970e05f2ec1"
+    }
+  ],
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review bench_better_pull_review_large_review test_setup_destination_public_path test_application_logging",
+      "result": "Pass, no work to do. Initial guessed test_selected_file_safety_public_path target refused before building; corrected to registered target."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^(application_selected_file_safety_public_path|application_large_review_benchmark|application_unavailable_diff_public_path|application_large_review_loaded_close|application_large_review_resources)$'",
+      "result": "3/5 pass, 86.50 s. Large review 22.23 s; unavailable 15.50 s; selected-file safety 22.87 s. Both memory courses fail unchanged 160 MiB sampled growth before close/prune; not ignored or counted passed."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --output-log /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0013-owner-closeout/focused.log --no-tests=error -R '^(application_epoch_host|application_diff_host|application_review_queue_refresh|qt_review_queue|qt_composed_loading_scale_100|application_logging|quill_logging|quill_logging_backpressure|core_diff_semantics|core_theme_exchange)$'",
+      "result": "10/10 pass, 7.28 s."
+    },
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_diff_compute_core_tests test_better_pull_review_theme_exchange_core_tests test_better_pull_review_agent_finding_protocol_tests test_better_pull_review_github_paged_read_tests test_better_pull_review_github_provider_tests",
+      "result": "Pass, no work to do."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --output-log /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0013-owner-closeout/parsers.log --no-tests=error -R '^(core_diff_compute|application_agent_finding_protocol|github_paged_read|github_provider)$'",
+      "result": "4/4 pass, 15.10 s. Deterministic regressions, not complete fuzz acceptance."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure --output-log /Users/jaeger/Documents/GitHub/BetterPullReview/build/rfc0013-owner-closeout/memory-recheck.log --no-tests=error -R '^application_large_review_(loaded_close|resources)$'",
+      "result": "2/2 fail again, 26.69 s. Loaded-close growth 192217376 bytes; resources 191136128 versus 167772160-byte limit. Both one-entry diff caches 3517688 bytes. Later cleanup assertions not reached; no root cause or leak diagnosis. BPR0967 owns actual failure.",
+      "log_sha256": "a6634710efb5129ff8b262a11b7b040b9bdb4dee3dbe387d9bebd5a148f8f3ee"
+    },
+    {
+      "command": "Direct view_image inspection of current large-review-window.png and unavailable-diff-window.png",
+      "result": "Ordinary successful benchmark renders Overview with exact hidden source documents, not a visible diff. BPR0940 retains current-entry-path/visible-page reconciliation. Unavailable render shows Read, cleared panes and explicit work-limit message. No current source-pixel or full layout acceptance inferred."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py",
+      "result": "DOCUMENTATION_OK at amendment, card completion and terminal scope; 64/64 behavior regressions pass (1.644 s). Expected negative-fixture diagnostics retained. Temporary dangling links during handoff preparation corrected before commit; no verifier changed."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0013 and explicit eleven follow-ups; queue RFC0013; queue RFC0014; milestone_plan.py check; git diff --check",
+      "result": "964-card inventory valid, zero errors; RFC0013 90/90 Done; RFC0014 16/22 Done with five BPR0965 dependencies. Plan structure/references and diff pass."
+    },
+    {
+      "command": "git diff --quiet entry -- src tests cmake packaging docs/verification/reviews docs/rfcs/plans/RFC-BPR-0013-issue-plan.md; baseline-to-entry scope inventory and current documentation self-review",
+      "result": "No product/test/build/package/historical-review/original-source-plan changes. Baseline spans 1047 source/test files with interleaved RFC work, not a claim of new full-repository review. Earlier exact-candidate proof retained; no unchanged-source reuse of old Qt6.10.3 memory successes as current Qt6.11.2 passes."
+    },
+    {
+      "command": "milestone_checkpoint.py check on current amended binding, accepted six predecessors and quiescent observation",
+      "result": "Pass at terminal a94a6cca2eb9b10618dc111eb540a28cf0d30dff: action stop at the assigned integrated boundary. Engineering acceptance is not-evaluated by the helper; the implementer owns the nine amended evidence judgments."
+    }
+  ],
+  "deferred_followups": [
+    {
+      "id": "BPR-0967",
+      "path": "docs/issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+      "status": "Backlog",
+      "association": "standalone, rfcs []",
+      "pending": "Original RFC0013 performance-budget paragraph and acceptance rows 2–3, including full active-work responsiveness and sampled/peak memory on declared target hardware."
+    },
+    {
+      "id": "BPR-0968",
+      "path": "docs/issues/10-backlog/BPR-0968-verify-rendered-primary-and-secondary-rate-limit-recovery.md",
+      "status": "Backlog",
+      "association": "standalone, rfcs []",
+      "pending": "Original RFC0013 acceptance row 4's full rendered backoff course."
+    },
+    {
+      "id": "BPR-0969",
+      "path": "docs/issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md",
+      "status": "Backlog",
+      "association": "standalone, rfcs []",
+      "pending": "Original RFC0013 acceptance row 5's composed cached-data offline/restart and visible freshness labels."
+    },
+    {
+      "id": "BPR-0970",
+      "path": "docs/issues/10-backlog/BPR-0970-cover-custom-parser-and-mapping-boundaries-with-fuzzing.md",
+      "status": "Backlog",
+      "association": "standalone, rfcs []",
+      "pending": "Original RFC0013 fuzzing goal and acceptance row 7, transferred in full."
+    },
+    {
+      "id": "BPR-0971",
+      "path": "docs/issues/10-backlog/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md",
+      "status": "Backlog",
+      "association": "standalone, rfcs []",
+      "pending": "Original RFC0013 acceptance row 8's full large/error/pathological workload inventory."
+    },
+    {
+      "id": "BPR-0972",
+      "path": "docs/issues/10-backlog/BPR-0972-verify-application-wide-active-set-and-changed-set-scaling.md",
+      "status": "Backlog",
+      "association": "standalone, rfcs []",
+      "pending": "Original RFC0013 architecture-instrumentation acceptance row 9 beyond recorded bounded paths."
+    },
+    {
+      "id": "BPR-0817",
+      "path": "docs/issues/40-parked/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md",
+      "status": "Parked",
+      "association": "RFC0033 retained; RFC0013 removed",
+      "pending": "Pre-existing writable-parent visibility and orderly-exit policy. Existing native observations and acceptance records untouched."
+    },
+    {
+      "id": "BPR-0825",
+      "path": "docs/issues/40-parked/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md",
+      "status": "Parked",
+      "association": "standalone",
+      "pending": "Shared Windows private-descriptor ownership. Existing native supervisor/ACE/junction evidence intact."
+    },
+    {
+      "id": "BPR-0940",
+      "path": "docs/issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md",
+      "status": "Backlog",
+      "association": "standalone",
+      "pending": "Composed GitHub/window-layout contract failures plus current large benchmark Overview render."
+    },
+    {
+      "id": "BPR-0944",
+      "path": "docs/issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md",
+      "status": "Backlog",
+      "association": "standalone",
+      "pending": "Whole PR basis, readable partial pane and missing-earlier explanation. Prior owner stop-target-investigation instruction retained."
+    },
+    {
+      "id": "BPR-0945",
+      "path": "docs/issues/10-backlog/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md",
+      "status": "Backlog",
+      "association": "standalone",
+      "pending": "Unchanged strict-tidy header diagnostics."
+    }
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": "No new required human decision within amended terminal scope. Transferred BPR0817 and BPR0825 questions remain unanswered; no source-loading retest requested. Current RFC0014 decisions are owned separately.",
+    "protected_candidates": "All historical docs/verification/reviews bytes, original source-plan bytes and prior signed candidates preserved. No attended state API or server used. Coordinator's prior M9 handoff records session cbd48b91000b00f1e72e1ad62c7c384c at 478 with eight protections; that is prior evidence, not a fresh session-status query."
+  },
+  "ownership": {
+    "repository_writer": "/root/rfc0013_owner_closeout exclusively until final return, then released",
+    "other_agents_spawned": [],
+    "writer_inventory": "Only coordinator and this leaf active; previous owners complete or errored before work. All pre-existing registered worktrees preserved.",
+    "task_commands": "All builds/tests/claim/finish commands collected. Final process inventory shows no test/build/app/review-server process owned by this task.",
+    "sessions_collected": [
+      67521,
+      80385,
+      10269,
+      92039,
+      13168,
+      54443
+    ],
+    "review_server": null,
+    "live_operations": [],
+    "cleanup": "No temporary source checkout/archive, injection or server created. Retained ordinary ignored logs, acceptance/observation and benchmark outputs; no material deletion."
+  },
+  "continuation": {
+    "next_scope": "RFC-BPR-0014 only after coordinator assignment to fresh owner",
+    "canonical_prerequisites": "All RFC0014 predecessors now Auto-Verified; BPR0617 Done",
+    "rfc0014_status": "Proposed",
+    "selected_count": 22,
+    "done_count": 16,
+    "closeout": "BPR0965 Backlog; not promoted or claimed",
+    "unfinished_dependencies": [
+      "BPR-0958 clean macOS account/vault",
+      "BPR-0959 native Intel environment",
+      "BPR-0960 clean Windows desktop/vault",
+      "BPR-0961 declared Linux baselines",
+      "BPR-0962 release security inputs"
+    ],
+    "detail": "RFC0013 closure clears canonical ordering only. Existing RFC0014 native/security and M9 decisions require their own acceptance or separately authorized amendment."
+  },
+  "uncertainties": [
+    "Current memory failures remain real; cause unproved. Full application resource cleanup was not reached in those courses.",
+    "Current large benchmark's successful render is Overview, not visible source; separate correct unavailable Read state does not supply source-pixel acceptance.",
+    "No new full fuzz/native-platform/full-suite/strict-tidy/independent/human/package/release acceptance is supplied.",
+    "Preservation-only amendment helper correctly refuses changed exits; explicit owner r4 supplies requirement-change authority. Proposal needed separate directory because sibling generated-view validation applies to any plan input. Configured route host_load remains not_verified."
+  ],
+  "changed_paths": [
+    "docs/issues/10-backlog/BPR-0617-close-rfc-0013.md",
+    "docs/issues/40-parked/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md",
+    "docs/issues/40-parked/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md",
+    "docs/issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md",
+    "docs/issues/10-backlog/BPR-0944-decide-whole-pr-comparison-basis.md",
+    "docs/issues/10-backlog/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md",
+    "docs/issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+    "docs/issues/10-backlog/BPR-0968-verify-rendered-primary-and-secondary-rate-limit-recovery.md",
+    "docs/issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md",
+    "docs/issues/10-backlog/BPR-0970-cover-custom-parser-and-mapping-boundaries-with-fuzzing.md",
+    "docs/issues/10-backlog/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md",
+    "docs/issues/10-backlog/BPR-0972-verify-application-wide-active-set-and-changed-set-scaling.md",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-0967--BPR-0972--a833ed522283.json",
+    "docs/rfcs/RFC-BPR-0013-performance-resilience-resource-limits.md",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/MILESTONES.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/owner-closeout-r4/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/execution-selection-owner-closeout-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/mandate-owner-closeout-r4.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-owner-closeout-r4-entry.json",
+    "docs/issues/60-done/BPR-0617-close-rfc-0013.md",
+    "README.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/checkpoint-owner-closeout-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0013-hardening/handoff-owner-closeout-r4.json"
+  ]
+}
