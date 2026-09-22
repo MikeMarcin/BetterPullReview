@@ -13,6 +13,7 @@
   "rfc_base_sha": "7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a",
   "verified_candidate_revision": "fc38d1ce1df4d625731fee10d0ea77b2156ad47c",
   "card_closeout_revision": "4989f781f77902bfac98254cee9874cbd00b386e",
+  "terminal_scope_revision": "2be29d35e10e0c692028c8500e506389ff24edcd",
   "product_source_revision": "2a64e901",
   "milestone": "owner-amended-closeout",
   "checkpoint": "docs/rfcs/plans/rfc-bpr-0008-owner-closeout/checkpoint-r4.json",
@@ -45,6 +46,10 @@
     {
       "revision": "4989f781",
       "purpose": "Guarded BPR-0242 completion to Done with ten passing amended criteria"
+    },
+    {
+      "revision": "2be29d35",
+      "purpose": "Commit Auto-Verified RFC/index/README/ledger reconciliation; following handoff-only commit records this exact terminal candidate"
     }
   ],
   "verification": [
@@ -79,6 +84,10 @@
     {
       "command": "git diff --check",
       "result": "Pass."
+    },
+    {
+      "command": "milestone_checkpoint.py check --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --checkpoint docs/rfcs/plans/rfc-bpr-0008-owner-closeout/checkpoint-r4.json --observation build/rfc0008-owner-closeout/observation.json --execution quiescent --json",
+      "result": "At terminal_scope_revision: action stop, valid unchanged plan/obligation binding, engineering_acceptance not-evaluated (acceptance remains the implementer's evidence-backed judgment). The final handoff-only revision is rechecked before returning."
     }
   ],
   "deferred_followups": [
