@@ -1,0 +1,37 @@
+{
+  "state": "prepared",
+  "origin": "absent",
+  "source_evidence": null,
+  "plan": {
+    "schema": "implement-rfc.milestone-plan.v1",
+    "id": "rfc-bpr-0011-owner-closeout",
+    "scope": {
+      "rfcs": [
+        "RFC-BPR-0011"
+      ]
+    },
+    "coverage": "complete",
+    "milestones": [
+      {
+        "id": "owner-amended-closeout",
+        "outcome": "Close RFC-BPR-0011's implemented explicit agent invocation, exact context, isolated workspace and process lifecycle under owner amendment r4, preserving the scope of historical native evidence and every unobserved follow-up.",
+        "work": [
+          {
+            "rfc": "RFC-BPR-0011"
+          }
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "The live RFC, BPR-0245 and verification ledger record the immutable RFC baseline, r4 acceptance amendment and exact candidate evidence without changing implemented product semantics.",
+          "Focused current core, host, process, panel and public-composition checks pass; historical Windows observations and BPR-0332's actual owner decision retain their exact scope, and unobserved installed-agent, native-package and disclosure judgments remain explicit.",
+          "The final diff is reviewed against the RFC baseline, all selected criteria are accounted for, documentation and board gates pass, and BPR-0245 is Done with RFC/index Auto-Verified after RFC-BPR-0010.",
+          "A durable checkpoint and handoff record revisions, changed paths, commands, verification, protected candidates, pending obligations, command quiescence and RFC-BPR-0012 eligibility."
+        ],
+        "boundary": "Only RFC-BPR-0011 closeout on main in /Users/jaeger/Documents/GitHub/BetterPullReview; exclusive non-delegating engineering owner /root/rfc0011_owner_closeout_retry under mandate r4. Preserve original pack source, historical Done cards, existing review candidates and unrelated changes. No live agent, GitHub operation, credential, message to another person, push, release or later-RFC engineering."
+      }
+    ],
+    "unplanned_work": []
+  },
+  "semantic_coverage": "unknown",
+  "next": "engineer reconciles intent, retains this receipt, adopts and implements"
+}

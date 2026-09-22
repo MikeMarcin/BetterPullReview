@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "M5 Explicit AI Assistance"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0007"]
 pack_version: 2
+metadata: {"milestone_plan":{"id":"rfc-bpr-0011-owner-closeout","path":"docs/rfcs/plans/rfc-bpr-0011-owner-closeout/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0011: AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements
