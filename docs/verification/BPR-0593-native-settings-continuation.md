@@ -38,7 +38,7 @@ and Qt 6.11.2. Native observers are external to the tests-disabled application.
 |---|---|---|
 | macOS arm64 `app-release`, Release/tests OFF | `cff115f8c987c7a94f89667b59cd69b46ad833cd5500cfb06f8710cf13bedeb7` | All 11 native Preferences/Command-comma/modeless/singleton/sibling/close/reopen/category/Quit observations pass; process exit 0; strict deep signature verification passes. This is a locally signed app bundle, not notarized/universal release qualification. |
 | Windows x64 MSVC 19.51, Release/tests OFF/distribution ON, staged runtime closure | `341e25b20111f48b7882d8c0a288de477cbcfd41eefc24b3bbbf861f1281e768` | Menu/Ctrl-comma/modeless/Escape/reopen prefix completed, then the course stopped at a missing Profiles menu. The following launch found no executable. No full course or inventory pass. Digest is from the already-generated SPDX file, not a post-quarantine executable read. |
-| Linux x64 GCC 15.2, Release/tests OFF, native WSLg XCB | `8234abccb4141bbf52c91c568b25917abd2e3125f46f14e1a0073ee285b7a51e` | Separate inventory-only course passes: native View/Settings, all seven showing pages, native Settings/workbench close, process exit 0. Full keyboard/modeless/sibling course fails at native focus. This is a native release build, not a qualified distribution package. |
+| Linux x64 GCC 15.2, Release/tests OFF, native WSLg XCB | `8234abccb4141bbf52c91c568b25917abd2e3125f46f14e1a0073ee285b7a51e` | Separate inventory-only course passes: native View/Settings, all seven showing pages, native Settings/workbench close, process exit 0. This supplies the same tests-OFF release-graph inventory scope previously accepted on BPR-0731. Full keyboard/modeless/sibling course fails at native focus; no distribution qualification is claimed. |
 
 Captures are immutable observations for these candidates:
 
@@ -97,6 +97,10 @@ type error with libstdc++ 15. GCC 15.2's unchanged build fails
 `closedir` function-pointer deleter. The native inventory candidate demotes
 **only** that GCC diagnostic with `-Wno-error=ignored-attributes`; source is
 unchanged and the warning is retained. This is not a clean compiler-policy pass.
+The earlier accepted BPR-0731 inventory likewise used its `app-release`
+Release/tests-OFF graph and documented diagnostic demotions, not a qualified
+DEB/RPM. This continuation preserves that inventory meaning. It does not add
+full RFC-0038 distribution qualification as a new RFC-0018 exit or dependency.
 
 The complete course's last failure is reproducible: target workbench XID
 `6291474` is mapped (`WM_STATE=[1,0]`), but X11 focus stays on Settings XID
@@ -135,7 +139,10 @@ gate. No configured Ubuntu 24.04/RHEL 10 desktop or container was found; the
 existing image inventory includes Ubuntu 22.04 and Debian bookworm, not the
 declared baselines. Nothing was provisioned or changed. This is the existing
 [[BPR-0961]] qualification limit, not a reason to relabel this binary as a
-qualified package or restore RFC-0014 as a canonical blocker.
+qualified distribution, restore RFC-0014 as a canonical blocker, or deny its
+direct release-graph inventory observation. Linux's current inventory refresh
+is complete within the existing BPR-0731 scope; its AC-01 native lifetime
+course remains unaccepted independently.
 
 ## Refreshed inventory comparison
 
@@ -212,7 +219,7 @@ The Linux guard runs `/mnt/c/Users/mikem/bpr0018-native-280167ac/linux-course.sh
 Its launcher creates a fresh private root and defaults to the full course.
 For inventory-only diagnosis, invoke its `linux-launch.py --inventory-only`
 under the same guard; never convert that output into lifetime acceptance.
-For Linux package evidence, first supply the declared native baseline and
+For separate RFC-0038 Linux distribution qualification, first supply the declared native baseline and
 produce/install the exact tests-OFF package with the `/usr` prefix and normal
 diagnostic policy. Do not change `/etc/os-release` or suppress the baseline gate.
 

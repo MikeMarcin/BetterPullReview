@@ -52,8 +52,11 @@ Storage & Privacy buttons. The Linux inventory-only course passes, but its
 complete native focus/lifetime course does not. Windows' corrected candidate
 was quarantined by Defender; no security bypass was attempted. The configured
 Ubuntu 26.04 station also fails the distribution producer's declared-baseline
-gate, already tracked by BPR-0961. BPR-0593 is Blocked on these exact native
-qualification gaps, not on the now-closed RFC-0014. AC-01/AC-11 and RFC status
+gate, already tracked by BPR-0961/RFC-0038, not added as a new Settings gate.
+Linux's current tests-OFF release-graph inventory supplies the same scope as
+the earlier accepted BPR-0731 capture. BPR-0593 is Blocked on Windows' full
+course/inventory and Linux's native focus/lifetime course, not on the now-closed
+RFC-0014. AC-01/AC-11 and RFC status
 remain unaccepted; prior human verdicts are preserved.
 
 ## Accepted attended history, 2026-09-12
