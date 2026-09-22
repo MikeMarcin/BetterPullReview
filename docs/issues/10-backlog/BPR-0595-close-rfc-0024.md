@@ -45,15 +45,20 @@ the four missing behaviors are not accepted by those baseline passes.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|
-| AC-01: Default, profile creation/rename, profile identification, Open Profile, and New Window are reachable through the shipped application without replacing another profile's windows. | Public profile menu, create/rename, Open Profile and New Window course | Not run; planned | None |
-| AC-02: Two profiles can concurrently use different accounts on the same server with isolated credentials, repositories, caches, epochs, private review data, and preferences. | Concurrent two-profile same-server fixture accounts and partition inspection | Not run; planned | None |
-| AC-03: Windows in one profile share accepted review data and preferences while retaining independent open PRs, navigation, layout, and restoration records. | Two-window shared data and independent navigation/restore course | Not run; planned | None |
-| AC-04: Shared draft/note edit conflicts retain the rejected candidate text and never silently overwrite accepted work; publishing still uses the existing exact-authority mutation path. | Concurrent expected-revision draft/note edits and existing publication-boundary checks | Not run; planned | None |
-| AC-05: Default migration preserves existing appearance, sign-in bindings, private data, and retained history through interruption and restart without duplicate adoption or cross-profile fallback. | Seeded legacy Default migration with interrupted/repeated adoption and fake vault | Not run; planned | None |
-| AC-06: Repeated launches admit one runtime owner per profile; explicit new windows and concurrent different profiles work, and closing one window leaves other consumers usable. | Repeated launches, explicit New Window, owner contention and consumer-aware close | Not run; planned | None |
-| AC-07: Window restoration preserves independent sessions, distinguishes explicit window close from application quit, and exposes the retained Resume destination without fabricating unavailable content. | Quit/close/reopen multi-window sessions, retained Resume and unavailable-content cases | Not run; planned | None |
-| AC-08: Settings and sign-out are scoped to the invoking profile, with one Settings window per profile and no effects or late completions reaching another profile. | Same-profile Settings singleton and sign-out with stale cross-profile completion attempts | Not run; planned | None |
-| AC-09: Typed core/host/Qt boundaries, bounded persistence, stale-result rejection, and failure isolation hold through the composed multi-window application path. | Core replay, manual-executor host and composed multi-window failure/identity tests | Not run; planned | None |
+| AC-01: Default, profile creation/rename, profile identification, Open Profile, and New Window are reachable through the shipped application without replacing another profile's windows. | Public profile menu, create/rename, Open Profile and New Window course | `application_profile_management_public_path`, `application_profile_startup_public_path` and `application_profile_multi_window_public_path` pass at `d5a2426c` (rendered create/rename/Open Profile/New Window, sibling windows retained). Native packaged observation of the menu on Windows/Linux remains open (BPR-0974/0975 are RFC-0018 follow-ups, not this row). | `519ddb2e` (BPR-0696), `826fb871` (BPR-0705), rerun `6f8e44e4` |
+| AC-02: Two profiles can concurrently use different accounts on the same server with isolated credentials, repositories, caches, epochs, private review data, and preferences. | Concurrent two-profile same-server fixture accounts and partition inspection | `application_profile_two_account_isolation_public_path` passes (13.06 s): two accounts on one fixture server, one vault enrollment each, reviewed-head rows under each private root and exact account, independent appearance; ledger-account mutation fails the exact-account row. Credential isolation host/storage evidence from BPR-0693. | `6f8e44e4` (BPR-0978) |
+| AC-03: Windows in one profile share accepted review data and preferences while retaining independent open PRs, navigation, layout, and restoration records. | Two-window shared data and independent navigation/restore course | Multi-window course passes 77.82 s at `6f8e44e4`: shared appearance, receipt/note/defect and server-conversation fanout with independent selection, scroll, comparison and geometry (BPR-0713/0714/0976/0977). | `8d072d14` (BPR-0976), `9210330a` (BPR-0977) |
+| AC-04: Shared draft/note edit conflicts retain the rejected candidate text and never silently overwrite accepted work; publishing still uses the existing exact-authority mutation path. | Concurrent expected-revision draft/note edits and existing publication-boundary checks | BPR-0703/0704 evidence retained (schema-6 note CAS, protected editor candidates, publication boundary course 13.12 s); not re-run in this segment, no relevant source change since. | BPR-0703/0704 commits |
+| AC-05: Default migration preserves existing appearance, sign-in bindings, private data, and retained history through interruption and restart without duplicate adoption or cross-profile fallback. | Seeded legacy Default migration with interrupted/repeated adoption and fake vault | BPR-0691/0693/0706 evidence retained (bounded preflight, interrupted/CAS adoption, schema-2 bindings, six transactional interruption points); `application_profile_startup_public_path` 2.35 s reruns Default adoption at `6f8e44e4`. | BPR-0691/0693/0706 commits |
+| AC-06: Repeated launches admit one runtime owner per profile; explicit new windows and concurrent different profiles work, and closing one window leaves other consumers usable. | Repeated launches, explicit New Window, owner contention and consumer-aware close | POSIX: `application_profile_activation_public_path` 5.61 s and `application_profile_owner_admission_public_path` 2.66 s pass at `d5a2426c`; two-account course proves independent owners and close-leaves-sibling. **Windows transport implemented (`d5a2426c`) but unbuilt/unrun/unobserved on Windows; BPR-0979 human-pending.** | `a654669c` (BPR-0712), `d5a2426c` (BPR-0979) |
+| AC-07: Window restoration preserves independent sessions, distinguishes explicit window close from application quit, and exposes the retained Resume destination without fabricating unavailable content. | Quit/close/reopen multi-window sessions, retained Resume and unavailable-content cases | BPR-0707/0709/0710 evidence retained; `application_profile_window_layout_public_path` (BPR-0977) adds native geometry across Close/Quit/restart offscreen. **Native focus/geometry observation pending: BPR-0977 human-pending, attended candidate `BPR-0977-native-geometry-v001`.** | `9210330a` (BPR-0977) |
+| AC-08: Settings and sign-out are scoped to the invoking profile, with one Settings window per profile and no effects or late completions reaching another profile. | Same-profile Settings singleton and sign-out with stale cross-profile completion attempts | Multi-window course: one Settings shell per profile; two-account course: Work sign-out with a held read terminal retires only Work, Default's vault/read lane/review/preferences unchanged, Default refreshes afterwards. | `6f8e44e4` (BPR-0978) |
+| AC-09: Typed core/host/Qt boundaries, bounded persistence, stale-result rejection, and failure isolation hold through the composed multi-window application path. | Core replay, manual-executor host and composed multi-window failure/identity tests | `check_boundaries` passes at `d5a2426c`; host/core tests from BPR-0976/0977; composed courses above. Pre-existing `test_network_isolation_manifest` red is [[BPR-0962]]'s, not this RFC's. | `d5a2426c` |
+
+The RFC does not close in this segment: [[BPR-0715]] (exact signed-out native
+acceptance), [[BPR-0977]] (native focus/geometry) and [[BPR-0979]] (Windows
+station build/tests/native activation) are human- or native-pending with their
+exact candidates below. No row is weakened or waived.
 
 ## Completion rules
 
@@ -530,3 +535,44 @@ routes, without observed serving telemetry. All task writers and commands are
 quiescent. No worktree or external mutation was created. Copied temporary renders
 were removed after byte comparison; retained artifacts/logs live in ignored build
 directories. This handoff grants no push, publication or live-provider authority.
+
+## Current continuation — 2026-09-22, Claude coordinator segment, mandate r2
+
+Segment `rfc-0024-claude` of run `rfc-0018-0026-closeout-20260920`, sole
+non-delegating `rfc-implementer` in this worktree on
+`codex/rfc-0018-0026-closeout`. Milestone `close-rfc-0024` bound to definition
+`29fe9331…` (unchanged), obligation set `916ce9fa…` after the Codex owner's
+`cd386ce6` claim; binding retained in
+`build/rfc0024-claude-milestone-checkpoint.json`. The plan is unchanged.
+
+Landed: `6f8e44e4` BPR-0978 (two-account isolation course and fixture),
+`5c05bdb5` finish BPR-0978 (Done); `57104d98` BPR-0977 parked human-pending
+(its native-surface criterion pending, offscreen evidence recorded);
+`9b9a267e`/`d5a2426c`/`6197b622` BPR-0979 Windows named-pipe transport,
+parked human-pending (no Windows build, test or observation exists). The
+Codex owner's uncommitted fixture start was adopted into BPR-0978, not
+discarded. BPR-0242 is Done; BPR-0974/0975 are untouched.
+
+Attended candidates at bundle `build/app-release/src/app/BetterPullReview.app`,
+executable sha256 `6c830b41527b5ad8c053860e9bd38601b85f84a0d1513dfa9c78a3caa3982776`
+built from `d5a2426c` (tests disabled): `BPR-0715-signed-out-open-v004`
+(the exact retained signed-out criterion) and `BPR-0977-native-geometry-v001`
+(macOS native geometry/focus/lifecycle) in attended session
+`8d2c2e32f7131447c24c2fd522f18fe6` of this worktree, both ready and
+protected. Their verdicts, when they arrive, bind to that digest only; the
+retained v007 verdicts on older bundles are not applied to this candidate.
+BPR-0979's native acceptance needs the Windows station (`bpr-win`), which
+this segment cannot drive: build the branch head, run
+`sqlite_profile_activation` and `application_profile_activation_public_path`,
+observe MRU activation and `--new-window` natively.
+
+Gates at `d5a2426c`: documentation gate, `git diff --check`,
+`check_boundaries`, format and tidy on changed translation units pass;
+`test_network_isolation_manifest` is red on [[BPR-0962]]'s pre-existing rows
+in this branch and in main alike. The RFC remains open; the index is not
+reconciled to a closed status because the native/human rows above are
+pending. Next engineering round: consume the two attended verdicts and the
+Windows station results, finish BPR-0715/0977/0979 from their own acceptance,
+then claim BPR-0595 and close. No task-owned command remains except the
+handed-off attended review server; no push, live provider mutation or
+credential was used.
