@@ -6,6 +6,17 @@ record design and source ownership rather than implemented behavior; the
 closing section on the empty desktop records shipped behavior and says so.
 BPR-0595 is the acceptance ledger.
 
+## RFC-0024 r2 implementation continuation
+
+BPR-0976 now shares fresh validated server conversation snapshots through the
+profile/read hosts to exact-authority siblings. A content-only projection
+preserves their navigation and retained comparison; no Qt event bus or second
+provider read is involved. BPR-0977 adds bounded window-local native geometry
+to the existing layout row and serialized write lane. Its composed restart
+course checks distinct observed placements, immediate Quit, exact stable IDs,
+explicit Close, defaults isolation and unavailable storage; offscreen checks
+are not native focus/lifetime acceptance. Native gaps remain on its live card.
+
 ## Existing ownership
 
 | Surface | Current owner and consequence |

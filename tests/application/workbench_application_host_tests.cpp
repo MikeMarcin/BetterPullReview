@@ -1470,6 +1470,38 @@ namespace {
 			   "draining layout terminals cannot republish a closing window");
 	}
 
+	void test_geometry_load_observation_and_orderly_drain()
+	{
+		auto       value                = harness{ };
+		const auto restored             = application::workbench_window_geometry{ -120, 90, 1100, 700, true };
+		value.Settings->Stored          = stored_layout();
+		value.Settings->Stored.Geometry = restored;
+		value.Host.restore();
+		value.Host.observe_geometry({ 1, 2, 900, 600, false });
+		value.settle();
+		expect(value.Host.layout().Geometry == restored && value.Settings->Stores == 0,
+			   "startup observations cannot overwrite an unread window record");
+		expect(value.Projections.Published.back().Geometry == restored,
+			   "the exact loaded native placement is published once");
+		const auto publications = value.Projections.Published.size();
+		value.Host.observe_geometry({ 2'000'000, 0, 900, 600, false });
+		value.Host.observe_geometry({ });
+		value.settle();
+		expect(value.Settings->Stores == 0, "out-of-bound and empty native observations cannot persist");
+		const auto latest = application::workbench_window_geometry{ 180, 140, 1000, 720, false };
+		value.Host.observe_geometry(latest);
+		value.Host.shutdown_orderly();
+		value.settle();
+		expect(value.Settings->Stored.Geometry == latest && value.Settings->Stored.FilesWidth == 500
+				   && value.Host.is_quiescent(),
+			   "Quit drains the last native geometry beside unchanged drawer layout");
+		expect(value.Projections.Published.size() == publications,
+			   "observing native geometry does not echo a resize or move to presentation");
+		value.Host.observe_geometry(restored);
+		value.settle();
+		expect(value.Settings->Stored.Geometry == latest, "closed window cannot replace durable placement");
+	}
+
 	void test_orderly_shutdown_drains_layout_at_request_capacity()
 	{
 		auto limits                = application::workbench_host_limits{ };
@@ -1697,11 +1729,17 @@ namespace {
 		durable.ProfileScoped = true;
 		durable.Stored        = stored_layout();
 		durable.Stored.Home   = home_view();
+		durable.Stored.Geometry = { 100, 100, 1100, 700, true };
 		auto harnessed        = harness{ { }, &durable };
 		harnessed.Host.restore();
 		harnessed.settle();
 		expect(harnessed.Host.layout().Home == application::home_view_state{ },
 			   "the profile's defaults record answers the default view whatever it held");
+		expect(harnessed.Host.layout().Geometry == application::workbench_window_geometry{ },
+			   "profile defaults cannot publish another window's native placement");
+		harnessed.Host.observe_geometry({ 80, 60, 900, 500, false });
+		harnessed.settle();
+		expect(durable.Stores == 0U, "native placement cannot be written through a profile-default port");
 
 		auto chosen     = home_view();
 		chosen.Grouping = application::home_grouping::account;
@@ -1713,7 +1751,8 @@ namespace {
 		harnessed.Host.resize(core::workbench_drawer::files, 480U);
 		harnessed.settle();
 		expect(durable.Stores == 1U && durable.Stored.FilesWidth == 480U
-				   && durable.Stored.Home == application::home_view_state{ },
+				   && durable.Stored.Home == application::home_view_state{ }
+				   && durable.Stored.Geometry == application::workbench_window_geometry{ },
 			   "a later defaults write carries the new width and no Home view");
 	}
 
@@ -1799,6 +1838,7 @@ auto main() -> int
 {
 	test_orderly_shutdown_flushes_latest_layout_serially();
 	test_orderly_shutdown_drains_layout_at_request_capacity();
+	test_geometry_load_observation_and_orderly_drain();
 	test_orderly_shutdown_failure_and_forced_escalation();
 	test_the_signed_out_authority_is_valid_and_a_half_named_one_is_not();
 	test_invalid_limits_are_rejected();

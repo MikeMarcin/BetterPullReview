@@ -6434,6 +6434,12 @@ namespace bpr::app {
 						WorkbenchHost->apply_home_view(aView);
 					}
 				});
+			Window->set_geometry_dispatch(
+				[this](const application::workbench_window_geometry& aGeometry) {
+					if (!Closing && WorkbenchHost != nullptr) {
+						WorkbenchHost->observe_geometry(aGeometry);
+					}
+				});
 			Window->set_saved_repository_dispatch(
 				[this](application::saved_repository_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {

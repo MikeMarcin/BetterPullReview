@@ -51,6 +51,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMoveEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
@@ -60,6 +61,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRectF>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalBlocker>
@@ -3946,6 +3948,9 @@ namespace bpr::qt {
 			// Home shows what was kept rather than what was asked for.
 			adopt_home_view(*aProjection.HomeView);
 		}
+		if (aProjection.Geometry) {
+			restore_geometry(*aProjection.Geometry);
+		}
 		if (aProjection.Drawers || aProjection.Layout || aProjection.Behaviour) {
 			apply_drawer_layout();
 		}
@@ -7509,6 +7514,68 @@ namespace bpr::qt {
 		QMainWindow::resizeEvent(aEvent);
 		apply_strip_width();
 		update_dif_presentation();
+		dispatch_geometry();
+	}
+
+	void workbench_window::moveEvent(QMoveEvent* const aEvent)
+	{
+		QMainWindow::moveEvent(aEvent);
+		dispatch_geometry();
+	}
+
+	void workbench_window::set_geometry_dispatch(std::function<void(application::workbench_window_geometry)> aDispatch)
+	{
+		GeometryDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::restore_geometry(const application::workbench_window_geometry& aGeometry)
+	{
+		if (GeometryReady) {
+			return;
+		}
+		ApplyingGeometry = true;
+		if (application::valid(aGeometry) && aGeometry.Width != 0) {
+			auto  rectangle = QRect{ aGeometry.X, aGeometry.Y, aGeometry.Width, aGeometry.Height };
+			auto* target    = QGuiApplication::primaryScreen();
+			int   overlap   = 0;
+			for (auto* screen : QGuiApplication::screens()) {
+				const auto visible = rectangle.intersected(screen->availableGeometry());
+				const auto area    = visible.width() * visible.height();
+				if (area > overlap) {
+					target  = screen;
+					overlap = area;
+				}
+			}
+			if (target != nullptr) {
+				const auto available = target->availableGeometry();
+				// Keep the title/resize affordances reachable after a display is
+				// removed. The shell's minimum size remains authoritative on tiny
+				// displays; placement still keeps its upper edge visible.
+				rectangle.setWidth(std::clamp(rectangle.width(), minimumWidth(), std::max(minimumWidth(), available.width())));
+				rectangle.setHeight(std::clamp(rectangle.height(), minimumHeight(), std::max(minimumHeight(), available.height() - 32)));
+				rectangle.moveLeft(std::clamp(rectangle.x(), available.left(), std::max(available.left(), available.right() - rectangle.width() + 1)));
+				rectangle.moveTop(std::clamp(rectangle.y(), available.top() + 32, std::max(available.top() + 32, available.bottom() - rectangle.height() + 1)));
+			}
+			setGeometry(rectangle);
+			if (aGeometry.Maximized) {
+				setWindowState(windowState() | Qt::WindowMaximized);
+			}
+		}
+		ApplyingGeometry = false;
+		GeometryReady    = true;
+		dispatch_geometry();
+	}
+
+	void workbench_window::dispatch_geometry()
+	{
+		if (!GeometryReady || ApplyingGeometry || !GeometryDispatch || !isVisible() || isMinimized() || isFullScreen()) {
+			return;
+		}
+		const auto normal      = normalGeometry();
+		const auto observation = application::workbench_window_geometry{ normal.x(), normal.y(), normal.width(), normal.height(), isMaximized() };
+		if (application::valid(observation) && observation.Width != 0) {
+			GeometryDispatch(observation);
+		}
 	}
 
 	void workbench_window::showEvent(QShowEvent* const aEvent)
@@ -7522,6 +7589,7 @@ namespace bpr::qt {
 		// The native window exists once shown; the title text goes then.
 		hide_native_title_text(*this);
 		update_dif_presentation();
+		dispatch_geometry();
 	}
 
 	void workbench_window::update_rail_summaries()
@@ -7715,6 +7783,9 @@ namespace bpr::qt {
 	{
 		QMainWindow::changeEvent(aEvent);
 		switch (aEvent->type()) {
+		case QEvent::WindowStateChange:
+			dispatch_geometry();
+			break;
 		case QEvent::ActivationChange:
 			update_dif_presentation();
 			break;

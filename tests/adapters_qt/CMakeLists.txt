@@ -939,6 +939,16 @@ set_tests_properties(qt_shared_snapshot_navigation PROPERTIES
     TIMEOUT 30
 )
 
+bpr_add_network_isolated_test(
+    NAME qt_native_window_geometry
+    COMMAND test_better_pull_review_qt_workbench_window_tests --native-window-geometry
+)
+set_tests_properties(qt_native_window_geometry PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "native-window-geometry:pass"
+    TIMEOUT 30
+)
+
 foreach(bpr_workbench_window_scale IN ITEMS 100 125 200)
     if(bpr_workbench_window_scale STREQUAL "100")
         set(bpr_workbench_window_scale_factor "1.0")

@@ -659,6 +659,7 @@ namespace bpr::qt {
 		/// of the panels that carry no name, and the window's own Filter once it
 		/// owns one. A group panel's collapse is not in it (Decisions (a)).
 		void set_home_view_dispatch(std::function<void(application::home_view_state)> aDispatch);
+		void set_geometry_dispatch(std::function<void(application::workbench_window_geometry)> aDispatch);
 		/// \brief [[BPR-0783]]. The Home view this window shows.
 		[[nodiscard]] auto home_view() const noexcept -> const application::home_view_state&;
 		/// \brief [[BPR-0783]]. Home's strip controls, shown while Home is and an
@@ -869,6 +870,7 @@ namespace bpr::qt {
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void moveEvent(QMoveEvent* aEvent) override;
 		void showEvent(QShowEvent* aEvent) override;
 		/// \brief [[BPR-0733]]. Reads Return on Home's recently viewed list.
 		///
@@ -879,6 +881,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
+		void                                                        restore_geometry(const application::workbench_window_geometry& aGeometry);
+		void                                                        dispatch_geometry();
+		std::function<void(application::workbench_window_geometry)> GeometryDispatch;
+		bool                                                        GeometryReady    = false;
+		bool                                                        ApplyingGeometry = false;
 		QString ProfileLabel = QStringLiteral("Default");
 		/// \brief Binds one primary action to its presentation wording.
 		///

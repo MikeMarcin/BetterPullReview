@@ -131,6 +131,11 @@ that window, while Quit retains survivors. Restored windows start on Home while
 optional restoration loads. Each desktop window restores its own
 workbench drawer states and widths and line-number visibility from the
 profile-private window-keyed layout store. Fresh windows use profile defaults.
+The same row holds bounded logical native position, normal size and maximized
+state, never profile defaults. Qt applies it once after load, fits obsolete
+display coordinates to an available screen, and reports later move/resize
+observations to the host's coalesced persistence lane. Schema-nine migration
+preserves older Home/drawer rows without inventing a native placement.
 Orderly Quit drains the latest accepted layout write; explicit Close erases its
 row after writers drain. Startup reconciliation removes orphan layout rows
 using the complete accepted live set without changing profile defaults or the

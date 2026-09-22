@@ -45,6 +45,7 @@
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QPushButton>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
@@ -8312,9 +8313,47 @@ namespace {
 	}
 }
 
+void test_native_geometry_fits_current_displays_and_observes_only_after_restore()
+{
+	using namespace bpr;
+	qt::workbench_window                                window;
+	std::vector<application::workbench_window_geometry> observations;
+	window.set_geometry_dispatch([&](auto aGeometry) { observations.push_back(aGeometry); });
+	window.show();
+	process_events();
+	expect(observations.empty(), "initial native events cannot replace unread geometry");
+	window.publish(application::workbench_projection{ .Geometry = application::workbench_window_geometry{ 800000, -800000, 1400, 700, false } });
+	process_events();
+	expect(!observations.empty(), "restored placement enables bounded native observations");
+	const auto available = QGuiApplication::primaryScreen()->availableGeometry();
+	expect(available.contains(window.geometry().topLeft()) && window.width() <= std::max(window.minimumWidth(), available.width())
+			   && window.height() <= std::max(window.minimumHeight(), available.height()),
+		   "obsolete-display placement keeps the top edge and a bounded size reachable");
+	window.move(available.left() + 20, available.top() + 55);
+	window.resize(window.minimumWidth(), 500);
+	process_events();
+	const auto latest  = observations.back();
+	const auto current = window.geometry();
+	window.publish(application::workbench_projection{ .Geometry = application::workbench_window_geometry{ 800000, -800000, 1400, 700, false } });
+	process_events();
+	expect(window.geometry() == current && observations.back() == latest,
+		   "a repeated restore cannot move an already active window");
+	window.showMaximized();
+	process_events();
+	expect(observations.back().Maximized && observations.back().Width == latest.Width
+			   && observations.back().Height == latest.Height,
+		   "maximization preserves the normal placement");
+	window.hide();
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (QCoreApplication::arguments().contains(QStringLiteral("--native-window-geometry"))) {
+		test_native_geometry_fits_current_displays_and_observes_only_after_restore();
+		std::cout << "native-window-geometry:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--shared-snapshot-navigation"))) {
 		test_comments_filter_and_return_comparison_preferences_apply_on_open();
 		std::cout << "shared-snapshot-navigation:pass\n";
