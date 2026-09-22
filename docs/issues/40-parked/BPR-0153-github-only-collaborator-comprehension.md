@@ -3,16 +3,31 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0153"
 title: "Confirm a GitHub-only collaborator understands a published defect"
 status: "Parked"
-rfcs: ["RFC-BPR-0009"]
+rfcs: []
 depends_on: ["BPR-0149","BPR-0142"]
 parked_on: "human-review"
-metadata: {"original_parked_on":"awaiting-owner-verdict"}
+metadata: {"original_parked_on":"awaiting-owner-verdict","origin_rfc":"RFC-BPR-0009","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0009 closeout dependency"}
 ---
 
 # Confirm a GitHub-only collaborator understands a published defect
 
-RFC-BPR-0009 requires that a collaborator who has never used BetterPullReview
-can understand and respond to every published defect. That is a claim about
+## Owner-deferred follow-up — 2026-09-21
+
+Owner amendment r4 transfers this unobserved acceptance out of RFC-BPR-0009's
+terminal scope. This card remains Parked for human review with the same ID,
+path, dependencies and pending evidence. The
+[amended RFC](../../rfcs/RFC-BPR-0009-defect-fix-verification-workflow.md#owner-amendment-r4--2026-09-21)
+and [ledger](../../verification/RFC-BPR-0009.md#owner-amended-closeout-r4--2026-09-21)
+retain its origin and discovery path. The amendment is not a collaborator
+verdict, a publication result or a claim that the prose is sufficient.
+
+Next: the owner identifies the unfamiliar collaborator, concrete defect and
+disposable PR. Prepare the exact publication/reply course and attended packet
+only after those inputs and bounded authority exist. No new token request,
+GitHub action or contact with another person is authorized by this transfer.
+
+RFC-BPR-0009's original acceptance requires that a collaborator who has never
+used BetterPullReview can understand and respond to every published defect. That is a claim about
 whether prose is *sufficient*, and no fixture can settle it: the fixture
 contains the words this tool wrote, and the question is whether a person who
 lacks all local context can act on them.

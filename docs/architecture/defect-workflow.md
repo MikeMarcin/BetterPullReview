@@ -3,8 +3,8 @@
 BetterPullReview restores inspection-style defect semantics as a **local
 projection over ordinary GitHub review threads**. A defect is a thread someone
 classified. The thread carries no marker, no label, and no metadata saying so,
-which is what lets a collaborator who has never used this tool read it, answer
-it, and resolve it.
+so its shared representation remains an ordinary GitHub thread. Whether its
+prose gives an unfamiliar collaborator enough context remains unobserved.
 
 ## The rule the rest of this document serves
 
@@ -223,13 +223,18 @@ publication.
 
 ## What is not proven here
 
-RFC-BPR-0009 requires that a collaborator who has never used BetterPullReview
-can understand and respond to every published defect. No fixture settles that:
+RFC-BPR-0009's original collaborator criterion requires that a person who has
+never used BetterPullReview can understand and respond to every published
+defect. No fixture settles that:
 the fixture holds the words this tool wrote, and the question is whether a
 person without local context can act on them.
 
-BPR-0153 carries it, and needs the designated repository from BPR-0142 plus a
-person who has not used this tool. It records what must not be done instead —
+BPR-0153 retains it as a standalone parked follow-up under the owner's r4
+closeout amendment. It needs a concrete defect/disposable PR, a person who has
+not used this tool, and a separately authorized publication/reply course;
+BPR-0142's earlier round-trip comment does not supply that defect. No new token
+request is needed. RFC status does not certify this observation.
+The card records what must not be done instead —
 not answered by reading the prose oneself, since knowing the local severity
 cannot be un-known, and not answered by adding a legend, since a comment
 needing one has already failed.

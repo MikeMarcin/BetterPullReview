@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "M3 Collaborative Round Trip"
 depends_on: ["RFC-BPR-0008"]
 pack_version: 2
+metadata: {"milestone_plan":{"id":"rfc-bpr-0009-owner-closeout","path":"docs/rfcs/plans/rfc-bpr-0009-owner-closeout/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0009: Defect Classification, Fix Claims, and Verification
@@ -51,9 +52,33 @@ source-line, boundary, mapping, or change identity. A missing or uncertain
 mapping remains explicit and cannot be repaired with a visual row number,
 nearest-line guess, or independent pane scroll.
 
+## Owner amendment r4 — 2026-09-21
+
+The owner directed completion of RFC-BPR-0014 with unfinished human/external
+work retained as durable follow-ups. The coordinator explicitly assigned this
+blocking predecessor's closeout under that amendment; the
+[mandate and bounded plan](plans/rfc-bpr-0009-owner-closeout/mandate-r4.md)
+record its scope. RFC-BPR-0008 is already Auto-Verified.
+
+The original criterion, "A GitHub-only collaborator can understand and respond
+to every published defect," remains unobserved. [[BPR-0153]] retains that
+criterion, its original parked path, the missing unfamiliar collaborator and
+concrete disposable defect/PR, and the separately authorized publication/reply
+course as a standalone follow-up. It is outside this RFC's terminal gate and
+is not marked passed or Done. This changes acceptance, not observations or the
+product requirement that published prose stand on its own.
+
+The implemented lifecycle, evidence policy, durable anchor history, private
+classification and shipped multi-defect workflow remain in scope. Local
+Verify/Reopen are separate from optional ordinary thread resolve/unresolve
+actions; supported live capability round trips still belong to RFC-0008's
+standalone BPR-0143. Auto-Verified under this amendment does not certify those
+live operations, collaborator comprehension, native packages or release
+readiness. Original pack sources and historical decisions remain unchanged.
+
 ## Acceptance criteria
 
-- A GitHub-only collaborator can understand and respond to every published defect.
+- Published defects use ordinary GitHub prose without tool-specific metadata; local severity/category remain private, and collaborator-comprehension acceptance remains with BPR-0153.
 - Classifying an existing thread does not mutate GitHub until the user performs a distinct shared action.
 - Nearby code movement or an author response creates `Needs verification`, never `Verified`.
 - Reviewer verification is explicit and optionally resolves the GitHub thread.
@@ -67,7 +92,7 @@ nearest-line guess, or independent pane scroll.
 | Claim | Direct surface | Proof |
 |---|---|---|
 | Fix is not verification | Real workflow | Push nearby change and confirm only needs-verification state |
-| GitHub-only meaning is intact | Independent client | Read defect prose and reply without local metadata |
+| Ordinary shared representation, private enrichment | Publication types and fixture path | No severity/category publication fields or tool-specific marker; BPR-0153 retains the unobserved independent-reader comprehension/reply course |
 | Verify/reopen mappings are explicit | UI and mutation fixture | Exercise local-only and shared resolve/unresolve actions separately |
 | Outdated anchor is honest | Historical fixture | Remove anchor and inspect retained original context/state |
 | Defect policy is core-owned | Transition and adapter tests | Host/Qt cannot mark verified without the explicit semantic reviewer intent |

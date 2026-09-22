@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0243"
 title: "Verify and close RFC-BPR-0009"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0009"]
-depends_on: ["BPR-0153","BPR-0230","BPR-0234","BPR-0238","BPR-0242"]
+depends_on: ["BPR-0230","BPR-0234","BPR-0238","BPR-0242"]
 closeout_for: ["RFC-BPR-0009"]
+metadata: {"mandate_revision":"r4","deferred_followups":["BPR-0153"],"milestone_plan":{"id":"rfc-bpr-0009-owner-closeout","path":"docs/rfcs/plans/rfc-bpr-0009-owner-closeout/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0009
@@ -14,7 +15,40 @@ RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`.
 
 ## Closeout checklist
 
-Historical evidence is provenance only; every row requires final replay at the final closeout head.
+Owner amendment r4 replaces the first criterion with implemented representation
+and privacy acceptance. BPR-0153 retains the original unobserved collaborator
+criterion as a standalone parked follow-up. All remaining defect criteria stay
+in scope. The prior unconditional final-HEAD replay prescription is superseded:
+reuse evidence whose relevant source is unchanged and run focused current
+public-path checks. No historical verdict is rewritten.
+
+Product candidate: `02e419b8d878620c55447ddb3d5d53683dca3f91`; this closeout
+changes only documentation and tracker state. Current evidence and limitations
+are recorded in the [r4 ledger](../../verification/RFC-BPR-0009.md#owner-amended-closeout-r4--2026-09-21).
+
+| State | Criterion | Check and result | Evidence and revision |
+|---|---|---|---|
+| [x] | Published defects use ordinary GitHub prose without tool-specific metadata; local severity/category remain private, and collaborator-comprehension acceptance remains with BPR-0153. | Publication proposal/request types have no severity/category field; the public course observes zero shared submissions across local defect operations. Existing RFC-0008 ordinary comment/reply evidence is reused. BPR-0153 remains unobserved. | `02e419b8`; RFC-0008 r4 ledger and BPR-0142's exact live comment/reply record. |
+| [x] | Classifying an existing thread does not mutate GitHub until the user performs a distinct shared action. | Core/correlation and real defect composition pass; classification, verification and reclassification produce zero fixture submissions before the distinct Publish gesture. | `02e419b8`; `core_defect_workflow`, `application_defect_correlation`, `application_defect_composition_contract`. |
+| [x] | Nearby code movement or an author response creates `Needs verification`, never `Verified`. | All evidence kinds are core-tested; host correlation cannot verify. The public trace reaches needs-verification for its evidence-bearing defect while the other stays open. | `02e419b8`; core/correlation plus GitHub.com/GHES seed/reopen composition, 52.91 seconds. |
+| [x] | Reviewer verification is explicit and optionally resolves the GitHub thread. | Real card Verify is required for the local verified state. Ordinary thread resolution is a separate core-admitted conversation gesture through the mutation host; its capability/grant suite passes. Supported live resolution remains with BPR-0143. | `02e419b8`; defect core/card/public trace, `application_review_mutation_application_host`; RFC-0008 core evidence reused. |
+| [x] | Reopening a verified item can unresolve the thread through a separate explicit action. | Core/Qt tests require the explicit Reopen intent; other commands/evidence cannot reopen. Optional Unresolve is the separate conversation action, not a side effect of local lifecycle. No live unresolve pass is claimed. | `02e419b8`; `core_defect_workflow`, `qt_defect_card`, `application_review_mutation_application_host`; RFC-0008 core evidence reused. |
+| [x] | Deleted/outdated threads preserve local audit history while clearly showing unavailable shared context. | Core anchor history, exact-authority ledger/storage tests and public seed/reopen course pass, including unavailable original anchors and refused persistence. | `02e419b8`; defect core/correlation, ledger host, SQLite storage and public composition. |
+| [x] | Defect counts and navigation agree with local state and current GitHub thread status. | Dedicated shipped-composition trace proves two stable defects, the /2 label, navigation to a different defect and exact restart state. Broad window suite fails earlier on BPR-0940's known epoch-row assertion and is not counted as passing. | `02e419b8`; `application_defect_composition_contract` passes; BPR-0940 retains broader layout reconciliation. |
+| [x] | Defect lifecycle transitions are core-tested without GitHub/Qt, and integration tests prove host correlation plus Qt presentation cannot auto-verify a defect. | Core-only-linked lifecycle test, pure host correlation, Qt card and real composed Verify path pass; no product or test behavior changed. | `02e419b8`; five focused passing component suites plus public composition. |
+
+Documentation structure and board validation pass; documentation verifier
+regressions pass 64/64 in 2.113 seconds. The broad workbench failure remains
+recorded above and on BPR-0940. No in-scope defect assertion failed.
+
+## Historical checklist before r4
+
+The following rows preserve the prior acceptance and replay prescription as
+history. The current checklist above governs closeout; no unchecked human row
+below becomes a passing observation through the owner amendment.
+
+Prior prescription: historical evidence was provenance only and every row
+required final replay at the final closeout head.
 
 | State | Criterion | Direct verification surface | Command or attended interaction | Expected result | Durable evidence location | Gate class | Live blocker |
 |---|---|---|---|---|---|---|---|
