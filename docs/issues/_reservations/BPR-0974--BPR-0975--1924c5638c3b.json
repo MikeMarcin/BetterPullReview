@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0974",
+    "BPR-0975"
+  ],
+  "reserve_for": "rfc0018-owner-amendment-r2",
+  "purpose": "Owner-authorized standalone Windows security/native Settings and Linux native focus/lifetime follow-ups",
+  "created": "2026-09-22T05:15:36.645479+00:00",
+  "base": "61907e20c1c6ca40103d14e162a022d71aa37a90"
+}
