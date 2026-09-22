@@ -1,0 +1,174 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Close only RFC-BPR-0010 on main under explicit coordinator owner amendment r4; preserve implemented outcomes and transfer unfinished live/server and terminal native observations to durable standalone follow-ups.",
+  "child": "/root/rfc0010_owner_closeout",
+  "mandate_revision": "r4",
+  "run_id": "rfc0014-owner-closeout-20260921",
+  "segment_id": "rfc0010-owner-closeout-r4-amended",
+  "effective_route": "rfc-implementer | gpt-6-astra | max",
+  "consumer_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "entry_revision": "ad35ca8e4079e72784fa52cfe6b63c439f383004",
+  "rfc_base_sha": "29516d7aae0b61b79571f836c92533459882f5d2",
+  "product_test_candidate_revision": "ad35ca8e4079e72784fa52cfe6b63c439f383004",
+  "product_executable_sha256": "a0f9c85cd58e4c9d486ae39c554b16f30f4bb73e867ebfbb6c17ad21ca775d90",
+  "accepted_native_executable_sha256": "10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28",
+  "amendment_revision": "e45a7a7a9d1a231a2d55c751b65493743e983e9b",
+  "card_closeout_revision": "f78e7db35afec64c364ae9e53ef410d577ce9df1",
+  "terminal_scope_revision": "21a44e83678369e50e6f012c2314c01906e9e2d8",
+  "milestone": "owner-amended-closeout",
+  "checkpoint": "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/checkpoint-r4.json",
+  "prior_handoff": "docs/rfcs/plans/rfc-bpr-0009-owner-closeout/handoff-r4.json",
+  "mandate": "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/mandate-r4.md",
+  "result": {
+    "disposition": "milestone-complete",
+    "rfc_status": "Auto-Verified",
+    "card": "BPR-0244",
+    "card_status": "Done",
+    "selected_count": 27,
+    "done_count": 27,
+    "interpretation": "Amended implemented scope closes after RFC0009. BPR0169 remains Parked and BPR0168 Backlog outside the terminal scope. Exact v006 native evidence is preserved, with no live server or current-native observation inferred."
+  },
+  "commits": [
+    {
+      "revision": "e45a7a7a9d1a231a2d55c751b65493743e983e9b",
+      "purpose": "Owner r4 acceptance amendment, standalone follow-up transfer, adopted closeout plan, current evidence and BPR0244 Ready"
+    },
+    {
+      "revision": "b6fd5398ebf92bb1e4031ad9c51a007df43cf755",
+      "purpose": "Guarded BPR0244 claim"
+    },
+    {
+      "revision": "f78e7db35afec64c364ae9e53ef410d577ce9df1",
+      "purpose": "Guarded BPR0244 Done with eight passing amended criteria and rebound checkpoint"
+    },
+    {
+      "revision": "21a44e83678369e50e6f012c2314c01906e9e2d8",
+      "purpose": "Auto-Verified RFC/index/README/ledger reconciliation; a following handoff-only commit records this terminal candidate"
+    }
+  ],
+  "verification": [
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review test_better_pull_review_queue_composition_public_path test_better_pull_review_review_queue_core_tests test_better_pull_review_review_queue_attention_core_tests test_better_pull_review_review_queue_refresh_tests test_better_pull_review_review_queue_enrollment_tests test_better_pull_review_review_queue_notification_tests test_better_pull_review_queue_enrollment_tests test_better_pull_review_qt_review_landing_model_tests test_better_pull_review_notification_delivery_tests test_better_pull_review_qt_system_tray_notification_sink_tests",
+      "result": "Pass, ninja: no work to do. Current app digest measured before and after closeout is identical."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^(application_queue_composition_contract|application_native_notification_attended_contract)$'",
+      "result": "2/2 pass in 9.09 seconds. Queue course uses real github_application/window for rule, preferences, refresh, seed/reopen and removal with zero fixture provider mutations. Actual bundled app notification course captures the display boundary and retains real tray/notifier/selection. Independent request and activation cuts plus a missing-signal-observer control pass. No OS display pass inferred."
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R '^(core_review_queue|core_review_queue_attention|application_review_queue_refresh|application_review_queue_enrollment|application_review_queue_notification|sqlite_queue_enrollment_storage|qt_review_landing_model|application_notification_delivery|qt_system_tray_notification_sink)$'",
+      "result": "9/9 pass in 6.66 seconds. Roles/rules/exclusions, attention/order, simulated scheduler limits, stale authority, durable enrollment/preferences, incremental model and notification metadata/activation decisions."
+    },
+    {
+      "command": "cmake --build --preset core-only --target test_better_pull_review_review_queue_core_tests test_better_pull_review_review_queue_attention_core_tests && ctest --test-dir build/core-only --output-on-failure -R '^(core_review_queue|core_review_queue_attention)$'",
+      "result": "Build passes after CMake regeneration and target relinks; 2/2 pass in 0.65 seconds, core without Qt/provider linkage."
+    },
+    {
+      "command": "Scoped source/type and RFC_BASE_SHA-to-current inventory review",
+      "result": "Queue host depends only on store, refresh, executors and projection; metadata-only notification request contains exact ref, bucket and count. Current checks exercise public composition beyond helpers. Entry-to-final diff leaves src/tests/cmake/packaging, original pack plan and protected review artifacts unchanged."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK at amendment, checked criteria, Done and terminal Auto-Verified states."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64/64 pass in 1.882 seconds. Invalid-fixture diagnostics are expected negative cases."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0010 --json; queue --rfc RFC-BPR-0010 --json",
+      "result": "Valid, 957-card inventory, zero errors. All 27 selected cards Done; no next card."
+    },
+    {
+      "command": "git diff --quiet ad35ca8e4079e72784fa52cfe6b63c439f383004 -- src tests cmake packaging docs/verification/reviews docs/rfcs/plans/RFC-BPR-0010-issue-plan.md; git diff --check ad35ca8e4079e72784fa52cfe6b63c439f383004",
+      "result": "Pass; no product/test/build/package or protected historical changes. Final changed-path inventory is limited to assigned documentation/tracker scope."
+    },
+    {
+      "command": "milestone_checkpoint.py check --checkpoint docs/rfcs/plans/rfc-bpr-0010-owner-closeout/checkpoint-r4.json --observation build/rfc0010-owner-closeout/observation.json --execution quiescent --json",
+      "result": "At terminal_scope_revision: action stop, engineering_acceptance not-evaluated, valid current binding. Recheck after the handoff-only commit. The helper checks consistency; engineering acceptance remains the implementer's evidence-backed judgment."
+    }
+  ],
+  "deferred_followups": [
+    {
+      "id": "BPR-0169",
+      "path": "docs/issues/40-parked/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md",
+      "state": "Parked, awaiting-live-github; standalone rfcs: [] with origin_rfc RFC-BPR-0010 and mandate_revision r4",
+      "pending": "Suitable disposable PR where the actor is neither author nor reviewer, plus independent read access to reviewer, requested-reviewer, subscription and label fields before/after repository, author and path rules. Missing subscription facts remain limitations.",
+      "dependencies": [
+        "BPR-0142"
+      ],
+      "authority": "Remembered sign-in retained. No new token, GitHub write, contact with others, Actions or push is required or authorized by this assignment."
+    },
+    {
+      "id": "BPR-0168",
+      "path": "docs/issues/10-backlog/BPR-0168-rfc-0010-native-notification-delivery.md",
+      "state": "Backlog; standalone rfcs: [] with origin_rfc RFC-BPR-0010 and mandate_revision r4",
+      "pending": "After BPR0169, bind the selected executable for terminal identity replay and prepare any required successor native banner/privacy/real-click/exact-selection decision. Exact v006 accepted result and BPR0220 interim waiver remain unchanged.",
+      "dependencies": [
+        "BPR-0164",
+        "BPR-0169",
+        "BPR-0193",
+        "BPR-0223",
+        "BPR-0251"
+      ],
+      "authority": "Existing v006 verdict is candidate-specific and authorizes no new source edit, live operation, release or publication. Current automatic display capture is not a native observation."
+    }
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": "No required human decision remains inside amended RFC0010 terminal scope. BPR0168 is still dependent on unresolved BPR0169; no new attended course is ready.",
+    "preserved_candidate": "native-notification-delivery-v006, validated_commit 06f6573507f81b86e99fd7b74d26e6614511e2d2, accepted native executable and BPR0251 implementation record sha256:9576aef7f125a62d88c0f1e7928357906d47d7a1a8a8b48617f09945f4110be6",
+    "protected_candidates": "All existing review artifacts, historical verdicts, protected candidate bytes and original pack source preserved. No review server started or stopped."
+  },
+  "ownership": {
+    "repository_writer": "/root/rfc0010_owner_closeout exclusively until final return, then released",
+    "other_agents_spawned": [],
+    "writer_inventory": "Only coordinator /root and this engineering leaf active; preceding engineering owners completed.",
+    "task_commands": "All build, test, helper and commit commands collected; quiescent at final return.",
+    "sessions_collected": [
+      95757,
+      40675,
+      85439,
+      44788,
+      3421,
+      26712
+    ],
+    "review_server": null,
+    "live_operations": [],
+    "cleanup": "No worktree, live user profile, remote target or review server created. Registered tests used their owned fixture roots. Only ordinary ignored build/fixture output and useful acceptance/observation receipts retained; no task-owned temporary source or background command remains."
+  },
+  "continuation": "Coordinator assigns a fresh RFC-BPR-0011 implementer. Canonical gate is clear; queue reports BPR0245 Backlog with no unmet dependencies (26/27 RFC0011 cards Done). It has not been promoted or claimed here. Later RFCs and standalone live/human follow-ups retain their own scope and authority.",
+  "uncertainties": [
+    "BPR0169 live server non-mutation comparison remains unobserved; BPR0168 later-candidate native replay remains pending.",
+    "BPR0940 broad workbench layout failure is pre-existing and remains owned by RFC0013; not rerun or cleared by these focused queue checks.",
+    "Current queue composition does not infer provider role authority from comments/reviews or implement broader personal discovery; RFC0026 retains that work.",
+    "No new independent, live, installed-package, native OS-display or release acceptance claimed. Configured route host_load remains not_verified.",
+    "Two preparation invocations safely refused before mutation: an explicit Markdown --plan was not JSON, and lane alias ready was not configured. Target-only absent-plan preparation and canonical 20-ready move then succeeded."
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/architecture/review-queue.md",
+    "docs/issues/10-backlog/BPR-0168-rfc-0010-native-notification-delivery.md",
+    "docs/issues/40-parked/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md",
+    "docs/issues/10-backlog/BPR-0244-close-rfc-0010.md (moved through Ready/In Progress to Done)",
+    "docs/issues/60-done/BPR-0244-close-rfc-0010.md",
+    "docs/rfcs/README.md",
+    "docs/rfcs/RFC-BPR-0010-review-queue-observers-notifications.md",
+    "docs/verification/RFC-BPR-0010.md",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/checkpoint-entry.json",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/checkpoint-r4.json",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/execution-selection.json",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/mandate-r4.md",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/milestone-plan.json",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/prepare-receipt.json",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/proposal.json",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/source.json",
+    "docs/rfcs/plans/rfc-bpr-0010-owner-closeout/handoff-r4.json"
+  ]
+}
