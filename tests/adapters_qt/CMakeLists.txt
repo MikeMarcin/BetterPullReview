@@ -986,6 +986,21 @@ foreach(bpr_title_row_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-1028]]. The strip's application menu against its window's lifetime:
+# closed, it deletes itself; open under an accessible File > Quit, it goes with
+# the window. Windows only, because only the Windows strip has the menu control.
+if(WIN32)
+    bpr_add_network_isolated_test(
+        NAME qt_workbench_strip_menu
+        COMMAND test_better_pull_review_qt_workbench_window_tests --strip-menu
+    )
+    set_tests_properties(qt_workbench_strip_menu PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+        PASS_REGULAR_EXPRESSION "workbench-strip-menu:pass"
+        TIMEOUT 60
+    )
+endif()
+
 # [[BPR-0990]]. RFC-BPR-0026 AC-10: Home's discovery glyph, its sentence and the
 # Pull Request menu, at each scale, reached directly past the epoch-row
 # assertion [[BPR-0940]] owns.

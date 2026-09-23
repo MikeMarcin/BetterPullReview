@@ -37,6 +37,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QModelIndex>
 #include <QMouseEvent>
@@ -44,6 +45,7 @@
 #include <QPersistentModelIndex>
 #include <QPlainTextEdit>
 #include <QPoint>
+#include <QPointer>
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
@@ -59,6 +61,7 @@
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QThread>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QWidget>
@@ -72,6 +75,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -1909,6 +1913,120 @@ namespace {
 			   "the strip keeps its height and opens with the platform inset");
 		window.hide();
 	}
+
+#if defined(_WIN32)
+	/// Presses the strip's menu control and runs aStep once, from the event
+	/// loop, once the menu shows. It does not matter whether the menu waits in
+	/// a nested loop of its own, so the same course runs against the stack
+	/// `exec()` form [[BPR-1028]] replaced and fails there. aWindow must not be
+	/// used after aStep, which may destroy it.
+	void with_open_strip_menu(qt::workbench_window& aWindow, const std::function<void(QMenu&)>& aStep)
+	{
+		auto context  = QObject{ };
+		auto ran      = false;
+		auto attempts = 0;
+		auto poll     = std::function<void()>{ };
+		poll          = [&] {
+			if (auto* const popup = qobject_cast<QMenu*>(QApplication::activePopupWidget()); popup != nullptr) {
+				ran = true;
+				aStep(*popup);
+			} else if (++attempts < 250) {
+				QTimer::singleShot(20, &context, poll);
+			}
+		};
+		QTimer::singleShot(0, &context, poll);
+		aWindow.strip_menu_button()->click();
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (!ran && attempts < 250 && elapsed.elapsed() < 10'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 20);
+		}
+		expect(ran, "the strip's menu control opens a menu");
+	}
+
+	/// The accessible child of aMenu that presents aAction.
+	auto accessible_item(QMenu& aMenu, QAction* const aAction) -> QAccessibleInterface*
+	{
+		auto* const menu  = QAccessible::queryAccessibleInterface(&aMenu);
+		const auto  index = aMenu.actions().indexOf(aAction);
+		expect(menu != nullptr && index >= 0 && index < menu->childCount(),
+			   "the menu presents the action as an accessible item");
+		auto* const item = menu->child(static_cast<int>(index));
+		expect(item != nullptr && item->actionInterface() != nullptr,
+			   "the accessible menu item offers its actions");
+		return item;
+	}
+
+	// [[BPR-1028]]. The strip's application menu and the window's lifetime. An
+	// accessible invoke runs a menu action without closing the menu, so File >
+	// Quit can destroy the window while the menu is open. The menu has to go
+	// with the window, and none of the window's frames may be left on the stack
+	// waiting for the menu. With the old stack menu run by `exec()`, the
+	// window's destruction below deleted a stack object and the Debug CRT
+	// asserted.
+	void test_strip_menu_goes_with_its_window()
+	{
+		auto window = std::make_unique<qt::workbench_window>();
+		window->resize(1'280, 820);
+		window->show();
+		window->publish(every_primary_command_offered());
+		QApplication::processEvents();
+
+		auto expected = QList<QAction*>{ };
+		for (auto* const action : window->menuBar()->actions()) {
+			if (action->isVisible()) {
+				expected.push_back(action);
+			}
+		}
+		auto closed = QPointer<QMenu>{ };
+		auto shown  = QList<QAction*>{ };
+		with_open_strip_menu(*window, [&](QMenu& aMenu) {
+			closed = &aMenu;
+			shown  = aMenu.actions();
+			expect(aMenu.objectName() == QStringLiteral("workbenchStripMenu") && aMenu.parent() == window.get(),
+				   "the strip menu is the window's own child");
+			aMenu.close();
+		});
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		QApplication::processEvents();
+		expect(!expected.isEmpty() && shown == expected,
+			   "the strip menu offers the menu bar's visible menus, in the bar's order");
+		expect(closed.isNull() && window->findChildren<QMenu*>(QStringLiteral("workbenchStripMenu")).isEmpty(),
+			   "a closed strip menu deletes itself, so opening it again leaves nothing behind");
+
+		// Quit posts the window's destruction, as the desktop's own quit does,
+		// and is pressed the way UI Automation presses it: File is opened
+		// through its accessible item, and Quit's accessible press triggers the
+		// action without closing either menu.
+		auto* const quit = window->findChild<QAction*>(QStringLiteral("quitProfilesAction"));
+		expect(quit != nullptr, "the window has its Quit action");
+		auto* const fileMenu = qobject_cast<QMenu*>(quit->parent());
+		expect(fileMenu != nullptr && fileMenu->menuAction() != nullptr && expected.contains(fileMenu->menuAction()),
+			   "Quit is in a menu the strip menu offers");
+		auto quitContext = QObject{ };
+		window->set_profile_management_dispatch({ }, { }, [&window, &quitContext] {
+			QTimer::singleShot(0, &quitContext, [&window] { window.reset(); });
+		});
+		auto open    = QPointer<QMenu>{ };
+		auto subMenu = QPointer<QMenu>{ fileMenu };
+		with_open_strip_menu(*window, [&](QMenu& aMenu) {
+			open = &aMenu;
+			accessible_item(aMenu, fileMenu->menuAction())->actionInterface()->doAction(QAccessibleActionInterface::showMenuAction());
+			accessible_item(*fileMenu, quit)->actionInterface()->doAction(QAccessibleActionInterface::pressAction());
+			expect(!open.isNull() && open->isVisible(), "an accessible press leaves the strip menu open");
+		});
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (window != nullptr && elapsed.elapsed() < 10'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 20);
+		}
+		expect(window == nullptr, "Quit destroyed the window while its strip menu was open");
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		QApplication::processEvents();
+		expect(open.isNull() && subMenu.isNull(), "the open strip menu went with its window");
+		expect(QApplication::activePopupWidget() == nullptr, "no popup is left behind");
+	}
+#endif
 
 	void test_review_details_return_height_to_the_comparison()
 	{
@@ -8636,6 +8754,15 @@ auto main(int argc, char** argv) -> int
 		std::cout << "workbench-title-row:pass\n";
 		return EXIT_SUCCESS;
 	}
+#if defined(_WIN32)
+	// [[BPR-1028]]. The Windows strip's application menu against its window's
+	// lifetime: closed, it deletes itself; open, it goes with the window.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--strip-menu"))) {
+		test_strip_menu_goes_with_its_window();
+		std::cout << "workbench-strip-menu:pass\n";
+		return EXIT_SUCCESS;
+	}
+#endif
 	// [[BPR-0990]]. Home's discovery glyph, sentence and the Pull Request menu,
 	// reached directly past the epoch-row assertion [[BPR-0940]] owns.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {

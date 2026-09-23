@@ -552,6 +552,27 @@ namespace bpr::qt {
 		return StripMenuButton;
 	}
 
+	void workbench_window::open_strip_menu()
+	{
+		// [[BPR-1028]]. This used to be a QMenu on this handler's stack, run
+		// with exec(). An accessible invoke runs a menu action without closing
+		// the menu first, so File > Quit destroyed the window inside that nested
+		// loop. The window deleted the stack menu as one of its children, and
+		// the Debug CRT asserted _CrtIsValidHeapPointer. A heap child that
+		// deletes itself on close, opened without a nested loop, has neither
+		// problem. The window deletes an open menu along with its other
+		// children.
+		auto* const menu = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("workbenchStripMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		for (auto* const action : PrimaryMenuBar->actions()) {
+			if (action->isVisible()) {
+				menu->addAction(action);
+			}
+		}
+		menu->popup(StripMenuButton->mapToGlobal(QPoint{ 0, StripMenuButton->height() }));
+	}
+
 #endif
 	void workbench_window::build_primary_toolbar()
 	{
@@ -848,16 +869,7 @@ namespace bpr::qt {
 		StripMenuButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
 		StripMenuButton->setFocusPolicy(Qt::StrongFocus);
 		StripMenuButton->setIcon(windows_menu_icon(palette()));
-		connect(StripMenuButton, &QToolButton::clicked, this, [this] {
-			auto menu = QMenu{ this };
-			menu.setObjectName(QStringLiteral("workbenchStripMenu"));
-			for (auto* const action : PrimaryMenuBar->actions()) {
-				if (action->isVisible()) {
-					menu.addAction(action);
-				}
-			}
-			menu.exec(StripMenuButton->mapToGlobal(QPoint{ 0, StripMenuButton->height() }));
-		});
+		connect(StripMenuButton, &QToolButton::clicked, this, &workbench_window::open_strip_menu);
 		stripWidget(StripMenuButton, QStringLiteral("workbenchStripMenuAction"));
 #endif
 		// [[BPR-0650]]. Home first: the way back to the landing and the queue

@@ -27,8 +27,8 @@
 #include <QEvent>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPointer>
 #include <QScreen>
-#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QWindow>
@@ -424,21 +424,22 @@ auto main(int argc, char** argv) -> int
 				expected.push_back(action);
 			}
 		}
-		auto shown    = QList<QAction*>{ };
-		auto attempts = 0;
-		auto read     = std::function<void()>{ };
-		read          = [&shown, &attempts, &read] {
-			if (auto* const popup = qobject_cast<QMenu*>(QApplication::activePopupWidget()); popup != nullptr) {
-				shown = popup->actions();
-				popup->close();
-			} else if (++attempts < 100) {
-				QTimer::singleShot(20, read);
-			}
-		};
-		QTimer::singleShot(0, read);
+		// [[BPR-1028]]. The menu opens with popup() and nothing waits for it:
+		// the press returns with the menu showing, and closing it deletes it.
 		window.strip_menu_button()->click();
+		auto* popup = static_cast<QMenu*>(nullptr);
+		expect(settle([&popup] {
+				   popup = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+				   return popup != nullptr;
+			   }),
+			   "the menu control opens a menu");
+		const auto shown  = popup->actions();
+		const auto opened = QPointer<QMenu>{ popup };
+		popup->close();
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 		expect(!expected.isEmpty() && shown == expected,
 			   "the menu control opens the menu bar's menus, in the bar's order");
+		expect(settle([&opened] { return opened.isNull(); }), "the closed menu deletes itself");
 		for (auto* const top : window.menuBar()->actions()) {
 			expect(top->menu() != nullptr, "every entry of the menu control is one of the bar's menus");
 			expect(window.strip_menu_button()->accessibleDescription().contains(top->menu()->accessibleName()),

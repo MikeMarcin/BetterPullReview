@@ -946,6 +946,16 @@ namespace bpr::qt {
 		};
 
 		void build_primary_toolbar();
+#if defined(_WIN32)
+		/// \brief Opens the strip's application menu under its control.
+		///
+		/// \details [[BPR-1028]]. The one way that menu opens. It is a heap child
+		/// of the window that deletes itself when it closes, shown with
+		/// `popup()`: nothing waits for it, so a Quit or close that destroys the
+		/// window while it is open takes the menu with it and leaves no frame of
+		/// the window's on the stack.
+		void open_strip_menu();
+#endif
 		/// [[BPR-0981]]. Shows each drawer's empty state when its filter
 		/// leaves nothing, and hides it otherwise.
 		void refresh_filter_notices();

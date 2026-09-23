@@ -71,3 +71,61 @@ must share this path once it is fixed.
 - AC3 `application_windows_title_row` passes on the real `windows` platform,
   and it now waits for the menu that `popup()` shows rather than depending on
   `exec()` blocking. macOS and Linux are unchanged.
+
+## Fixed in presentation, offscreen evidence (bpr-main-win, 2026-09-23)
+
+`workbench_window::open_strip_menu()` is now the one way the strip menu
+opens. It creates a heap `QMenu` as a child of the window, named
+`workbenchStripMenu`, with `Qt::WA_DeleteOnClose`, fills it from the bar's
+visible menus as before, and shows it with `popup()` under the control. The
+button's `clicked` signal connects to it directly. No handler of the window's
+waits for the menu, so nothing is left on the stack when a Quit or close
+destroys the window, and the window deletes the open menu with its other
+children. [[BPR-1022]] can call the same function.
+
+### The course, and its negative control
+
+`qt_workbench_strip_menu` is a new row, registered only on Windows because
+only the Windows strip has the control. It runs
+`test_better_pull_review_qt_workbench_window_tests --strip-menu` offscreen at
+1.0 and does two things:
+
+1. It opens the menu and checks that it is the window's child, named
+   `workbenchStripMenu`, and offers the bar's visible menus in the bar's
+   order. It then closes the menu and checks that the menu has deleted itself.
+2. It opens the menu again and presses Quit the way UI Automation does. It
+   shows File through the File item's accessible `showMenuAction`, then calls
+   Quit's accessible `pressAction`. That triggers the action with both menus
+   still open, and the course checks that the strip menu is still visible.
+   Quit posts the window's destruction, as the desktop's quit does. The
+   course then checks that the window is gone, that the strip menu and File
+   went with it, and that no popup is left.
+
+The course opens the menu from a timer that polls for it. That works whether
+or not the menu runs its own nested loop, so the same course can run against
+the old form.
+
+| Candidate | `qt_workbench_strip_menu` |
+| --- | --- |
+| Old stack `exec()` menu, the new course (negative control) | **Failed**: `debug_heap.cpp(904) : Assertion failed: _CrtIsValidHeapPointer(block)`, then `is_block_type_valid`, `HEAP CORRUPTION DETECTED`, and the child died with `0xC0000005`. This is the quit probe's assertion, reproduced offscreen |
+| `open_strip_menu()` | Passed 5 of 5 (`--repeat until-fail:5`), about 0.8 s each |
+
+At the fix, these also passed on this station: `qt_workbench_title_row_scale_{100,125,200}`,
+`qt_workbench_focus_order_scale_{100,125,200}`, `qt_workbench_home_discovery_scale_100`,
+`qt_native_window_geometry` and `test_network_isolation_manifest` (the new
+row is contained). `format_check.py` (clang-format 22.1.8) passes on the four
+touched C++ files. Build: `build/dev`, MSVC 19.51 Debug, Qt 6.11.2.
+
+`application_windows_title_row` used to arm a timer before the press and
+relied on `exec()` blocking until the timer closed the menu. It now presses
+the control, waits for the popup, reads it and closes it, and also checks
+that the closed menu deletes itself. That row runs on the real `windows`
+platform, so it waits for a foreground clearance together with AC2.
+
+### Same pattern elsewhere, not changed here
+
+`epoch_line::contextMenuEvent` (`src/adapters/qt/src/epoch_line.cpp`) is a
+stack `QMenu` parented to the epoch line and run with `exec()`, on every
+platform. None of its own actions destroys the window. A window destroyed
+while that menu is open, for example by an accessible Quit in the window's
+File menu, would free the stack object the same way. That needs its own card.
