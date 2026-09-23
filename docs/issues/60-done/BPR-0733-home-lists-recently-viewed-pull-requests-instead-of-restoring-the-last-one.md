@@ -64,7 +64,7 @@ be better."
 - Per-window drawer layouts (BPR-0708) and the saved reading position are
   untouched; only the automatic open goes. "Resume review" of RFC-BPR-0026
   AC-01 is satisfied by the first entry's resume action; the RFC row on
-  [BPR-0599](../10-backlog/BPR-0599-close-rfc-0026.md) records that.
+  [BPR-0599](../20-ready/BPR-0599-close-rfc-0026.md) records that.
 - Owned paths: `src/core` restoration policy, `src/application`
   window-review restoration host, `src/adapters/sqlite/src/window_review_restoration_store.cpp`,
   `src/adapters/qt/src/workbench_window.cpp` and a small recently-viewed
