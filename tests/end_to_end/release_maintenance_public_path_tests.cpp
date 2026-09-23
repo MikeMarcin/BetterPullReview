@@ -3,6 +3,9 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#if defined(_WIN32)
+	#include "bpr/logging/quill_log.hpp"
+#endif
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -31,6 +34,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <string_view>
 
 namespace {
 	using namespace bpr;
@@ -99,6 +103,23 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto parent = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
 	const auto root   = parent / "data";
 	expect(adapters::sqlite::create_storage_root_owner_private(root), "private application root");
+	constexpr auto hostileLegacyLines = std::string_view{ "2026-09-21T01:00:00Z v=1 op=application outcome=failed request=99 http_status=0 summary=sanitized dropped=0 detail=BPR_CANARY_SECRET_1 BPR_CANARY_SOURCE_1 BPR_CANARY_COMMENT_1\nlegacy BPR_CANARY_SOURCE_2\n" };
+#if defined(_WIN32)
+	// [[BPR-1030]]. On Windows the running logger is the log's only writer: it
+	// holds diagnostics.log shared for reading alone, so an append beside it is
+	// refused. The legacy lines go in before the desktop starts, into a log the
+	// product's own logger created with its own descriptor.
+	{
+		adapters::logging::quill_log created{ root };
+		expect(created.open_failure() == adapters::logging::diagnostic_file_failure::none, "the product logger creates the native log");
+		created.close();
+	}
+	{
+		std::ofstream hostile{ root / "logs/diagnostics.log", std::ios::app | std::ios::binary };
+		hostile << hostileLegacyLines;
+		expect(hostile.good(), "hostile legacy diagnostics are written while no logger holds the log");
+	}
+#endif
 	app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot      = root;
 	options.RegisteredDeviceCourse   = true;
@@ -125,10 +146,12 @@ auto main(int aArgc, char** aArgv) -> int
 	for (auto* model : window->findChildren<QAbstractItemModel*>()) {
 		observers.push_back(QObject::connect(model, &QAbstractItemModel::modelReset, window, [&] { ++resets; }));
 	}
+#if !defined(_WIN32)
 	{
 		std::ofstream hostile{ root / "logs/diagnostics.log", std::ios::app };
-		hostile << "2026-09-21T01:00:00Z v=1 op=application outcome=failed request=99 http_status=0 summary=sanitized dropped=0 detail=BPR_CANARY_SECRET_1 BPR_CANARY_SOURCE_1 BPR_CANARY_COMMENT_1\nlegacy BPR_CANARY_SOURCE_2\n";
+		hostile << hostileLegacyLines;
 	}
+#endif
 	expect(read(root / "logs/diagnostics.log").find("BPR_CANARY_SOURCE_2") != std::string::npos, "hostile legacy diagnostics actually reach the selected native log");
 	auto* button = panel->findChild<QPushButton*>(QStringLiteral("releaseMaintenanceCommand0"));
 	button->setFocus();

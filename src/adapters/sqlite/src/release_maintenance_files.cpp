@@ -999,9 +999,12 @@ namespace bpr::adapters::sqlite {
 		}
 		auto create_private_file(HANDLE aParent, std::string_view aName) -> descriptor
 		{
-			const auto                       path = path_for(aParent, aName);
+			const auto path = path_for(aParent, aName);
+			// [[BPR-1030]]. The descriptor names its owner by pointer into this
+			// object, so it must outlive the CreateFileW below.
+			const auto                       owner = security();
 			win::private_security_attributes attributes;
-			if (!attributes.initialize(security(), win::windows_object_kind::regular_file)) {
+			if (!attributes.initialize(owner, win::windows_object_kind::regular_file)) {
 				fail(reason::invalid_authority);
 			}
 			descriptor file{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE | DELETE | READ_CONTROL,

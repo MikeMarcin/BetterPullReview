@@ -380,6 +380,11 @@ namespace bpr::adapters::native_storage {
 			return true;
 		}
 
+		/// \brief Refused: the descriptor's owner is a pointer into the
+		/// security, which a temporary would leave dangling once this returns
+		/// ([[BPR-1030]]).
+		auto initialize(const private_security&&, windows_object_kind) -> bool = delete;
+
 		[[nodiscard]] auto attributes() noexcept -> SECURITY_ATTRIBUTES*
 		{
 			return &Attributes;
