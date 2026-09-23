@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0873"
 title: "Windows: the documentation rows need out-of-repository skill content and a git child, neither reachable from the container"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
