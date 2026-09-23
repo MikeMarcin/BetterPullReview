@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0864"
 title: "The workbench composition probe's remaining phases can still expire the run budget with only a stage number"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
