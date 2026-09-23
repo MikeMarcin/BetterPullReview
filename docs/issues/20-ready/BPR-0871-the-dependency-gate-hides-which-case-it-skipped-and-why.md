@@ -252,3 +252,25 @@ Expect both rows to pass under the sandbox runner. The dependency row should
 print `SKIPPED: dependency_modernization_tests.DependencyModernizationTests.test_syntax_prefix_installs_one_library_per_configuration: one installed KSyntaxHighlighting configuration, DEBUG, in <the cache's KF6SyntaxHighlighting_DIR>: a single-configuration tree has nothing to compare`.
 
 If both stations observe this, the card can finish with the records above.
+
+## The macOS run (bpr-main-mac, Mac batch 3, 2026-09-23)
+
+Run on `fe2216e3`, which contains `867ed35f`. `cmake --build --preset dev`
+ran first (exit 0). The working tree also held an uncommitted change to the
+conversation delegate, which touches neither row. Ran
+`ctest --preset dev -V -R '^(dependency_modernization_contract|skip_report_contract)$'`
+under the sandbox runner (`build/bpr0871-mac-rows.log`), 2/2:
+
+| Row | Result |
+|---|---|
+| `skip_report_contract` | Pass, 0.23 s, `Ran 9 tests`, `OK` |
+| `dependency_modernization_contract` | Pass, 75.93 s, `Ran 27 tests`, `OK (skipped=1)` |
+
+The dependency row prints the single-configuration line, word for word:
+
+```text
+SKIPPED: dependency_modernization_tests.DependencyModernizationTests.test_syntax_prefix_installs_one_library_per_configuration: one installed KSyntaxHighlighting configuration, DEBUG, in /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/_bpr/ksyntaxhighlighting/6.28.1/prefix/lib/cmake/KF6SyntaxHighlighting: a single-configuration tree has nothing to compare
+```
+
+The path is the cache's `KF6SyntaxHighlighting_DIR` in `build/dev/CMakeCache.txt`.
+The macOS observation holds.
