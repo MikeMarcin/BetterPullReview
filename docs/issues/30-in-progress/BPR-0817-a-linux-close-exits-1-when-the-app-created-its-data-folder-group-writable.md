@@ -314,3 +314,39 @@ recorded there as the `BPR-0817 reseal` note.
 - **Result.** The contract failed on the full-file digest before the reseal
   and passes after it. `application_composition_contract` passes all seven
   subtests.
+
+## Native course on WSLg, 2026-09-23: the observer failed, so criterion 2 stays open
+
+The run window was 18:11:42Z–18:12:15Z UTC, under bpr-main-win's desktop hold.
+The courses ran `run-courses.sh` against the tests-disabled `app-release`
+image of `14a18b45` (SHA-256 `08f6d04d…cc73`), under umask 0002, through the
+station lease and the live-state guard. The guard left all eight live files
+unchanged in both runs.
+
+| Course | Result | Exit | Folder modes after | Status bar read through AT-SPI |
+|---|---|---|---|---|
+| Pre-existing 0775 parent | **Failed in the observer**, guard rc 4 | **-15**: the course stopped the application after its failure, before any close | parent 0775 (unchanged), data root 0700, no neighbourhood | `""`. The course waited 30 s for the refusal sentence and never read it |
+| No parent (control) | Passed | **0** after caption close, 116 ms | parent 0700, data root 0700, neighbourhood 0700 | `""` |
+
+- **The product did what it should in the 0775 run.** Standard error carries
+  `AGENT_WORKSPACE_RECOVERY_REFUSED:…/data/BetterPullReview/BetterPullReview/agent-workspace-ownership-v1:repair-required`.
+  The parent stayed 0775, and no neighbourhood was created.
+- **The course could not read the status bar.** The label's text never reaches
+  AT-SPI. Qt's labels do not implement the AT-SPI Text interface: bpr-linux's
+  2026-09-17 tree dump records `UnknownInterface` for "Workbench status". The
+  label's explicit accessible name also replaces its text as the name. The
+  status bar was therefore never read in either run, and the control's "no
+  refusal" check proves nothing.
+- **Not observed.** The status bar at Home was not observed natively, and
+  neither was the caption-close exit code over a 0775 parent. Criterion 2's
+  automated evidence stands (`application_profile_management_public_path`
+  asserts both), but the real-application observation is still missing.
+- **Next.** The course needs two fixes:
+  - read the status line from Qt's polite announcement, which carries the
+    whole line as an AT-SPI announcement event, or from another readable
+    surface;
+  - always perform the caption close and record the exit code, even when
+    the observation fails.
+
+  After that, rerun the 0775 course under a new desktop hold. The course
+  shows one window for about 30 s.

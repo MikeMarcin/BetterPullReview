@@ -23,12 +23,14 @@
   with no first-party `-Wno-error`, and has no first-party warnings. The
   executable's SHA-256 is
   `08f6d04d4d2d73af6701f040598bd5230cf2973625bbb66aca43ee118e22cc73`.
-- **Next.** Run `/home/mmarcin/bpr0817-native/run-courses.sh`. It runs
-  `tests/scripts/linux_agent_workspace_refusal_course.py` twice under umask
-  0002, through the station lease and the live-state guard. The first run has
-  a pre-existing 0775 parent; the second has no parent, as the control. Each
-  run shows one window for about 20–40 s. Then record both results against
-  criterion 2 and finish the card.
+- **Native run, 2026-09-23 18:11:42Z–18:12:15Z.** The control passed with
+  exit 0. The 0775 course failed in its observer: Qt's status label does not
+  expose its text through AT-SPI Text. The details are under "Native
+  evidence" below.
+- **Next.** Change the course to read the status line from Qt's polite
+  announcement event, and to perform the caption close even after an
+  observation failure. Then rerun the 0775 course under a new desktop hold,
+  record the result against criterion 2, and finish the card.
 
 ## Frontier at `1c6eaf21` (bpr-linux, 2026-09-17; superseded)
 
@@ -405,8 +407,39 @@ full-file digest before the reseal. It passes after it, and so does
 `application_composition_contract`, whose baseline subtest runs that
 contract. The review is recorded on the card.
 
-### Native evidence
+### Native evidence, 2026-09-23, 18:11:42Z–18:12:15Z UTC
 
-Not run yet. The course opens a visible window on the WSLg desktop, which it
-shares with bpr-main-win's foreground courses. The coordinator has to clear
-that run first.
+- **Setup.** The courses ran under bpr-main-win's desktop hold, with
+  `/home/mmarcin/bpr0817-native/run-courses.sh`, the station lease and the
+  live-state guard. The guard left all eight live files unchanged.
+- **Image.** A clean `14a18b45` `app-release`: Release, tests disabled,
+  executable SHA-256 `08f6d04d4d2d73af6701f040598bd5230cf2973625bbb66aca43ee118e22cc73`.
+- **Environment.** Umask 0002. Fresh XDG roots, whose `xdg_data_home` is
+  0775. Qt on XCB with AT-SPI.
+
+**The 0775-parent course failed in its observer.**
+
+- **Status bar.** The course waited 30 s for the refusal sentence. What it
+  read from the "Workbench status" label was always `""`, so it stopped the
+  application (exit -15) before any close.
+- **Product.** Standard error names the refusal:
+  `AGENT_WORKSPACE_RECOVERY_REFUSED:…/agent-workspace-ownership-v1:repair-required`.
+  The parent is still 0775, the data root was created 0700, and no
+  neighbourhood exists.
+
+**The control course passed.** A caption close exited 0 after 116 ms. The
+parent, the data root and the neighbourhood were all created 0700, and
+standard error names no refusal.
+
+**Cause of the observer failure.** The course read the label through the
+AT-SPI Text interface. Qt's labels do not implement that interface: the
+2026-09-17 tree dump already records `UnknownInterface` for the same label.
+The label's explicit accessible name also replaces its text, so the text is
+not the name either. The status bar was therefore never read in either run,
+and the control's "no refusal" check is vacuous. The status bar at Home and
+the caption-close exit code over a 0775 parent both remain unobserved on the
+real application.
+
+The captures and logs are in `/home/mmarcin/bpr0817-native/runs/`:
+`course-0775.json`, `course-absent.json`, the receipts, and `window.txt`.
+They are not committed.
