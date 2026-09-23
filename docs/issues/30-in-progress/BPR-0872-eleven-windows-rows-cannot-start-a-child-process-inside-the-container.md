@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0872"
 title: "Windows: eleven contained rows fail because they cannot start a child process"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
