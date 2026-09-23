@@ -572,9 +572,12 @@ a matching pull request keeps its repository row, so parent context is never
 lost, and a matching repository keeps every row beneath it. When nothing
 matches the drawer says so, names the filter, and offers Clear filter; the
 open pull request and the selected file stay exactly where they were, and
-clearing makes the chosen row current again by its identity without a second
-open or select. The filters, the files order selector and Clear filter are
-declared focus stops ahead of their trees.
+clearing makes the selected file and the open pull request's row current again
+by their identity without a second open or select. The repositories tree's
+current row is the window's open pull request however it was opened, from the
+tree, Home or a URL, so an earlier row is never left current to swallow the
+gesture that would open it. The filters, the files order selector and Clear
+filter are declared focus stops ahead of their trees.
 
 Both drawers are independently collapsible and resizable. Collapsing hides the
 panel rather than resizing it to zero, because a splitter distributes a hidden

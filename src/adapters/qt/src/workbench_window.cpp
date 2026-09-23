@@ -6230,6 +6230,14 @@ namespace bpr::qt {
 									  IdentityRepository,
 									  IdentityNumber,
 									  QString::fromStdString(aPullRequest.Title));
+		// [[BPR-0981]]. The repositories tree keeps the open pull request's
+		// row current, however it was opened, so a stale row cannot hold the
+		// current index and swallow the gesture that would open it.
+		if (RepositoriesTree != nullptr) {
+			RepositoriesTree->follow_open_pull_request(
+				aPullRequest.Owner + "/" + aPullRequest.RepositoryName,
+				static_cast<std::int64_t>(aPullRequest.Number.value()));
+		}
 		update_strip_identity();
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
@@ -6331,6 +6339,9 @@ namespace bpr::qt {
 		IdentityOwner.clear();
 		IdentityRepository.clear();
 		IdentityNumber.clear();
+		if (RepositoriesTree != nullptr) {
+			RepositoriesTree->forget_open_pull_request();
+		}
 		update_strip_identity();
 		update_rail_summaries();
 		PullRequestPanel->clear();

@@ -102,6 +102,19 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+# [[BPR-0981]]. RFC-BPR-0025 AC-02 through the composed window, alone.
+bpr_add_network_isolated_test(
+    NAME qt_composed_resident_drawer_filters
+    COMMAND test_better_pull_review_qt_github_tests --resident-drawer-filters
+)
+set_tests_properties(
+    qt_composed_resident_drawer_filters
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+        PASS_REGULAR_EXPRESSION "resident-drawer-filters:pass"
+        TIMEOUT 30
+)
+
 bpr_add_network_isolated_test(
     NAME qt_composed_github_scale_125
     COMMAND test_better_pull_review_qt_github_tests
@@ -938,6 +951,22 @@ set_tests_properties(qt_shared_snapshot_navigation PROPERTIES
     PASS_REGULAR_EXPRESSION "shared-snapshot-navigation:pass"
     TIMEOUT 30
 )
+
+# [[BPR-0981]]. RFC-BPR-0025 AC-09: the declared focus order with both drawer
+# filters and the files order selector, at each scale the window rows use.
+foreach(bpr_focus_order_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_focus_order_whole "${bpr_focus_order_scale} / 100")
+    math(EXPR bpr_focus_order_fraction "${bpr_focus_order_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_workbench_focus_order_scale_${bpr_focus_order_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --focus-order
+    )
+    set_tests_properties(qt_workbench_focus_order_scale_${bpr_focus_order_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_focus_order_whole}.${bpr_focus_order_fraction};BPR_EXPECTED_QT_SCALE=${bpr_focus_order_whole}.${bpr_focus_order_fraction}"
+        PASS_REGULAR_EXPRESSION "workbench-focus-order:pass"
+        TIMEOUT 30
+    )
+endforeach()
 
 bpr_add_network_isolated_test(
     NAME qt_native_window_geometry

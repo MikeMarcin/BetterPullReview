@@ -271,6 +271,66 @@ namespace {
 			   "a re-published queue keeps the chosen pull request current without opening it again");
 		view.hide();
 	}
+
+	// [[BPR-0981]]. The current row is the window's open pull request, not
+	// merely the last row chosen here: a pull request opened elsewhere takes
+	// the current row without an open, so the row chosen before is a fresh
+	// gesture again rather than a current index that swallows the click.
+	auto test_the_open_pull_request_is_current_however_it_was_opened() -> void
+	{
+		qt::repositories_tree_view view;
+		view.resize(300, 400);
+		view.show();
+		QApplication::processEvents();
+		const auto items = std::vector<core::queue_item>{
+			item("EpicGames/UnrealEngine", 14366, core::attention_bucket::changed_since_my_review,
+				 core::github_role::requested_reviewer, "Preserve the DRCS font"),
+			item("MikeMarcin/BetterPullReview", 1773, core::attention_bucket::quiet, core::github_role::participant,
+				 "Drawer filters"),
+		};
+		auto opened = std::vector<core::queue_item>{ };
+		view.set_open_dispatch([&opened](const core::queue_item& aItem) { opened.push_back(aItem); });
+		view.apply(items);
+		QApplication::processEvents();
+		auto* const model = view.tree_model();
+		const auto  row   = [model](const std::string& aRepository, const std::int64_t aNumber) {
+			return model->index_for(aRepository, aNumber);
+		};
+
+		view.setCurrentIndex(row("EpicGames/UnrealEngine", 14366));
+		QApplication::processEvents();
+		expect(opened.size() == 1U && view.current_pull_request()->Host == "github.com",
+			   "a row chosen here opens once and is kept with its exact host and account");
+		view.follow_open_pull_request("EpicGames/UnrealEngine", 14366);
+		expect(view.current_pull_request()->Host == "github.com" && opened.size() == 1U,
+			   "the window confirming the same pull request keeps the exact choice and opens nothing");
+
+		view.follow_open_pull_request("MikeMarcin/BetterPullReview", 1773);
+		QApplication::processEvents();
+		expect(model->item_at(view.currentIndex()).has_value()
+				   && model->item_at(view.currentIndex())->Ref.Number == 1773 && opened.size() == 1U,
+			   "a pull request the window opened elsewhere takes the current row without an open");
+		view.setCurrentIndex(row("EpicGames/UnrealEngine", 14366));
+		QApplication::processEvents();
+		expect(opened.size() == 2U && opened.back().Ref.Number == 14366,
+			   "the row chosen before is a fresh gesture again and opens its pull request");
+
+		view.forget_open_pull_request();
+		QApplication::processEvents();
+		expect(!view.currentIndex().isValid() && !view.current_pull_request().has_value() && opened.size() == 2U,
+			   "with no pull request open no row is current and nothing opens");
+		view.follow_open_pull_request("octo/elsewhere", 5);
+		expect(!view.currentIndex().isValid() && opened.size() == 2U,
+			   "an open pull request the queue does not list leaves nothing current");
+		auto later = items;
+		later.push_back(item("octo/elsewhere", 5, core::attention_bucket::quiet, core::github_role::participant));
+		view.apply(later);
+		QApplication::processEvents();
+		expect(model->item_at(view.currentIndex()).has_value()
+				   && model->item_at(view.currentIndex())->Ref.Repository == "octo/elsewhere" && opened.size() == 2U,
+			   "once the queue lists the open pull request its row is current, without an open");
+		view.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -279,6 +339,7 @@ auto main(int argc, char** argv) -> int
 	test_tree_groups_the_queue_by_repository_with_reasons();
 	test_saved_repositories_are_rows_with_save_and_forget();
 	test_the_filter_is_resident_keeps_context_and_the_chosen_row();
+	test_the_open_pull_request_is_current_however_it_was_opened();
 	std::cout << "repositories-drawer-tests:pass\n";
 	return EXIT_SUCCESS;
 }

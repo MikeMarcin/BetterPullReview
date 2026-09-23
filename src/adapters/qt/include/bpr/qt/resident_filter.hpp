@@ -35,7 +35,7 @@ namespace bpr::qt {
 			QWidget*       aParent = nullptr);
 
 		/// \brief Names the filter that found nothing.
-		void set_filter(const QString& aFilter);
+		void               set_filter(const QString& aFilter);
 		[[nodiscard]] auto message() const -> QString;
 		[[nodiscard]] auto clear_button() const noexcept -> QPushButton*;
 

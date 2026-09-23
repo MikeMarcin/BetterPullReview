@@ -3879,9 +3879,9 @@ namespace {
 	// leave the open pull request and the selected file exactly where they were.
 	auto test_drawer_filters_are_resident_and_keep_the_open_views() -> void
 	{
-		std::vector<application::github_intent>          intents;
-		std::vector<core::workbench_interaction_intent>  workbench;
-		qt::workbench_window                             window{
+		std::vector<application::github_intent>         intents;
+		std::vector<core::workbench_interaction_intent> workbench;
+		qt::workbench_window                            window{
 			[&workbench](core::workbench_interaction_intent aIntent) { workbench.push_back(aIntent); },
 			qt::workbench_change_dispatch{ },
 			qt::workbench_drawer_width_dispatch{ },
@@ -3908,15 +3908,20 @@ namespace {
 					.Bucket     = core::attention_bucket::quiet,
 					.Facts      = { .Title = "Epoch line dates" },
 				},
+				// The pull request `publish_pull_request` opened.
+				core::queue_item{
+					.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "openai/better-pull-review", .Number = 27 },
+					.Membership = { .Role = core::github_role::participant },
+					.Bucket     = core::attention_bucket::quiet,
+					.Facts      = { .Title = "Literal title" },
+				},
 			},
 		});
 		auto overview = application::pull_request_overview_projection{ };
 		overview.Files.push_back(application::overview_file_row{
-			.Path = "src/host/ConptyConnection.cpp", .Name = "ConptyConnection.cpp",
-			.Operation = application::overview_file_operation::modified, .Additions = 12U, .Deletions = 3U });
+			.Path = "src/host/ConptyConnection.cpp", .Name = "ConptyConnection.cpp", .Operation = application::overview_file_operation::modified, .Additions = 12U, .Deletions = 3U });
 		overview.Files.push_back(application::overview_file_row{
-			.Path = "src/terminal/adapter/adaptDispatch.cpp", .Name = "adaptDispatch.cpp",
-			.Operation = application::overview_file_operation::modified, .Additions = 4U, .Deletions = 0U });
+			.Path = "src/terminal/adapter/adaptDispatch.cpp", .Name = "adaptDispatch.cpp", .Operation = application::overview_file_operation::modified, .Additions = 4U, .Deletions = 0U });
 		window.publish(overview);
 		window.choose_modality(qt::review_modality::review);
 		QApplication::processEvents();
@@ -3943,6 +3948,12 @@ namespace {
 		const auto selected = files->tree_model()->file_at(files->currentIndex());
 		expect(selected == std::optional{ adapt } && !window.showing_home(),
 			   "a file is selected and the pull request is open before filtering");
+		auto* const model   = repositories->tree_model();
+		const auto  openRow = [model, repositories] {
+			const auto item = model->item_at(repositories->currentIndex());
+			return item.has_value() ? item->Ref.Number : std::int64_t{ 0 };
+		};
+		expect(openRow() == 27, "the open pull request's row is current in the repositories tree");
 		const auto workbenchBefore = workbench.size();
 		const auto githubBefore    = intents.size();
 
@@ -3969,11 +3980,11 @@ namespace {
 
 		reposFilter->setText(QStringLiteral("epoch"));
 		QApplication::processEvents();
-		auto* const model = repositories->tree_model();
 		expect(model->rowCount() == 1 && model->item_count() == 1U
+				   && model->index(0, 0).data().toString() == QStringLiteral("better-pull-review/desktop")
 				   && model->index(0, 0, model->index(0, 0)).data(qt::repositories_tree_model::number_role).toLongLong() == 74
-				   && reposNotice->isHidden(),
-			   "a title match keeps its repository row and shows that pull request alone");
+				   && reposNotice->isHidden() && !repositories->currentIndex().isValid(),
+			   "a title match keeps its repository row and shows that pull request alone; the hidden open row is not current");
 		reposFilter->setText(QStringLiteral("#73"));
 		QApplication::processEvents();
 		expect(model->rowCount() == 1 && model->item_count() == 1U
@@ -3986,12 +3997,32 @@ namespace {
 			   "a repositories filter nothing matches says so and offers Clear filter");
 		reposNotice->clear_button()->click();
 		QApplication::processEvents();
-		expect(reposFilter->text().isEmpty() && model->rowCount() == 1 && model->item_count() == 2U && reposNotice->isHidden(),
-			   "Clear filter lists every repository and pull request again");
+		expect(reposFilter->text().isEmpty() && model->rowCount() == 2 && model->item_count() == 3U && reposNotice->isHidden()
+				   && openRow() == 27,
+			   "Clear filter lists every repository and pull request again and the open one is current again");
 
 		expect(intents.size() == githubBefore && workbench.size() == workbenchBefore && !window.showing_home()
 				   && files->tree_model()->file_at(files->currentIndex()) == std::optional{ adapt },
 			   "filtering and clearing sent nothing to a provider or the core and left the open pull request and selected file in place");
+
+		// A row chosen in the tree opens once; when the window then opens
+		// another pull request, that row is a fresh gesture again.
+		const auto rowOf = [model](const std::int64_t aNumber) {
+			return model->index_for(std::string_view{ "better-pull-review/desktop" }, aNumber);
+		};
+		repositories->setCurrentIndex(rowOf(74));
+		QApplication::processEvents();
+		expect(intents.size() == githubBefore + 1U, "choosing a row in the tree opens its pull request once");
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(openRow() == 27, "the pull request the window opened takes the current row");
+		repositories->setCurrentIndex(rowOf(74));
+		QApplication::processEvents();
+		const auto* const reopened = intents.size() == githubBefore + 2U
+			? std::get_if<core::open_pull_request_intent>(&intents.back())
+			: nullptr;
+		expect(reopened != nullptr && reopened->Number == core::pull_request_number{ 74U },
+			   "choosing the earlier row again opens it rather than being swallowed as already current");
 		window.hide();
 	}
 
@@ -6974,6 +7005,13 @@ auto main(int argc, char** argv) -> int
 		test_cancellation_states_and_failure_layouts();
 		test_a_load_refusal_is_said_under_the_home_bar();
 		std::cout << "GitHub Qt loading and refusal tests passed\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-0981]]. The resident drawer filters' composed gesture path alone;
+	// the full run stops later at the card assertion [[BPR-0940]] owns.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--resident-drawer-filters"))) {
+		test_drawer_filters_are_resident_and_keep_the_open_views();
+		std::cout << "resident-drawer-filters:pass\n";
 		return EXIT_SUCCESS;
 	}
 

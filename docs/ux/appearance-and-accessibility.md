@@ -428,6 +428,13 @@ and the comparison surface contributes exactly one stop to the shell's order.
 A shell that reshuffled another component's internal order would be deciding
 that component's presentation for it.
 
+Each drawer's controls precede its tree in the declared order (RFC-BPR-0025,
+[[BPR-0981]]): the repositories drawer's Filter pull requests and Clear pull
+requests filter, then the files drawer's Files order, Filter files and Clear
+files filter. A Clear filter button is shown, and so reachable, only while its
+filter matches nothing. The order is walked at 100, 125 and 200 percent by
+`qt_workbench_focus_order_scale_{100,125,200}`.
+
 **No accessible name may be shared by two focusable widgets in the assembled
 window.** This is enforced by a test rather than by convention, because the
 rule was broken four separate times before it was enforced: a retired

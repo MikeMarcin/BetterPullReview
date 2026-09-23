@@ -5118,6 +5118,11 @@ namespace {
 		// until a workbench is active, so one is made active first.
 		window.publish(every_primary_command_offered());
 		process_events();
+		// [[BPR-0981]]. The order is claimed at the scale the row registers.
+		if (const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE"); !expected.isEmpty()) {
+			expect(std::abs(window.devicePixelRatioF() - expected.toDouble()) < 0.001,
+				   "the focus order is walked at the exact expected device scale");
+		}
 
 		const auto expanded = window.focus_order();
 		expect(expanded.size() >= 12,
@@ -8373,6 +8378,13 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--shared-snapshot-navigation"))) {
 		test_comments_filter_and_return_comparison_preferences_apply_on_open();
 		std::cout << "shared-snapshot-navigation:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-0981]]. The declared focus order alone, at each registered scale:
+	// the full run stops earlier at the epoch-row assertion [[BPR-0940]] owns.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--focus-order"))) {
+		test_focus_order_is_declared_named_and_walkable();
+		std::cout << "workbench-focus-order:pass\n";
 		return EXIT_SUCCESS;
 	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
