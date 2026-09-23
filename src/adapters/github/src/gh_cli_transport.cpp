@@ -1619,10 +1619,16 @@ namespace bpr::adapters::github::detail {
 		},
 										   aRequest.Wire.Semantic);
 		// The CLI publication milestone admits REST review and inline-comment shapes only.
+		// [[BPR-0896]]. A reply's reconciliation observes its thread at the
+		// GraphQL root too. This transport never writes a reply, so its own
+		// writes never need it; a reply attempt written through another
+		// transport and recovered here is refused, and stays unresolved
+		// rather than being resubmitted.
 		if (!correlated || aRequest.Wire.Operation == review_mutation_operation::reply_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread) {
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments) {
 			return github_mutation_wire_error{ };
 		}
 		const auto prefix = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28

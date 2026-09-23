@@ -1594,6 +1594,28 @@ namespace {
 				const auto result = transport.perform_review_mutation({ .Context = request.Context, .Wire = *observation }, { }, { });
 				expect(std::holds_alternative<github_mutation_wire_success>(result) && gh_arguments(*process.LastRequest)[6] == "GET" && process.LastRequest->StandardInput.empty(), "reconciliation uses bounded GET without write witness");
 			}
+			// Every GraphQL-rooted shape is refused before launch: the four
+			// the milestone never admitted, and [[BPR-0896]]'s thread
+			// reconciliation of a reply, which nothing this transport wrote
+			// can need.
+			auto reply                   = semanticRequest;
+			reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+			reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+			const auto resolution        = application::review_thread_resolution_request{
+				.Target         = binding.Target.Semantic,
+				.ActingIdentity = binding.ActingIdentity.Account,
+				.Thread         = "PRRT_fixture_1",
+				.Resolve        = true,
+				.LiveBinding    = binding,
+			};
+			auto unresolution    = resolution;
+			unresolution.Resolve = false;
+			for (const auto& graphql : { compile_review_comment_request(reply, profile->server_contract()), compile_review_comment_observation_request(reply, profile->server_contract()), compile_thread_resolution_request(resolution, profile->server_contract()), compile_thread_resolution_request(unresolution, profile->server_contract()), compile_thread_target_observation_request(resolution, profile->server_contract()) }) {
+				expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "GraphQL-rooted shape compiles at the GraphQL root");
+				const auto launches = process.Calls;
+				const auto refused  = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, [] { return true; });
+				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == launches, "a GraphQL-rooted shape never launches the CLI");
+			}
 
 			for (bool wholeReview : { false, true }) {
 				if (wholeReview) {

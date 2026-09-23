@@ -12,6 +12,7 @@
 #include <array>
 #include <atomic>
 #include <cctype>
+#include <charconv>
 #include <concepts>
 #include <iterator>
 #include <limits>
@@ -119,6 +120,18 @@ namespace bpr::adapters::github::detail {
 		constexpr auto observe_thread_document = std::string_view{
 			"query ObserveThread($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
 			"id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+		};
+		/// [[BPR-0896]]. The read that reconciles a reply. A reply is written
+		/// by GraphQL, so its own path is the GraphQL root and no REST
+		/// collection can be derived from it; what it can be reconciled
+		/// against is the thread it landed in. The side lives on the thread,
+		/// the database identity is a string-encoded `BigInt`, and the
+		/// author's identities exist only on the `User` fragment.
+		constexpr auto observe_thread_comments_document = std::string_view{
+			"query ObserveThreadComments($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
+			"id diffSide pullRequest{id databaseId number repository{id databaseId nameWithOwner}} "
+			"comments(first:100){pageInfo{hasNextPage} nodes{id fullDatabaseId body path line commit{oid} "
+			"viewerDidAuthor author{login ... on User{databaseId id}}}}}}}"
 		};
 
 		[[nodiscard]] auto graphql_token(const std::string_view aValue) noexcept -> bool
@@ -485,6 +498,98 @@ namespace bpr::adapters::github::detail {
 			struct glaze
 			{
 				static constexpr auto value = glz::object("data", &thread_node_response_json::Data);
+			};
+		};
+		// [[BPR-0896]]. The thread a reply landed in, with its comments, as
+		// the reconciliation observes it. `line`, `commit` and
+		// `fullDatabaseId` are nullable on the wire and the author's
+		// identities exist only on the `User` fragment, so every one of them
+		// is optional here: a comment that is not ours may carry anything the
+		// schema allows and still be projected.
+		struct thread_comment_author_json
+		{
+			std::string                  Login;
+			std::optional<std::uint64_t> DatabaseId;
+			std::optional<std::string>   Id;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"login", &thread_comment_author_json::Login,
+					"databaseId", &thread_comment_author_json::DatabaseId,
+					"id", &thread_comment_author_json::Id);
+			};
+		};
+		struct thread_comment_json
+		{
+			std::string                               Id;
+			std::optional<std::string>                FullDatabaseId;
+			std::string                               Body;
+			std::string                               Path;
+			std::optional<std::uint64_t>              Line;
+			std::optional<reply_commit_json>          Commit;
+			bool                                      ViewerDidAuthor = false;
+			std::optional<thread_comment_author_json> Author;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &thread_comment_json::Id,
+					"fullDatabaseId", &thread_comment_json::FullDatabaseId,
+					"body", &thread_comment_json::Body,
+					"path", &thread_comment_json::Path,
+					"line", &thread_comment_json::Line,
+					"commit", &thread_comment_json::Commit,
+					"viewerDidAuthor", &thread_comment_json::ViewerDidAuthor,
+					"author", &thread_comment_json::Author);
+			};
+		};
+		struct thread_comments_page_json
+		{
+			bool HasNextPage = false;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("hasNextPage", &thread_comments_page_json::HasNextPage);
+			};
+		};
+		struct thread_comments_json
+		{
+			thread_comments_page_json        PageInfo;
+			std::vector<thread_comment_json> Nodes;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"pageInfo", &thread_comments_json::PageInfo,
+					"nodes", &thread_comments_json::Nodes);
+			};
+		};
+		struct thread_comments_node_json
+		{
+			std::string              Id;
+			std::string              DiffSide;
+			thread_pull_request_json PullRequest;
+			thread_comments_json     Comments;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &thread_comments_node_json::Id,
+					"diffSide", &thread_comments_node_json::DiffSide,
+					"pullRequest", &thread_comments_node_json::PullRequest,
+					"comments", &thread_comments_node_json::Comments);
+			};
+		};
+		struct thread_comments_data_json
+		{
+			thread_comments_node_json Node;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("node", &thread_comments_data_json::Node);
+			};
+		};
+		struct thread_comments_response_json
+		{
+			thread_comments_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &thread_comments_response_json::Data);
 			};
 		};
 		struct resolution_payload_json
@@ -1109,6 +1214,95 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		// [[BPR-0896]]. GraphQL `BigInt` is a string-encoded integer; the
+		// schema encodes it so because the value may exceed a 32-bit `Int`.
+		// Only the canonical decimal spelling is admitted here, and a bare
+		// JSON number is refused at decode time, so a 32-bit `databaseId`
+		// can never pass for the full identity.
+		[[nodiscard]] auto big_int(const std::string_view aText) noexcept
+			-> std::optional<std::uint64_t>
+		{
+			if (aText.empty() || aText.size() > 20U
+				|| (aText.size() > 1U && aText.front() == '0')
+				|| !std::ranges::all_of(aText, [](const unsigned char aCharacter) {
+					   return std::isdigit(aCharacter) != 0;
+				   })) {
+				return std::nullopt;
+			}
+			auto value              = std::uint64_t{ };
+			const auto [end, error] = std::from_chars(aText.data(), aText.data() + aText.size(), value);
+			if (error != std::errc{ } || end != aText.data() + aText.size()) {
+				return std::nullopt;
+			}
+			return value;
+		}
+
+		// [[BPR-0896]]. One comment of the thread a reply landed in, held to
+		// the identity a REST comment (comment_observation) and the reply's
+		// own answer (reply_observation) are held to. The thread holds its
+		// root and any earlier replies, by anyone and of any age, so a
+		// comment that is not ours must be free to be anything the schema
+		// allows (an identical one of ours is exact and falls in the
+		// baseline the new reply is told apart from): an
+		// outdated one (`line` and `commit` null), one by a Bot, Mannequin or
+		// Organization (no `User` fragment) or one without a database
+		// identity is a tolerated non-match, never a malformed answer. Null
+		// `line` and `commit` are not mapped to `originalLine` and
+		// `originalCommit`: the reply's own response check already demands a
+		// live line and commit for our comment, so demanding the same of an
+		// exact receipt is consistent; the original position is a stale one
+		// that would be compared against the anchor the app read; and what
+		// `originalCommit` means for a reply is not established by the
+		// schema. The consequence is that a reply of ours that goes outdated
+		// between the write and a later reconciliation is not recognised as
+		// an exact receipt by this observation: its attempt stays unresolved,
+		// which is the safe direction, since a known attempt is never
+		// resubmitted and no stale position is ever confirmed as ours.
+		[[nodiscard]] auto thread_comment_observation(
+			const thread_comment_json&                  aComment,
+			const std::string_view                      aDiffSide,
+			const application::review_mutation_request& aExpected)
+			-> review_mutation_parse_result<review_mutation_comment_observation>
+		{
+			constexpr auto maximumGithubLine = static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
+			const auto     databaseId        = aComment.FullDatabaseId ? big_int(*aComment.FullDatabaseId) : std::optional<std::uint64_t>{ };
+			const auto     commit            = aComment.Commit ? core::parse_git_commit_oid(aComment.Commit->Oid) : std::optional<core::git_commit_oid>{ };
+			// A present field spelled outside its scalar's vocabulary is a
+			// malformed answer; an absent one is a comment that is not ours.
+			if ((aComment.FullDatabaseId.has_value() && !databaseId.has_value())
+				|| (aComment.Commit.has_value() && !commit.has_value())
+				|| (aComment.Line.has_value() && (*aComment.Line == 0U || *aComment.Line > maximumGithubLine))) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			const auto& author = aComment.Author;
+			if (!databaseId.has_value() || *databaseId == 0U || !commit.has_value()
+				|| !aComment.Line.has_value() || !author.has_value()
+				|| !author->DatabaseId.has_value() || *author->DatabaseId == 0U
+				|| !author->Id.has_value()) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			const auto& binding      = *aExpected.LiveBinding;
+			const auto  expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT";
+			const auto  semanticLine = static_cast<std::uint32_t>(*aComment.Line - 1U);
+			if (aComment.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
+				|| aDiffSide != expectedSide || semanticLine != binding.Anchor.Semantic.Line
+				|| aComment.Body != aExpected.Proposal.Body || !aComment.ViewerDidAuthor
+				|| *author->DatabaseId != binding.ActingIdentity.DatabaseId
+				|| *author->Id != binding.ActingIdentity.NodeId
+				|| author->Login != binding.ActingIdentity.Login) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			// [[BPR-0816]]. Name the nested type, as in comment_observation.
+			return review_mutation_comment_observation{
+				.Receipt    = application::review_mutation_receipt{ .ServerCommentId = aComment.Id, .Duplicate = false },
+				.DatabaseId = *databaseId,
+				.NodeId     = aComment.Id,
+				.Anchor     = binding.Anchor,
+				.Body       = aComment.Body,
+				.Author     = binding.ActingIdentity,
+			};
+		}
+
 		[[nodiscard]] auto response_headers_valid(
 			const review_mutation_wire_response& aResponse) noexcept -> bool
 		{
@@ -1175,6 +1369,85 @@ namespace bpr::adapters::github::detail {
 				result = receipt;
 			}
 			return result;
+		}
+
+		/// Server-identity order for both lists: a projection that repeats an
+		/// identity is refused, exact receipts are deduplicated.
+		[[nodiscard]] auto ordered_reconciliation(review_mutation_server_reconciliation aResult)
+			-> review_mutation_parse_result<review_mutation_server_reconciliation>
+		{
+			std::ranges::sort(aResult.Projection, { }, &application::review_comment_projection::ServerId);
+			if (std::ranges::adjacent_find(
+					aResult.Projection,
+					{ },
+					&application::review_comment_projection::ServerId)
+				!= aResult.Projection.end()) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			std::ranges::sort(
+				aResult.ExactReceipts,
+				{ },
+				&application::review_mutation_receipt::ServerCommentId);
+			const auto duplicates = std::ranges::unique(
+				aResult.ExactReceipts,
+				{ },
+				&application::review_mutation_receipt::ServerCommentId);
+			aResult.ExactReceipts.erase(duplicates.begin(), duplicates.end());
+			return aResult;
+		}
+
+		// [[BPR-0896]]. The ObserveThreadComments envelope, reduced to the
+		// same reconciliation a REST comment list yields. `malformed_response`
+		// is reserved for a structurally invalid envelope; a comment that is
+		// merely not ours is projected and tolerated.
+		[[nodiscard]] auto parse_thread_comment_observations(
+			const review_mutation_wire_response&        aResponse,
+			const application::review_mutation_request& aExpected)
+			-> review_mutation_parse_result<review_mutation_server_reconciliation>
+		{
+			if (aResponse.Status != 200 || !response_headers_valid(aResponse)
+				|| !aExpected.LiveBinding.has_value()) {
+				return failed(review_mutation_contract_failure::invalid_status);
+			}
+			// A node that is not a review thread, or one the account cannot
+			// see, selects nothing; that is a malformed answer.
+			const auto response = document<thread_comments_response_json>(aResponse);
+			if (!response.has_value()) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			const auto& thread = response->Data.Node;
+			if (thread.Id != *aExpected.Proposal.ReplyToThread
+				|| !binds_designated_pull_request(
+					thread.PullRequest, aExpected.LiveBinding->Target)) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			if ((thread.DiffSide != "LEFT" && thread.DiffSide != "RIGHT")
+				|| thread.Comments.Nodes.size() > 100U) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			// A thread with a further page is as incomplete as a REST list
+			// with a `Link` header, and is refused the same way.
+			if (thread.Comments.PageInfo.HasNextPage) {
+				return failed(review_mutation_contract_failure::invalid_status);
+			}
+			auto result = review_mutation_server_reconciliation{ };
+			result.Projection.reserve(thread.Comments.Nodes.size());
+			for (const auto& comment : thread.Comments.Nodes) {
+				if (!bounded_text(comment.Id, 256U) || comment.Body.size() > maximum_review_mutation_response_bytes || !utf8_round_trip(comment.Body)) {
+					return failed(review_mutation_contract_failure::malformed_response);
+				}
+				result.Projection.push_back(application::review_comment_projection{
+					.ServerId = comment.Id,
+					.Body     = comment.Body,
+				});
+				const auto exact = thread_comment_observation(comment, thread.DiffSide, aExpected);
+				if (exact) {
+					result.ExactReceipts.push_back(exact->Receipt);
+				} else if (exact.error() != review_mutation_contract_failure::identity_mismatch) {
+					return failed(exact.error());
+				}
+			}
+			return ordered_reconciliation(std::move(result));
 		}
 
 		/// [[BPR-0879]]. A reply is addressed by a thread identity exactly as a
@@ -1407,9 +1680,27 @@ namespace bpr::adapters::github::detail {
 		const application::github_server_contract   aServer)
 		-> review_mutation_request_result
 	{
-		const auto mutation = compile_review_comment_request(aRequest, aServer);
+		auto mutation = compile_review_comment_request(aRequest, aServer);
 		if (!mutation.has_value()) {
 			return std::unexpected(mutation.error());
+		}
+		// [[BPR-0896]]. A reply is written by GraphQL, so its path is the
+		// GraphQL root and no REST collection can be derived from it. It is
+		// reconciled through the thread it landed in: the write's own
+		// compiled request with a read document in its place, as the thread
+		// pre-flight is.
+		if (aRequest.Proposal.ReplyToThread.has_value()) {
+			auto body = glz::write<review_json_options{ }>(resolution_query_json{
+				.Query     = observe_thread_comments_document,
+				.Variables = { .Thread = *aRequest.Proposal.ReplyToThread },
+			});
+			if (!body.has_value() || body->empty()
+				|| body->size() > maximum_review_mutation_body_bytes) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			mutation->Operation = review_mutation_operation::observe_review_thread_comments;
+			mutation->Body      = std::move(*body);
+			return mutation;
 		}
 		return review_mutation_wire_request{
 			.Semantic  = aRequest,
@@ -1451,7 +1742,12 @@ namespace bpr::adapters::github::detail {
 								   == review_mutation_operation::reply_review_thread) {
 						canonical = compile_review_comment_request(aSemantic, aRequest.Server);
 					} else if (aRequest.Operation
-							   == review_mutation_operation::observe_review_comments) {
+								   == review_mutation_operation::observe_review_comments
+							   || aRequest.Operation
+								   == review_mutation_operation::observe_review_thread_comments) {
+						// [[BPR-0896]]. Both spellings recompile from the
+						// semantic: a reply claiming the REST list, or a root
+						// claiming the thread, differs from its canonical form.
 						canonical = compile_review_comment_observation_request(
 							aSemantic, aRequest.Server);
 					}
@@ -1726,6 +2022,11 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_server_reconciliation>
 	{
+		// [[BPR-0896]]. A reply is reconciled through its thread's GraphQL
+		// answer; a new root comment through the REST comment list.
+		if (aExpected.Proposal.ReplyToThread.has_value()) {
+			return parse_thread_comment_observations(aResponse, aExpected);
+		}
 		if (aResponse.Status != 200 || !response_headers_valid(aResponse)
 			|| has_header(aResponse, "Link") || !aExpected.LiveBinding.has_value()) {
 			return failed(review_mutation_contract_failure::invalid_status);
@@ -1751,25 +2052,7 @@ namespace bpr::adapters::github::detail {
 				return failed(exact.error());
 			}
 		}
-
-		std::ranges::sort(result.Projection, { }, &application::review_comment_projection::ServerId);
-		if (std::ranges::adjacent_find(
-				result.Projection,
-				{ },
-				&application::review_comment_projection::ServerId)
-			!= result.Projection.end()) {
-			return failed(review_mutation_contract_failure::identity_mismatch);
-		}
-		std::ranges::sort(
-			result.ExactReceipts,
-			{ },
-			&application::review_mutation_receipt::ServerCommentId);
-		const auto duplicates = std::ranges::unique(
-			result.ExactReceipts,
-			{ },
-			&application::review_mutation_receipt::ServerCommentId);
-		result.ExactReceipts.erase(duplicates.begin(), duplicates.end());
-		return result;
+		return ordered_reconciliation(std::move(result));
 	}
 
 	auto valid(const live_review_mutation_configuration& aConfiguration) noexcept -> bool

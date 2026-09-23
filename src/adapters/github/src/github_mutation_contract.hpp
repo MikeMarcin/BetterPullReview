@@ -41,6 +41,9 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-0879]]. GraphQL: which pull request a thread belongs to,
 		/// asked before anything is written through that thread.
 		observe_review_thread,
+		/// [[BPR-0896]]. GraphQL: the comments of the thread a reply landed
+		/// in, observed for reconciliation.
+		observe_review_thread_comments,
 	};
 
 	enum class review_mutation_contract_failure : std::uint8_t {
@@ -226,6 +229,12 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&                 aResponse,
 		const application::review_thread_resolution_request& aExpected)
 		-> review_mutation_parse_result<review_thread_resolution_observation>;
+	/// \brief Compiles the reconciliation read for one comment mutation.
+	///
+	/// \details A new root comment is reconciled through the REST comment
+	/// list. [[BPR-0896]]: a reply is written by GraphQL, so it is reconciled
+	/// through the thread it landed in, by the reserved ObserveThreadComments
+	/// document at the GraphQL root.
 	[[nodiscard]] auto compile_review_comment_observation_request(
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
@@ -253,6 +262,14 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response& aResponse,
 		const review_submission_request&     aExpected)
 		-> review_mutation_parse_result<review_submission_observation>;
+	/// \brief Reduces a reconciliation answer to every comment's projection
+	/// and the exact receipts among them.
+	///
+	/// \details Dispatches on the request: the REST comment list for a root
+	/// comment, the ObserveThreadComments envelope for a reply
+	/// ([[BPR-0896]]). In the thread answer a comment that is not ours is
+	/// free to be outdated, bot-authored or without a database identity; it
+	/// is projected and simply not an exact receipt.
 	[[nodiscard]] auto parse_review_comment_observations(
 		const review_mutation_wire_response&        aResponse,
 		const application::review_mutation_request& aExpected)

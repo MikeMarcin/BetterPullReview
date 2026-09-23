@@ -45,6 +45,14 @@ def main() -> int:
         prepared_second = run(
             arguments.executable, "--recover-prepared", prepared_root
         )
+        # [[BPR-0896]]. A reply is written by GraphQL and reconciled through
+        # the thread it landed in; its restart must decide from that alone.
+        reply_root = root / "reply"
+        reply_root.mkdir(mode=0o700)
+        reply_first = run(arguments.executable, "--write-unresolved-reply", reply_root)
+        reply_second = run(
+            arguments.executable, "--recover-unresolved-reply", reply_root
+        )
     if "restart-recovery-phase-one:unresolved" not in first:
         raise RuntimeError("first process did not persist the unresolved state")
     if "restart-recovery-phase-two:resolved-get-only" not in second:
@@ -53,6 +61,10 @@ def main() -> int:
         raise RuntimeError("first prepared process did not stop before POST witness")
     if "restart-prepared-phase-two:zero-transport" not in prepared_second:
         raise RuntimeError("prepared restart observed transport or external C1")
+    if "restart-reply-phase-one:unresolved" not in reply_first:
+        raise RuntimeError("first reply process did not persist the unresolved state")
+    if "restart-reply-phase-two:resolved-thread-only" not in reply_second:
+        raise RuntimeError("second reply process did not resolve from its thread alone")
     print("review-mutation-restart-recovery-tests:pass")
     return 0
 

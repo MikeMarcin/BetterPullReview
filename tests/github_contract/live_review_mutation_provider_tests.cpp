@@ -297,6 +297,61 @@ namespace {
 		};
 	}
 
+	// [[BPR-0896]]. A reply, the envelope its write answers with, and the
+	// thread observation it is reconciled through: the root comment by
+	// someone else, and our reply once it has landed.
+	[[nodiscard]] auto reply_request() -> application::review_mutation_request
+	{
+		auto reply                   = request();
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		return reply;
+	}
+
+	[[nodiscard]] auto reply_response() -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = std::string{ "{\"data\":{\"addPullRequestReviewThreadReply\":{\"comment\":{"
+									   "\"id\":\"PRRC_reply_45\",\"databaseId\":45,\"body\":\"Please rename this.\","
+									   "\"path\":\"fixture/review.txt\",\"line\":13,\"commit\":{\"oid\":\"" }
+					+ std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() }
+					+ "\"},\"author\":{\"login\":\"fixture-reviewer\"},\"viewerDidAuthor\":true,"
+					+ designated_pull_request_json() + "}}}}",
+			},
+		};
+	}
+
+	// The ObserveThreadComments answer: the root comment by someone else,
+	// then one reply of ours per identity listed, each exact to the reply the
+	// request writes. The reply the write answers with is 45. An outdated
+	// root has the null `line` and `commit` the schema gives a comment whose
+	// position left the diff.
+	[[nodiscard]] auto thread_comments_response(
+		const std::vector<std::size_t>& aOurReplies,
+		const bool                      aOutdatedRoot = false) -> github_mutation_wire_completion
+	{
+		const auto commit = "{\"oid\":\"" + std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() } + "\"}";
+		auto       nodes  = "{\"id\":\"PRRC_fixture_40\",\"fullDatabaseId\":\"40\",\"body\":\"Root comment.\","
+							"\"path\":\"fixture/review.txt\",\"line\":"
+			+ std::string{ aOutdatedRoot ? "null" : "13" } + ",\"commit\":" + (aOutdatedRoot ? std::string{ "null" } : commit)
+			+ ",\"viewerDidAuthor\":false,\"author\":{\"login\":\"someone-else\",\"databaseId\":23,\"id\":\"MDQ6VXNlcjIz\"}}";
+		for (const auto reply : aOurReplies) {
+			nodes += ",{\"id\":\"PRRC_reply_" + std::to_string(reply) + "\",\"fullDatabaseId\":\"" + std::to_string(reply)
+				+ "\",\"body\":\"Please rename this.\",\"path\":\"fixture/review.txt\",\"line\":13,\"commit\":" + commit
+				+ ",\"viewerDidAuthor\":true,\"author\":{\"login\":\"fixture-reviewer\",\"databaseId\":22,\"id\":\"MDQ6VXNlcjIy\"}}";
+		}
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = "{\"data\":{\"node\":{\"id\":\"PRRT_fixture_1\",\"diffSide\":\"RIGHT\","
+					+ designated_pull_request_json()
+					+ ",\"comments\":{\"pageInfo\":{\"hasNextPage\":false},\"nodes\":[" + nodes + "]}}}}",
+			},
+		};
+	}
+
 	[[nodiscard]] auto resolution_request(const bool aResolve)
 		-> application::review_thread_resolution_request
 	{
@@ -518,6 +573,8 @@ namespace {
 			return "unresolve_review_thread";
 		case review_mutation_operation::observe_review_thread:
 			return "observe_review_thread";
+		case review_mutation_operation::observe_review_thread_comments:
+			return "observe_review_thread_comments";
 		}
 		return "unknown";
 	}
@@ -584,8 +641,13 @@ namespace {
 			}
 			auto next = std::move(found->second.front());
 			found->second.pop_front();
+			// Both comment writes are witnessed before they may leave, as the
+			// production transports witness every write POST; a reply
+			// ([[BPR-0896]]) goes by GraphQL but is the same kind of write.
 			if (aRequest.Wire.Operation
-				== review_mutation_operation::create_review_comment) {
+					== review_mutation_operation::create_review_comment
+				|| aRequest.Wire.Operation
+					== review_mutation_operation::reply_review_thread) {
 				if (ThrowBeforePostWitness) {
 					throw std::runtime_error{ "simulated admission-to-post crash" };
 				}
@@ -661,6 +723,44 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	};
+
+	// [[BPR-0896]]. The keyed fake pins each request it answers, but not how
+	// many requests a course made, in what order, what the product labelled
+	// each one, or whether a GraphQL body is a query or a mutation. A row
+	// that proves a whole course pins all of that, independently of how the
+	// fake is keyed: `Document` is the start of a GraphQL document, and empty
+	// for a REST request, whose body must then be empty.
+	struct expected_wire
+	{
+		http_method               Method;
+		std::string_view          Path;
+		review_mutation_operation Operation;
+		std::string_view          Document;
+	};
+
+	void expect_wires(
+		const std::vector<github_mutation_wire_request>& aRequests,
+		const std::vector<expected_wire>&                aExpected,
+		const std::string_view                           aRow)
+	{
+		expect(aRequests.size() == aExpected.size(),
+			   std::string{ aRow } + ": " + std::to_string(aExpected.size()) + " requests, not "
+				   + std::to_string(aRequests.size()));
+		for (auto index = std::size_t{ }; index < aExpected.size(); ++index) {
+			const auto& wire     = aRequests[index].Wire;
+			const auto& expected = aExpected[index];
+			const auto  document = expected.Document.empty()
+				? wire.Body.empty()
+				: wire.Body.starts_with("{\"query\":\"" + std::string{ expected.Document });
+			expect(wire.Method == expected.Method && wire.Path == expected.Path
+					   && wire.Operation == expected.Operation && document,
+				   std::string{ aRow } + ": request #" + std::to_string(index + 1U) + " is "
+					   + std::string{ method_name(expected.Method) } + " " + std::string{ expected.Path } + " "
+					   + std::string{ expected.Document } + " (" + std::string{ operation_name(expected.Operation) }
+					   + "), observed " + std::string{ method_name(wire.Method) } + " " + wire.Path + " ("
+					   + std::string{ operation_name(wire.Operation) } + ")");
+		}
+	}
 
 	class fake_github_review_mutation_lease final
 		: public github_review_mutation_transport_lease
@@ -1377,13 +1477,194 @@ namespace {
 				   && transport.Requests[0].Wire.Operation
 					   == review_mutation_operation::observe_review_thread
 				   && transport.Requests[1].Wire.Operation
-					   == review_mutation_operation::observe_review_comments
+					   == review_mutation_operation::observe_review_thread_comments
 				   && transport.Requests[1].Wire.Method == http_method::post
 				   && transport.Requests[1].Wire.Path == "/graphql"
 				   && graphql_operation_name(transport.Requests[1].Wire.Body)
 					   == "ObserveThreadComments",
 			   "a reply's baseline reconciliation observes its thread over GraphQL, "
 			   "not the GraphQL root with a REST query string");
+	}
+
+	// [[BPR-0896]]. A reply's whole course, request by request: the
+	// [[BPR-0879]] thread pre-flight, the baseline, the exact authority, the
+	// write and the post-write reconciliation. Both reconciliations observe
+	// the thread the reply lands in; a REST path derived from the GraphQL
+	// root (`GET /graphql?per_page=100`) is no request of this course.
+	[[nodiscard]] auto reply_course_wires() -> std::vector<expected_wire>
+	{
+		return {
+			{ http_method::post, "/graphql", review_mutation_operation::observe_review_thread, "query ObserveThread(" },
+			{ http_method::post, "/graphql", review_mutation_operation::observe_review_thread_comments, "query ObserveThreadComments(" },
+			{ http_method::get, "/user", review_mutation_operation::observe_viewer, "" },
+			{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", review_mutation_operation::observe_pull_request, "" },
+			{ http_method::post, "/graphql", review_mutation_operation::reply_review_thread, "mutation ReplyToThread(" },
+			{ http_method::post, "/graphql", review_mutation_operation::observe_review_thread_comments, "query ObserveThreadComments(" },
+		};
+	}
+
+	// What a restarted process asks before it decides an unresolved reply:
+	// the exact authority, then the thread. Never the write, and never the
+	// pre-flight, because the thread answer itself names its pull request.
+	[[nodiscard]] auto reply_recovery_wires() -> std::vector<expected_wire>
+	{
+		return {
+			{ http_method::get, "/user", review_mutation_operation::observe_viewer, "" },
+			{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", review_mutation_operation::observe_pull_request, "" },
+			{ http_method::post, "/graphql", review_mutation_operation::observe_review_thread_comments, "query ObserveThreadComments(" },
+		};
+	}
+
+	// The thread holds `aBaseline` of our replies before the write and
+	// `aAfter` when the write is reconciled; the write answers `aWrite`.
+	void script_reply_course(
+		fake_transport&                 aTransport,
+		const std::vector<std::size_t>& aBaseline,
+		github_mutation_wire_completion aWrite,
+		const std::vector<std::size_t>& aAfter,
+		const bool                      aOutdatedRoot = false)
+	{
+		aTransport.answer(graphql("ObserveThread"), thread_observation_response(true));
+		aTransport.answer(graphql("ObserveThreadComments"), thread_comments_response(aBaseline, aOutdatedRoot));
+		aTransport.answer(viewer_get(), viewer_response());
+		aTransport.answer(pull_request_get(), target_response());
+		aTransport.answer(graphql("ReplyToThread"), std::move(aWrite));
+		aTransport.answer(graphql("ObserveThreadComments"), thread_comments_response(aAfter, aOutdatedRoot));
+	}
+
+	void script_reply_recovery(fake_transport& aTransport, const std::vector<std::size_t>& aThread)
+	{
+		aTransport.answer(viewer_get(), viewer_response());
+		aTransport.answer(pull_request_get(), target_response());
+		aTransport.answer(graphql("ObserveThreadComments"), thread_comments_response(aThread));
+	}
+
+	// The write left, and its answer did not come back.
+	[[nodiscard]] auto lost_answer() -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_error{
+			.Failure      = application::review_mutation_failure::unavailable,
+			.Transmission = github_mutation_transmission::indeterminate,
+		};
+	}
+
+	// The recovery record a course left, or a named failure when the course
+	// was refused before any attempt was admitted.
+	[[nodiscard]] auto admitted_record(
+		const fake_recovery_state& aState,
+		const std::string_view     aCourse) -> const application::review_mutation_recovery_record&
+	{
+		const auto found = aState.Records.find(reply_request().IdempotencyKey);
+		expect(found != aState.Records.end(), std::string{ aCourse } + ": the reply attempt is admitted");
+		return found->second;
+	}
+
+	struct reply_course
+	{
+		std::string_view         Name;
+		std::vector<std::size_t> Baseline;
+		bool                     OutdatedRoot = false;
+	};
+
+	// The third course is the card's open point (a): an outdated comment by
+	// someone else in the thread is a tolerated non-match, so the baseline
+	// the reply is admitted over is not refused as malformed.
+	void test_a_reply_is_reconciled_through_its_thread()
+	{
+		for (const auto& [name, baseline, outdatedRoot] : {
+				 reply_course{ .Name = "a reply into a live thread" },
+				 reply_course{ .Name = "a reply beside an identical earlier reply of ours", .Baseline = { 44U } },
+				 reply_course{ .Name = "a reply into a thread whose root is outdated", .OutdatedRoot = true },
+			 }) {
+			auto after = baseline;
+			after.push_back(45U);
+			auto transport = fake_transport{ };
+			script_reply_course(transport, baseline, reply_response(), after, outdatedRoot);
+			auto state   = std::make_shared<fake_recovery_state>();
+			auto session = review_mutation_session{
+				transport, configuration(), mutation_lease(), make_recovery(state)
+			};
+			const auto submission = session.submit_and_reconcile(reply_request(), { });
+			expect(submission.Result.has_value() && !submission.Result->Duplicate
+					   && submission.Result->ServerCommentId == "PRRC_reply_45"
+					   && submission.MutationAttempted && submission.Reconciliation.has_value()
+					   && submission.Reconciliation->size() == after.size() + 1U,
+				   std::string{ name } + ": the reply is written once and confirmed against the thread it landed in");
+			const auto& record = admitted_record(*state, name);
+			expect(record.State == application::review_mutation_recovery_state::succeeded
+					   && record.Receipt.has_value() && record.Receipt->ServerCommentId == "PRRC_reply_45"
+					   && record.BaselineExactCommentIds
+						   == (baseline.empty() ? std::vector<std::string>{ } : std::vector<std::string>{ "PRRC_reply_44" }),
+				   std::string{ name } + ": the reply is recorded as the receipt, and an earlier identical reply of ours as baseline");
+			expect_wires(transport.Requests, reply_course_wires(), name);
+		}
+	}
+
+	// [[BPR-0896]]. Restart recovery for an interrupted reply, in the shape of
+	// write_unresolved_restart_fixture and recover_unresolved_restart_fixture
+	// but in one process over shared recovery state; the two-process course
+	// over the SQLite store is write_unresolved_reply_restart_fixture. The
+	// write's answer is lost and the thread does not show the reply yet, so
+	// the record is left unresolved and possibly transmitted; a fresh session
+	// decides from the thread alone and never writes again.
+	void test_an_interrupted_reply_is_recovered_from_its_thread()
+	{
+		const auto interrupt = [](const std::vector<std::size_t>& aBaseline) {
+			auto state     = std::make_shared<fake_recovery_state>();
+			auto transport = fake_transport{ };
+			script_reply_course(transport, aBaseline, lost_answer(), aBaseline);
+			auto session = review_mutation_session{
+				transport, configuration(), mutation_lease(), make_recovery(state)
+			};
+			const auto  submission = session.submit_and_reconcile(reply_request(), { });
+			const auto& record     = admitted_record(*state, "interrupted reply");
+			expect(!submission.Result.has_value() && submission.MutationAttempted
+					   && submission.Reconciliation.has_value()
+					   && submission.Reconciliation->size() == aBaseline.size() + 1U
+					   && record.State == application::review_mutation_recovery_state::unresolved
+					   && record.Transmission == application::review_mutation_recovery_transmission::possibly_transmitted
+					   && record.BaselineExactCommentIds.has_value()
+					   && record.BaselineExactCommentIds->size() == aBaseline.size(),
+				   "an interrupted reply leaves an unresolved, possibly transmitted attempt over its exact baseline");
+			expect_wires(transport.Requests, reply_course_wires(), "interrupted reply");
+			return state;
+		};
+		const auto recover = [](const std::shared_ptr<fake_recovery_state>& aState,
+								const std::vector<std::size_t>&             aThread,
+								const std::string_view                      aCourse) {
+			auto transport = fake_transport{ };
+			script_reply_recovery(transport, aThread);
+			auto session = review_mutation_session{
+				transport, configuration(), mutation_lease(), make_recovery(aState)
+			};
+			auto submission = session.submit_and_reconcile(reply_request(), { });
+			expect(!submission.MutationAttempted && submission.Reconciliation.has_value()
+					   && submission.Reconciliation->size() == aThread.size() + 1U,
+				   std::string{ aCourse } + ": the restarted session observes the thread and never writes");
+			expect_wires(transport.Requests, reply_recovery_wires(), aCourse);
+			return submission;
+		};
+
+		for (const auto& baseline : { std::vector<std::size_t>{ }, std::vector<std::size_t>{ 44U } }) {
+			auto landed = interrupt(baseline);
+			auto thread = baseline;
+			thread.push_back(45U);
+			const auto  recovered = recover(landed, thread, "landed reply after restart");
+			const auto& resolved  = admitted_record(*landed, "landed reply after restart");
+			expect(recovered.Result.has_value() && recovered.Result->Duplicate
+					   && recovered.Result->ServerCommentId == "PRRC_reply_45"
+					   && resolved.State == application::review_mutation_recovery_state::succeeded
+					   && resolved.Receipt.has_value() && resolved.Receipt->ServerCommentId == "PRRC_reply_45",
+				   "a reply that landed is confirmed from the thread alone, as the one exact reply new to the baseline");
+
+			auto        unlanded = interrupt(baseline);
+			const auto  absent   = recover(unlanded, baseline, "unlanded reply after restart");
+			const auto& pending  = admitted_record(*unlanded, "unlanded reply after restart");
+			expect(!absent.Result.has_value()
+					   && pending.State == application::review_mutation_recovery_state::unresolved
+					   && !pending.Receipt.has_value(),
+				   "a reply the thread does not show stays unresolved, and an earlier identical reply is never adopted");
+		}
 	}
 
 	// [[BPR-0879]]. The coordinator needs a port. The session is the exact
@@ -1610,6 +1891,45 @@ namespace {
 		std::cout << "restart-prepared-phase-two:zero-transport\n";
 	}
 
+	// [[BPR-0896]]. A reply's restart across two processes over the SQLite
+	// recovery store. The thread already holds an identical reply of ours
+	// (44), so the second process must tell the new reply from the baseline.
+	void write_unresolved_reply_restart_fixture(const std::filesystem::path& aRoot)
+	{
+		auto transport = fake_transport{ };
+		script_reply_course(transport, { 44U }, lost_answer(), { 44U });
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), open_recovery(aRoot)
+		};
+		const auto submission = session.submit_and_reconcile(reply_request());
+		expect(submission.MutationAttempted && !submission.Result.has_value()
+				   && submission.Reconciliation.has_value()
+				   && submission.Reconciliation->size() == 2U,
+			   "first process persists the reply's baseline and leaves a visible unresolved attempt");
+		expect_wires(transport.Requests, reply_course_wires(), "first reply process");
+		std::cout << "restart-reply-phase-one:unresolved\n";
+	}
+
+	void recover_unresolved_reply_restart_fixture(const std::filesystem::path& aRoot)
+	{
+		auto transport = fake_transport{ };
+		script_reply_recovery(transport, { 44U, 45U });
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), open_recovery(aRoot)
+		};
+		const auto submission = session.submit_and_reconcile(reply_request());
+		expect(submission.Result.has_value() && submission.Result->Duplicate
+				   && submission.Result->ServerCommentId == "PRRC_reply_45"
+				   && !submission.MutationAttempted && submission.Reconciliation.has_value()
+				   && submission.Reconciliation->size() == 3U,
+			   "second process resolves the reply from its thread alone, past the identical earlier reply, without writing");
+		expect_wires(transport.Requests, reply_recovery_wires(), "second reply process");
+		const auto again = session.submit_and_reconcile(reply_request());
+		expect(again.Result == submission.Result && transport.Requests.size() == 3U,
+			   "the resolved reply is durable: asking again answers from the store without transport");
+		std::cout << "restart-reply-phase-two:resolved-thread-only\n";
+	}
+
 	struct row
 	{
 		std::string_view Name;
@@ -1651,6 +1971,9 @@ namespace {
 			 &test_a_reply_observes_its_thread_before_it_writes },
 		row{ "a_replys_baseline_reconciliation_is_a_request_a_server_can_answer",
 			 &test_a_replys_baseline_reconciliation_is_a_request_a_server_can_answer },
+		row{ "a_reply_is_reconciled_through_its_thread", &test_a_reply_is_reconciled_through_its_thread },
+		row{ "an_interrupted_reply_is_recovered_from_its_thread",
+			 &test_an_interrupted_reply_is_recovered_from_its_thread },
 		row{ "the_coordinator_confirms_the_target_and_counts_a_resolution",
 			 &test_the_coordinator_confirms_the_target_and_counts_a_resolution },
 	};
@@ -1694,6 +2017,16 @@ auto main(const int aCount, char** aValues) -> int
 	}
 	if (aCount == 3 && std::string_view{ aValues[1] } == "--recover-prepared") {
 		recover_prepared_restart_fixture(aValues[2]);
+		return EXIT_SUCCESS;
+	}
+	if (aCount == 3 && std::string_view{ aValues[1] } == "--write-unresolved-reply") {
+		expect(bpr::adapters::sqlite::make_storage_root_owner_private(aValues[2]),
+			   "narrow the reply restart fixture root to owner-private");
+		write_unresolved_reply_restart_fixture(aValues[2]);
+		return EXIT_SUCCESS;
+	}
+	if (aCount == 3 && std::string_view{ aValues[1] } == "--recover-unresolved-reply") {
+		recover_unresolved_reply_restart_fixture(aValues[2]);
 		return EXIT_SUCCESS;
 	}
 	if (aCount != 1) {

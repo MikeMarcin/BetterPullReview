@@ -212,16 +212,17 @@ namespace {
 	[[nodiscard]] auto operation_name(const review_mutation_operation aOperation) -> std::string_view
 	{
 		switch (aOperation) {
-		case review_mutation_operation::observe_pull_request:    return "observe_pull_request";
-		case review_mutation_operation::observe_viewer:          return "observe_viewer";
-		case review_mutation_operation::observe_review_comments: return "observe_review_comments";
-		case review_mutation_operation::create_review_comment:   return "create_review_comment";
-		case review_mutation_operation::create_review:           return "create_review";
-		case review_mutation_operation::observe_reviews:         return "observe_reviews";
-		case review_mutation_operation::reply_review_thread:     return "reply_review_thread";
-		case review_mutation_operation::resolve_review_thread:   return "resolve_review_thread";
-		case review_mutation_operation::unresolve_review_thread: return "unresolve_review_thread";
-		case review_mutation_operation::observe_review_thread:   return "observe_review_thread";
+		case review_mutation_operation::observe_pull_request:           return "observe_pull_request";
+		case review_mutation_operation::observe_viewer:                 return "observe_viewer";
+		case review_mutation_operation::observe_review_comments:        return "observe_review_comments";
+		case review_mutation_operation::create_review_comment:          return "create_review_comment";
+		case review_mutation_operation::create_review:                  return "create_review";
+		case review_mutation_operation::observe_reviews:                return "observe_reviews";
+		case review_mutation_operation::reply_review_thread:            return "reply_review_thread";
+		case review_mutation_operation::resolve_review_thread:          return "resolve_review_thread";
+		case review_mutation_operation::unresolve_review_thread:        return "unresolve_review_thread";
+		case review_mutation_operation::observe_review_thread:          return "observe_review_thread";
+		case review_mutation_operation::observe_review_thread_comments: return "observe_review_thread_comments";
 		}
 		return "unknown";
 	}

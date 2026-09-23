@@ -11,6 +11,8 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -819,6 +821,254 @@ namespace {
 		return aBody;
 	}
 
+	// [[BPR-0896]]. A reply's own path is the GraphQL root, so no REST
+	// collection can be derived from it: its reconciliation observes the
+	// thread it landed in. The document is spelled here in full so a changed
+	// selection is a changed row.
+	constexpr auto observe_thread_comments_document = std::string_view{
+		"query ObserveThreadComments($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
+		"id diffSide pullRequest{id databaseId number repository{id databaseId nameWithOwner}} "
+		"comments(first:100){pageInfo{hasNextPage} nodes{id fullDatabaseId body path line commit{oid} "
+		"viewerDidAuthor author{login ... on User{databaseId id}}}}}}}"
+	};
+
+	[[nodiscard]] auto reply_request() -> application::review_mutation_request
+	{
+		auto reply                   = request();
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		return reply;
+	}
+
+	[[nodiscard]] auto head_commit_json() -> std::string
+	{
+		return "{\"oid\":\"" + std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() } + "\"}";
+	}
+
+	[[nodiscard]] auto our_author_json() -> std::string
+	{
+		return R"({"login":"fixture-reviewer","databaseId":22,"id":"MDQ6VXNlcjIy"})";
+	}
+
+	// One comment of the observed thread. The scalar arguments are raw JSON
+	// tokens, so a row can spell `null`, a number or a string as it needs.
+	[[nodiscard]] auto thread_comment_json(
+		const std::string_view aId,
+		const std::string_view aFullDatabaseId,
+		const std::string_view aBody,
+		const std::string_view aLine,
+		const std::string_view aCommit,
+		const bool             aViewerDidAuthor,
+		const std::string_view aAuthor) -> std::string
+	{
+		return "{\"id\":\"" + std::string{ aId } + "\",\"fullDatabaseId\":" + std::string{ aFullDatabaseId }
+		+ ",\"body\":\"" + std::string{ aBody } + "\",\"path\":\"fixture/review.txt\",\"line\":" + std::string{ aLine }
+		+ ",\"commit\":" + std::string{ aCommit } + ",\"viewerDidAuthor\":" + (aViewerDidAuthor ? "true" : "false")
+			+ ",\"author\":" + std::string{ aAuthor } + "}";
+	}
+
+	[[nodiscard]] auto exact_reply_comment_json() -> std::string
+	{
+		return thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "13", head_commit_json(), true, our_author_json());
+	}
+
+	[[nodiscard]] auto root_comment_json() -> std::string
+	{
+		return thread_comment_json("PRRC_fixture_40", "\"40\"", "Root comment.", "13", head_commit_json(), false,
+								   R"({"login":"someone-else","databaseId":23,"id":"MDQ6VXNlcjIz"})");
+	}
+
+	// Ours, and outdated: a null line and a null commit.
+	[[nodiscard]] auto outdated_reply_comment_json() -> std::string
+	{
+		return thread_comment_json("PRRC_fixture_42", "\"42\"", "Please rename this.", "null", "null", true, our_author_json());
+	}
+
+	// A Bot satisfies no `User` fragment: a login and nothing else.
+	[[nodiscard]] auto bot_comment_json() -> std::string
+	{
+		return thread_comment_json("PRRC_fixture_43", "\"43\"", "Please rename this.", "13", head_commit_json(), false, R"({"login":"bot"})");
+	}
+
+	[[nodiscard]] auto thread_comments_body(
+		const std::string_view          aThread,
+		const std::string_view          aDiffSide,
+		const bool                      aHasNextPage,
+		const std::string&              aPullRequest,
+		const std::vector<std::string>& aComments) -> std::string
+	{
+		auto nodes = std::string{ };
+		for (const auto& comment : aComments) {
+			if (!nodes.empty()) {
+				nodes.push_back(',');
+			}
+			nodes += comment;
+		}
+		return "{\"data\":{\"node\":{\"id\":\"" + std::string{ aThread } + "\",\"diffSide\":\"" + std::string{ aDiffSide } + "\","
+			+ aPullRequest + ",\"comments\":{\"pageInfo\":{\"hasNextPage\":" + (aHasNextPage ? "true" : "false")
+			+ "},\"nodes\":[" + nodes + "]}}}}";
+	}
+
+	[[nodiscard]] auto designated_thread_body(const std::vector<std::string>& aComments) -> std::string
+	{
+		return thread_comments_body("PRRT_fixture_1", "RIGHT", false, designated_pull_request_json(), aComments);
+	}
+
+	void test_a_reply_is_reconciled_through_its_thread()
+	{
+		const auto reply       = reply_request();
+		const auto observation = compile_review_comment_observation_request(reply);
+		expect(observation.has_value()
+				   && observation->Operation == review_mutation_operation::observe_review_thread_comments
+				   && observation->Method == http_method::post && observation->Path == "/graphql"
+				   && observation->Headers.size() == 4U
+				   && observation->Body
+					   == "{\"query\":\"" + std::string{ observe_thread_comments_document }
+						   + "\",\"variables\":{\"thread\":\"PRRT_fixture_1\"}}",
+			   "a reply's reconciliation is the ObserveThreadComments document at the GraphQL root with the exact thread");
+		expect(validate_outbound_review_mutation_request(*observation).has_value(),
+			   "the thread comments observation revalidates canonically");
+		expect(compile_review_comment_observation_request(
+				   reply, application::github_server_contract::ghes_3_18_2022_11_28)
+					   ->Path
+				   == "/api/graphql",
+			   "GHES observes the thread's comments at the exact GraphQL root");
+		const auto root = compile_review_comment_observation_request(request());
+		expect(root.has_value() && root->Operation == review_mutation_operation::observe_review_comments
+				   && root->Method == http_method::get
+				   && root->Path == "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100"
+				   && root->Headers.size() == 3U && root->Body.empty(),
+			   "a root comment's reconciliation is still the REST comment list");
+		auto restDerived      = *observation;
+		restDerived.Operation = review_mutation_operation::observe_review_comments;
+		restDerived.Method    = http_method::get;
+		restDerived.Path      = "/graphql?per_page=100";
+		restDerived.Headers   = root->Headers;
+		restDerived.Body.clear();
+		auto asRest            = *observation;
+		asRest.Operation       = review_mutation_operation::observe_review_comments;
+		auto rootAsThread      = *root;
+		rootAsThread.Operation = review_mutation_operation::observe_review_thread_comments;
+		auto otherThread       = *observation;
+		otherThread.Body       = replace_wire_field(otherThread.Body, "PRRT_fixture_1", "PRRT_fixture_2");
+		expect(!validate_outbound_review_mutation_request(restDerived).has_value()
+				   && !validate_outbound_review_mutation_request(asRest).has_value()
+				   && !validate_outbound_review_mutation_request(rootAsThread).has_value()
+				   && !validate_outbound_review_mutation_request(otherThread).has_value(),
+			   "the REST-derived GET /graphql?per_page=100, a relabelled operation on either side and another thread's variable all fail canonical validation");
+		// The read transport refuses the name as it refuses ObserveThread: as
+		// an operation it does not know.
+		expect(!read_operation_from_name("ObserveThreadComments").has_value()
+				   && read_operation_from_name("ObserveThreadComments").error().Code
+					   == contract_failure_code::unsupported_operation
+				   && !read_operation_from_name("ObserveThread").has_value(),
+			   "ObserveThreadComments is no read operation, exactly as ObserveThread is none");
+
+		const auto parsed = parse_review_comment_observations(
+			{ .Status = 200,
+			  .Body   = designated_thread_body({ exact_reply_comment_json(), root_comment_json(), outdated_reply_comment_json(), bot_comment_json() }) },
+			reply);
+		expect(parsed.has_value() && parsed->Projection.size() == 4U
+				   && parsed->Projection[0].ServerId == "PRRC_fixture_40" && parsed->Projection[0].Body == "Root comment."
+				   && parsed->Projection[1].ServerId == "PRRC_fixture_42"
+				   && parsed->Projection[2].ServerId == "PRRC_fixture_43"
+				   && parsed->Projection[3].ServerId == "PRRC_reply_45" && parsed->Projection[3].Body == "Please rename this."
+				   && parsed->ExactReceipts.size() == 1U
+				   && parsed->ExactReceipts.front().ServerCommentId == "PRRC_reply_45"
+				   && !parsed->ExactReceipts.front().Duplicate,
+			   "every comment of the thread is projected in server-identity order and only our live reply is an exact receipt: the root by another user, our outdated one and the bot's are tolerated non-matches");
+		const auto nonMatches = std::array<std::pair<std::string, std::string_view>, 8>{
+			std::pair{ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "13", head_commit_json(), false, our_author_json()), "viewerDidAuthor false" },
+			{ thread_comment_json("PRRC_reply_45", "\"45\"", "Something else.", "13", head_commit_json(), true, our_author_json()), "another body" },
+			{ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "14", head_commit_json(), true, our_author_json()), "another line" },
+			{ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "13", "{\"oid\":\"2222222222222222222222222222222222222222\"}", true, our_author_json()), "another commit" },
+			{ thread_comment_json("PRRC_reply_45", "\"0\"", "Please rename this.", "13", head_commit_json(), true, our_author_json()), "a zero fullDatabaseId" },
+			{ thread_comment_json("PRRC_reply_45", "null", "Please rename this.", "13", head_commit_json(), true, our_author_json()), "a null fullDatabaseId" },
+			{ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "13", head_commit_json(), true, "null"), "a null author" },
+			{ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "13", head_commit_json(), true, R"({"login":"fixture-reviewer","databaseId":23,"id":"MDQ6VXNlcjIy"})"), "another author identity" },
+		};
+		for (const auto& [comment, why] : nonMatches) {
+			const auto tolerated = parse_review_comment_observations(
+				{ .Status = 200, .Body = designated_thread_body({ root_comment_json(), comment }) }, reply);
+			expect(tolerated.has_value() && tolerated->Projection.size() == 2U && tolerated->ExactReceipts.empty(),
+				   "a comment that is not ours is projected and is no exact receipt: " + std::string{ why });
+		}
+		const auto leftThread = parse_review_comment_observations(
+			{ .Status = 200,
+			  .Body   = thread_comments_body("PRRT_fixture_1", "LEFT", false, designated_pull_request_json(), { exact_reply_comment_json() }) },
+			reply);
+		expect(leftThread.has_value() && leftThread->Projection.size() == 1U && leftThread->ExactReceipts.empty(),
+			   "the side is the thread's diffSide, so our comment in a LEFT thread is no exact receipt for a RIGHT anchor");
+
+		const auto exact     = exact_reply_comment_json();
+		const auto malformed = std::array<std::pair<std::string, std::string_view>, 21>{
+			std::pair{ std::string{ "{" }, "undecodable JSON" },
+			{ "{\"data\":null}", "a GraphQL error envelope" },
+			{ "{\"data\":{\"node\":null}}", "a thread the account cannot see" },
+			{ "{\"data\":{\"node\":{}}}", "a node that is not a review thread" },
+			{ thread_comments_body("PRRT_fixture_1", "UP", false, designated_pull_request_json(), { exact }), "a diffSide outside LEFT and RIGHT" },
+			{ replace_wire_field(designated_thread_body({ exact }), "\"diffSide\"", "\"side\""), "a missing diffSide" },
+			{ designated_thread_body({ replace_wire_field(exact, "\"id\":\"PRRC_reply_45\"", "\"nodeId\":\"PRRC_reply_45\"") }), "a missing comment id" },
+			{ designated_thread_body({ replace_wire_field(exact, "\"body\"", "\"text\"") }), "a missing body" },
+			{ designated_thread_body({ replace_wire_field(exact, "\"path\"", "\"file\"") }), "a missing path" },
+			{ designated_thread_body({ replace_wire_field(exact, "\"viewerDidAuthor\"", "\"mine\"") }), "a missing viewerDidAuthor" },
+			{ designated_thread_body({ replace_wire_field(exact, "\"id\":\"PRRC_reply_45\"", "\"id\":\"\"") }), "an empty id" },
+			{ designated_thread_body({ replace_wire_field(exact, "\"id\":\"PRRC_reply_45\"", "\"id\":\"" + std::string(257U, 'x') + "\"") }), "an unbounded id" },
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "\"abc\"", "Please rename this.", "13", head_commit_json(), true, our_author_json()) }), "a fullDatabaseId that is no integer" },
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "\"18446744073709551616\"", "Please rename this.", "13", head_commit_json(), true, our_author_json()) }), "an overflowing fullDatabaseId" },
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "\"045\"", "Please rename this.", "13", head_commit_json(), true, our_author_json()) }), "a non-canonical fullDatabaseId" },
+			// BigInt is string-encoded on the wire because it may exceed a
+			// 32-bit Int; a bare number is the spelling of `databaseId: Int`,
+			// and is refused rather than mistaken for the full identity.
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "45", "Please rename this.", "13", head_commit_json(), true, our_author_json()) }), "a fullDatabaseId spelled as a JSON number" },
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "13", "{\"oid\":\"invalid\"}", true, our_author_json()) }), "a commit that is no oid" },
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "0", head_commit_json(), true, our_author_json()) }), "a zero line" },
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "4294967297", head_commit_json(), true, our_author_json()) }), "a line beyond the semantic range" },
+			{ designated_thread_body({ thread_comment_json("PRRC_reply_45", "\"45\"", "Please rename this.", "13.5", head_commit_json(), true, our_author_json()) }), "a fractional line" },
+			{ designated_thread_body({ replace_wire_field(exact, "Please rename this.", "\xC3\x28") }), "a non-UTF-8 body" },
+		};
+		for (const auto& [body, why] : malformed) {
+			const auto refused = parse_review_comment_observations({ .Status = 200, .Body = body }, reply);
+			expect(!refused.has_value() && refused.error() == review_mutation_contract_failure::malformed_response,
+				   "a structurally invalid thread answer is malformed: " + std::string{ why });
+		}
+		auto crowded = std::vector<std::string>{ };
+		for (auto index = 0; index < 101; ++index) {
+			crowded.push_back(thread_comment_json("PRRC_fixture_" + std::to_string(100 + index), "\"" + std::to_string(100 + index) + "\"",
+												  "Please rename this.", "13", head_commit_json(), true, our_author_json()));
+		}
+		const auto overflowing = parse_review_comment_observations({ .Status = 200, .Body = designated_thread_body(crowded) }, reply);
+		expect(!overflowing.has_value() && overflowing.error() == review_mutation_contract_failure::malformed_response,
+			   "more than 100 comments are refused without truncation");
+		const auto paged = parse_review_comment_observations(
+			{ .Status = 200,
+			  .Body   = thread_comments_body("PRRT_fixture_1", "RIGHT", true, designated_pull_request_json(), { exact }) },
+			reply);
+		expect(!paged.has_value() && paged.error() == review_mutation_contract_failure::invalid_status,
+			   "a thread with a further page is refused as a paginated REST list is");
+		const auto echoed = parse_review_comment_observations(
+			{ .Status = 200,
+			  .Body   = thread_comments_body("PRRT_fixture_2", "RIGHT", false, designated_pull_request_json(), { exact }) },
+			reply);
+		const auto foreign = parse_review_comment_observations(
+			{ .Status = 200,
+			  .Body   = thread_comments_body("PRRT_fixture_1", "RIGHT", false, foreign_pull_request_json(), { exact }) },
+			reply);
+		const auto repeated = parse_review_comment_observations(
+			{ .Status = 200, .Body = designated_thread_body({ exact, exact }) }, reply);
+		expect(!echoed.has_value() && echoed.error() == review_mutation_contract_failure::identity_mismatch
+				   && !foreign.has_value() && foreign.error() == review_mutation_contract_failure::identity_mismatch
+				   && !repeated.has_value() && repeated.error() == review_mutation_contract_failure::identity_mismatch,
+			   "an answer about another thread, a thread in another pull request, or a repeated comment identity is an identity mismatch");
+		auto unbound = reply;
+		unbound.LiveBinding.reset();
+		const auto created = parse_review_comment_observations({ .Status = 201, .Body = designated_thread_body({ exact }) }, reply);
+		expect(!created.has_value() && created.error() == review_mutation_contract_failure::invalid_status
+				   && !parse_review_comment_observations({ .Status = 200, .Body = designated_thread_body({ exact }) }, unbound).has_value()
+				   && !parse_review_comment_observations({ .Status = 200, .Body = designated_thread_body({ exact }) }, request()).has_value(),
+			   "a non-200 answer, an unbound expectation and a thread answer offered to a root comment are all refused");
+	}
+
 	void test_legacy_exact_integer_json()
 	{
 		for (const auto* invalid : { "22.0000000000000001", "22.0", "22e-1", "22e1000", "-22", "0", "18446744073709551616", "null", "true", "\"22\"" }) {
@@ -980,6 +1230,7 @@ auto main() -> int
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
+	test_a_reply_is_reconciled_through_its_thread();
 	test_whole_review_dispositions_and_literal_summary();
 	test_whole_review_request_rejection();
 	test_whole_review_response_rejection();
