@@ -16,8 +16,11 @@
 #include <QTextLayout>
 #include <QTextOption>
 #include <QWidget>
+#include <QtCore/qhashfunctions.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <unordered_map>
 
 namespace bpr::qt {
 	namespace {
@@ -285,11 +288,68 @@ namespace bpr::qt {
 		}
 	}
 
+	/// \brief Row sizes the delegate has already measured.
+	///
+	/// \details [[BPR-1043]]. `QTreeView` asks for every row's size again on
+	/// each `doItemsLayout`, because a view that scrolls by pixel sums every
+	/// row's height for its scroll range, and the conversation panel lays out its
+	/// whole list whenever the anchored file changes. Each ask shaped the
+	/// heading, body and facts afresh and asked the style for the row's
+	/// geometry. For the large review's 2,000 posts that held the GUI thread for
+	/// about 100 ms at every epoch refresh.
+	///
+	/// A size is decided by what the row shows (the presentation and the
+	/// display text the style lays out), the font, the width it wraps at,
+	/// whether it is a reply, the style option's features and decoration, the
+	/// style, and the device it is shaped for. All of them are the key, so a
+	/// change to any of them measures afresh. Painting still lays out what it
+	/// draws.
+	struct github_conversation_delegate::measurement_cache
+	{
+		struct key
+		{
+			QString       Heading;
+			QString       Body;
+			QString       Facts;
+			QString       DisplayText;
+			QFont         Font;
+			int           Width    = 0;
+			bool          Reply    = false;
+			int           Features = 0;
+			QSize         DecorationSize;
+			const QStyle* Style            = nullptr;
+			qreal         DevicePixelRatio = 1.0;
+			int           LogicalDpi       = 0;
+
+			friend auto operator==(const key&, const key&) -> bool = default;
+		};
+
+		struct key_hash
+		{
+			auto operator()(const key& aKey) const noexcept -> std::size_t
+			{
+				return qHashMulti(0U, aKey.Heading, aKey.Body, aKey.Facts, aKey.DisplayText, aKey.Font, aKey.Width, aKey.Reply,
+								  aKey.Features, aKey.DecorationSize.width(), aKey.DecorationSize.height(),
+								  reinterpret_cast<quintptr>(aKey.Style), aKey.DevicePixelRatio, aKey.LogicalDpi);
+			}
+		};
+
+		/// Enough for every post of the largest measured review at a few
+		/// widths. Past it the cache starts again rather than growing without
+		/// bound when a reviewer resizes the drawer through many widths.
+		static constexpr std::size_t Capacity = 16'384U;
+
+		std::unordered_map<key, QSize, key_hash> Sizes;
+	};
+
 	github_conversation_delegate::github_conversation_delegate(QObject* const aParent, const bool aCompact)
 		: QStyledItemDelegate{ aParent }
 		, Compact{ aCompact }
+		, Measured{ std::make_unique<measurement_cache>() }
 	{
 	}
+
+	github_conversation_delegate::~github_conversation_delegate() = default;
 
 	void github_conversation_delegate::paint(
 		QPainter* const             aPainter,
@@ -369,8 +429,26 @@ namespace bpr::qt {
 
 		QStyleOptionViewItem nativeOption{ aOption };
 		initStyleOption(&nativeOption, aIndex);
-		const auto* const  style   = nativeOption.widget != nullptr ? nativeOption.widget->style()
-																	: QApplication::style();
+		const auto* const style        = nativeOption.widget != nullptr ? nativeOption.widget->style()
+																		: QApplication::style();
+		auto              presentation = presentation_for(aIndex, Compact);
+		auto              cacheKey     = measurement_cache::key{
+			.Heading          = presentation.Heading,
+			.Body             = presentation.Body,
+			.Facts            = presentation.Facts,
+			.DisplayText      = nativeOption.text,
+			.Font             = nativeOption.font,
+			.Width            = nativeOption.rect.width(),
+			.Reply            = aIndex.parent().isValid(),
+			.Features         = static_cast<int>(nativeOption.features),
+			.DecorationSize   = nativeOption.decorationSize,
+			.Style            = style,
+			.DevicePixelRatio = nativeOption.widget != nullptr ? nativeOption.widget->devicePixelRatio() : 1.0,
+			.LogicalDpi       = nativeOption.widget != nullptr ? nativeOption.widget->logicalDpiY() : 0,
+		};
+		if (const auto found = Measured->Sizes.find(cacheKey); found != Measured->Sizes.end()) {
+			return found->second;
+		}
 		const auto         metrics = metrics_for(nativeOption, style);
 		const QFontMetrics fontMetrics{ nativeOption.font };
 
@@ -388,7 +466,7 @@ namespace bpr::qt {
 			text_rect(measuringOption, style, aIndex).width()
 				- (metrics.HorizontalPadding * 2));
 		const auto height = content_height(
-			presentation_for(aIndex, Compact),
+			presentation,
 			metrics,
 			static_cast<qreal>(availableWidth),
 			nativeOption.widget);
@@ -402,11 +480,16 @@ namespace bpr::qt {
 					fontMetrics.height(),
 					static_cast<int>(paddedHeight + 0.999)) },
 			nativeOption.widget);
-		return QSize{
+		const auto size = QSize{
 			width,
 			std::max(
 				nativeSize.height(),
 				static_cast<int>(paddedHeight + 0.999))
 		};
+		if (Measured->Sizes.size() >= measurement_cache::Capacity) {
+			Measured->Sizes.clear();
+		}
+		Measured->Sizes.emplace(std::move(cacheKey), size);
+		return size;
 	}
 }

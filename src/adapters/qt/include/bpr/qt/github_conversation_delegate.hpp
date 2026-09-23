@@ -3,12 +3,17 @@
 
 #include <QStyledItemDelegate>
 
+#include <memory>
+
 namespace bpr::qt {
 	/// \brief Provides the github conversation delegate contract.
 	class github_conversation_delegate final : public QStyledItemDelegate
 	{
 	public:
 		explicit github_conversation_delegate(QObject* aParent = nullptr, bool aCompact = false);
+		~github_conversation_delegate() override;
+		github_conversation_delegate(const github_conversation_delegate&)                    = delete;
+		auto operator=(const github_conversation_delegate&) -> github_conversation_delegate& = delete;
 
 		void paint(
 			QPainter*                   aPainter,
@@ -19,7 +24,10 @@ namespace bpr::qt {
 			const QModelIndex&          aIndex) const -> QSize override;
 
 	private:
-		bool Compact = false;
+		struct measurement_cache;
+
+		bool                               Compact = false;
+		std::unique_ptr<measurement_cache> Measured;
 	};
 }
 

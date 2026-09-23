@@ -2,6 +2,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include <QTextEdit>
 
+#include "bpr/qt/github_conversation_delegate.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_thread_map.hpp"
 
@@ -11,6 +12,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QScrollBar>
+#include <QStyleOptionViewItem>
 #include <QToolButton>
 #include <QTreeView>
 #include <QWheelEvent>
@@ -694,6 +696,54 @@ namespace {
 			}
 		}
 	}
+	/// [[BPR-1043]]. The delegate remembers the sizes it has measured, so a
+	/// relayout of the whole list does not shape every post again. A
+	/// remembered size must still follow everything that decides it: new text
+	/// under the same identity, a narrower width and a larger font each give
+	/// the size a delegate that has never measured anything gives. The panel's
+	/// list delegate is the compact one, so the fresh delegate is too.
+	void test_row_sizes_follow_text_width_and_font()
+	{
+		qt::github_conversation_panel panel;
+		panel.resize(420, 520);
+		panel.show();
+		auto thread = root("sized-root", "src/sized.cpp");
+		panel.adopt({ thread }, QStringLiteral("available"));
+		process_events();
+		auto* const view     = panel.view();
+		auto* const delegate = view->itemDelegate();
+		const auto  option   = [&](const int aWidth, const qreal aScale) {
+			auto result = QStyleOptionViewItem{ };
+			result.initFrom(view);
+			result.widget = view;
+			result.rect   = QRect{ 0, 0, aWidth, 20 };
+			if (aScale != 1.0) {
+				result.font.setPointSizeF(result.font.pointSizeF() * aScale);
+			}
+			return result;
+		};
+		const auto measured = [&](const int aWidth, const qreal aScale) {
+			const auto index = panel.model()->index_for_id("sized-root");
+			expect(index.isValid(), "the sized thread is shown");
+			const auto remembered = delegate->sizeHint(option(aWidth, aScale), index);
+			const auto again      = delegate->sizeHint(option(aWidth, aScale), index);
+			const auto fresh      = qt::github_conversation_delegate{ nullptr, true }.sizeHint(option(aWidth, aScale), index);
+			expect(remembered == again && remembered == fresh,
+				   "a remembered row size is the size a fresh delegate measures");
+			return remembered;
+		};
+		const auto shortText = measured(300, 1.0);
+		thread.Body          = std::string(600, 'w') + " and a long remark that wraps";
+		panel.adopt({ thread }, QStringLiteral("available"));
+		process_events();
+		const auto longText = measured(300, 1.0);
+		expect(longText.height() > shortText.height(), "new text under the same identity is measured afresh");
+		const auto narrow = measured(140, 1.0);
+		expect(narrow.height() > longText.height(), "a narrower width wraps into more lines");
+		const auto larger = measured(300, 2.0);
+		expect(larger.height() > longText.height(), "a larger font is measured afresh");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -717,6 +767,7 @@ auto main(int argc, char** argv) -> int
 	test_contextual_scope_survives_clear_and_refresh();
 	test_index_arrows_retain_focus_until_explicit_activation();
 	test_long_detail_scroll_routes();
+	test_row_sizes_follow_text_width_and_font();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }
