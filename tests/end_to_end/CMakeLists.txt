@@ -2733,7 +2733,9 @@ bpr_add_executable(test_release_update_recovery release_update_recovery_tests.cp
 target_link_libraries(test_release_update_recovery PRIVATE BetterPullReview::AdapterSQLite Qt6::Core)
 bpr_enable_hardening(test_release_update_recovery)
 bpr_enable_warnings(test_release_update_recovery)
-bpr_add_network_isolated_test(NAME release_update_recovery COMMAND test_release_update_recovery)
+# [[BPR-1031]]. Uncontained on Windows: its first step narrows a QTemporaryDir
+# the container cannot open for WRITE_DAC (dos-volume-name, as BPR-0833).
+bpr_add_network_isolated_test(NAME release_update_recovery WINDOWS_UNCONTAINED COMMAND test_release_update_recovery)
 target_link_libraries(test_release_update_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_release_update_public_path PRIVATE BPR_BUILD_TESTING=1)
 target_compile_features(test_release_update_public_path PRIVATE cxx_std_23)

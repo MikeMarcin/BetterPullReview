@@ -1,6 +1,7 @@
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
 #include <QTemporaryDir>
 #include <cstdlib>
@@ -21,7 +22,14 @@ auto main(int aArgc, char** aArgv) -> int
 {
 	QCoreApplication application{ aArgc, aArgv };
 	QTemporaryDir    temporary;
-	const auto       root = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+#if defined(_WIN32)
+	// [[BPR-1031]]. The store admits a root only in native spelling, so Qt's
+	// '/' is made native here, as bpr::app::native_filesystem_path does for
+	// the application; the wide form keeps a non-ASCII profile path intact.
+	const auto root = std::filesystem::path{ QDir::toNativeSeparators(QFileInfo{ temporary.path() }.canonicalFilePath()).toStdWString() };
+#else
+	const auto root = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+#endif
 	expect(temporary.isValid() && adapters::sqlite::make_storage_root_owner_private(root), "disposable private state");
 	auto store = adapters::sqlite::make_release_update_recovery_store(root);
 	expect(store->load() && store->load()->empty(), "fresh store is empty");

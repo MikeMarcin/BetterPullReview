@@ -7,6 +7,7 @@
 	#include "bpr/adapters/update/release_update_installation.hpp"
 	#include "bpr/adapters/update/release_update_staging.hpp"
 #endif
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
@@ -103,7 +104,10 @@ namespace {
 	auto root(QTemporaryDir& aTemporary) -> std::filesystem::path
 	{
 		expect(aTemporary.isValid(), "temporary root exists");
-		const auto path = std::filesystem::path{ QFileInfo{ aTemporary.path() }.canonicalFilePath().toStdString() };
+		// [[BPR-1031]]. The course reopens the recovery store itself after the
+		// desktop is gone, so it names the root as the adapters admit it: Qt's
+		// '/' spelling is refused on Windows as an invalid path.
+		const auto path = app::native_filesystem_path(QFileInfo{ aTemporary.path() }.canonicalFilePath());
 		expect(adapters::sqlite::make_storage_root_owner_private(path), "private fixture state root");
 		return path;
 	}

@@ -294,6 +294,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_attended_recent_replay": "dos-volume-name",
     "application_release_maintenance_public_path": "dos-volume-name",
     "application_release_update_public_path": "dos-volume-name",
+    # [[BPR-1031]]. Measured on JaegAW 2026-09-23: contained, the course stops
+    # at its first step, "disposable private state". A reverted probe showed the
+    # WRITE_DAC open of its QTemporaryDir under AC\Temp refused with error 5,
+    # the refusal BPR-0833 measured for the same narrowing. Uncontained it
+    # passes.
+    "release_update_recovery": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
     # BPR-0846: the same real host, cache and catalog composition as
     # epoch_maintenance_integration, not yet measured contained on Windows.

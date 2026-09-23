@@ -67,3 +67,70 @@ way. Registered contained, it stops earlier, at its first step.
   `test_network_isolation_manifest` reports no finding.
 - AC3 macOS and Linux keep their paths: the conversions are Windows-only, or
   are the identity there.
+
+## Measured and fixed in the courses (bpr-main-win, 2026-09-23)
+
+Run `bpr-main-win-20260923`. Windows 11 Home 10.0.26200, MSVC 19.51 Debug,
+Qt 6.11.2, `build/dev`. Logs are under `build/logs/bpr-1031-main-win/` and
+`build/logs/bpr-1029-1031-final-main-win/` on the station and are not
+committed. Both rows are console or offscreen.
+
+**Where the load fails.** Reverted probes in the recovery store showed the
+desktop's own sequence working. The first open created a fresh store. The
+injected obstruction refused the first save, as the course intends. The
+second save reopened the retained store and committed both drafts. The
+course's own `load()` after `desktop.reset()` then failed at
+`open_state_directory` with `invalid_path`. `canonical_windows_root` refuses
+the root because it contains '/'.
+
+**The fix.** `application_release_update_public_path` builds its root with
+`bpr::app::native_filesystem_path`, the conversion [[BPR-0806]] put at the
+point a path leaves Qt. `release_update_recovery` links only the SQLite
+adapter and Qt Core, so on Windows it makes the same conversion inline:
+`QDir::toNativeSeparators(…).toStdWString()`. The wide form keeps a
+non-ASCII profile path intact. On POSIX both paths are unchanged:
+`native_filesystem_path` is the same UTF-8 bytes there, and the inline
+conversion is `_WIN32` only.
+
+**`release_update_recovery` is pinned.** Uncontained with the fix it passes.
+Contained it stops at its first step, "disposable private state". A reverted
+probe showed why: the `WRITE_DAC` open of its `QTemporaryDir` under
+`...\Packages\bprautomatedtest\AC\Temp` is refused with error 5. That is the
+refusal [[BPR-0833]] measured for the same narrowing, and it is pinned the same
+way, `dos-volume-name`. The keyword (`tests/end_to_end/CMakeLists.txt`) and
+the dictionary entry (`scripts/verify_test_network_isolation.py`) land in one
+commit.
+
+**What is still printed, and why it is not this card.** The update course
+prints
+`AGENT_WORKSPACE_RECOVERY_REFUSED:<temp>\agent-workspace-ownership-v1:repair-required`
+at quit, because its data root sits directly under `%TEMP%`. Since
+`14a18b45` that refusal no longer fails the quit, and the course asserts
+nothing about it. Whether such courses should get a private parent is the
+data-root arrangement question on [[BPR-0874]].
+
+**`application_attended_recent_replay`, the reserved title's other row.** It
+passed 7 of 8 runs today (25.25–27.22 s). The eighth failed at "UIforETW
+retained comparison ready" after `EPOCH_EFFECT_FAILED:revision-prepare:6`,
+which is `epoch_failure`'s Git-subprocess code. [[BPR-1020]] saw the same line
+once with code 0 at `38cc26d7`. That is an intermittent failure of the Git
+subprocess behind epoch preparation, not the quit mechanism this ID was
+reserved for, so it is not this card's. An ID has been requested for it,
+together with the same step's two intermittent failures in the maintenance
+course ([[BPR-1030]]).
+
+### Verification
+
+Measured at `2b14139f` with the BPR-1029, BPR-1030 and BPR-1031 changes
+applied, which is the source tree those three cards' commits produce:
+
+| Row | Before (`7bf7de5b`) | After |
+|---|---|---|
+| `application_release_update_public_path` | `FAILED: both windows retain distinct text durably`, after an exit-0 quit | Passes, 7.48 s |
+| `release_update_recovery` (contained) | `FAILED: disposable private state` | Pinned uncontained; passes, 0.07 s |
+| `release_update_recovery` (uncontained, before the root fix) | `FAILED: fresh store is empty` | — |
+| `test_network_isolation_manifest` | Passes | Passes, 4.42 s, with the new pin |
+| `test_network_isolation_structure_contract` | Passes | Passes, 2.41 s |
+| `application_attended_recent_replay` | Passes | Passes, 27.22 s |
+
+`clang-format --dry-run --Werror` is clean on the touched files.
