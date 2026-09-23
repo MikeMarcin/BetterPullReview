@@ -2,19 +2,118 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QFont>
+#include <QFontMetrics>
+#include <QPlainTextDocumentLayout>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QTextBlock>
 #include <QTextDocument>
+#include <QTextLayout>
+#include <QTextOption>
 #include <QWidget>
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <iterator>
 #include <limits>
 
 namespace bpr::qt {
 	namespace {
+		/// \brief Measures pane blocks without keeping a shaped layout in each one.
+		///
+		/// \details [[BPR-1032]]. Since Qt 6.11 (qtbase 8209078e0e) a
+		/// `QTextEngine` keeps its HarfBuzz buffer until it is destroyed, and a
+		/// `QPlainTextEdit` keeps one layout per block for the block's
+		/// lifetime. Asking the pane's own layout for every block's height
+		/// therefore left about 1.8 KiB in every measured line: 70 MiB for the
+		/// large review's 40,000.
+		///
+		/// For a `NoWrap` pane this lays the block out in a `QTextLayout` of
+		/// its own, bound to the same block so it reads the same document
+		/// formats and paint device, with the pane's additional formats. It
+		/// repeats the steps `QPlainTextDocumentLayout::layoutBlock` and
+		/// `blockBoundingRect` take, then destroys the layout. The height is
+		/// the pane's own to the last bit; `measured_alignment_axis_tests`
+		/// compares every line against the pane's native answer.
+		///
+		/// The pane still has to know its widest line, because its
+		/// horizontal range comes from the lines it has laid out itself. So
+		/// a block that is wider than any before it is laid out natively,
+		/// which leaves the pane's range where measuring every block
+		/// natively left it. Wrapping panes and hidden blocks are measured
+		/// natively as before: there, laying a block out also sets its line
+		/// count, which the pane's own scrolling reads.
+		class pane_block_measurer final
+		{
+		public:
+			pane_block_measurer() = default;
+			pane_block_measurer(const QAbstractTextDocumentLayout& aLayout, const bool aNoWrap)
+				: Native{ &aLayout }
+				, Plain{ aNoWrap ? qobject_cast<const QPlainTextDocumentLayout*>(&aLayout) : nullptr }
+				, Widest{ Plain != nullptr ? Plain->documentSize().width() : 0.0 }
+			{
+			}
+
+			[[nodiscard]] auto height(const QTextBlock& aBlock) -> qreal
+			{
+				if (Plain == nullptr || !aBlock.isVisible()
+					|| aBlock.document()->defaultTextOption().wrapMode() != QTextOption::NoWrap) {
+					return Native->blockBoundingRect(aBlock).height();
+				}
+				auto       width  = qreal{ 0.0 };
+				const auto extent = transient_height(aBlock, width);
+				if (width > Widest) {
+					Widest = width;
+					return Native->blockBoundingRect(aBlock).height();
+				}
+				return extent;
+			}
+
+		private:
+			[[nodiscard]] auto transient_height(const QTextBlock& aBlock, qreal& aNaturalWidth) const -> qreal
+			{
+				const auto* const document = aBlock.document();
+				const auto        margin   = document->documentMargin();
+				const auto        option   = document->defaultTextOption();
+				auto              layout   = QTextLayout{ aBlock };
+				layout.setTextOption(option);
+				// A block's layout exists whenever a highlighter has styled it,
+				// and asking for it shapes nothing.
+				layout.setFormats(aBlock.layout()->formats());
+				auto extraMargin = 0;
+				if (option.flags().testFlag(QTextOption::AddSpaceForLineAndParagraphSeparators)) {
+					extraMargin += QFontMetrics{ aBlock.charFormat().font() }.horizontalAdvance(QChar{ 0x21B5 });
+				}
+				// The pane gives each line its viewport's width, but an unwrapped
+				// line is one line whatever width it is given, and the width
+				// reaches neither its height nor its natural width.
+				const auto available = static_cast<qreal>(INT_MAX) - (2.0 * margin + extraMargin);
+				auto       top       = qreal{ 0.0 };
+				layout.beginLayout();
+				for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+					line.setLeadingIncluded(true);
+					line.setLineWidth(available);
+					line.setPosition(QPointF{ margin, top });
+					top += line.height();
+					if (line.leading() < 0.0) {
+						top += std::ceil(line.leading());
+					}
+					aNaturalWidth = std::max(aNaturalWidth, line.naturalTextWidth() + 2.0 * margin);
+				}
+				layout.endLayout();
+				auto extent = layout.boundingRect().bottom();
+				if (!aBlock.next().isValid()) {
+					extent += margin;
+				}
+				return extent;
+			}
+
+			const QAbstractTextDocumentLayout* Native = nullptr;
+			const QPlainTextDocumentLayout*    Plain  = nullptr;
+			qreal                              Widest = 0.0;
+		};
+
 		[[nodiscard]] auto finite_nonnegative(const qreal aValue) noexcept -> bool
 		{
 			return std::isfinite(aValue) && aValue >= 0.0;
@@ -89,6 +188,7 @@ namespace bpr::qt {
 		std::uint32_t                               NextLine     = 0U;
 		pane_measurement_progress                   Progress     = pane_measurement_progress::invalidated;
 		pane_line_measurements                      Measurements;
+		pane_block_measurer                         Measurer;
 
 		[[nodiscard]] auto current() const -> bool
 		{
@@ -135,6 +235,7 @@ namespace bpr::qt {
 		value.TextWidth    = document->textWidth();
 		value.TabDistance  = aPane.tabStopDistance();
 		value.LineCount    = aLogicalLineCount;
+		value.Measurer     = pane_block_measurer{ *layout, aPane.lineWrapMode() == QPlainTextEdit::NoWrap };
 		value.Measurements = { .DocumentExtent   = layout->documentSize().height(),
 							   .ViewportExtent   = static_cast<qreal>(viewport->height()),
 							   .DevicePixelRatio = aPane.devicePixelRatioF() };
@@ -167,7 +268,7 @@ namespace bpr::qt {
 				return value.Progress;
 			}
 			value.Measurements.Boundaries.push_back(value.Measurements.Boundaries.back()
-													+ value.Layout->blockBoundingRect(value.Block).height());
+													+ value.Measurer.height(value.Block));
 			value.Block = value.Block.next();
 			++value.NextLine;
 		}
@@ -230,14 +331,15 @@ namespace bpr::qt {
 			static_cast<std::size_t>(aLogicalLineCount) + 1U);
 		auto documentY = document->documentMargin();
 		measurements.Boundaries.push_back(documentY);
-		auto block = document->begin();
+		auto measurer = pane_block_measurer{ *layout, aPane.lineWrapMode() == QPlainTextEdit::NoWrap };
+		auto block    = document->begin();
 		for (std::uint32_t line = 0U;
 			 line < aLogicalLineCount;
 			 ++line) {
 			if (!block.isValid()) {
 				return std::nullopt;
 			}
-			documentY += layout->blockBoundingRect(block).height();
+			documentY += measurer.height(block);
 			measurements.Boundaries.push_back(documentY);
 			block = block.next();
 		}

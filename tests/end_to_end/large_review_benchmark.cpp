@@ -120,18 +120,29 @@ namespace bpr::e2e::large_review {
 		//
 		// The peak bounds physical footprint at every sample. Qt 6.11 keeps a
 		// HarfBuzz buffer in every shaped QTextLayout until the layout is
-		// destroyed (qtbase 8209078e0e), and a pane keeps one layout per block.
-		// Measuring the 40,000 lines of the large comparison therefore holds
-		// about 70 MiB more live than under Qt 6.10.3, and the highest peak rose
-		// from 138 to 203 MiB. No public Qt API releases those buffers, so
-		// 224 MiB, 10% above that peak, accepts the cost instead of 160 MiB.
-		std::uint64_t SampledFootprintGrowthLimitBytes = 224U * 1024U * 1024U;
+		// destroyed (qtbase 8209078e0e), and a pane keeps one layout per block,
+		// so measuring the large comparison natively held about 70 MiB more
+		// live than under Qt 6.10.3 and the peak rose from 138 to 203 MiB.
+		// [[BPR-1032]] measures unwrapped panes in transient layouts instead.
+		// Live growth at large_file_ready fell from 164.2 to 101.1 MiB, and the
+		// highest peak of the resources, loaded-close and cache-entry courses
+		// fell to 138.7 MiB, where Qt 6.10.3 left it, so the original 160 MiB
+		// returns for them. The cache-byte course fills the diff cache to its
+		// byte budget on purpose. It peaked at 165.5-166.7 MiB (176.6-177.5
+		// before the change, and 168-172 under Qt 6.10.3, when it already failed
+		// 160), so it has its own bound: 184 MiB, 10% above its peak, the rule
+		// BPR-0893 used for the single 224 MiB bound these two replace.
+		std::uint64_t SampledFootprintGrowthLimitBytes   = 160U * 1024U * 1024U;
+		std::uint64_t CacheByteFootprintGrowthLimitBytes = 184U * 1024U * 1024U;
 		// Cleanup bounds the live heap (bytes malloc has in use), not the
 		// footprint. The allocator keeps freed pages dirty, so after cleanup
-		// the footprint stays at 127-183 MiB while the live heap is back to
+		// the footprint stays at 99-107 MiB while the live heap is back to
 		// 66-68 MiB with the application open and 13-14 MiB once it is
-		// destroyed. Retaining the large comparison would add about 100 MiB.
-		std::uint64_t                  CleanupLiveHeapGrowthLimitBytes   = 96U * 1024U * 1024U;
+		// destroyed. Since [[BPR-1032]] the loaded comparison holds about
+		// 34 MiB live rather than 100, so a cleanup that kept it would leave
+		// 101-110 MiB. 84 MiB sits halfway between 67.6 and 101.1; 96 would
+		// still catch such a cleanup, but by only 5 MiB.
+		std::uint64_t                  CleanupLiveHeapGrowthLimitBytes   = 84U * 1024U * 1024U;
 		std::uint64_t                  DestroyedLiveHeapGrowthLimitBytes = 32U * 1024U * 1024U;
 		bool                           WindowCloseObserved               = false;
 		bool                           PruneReleasedDiff = false, PruneReleasedIndex = false, PruneClearedProjection = false;
@@ -222,7 +233,9 @@ namespace bpr::e2e::large_review {
 		}
 		std::cerr << "resource-sample:" << *glz::write_json(sample) << '\n';
 		if (!aReport.Resources.empty()) {
-			require(sample.FootprintGrowthBytes <= aReport.SampledFootprintGrowthLimitBytes,
+			require(sample.FootprintGrowthBytes
+						<= (aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
+													: aReport.SampledFootprintGrowthLimitBytes),
 					"sampled Mac fixture footprint growth exceeded its budget");
 			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
 				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {

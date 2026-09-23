@@ -1,12 +1,16 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/measured_alignment_axis.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QFont>
 #include <QPlainTextEdit>
+#include <QScrollBar>
+#include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextLayout>
 #include <QWidget>
 
 #include <algorithm>
@@ -530,6 +534,116 @@ namespace {
 				   "live natural-layout pane raster saves");
 		}
 	}
+
+	/// Gives every `wide` a larger font through the block's additional
+	/// formats, which is where the review panes put syntax. The panes then
+	/// mark the block dirty, which lays it out. Here the block is left
+	/// unlaid, so a measurement that dropped a block's additional formats
+	/// would get that line's height wrong.
+	void set_larger_word_formats(QTextDocument& aDocument)
+	{
+		auto format = QTextCharFormat{ };
+		format.setFontPointSize(30);
+		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+			const auto at = block.text().indexOf(QStringLiteral("wide"));
+			if (at >= 0) {
+				block.layout()->setFormats({ QTextLayout::FormatRange{ .start = static_cast<int>(at), .length = 4, .format = format } });
+			}
+		}
+	}
+
+	/// The native answer for every block, the one the pane lays out and
+	/// paints. Asking for it lays every block out, so it runs after the
+	/// measurement under test.
+	[[nodiscard]] auto native_boundaries(const QPlainTextEdit& aPane, const std::uint32_t aLines) -> std::vector<qreal>
+	{
+		const auto* const document = aPane.document();
+		auto              values   = std::vector<qreal>{ document->documentMargin() };
+		auto              block    = document->begin();
+		for (std::uint32_t line = 0U; line < aLines && block.isValid(); ++line, block = block.next()) {
+			values.push_back(values.back() + document->documentLayout()->blockBoundingRect(block).height());
+		}
+		return values;
+	}
+
+	/// [[BPR-1032]]. A `NoWrap` pane is measured without shaping each block in
+	/// the pane's own layout, which Qt 6.11 would keep a HarfBuzz buffer in for
+	/// the block's lifetime. The boundaries must still be the pane's native
+	/// ones exactly, including a fallback-font line, a larger inline format
+	/// and a block's additional formats. The pane's horizontal range
+	/// must still cover its widest line. Without a trailing newline the last
+	/// measured block is the document's last, which carries the bottom margin.
+	auto test_transient_no_wrap_measurement(const bool aTrailingNewline) -> void
+	{
+		auto pane = QPlainTextEdit{ };
+		pane.resize(260, 160);
+		pane.setLineWrapMode(QPlainTextEdit::NoWrap);
+		QString        source;
+		constexpr auto lines = 400U;
+		for (auto line = 0U; line < lines; ++line) {
+			switch (line % 7U) {
+			case 0U: source += QStringLiteral("fallback 日本語 αβγ 😀 line\n"); break;
+			case 1U: source += QStringLiteral("\tindented\twith tabs\n"); break;
+			case 2U: source += QStringLiteral("a wide word in a larger font\n"); break;
+			case 3U: source += QString{ }.append(QChar{ '\n' }); break;
+			// Widest in the middle, far below the viewport, so the pane has
+			// not laid its widest line out before the measurement starts.
+			case 4U: source += QStringLiteral("x").repeated(static_cast<int>(20U + std::min(line, lines - line))) + QChar{ '\n' }; break;
+			default: source += QStringLiteral("plain ascii source line\n"); break;
+			}
+		}
+		if (!aTrailingNewline) {
+			source.chop(1);
+		}
+		pane.setPlainText(source);
+		QTextCursor styled{ pane.document() };
+		styled.movePosition(QTextCursor::NextBlock, QTextCursor::MoveAnchor, 5);
+		styled.select(QTextCursor::LineUnderCursor);
+		QTextCharFormat larger;
+		larger.setFontPointSize(24);
+		styled.mergeCharFormat(larger);
+		pane.show();
+		QApplication::processEvents();
+		set_larger_word_formats(*pane.document());
+		QApplication::processEvents();
+
+		qt::plain_text_pane_measurement measurement{ pane, lines };
+		auto                            progress = qt::pane_measurement_progress::pending;
+		while (progress == qt::pane_measurement_progress::pending) {
+			progress = measurement.advance(64U);
+			QApplication::processEvents();
+		}
+		expect(progress == qt::pane_measurement_progress::complete && measurement.result(),
+			   "the transient no-wrap measurement completes");
+		const auto measured    = measurement.result()->Boundaries;
+		const auto synchronous = qt::measure_plain_text_pane(pane, lines);
+		expect(synchronous && synchronous->Boundaries == measured, "batched and synchronous no-wrap boundaries agree exactly");
+
+		// Line 201 sits far below the viewport and is never the widest so
+		// far, so only a measurement that laid it out in the pane's own layout
+		// would leave lines there.
+		const auto offScreen = pane.document()->findBlockByNumber(201);
+		expect(offScreen.isValid() && offScreen.layout()->lineCount() == 0,
+			   "measurement leaves an off-screen block's own layout unshaped");
+		const auto measuredRange = pane.horizontalScrollBar()->maximum();
+		const auto measuredWidth = pane.document()->documentLayout()->documentSize().width();
+
+		const auto native = native_boundaries(pane, lines);
+		expect(native.size() == measured.size(), "native reference covers every line");
+		for (std::size_t index = 0U; index < native.size(); ++index) {
+			if (native[index] != measured[index]) {
+				std::cerr << "boundary " << index << ": measured " << measured[index] << ", native " << native[index] << '\n';
+				expect(false, "transient no-wrap boundaries equal the pane's native boundaries exactly");
+			}
+		}
+		expect(measured[1] != measured[2] || measured[3] != measured[4] || measured[6] - measured[5] != measured[7] - measured[6],
+			   "the fixture's lines really differ in height");
+		QApplication::processEvents();
+		expect(pane.document()->documentLayout()->documentSize().width() == measuredWidth
+				   && pane.horizontalScrollBar()->maximum() == measuredRange,
+			   "the pane's horizontal range already covered its widest line");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -543,6 +657,8 @@ auto main(int argc, char** argv) -> int
 	test_validation_and_coalesced_invalidation();
 	test_live_plain_text_measurement();
 	test_bounded_native_measurement();
+	test_transient_no_wrap_measurement(true);
+	test_transient_no_wrap_measurement(false);
 
 	std::cout << "measured-alignment-axis-tests:pass\n";
 	return EXIT_SUCCESS;
