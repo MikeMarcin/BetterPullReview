@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1022"
 title: "Windows: open the strip's application menu from the keyboard with Alt and F10"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
