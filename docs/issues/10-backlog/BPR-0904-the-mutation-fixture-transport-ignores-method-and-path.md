@@ -247,3 +247,28 @@ shape this is literal (a non-empty deque at row end); in this suite's
 stateful shape it would be a key the row prepared for and the product never
 asked. Not implemented in either spike; the third scope point and the
 egress-validator statement also remain open.
+
+## [[BPR-0896]] landed, 2026-09-23: the spike's red row is green
+
+[[BPR-0896]] landed at `d8da166e`, so the statement above that the only red
+on the surface is the row written to show it no longer holds. The probe row
+`a_replys_baseline_reconciliation_is_a_request_a_server_can_answer` passes,
+as does the whole suite and `live_review_mutation_restart_recovery`.
+
+The red-then-green demonstration this card's first acceptance point asks for
+was run as a negative control there. With the REST-derived reconciliation
+temporarily restored, both ctest rows failed at
+`FAILED: unscripted request #2: GET /graphql?per_page=100 (operation
+observe_review_comments, body empty)`. Restored byte for byte, they passed.
+
+Three changes touch this card's surface:
+
+- The fixture transport now witnesses `reply_review_thread` as it witnesses
+  `create_review_comment`.
+- `review_mutation_operation` gained `observe_review_thread_comments`, and
+  both suites' `operation_name` switches name it.
+- The new reply rows pin their whole wire sequence (count, order, method,
+  path, operation label, GraphQL document kind and name) independently of
+  how this transport is keyed.
+
+Nothing in this card's own scope was chosen or closed by that work.

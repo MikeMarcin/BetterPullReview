@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0896"
 title: "A reply's reconciliation request is the GraphQL root with a REST query string, so a live reply can never reconcile or recover"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-006 worker on BPR-0879, while adding the reply mutation's pull-request binding","found_at":"5c8ee790","run":"run-20260916-stations","dispatch":"dsp-006"}
+acceptance: [{"criterion":"AC1 a reply's reconciliation request is one a real server can answer, and the card names what it asks for","outcome":"pass","revision":"d8da166e","evidence":{"kind":"command","detail":"github_mutation_contract test_a_reply_is_reconciled_through_its_thread pins POST /graphql (GHES /api/graphql), four headers and the exact body {query: ObserveThreadComments document, variables:{thread}}; the document's selection is the dsp-008 field mapping against GitHub's published schema (fullDatabaseId BigInt string, thread diffSide, author ... on User). The card names the request. Limits: schema checked by reading only, no live server queried; the native HTTPS transport cannot yet carry any GraphQL review POST, carded as BPR-1018 (P1)."}},{"criterion":"AC2 a contract row pins the reply's reconciliation shape, so a REST-derived path cannot come back","outcome":"pass","revision":"d8da166e","evidence":{"kind":"command","detail":"ctest github_mutation_contract, live_review_mutation_provider and live_review_mutation_restart_recovery passed. The contract row makes GET /graphql?per_page=100 and both relabellings fail canonical validation, and the reply rows pin all six requests of the course. Negative control: with the REST-derived compile restored, all three rows failed at 'unscripted request #2: GET /graphql?per_page=100' (each new row alone exit 1). Restored byte for byte, they passed."}},{"criterion":"AC3 restart recovery for an interrupted reply is proven or recorded as deliberately unsupported with its reason","outcome":"pass","revision":"d8da166e","evidence":{"kind":"command","detail":"Proven under the BPR-0904 keyed transport (on main at 234a6f67), with full wire pins. The in-process row an_interrupted_reply_is_recovered_from_its_thread and the two-process SQLite course (--write-unresolved-reply / --recover-unresolved-reply in ctest live_review_mutation_restart_recovery) both passed. The restarted session asks only GET /user, GET pulls/1 and POST /graphql ObserveThreadComments, never the write. It confirms landed reply 45 past identical reply 44; an unlanded reply stays unresolved. Negative control: a thread read yielding no exact receipts failed only these courses and the identical-baseline course."}},{"criterion":"AC4 BPR-0879's pull-request binding on the reply still holds","outcome":"pass","revision":"d8da166e","evidence":{"kind":"command","detail":"a_reply_observes_its_thread_before_it_writes passes: a foreign thread is refused after one request. Every reply course begins with ObserveThread. The thread-comments parse refuses a thread naming another pull request as identity_mismatch (github_mutation_contract)."}},{"criterion":"Open point (a): nullable line/commit on outdated thread comments decided, documented and tested","outcome":"pass","revision":"d8da166e","evidence":{"kind":"observation","detail":"Decision: a tolerated non-match, not mapped to originalLine/originalCommit; the reasons are on the card and in thread_comment_observation. Rows: the contract row projects our outdated comment as a non-match, and the live course 'a reply into a thread whose root is outdated' is written and confirmed. Negative control: outdated-as-malformed failed both by name."}},{"criterion":"Open point (b): CLI transport decision for the GraphQL-rooted observation","outcome":"pass","revision":"d8da166e","evidence":{"kind":"observation","detail":"Decision: gh_cli_transport refuses observe_review_thread_comments with the other GraphQL-rooted shapes. It never writes a reply, and a reply attempt it recovers stays unresolved, never resubmitted. The gh_cli_transport row refuses all five shapes before launch. Negative control: dropping the refusal failed 'a GraphQL-rooted shape never launches the CLI'."}},{"criterion":"Focused verification, formatting and tidy on the candidate","outcome":"pass","revision":"d8da166e","evidence":{"kind":"command","detail":"ctest dev: github_mutation_contract, gh_cli_transport, live_review_mutation_provider, live_review_mutation_restart_recovery, live_review_submission_provider, live_review_submission_restart_recovery and github_provider passed 7/7. architecture_boundaries, architecture_boundary_contract, live_mutation_isolation and live_mutation_isolation_contract passed before a comment-only edit. format_check passed on the 7 touched C++ files. clang-tidy on the 6 touched TUs found 13 issues, all on lines blamed to earlier commits or in untouched headers. No composition contract pins the touched sources."}}]
 ---
 
 # BPR-0896: A reply's reconciliation request is the GraphQL root with a REST query string, so a live reply can never reconcile or recover
@@ -240,3 +241,127 @@ thread will never produce the case.
   REST `/comments` collection would satisfy the check; it was not pursued once
   question 1 came back yes. If the CLI-transport decision forces a REST
   fallback, that question becomes live again and is unanswered.
+
+## Implemented and closed, 2026-09-23
+
+**Claim.** The claim at `a87c0c2a` belonged to an owner whose worktree was
+abandoned with its work uncommitted. That work was recovered as a patch,
+resolved against main, reviewed line by line rather than trusted, and
+continued under the same claim. Product and tests landed in `d8da166e`; the
+finding below is `7d95f10b`.
+
+**What a reply's reconciliation asks for now.** `POST` to the GraphQL root
+(`/graphql`, `/api/graphql` on GHES) with the reserved document
+`query ObserveThreadComments($thread:ID!)`, variable `thread` set to the
+reply's thread. It selects the thread's `id`, `diffSide` and
+`pullRequest{id databaseId number repository{id databaseId nameWithOwner}}`,
+and `comments(first:100)` with `pageInfo{hasNextPage}` and, per comment,
+`id fullDatabaseId body path line commit{oid} viewerDidAuthor
+author{login ... on User{databaseId id}}` — the dsp-008 mapping, including its
+three traps. The answer reduces to the same projection and exact receipts a
+REST comment list does. It must name the reply's thread and the designated
+pull request; a further page is refused as a REST `Link` header is; more than
+100 comments, a repeated identity, a side outside `LEFT`/`RIGHT` and a
+`fullDatabaseId` spelled as a JSON number are all refused. A new root comment
+still reconciles through the REST list. The four GraphQL-rooted operations
+are now the reply, resolve/unresolve, `ObserveThread` and this read. The
+first two reconcile through their own response, and the last two are reads
+that need no reconciliation of their own.
+
+**Open point (a), outdated comments: a tolerated non-match, not mapped.** A
+comment with null `line` or `commit`, an author with no `User` fragment, or a
+missing database identity is projected and is never an exact receipt; it
+never aborts the reconciliation. A present field spelled outside its scalar's
+vocabulary is still malformed. Null `line`/`commit` are not mapped to
+`originalLine`/`originalCommit`. The reply's own answer already demands a live
+line and commit for our comment, so demanding the same of a receipt is
+consistent. The original position is stale against the anchor the app read.
+The schema does not say what `originalCommit` means for a reply. The cost is
+that a reply of ours that goes outdated before a later reconciliation stays
+unresolved. That is the safe direction: a known attempt is never resubmitted,
+and no stale position is confirmed as ours. Rows:
+`github_mutation_contract` (`test_a_reply_is_reconciled_through_its_thread`:
+our outdated comment and a bot's are projected non-matches, plus eight named
+non-match and twenty-one named malformed spellings) and
+`live_review_mutation_provider` course "a reply into a thread whose root is
+outdated" (written and confirmed).
+
+**Open point (b), the CLI transport: refuses the new read, deliberately.**
+`gh_cli_transport` admits REST review and inline-comment shapes only, and
+refuses `observe_review_thread_comments` with the other GraphQL-rooted shapes.
+It never writes a reply: under it a reply stops at the [[BPR-0879]]
+`ObserveThread` pre-flight, with nothing admitted or written, so its own
+writes never need this read. The only way it meets one is recovering a reply
+attempt written through another transport for the same scope. That recovery
+is refused (`unavailable`) and stays unresolved rather than being
+resubmitted. Admitting GraphQL to the CLI is [[BPR-1001]]'s kind of change,
+not this card's. If that happens, question 2 above (would REST `/comments`
+satisfy the check) is still unanswered and is not needed. Row:
+`gh_cli_transport` refuses all five GraphQL-rooted shapes before launch.
+
+**Third acceptance point, restart recovery: proven.** The [[BPR-0904]] gate
+was that a fixture transport ignoring method and path would pass any reply
+fixture. That transport is gone from this suite: the spike's keyed transport
+is on main (`234a6f67`, `1aabc2f3`) and answers only the request each answer
+is keyed to. The reply rows also pin every request's count, order, method,
+path, operation label and GraphQL document kind and name. That pin holds
+whichever way BPR-0904 finally chooses. The proof has two parts:
+
+- `live_review_mutation_provider`,
+  `an_interrupted_reply_is_recovered_from_its_thread`: the write's answer is
+  lost (`indeterminate`), and the record is unresolved and possibly
+  transmitted over its exact baseline. A fresh session asks only `GET /user`,
+  `GET .../pulls/1` and `POST /graphql ObserveThreadComments`, never the
+  write. It confirms the landed reply as a duplicate receipt. It leaves an
+  unlanded one unresolved, with and without an identical earlier reply of
+  ours in the baseline, which is never adopted.
+- `live_review_mutation_restart_recovery` now also runs
+  `--write-unresolved-reply` / `--recover-unresolved-reply`: two processes
+  over the real SQLite recovery store. The second resolves reply 45 past
+  identical reply 44 from the thread alone, and a repeat answers from the
+  store without transport.
+
+The fixture transport now witnesses a reply write as it witnesses a root
+write, as the production transports witness every write POST.
+
+**[[BPR-0879]]'s binding still holds.**
+`a_reply_observes_its_thread_before_it_writes` passes. Every reply course
+starts with `ObserveThread`. A thread answer naming another pull request is
+an identity mismatch (`undesignated_target`).
+
+**Verification on `d8da166e`** (dev preset, macOS). ctest
+`github_mutation_contract`, `gh_cli_transport`,
+`live_review_mutation_provider`, `live_review_mutation_restart_recovery`,
+`live_review_submission_provider`, `live_review_submission_restart_recovery`
+and `github_provider` passed, 7/7. The reply rows were also run alone with
+`--only`, and the restart driver was run directly with a private `TMPDIR`
+(the store refuses the session's symlinked `/var` default, which is
+unrelated). `architecture_boundaries`, `architecture_boundary_contract`,
+`live_mutation_isolation` and `live_mutation_isolation_contract` passed on
+the same source before a comment-only edit. The format check passed on all
+seven touched C++ files. clang-tidy on the six touched translation units
+reported nothing on a changed line; its thirteen findings are all on
+pre-existing lines or untouched headers. The touched sources are not pinned
+by any composition contract, so nothing was resealed.
+
+Negative controls, each a temporary product edit restored byte for byte:
+
+- The REST-derived reconciliation turned all three rows red at
+  `FAILED: unscripted request #2: GET /graphql?per_page=100`, and each new
+  row alone exited 1.
+- Outdated-as-malformed turned the contract row red, and the outdated-root
+  course red by name.
+- A thread read that yields no exact receipts turned only the restart courses
+  and the identical-baseline course red; the plain write path stayed green.
+- Dropping the CLI refusal turned "a GraphQL-rooted shape never launches the
+  CLI" red.
+
+**What this does not prove, and where it went.** Nothing ran against a real
+server, and the document is checked against the published schema by reading
+only. Reading the transports for (b) found that the native HTTPS transport
+cannot carry any GraphQL review operation. Every review-mutation POST there
+must be witnessed and answered 201, the session witnesses none of its
+GraphQL reads, and GraphQL answers 200. So a live reply still stops at the
+[[BPR-0879]] pre-flight before anything is written. That is
+[[BPR-1018]] (P1), a transport defect separate from this card's request
+shape.
