@@ -6,7 +6,7 @@ status: "Ready"
 rfcs: ["RFC-BPR-0025"]
 depends_on: []
 priority: "P1"
-metadata: {"found_by":"BPR-0597 RFC-0025 closeout and the merge of codex/rfc-0018-0026-closeout into main, 2026-09-22","found_at":"6a897af8","last_pass":"ce63c67b (BPR-0709)","related_rfcs":["RFC-BPR-0024"],"related_cards":["BPR-0597","BPR-0595","BPR-0709","BPR-0710","BPR-0795"],"closeout_card":"BPR-0597"}
+metadata: {"found_by":"BPR-0597 RFC-0025 closeout and the merge of codex/rfc-0018-0026-closeout into main, 2026-09-22","found_at":"6a897af8","last_pass":"ce63c67b (BPR-0709)","related_rfcs":["RFC-BPR-0024"],"related_cards":["BPR-0597","BPR-0595","BPR-0709","BPR-0710","BPR-0795"],"closeout_card":"BPR-0597","milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # BPR-0985: Repair deferred reading-position restoration so the window review restoration course passes

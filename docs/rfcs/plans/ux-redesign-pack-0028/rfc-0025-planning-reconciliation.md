@@ -103,3 +103,28 @@ obligation, not a helper verdict.
 No live GitHub/GHES mutation, credential, push, merge to `main`, or change to
 a protected station checkout is authorized. No product code changed in this
 milestone.
+
+## Amendment — repair card BPR-0985, 2026-09-22
+
+The `close-rfc-0025` closeout ([[BPR-0597]]) found the reading-position
+restoration course red: AC-05's reading position across restart and AC-06's
+explicit unavailable-reading report had no passing direct evidence. After the
+branch merged into `main` at `6a897af8`, the main integrator allocated
+[[BPR-0985]] as the repair (`1eab67a7`) and made it a BPR-0597 dependency
+(`d99aeda7`). The coordinator's milestone assignment, under the user's mandate
+to revise stale cards and RFCs while closing them out, adds it to this plan.
+
+As before, `check-amendment` refuses a new work ID on its own, so the change
+is reconciled explicitly here: BPR-0985 was first registered as unplanned
+work on a partial plan, and the regrouping into `close-rfc-0025` between
+BPR-0981 and BPR-0597 was then checked, from partial-plan fingerprint
+`sha256:c86333e7f6a1f81ef07c4acacd9bfe25206b95091e597a821949b32e1d8a68ff` to
+complete-plan fingerprint
+`sha256:820fe9d9339bf9356ee7a2bdce3a10e2950c1b6bfcf2e095e863b0f0cde8ab8b`,
+affected milestone `close-rfc-0025` only. The published plan before this
+amendment had fingerprint
+`sha256:3d62929096ea6307f475d324b0affd243948e38d6b16b9bbde6c5d47fd77dd1b`.
+The milestone outcome and boundary now name the repair; both exit criteria are
+unchanged, and no criterion is removed, weakened or accepted by the amendment.
+BPR-0985 repairs RFC-BPR-0024 restoration behaviour and does not change that
+RFC's status.
