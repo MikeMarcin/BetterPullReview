@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0880"
 title: "The Git cache import refuses any pack carrying a warning-class fsck object that Git and GitHub accept"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable github+git partition, with a local reproduction","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"A pull request whose range contains a warning-class fsck object either loads, or is refused with a message naming the class and why","outcome":"pass","revision":"7fc4f6ab","evidence":{"kind":"command","detail":"macOS Apple Git 2.50.1 at 7fc4f6ab: git_process_contract passed (warning- and information-class packs import on strict and sparse paths; error-class duplicateEntries refused as unsupported_object naming the class); git_cache_contract passed; application_epoch_host passed at 58a2d885 with the unsupported_object reason.","path":"docs/issues/60-done/BPR-0880-the-cache-import-refuses-warning-class-fsck-objects-git-accepts.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}},{"criterion":"The chosen policy is written down on this card with its reasoning","outcome":"pass","revision":"7fc4f6ab","evidence":{"kind":"observation","detail":"The decision section: accept WARN/INFO classes through a closed --strict=<msgid>=ignore list with measured version floors; refuse error class by name.","path":"docs/issues/60-done/BPR-0880-the-cache-import-refuses-warning-class-fsck-objects-git-accepts.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}},{"criterion":"A contract row covers a warning-class object on both the strict and sparse paths","outcome":"pass","revision":"7fc4f6ab","evidence":{"kind":"command","detail":"git_process_contract over tests/fixtures/git/fsck-severity/v1 on both paths, and fsck_severity_fixture_contract (FSCK_SEVERITY_FIXTURE_OK) pinning the packs and the installed Git's identifiers; both pass at 7fc4f6ab. Linux measured Git 2.53.0/2.39.5/2.34.1; Windows sweep at 86b04901 (contains caeb98da) lists none of these rows among its failures.","path":"docs/issues/60-done/BPR-0880-the-cache-import-refuses-warning-class-fsck-objects-git-accepts.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}},{"criterion":"BPR-0846's exact-output import rule still holds: an index-pack exit 1 is still accepted only with its exact output and verified closure","outcome":"pass","revision":"7fc4f6ab","evidence":{"kind":"command","detail":"Rule unmodified; git_process_contract exact-output cases pass at 7fc4f6ab; trimmed pack under the ignore list still exits 1 with exactly pack\\t<id> and empty stderr (measured on Git 2.53.0).","path":"docs/issues/60-done/BPR-0880-the-cache-import-refuses-warning-class-fsck-objects-git-accepts.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}}]
 ---
 
 # BPR-0880: The Git cache import refuses any pack carrying a warning-class fsck object that Git and GitHub accept
@@ -250,3 +251,55 @@ which needs Python 3.12, while `docs/development/build-and-test.md` promises
 3.10 or newer. Every fixture verifier that uses it, including this card's,
 inherits that requirement. It is reported to main with a patch rather than
 fixed here, because this station may not edit `scripts/`.
+
+## Reconciled and finished by the Mac main station (2026-09-23, Mac batch 3)
+
+Idle since 2026-09-17. The decision landed on main in `caeb98da`, and the
+floor correction in `9c19cab9`. The writer the dsp-006 handoff recorded as
+still running on `bpr-linux` returned; its work is `9c19cab9`. No writer or
+command remains, and nothing was left to build. The card closes on the
+current evidence.
+
+**macOS, Apple Git 2.50.1, at `7fc4f6ab`** (`build/mac3-stale-cards.log`):
+
+| Row | Result |
+|---|---|
+| `git_process_contract` | Pass, 105.79 s, `Git process contract passed`, child exit 0 |
+| `fsck_severity_fixture_contract` | Pass, 0.74 s, `FSCK_SEVERITY_FIXTURE_OK`: the frozen packs match their recipe, and this Git accepts every shipped identifier |
+| `git_cache_contract` | Pass, 302.72 s, `Git cache contract passed` |
+| `application_epoch_host` | Pass at `58a2d885` (same source), including the `unsupported_object` reason code |
+
+Apple Git 2.50.1 is newer than 2.44, so the sparse path here runs with the
+severity list on `--fsck-objects`, not the bare option.
+`git_process_contract` checks both directions on both paths. The
+warning-class and information-class packs import. The error-class pack
+(`duplicateEntries`) is refused as `unsupported_object`, naming its class.
+The refusal is the negative control built into the row.
+
+**Against the acceptance:**
+
+- *A warning-class object loads, or is refused naming its class.* It loads,
+  on both the strict and the sparse path. An error-class object is refused,
+  and the adapter log names its class. The reviewer sees `unsupported_object`
+  rather than `process_failure`.
+- *The policy is written down with its reasoning.* "The decision" above.
+- *A contract row covers a warning-class object on both paths.*
+  `git_process_contract` over the committed `fsck-severity/v1` packs, with
+  `fsck_severity_fixture_contract` pinning the packs and the installed Git's
+  identifiers.
+- *BPR-0846's exact-output rule still holds.* The rule itself was not
+  modified. Under the ignore list, a trimmed pack still exits 1 with exactly
+  `pack\t<id>` and no standard error (measured on Git 2.53.0), and
+  `git_process_contract`'s exact-output cases pass here.
+
+**Other platforms, as their stations recorded them.** Linux: `bpr-linux`
+measured Git 2.53.0 itself, and the critical review measured 2.39.5 and
+2.34.1 in containers. Windows: `bpr-win`'s full sweep at `86b04901` contains
+`caeb98da`, and none of these rows is among its 26 failures
+(`docs/verification/dsp7-windows-full-sweep.md`). That sweep predates
+`9c19cab9`, which changes the emitted list only on Git 2.39.0 through
+2.39.4.
+
+The recorded limits stand: `nullSha1` still fails closure on the strict
+path, and `largePathname` is withheld below Git 2.53.0 until a station
+measures an older Git that knows it.
