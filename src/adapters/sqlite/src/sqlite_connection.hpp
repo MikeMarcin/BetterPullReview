@@ -47,7 +47,49 @@ namespace bpr::adapters::sqlite::detail {
 	/// not fail cleanly, it would jump through an uninitialised pointer.
 	[[nodiscard]] auto sqlite_runtime_ready() noexcept -> bool;
 
+	/// \brief Installs one progress handler on a connection for one scope.
+	///
+	/// \details SQLite keeps a single progress handler per connection and
+	/// cannot report which one is installed. A scope that cleared the handler
+	/// when it ended therefore discarded whatever an enclosing scope had
+	/// installed, and a store's step ceiling lapsed at the first nested
+	/// `execute` ([[BPR-0887]]). Every handler this adapter installs goes
+	/// through this class instead. The innermost scope on a connection governs
+	/// while it lives. When it ends, the enclosing scope's handler is
+	/// reinstated with its context, and so its step count, intact.
+	///
+	/// The innermost scope governs alone, rather than alongside the enclosing
+	/// one, so that a `ROLLBACK` run without a stop token is not interrupted
+	/// by an enclosing ceiling.
+	///
+	/// The record of enclosing scopes belongs to the calling thread. A scope
+	/// must have automatic storage, and the scopes on one connection must nest
+	/// on one thread.
+	class progress_handler_scope final
+	{
+	public:
+		/// \brief The callback SQLite runs; nonzero interrupts the statement.
+		using handler = int (*)(void*);
+
+		progress_handler_scope(::sqlite3* aDatabase, int aInterval, handler aHandler, void* aContext) noexcept;
+		progress_handler_scope(const progress_handler_scope&)                    = delete;
+		auto operator=(const progress_handler_scope&) -> progress_handler_scope& = delete;
+		progress_handler_scope(progress_handler_scope&&)                         = delete;
+		auto operator=(progress_handler_scope&&) -> progress_handler_scope&      = delete;
+		~progress_handler_scope();
+
+	private:
+		::sqlite3*              Database;
+		int                     Interval;
+		handler                 Handler;
+		void*                   Context;
+		progress_handler_scope* Outer;
+	};
+
 	/// \brief Installs a cancellation-aware progress handler for one scope.
+	///
+	/// \details Nests like `progress_handler_scope`: when it ends, the handler
+	/// it replaced is reinstated.
 	class progress_scope final
 	{
 	public:
@@ -56,11 +98,11 @@ namespace bpr::adapters::sqlite::detail {
 		auto operator=(const progress_scope&) -> progress_scope& = delete;
 		progress_scope(progress_scope&&)                         = delete;
 		auto operator=(progress_scope&&) -> progress_scope&      = delete;
-		~progress_scope();
+		~progress_scope()                                        = default;
 
 	private:
-		::sqlite3*      Database;
-		std::stop_token Stop;
+		std::stop_token        Stop;
+		progress_handler_scope Handler;
 	};
 
 	/// \brief Prepares one statement, refusing any trailing statement text.

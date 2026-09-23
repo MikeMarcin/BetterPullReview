@@ -13,18 +13,45 @@ namespace bpr::adapters::sqlite::detail {
 			const auto* stop = static_cast<const std::stop_token*>(aOpaque);
 			return stop != nullptr && stop->stop_requested() ? 1 : 0;
 		}
+
+		// The calling thread's innermost progress handler scope, on any
+		// connection. Each scope links to the one it enclosed.
+		thread_local progress_handler_scope* innermostScope = nullptr;
 	} // namespace
 
-	progress_scope::progress_scope(::sqlite3* aDatabase, std::stop_token aStop)
+	progress_handler_scope::progress_handler_scope(
+		::sqlite3* aDatabase,
+		int        aInterval,
+		handler    aHandler,
+		void*      aContext) noexcept
 		: Database{ aDatabase }
-		, Stop{ std::move(aStop) }
+		, Interval{ aInterval }
+		, Handler{ aHandler }
+		, Context{ aContext }
+		, Outer{ std::exchange(innermostScope, this) }
 	{
-		::sqlite3_progress_handler(Database, 256, progress_callback, &Stop);
+		::sqlite3_progress_handler(Database, Interval, Handler, Context);
 	}
 
-	progress_scope::~progress_scope()
+	progress_handler_scope::~progress_handler_scope()
 	{
-		::sqlite3_progress_handler(Database, 0, nullptr, nullptr);
+		innermostScope        = Outer;
+		const auto* enclosing = Outer;
+		while (enclosing != nullptr && enclosing->Database != Database) {
+			enclosing = enclosing->Outer;
+		}
+		if (enclosing == nullptr) {
+			::sqlite3_progress_handler(Database, 0, nullptr, nullptr);
+			return;
+		}
+		::sqlite3_progress_handler(
+			Database, enclosing->Interval, enclosing->Handler, enclosing->Context);
+	}
+
+	progress_scope::progress_scope(::sqlite3* aDatabase, std::stop_token aStop)
+		: Stop{ std::move(aStop) }
+		, Handler{ aDatabase, 256, progress_callback, &Stop }
+	{
 	}
 
 	namespace {

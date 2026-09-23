@@ -54,20 +54,21 @@ namespace bpr::adapters::sqlite {
 
 		// Connection-local limits and progress checks must precede all untrusted reads.
 		// Unlike configure_connection, these cannot mutate a refused database.
+		// The step ceiling holds for the whole scope: a nested execute's own
+		// progress scope reinstates it when it ends ([[BPR-0887]]).
+		// configure_connection does replace the limits, with the connection policy.
 		class binding_read_scope final
 		{
 		public:
 			binding_read_scope(sqlite3* aDatabase, std::stop_token aStop)
-				: Database{ aDatabase }
-				, Stop{ aStop }
+				: Stop{ aStop }
+				, Handler{ aDatabase, 100, progress, this }
 			{
-				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_LENGTH, 1'048'576));
-				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_SQL_LENGTH, 8'192));
-				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_COLUMN, 16));
-				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_VDBE_OP, 10'000));
-				sqlite3_progress_handler(Database, 100, progress, this);
+				static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 1'048'576));
+				static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 8'192));
+				static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_COLUMN, 16));
+				static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_VDBE_OP, 10'000));
 			}
-			~binding_read_scope() { sqlite3_progress_handler(Database, 0, nullptr, nullptr); }
 			binding_read_scope(const binding_read_scope&)                    = delete;
 			auto operator=(const binding_read_scope&) -> binding_read_scope& = delete;
 
@@ -77,9 +78,9 @@ namespace bpr::adapters::sqlite {
 				auto& scope = *static_cast<binding_read_scope*>(aContext);
 				return scope.Stop.stop_requested() || ++scope.Steps >= 200U ? 1 : 0;
 			}
-			sqlite3*        Database;
-			std::stop_token Stop;
-			std::size_t     Steps = 0U;
+			std::stop_token                Stop;
+			std::size_t                    Steps = 0U;
+			detail::progress_handler_scope Handler;
 		};
 
 		class sqlite_device_binding_store final : public application::device_binding_store_port

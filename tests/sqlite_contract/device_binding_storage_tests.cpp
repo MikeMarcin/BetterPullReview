@@ -8,10 +8,12 @@
 	#include <unistd.h>
 #endif
 #include <chrono>
+#include <cstddef>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -210,6 +212,70 @@ namespace {
 		expect(database_bytes(malformedRoot) == malformedBytes, "malformed refusal leaves legacy database bytes unchanged");
 	}
 
+	// [[BPR-0887]]. SQLite keeps one progress handler per connection. A nested
+	// scope used to clear it on the way out, so a store's step ceiling lapsed at
+	// the first nested execute. These checks read the handler by its effect: the
+	// long query needs far more steps than any ceiling here.
+	struct step_ceiling
+	{
+		std::size_t Limit = 0U;
+		std::size_t Steps = 0U;
+	};
+	auto count_steps(void* aContext) -> int
+	{
+		auto& ceiling = *static_cast<step_ceiling*>(aContext);
+		return ++ceiling.Steps >= ceiling.Limit ? 1 : 0;
+	}
+	auto run_query(sqlite3* aDatabase, const int aRows) -> int
+	{
+		const auto    sql       = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<" + std::to_string(aRows) + ") SELECT count(*) FROM n";
+		sqlite3_stmt* statement = nullptr;
+		expect(sqlite3_prepare_v2(aDatabase, sql.c_str(), -1, &statement, nullptr) == SQLITE_OK, "prepare a counting query");
+		const auto result = sqlite3_step(statement);
+		sqlite3_finalize(statement);
+		return result;
+	}
+	auto long_query(sqlite3* aDatabase) -> int { return run_query(aDatabase, 100'000); }
+	auto open_memory() -> sqlite3*
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(":memory:", &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) == SQLITE_OK, "open an in-memory connection");
+		return database;
+	}
+	void nested_progress_scopes()
+	{
+		namespace detail = adapters::sqlite::detail;
+		expect(detail::sqlite_runtime_ready(), "initialize SQLite for the nesting checks");
+		auto* const first  = open_memory();
+		auto* const second = open_memory();
+		expect(long_query(first) == SQLITE_ROW, "the long query completes with no handler installed");
+		{
+			auto       outer = step_ceiling{ .Limit = 50U };
+			const auto scope = detail::progress_handler_scope{ first, 100, count_steps, &outer };
+			expect(run_query(first, 100) == SQLITE_ROW && outer.Steps > 0U && outer.Steps < outer.Limit, "a short read counts against the outer ceiling");
+			const auto counted = outer.Steps;
+			expect(detail::execute(first, "CREATE TABLE t(x)").has_value(), "a nested execute succeeds inside a store scope");
+			expect(outer.Steps == counted, "the nested execute's own handler governed while it ran");
+			expect(long_query(first) == SQLITE_INTERRUPT && outer.Steps == outer.Limit, "the outer ceiling is still installed after a nested execute returns, with its count intact");
+			expect(detail::execute(first, "CREATE TABLE big AS WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<100000) SELECT x FROM n").has_value(), "a spent outer ceiling does not cut short a nested execute that has no stop token");
+			{
+				auto       other  = step_ceiling{ .Limit = 50U };
+				const auto nested = detail::progress_handler_scope{ second, 100, count_steps, &other };
+				{
+					const auto inner = detail::progress_scope{ first, { } };
+					expect(long_query(first) == SQLITE_ROW, "the innermost scope on a connection governs it");
+				}
+				expect(long_query(first) == SQLITE_INTERRUPT, "ending a scope reinstates the nearest enclosing scope on the same connection");
+				expect(long_query(second) == SQLITE_INTERRUPT && other.Steps == other.Limit, "a scope on another connection keeps its own ceiling");
+			}
+			expect(long_query(first) == SQLITE_INTERRUPT, "ending a scope on another connection leaves this one's ceiling alone");
+			expect(long_query(second) == SQLITE_ROW, "the outermost scope on the other connection leaves no handler behind");
+		}
+		expect(long_query(first) == SQLITE_ROW, "the outermost scope leaves no handler behind");
+		sqlite3_close(first);
+		sqlite3_close(second);
+	}
+
 #if !defined(_WIN32)
 	void in_child(void (*aPhase)(const std::filesystem::path&), const std::filesystem::path& aRoot)
 	{
@@ -247,5 +313,6 @@ int main()
 	stop.request_stop();
 	expect(!adapters::sqlite::make_device_binding_store(root)->load(stop.get_token()), "cancelled load refuses before filesystem work");
 	expect(!std::filesystem::exists(root), "cancelled load creates no root");
+	nested_progress_scopes();
 	std::cout << "device-binding-storage-tests:pass\n";
 }

@@ -1,6 +1,7 @@
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 
 #include "catalog_database.hpp"
+#include "sqlite_connection.hpp"
 
 #if defined(BPR_SQLITE_TESTING)
 	#include "bpr/adapters/sqlite/testing.hpp"
@@ -94,19 +95,14 @@ namespace bpr::adapters::sqlite {
 		{
 		public:
 			progress_guard(::sqlite3* aDatabase, std::stop_token aStop)
-				: Database{ aDatabase }
-				, Context{ .Stop = aStop }
+				: Context{ .Stop = aStop }
+				, Handler{ aDatabase, 128, stop_progress, &Context }
 			{
-				::sqlite3_progress_handler(Database, 128, stop_progress, &Context);
-			}
-			~progress_guard()
-			{
-				::sqlite3_progress_handler(Database, 0, nullptr, nullptr);
 			}
 
 		private:
-			::sqlite3*   Database;
-			stop_context Context;
+			stop_context                   Context;
+			detail::progress_handler_scope Handler;
 		};
 
 		[[nodiscard]] auto sql_failure(

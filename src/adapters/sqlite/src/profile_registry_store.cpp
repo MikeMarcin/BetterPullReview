@@ -40,12 +40,10 @@ namespace bpr::adapters::sqlite {
 		{
 		public:
 			registry_read_scope(sqlite3* aDatabase, std::stop_token aStop)
-				: Database{ aDatabase }
-				, Stop{ aStop }
+				: Stop{ aStop }
+				, Handler{ aDatabase, 100, progress, this }
 			{
-				sqlite3_progress_handler(Database, 100, progress, this);
 			}
-			~registry_read_scope() { sqlite3_progress_handler(Database, 0, nullptr, nullptr); }
 			registry_read_scope(const registry_read_scope&)                    = delete;
 			auto operator=(const registry_read_scope&) -> registry_read_scope& = delete;
 
@@ -55,9 +53,9 @@ namespace bpr::adapters::sqlite {
 				auto& scope = *static_cast<registry_read_scope*>(aContext);
 				return scope.Stop.stop_requested() || ++scope.Steps >= MaximumRetainedWindows ? 1 : 0;
 			}
-			sqlite3*        Database;
-			std::stop_token Stop;
-			std::size_t     Steps = 0U;
+			std::stop_token                Stop;
+			std::size_t                    Steps = 0U;
+			detail::progress_handler_scope Handler;
 		};
 
 		[[nodiscard]] auto translate(const detail::failure aFailure) -> profile_registry_failure
