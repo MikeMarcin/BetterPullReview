@@ -6,7 +6,7 @@ status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P3"
-platforms: ["mac", "linux"]
+platforms: ["linux"]
 metadata: {"found_by":"bpr-linux, in its 369-row sweep after BPR-0881's relocation","found_at":"88dc42fc","run":"run-20260916-stations","dispatch":"dsp-007"}
 ---
 
@@ -135,3 +135,42 @@ Mac integrator's `$TMPDIR` held 20 `bpr-activate-*.sock` entries born between
 2026-09-19 and 2026-09-22, none held by any process (`lsof -U`). They are
 test-run debris that the reap leaves because it skips sockets, so macOS
 accumulates them just as `/run/user/<uid>` does. A reboot clears both.
+
+## macOS: test sweeps leave nothing, and the residual is Linux's — 2026-09-23
+
+The Mac main station checked the macOS half while running its batch. The
+product's candidates for the runtime directory are `/run/user/<uid>`, then
+`$TMPDIR`, then `/tmp` (`src/adapters/sqlite/src/profile_activation.cpp`,
+`runtime_directory`). macOS has no `/run/user`, so the endpoint goes in
+`$TMPDIR`. For every row it launches, `scripts/run_network_isolated_test.py`
+sets `TMPDIR` to the row's own mode-0700 fixture root and removes that root
+when the row ends. On macOS, then, a test's endpoint dies with its row.
+
+Measured: the Mac ran more than 150 row executions through the launcher on
+2026-09-23. They include the composed epoch, workbench, large-review and
+profile courses, several of them repeated, and some that ended red. After
+all of them, the user's real `$TMPDIR` holds the same 20
+`bpr-activate-*.sock` files it held before. By their birth times, 1 is from
+2026-09-19, 11 from 2026-09-21 and 8 from 2026-09-22, and none is from
+2026-09-23. None of the 8 leftover `/tmp/bpr-net-*` roots, dated 2026-09-15
+to 2026-09-20, holds a socket. So the Mac debris [[BPR-0895]] counted came
+from owners started outside the launcher, with the user's own `TMPDIR`, and
+then killed. It did not come from sweeps.
+
+- **Acceptance line 1 holds on macOS through the runner.** No product change
+  was involved.
+- **Windows is unaffected.** Its rendezvous is a named pipe,
+  `\\.\pipe\bpr-activate-<digest>` (`pipe_name`, same file). A named pipe
+  has no filesystem entry, and it goes away when its last handle closes, which
+  includes the process dying.
+- **Linux is what remains.** `/run/user/<uid>` comes first there, so the
+  launcher's `TMPDIR` never reaches it. One small direction to weigh with the
+  options above: prefer `$XDG_RUNTIME_DIR` when it is set, verified with the
+  same owner-private checks. That is the standard spelling of the same
+  directory. The Linux launcher (`tests/network_isolation/linux_network_sandbox.cpp`)
+  could then point it at the row's private root, as macOS does with `TMPDIR`.
+  That would contain test debris without any sweep that could reach a live
+  owner's name, and it would not change what a user's session resolves to.
+  It has to be built and measured on Linux.
+
+The card narrows to `platforms: ["linux"]` and stays in Backlog.
