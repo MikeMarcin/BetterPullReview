@@ -149,6 +149,28 @@ namespace bpr::core {
 		auto operator<=>(const pull_request_request_context&) const = default;
 	};
 
+	/// \brief [[BPR-0988]]. One authenticated read scoped to a repository and
+	/// naming no pull request: a personal discovery search.
+	///
+	/// \details The same session, profile, host, account and generation facts
+	/// a pull request read carries, so a transport correlates it against the
+	/// same exact account authority; the repository is the only scope. There
+	/// is no mode: a discovery read needs a viewer, and a signed-out session
+	/// has none.
+	struct repository_request_context
+	{
+		request_id                 Request;
+		application_session_id     ApplicationSession;
+		host_profile_id            Profile;
+		git_host_id                Host;
+		github_account_id          Account;
+		repository_locator         Repository;
+		capability_revision        Capabilities;
+		github_identity_generation IdentityGeneration;
+
+		auto operator<=>(const repository_request_context&) const = default;
+	};
+
 	/// \brief Describes the activate host profile intent record.
 	struct activate_host_profile_intent
 	{

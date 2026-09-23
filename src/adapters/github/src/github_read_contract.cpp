@@ -400,6 +400,30 @@ namespace bpr::adapters::github::detail {
 			return aTerms == "is:open" && aTerms.size() <= maximum_search_bytes;
 		}
 
+		/// \brief [[BPR-0988]]. Exactly one personal qualifier and one login.
+		///
+		/// \details `author:` and `review-requested:` are the qualifiers the
+		/// GitHub.com and GHES 3.18 search contracts both document. The login
+		/// is the viewer's as the server reported it: letters, digits, hyphen
+		/// and underscore, bounded, and never a leading hyphen, so it cannot
+		/// become another qualifier, an operator or a second term.
+		[[nodiscard]] auto safe_personal_search_terms(
+			const std::string_view aTerms) noexcept -> bool
+		{
+			auto login = aTerms;
+			if (login.starts_with("author:")) {
+				login.remove_prefix(std::string_view{ "author:" }.size());
+			} else if (login.starts_with("review-requested:")) {
+				login.remove_prefix(std::string_view{ "review-requested:" }.size());
+			} else {
+				return false;
+			}
+			return !login.empty() && login.size() <= 64U && login.front() != '-'
+				&& std::ranges::all_of(login, [](const unsigned char aCharacter) {
+					   return std::isalnum(aCharacter) != 0 || aCharacter == '-' || aCharacter == '_';
+				   });
+		}
+
 		[[nodiscard]] auto path_prefix(
 			const server_contract aServer,
 			const bool            aGraphql) -> std::expected<std::string_view, contract_failure>
@@ -724,11 +748,13 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
 			case read_operation::list_review_comments:
+			case read_operation::list_requested_reviewers:
 				return true;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
 			case read_operation::list_checks:
 			case read_operation::search_pull_requests:
+			case read_operation::search_personal_pull_requests:
 				return false;
 			}
 			return false;
@@ -757,6 +783,11 @@ namespace bpr::adapters::github::detail {
 				return 1U;
 			case read_operation::list_review_threads:
 				return 1'024U;
+			// [[BPR-0988]]. Discovery reads one bounded page: a longer answer is
+			// partial, never exhausted.
+			case read_operation::search_personal_pull_requests:
+			case read_operation::list_requested_reviewers:
+				return 1U;
 			}
 			return 0U;
 		}
@@ -1787,6 +1818,9 @@ namespace bpr::adapters::github::detail {
 				return validate_search_fixture(aDocument);
 			case read_operation::list_review_comments:
 				return validate_review_comments_fixture(aDocument);
+			case read_operation::search_personal_pull_requests:
+			case read_operation::list_requested_reviewers:
+				return false; // Discovery normalization belongs to its bounded production reader.
 			}
 			return false;
 		}
@@ -1820,6 +1854,10 @@ namespace bpr::adapters::github::detail {
 			return "SearchPullRequests";
 		case read_operation::list_review_comments:
 			return "ListReviewComments";
+		case read_operation::search_personal_pull_requests:
+			return "SearchPersonalPullRequests";
+		case read_operation::list_requested_reviewers:
+			return "ListRequestedReviewers";
 		}
 		return { };
 	}
@@ -1890,11 +1928,13 @@ namespace bpr::adapters::github::detail {
 			return failure(contract_failure_code::invalid_commit_oid);
 		}
 		const auto searchTermsRequired = aRequest.Operation == read_operation::search_pull_requests;
+		const auto personalTerms       = aRequest.Operation == read_operation::search_personal_pull_requests;
 		if (
 			(
 				searchTermsRequired
 				&& !safe_search_terms(aRequest.SearchTerms))
-			|| (!searchTermsRequired
+			|| (personalTerms && !safe_personal_search_terms(aRequest.SearchTerms))
+			|| (!searchTermsRequired && !personalTerms
 				&& !aRequest.SearchTerms.empty())) {
 			return failure(contract_failure_code::invalid_search_terms);
 		}
@@ -1992,6 +2032,17 @@ namespace bpr::adapters::github::detail {
 				+ "&per_page=100&q=" + percent_encode(expression);
 			break;
 		}
+		case read_operation::search_personal_pull_requests: {
+			result.Path           = std::string{ *prefix } + "/search/issues";
+			const auto expression = "is:pr is:open " + aRequest.SearchTerms + " repo:"
+				+ aRequest.Owner + "/" + aRequest.Repository;
+			result.Query = "page=" + std::to_string(aRequest.Page)
+				+ "&per_page=100&q=" + percent_encode(expression);
+			break;
+		}
+		case read_operation::list_requested_reviewers:
+			result.Path = pull_request_path(*prefix, aRequest) + "/requested_reviewers";
+			break;
 		}
 
 		if (aValidateResult) {

@@ -462,6 +462,7 @@ namespace bpr::adapters::github::detail {
 			const auto resource = aRequest.Wire.Operation == read_operation::list_review_threads
 				? application::github_rate_limit_resource::graphql
 				: (aRequest.Wire.Operation == read_operation::search_pull_requests
+						   || aRequest.Wire.Operation == read_operation::search_personal_pull_requests
 					   ? application::github_rate_limit_resource::search
 					   : application::github_rate_limit_resource::core);
 			return {
@@ -3050,6 +3051,13 @@ namespace bpr::adapters::github::detail {
 								if constexpr (
 									std::same_as<
 										parent_type,
+										core::repository_request_context>) {
+									// [[BPR-0988]]. A discovery read needs a
+									// viewer; an anonymous authority has none.
+									return false;
+								} else if constexpr (
+									std::same_as<
+										parent_type,
 										core::pull_request_request_context>) {
 									// An anonymous authority holds no account,
 									// so there is no account identity to
@@ -3101,9 +3109,12 @@ namespace bpr::adapters::github::detail {
 								}
 								using parent_type = std::remove_cvref_t<decltype(aParent)>;
 								if constexpr (
-									std::same_as<
+									!std::same_as<
 										parent_type,
-										core::pull_request_request_context>) {
+										core::github_session_request_context>) {
+									// A pull request read and a repository
+									// discovery read ([[BPR-0988]]) both name the
+									// exact account this credential belongs to.
 									return aParent.Host == Profile.host()
 										&& aParent.Account
 										== aCredential.Context.Authority.Account;

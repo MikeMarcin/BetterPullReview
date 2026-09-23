@@ -2,6 +2,7 @@
 #include "fixture_json.hpp"
 #include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
+#include "github_wire_request_validation.hpp"
 
 #include "bpr/core/anonymous_read_policy.hpp"
 
@@ -1422,6 +1423,8 @@ namespace {
 					return review_comments_response(aRequest);
 				case read_operation::list_pull_request_timeline:
 				case read_operation::get_viewer_identity:
+				case read_operation::search_personal_pull_requests:
+				case read_operation::list_requested_reviewers:
 					break;
 				}
 				return success_response(fixture_json(fixture_object{ }));
@@ -3223,6 +3226,304 @@ namespace {
 		expect(!cancelled && std::holds_alternative<github_paged_read_cancelled>(cancelled.error()) && transport.Requests.empty(), "cancelled timeline sends no request");
 	}
 
+	// [[BPR-0988]]. Personal discovery over a scripted wire.
+	[[nodiscard]] auto discovery_request(const application::personal_discovery_reason aReason,
+										 const application::github_server_contract    aServer = application::github_server_contract::github_com_2022_11_28)
+		-> application::personal_discovery_request
+	{
+		const auto base = provider_request(aServer);
+		return {
+			.Context = {
+				.Request            = core::request_id{ 41U },
+				.ApplicationSession = core::application_session_id{ 7U },
+				.Profile            = core::host_profile_id{ 11U },
+				.Host               = core::git_host_id{ 22U },
+				.Account            = core::github_account_id{ 1001U },
+				.Repository         = { .Owner = "octo-org", .Name = "review-repository" },
+				.Capabilities       = core::capability_revision{ 44U },
+				.IdentityGeneration = core::github_identity_generation{ 3U },
+			},
+			.ProfileAuthority   = base.ProfileAuthority,
+			.Viewer             = base.Viewer,
+			.CapabilityEvidence = base.CapabilityEvidence,
+			.AccountTransport   = base.AccountTransport,
+			.Reason             = aReason,
+		};
+	}
+
+	[[nodiscard]] auto discovery_item(const std::uint32_t aNumber, const std::string_view aLogin, const std::string_view aRoot = "https://api.github.com") -> std::string
+	{
+		const auto number = std::to_string(aNumber);
+		return "{\"number\":" + number + ",\"title\":\"Pull request " + number + "\",\"state\":\"open\",\"draft\":false,"
+			+ "\"pull_request\":{\"url\":\"" + std::string{ aRoot } + "/repos/octo-org/review-repository/pulls/" + number + "\"},"
+			+ "\"repository_url\":\"" + std::string{ aRoot } + "/repos/Octo-Org/Review-Repository\","
+			+ "\"user\":{\"login\":\"" + std::string{ aLogin } + "\",\"node_id\":\"U_" + std::string{ aLogin } + "\"}}";
+	}
+
+	[[nodiscard]] auto discovery_search(const std::vector<std::string>& aItems, const std::uint64_t aTotal, const bool aIncomplete = false,
+										std::optional<std::string> aLink = std::nullopt) -> wire_response
+	{
+		auto body = "{\"total_count\":" + std::to_string(aTotal) + ",\"incomplete_results\":" + (aIncomplete ? "true" : "false") + ",\"items\":[";
+		for (std::size_t index = 0U; index < aItems.size(); ++index) {
+			body += (index == 0U ? "" : ",") + aItems[index];
+		}
+		body += "]}";
+		const auto completeness = aLink ? page_completeness::has_next_page : page_completeness::complete;
+		auto       response     = success_response(std::move(body), std::move(aLink), completeness);
+		for (auto& header : response.Headers) {
+			if (header.Name == "X-RateLimit-Resource") {
+				header.Value = "search";
+			} else if (header.Name == "X-RateLimit-Limit") {
+				header.Value = "30";
+			} else if (header.Name == "X-RateLimit-Remaining") {
+				header.Value = "29";
+			}
+		}
+		return response;
+	}
+
+	[[nodiscard]] auto requested_reviewers_response(const std::vector<std::string_view>& aUsers, const std::size_t aTeams) -> wire_response
+	{
+		auto body = std::string{ "{\"users\":[" };
+		for (std::size_t index = 0U; index < aUsers.size(); ++index) {
+			body += (index == 0U ? "{\"login\":\"" : ",{\"login\":\"") + std::string{ aUsers[index] } + "\",\"node_id\":\"U_x\"}";
+		}
+		body += "],\"teams\":[";
+		for (std::size_t index = 0U; index < aTeams; ++index) {
+			body += (index == 0U ? "" : ",") + std::string{ "{\"slug\":\"team\",\"node_id\":\"T_x\"}" };
+		}
+		body += "]}";
+		return success_response(std::move(body));
+	}
+
+	class discovery_fixture_transport final : public github_wire_transport_port
+	{
+	public:
+		explicit discovery_fixture_transport(const bool aEnterprise = false)
+			: Enterprise{ aEnterprise }
+		{ }
+		bool                                                     Enterprise = false;
+		std::vector<github_wire_request>                         Requests;
+		std::function<wire_response(const github_wire_request&)> Search;
+		std::function<wire_response(std::uint32_t)>              Reviewers;
+
+		auto perform(const github_wire_request& aRequest, std::stop_token) -> github_wire_completion override
+		{
+			Requests.push_back(aRequest);
+			expect(validate_github_wire_request(Enterprise ? enterprise_profile() : profile(), aRequest).has_value(), "every discovery request passes production wire validation");
+			const auto& semantic = aRequest.Wire.Semantic;
+			expect(semantic.Owner == "octo-org" && semantic.Repository == "review-repository", "discovery reads only the named repository");
+			if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {
+				expect(std::holds_alternative<core::repository_request_context>(aRequest.Correlation.Parent), "the search is scoped to the repository");
+				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Search(aRequest) };
+			}
+			expect(aRequest.Wire.Operation == read_operation::list_requested_reviewers
+					   && std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
+				   "discovery issues only the search and each row's requested reviewers");
+			return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Reviewers(semantic.PullRequestNumber) };
+		}
+
+		[[nodiscard]] auto count(const read_operation aOperation) const -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(Requests, [aOperation](const github_wire_request& aRequest) { return aRequest.Wire.Operation == aOperation; }));
+		}
+	};
+
+	[[nodiscard]] auto discovery_failure(const github_personal_discovery_read_result& aResult) -> std::optional<application::github_provider_error>
+	{
+		if (aResult.has_value() || !std::holds_alternative<application::github_provider_error>(aResult.error())) {
+			return std::nullopt;
+		}
+		return std::get<application::github_provider_error>(aResult.error());
+	}
+
+	auto test_personal_discovery_read() -> void
+	{
+		using reason = application::personal_discovery_reason;
+		using full   = application::personal_discovery_completeness;
+		{
+			auto transport   = discovery_fixture_transport{ };
+			transport.Search = [](const github_wire_request& aRequest) {
+				expect(aRequest.Wire.Path == "/search/issues"
+						   && aRequest.Wire.Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository",
+					   "the authored search is exact");
+				return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(6U, "Octo-Reviewer"), discovery_item(7U, "someone-else") }, 3U);
+			};
+			transport.Reviewers = [](const std::uint32_t aNumber) {
+				return aNumber == 5U ? requested_reviewers_response({ "alice", "bob" }, 1U) : requested_reviewers_response({ }, 0U);
+			};
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 2U
+					   && result->Rows[0].Number.value() == 5U && result->Rows[0].Detailed && result->Rows[0].ReviewersAwaited == 3U
+					   && result->Rows[1].Number.value() == 6U && result->Rows[1].Detailed && result->Rows[1].ReviewersAwaited == 0U
+					   && result->Rows[0].Title == "Pull request 5" && result->Rows[0].Author == "octo-reviewer",
+				   "authored rows are the viewer's own, with the reviewers each awaits");
+			expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 2U
+					   && transport.Requests.size() == 3U,
+				   "one search and one detail read per kept row; another actor's row costs nothing");
+			expect(result->RateLimits.Search.has_value() && result->RateLimits.Core.has_value(), "search and core rate observations stay separate");
+		}
+		{
+			auto transport   = discovery_fixture_transport{ };
+			transport.Search = [](const github_wire_request& aRequest) {
+				expect(aRequest.Wire.Query.find("review-requested%3Aocto-reviewer") != std::string::npos, "the requested search names the viewer");
+				return discovery_search({ discovery_item(8U, "author-a"), discovery_item(9U, "author-b"), discovery_item(10U, "author-c") }, 3U);
+			};
+			transport.Reviewers = [](const std::uint32_t aNumber) {
+				return aNumber == 8U ? requested_reviewers_response({ "OCTO-REVIEWER" }, 0U)
+					: aNumber == 9U  ? requested_reviewers_response({ }, 1U)
+									 : requested_reviewers_response({ "someone" }, 0U);
+			};
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::requested), { });
+			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 1U && result->Rows[0].Number.value() == 8U
+					   && result->Rows[0].Detailed && result->Rows[0].Author == "author-a",
+				   "only a request that names the viewer as a user is kept; a team-only request is not the viewer's");
+		}
+		{
+			auto transport      = discovery_fixture_transport{ };
+			transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U, true); };
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+			expect(result.has_value() && result->Completeness == full::incomplete_results && result->Rows.size() == 1U,
+				   "an incomplete GitHub search keeps its rows and is never complete");
+		}
+		{
+			auto items = std::vector<std::string>{ };
+			for (std::uint32_t number = 1U; number <= 100U; ++number) {
+				items.push_back(discovery_item(number, "octo-reviewer"));
+			}
+			auto transport   = discovery_fixture_transport{ };
+			transport.Search = [&items](const github_wire_request&) {
+				return discovery_search(items, 250U, false,
+										"<https://api.github.com/search/issues?page=2&per_page=100&q=is%3Apr+is%3Aopen+author%3Aocto-reviewer+repo%3Aocto-org%2Freview-repository>; rel=\"next\"");
+			};
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ "x" }, 0U); };
+			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+			const auto detailed = result ? std::ranges::count_if(result->Rows, &application::personal_discovery_row::Detailed) : 0;
+			expect(result.has_value() && result->Completeness == full::result_limit && result->Rows.size() == 100U
+					   && detailed == static_cast<std::ptrdiff_t>(application::maximum_personal_discovery_details)
+					   && transport.count(read_operation::search_personal_pull_requests) == 1U
+					   && transport.count(read_operation::list_requested_reviewers) == application::maximum_personal_discovery_details,
+				   "a longer match is one page, partial, with bounded detail reads and unknown detail beyond them");
+		}
+		{
+			auto items = std::vector<std::string>{ };
+			for (std::uint32_t number = 1U; number <= 31U; ++number) {
+				items.push_back(discovery_item(number, "author"));
+			}
+			auto transport      = discovery_fixture_transport{ };
+			transport.Search    = [&items](const github_wire_request&) { return discovery_search(items, 31U); };
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ "octo-reviewer" }, 0U); };
+			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::requested), { });
+			expect(result.has_value() && result->Completeness == full::detail_limit && result->Rows.size() == application::maximum_personal_discovery_details,
+				   "requested rows beyond the detail bound are unconfirmed, dropped and make the answer partial");
+		}
+		{
+			auto transport   = discovery_fixture_transport{ true };
+			transport.Search = [](const github_wire_request& aRequest) {
+				expect(aRequest.Wire.Path == "/api/v3/search/issues", "the GHES search uses the enterprise REST root");
+				return discovery_search({ discovery_item(5U, "octo-reviewer", "https://ghe.example.invalid/api/v3") }, 1U);
+			};
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 2U); };
+			const auto result   = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::authored, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			expect(result.has_value() && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 2U
+					   && transport.Requests.back().Wire.Path == "/api/v3/repos/octo-org/review-repository/pulls/5/requested_reviewers",
+				   "the same two reads on a GHES 3.18 contract");
+		}
+		const auto failing = [](const int aStatus, const std::string_view aRemaining, const bool aDetail, std::string aBody = "{\"message\":\"no\"}") {
+			auto       transport = discovery_fixture_transport{ };
+			const auto fail      = [aStatus, aRemaining, aBody](wire_response aResponse) {
+				aResponse.Status = aStatus;
+				aResponse.Body   = aBody;
+				for (auto& header : aResponse.Headers) {
+					if (header.Name == "X-RateLimit-Remaining") {
+						header.Value = aRemaining;
+					}
+				}
+				return aResponse;
+			};
+			transport.Search = [&](const github_wire_request&) {
+				auto response = discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U);
+				return aDetail ? response : fail(std::move(response));
+			};
+			transport.Reviewers = [&](std::uint32_t) {
+				auto response = requested_reviewers_response({ }, 0U);
+				return aDetail ? fail(std::move(response)) : response;
+			};
+			return discovery_failure(perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }));
+		};
+		const auto primary = failing(403, "0", false);
+		expect(primary && primary->Failure == application::github_provider_failure::rate_limit && primary->RateLimitCause
+				   && primary->RateLimitCause->Resource == application::github_rate_limit_resource::search && !primary->RateLimitCause->SecondaryLimited,
+			   "a spent search allowance is the primary search limit");
+		const auto secondary = failing(403, "20", false, "{\"message\":\"You have exceeded a secondary rate limit. Please wait a few minutes before you try again.\"}");
+		expect(secondary && secondary->Failure == application::github_provider_failure::rate_limit && secondary->RateLimitCause
+				   && secondary->RateLimitCause->SecondaryLimited && secondary->RetryAfterSeconds.has_value(),
+			   "a secondary limit is its own kind, with a retry");
+		const auto authentication = failing(401, "29", false);
+		expect(authentication && authentication->Failure == application::github_provider_failure::authentication, "401 is an authentication failure");
+		const auto removed = failing(422, "29", false);
+		expect(removed && removed->Failure == application::github_provider_failure::permission, "a refused repository qualifier is lost access");
+		const auto forbidden = failing(403, "29", false);
+		expect(forbidden && forbidden->Failure == application::github_provider_failure::permission, "403 is lost access");
+		const auto detail = failing(404, "4999", true);
+		expect(detail && detail->Failure == application::github_provider_failure::permission, "a failed detail read fails the whole answer");
+		{
+			auto transport      = discovery_fixture_transport{ };
+			transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U); };
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+			std::stop_source stop;
+			stop.request_stop();
+			const auto cancelled = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), stop.get_token());
+			expect(!cancelled && std::holds_alternative<github_paged_read_cancelled>(cancelled.error()) && transport.Requests.empty(), "a cancelled discovery sends nothing");
+			auto foreign           = discovery_request(reason::authored);
+			foreign.Viewer.Account = core::github_account_id{ 1002U };
+			const auto refused     = perform_personal_discovery_read(transport, profile(), foreign, { });
+			expect(!refused && transport.Requests.empty(), "a viewer of another account is refused before any request");
+			auto noLease             = discovery_request(reason::requested);
+			noLease.AccountTransport = nullptr;
+			expect(!perform_personal_discovery_read(transport, profile(), noLease, { }) && transport.Requests.empty(), "no account lease, no request");
+			auto hostile         = discovery_request(reason::authored);
+			hostile.Viewer.Login = "octo repo:other/secret";
+			expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(), "a login cannot smuggle a qualifier");
+		}
+		{
+			auto transport      = discovery_fixture_transport{ };
+			transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(5U, "octo-reviewer") }, 2U); };
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+			expect(!perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }), "a duplicated pull request is refused");
+			transport.Requests.clear();
+			transport.Search = [](const github_wire_request&) {
+				return discovery_search({ "{\"number\":5,\"title\":\"x\",\"state\":\"open\",\"pull_request\":{},\"repository_url\":\"https://api.github.com/repos/octo-org/other\",\"user\":null}" }, 1U);
+			};
+			expect(!perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }), "a row of another repository is refused");
+		}
+		{
+			// The wire refuses a discovery request under any other parent.
+			auto       semantic = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::search_personal_pull_requests, .Owner = "octo-org", .Repository = "review-repository", .SearchTerms = "author:octo-reviewer" };
+			const auto wire     = compile_read_request(semantic);
+			const auto base     = discovery_request(reason::authored);
+			auto       valid    = github_wire_request{
+				.Correlation = { .Parent = base.Context, .ProfileRevision = profile().revision(), .Host = profile().host(), .Operation = read_operation::search_personal_pull_requests, .Page = 1U },
+				.Wire        = *wire,
+			};
+			expect(validate_github_wire_request(profile(), valid).has_value(), "the repository parent admits its own search");
+			auto underPullRequest               = valid;
+			underPullRequest.Correlation.Parent = provider_request().Context;
+			expect(!validate_github_wire_request(profile(), underPullRequest).has_value(), "a pull request parent cannot issue a personal search");
+			auto otherRepository                                                                           = valid;
+			std::get<core::repository_request_context>(otherRepository.Correlation.Parent).Repository.Name = "other";
+			expect(!validate_github_wire_request(profile(), otherRepository).has_value(), "a repository parent cannot search another repository");
+			auto reviewers                      = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::list_requested_reviewers, .Owner = "octo-org", .Repository = "review-repository", .PullRequestNumber = 17U };
+			auto reviewersWire                  = valid;
+			reviewersWire.Wire                  = *compile_read_request(reviewers);
+			reviewersWire.Correlation.Operation = read_operation::list_requested_reviewers;
+			expect(!validate_github_wire_request(profile(), reviewersWire).has_value(), "a repository parent admits no other operation");
+			reviewersWire.Correlation.Parent = provider_request().Context;
+			expect(validate_github_wire_request(profile(), reviewersWire).has_value(), "requested reviewers are read under their pull request");
+		}
+	}
+
 }
 
 auto main() -> int
@@ -3254,5 +3555,6 @@ auto main() -> int
 	test_anonymous_review_comments_absent_is_not_disclosed();
 	test_anonymous_review_comments_rate_limit_is_typed();
 	test_anonymous_review_comments_oversized_body_is_refused();
+	test_personal_discovery_read();
 	return EXIT_SUCCESS;
 }

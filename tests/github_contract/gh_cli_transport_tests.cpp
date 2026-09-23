@@ -337,12 +337,16 @@ namespace {
 		case read_operation::list_issue_comments:
 		case read_operation::list_pull_request_timeline:
 		case read_operation::list_review_comments:
+		case read_operation::list_requested_reviewers:
 			request.PullRequestNumber = 17U;
 			break;
 		case read_operation::get_viewer_identity:
 		case read_operation::get_repository:
 		case read_operation::list_checks:
 		case read_operation::search_pull_requests:
+			break;
+		case read_operation::search_personal_pull_requests:
+			request.SearchTerms = "author:octo-reviewer";
 			break;
 		}
 		if (aOperation == read_operation::list_checks) {
@@ -377,6 +381,24 @@ namespace {
 		};
 	}
 
+	/// [[BPR-0988]]. The repository scope of a discovery search.
+	[[nodiscard]] auto repository_parent(
+		const validated_github_host_profile& aProfile)
+		-> core::repository_request_context
+	{
+		const auto parent = pull_request_parent(aProfile);
+		return {
+			.Request            = parent.Request,
+			.ApplicationSession = parent.ApplicationSession,
+			.Profile            = parent.Profile,
+			.Host               = parent.Host,
+			.Account            = parent.Account,
+			.Repository         = parent.Repository,
+			.Capabilities       = parent.Capabilities,
+			.IdentityGeneration = parent.IdentityGeneration,
+		};
+	}
+
 	[[nodiscard]] auto session_parent(
 		const validated_github_host_profile& aProfile)
 		-> core::github_session_request_context
@@ -404,6 +426,8 @@ namespace {
 			.Correlation = github_wire_correlation{
 				.Parent          = aOperation == read_operation::get_viewer_identity
 					? github_wire_parent_context{ session_parent(aProfile) }
+					: aOperation == read_operation::search_personal_pull_requests
+					? github_wire_parent_context{ repository_parent(aProfile) }
 					: github_wire_parent_context{
 						  pull_request_parent(aProfile) },
 				.ProfileRevision = aProfile.revision(),
@@ -595,8 +619,13 @@ namespace {
 				   == std::vector<std::string>{ "--version" },
 			   "version preflight has the same write containment as reads");
 
+		// [[BPR-0988]]. The two discovery reads join the recorded catalog here:
+		// a configured CLI session discovers through the same closed shape.
+		constexpr auto discovery  = std::array{ read_operation::search_personal_pull_requests, read_operation::list_requested_reviewers };
+		auto           operations = std::vector<read_operation>{ read_operation_catalog.begin(), read_operation_catalog.end() };
+		operations.insert(operations.end(), discovery.begin(), discovery.end());
 		for (const auto* profile : { &*cloud, &*enterprise }) {
-			for (const auto operation : read_operation_catalog) {
+			for (const auto operation : operations) {
 				const auto request    = wire_request_for(*profile, operation);
 				const auto invocation = compile_gh_cli_process_request(
 					*configuration,

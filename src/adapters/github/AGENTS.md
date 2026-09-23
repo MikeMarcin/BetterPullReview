@@ -121,7 +121,10 @@ the functional core or Qt presentation adapter.
   rows, authority and declared continuation must validate before discard.
   Enforce cursor progress, page/record/byte ceilings, exact repository
   authority, expected result counts, and capability-shaped selection;
-  incomplete or ambiguous pagination fails atomically.
+  incomplete or ambiguous pagination fails atomically. The personal
+  discovery search (BPR-0988) reads one bounded page and never follows its
+  continuation: a longer or incomplete answer is reported partial, and any
+  failed request fails the whole answer.
 - Preserve `core`, `search`, and `graphql` rate observations independently.
   GitHub.com requires the applicable exact tuple; GHES may omit a whole tuple
   but may not supply a partial, malformed, unknown, or wrong-resource tuple.

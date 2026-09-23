@@ -69,6 +69,9 @@ namespace bpr::adapters::github::detail {
 			return true;
 		case read_operation::get_viewer_identity:
 		case read_operation::list_review_threads:
+		// [[BPR-0988]]. Discovery names a viewer; a signed-out read has none.
+		case read_operation::search_personal_pull_requests:
+		case read_operation::list_requested_reviewers:
 			return false;
 		}
 		return false;
@@ -92,7 +95,10 @@ namespace bpr::adapters::github::detail {
 				anonymous_read_refusal::server_contract_unsupported
 			};
 		}
-		if (aOperation == read_operation::get_viewer_identity) {
+		// [[BPR-0988]]. A personal discovery read names the viewer too.
+		if (aOperation == read_operation::get_viewer_identity
+			|| aOperation == read_operation::search_personal_pull_requests
+			|| aOperation == read_operation::list_requested_reviewers) {
 			return std::unexpected{
 				anonymous_read_refusal::identity_requires_credential
 			};

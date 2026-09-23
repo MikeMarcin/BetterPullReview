@@ -355,12 +355,14 @@ namespace {
 					   && onEnterprise.error()
 						   == anonymous_read_refusal::server_contract_unsupported,
 				   "every operation is refused on a GHES contract");
-			if (operation == read_operation::get_viewer_identity) {
+			if (operation == read_operation::get_viewer_identity
+				|| operation == read_operation::search_personal_pull_requests
+				|| operation == read_operation::list_requested_reviewers) {
 				expect(!onGithub.has_value()
 						   && onGithub.error()
 							   == anonymous_read_refusal::
 								   identity_requires_credential,
-					   "viewer identity is refused as an identity operation");
+					   "viewer identity and personal discovery are refused as identity operations");
 				continue;
 			}
 			if (operation == read_operation::list_review_threads) {
@@ -373,8 +375,8 @@ namespace {
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 10U && all_read_operations.size() == 12U,
-			   "ten of twelve operations admit anonymous REST reads");
+		expect(eligible == 10U && all_read_operations.size() == 14U,
+			   "ten of fourteen operations admit anonymous REST reads");
 		expect(anonymous_read_operations.size() + 1U == eligible
 				   && std::ranges::all_of(anonymous_read_operations,
 										  anonymous_read_eligible),
@@ -425,6 +427,12 @@ namespace {
 				break;
 			case read_operation::search_pull_requests:
 				semantic.SearchTerms = "is:open";
+				break;
+			case read_operation::search_personal_pull_requests:
+				semantic.SearchTerms = "author:octo-reviewer";
+				break;
+			case read_operation::list_requested_reviewers:
+				semantic.PullRequestNumber = 17U;
 				break;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:

@@ -813,6 +813,19 @@ namespace bpr::application {
 				&& aContext.Generation.value() != 0U;
 		}
 
+		/// \brief [[BPR-0988]]. A repository read names an exact account: it has no
+		/// signed-out form.
+		[[nodiscard]] inline auto valid_context(
+			const core::repository_request_context& aContext) noexcept -> bool
+		{
+			return aContext.Request.value() != 0U
+				&& aContext.ApplicationSession.value() != 0U
+				&& aContext.Profile.value() != 0U && aContext.Host.value() != 0U
+				&& aContext.Account.value() != 0U && core::valid(aContext.Repository)
+				&& aContext.Capabilities.value() != 0U
+				&& aContext.IdentityGeneration.value() != 0U;
+		}
+
 		[[nodiscard]] inline auto ascii_equal_fold(
 			const std::string_view aLeft,
 			const std::string_view aRight) noexcept -> bool

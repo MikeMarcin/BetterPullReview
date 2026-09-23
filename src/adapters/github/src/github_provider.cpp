@@ -52,6 +52,10 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::list_review_comments;
 			case read_operation::list_pull_request_timeline:
 				return application::diagnostic_paged_operation::list_pull_request_timeline;
+			case read_operation::search_personal_pull_requests:
+			case read_operation::list_requested_reviewers:
+				// [[BPR-0988]]. Discovery is not part of a pull request read.
+				return application::diagnostic_paged_operation::none;
 			}
 			return application::diagnostic_paged_operation::none;
 		}
@@ -146,10 +150,13 @@ namespace bpr::adapters::github::detail {
 			viewer,
 			capability,
 			pull_request,
+			/// [[BPR-0988]].
+			discovery,
 		};
 
 		using provider_parent_context = std::variant<core::github_session_request_context,
-													 core::pull_request_request_context>;
+													 core::pull_request_request_context,
+													 core::repository_request_context>;
 
 		struct provider_job
 		{
@@ -2182,6 +2189,103 @@ namespace bpr::adapters::github::detail {
 					.Error   = provider_error(
 						application::github_provider_failure::response_limit),
 				});
+			}
+		}
+	}
+
+	void github_provider::discover(application::personal_discovery_request            aRequest,
+								   application::personal_discovery_completion_handler aCompletion)
+	{
+		const auto unavailable = [&aRequest, &aCompletion](const application::github_provider_failure aFailure) {
+			aCompletion(application::personal_discovery_error{ .Request = std::move(aRequest), .Error = provider_error(aFailure) });
+		};
+		// A discovery read is authenticated only: a signed-out authority has
+		// no viewer to search for, so the anonymous provider refuses it
+		// before any transport is chosen.
+		if (Implementation == nullptr || Implementation->State->ReadAuthority != github_provider_read_authority::authenticated) {
+			unavailable(application::github_provider_failure::unavailable);
+			return;
+		}
+		const auto state   = Implementation->State;
+		const auto profile = find_exact_profile(*state, aRequest.ProfileAuthority);
+		if (profile == nullptr) {
+			unavailable(application::github_provider_failure::unavailable);
+			return;
+		}
+		const auto accountTransport = exact_account_transport(aRequest.AccountTransport, aRequest.ProfileAuthority,
+															  aRequest.AuthenticationSession.value_or(aRequest.Context.ApplicationSession),
+															  aRequest.Context.IdentityGeneration, aRequest.Context.Account);
+		if (accountTransport == nullptr) {
+			unavailable(application::github_provider_failure::unavailable);
+			return;
+		}
+		std::shared_ptr<provider_completion_delivery<application::personal_discovery_completion_handler>> delivery;
+		try {
+			delivery = make_delivery(std::move(aCompletion));
+		} catch (...) {
+			aCompletion(application::personal_discovery_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
+			return;
+		}
+		const auto jobResult = make_job(state, provider_phase::discovery, aRequest.Context, application::github_provider_attempt{ 1U });
+		if (!jobResult.has_value()) {
+			if (jobResult.error() == make_job_failure::closing) {
+				delivery->deliver(application::personal_discovery_cancelled{ .Request = std::move(aRequest) });
+			} else {
+				delivery->deliver(application::personal_discovery_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
+			}
+			return;
+		}
+		const auto& job = *jobResult;
+		try {
+			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery]() mutable {
+				try {
+					auto       result = job->Stop.stop_requested()
+						? github_personal_discovery_read_result{ std::unexpected{ github_paged_read_failure{ github_paged_read_cancelled{ } } } }
+						: perform_personal_discovery_read(*accountTransport->Transport, *profile, aRequest, job->Stop.get_token());
+					const auto was    = finish_job(state, job);
+					if (was || (!result.has_value() && std::holds_alternative<github_paged_read_cancelled>(result.error()))) {
+						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest });
+						return;
+					}
+					if (!result.has_value()) {
+						const auto* error = std::get_if<application::github_provider_error>(&result.error());
+						delivery->deliver(application::personal_discovery_error{
+							.Request = aRequest,
+							.Error   = error != nullptr && application::valid(*error) ? *error : provider_error(application::github_provider_failure::malformed_response),
+						});
+						return;
+					}
+					delivery->deliver(application::personal_discovery_success{
+						.Request      = aRequest,
+						.Rows         = std::move(result->Rows),
+						.Completeness = result->Completeness,
+						.RateLimits   = std::move(result->RateLimits),
+					});
+				} catch (...) {
+					static_cast<void>(finish_job(state, job));
+					delivery->deliver(application::personal_discovery_error{ .Request = aRequest, .Error = provider_error(application::github_provider_failure::response_limit) });
+				}
+			});
+		} catch (...) {
+			if (stop_after_failed_post(state, job)) {
+				delivery->deliver(application::personal_discovery_cancelled{ .Request = std::move(aRequest) });
+			} else {
+				delivery->deliver(application::personal_discovery_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
+			}
+		}
+	}
+
+	void github_provider::cancel_discovery(const application::personal_discovery_request& aRequest)
+	{
+		if (Implementation == nullptr) {
+			return;
+		}
+		const auto             state   = Implementation->State;
+		const auto             context = provider_parent_context{ aRequest.Context };
+		const std::scoped_lock lock{ state->Mutex };
+		for (const auto& job : state->Jobs) {
+			if (job->Phase == provider_phase::discovery && job->Context == context) {
+				job->Stop.request_stop();
 			}
 		}
 	}

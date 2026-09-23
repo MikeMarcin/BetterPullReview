@@ -6,6 +6,7 @@
 #include "github_wire_transport.hpp"
 
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/personal_discovery_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 
@@ -160,7 +161,8 @@ namespace bpr::adapters::github::detail {
 		bool                                                              Closing = false;
 	};
 
-	class github_provider final : public application::github_provider_port
+	class github_provider final : public application::github_provider_port,
+								  public application::personal_discovery_port
 	{
 	public:
 		class implementation;
@@ -205,6 +207,12 @@ namespace bpr::adapters::github::detail {
 			application::github_pull_request_completion_handler aCompletion,
 			application::github_pull_request_progress_handler   aProgress,
 			application::github_pull_request_overview_handler   aOverview) override;
+
+		/// \brief [[BPR-0988]]. One bounded personal discovery read, on the
+		/// same exact account transport a pull request read uses.
+		void discover(application::personal_discovery_request            aRequest,
+					  application::personal_discovery_completion_handler aCompletion) override;
+		void cancel_discovery(const application::personal_discovery_request& aRequest) override;
 
 		void shutdown() noexcept;
 

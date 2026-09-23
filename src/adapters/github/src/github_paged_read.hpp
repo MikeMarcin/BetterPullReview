@@ -5,6 +5,8 @@
 #include "github_host_profile.hpp"
 #include "github_wire_transport.hpp"
 
+#include "bpr/application/personal_discovery_port.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -13,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace bpr::adapters::github::detail {
 	struct github_paged_read_limits
@@ -111,6 +114,36 @@ namespace bpr::adapters::github::detail {
 		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
 		github_paged_response_observer*                          aObserver      = nullptr) noexcept
 		-> github_timeline_read_result;
+
+	/// \brief [[BPR-0988]]. What one personal discovery read found.
+	struct github_personal_discovery_read
+	{
+		std::vector<application::personal_discovery_row> Rows;
+		application::personal_discovery_completeness     Completeness = application::personal_discovery_completeness::complete;
+		application::github_rate_limit_state             RateLimits;
+	};
+
+	using github_personal_discovery_read_result = std::expected<github_personal_discovery_read, github_paged_read_failure>;
+
+	/// \brief [[BPR-0988]]. Reads the viewer's open pull requests of one
+	/// repository: one bounded search page, then each row's requested
+	/// reviewers up to `maximum_personal_discovery_details`.
+	///
+	/// \details Independent of the pull request read: it issues no snapshot,
+	/// file, commit, thread, comment, check, timeline or diff request. An
+	/// authored row is kept only when its author is the viewer; a requested
+	/// row only when its requested reviewers name the viewer as a user. A
+	/// search GitHub calls incomplete, a match longer than one page, or more
+	/// requested rows than the detail reads could confirm make the answer
+	/// partial. Any failed request fails the whole read, which then says
+	/// nothing about what is absent.
+	[[nodiscard]] auto perform_personal_discovery_read(
+		github_wire_transport_port&                    aTransport,
+		const validated_github_host_profile&           aProfile,
+		const application::personal_discovery_request& aRequest,
+		std::stop_token                                aStop,
+		const github_paged_read_limits&                aLimits = { }) noexcept
+		-> github_personal_discovery_read_result;
 
 	[[nodiscard]] auto perform_paged_github_read(
 		github_wire_transport_port&                              aTransport,

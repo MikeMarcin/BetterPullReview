@@ -32,6 +32,11 @@ namespace bpr::adapters::github::detail {
 		search_pull_requests,
 		list_review_comments,
 		list_pull_request_timeline,
+		/// [[BPR-0988]]. Personal discovery: open pull requests of one
+		/// repository authored by, or with a review requested of, one login.
+		search_personal_pull_requests,
+		/// [[BPR-0988]]. The users and teams a pull request still awaits.
+		list_requested_reviewers,
 	};
 
 	/// \brief Names the ten operations the recorded contract manifest holds.
@@ -60,10 +65,12 @@ namespace bpr::adapters::github::detail {
 	/// \details `list_review_comments` is the REST inline review-comment read
 	/// RFC-BPR-0017 needs, and it is deliberately outside the recorded
 	/// manifest catalog above: the authenticated read never issues it, so the
-	/// authenticated recording stays at ten interactions. Route, admission,
-	/// and name lookups work from this array so a compiled operation cannot
-	/// be unknown to them.
-	inline constexpr std::array<read_operation, 12> all_read_operations{
+	/// authenticated recording stays at ten interactions. The two personal
+	/// discovery reads ([[BPR-0988]]) are outside it for the same reason: they
+	/// are not part of a pull request snapshot. Route, admission, and name
+	/// lookups work from this array so a compiled operation cannot be unknown
+	/// to them.
+	inline constexpr std::array<read_operation, 14> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -76,6 +83,8 @@ namespace bpr::adapters::github::detail {
 		read_operation::search_pull_requests,
 		read_operation::list_review_comments,
 		read_operation::list_pull_request_timeline,
+		read_operation::search_personal_pull_requests,
+		read_operation::list_requested_reviewers,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.

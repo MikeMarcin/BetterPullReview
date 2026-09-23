@@ -2229,11 +2229,84 @@ namespace {
 		}
 	}
 
+	/// [[BPR-0988]]. The provider's discovery entry: the exact account lease a
+	/// pull request read uses, one worker job, exactly one terminal, and
+	/// refusal before any effect for a foreign or missing authority.
+	void test_personal_discovery_entry()
+	{
+		auto       fixture = provider_fixture{ application::github_authentication_transport::native_https };
+		const auto lease   = account_lease(fixture);
+		const auto base    = pull_request_for(fixture, lease);
+		auto       request = application::personal_discovery_request{
+			.Context = {
+				.Request            = base.Context.Request,
+				.ApplicationSession = base.Context.ApplicationSession,
+				.Profile            = base.Context.Profile,
+				.Host               = base.Context.Host,
+				.Account            = base.Context.Account,
+				.Repository         = base.Context.Repository,
+				.Capabilities       = base.Context.Capabilities,
+				.IdentityGeneration = base.Context.IdentityGeneration,
+			},
+			.ProfileAuthority   = base.ProfileAuthority,
+			.Viewer             = base.Viewer,
+			.CapabilityEvidence = base.CapabilityEvidence,
+			.AccountTransport   = base.AccountTransport,
+			.Reason             = application::personal_discovery_reason::authored,
+		};
+		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			expect(aWire.Correlation.Operation == read_operation::search_personal_pull_requests
+					   && std::holds_alternative<core::repository_request_context>(aWire.Correlation.Parent),
+				   "the provider issues the repository-scoped search first");
+			return github_wire_cancelled{ .Correlation = aWire.Correlation };
+		};
+		auto       completions = std::vector<application::personal_discovery_completion>{ };
+		const auto before      = fixture.Transport->ReadRequests.size();
+		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+		expect(fixture.Effects.pending() == 1U && completions.empty(), "a discovery read is one posted job");
+		fixture.Effects.run_next();
+		expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_cancelled>(completions.front())
+				   && std::get<application::personal_discovery_cancelled>(completions.front()).Request == request
+				   && fixture.Transport->ReadRequests.size() == before + 1U,
+			   "the read reaches the account transport and terminates exactly once");
+		for (const auto variant : { 0, 1, 2, 3 }) {
+			auto forged = request;
+			if (variant == 0) {
+				forged.Context.Account = core::github_account_id{ 999U };
+			}
+			if (variant == 1) {
+				forged.Context.IdentityGeneration = core::github_identity_generation{ 999U };
+			}
+			if (variant == 2) {
+				forged.AccountTransport = nullptr;
+			}
+			if (variant == 3) {
+				forged.AuthenticationSession = core::application_session_id{ 999U };
+			}
+			completions.clear();
+			const auto calls = fixture.Transport->ReadRequests.size();
+			fixture.Provider->discover(forged, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_error>(completions.front())
+					   && fixture.Effects.pending() == 0U && fixture.Transport->ReadRequests.size() == calls,
+				   "a foreign account, generation, lease or credential provenance is refused before any effect");
+		}
+		completions.clear();
+		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			return github_wire_cancelled{ .Correlation = aWire.Correlation };
+		};
+		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+		fixture.Provider->cancel_discovery(request);
+		fixture.Effects.run_next();
+		expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_cancelled>(completions.front()),
+			   "cancelling a queued discovery read still delivers exactly one terminal");
+	}
+
 }
 
 int main()
 {
 	test_window_read_authentication_provenance();
+	test_personal_discovery_entry();
 	test_sanitized_provider_logging();
 	test_pull_request_attempt_diagnostic_propagation();
 	test_logging_wrapper_failure_preserves_terminal();

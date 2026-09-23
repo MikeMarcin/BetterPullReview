@@ -38,10 +38,27 @@ namespace bpr::adapters::github::detail {
 							&& aParent.Profile == aProfile.profile()
 							&& aRequest.Correlation.Operation
 							== read_operation::get_viewer_identity;
+					} else if constexpr (
+						std::same_as<
+							parent_type,
+							core::repository_request_context>) {
+						// [[BPR-0988]]. A repository context admits the personal
+						// search of exactly its repository, and nothing else.
+						const auto& semantic = aRequest.Wire.Semantic;
+						return aRequest.Correlation.Operation
+							== read_operation::search_personal_pull_requests
+							&& application::detail::valid_context(aParent)
+							&& aParent.Profile == aProfile.profile()
+							&& aParent.Host == aProfile.host()
+							&& semantic.Owner == aParent.Repository.Owner
+							&& semantic.Repository == aParent.Repository.Name
+							&& semantic.PullRequestNumber == 0U;
 					} else {
 						if (
 							aRequest.Correlation.Operation
 								== read_operation::get_viewer_identity
+							|| aRequest.Correlation.Operation
+								== read_operation::search_personal_pull_requests
 							|| !application::detail::valid_context(aParent)
 							|| aParent.Profile != aProfile.profile()
 							|| aParent.Host != aProfile.host()) {

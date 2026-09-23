@@ -4,6 +4,7 @@
 
 #include <glaze/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -615,12 +616,16 @@ namespace {
 		case read_operation::list_issue_comments:
 		case read_operation::list_pull_request_timeline:
 		case read_operation::list_review_comments:
+		case read_operation::list_requested_reviewers:
 			request.PullRequestNumber = 17;
 			break;
 		case read_operation::get_viewer_identity:
 		case read_operation::get_repository:
 		case read_operation::list_checks:
 		case read_operation::search_pull_requests:
+			break;
+		case read_operation::search_personal_pull_requests:
+			request.SearchTerms = "author:octo-reviewer";
 			break;
 		}
 		if (aOperation == read_operation::list_checks) {
@@ -1012,14 +1017,14 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 12U
+			all_read_operations.size() == 14U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
 				&& std::ranges::find(all_read_operations,
 									 read_operation::list_review_comments)
 					!= all_read_operations.end(),
-			"the compiled set holds twelve reads and the recording holds ten");
+			"the compiled set holds fourteen reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(
@@ -2032,6 +2037,72 @@ namespace {
 
 }
 
+namespace {
+	/// [[BPR-0988]]. The two discovery reads compile to exactly one request
+	/// shape each, on both server contracts, and nothing else passes.
+	auto test_personal_discovery_requests() -> void
+	{
+		for (const auto server : { server_contract::github_com, server_contract::ghes_3_18 }) {
+			const auto prefix   = std::string{ server == server_contract::github_com ? "" : "/api/v3" };
+			auto       search   = semantic(read_operation::search_personal_pull_requests, server);
+			search.SearchTerms  = "author:octo-reviewer";
+			const auto authored = compile_read_request(search);
+			expect(authored.has_value() && authored->Method == http_method::get && authored->Body.empty()
+					   && authored->Path == prefix + "/search/issues"
+					   && authored->Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository"
+					   && validate_outbound_read_request(*authored).has_value(),
+				   "an authored search is one REST GET scoped to the repository and the login");
+			search.SearchTerms   = "review-requested:octo_reviewer-2";
+			const auto requested = compile_read_request(search);
+			expect(requested.has_value()
+					   && requested->Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20review-requested%3Aocto_reviewer-2%20repo%3Aocto-org%2Freview-repository",
+				   "a requested search uses the documented review-requested qualifier");
+			auto reviewers              = semantic(read_operation::list_requested_reviewers, server);
+			reviewers.PullRequestNumber = 17U;
+			const auto detail           = compile_read_request(reviewers);
+			expect(detail.has_value() && detail->Path == prefix + "/repos/octo-org/review-repository/pulls/17/requested_reviewers"
+					   && detail->Query.empty() && detail->Method == http_method::get && validate_outbound_read_request(*detail).has_value(),
+				   "the requested reviewers read is one REST GET of one pull request");
+		}
+		for (const auto* terms : { "", "is:open", "author:", "author:-octo", "author:octo reviewer", "author:octo repo:other/repo", "author:@me",
+								   "reviewed-by:octo", "user-review-requested:octo", "team-review-requested:org/team", "author:octo%20x", "author:octo\n",
+								   "review-requested:", "AUTHOR:octo" }) {
+			auto search        = semantic(read_operation::search_personal_pull_requests);
+			search.SearchTerms = terms;
+			expect(!compile_read_request(search).has_value(), "any other search terms, qualifier or login shape is refused");
+		}
+		{
+			auto search        = semantic(read_operation::search_personal_pull_requests);
+			search.SearchTerms = "author:" + std::string(65U, 'a');
+			expect(!compile_read_request(search).has_value(), "an unbounded login is refused");
+			search.SearchTerms = "author:octo";
+			search.Page        = 2U;
+			expect(!compile_read_request(search).has_value(), "discovery reads one page only");
+			search.Page              = 1U;
+			search.PullRequestNumber = 17U;
+			expect(!compile_read_request(search).has_value(), "a search names no pull request");
+			auto reviewers              = semantic(read_operation::list_requested_reviewers);
+			reviewers.PullRequestNumber = 0U;
+			expect(!compile_read_request(reviewers).has_value(), "requested reviewers name a pull request");
+			reviewers.PullRequestNumber = 17U;
+			reviewers.SearchTerms       = "author:octo";
+			expect(!compile_read_request(reviewers).has_value(), "requested reviewers carry no search terms");
+			auto forged        = semantic(read_operation::search_personal_pull_requests);
+			forged.SearchTerms = "author:octo";
+			auto wire          = compile_read_request(forged);
+			expect(wire.has_value(), "canonical personal search compiles");
+			wire->Query += "&sort=updated";
+			expect(!validate_outbound_read_request(*wire).has_value(), "an outbound search with extra query parameters is refused");
+			expect(read_operation_from_name("SearchPersonalPullRequests") == read_operation::search_personal_pull_requests
+					   && read_operation_from_name("ListRequestedReviewers") == read_operation::list_requested_reviewers,
+				   "the discovery reads name themselves");
+			expect(std::ranges::find(read_operation_catalog, read_operation::search_personal_pull_requests) == read_operation_catalog.end()
+					   && std::ranges::find(read_operation_catalog, read_operation::list_requested_reviewers) == read_operation_catalog.end(),
+				   "the recorded snapshot manifest does not grow with discovery");
+		}
+	}
+}
+
 auto main() -> int
 {
 	test_glaze_strict_response_identity_and_syntax();
@@ -2043,6 +2114,7 @@ auto main() -> int
 	test_read_only_catalog_and_outbound_validation();
 	test_hostile_responses_fail_atomically();
 	test_provider_valid_nullable_and_conditional_shapes();
+	test_personal_discovery_requests();
 
 	std::cout << "All GitHub normalized read-contract tests passed\n";
 	return EXIT_SUCCESS;

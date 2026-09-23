@@ -503,6 +503,39 @@ pages and retries. A primary, secondary, or structured GraphQL `RATE_LIMITED`
 terminal retains its exact causal record; a bounded `Retry-After` remains a
 separate scheduling observation. Raw provider messages never cross inward.
 
+### Personal discovery reads
+
+[[BPR-0988]] (RFC-BPR-0026) adds a second, independent read to the same
+provider: `personal_discovery_port::discover` lists the viewer's open pull
+requests of one saved repository without reading any of them. It is two
+operations outside the recorded snapshot manifest:
+
+- `SearchPersonalPullRequests`: `GET {rest}/search/issues` with
+  `q=is:pr is:open author:LOGIN repo:OWNER/NAME` or
+  `review-requested:LOGIN`, the qualifiers the GitHub.com and GHES 3.18 search
+  contracts both document. The login is the accepted viewer's, admitted only
+  as letters, digits, hyphen and underscore, so it cannot become another
+  qualifier. One page of at most 100 items is read and a continuation is
+  never followed: `incomplete_results`, a total above the page, or a `next`
+  link makes the answer partial.
+- `ListRequestedReviewers`: `GET {rest}/repos/OWNER/NAME/pulls/N/requested_reviewers`
+  for at most 30 rows of one answer. An authored row takes its awaited
+  reviewer count from it; a requested row is kept only when the users it
+  lists include the viewer, so a team-only request is not discovered.
+
+The search's wire parent is a `core::repository_request_context`: the same
+application session, profile, host, account and identity generation a pull
+request context carries, scoped to one repository and naming no pull request.
+Wire validation admits that parent for the personal search of exactly its
+repository and for nothing else, and refuses the personal search under any
+other parent; the requested-reviewers read runs under its pull request's
+context. Native HTTPS correlates both against the exact account credential as
+it does a pull request read, and an anonymous authority refuses both as
+identity operations. The search bills the `search` rate resource and the
+detail read `core`. Any failed request fails the whole answer, a search whose
+repository qualifier GitHub refuses (422) is reported as lost access, and
+nothing in an answer is a snapshot, a file, a commit, a thread or a diff.
+
 ## Transport ownership
 
 The provider adapter validates the explicit host profile. Native profiles

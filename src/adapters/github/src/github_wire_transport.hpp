@@ -13,8 +13,14 @@
 #include <variant>
 
 namespace bpr::adapters::github::detail {
+	/// \brief The request a wire exchange belongs to.
+	///
+	/// \details [[BPR-0988]]. A repository context is a personal discovery
+	/// search: it binds the same account authority a pull request read does and
+	/// names no pull request.
 	using github_wire_parent_context = std::variant<core::github_session_request_context,
-													core::pull_request_request_context>;
+													core::pull_request_request_context,
+													core::repository_request_context>;
 
 	struct github_wire_correlation
 	{

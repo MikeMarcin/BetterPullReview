@@ -217,6 +217,12 @@ namespace {
 		case read_operation::search_pull_requests:
 			semantic.SearchTerms = "is:open";
 			break;
+		case read_operation::search_personal_pull_requests:
+			semantic.SearchTerms = "author:octo-reviewer";
+			break;
+		case read_operation::list_requested_reviewers:
+			semantic.PullRequestNumber = context.Number.value();
+			break;
 		case read_operation::get_repository:
 			break;
 		}
@@ -319,8 +325,8 @@ namespace {
 		// every compiled operation rather than over the recorded manifest
 		// catalogue: an operation outside that recording still has to have a
 		// verdict here.
-		expect(admitted == 10U && refused == 2U
-				   && all_read_operations.size() == 12U
+		expect(admitted == 10U && refused == 4U
+				   && all_read_operations.size() == 14U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

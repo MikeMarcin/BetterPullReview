@@ -765,6 +765,53 @@ namespace {
 			accountDrift.Correlation,
 			"account-drift-preflight");
 
+		// [[BPR-0988]]. A repository-scoped discovery search binds the same
+		// exact account: another account or host is refused before any
+		// connection, exactly as a pull request read's drift is.
+		{
+			const auto semantic = semantic_read_request{
+				.Server            = repository.Wire.Server,
+				.Operation         = read_operation::search_personal_pull_requests,
+				.Owner             = accountParent.Repository.Owner,
+				.Repository        = accountParent.Repository.Name,
+				.PullRequestNumber = 0U,
+				.HeadOid           = { },
+				.SearchTerms       = "author:octo-reviewer",
+				.Page              = 1U,
+				.GraphqlPage       = std::nullopt,
+			};
+			const auto searchWire = compile_read_request(semantic);
+			expect(searchWire.has_value(), "discovery-wire-contract");
+			const auto discoveryParent = core::repository_request_context{
+				.Request            = accountParent.Request,
+				.ApplicationSession = accountParent.ApplicationSession,
+				.Profile            = accountParent.Profile,
+				.Host               = accountParent.Host,
+				.Account            = accountParent.Account,
+				.Repository         = accountParent.Repository,
+				.Capabilities       = accountParent.Capabilities,
+				.IdentityGeneration = accountParent.IdentityGeneration,
+			};
+			auto search = github_wire_request{
+				.Correlation = repository.Correlation,
+				.Wire        = *searchWire,
+			};
+			search.Correlation.Operation = read_operation::search_personal_pull_requests;
+			search.Correlation.Parent    = discoveryParent;
+			expect(validate_github_wire_request(*native, search).has_value(), "discovery-wire-validation");
+			for (const auto drift : { 0U, 1U }) {
+				auto forged       = search;
+				auto forgedParent = discoveryParent;
+				if (drift == 0U) {
+					forgedParent.Account = core::github_account_id{ 999 };
+				} else {
+					forgedParent.Host = core::git_host_id{ 999 };
+				}
+				forged.Correlation.Parent = forgedParent;
+				expect_unavailable((*account)->perform(forged, std::stop_token{ }), forged.Correlation, "discovery-authority-drift-preflight");
+			}
+		}
+
 		const auto observedAccount = core::github_account_id{ 203 };
 		const auto session         = session_context(*native);
 		const auto capability      = capability_request_for(*native, session, observedAccount);
