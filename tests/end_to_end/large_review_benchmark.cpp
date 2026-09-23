@@ -50,6 +50,7 @@
 
 #if defined(__APPLE__)
 	#include <mach/mach.h>
+	#include <malloc/malloc.h>
 #endif
 
 namespace bpr::e2e::large_review {
@@ -84,7 +85,9 @@ namespace bpr::e2e::large_review {
 	struct resource_sample
 	{
 		std::string   Phase;
-		std::uint64_t ResidentBytes = 0, PhysicalFootprintBytes = 0, DiffCacheBytes = 0;
+		std::uint64_t ResidentBytes = 0, PhysicalFootprintBytes = 0, LiveHeapBytes = 0, DiffCacheBytes = 0;
+		// Above the course's first (before_application) sample.
+		std::uint64_t FootprintGrowthBytes = 0, LiveHeapGrowthBytes = 0;
 		std::size_t   DiffCacheEntries = 0, DiffJobs = 0, EpochJobs = 0;
 	};
 
@@ -110,16 +113,26 @@ namespace bpr::e2e::large_review {
 		double                       HistoryInputIntervalLimitMs = 100.0;
 		double                       HistoryRefreshLimitMs = 12'000.0, HistorySourceSelectionLimitMs = 2'000.0;
 		std::vector<resource_sample> Resources;
-		// Provisional Mac fixture budgets from the measured Debug course. These
-		// bound sampled growth, not unsampled peaks or other platforms.
-		std::uint64_t SampledFootprintGrowthLimitBytes = 160U * 1024U * 1024U;
-		std::uint64_t CleanupFootprintGrowthLimitBytes = 96U * 1024U * 1024U;
-		// M4 Pro / 48-GiB / Mac Debug byte-pressure observations: drained
-		// growth 141.84 and 140.95 MiB; destroyed growth 39.52 MiB. Allow
-		// 160 MiB only before destruction, retaining the existing 96-MiB
-		// destruction budget and every earlier resource course's limits.
-		std::uint64_t                  ByteDrainedFootprintGrowthLimitBytes = 160U * 1024U * 1024U;
-		bool                           WindowCloseObserved                  = false;
+		// [[BPR-0893]]. Mac fixture budgets, re-derived on an M4 Pro (48 GiB),
+		// Debug, Qt 6.11.2, macOS 26.6. They bound sampled growth above the
+		// before_application sample, not unsampled peaks or other platforms.
+		//
+		// The peak bounds physical footprint at every sample. Qt 6.11 keeps a
+		// HarfBuzz buffer in every shaped QTextLayout until the layout is
+		// destroyed (qtbase 8209078e0e), and a pane keeps one layout per block.
+		// Measuring the 40,000 lines of the large comparison therefore holds
+		// about 70 MiB more live than under Qt 6.10.3, and the highest peak rose
+		// from 138 to 203 MiB. No public Qt API releases those buffers, so
+		// 224 MiB, 10% above that peak, accepts the cost instead of 160 MiB.
+		std::uint64_t SampledFootprintGrowthLimitBytes = 224U * 1024U * 1024U;
+		// Cleanup bounds the live heap (bytes malloc has in use), not the
+		// footprint. The allocator keeps freed pages dirty, so after cleanup
+		// the footprint stays at 127-183 MiB while the live heap is back to
+		// 66-68 MiB with the application open and 13-14 MiB once it is
+		// destroyed. Retaining the large comparison would add about 100 MiB.
+		std::uint64_t                  CleanupLiveHeapGrowthLimitBytes   = 96U * 1024U * 1024U;
+		std::uint64_t                  DestroyedLiveHeapGrowthLimitBytes = 32U * 1024U * 1024U;
+		bool                           WindowCloseObserved               = false;
 		bool                           PruneReleasedDiff = false, PruneReleasedIndex = false, PruneClearedProjection = false;
 		bool                           DeleteReleasedDiff = false, DeleteReleasedIndex = false, DestroyReleasedDiff = false, DestroyReleasedIndex = false;
 		bool                           UnavailableCourse = false, UnavailableReasonVerified = false, BinaryStatusVerified = false;
@@ -183,8 +196,11 @@ namespace bpr::e2e::large_review {
 		mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
 		require(task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&information), &count) == KERN_SUCCESS,
 				"native process memory sample failed");
+		malloc_statistics_t heap{ };
+		malloc_zone_statistics(nullptr, &heap);
 		sample.ResidentBytes          = information.resident_size;
 		sample.PhysicalFootprintBytes = information.phys_footprint;
+		sample.LiveHeapBytes          = heap.size_in_use;
 		if (aApplication) {
 			const auto work         = access::diff_work_evidence(*aApplication);
 			sample.DiffCacheBytes   = work.CacheBytes;
@@ -195,21 +211,25 @@ namespace bpr::e2e::large_review {
 						&& work.CacheEntries <= application::diff_host_limits{ }.CacheEntries,
 					"configured diff cache budget exceeded");
 		}
+		const auto growth = [](std::uint64_t aValue, std::uint64_t aBaseline) -> std::uint64_t {
+			return aValue > aBaseline ? aValue - aBaseline : 0U;
+		};
+		if (!aReport.Resources.empty()) {
+			const auto& baseline        = aReport.Resources.front();
+			sample.FootprintGrowthBytes = growth(sample.PhysicalFootprintBytes, baseline.PhysicalFootprintBytes);
+			sample.LiveHeapGrowthBytes  = growth(sample.LiveHeapBytes, baseline.LiveHeapBytes);
+		}
 		std::cerr << "resource-sample:" << *glz::write_json(sample) << '\n';
 		if (!aReport.Resources.empty()) {
-			const auto baseline = aReport.Resources.front().PhysicalFootprintBytes;
-			const auto growth   = sample.PhysicalFootprintBytes > baseline
-				? sample.PhysicalFootprintBytes - baseline
-				: 0U;
-			require(growth <= aReport.SampledFootprintGrowthLimitBytes,
-					"sampled Mac fixture footprint growth exceeded its provisional budget");
+			require(sample.FootprintGrowthBytes <= aReport.SampledFootprintGrowthLimitBytes,
+					"sampled Mac fixture footprint growth exceeded its budget");
 			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
 				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {
-				const auto cleanupLimit = aReport.CacheByteCourse && sample.Phase == "shutdown_drained"
-					? aReport.ByteDrainedFootprintGrowthLimitBytes
-					: aReport.CleanupFootprintGrowthLimitBytes;
-				require(growth <= cleanupLimit,
-						"Mac cleanup footprint growth exceeded its provisional budget");
+				const auto cleanupLimit = sample.Phase == "application_destroyed"
+					? aReport.DestroyedLiveHeapGrowthLimitBytes
+					: aReport.CleanupLiveHeapGrowthLimitBytes;
+				require(sample.LiveHeapGrowthBytes <= cleanupLimit,
+						"Mac cleanup left live heap growth above its budget");
 				require(sample.DiffCacheBytes == 0U && sample.DiffCacheEntries == 0U
 							&& sample.DiffJobs == 0U && sample.EpochJobs == 0U,
 						"completed cleanup retains derived cache or outstanding work");
