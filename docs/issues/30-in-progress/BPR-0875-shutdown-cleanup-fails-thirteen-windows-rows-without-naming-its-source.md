@@ -470,3 +470,72 @@ So this host says nothing about whether macOS's failures are a path-length or
 0700-parent effect; it says these two rows are nowhere near the bound on Linux
 **even before the fix**. Not investigated and not changed here; the registration
 is untouched.
+
+## Ownership, and the Windows round-trip measurement (bpr-main-win, 2026-09-23)
+
+**Ownership reconciled.** The claim `d418097d` belongs to bpr-win in
+`run-20260916-stations`. That lane's last commit is `b9cf4edb`
+(2026-09-17). `windows-lane` is fully merged into `main` (`main..windows-lane`
+is empty), its worktree has no change of its own, and nothing has touched
+this card since `ef630436` on 2026-09-17. No writer remains. The
+bpr-main-win station adopts the card in run `bpr-main-win-20260923` on the
+coordinator's assignment.
+
+**The thirteen rows at `c4130c3a`** (build `build/dev`, MSVC 19.51 Debug,
+Qt 6.11.2, offscreen, one serial run of 5 min 43 s). This includes
+[[BPR-0817]]'s `14a18b45`, which now records a refused startup recovery as a
+refusal and no longer turns it into the quit's exit 1:
+
+| Row | Result |
+| --- | --- |
+| `application_native_notification_attended_contract` | Passed, 12.87 s |
+| `application_workbench_composition_contract` | Passed, 14.18 s |
+| `application_review_round_trip_composition_contract` | **Passed, 6.99 s.** This was the one Windows measurement outstanding since dsp-006 |
+| `application_overview_since_review_contract` | Passed, 46.89 s |
+| `application_review_behaviour_contract` | Passed, 47.89 s |
+| `application_saved_server_contract` | Passed, 45.26 s |
+| `application_appearance_theme_customization_contract` | Passed, 25.28 s |
+| `application_epoch_persistence_github-com` | Passed, 22.62 s |
+| `application_epoch_persistence_ghes-3_18` | Passed, 22.39 s |
+| `application_epoch_maintenance_public_path` | Passed, 29.13 s |
+| `application_appearance_gesture_contract` | Passed, 36.45 s |
+| `application_appearance_store_fallback_contract` | Passed, 22.45 s |
+| `application_uiforetw_selected_diff_contract` | Failed, 9.30 s. `PUBLIC_PATH_VERDICT:presentation=0 shutdown_complete=1 cleanup_failed=0`, then `UIFORETW_SELECTED_DIFF_EVIDENCE_FAILED` and `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`. Every earlier `UIFORETW_*` marker is OK, through `UIFORETW_SELECTED_DIFF_TRACE_OK` |
+
+No `CLEANUP_SOURCE` or `PROFILE_QUIT_CLEANUP_SOURCE` line appears in any of
+the thirteen.
+
+**The thirteenth row has no record of its own.** Its cleanup is fixed. What
+fails is `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`
+(`github_application.cpp`, the selected-diff capture course). That is one
+condition over nine clauses: the first pair's left and right role pixels,
+its selection, both connector observations, and the readability of the
+selected and unselected connectors. It does not say which clause is false.
+The only records are the Windows note on Done [[BPR-0859]], whose acceptance
+covered macOS and Linux, and the dsp-004 sweep
+(`docs/verification/dsp4-windows-merged-head-sweep.md`). No open card owns
+it, so it is neither understood nor recorded as this card's second
+acceptance line requires. A card ID has been requested:
+"Windows: application_uiforetw_selected_diff_contract fails at
+UIFORETW_CAPTURE_FIRST_TARGET_FAILED without naming which of its nine
+conditions is false". Once that card exists and is linked here, every
+acceptance line is met and this card can finish:
+
+1. Named: met at `9ea17894` (the naming) and still printed by the product.
+2. Twelve of thirteen pass on Windows at `c4130c3a`. The thirteenth goes to
+   the requested card.
+3. A person quitting: answered above. Since `14a18b45` a refused recovery
+   no longer makes an ordinary quit exit 1 at all.
+4. macOS and Linux: measured on 2026-09-17 (macOS at the merged tree, Linux
+   13 of 13 at `271bb452`).
+
+**The mechanism in C++ courses, measured for the reserved follow-up.** The
+same run checked the two rows named in the bpr-main-win reservation for
+"BPR-0875's mechanism in C++ courses" (`15a976e8`, third item). At
+`c4130c3a`, `application_attended_recent_replay` passes (25.52 s).
+`application_release_update_public_path` prints
+`AGENT_WORKSPACE_RECOVERY_REFUSED:<temp>\agent-workspace-ownership-v1:repair-required`
+(its data root sits directly under `%TEMP%`) and fails at
+`FAILED: both windows retain distinct text durably`, after an exit-0 quit.
+That is a durability assertion, not the quit's exit code, so that
+reservation's premise has moved.
