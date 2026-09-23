@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1026"
 title: "msvc_secure_crt_contract: std::getenv in release_update_* end-to-end tests"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-linux core-only preset run under BPR-0975","red_since":"d1e0f46c","reproduced_at":["a8e9b714","89c6e0f4"],"related_cards":["BPR-0519","BPR-0854","BPR-0948","BPR-0983","BPR-1020"],"reservation":"docs/issues/_reservations/BPR-1024--BPR-1026--f65f9f9f0854.json"}
+acceptance: [{"criterion":"AC1 msvc_secure_crt_contract passes 3 of 3 on macOS and Linux at the fix, and on Windows, where it is registered too","outcome":"pass","revision":"f9c3161d","evidence":{"kind":"command","detail":"Windows (bpr-main-win, build/dev MSVC 19.51 Debug at f9c3161d, contains bac4c745): ctest --test-dir build/dev -j1 -V -R '^(msvc_secure_crt_contract|application_release_update_public_path)$': msvc_secure_crt_contract Passed 0.65 s, 'Ran 3 tests', 'OK'. Linux at e648db24: pass 0.36 s, Ran 3 tests OK. macOS at bac4c745: pass 0.30 s (BPR-0854's Mac record).","path":"docs/issues/60-done/BPR-1026-msvc-secure-crt-contract-flags-getenv-in-the-release-update-end-to-end-tests.md#the-windows-run-bpr-main-win-2026-09-23"}},{"criterion":"AC2 The contract still fails on an unspelled std::getenv in a Windows-built file (negative control, not committed); every allowlist entry names a file whose CMake registration excludes Windows","outcome":"pass","revision":"e648db24","evidence":{"kind":"command","detail":"bpr-main-linux, git archive export under /tmp: unmodified OK; plant A (unspelled read at file scope in release_update_public_path_tests.cpp, Windows-built) FAILED at :6; plant B (scoped disable : 4996 removed from the transaction helper) FAILED at :269; plant C (read appended to src/core/src/agent_chat_scope.cpp) FAILED at :352; restored OK. NOT_BUILT_ON_WINDOWS names only macos_keychain_native_tests.cpp (if(APPLE)) and linux_secret_service_native_tests.cpp (Linux-only).","path":"docs/issues/60-done/BPR-1026-msvc-secure-crt-contract-flags-getenv-in-the-release-update-end-to-end-tests.md#linux-and-macos-done-at-the-fix-windows-still-owed-bpr-main-linux-2026-09-23"}},{"criterion":"AC3 (as amended under the owner's stale-card leave) Each changed test source builds wherever it is registered and its row gives the same result; on Windows the row builds under MSVC at bac4c745 or later and still passes","outcome":"pass","revision":"f9c3161d","evidence":{"kind":"command","detail":"Windows at f9c3161d: the object for release_update_public_path_tests.cpp deleted and recompiled with /W4 /WX via cmake --build build/dev --target test_release_update_public_path -- -v; no warning printed, exit 0; application_release_update_public_path Passed 7.24 s (release-update-public-path:pass), as at 4fd95fe5. macOS at bac4c745: release_update_transaction pass 0.44 s, application_release_update_public_path pass 4.50 s. Linux at e648db24: pass 3.67 s; the translation unit preprocesses byte-identically before and after the change.","path":"docs/issues/60-done/BPR-1026-msvc-secure-crt-contract-flags-getenv-in-the-release-update-end-to-end-tests.md#the-windows-run-bpr-main-win-2026-09-23"}}]
 ---
 
 # BPR-1026: msvc_secure_crt_contract: std::getenv in release_update_* end-to-end tests
@@ -205,3 +206,26 @@ Observe:
 
 If both hold, the card can finish with the records above. macOS and Linux
 owe nothing more.
+
+## The Windows run (bpr-main-win, 2026-09-23)
+
+JaegAW, Windows 11 10.0.26200, `build/dev` (Ninja, MSVC 19.51 Debug,
+`/W4 /WX`, Qt 6.11.2), rebuilt at `f9c3161d`, which contains `bac4c745`. The
+logs are station records under `build/logs/bpr-0866-1026-main-win/` and are
+not committed.
+
+- **The build has no warning.** The object for
+  `release_update_public_path_tests.cpp` was deleted, then
+  `cmake --build build/dev --target test_release_update_public_path -- -v`
+  recompiled it with the tree's `/W4 /WX` and relinked the course. The only
+  output is the two command lines and the file name. Nothing else is
+  printed, and the build exits 0.
+- **The rows pass.** The run was
+  `ctest --test-dir build/dev -j1 --output-on-failure -V -R '^(msvc_secure_crt_contract|application_release_update_public_path)$'`:
+  - `msvc_secure_crt_contract` passed (0.65 s), with `Ran 3 tests`, `OK` (AC1).
+  - `application_release_update_public_path` passed (7.24 s), with
+    `release-update-public-path:pass`. That matches its pass at `4fd95fe5`
+    (AC3 as amended).
+
+With this run every criterion has a passing record: AC1 on all three
+platforms, AC2 on Linux, and AC3 on all three platforms.
