@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0989"
 title: "One personal discovery scheduler per profile with honest queue membership"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0988"]
 priority: "P1"
