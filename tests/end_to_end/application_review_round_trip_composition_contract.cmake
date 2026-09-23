@@ -111,6 +111,13 @@ endfunction()
 # mutation path changes; the mutation-branch pin is unchanged. Covers
 # bfd927e7..the BPR-0863 commit; nothing else touched the pinned scope. Review
 # recorded on BPR-0863.
+# BPR-0864 reseal: every phase of the BPR_BUILD_TESTING workbench composition
+# probe that waits is bounded at five seconds through one wait and names its
+# stall with the facts that phase depends on; the drawer-width phases move from
+# a tick cap to the same bound. No product path changes; no credential,
+# provider, vault, transport or mutation path changes; the mutation-branch pin
+# is unchanged. Covers 7c6ba1a5..the BPR-0864 commit; nothing else touched the
+# pinned scope. Review recorded on BPR-0864.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -129,7 +136,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fc0af7d0ff1c4ae386ab847006567bed58f6dd9a823936042312478d52061422"
+		"a789ce258d07eeb77fc1ea9156080b337da85ee171c51b8b81aa8f8bf6d77c15"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -264,7 +271,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "6295781bbcf3f6d4404a651ca339e015ed97f105a052a9085ed1c49a564455c8"
+        "7a340ea912667450c4405bcf6a400c25514ca18e3265e2ac784ee49705ebd1ae"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

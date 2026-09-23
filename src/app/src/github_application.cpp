@@ -12813,8 +12813,16 @@ namespace bpr::app {
 			std::size_t                                   WidthDispatches          = 0U;
 			std::size_t                                   Invalidations            = 0U;
 			std::size_t                                   PersistedLayouts         = 0U;
-			std::size_t                                   Waits                    = 0U;
-			std::uint32_t                                 InitialFilesWidth        = 0U;
+			/// \brief [[BPR-0864]]. Calls the current phase has spent waiting.
+			std::size_t Waits = 0U;
+			/// \brief [[BPR-0864]]. When the current phase first waited; empty
+			/// until it does.
+			///
+			/// \details Both are cleared only when the phase changes, never on a
+			/// tick, so a wait cannot restart itself and never reach its bound
+			/// ([[BPR-0859]]).
+			std::optional<std::chrono::steady_clock::time_point> WaitingSince;
+			std::uint32_t                                        InitialFilesWidth = 0U;
 			/// \brief [[BPR-0860]]. The files width the handle drag asked for.
 			///
 			/// \details Kept so a stalled store can say what it asked for beside
@@ -15869,15 +15877,22 @@ namespace bpr::app {
 	}
 
 	namespace {
-		/// \brief [[BPR-0860]]. Ticks the drawer-width store may take.
+		/// \brief [[BPR-0860]], [[BPR-0864]]. How long one phase of the workbench
+		/// composition course may wait for an effect it does not control.
 		///
-		/// \details The automated run advances this probe about once every ten
-		/// milliseconds, so this is roughly five seconds: far longer than a
-		/// splitter drag, its host resize and the settings write behind it need
-		/// even on a loaded machine, and far short of the forty-second run
-		/// budget. The bound exists so the stage names a stalled dispatch or a
-		/// stalled store rather than expiring the whole run on a stage number.
-		inline constexpr std::size_t workbench_width_store_waits = 512U;
+		/// \details Every phase that waits is bounded by this, so a stall names
+		/// the condition it was waiting for rather than expiring the whole run
+		/// budget on a stage number. Five seconds is far longer than any of the
+		/// course's effects take on a loaded machine -- an observation, a file
+		/// selection, a selected diff through the Git and cache actors, a change
+		/// dispatch, a drawer width store, an invalidation or a failed read --
+		/// and a phase is reached well inside the forty-second budget. The bound
+		/// is time rather than ticks for the reason the run budget is: the event
+		/// loop stretches under load exactly when the clock does not. The floor
+		/// of calls keeps one long tick from reading as a stall, as the shared
+		/// modality step's does ([[BPR-0863]]).
+		inline constexpr auto        workbench_composition_wait       = std::chrono::milliseconds{ 5'000 };
+		inline constexpr std::size_t workbench_composition_wait_floor = 16U;
 	}
 
 	auto detail::github_application_fixture_access::exercise_workbench_composition(
@@ -15909,43 +15924,73 @@ namespace bpr::app {
 			probe.Phase = state_type::phase::failed;
 			return result::failed;
 		};
-		// [[BPR-0860]]. A bounded wait that gives up names the condition it was
-		// waiting for and prints what the window and the host were holding, so
-		// the stall is read from the run's own output. Before this, neither the
-		// drawer width dispatch nor its store arrived and the course simply ran
-		// until the forty-second run budget expired, which named a stage number
-		// and nothing else.
-		const auto stall = [&](const char* const aTerm) {
-			const auto* const splitter   = window->central_splitter();
-			const auto        sizes      = splitter->sizes();
-			const auto        statistics = window->statistics();
-			auto              stream     = QTextStream{ stdout };
-			stream
-				<< aTerm << ':' << "waits=" << static_cast<qulonglong>(probe.Waits)
-				<< " wait_cap=" << static_cast<qulonglong>(workbench_width_store_waits)
-				<< " dispatches=" << static_cast<qulonglong>(implementation->WorkbenchWidthDispatches)
-				<< " expected_dispatches=" << static_cast<qulonglong>(probe.WidthDispatches + 1U)
-				<< " persisted_layouts=" << static_cast<qulonglong>(host->persisted_layouts())
-				<< " expected_persisted=" << static_cast<qulonglong>(probe.PersistedLayouts + 1U)
-				<< " outstanding_requests=" << static_cast<qulonglong>(host->outstanding_requests())
-				<< " layout_updates=" << static_cast<qulonglong>(statistics.LayoutUpdates)
-				<< " requested_files_width=" << probe.RequestedFilesWidth
-				<< " initial_files_width=" << static_cast<qulonglong>(probe.InitialFilesWidth)
-				<< " host_files_width=" << static_cast<qulonglong>(host->layout().FilesWidth)
-				<< " splitter_widgets=" << static_cast<qulonglong>(sizes.size())
-				<< " persistence_available="
-				<< (implementation->WorkbenchPersistenceAvailable ? "true" : "false")
-				<< " profile_scoped="
-				<< (implementation->WorkbenchSettings != nullptr
-							&& implementation->WorkbenchSettings->profile_scoped()
-						? "true"
-						: "false")
-				// [[BPR-0863]]. The modality, what it withholds, both sides of
-				// each drawer, the drawer controls and the splitter sizes, in the
-				// form every course's failure ends with.
-				<< ' ' << course_modality_facts(aApplication) << '\n';
+		// [[BPR-0860]], [[BPR-0864]]. A bounded wait that gives up names the
+		// condition it was waiting for and prints what that condition depends
+		// on, so the stall is read from the run's own output. Before this, a
+		// phase whose effect never arrived simply ran until the forty-second
+		// run budget expired, which named a stage number and nothing else.
+		// `aFacts` writes the phase's own facts; the line then ends with the
+		// modality facts every course's failure ends with ([[BPR-0863]]): the
+		// modality, what it withholds, both sides of each drawer, the drawer
+		// controls, outstanding host requests and the splitter sizes.
+		const auto stall = [&](const char* const aTerm, const std::chrono::milliseconds aWaited, const auto& aFacts) {
+			auto stream = QTextStream{ stdout };
+			stream << aTerm << ":waited_ms=" << static_cast<qlonglong>(aWaited.count())
+				   << " wait_cap_ms=" << static_cast<qlonglong>(workbench_composition_wait.count())
+				   << " waits=" << static_cast<qulonglong>(probe.Waits) << ' ';
+			aFacts(stream);
+			stream << ' ' << course_modality_facts(aApplication) << '\n';
 			stream.flush();
 			return fail();
+		};
+		// Every phase waits through this. A refusal on one tick means "not yet"
+		// (`src/app/AGENTS.md`), so the phase keeps waiting until its bound and
+		// only then stalls by name.
+		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
+			const auto now = std::chrono::steady_clock::now();
+			if (!probe.WaitingSince.has_value()) {
+				probe.WaitingSince = now;
+			}
+			++probe.Waits;
+			const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(now - *probe.WaitingSince);
+			if (waited < workbench_composition_wait || probe.Waits < workbench_composition_wait_floor) {
+				return result::pending;
+			}
+			return stall(aTerm, waited, aFacts);
+		};
+		// Moving to a phase is the only thing that restarts its wait.
+		const auto advance = [&probe](const state_type::phase aPhase) {
+			probe.Phase = aPhase;
+			probe.Waits = 0U;
+			probe.WaitingSince.reset();
+			return result::pending;
+		};
+		const auto present = [](const bool aPresent) {
+			return aPresent ? "present" : "absent";
+		};
+		const auto truth = [](const bool aValue) {
+			return aValue ? "true" : "false";
+		};
+		// [[BPR-0860]]. What the drawer's room and its width store depend on.
+		const auto widthFacts = [&](QTextStream& aStream) {
+			aStream
+				<< "dispatches=" << static_cast<qulonglong>(implementation->WorkbenchWidthDispatches)
+				<< " persisted_layouts=" << static_cast<qulonglong>(host->persisted_layouts())
+				<< " layout_updates=" << static_cast<qulonglong>(window->statistics().LayoutUpdates)
+				<< " host_files_width=" << static_cast<qulonglong>(host->layout().FilesWidth)
+				<< " splitter_widgets=" << static_cast<qulonglong>(window->central_splitter()->sizes().size())
+				<< " persistence_available=" << truth(implementation->WorkbenchPersistenceAvailable)
+				<< " profile_scoped="
+				<< truth(implementation->WorkbenchSettings != nullptr
+						 && implementation->WorkbenchSettings->profile_scoped());
+			// The drag's baselines and target exist only once it is made.
+			if (probe.Phase == state_type::phase::awaiting_width_store) {
+				aStream
+					<< " expected_dispatches=" << static_cast<qulonglong>(probe.WidthDispatches) + 1U
+					<< " expected_persisted=" << static_cast<qulonglong>(probe.PersistedLayouts) + 1U
+					<< " requested_files_width=" << probe.RequestedFilesWidth
+					<< " initial_files_width=" << static_cast<qulonglong>(probe.InitialFilesWidth);
+			}
 		};
 
 		if (probe.Phase == state_type::phase::failed) {
@@ -15960,7 +16005,17 @@ namespace bpr::app {
 			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
 			if (!snapshot.has_value() || host->outstanding_requests() != 0U
 				|| !host->state().Navigation.has_value()) {
-				return result::pending;
+				// [[BPR-0864]]. The accepted pull request's files reach the
+				// workbench host as an observation; its navigation is what the
+				// file gesture below needs.
+				return wait("WORKBENCH_OBSERVATION_STALLED", [&](QTextStream& aStream) {
+					aStream << "snapshot=" << present(snapshot.has_value())
+							<< " snapshot_files=" << static_cast<qulonglong>(snapshot.has_value() ? snapshot->Files.size() : 0U)
+							<< " window_read_quiescent=" << truth(implementation->WindowRead->is_quiescent())
+							<< " navigation=" << present(host->state().Navigation.has_value())
+							<< " actionable=" << static_cast<qulonglong>(host->actionable().size())
+							<< " review_active=" << truth(implementation->WorkbenchReview.active());
+				});
 			}
 
 			probe.Authority = workbench_authority(handoff);
@@ -16028,8 +16083,7 @@ namespace bpr::app {
 			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
 			auto* const view           = window->files_drawer()->contents_view();
 			view->setCurrentIndex(view->model()->index(0, 0));
-			probe.Phase = state_type::phase::awaiting_file_projection;
-			return result::pending;
+			return advance(state_type::phase::awaiting_file_projection);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_file_projection) {
@@ -16041,7 +16095,18 @@ namespace bpr::app {
 					probe.Evidence.FileGesture = true;
 					return fail();
 				}
-				return result::pending;
+				// [[BPR-0864]]. Neither the files drawer's selection nor the
+				// intent it dispatches has arrived.
+				return wait("WORKBENCH_FILE_SELECTION_STALLED", [&](QTextStream& aStream) {
+					const auto* const view = window->files_drawer()->contents_view();
+					aStream << "intent_dispatches=" << static_cast<qulonglong>(implementation->WorkbenchIntentDispatches)
+							<< " expected_intent_dispatches=" << static_cast<qulonglong>(probe.IntentDispatches) + 1U
+							<< " file_selections=" << static_cast<qulonglong>(statistics.FileSelections)
+							<< " expected_file_selections=" << static_cast<qulonglong>(probe.WindowStatistics.FileSelections) + 1U
+							<< " current_row=" << view->currentIndex().row()
+							<< " drawer_rows=" << window->files_drawer()->contents()->rowCount()
+							<< " host_selected=" << present(host->selected().has_value());
+				});
 			}
 			probe.Evidence.IntentDispatch
 				= implementation->WorkbenchIntentDispatches
@@ -16059,8 +16124,7 @@ namespace bpr::app {
 				|| !probe.Evidence.ProjectionDelivery) {
 				return fail();
 			}
-			probe.Phase = state_type::phase::awaiting_diff;
-			return result::pending;
+			return advance(state_type::phase::awaiting_diff);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_diff) {
@@ -16073,7 +16137,24 @@ namespace bpr::app {
 				|| implementation->SelectedDiffPublications
 					== probe.SelectedDiffPublications
 				|| !implementation->LastSelectedDiff.has_value()) {
-				return result::pending;
+				// [[BPR-0864]]. The selected file's diff is computed through
+				// the Git and cache actors and published to the comparison.
+				return wait("WORKBENCH_SELECTED_DIFF_STALLED", [&](QTextStream& aStream) {
+					const auto work = diff_work_evidence(aApplication);
+					aStream << "selected_diff_begins=" << static_cast<qulonglong>(implementation->SelectedDiffBegins)
+							<< " expected_selected_diff_begins=" << static_cast<qulonglong>(probe.SelectedDiffBegins) + 1U
+							<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
+							<< " expected_selected_diff_publications=" << static_cast<qulonglong>(probe.SelectedDiffPublications) + 1U
+							<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures)
+							<< " last_selected_diff=" << present(implementation->LastSelectedDiff.has_value())
+							<< " comparison_result=" << present(comparison != nullptr && comparison->current_result() != nullptr)
+							<< " comparison_selection=" << present(comparison != nullptr && comparison->selection().has_value())
+							<< " host_selected=" << present(host->selected().has_value())
+							<< " diff_jobs=" << static_cast<qulonglong>(work.OutstandingJobs)
+							<< " diff_pending=" << truth(work.Pending)
+							<< " diff_quiescent=" << truth(work.Quiescent)
+							<< " epoch_jobs=" << static_cast<qulonglong>(work.EpochOutstandingJobs);
+				});
 			}
 			const auto& publication = *implementation->LastSelectedDiff;
 			const auto& request     = publication.Request;
@@ -16132,14 +16213,23 @@ namespace bpr::app {
 			probe.Selection        = comparison->selection();
 			probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
 			action->trigger();
-			probe.Phase = state_type::phase::awaiting_change_projection;
-			return result::pending;
+			return advance(state_type::phase::awaiting_change_projection);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_change_projection) {
 			if (implementation->WorkbenchChangeDispatches
 				== probe.ChangeDispatches) {
-				return result::pending;
+				// [[BPR-0864]]. The change action's intent has not reached the
+				// host.
+				return wait("WORKBENCH_CHANGE_DISPATCH_STALLED", [&](QTextStream& aStream) {
+					const auto computed = comparison == nullptr ? nullptr : comparison->current_result();
+					aStream << "change_dispatches=" << static_cast<qulonglong>(implementation->WorkbenchChangeDispatches)
+							<< " expected_change_dispatches=" << static_cast<qulonglong>(probe.ChangeDispatches) + 1U
+							<< " next_change_enabled=" << truth(window->next_change_action()->isEnabled())
+							<< " previous_change_enabled=" << truth(window->previous_change_action()->isEnabled())
+							<< " selection_moved=" << truth(comparison != nullptr && comparison->selection() != probe.Selection)
+							<< " groups=" << static_cast<qulonglong>(computed == nullptr ? 0U : computed->Alignment.Groups.size());
+				});
 			}
 			probe.Evidence.ChangeDispatch
 				= implementation->WorkbenchChangeDispatches
@@ -16204,9 +16294,7 @@ namespace bpr::app {
 			// who wants the files drawer wider leaves Overview first; the
 			// course states Review, the one modality whose files drawer is
 			// expanded, and enters it through the shared step ([[BPR-0863]]).
-			probe.Waits = 0U;
-			probe.Phase = state_type::phase::awaiting_files_drawer;
-			return result::pending;
+			return advance(state_type::phase::awaiting_files_drawer);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_files_drawer) {
@@ -16223,14 +16311,13 @@ namespace bpr::app {
 			// The drawer's room follows its state through the splitter. The
 			// baselines below are taken only once it has some and nothing is
 			// outstanding, so the width store the drag causes is the next one.
+			// The step's own wait is bounded by the step; this one starts once
+			// the step has answered.
 			auto* const splitter = window->central_splitter();
 			const auto  sizes    = splitter->sizes();
 			if (sizes.size() != 4 || sizes[1] <= 0
 				|| host->outstanding_requests() != 0U) {
-				if (++probe.Waits <= workbench_width_store_waits) {
-					return result::pending;
-				}
-				return stall("WORKBENCH_FILES_DRAWER_EXPAND_STALLED");
+				return wait("WORKBENCH_FILES_DRAWER_EXPAND_STALLED", widthFacts);
 			}
 
 			probe.WidthDispatches   = implementation->WorkbenchWidthDispatches;
@@ -16253,9 +16340,7 @@ namespace bpr::app {
 			splitter->move_handle(
 				2, splitter->handle(2)->x() + (target - sizes[1]));
 			probe.RequestedFilesWidth = target;
-			probe.Waits               = 0U;
-			probe.Phase               = state_type::phase::awaiting_width_store;
-			return result::pending;
+			return advance(state_type::phase::awaiting_width_store);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_width_store) {
@@ -16263,20 +16348,15 @@ namespace bpr::app {
 			if (implementation->WorkbenchWidthDispatches
 					== probe.WidthDispatches
 				|| host->persisted_layouts() == probe.PersistedLayouts) {
-				// [[BPR-0860]]. This wait is bounded. The dispatch and the
-				// store are both effects this stage does not control, so it
-				// does not fail on the first refusal; but when neither arrives
-				// the stage names what it was waiting for and what the window
-				// and the host were holding, instead of letting the whole run
-				// budget expire on a stage number.
-				if (++probe.Waits <= workbench_width_store_waits) {
-					return result::pending;
-				}
-				return stall(
+				// [[BPR-0860]]. The dispatch and the store are both effects
+				// this stage does not control; the term says which of the two
+				// never arrived.
+				return wait(
 					implementation->WorkbenchWidthDispatches
 							== probe.WidthDispatches
 						? "WORKBENCH_DRAWER_WIDTH_DISPATCH_STALLED"
-						: "WORKBENCH_DRAWER_WIDTH_STORE_STALLED");
+						: "WORKBENCH_DRAWER_WIDTH_STORE_STALLED",
+					widthFacts);
 			}
 			probe.Evidence.DrawerWidthDispatch
 				= implementation->WorkbenchWidthDispatches
@@ -16311,15 +16391,27 @@ namespace bpr::app {
 			probe.WindowStatistics = statistics;
 			implementation->invalidate(
 				workbench_probe_invalidation(handoff, handoff.PullRequest));
-			probe.Phase = state_type::phase::awaiting_invalidation;
-			return result::pending;
+			return advance(state_type::phase::awaiting_invalidation);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_invalidation) {
 			const auto statistics = window->statistics();
 			if (host->generation() == probe.Generation
 				|| host->outstanding_requests() != 0U) {
-				return result::pending;
+				// [[BPR-0864]]. The exact invalidation supersedes the host's
+				// generation and clears what the review held.
+				return wait("WORKBENCH_INVALIDATION_STALLED", [&](QTextStream& aStream) {
+					aStream << "generation=" << static_cast<qulonglong>(host->generation().value())
+							<< " invalidated_generation=" << static_cast<qulonglong>(probe.Generation.value())
+							<< " invalidations=" << static_cast<qulonglong>(implementation->WorkbenchInvalidations)
+							<< " expected_invalidations=" << static_cast<qulonglong>(probe.Invalidations) + 1U
+							<< " review_active=" << truth(implementation->WorkbenchReview.active())
+							<< " actionable=" << static_cast<qulonglong>(host->actionable().size())
+							<< " host_selected=" << present(host->selected().has_value())
+							<< " navigation=" << present(host->state().Navigation.has_value())
+							<< " publications=" << static_cast<qulonglong>(statistics.Publications)
+							<< " invalidated_publications=" << static_cast<qulonglong>(probe.WindowStatistics.Publications);
+				});
 			}
 			probe.Evidence.InvalidationSuperseded
 				= implementation->WorkbenchInvalidations
@@ -16338,15 +16430,23 @@ namespace bpr::app {
 			probe.WindowStatistics = statistics;
 			implementation->WorkbenchReview.make_unavailable(probe.Authority);
 			host->observe(probe.Authority);
-			probe.Phase = state_type::phase::awaiting_failure;
-			return result::pending;
+			return advance(state_type::phase::awaiting_failure);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_failure) {
 			const auto statistics = window->statistics();
 			if (statistics.Failures == probe.WindowStatistics.Failures
 				|| host->outstanding_requests() != 0U) {
-				return result::pending;
+				// [[BPR-0864]]. An observation of an unavailable review fails,
+				// and the failure reaches the window.
+				return wait("WORKBENCH_FAILURE_DELIVERY_STALLED", [&](QTextStream& aStream) {
+					aStream << "failures=" << static_cast<qulonglong>(statistics.Failures)
+							<< " expected_failures=" << static_cast<qulonglong>(probe.WindowStatistics.Failures) + 1U
+							<< " review_active=" << truth(implementation->WorkbenchReview.active())
+							<< " navigation=" << present(host->state().Navigation.has_value())
+							<< " publications=" << static_cast<qulonglong>(statistics.Publications)
+							<< " observed_publications=" << static_cast<qulonglong>(probe.WindowStatistics.Publications);
+				});
 			}
 			probe.Evidence.FailureDelivery
 				= statistics.Failures == probe.WindowStatistics.Failures + 1U;
