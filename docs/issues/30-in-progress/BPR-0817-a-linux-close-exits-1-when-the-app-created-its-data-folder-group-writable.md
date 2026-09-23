@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0817"
 title: "A Linux close exits 1 when the app created its data folder group-writable"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0033"]
 depends_on: []
 priority: "P1"
