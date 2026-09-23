@@ -165,3 +165,18 @@ All six criteria stand as recorded in r3. RFC-BPR-0014 is Auto-Verified, and
 the review obligation has the owner's approval. The residual trust risks,
 the Windows/Linux absence and the unauthorized live publication are
 unchanged.
+
+## Post-closeout note: `gh` 2.101.0 and legacy configuration, 2026-09-23
+
+This changes no criterion and no status. The "Native Mac qualification"
+section says the d3 legacy-config probe saw an unsandboxed first launch
+migrate `config.yml` and `hosts.yml`, and saw the write-denied launch refuse
+before any API request. That was `gh` 2.100.0. `gh` 2.101.0, which `eecdda2a`
+allowlisted for Git-object reads, does neither. It writes no configuration
+file for `--version`, `api` or `repo clone` with the legacy fixture. Under
+the write-denying profile it reads the legacy files and proceeds. The
+production boundary still holds: no mode changed the configuration. The
+probe's current-schema `bridge` under the product's profile clones both exact
+commits with 2.101.0. [[BPR-0854]]'s post-close note has the runs. It also
+shows why that card's earlier macOS note got three sandboxed results wrong:
+the probe ran inside another sandbox. The probe now refuses to run that way.

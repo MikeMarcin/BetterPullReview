@@ -723,3 +723,79 @@ Every line this card asked for is now observed on its own platform:
 
 The `gh` 2.101.0 finding about the unregistered bridge probe stays recorded
 above. It concerns the probe's expectations about `gh`, not this card's line.
+
+## Post-close: the bridge probe under `gh` 2.101.0 (Mac main station, 2026-09-23)
+
+The macOS note above recorded five of the probe's eight modes failing under
+Homebrew `gh` 2.101.0. Two different things were behind that. One was a
+change in `gh`. The other was an artifact of how the probe was run. The
+probe is now updated for both. Its checks still fail by name when `gh`
+behaves differently from what they record.
+
+**The sandboxed failures were a nested sandbox, not `gh`.** That run wrapped
+the whole probe in a network-deny `sandbox-exec` profile. macOS does not let
+`sandbox-exec` apply a profile inside another sandbox. It prints
+`sandbox_apply: Operation not permitted` and exits 71 before `gh` starts.
+Re-run the same way today, the sandboxed legacy `version` "passes" with
+`operation_exit: 71` and no API request. The probe read that exit as `gh`
+refusing a migration. The sandboxed `bridge` fails at `gh-clone-failed`
+because no clone ever ran. So the earlier note's three sandboxed results say
+nothing about `gh`. The probe now proves its boundary first. Before it
+launches `gh`, it runs `/usr/bin/true` under the same profile, then tries to
+`touch` a file in the fixture's config directory. If the profile cannot be
+applied, it stops at `sandbox-exec-cannot-apply-profile`. If the write is
+not denied, it stops at `sandbox-did-not-deny-config-write`. Under the outer
+profile, both sandboxed modes tried now stop at the first of these.
+
+**The legacy-schema change is real.** `gh` 2.100.0 migrated a legacy
+configuration on its first launch. The RFC-BPR-0015 d3 record
+(`build/rfc0015-r2-d3-gh-clone-containment.json`, ignored, 2026-09-13) shows
+the unsandboxed legacy `api` and `bridge` rewriting `config.yml` and
+`hosts.yml`. Under the write-denying profile, `api` and `version` exited 1
+with no API request. `gh` 2.101.0 (2026-09-15) writes neither file. With
+the write denied it does not refuse either: it reads the legacy files,
+makes the request and clones. The migration's messages are still in the
+2.101.0 binary (`failed to write config after migration`). So this probe
+cannot say whether the migration was removed or just no longer runs for
+these commands. No login-keychain item exists for the fixture account
+(`security find-generic-password -s gh:github.com -a fixture` returns 44, not
+found; that is a metadata lookup and reads no secret).
+
+**The probe change** (`tests/github_contract/probe_gh_clone_git_bridge.py`).
+Versions before 2.101.0 keep their recorded expectations: both files
+rewritten unsandboxed, and a refusal before any API request under the
+profile. From 2.101.0 the expectation is no rewrite and no refusal. Under the
+profile, `version` and `api` must succeed, and `bridge` must clone both exact
+commits. Every sandboxed mode still requires the config to be unchanged. The
+result now reports `gh_legacy_migration_expected`, and the docstring says to
+run `--sandbox-config` outside any other sandbox.
+
+**Runs at the change** (`gh` 2.101.0, Apple Git 2.50.1, macOS 26.6.2 arm64;
+records in the session scratch directory, not committed):
+
+- The 7 unsandboxed modes ran under a profile that denies all network except
+  Unix sockets under `/private/tmp`, where the probe's API socket lives.
+  `curl` to `api.github.com` fails there (exit 6), and so does `curl` to
+  `1.1.1.1` (exit 7). All 7 pass: legacy `version`, `api`, `bridge` and
+  `bridge --symlink-hosts`, and current-schema `version`, `api` and
+  `bridge`. None changes the config. The three `bridge` modes clone the two
+  exact commits and serve them with protocol v2 discovery and a pack.
+- The 8 sandboxed modes ran outside any other sandbox. They used a scratch
+  copy of the probe whose only changes add the same network denial to the
+  `gh` profile and to the first `gh --version`. All 8 pass: legacy
+  `version`, `api` and `bridge`; legacy `api` and `bridge` again with
+  `--symlink-hosts`; and current-schema `version`, `api` and `bridge`. The
+  self-check applied the profile and denied the write every time. No mode
+  in either set changed the config or its inode, size or mtime.
+- The current-schema sandboxed `bridge` is the product's case.
+  `constrain_gh_writes` (`src/adapters/github/src/gh_cli_transport.cpp`) uses
+  the same profile. That mode passes under 2.101.0, which is the version
+  `eecdda2a` allowlisted for Git-object reads.
+- Nothing is left under `/tmp/bpr-gh-*` after any run.
+  `contained_temporary_usage_contract`, `skip_report_contract`,
+  `msvc_secure_crt_contract`, `test_network_isolation_manifest` and
+  `test_network_isolation_structure_contract` pass with the change.
+
+The product's own comment, "gh migrates legacy config even for --version and
+api", is still true of 2.100.0, which it still accepts. Its boundary does not
+depend on the migration either way. Nothing in the product was changed.

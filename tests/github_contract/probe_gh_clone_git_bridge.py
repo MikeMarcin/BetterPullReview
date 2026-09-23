@@ -4,6 +4,9 @@
 Uses an unmodified private copy of official gh, a synthetic API on an AF_UNIX
 socket, and a local Git repository. Git network protocols are disabled. No real
 account configuration is opened. Results contain structural observations only.
+
+`--sandbox-config` needs `sandbox-exec` to apply its own profile, so run it
+outside any other sandbox: nested, `sandbox-exec` exits 71 before gh starts.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import secrets
 import shutil
 import socketserver
@@ -22,6 +26,22 @@ import threading
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+
+
+# BPR-0854. Through 2.100.0 gh migrated a legacy configuration (no `version`
+# key) on its first launch, rewriting config.yml and hosts.yml even for
+# --version and api, and the write-denying profile made it refuse before any
+# API request (2.100.0 on macOS, RFC-BPR-0015 d3). 2.101.0 writes neither file
+# for --version, api or repo clone, so under that profile it no longer refuses:
+# it reads the legacy files and proceeds. Later versions are expected to behave
+# as 2.101.0 does, and the assertions below say so if not.
+FIRST_GH_WITHOUT_LEGACY_MIGRATION = (2, 101, 0)
+
+
+def gh_version_number(version: str) -> tuple[int, ...]:
+    match = re.match(r"gh version (\d+)\.(\d+)\.(\d+) ", version)
+    assert match, "gh-version-unrecognized"
+    return tuple(int(part) for part in match.groups())
 
 
 def packet(data: bytes) -> bytes:
@@ -44,6 +64,7 @@ def run_probe(gh: Path, git: Path, current_schema: bool, operation: str, sandbox
             env={"HOME": str(version_home), "PATH": "/usr/bin:/bin"},
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10, check=True,
         ).stdout.decode().splitlines()[0]
+        legacy_migration_expected = gh_version_number(version) < FIRST_GH_WITHOUT_LEGACY_MIGRATION
         config = root / ".config" / "gh"
         config.mkdir(parents=True, mode=0o700)
         clones = root / "clones"
@@ -62,6 +83,26 @@ def run_probe(gh: Path, git: Path, current_schema: bool, operation: str, sandbox
             ("version: 1\n" if current_schema else "")
             + f"http_unix_socket: {socket_path}\n"
         )
+        profile = ('(version 1)(allow default)(deny file-write*)'
+                   '(allow file-write* (literal "/dev/null"))')
+        if operation == "bridge":
+            profile += '(allow file-write* (subpath "' + str(clones.resolve()) + '"))'
+        if sandbox:
+            # Show the boundary exists before reading anything as gh's answer
+            # to it. A sandbox-exec that cannot apply the profile exits 71
+            # before gh starts, which would pass for gh refusing a migration.
+            boundary_env = {"PATH": "/usr/bin:/bin"}
+            applied = subprocess.run(
+                ["/usr/bin/sandbox-exec", "-p", profile, "/usr/bin/true"], cwd=root, env=boundary_env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10,
+            )
+            assert applied.returncode == 0, "sandbox-exec-cannot-apply-profile"
+            attempt = config / "sandbox-write-check"
+            denied = subprocess.run(
+                ["/usr/bin/sandbox-exec", "-p", profile, "/usr/bin/touch", str(attempt)], cwd=root, env=boundary_env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10,
+            )
+            assert denied.returncode != 0 and not attempt.exists(), "sandbox-did-not-deny-config-write"
         before = {p.name: p.read_bytes() for p in config.iterdir()}
         before_metadata = {p.name: (p.stat().st_ino, p.stat().st_size, p.stat().st_mtime_ns)
                            for p in config.iterdir()}
@@ -84,10 +125,6 @@ def run_probe(gh: Path, git: Path, current_schema: bool, operation: str, sandbox
         def execute(executable: Path, args: list[str], data: bytes = b""):
             command = [str(executable), *args]
             if sandbox and executable == copied_gh:
-                profile = ('(version 1)(allow default)(deny file-write*)'
-                           '(allow file-write* (literal "/dev/null"))')
-                if operation == "bridge":
-                    profile += '(allow file-write* (subpath "' + str(clones.resolve()) + '"))'
                 command = [
                     "/usr/bin/sandbox-exec", "-p", profile,
                     *command,
@@ -169,7 +206,8 @@ def run_probe(gh: Path, git: Path, current_schema: bool, operation: str, sandbox
                         ["api", "user", "--hostname", "github.com", "--include"])
                 result = execute(copied_gh, args)
                 operation_exit = result.returncode
-                assert result.returncode == 0 or (sandbox and not current_schema), "gh-api-failed"
+                refusal_expected = sandbox and not current_schema and legacy_migration_expected
+                assert result.returncode == 0 or refusal_expected, "gh-api-failed"
             for index, oid in enumerate((base, head) if operation == "bridge" else ()):
                 destination = clones / f"clone-{index}.git"
                 result = execute(copied_gh, [
@@ -218,10 +256,11 @@ def run_probe(gh: Path, git: Path, current_schema: bool, operation: str, sandbox
                                 if before.get(name) != after.get(name))
         if sandbox:
             assert not changed_config, "sandbox-permitted-config-write"
-            if not current_schema:
+            if not current_schema and legacy_migration_expected:
                 assert operation_exit != 0 and not observations, "legacy-migration-not-refused-before-api"
         elif not current_schema:
-            assert changed_config == ["config.yml", "hosts.yml"], "legacy-migration-behavior-changed"
+            migrated = ["config.yml", "hosts.yml"] if legacy_migration_expected else []
+            assert changed_config == migrated, "legacy-migration-behavior-changed"
         return {
             "schema": "rfc0015.gh-clone-local-bridge-probe.v1",
             "configuration_schema": "1" if current_schema else "legacy",
@@ -231,6 +270,7 @@ def run_probe(gh: Path, git: Path, current_schema: bool, operation: str, sandbox
             "symlinked_hosts_outside_config": symlink_hosts,
             "gh_sha256": digest,
             "gh_version": version,
+            "gh_legacy_migration_expected": legacy_migration_expected,
             "git_version": checked(["--version"]).decode(),
             "clone_results": clone_results,
             "api_requests": len(observations),
