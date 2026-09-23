@@ -225,13 +225,20 @@ AppContainer with zero capabilities, so the Windows Filtering Platform refuses
 every external connection and every descendant inherits the container token;
 configure grants that container read access to the sources and the resolved
 Qt prefix and write access to the build tree, and refuses when it cannot.
-Three things a lowbox token cannot do are needed by a few tests, and no
-directory grant can supply them because every object involved is a kernel
-object with no application-package ACE: translating a volume device into a
-drive letter (`GetFinalPathNameByHandleW` in its DOS form,
-`Path.resolve(strict=True)`, and Git's own `getcwd` all fail while the NT-form
-name resolves completely), running a `.bat` file through `cmd.exe`, and giving
-`ninja` its named pipe. The tests that need one of those are registered with
+Some tests need something the container does not give them. Each case below
+was measured on the Windows station:
+
+- translating a volume device into a drive letter. `GetFinalPathNameByHandleW`
+  in its DOS form, `Path.resolve(strict=True)` and Git's own `getcwd` all fail
+  while the NT-form name resolves completely;
+- running a `.bat` file through `cmd.exe`;
+- the named pipes that `ninja` and `QProcess` use;
+- the Windows Credential Manager;
+- starting some child processes, which `CreateProcess` refuses with WinError 5
+  ([[BPR-0872]]);
+- reading content the checkout points at but does not contain (below).
+
+The tests that need one of those are registered with
 `WINDOWS_UNCONTAINED` and run uncontained on Windows only, labelled
 `bpr_windows_uncontained`; `scripts/verify_test_network_isolation.py` pins
 that set exactly in both directions, with each member's measured cause, so it
@@ -241,6 +248,17 @@ an MSVC-linked image carries no symbol table, and the composed-host gate reads
 the linker's map of the application (`link /MAP`, beside the executable) and
 demangles it with `undname`; both fail closed when the tool is absent, which
 outside the Visual Studio developer environment it is.
+
+The documentation gate is the last case in that list. What it depends on is
+not specific to Windows. `scripts/verify_documentation.py` imports
+`board_model` and `project_config` from `.agents/skills/implement-rfc/scripts`,
+and `project_config` asks Git for the repository root. The repository does not
+track `.agents/`, which is the installed implement-rfc skill. Where skills are
+installed from the MASK store, `.agents/` is a symlink out of the checkout into
+the user's profile. A checkout without that installation cannot run the gate.
+Neither can a sandbox that cannot read the store, which is why
+`documentation_structure` and `documentation_issue_graph_contract` run
+uncontained on Windows ([[BPR-0873]]).
 
 The default graph registers no live-test exception. The earlier trusted runner,
 gate, fork protocol, and harmless canary remain regression-only surfaces and
