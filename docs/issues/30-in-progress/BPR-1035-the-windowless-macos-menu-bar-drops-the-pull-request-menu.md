@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1035"
 title: "The windowless macOS menu bar drops the Pull Request menu that BPR-0990 added to the window's bar"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0033"]
 depends_on: []
 priority: "P1"
