@@ -124,3 +124,22 @@ monospaced face with it (`fix-100-…`, `fix-200-…`).
 macOS and Linux were not run from this station. They take the fallback only
 if their fixed font resolves proportional, which their green rows show it
 does not.
+
+## Post-close: macOS at `14afcdee` (Mac main station, 2026-09-23)
+
+This is the macOS half of AC1, which the Windows station reasoned from code.
+macOS 26.6.2 arm64, `build/dev` (Apple clang 21.0.0, Debug, Qt 6.11.2), offscreen, serial (`ctest -j1`), as registered. `14afcdee` contains `1eab866e`, and the panel has not changed since.
+
+- All nine rows pass: `qt_composed_github_scale_100`, `_125` and `_200`
+  (3.00–3.48 s), `qt_device_authorization_scale_100`, `_125` and `_200`
+  (4.88–5.23 s), and [[BPR-0653]]'s `qt_workbench_title_row_scale_100`,
+  `_125` and `_200` (1.28–1.76 s).
+- **macOS does not take the fallback.** A local probe (two `qWarning` lines
+  in `apply_fonts`, never committed) printed the code font on both sides of
+  the new check in every sign-in the rows build. Offscreen on macOS the fixed
+  font is also named `monospace`, but it resolves to **Menlo**,
+  `fixedPitch() == 1`, at 14.25 pt / 19 px against a 9 pt row (21 pt against
+  the composed strip's 13 pt row). So the check is false, the family list is
+  never set, and the code keeps the face it had before the fix.
+
+Linux is still reported only by reasoning.
