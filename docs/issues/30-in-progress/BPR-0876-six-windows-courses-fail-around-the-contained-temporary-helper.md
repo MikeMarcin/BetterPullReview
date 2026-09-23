@@ -103,3 +103,60 @@ latent — every machine in this run exceeds 3.12 — and 0868 is a diagnostic
 multiplier rather than a prerequisite: making the helper report a failed
 removal by name would have surfaced this card's single leak
 (`AC\Temp\bpr-0644-relaunch-...`) for free instead of by hand.
+
+## Measured both ways at `470920d5`; two rows pinned (bpr-main-win, 2026-09-23)
+
+Run `bpr-main-win-20260923`. Windows 11 Home 10.0.26200, MSVC 19.51 Debug,
+`build/dev` at `470920d5`, serial and offscreen. Each row was run contained as
+registered, then uncontained through a temporary `WINDOWS_UNCONTAINED` that
+was reverted afterwards, as [[BPR-1020]] did. Logs are under
+`build/logs/bpr-0872-0876-main-win/` and are not committed.
+
+| Course | Contained, as registered | Uncontained | Now |
+|---|---|---|---|
+| `application_device_binding_launch_renewal` | `FAILED: private desktop test root under the canonical storage policy` | Passes, 32.31 s | Pinned `dos-volume-name`; passes, 31.88 s |
+| `application_profile_window_restart_public_path` | `seed failed (3)` | Passes, 16.48 s | Pinned `dos-volume-name`; passes, 16.50 s |
+| `application_device_binding_relaunch` | Past the `os.chmod` (fixed in `d3b5a3ef`); now `SEED_STARTUP_PROFILE_REFUSAL:registry_unavailable`, `FAILED(seed): application startup succeeds` | Every step passes; then the helper cannot remove `...\application\state\v1\device-bindings.sqlite3`: `[WinError 32] ... being used by another process` | Red both ways |
+| `application_profile_window_layout_public_path` | `seed failed (3)` | Completes; then `RemovalFailed` on `...\data\state\v1\profile-registry.sqlite3`, `[WinError 32]` | Red both ways |
+| `application_profile_window_review_restoration_public_path` | `auth-seed failed (3)`, then `RemovalFailed` on `AC\Temp\bpr-0709-restart-...\auth`, `[WinError 5]` | `auth-seed failed (1)`, `FAILED: desktop admitted` | Red both ways |
+| `application_profile_owner_admission_public_path` | The seed's `CalledProcessError` | — | [[BPR-0907]] carries it (Backlog) |
+
+**Pinned, in one commit with the dictionary.** The two courses that pass
+uncontained are registered `WINDOWS_UNCONTAINED` and pinned `dos-volume-name`,
+the term [[BPR-0833]] and [[BPR-0845]] used for this refusal. The keywords are
+in `tests/end_to_end/CMakeLists.txt` and the entries, with the measurement, are
+in `scripts/verify_test_network_isolation.py`.
+`test_network_isolation_manifest` reports
+`TEST_NETWORK_ISOLATION_OK:configured=414:registrations=388`, and
+`test_network_isolation_structure_contract` passes.
+
+**Not pinned, because a pin would not make them green.** As [[BPR-0907]] found
+for the owner-admission course, three more rows have a second obstacle behind
+the container.
+
+- Two courses run every step uncontained and fail only when the contained
+  temporary helper removes their root. A store file is still held open. No
+  course or application process was left running a few seconds later, so the
+  helper's retry window is shorter than the application's release of its
+  handles on Windows. That is a harness or teardown race, and an ID has been
+  requested for it. Since [[BPR-0868]] the helper names the file instead of
+  swallowing the error, and that is how this was found.
+- The review-restoration course's authorization seed fails uncontained at
+  "desktop admitted". That is not yet diagnosed.
+
+**BPR-0854 item 1 did not cause any of this.** That statement above still
+holds. The `os.chmod` failure the card opened with is gone. `d3b5a3ef`
+guarded both the `mkdir` mode and the `chmod` on
+`inherits_parent_permissions`, and that course now stops later, at the
+registry refusal contained and at the teardown race uncontained.
+
+### Frontier
+
+Two of six courses pass. Four remain, each with a named cause:
+
+- `relaunch` and `layout`: the teardown race, for which an ID was requested.
+- `review_restoration`: its uncontained seed.
+- `owner_admission`: [[BPR-0907]].
+
+The POSIX owner-only contract is untouched: no POSIX path changed. The card
+stays In Progress until each remaining row passes or has its own record.

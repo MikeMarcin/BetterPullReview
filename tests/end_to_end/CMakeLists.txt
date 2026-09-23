@@ -2521,7 +2521,9 @@ target_link_libraries(test_device_binding_launch_renewal PRIVATE BetterPullRevie
 target_compile_definitions(test_device_binding_launch_renewal PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_device_binding_launch_renewal)
 bpr_enable_warnings(test_device_binding_launch_renewal)
-bpr_add_network_isolated_test(NAME application_device_binding_launch_renewal COMMAND test_device_binding_launch_renewal)
+# [[BPR-0876]]. Uncontained on Windows: contained it stops at its first step,
+# narrowing its private desktop test root (dos-volume-name, as BPR-0833).
+bpr_add_network_isolated_test(NAME application_device_binding_launch_renewal WINDOWS_UNCONTAINED COMMAND test_device_binding_launch_renewal)
 set_tests_properties(application_device_binding_launch_renewal PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "device-binding-launch-renewal-tests:pass")
 
 # BPR-0644. A restored grant with hours of access left survives an orderly
@@ -2830,7 +2832,9 @@ target_compile_definitions(test_profile_window_restart_public_path PRIVATE BPR_B
 target_compile_features(test_profile_window_restart_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_window_restart_public_path)
 bpr_enable_warnings(test_profile_window_restart_public_path)
-bpr_add_network_isolated_test(NAME application_profile_window_restart_public_path
+# [[BPR-0876]]. Uncontained on Windows: contained its seeding executable exits
+# 3, the contained std::filesystem::canonical abort (dos-volume-name).
+bpr_add_network_isolated_test(NAME application_profile_window_restart_public_path WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_window_restart_contract.py"
     --application $<TARGET_FILE:test_profile_window_restart_public_path>)
 set_tests_properties(application_profile_window_restart_public_path PROPERTIES
