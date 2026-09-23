@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0891"
 title: "application_logging is registered on UNIX only, so Windows has no evidence that logs exclude tokens"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
