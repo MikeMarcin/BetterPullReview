@@ -12,6 +12,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #if defined(_WIN32)
 	#include "bpr/adapters/sqlite/storage_root.hpp"
@@ -303,6 +304,42 @@ namespace {
 		receive_request(*server).Reply->complete(outcome::queued);
 		await_child(child);
 	}
+
+	void test_rendezvous_keeps_only_its_socket()
+	{
+		// [[BPR-0895]]. On macOS the runtime directory is `$TMPDIR`, which the system age-reaps:
+		// it removes regular files left idle for three days and skips sockets. An idle owner keeps
+		// its rendezvous only while binding puts nothing but sockets there. Only `bpr-` names are
+		// compared, because Linux's `/run/user/<uid>` is shared with everything else the user runs.
+		const scratch_directory root;
+		const auto              endpoint = profile_activation_endpoint(root.Path);
+		expect(endpoint.has_value(), "one-socket course resolves the endpoint");
+		const auto directory = endpoint->parent_path();
+		const auto entries   = [&directory] {
+			std::vector<std::filesystem::path> names;
+			for (const auto& entry : std::filesystem::directory_iterator{ directory }) {
+				if (entry.path().filename().string().starts_with("bpr-")) {
+					names.push_back(entry.path());
+				}
+			}
+			return names;
+		};
+		const auto before = entries();
+		auto       lease  = acquire_profile_runtime_lease(root.Path);
+		expect(lease.has_value(), "one-socket course lease");
+		auto server = make_profile_activation_server(root.Path, profile, *lease);
+		expect(server.has_value(), "one-socket course binds");
+		auto added = false;
+		for (const auto& path : entries()) {
+			if (std::ranges::find(before, path) != before.end()) {
+				continue;
+			}
+			struct stat info{ };
+			expect(::lstat(path.c_str(), &info) == 0 && S_ISSOCK(info.st_mode), "binding adds nothing but sockets to the runtime directory");
+			added = added || path == *endpoint;
+		}
+		expect(added, "binding adds the endpoint socket to the runtime directory");
+	}
 #else
 	// [[BPR-0979]]. The Windows contract mirrors the POSIX one over the named
 	// pipe: authority, real independent client processes, hostile framing and a
@@ -541,6 +578,7 @@ auto main(int aCount, char** aArguments) -> int
 	test_hostile_framing();
 #if !defined(_WIN32)
 	test_stale_endpoint();
+	test_rendezvous_keeps_only_its_socket();
 #endif
 	std::cout << "profile-activation-tests:pass\n";
 }

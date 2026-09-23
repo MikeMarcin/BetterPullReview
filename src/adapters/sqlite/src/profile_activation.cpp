@@ -168,6 +168,13 @@ namespace bpr::adapters::sqlite {
 		/// Each candidate is verified owner-private rather than assumed, and a shared candidate
 		/// such as `/tmp` earns one owner-private child instead, verified as a real directory so
 		/// a planted symlink is refused rather than followed. No existing permissions are widened.
+		///
+		/// On macOS the candidate that verifies is `$TMPDIR`, and `dirhelper` age-reaps it daily.
+		/// BPR-0895 measured the reap: it removes a regular file whose birth and access times are
+		/// both more than three days old and which no process holds open, and it skips sockets.
+		/// An owner idle for longer therefore keeps its endpoint's name, but only while the socket
+		/// is all the rendezvous keeps in this directory; `sqlite_profile_activation` holds that.
+		/// A reboot empties the directory, and it ends the owner as well.
 		auto runtime_directory() -> std::optional<std::filesystem::path>
 		{
 			const auto identity = std::to_string(::geteuid());
