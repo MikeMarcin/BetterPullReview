@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0788"
 title: "Verify and close RFC-BPR-0015"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0015"]
 depends_on: ["BPR-0787"]
 closeout_for: ["RFC-BPR-0015"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/plans/rfc-bpr-0015-cli-profile/milestone-plan.json"}}
-blocked_by: "independent-review"
 ---
 
 # Verify and close RFC-BPR-0015
