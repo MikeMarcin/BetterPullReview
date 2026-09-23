@@ -136,8 +136,11 @@ failures, and an ID has been requested for it.
 
 ### Verification
 
-Measured at `2b14139f` with the BPR-1029, BPR-1030 and BPR-1031 changes
-applied, which is the source tree those three cards' commits produce:
+Measured first on `7d68d5a3`'s source with the BPR-1029, BPR-1030 and
+BPR-1031 changes applied, then again at the pushed head `4fd95fe5`, where
+BPR-1030 is `8d6a01bf`. At `4fd95fe5`, after full relinks,
+`sqlite_release_maintenance_files` passes in 0.76 s, and the public course
+stops at the same purge-inventory step. The first measurement:
 
 | Row | Before (`7bf7de5b`) | After |
 |---|---|---|
@@ -152,8 +155,8 @@ files.
 
 ## Frontier: waiting for the purge card's ID
 
-Both named failures are fixed and committed (`304f27e3`), and AC1, AC2 and
+Both named failures are fixed and committed (`8d6a01bf`), and AC1, AC2 and
 AC4 have their evidence above. AC3 asks that the purge refusal have its own
 record. Its ID was requested from the coordinator, because this station does
 not allocate. When the card exists, link it here and finish with the
-prepared acceptance: AC1–AC4 at `3d7093f7`, the tree measured above.
+prepared acceptance: AC1–AC4 at `4fd95fe5`, the pushed head measured above.
