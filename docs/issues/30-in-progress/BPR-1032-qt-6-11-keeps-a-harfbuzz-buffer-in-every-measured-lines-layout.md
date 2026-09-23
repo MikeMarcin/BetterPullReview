@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1032"
 title: "Qt 6.11 keeps a HarfBuzz buffer in every measured line's layout, about 1.8 KiB a line"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
