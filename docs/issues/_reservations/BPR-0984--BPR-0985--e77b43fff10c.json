@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0984",
+    "BPR-0985"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "post-merge of codex/rfc-0018-0026-closeout: workbench composition probe geometry regression; RFC-0025 reading-restoration repair",
+  "created": "2026-09-23T04:09:47.776883+00:00",
+  "base": "6a897af8b370c719e231af3a9098e5e5d5bca899"
+}
