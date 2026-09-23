@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0868"
 title: "The contained temporary helper swallows a removal error that tempfile would have raised"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
-depends_on: []
+depends_on: ["BPR-0876"]
 priority: "P3"
-platforms: ["mac", "linux", "win"]
+platforms: ["win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-sweep-fixes review of BPR-0854 item 1","found_at":"e84eaba2","run":"run-20260916-stations","dispatch":"dsp-005"}
 ---
 
@@ -272,3 +272,20 @@ So all three acceptance lines are now met in substance. The card is left In
 Progress only because "the five Windows contained courses run without leaking"
 was demonstrated on one of the five; the other four root under the container
 temp and wait on the same startup-refusal fix.
+
+## Reconciled to Backlog by the Mac main station (2026-09-23, Mac batch 3)
+
+Idle since 2026-09-17. The fix landed in `e9c9d5c6` and does not need to
+change. On macOS at `7fc4f6ab`, `contained_temporary_support_contract` passes
+(0.10 s) and so does `contained_temporary_usage_contract` (2.15 s)
+(`build/mac3-stale-cards.log`). Two acceptance lines are met, and the
+Windows-station section above shows the report working on a real leak.
+
+What is left is one line and it is Windows-only: the five contained courses
+from [[BPR-0854]] item 1 run without leaking a directory. One of the five
+was shown. The other four still stop at their exit-3 seeds before they reach
+removal, and [[BPR-0876]] (Ready, Windows) owns that. No Mac or Linux work
+remains, so the card moves to Backlog with `platforms: ["win"]` and a
+dependency on BPR-0876. It returns to Ready for `bpr-main-win` when BPR-0876
+is Done. Then one Windows run of the five courses, with no leftover
+`bpr-*` directory under the container's `%TEMP%`, closes it.
