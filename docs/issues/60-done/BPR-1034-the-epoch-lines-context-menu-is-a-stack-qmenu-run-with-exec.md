@@ -90,3 +90,25 @@ committed.
 `clang-format --dry-run --Werror` is clean on both files. macOS and Linux
 were not run from this station. The course is the same there, and the
 product change is platform-neutral Qt.
+
+## Post-close: macOS at `14afcdee` (Mac main station, 2026-09-23)
+
+This is the macOS half of AC2, and a macOS run of AC1's negative control.
+macOS 26.6.2 arm64, `build/dev` (Apple clang 21.0.0, Debug, Qt 6.11.2), offscreen, serial (`ctest -j1`), as registered. `14afcdee` contains `846b4851`, and neither file has changed since.
+
+- `qt_epoch_comparison_scale_100`, `_125` and `_200` pass (0.36–0.93 s
+  over two runs), and `_100` passes 5 of 5 with `--repeat until-fail:5`
+  (0.40–0.47 s). The new course, `test_epoch_line_menu_goes_with_its_window`,
+  has no platform guard, so it ran in each.
+- **The negative control fails on macOS too, not only under the MSVC Debug
+  CRT.** With `epoch_line.cpp` put back to `846b4851^` (the stack menu run by
+  `exec()`; local, never committed), `qt_epoch_comparison_scale_100` fails in
+  0.80 s with `TEST_RUNNER_CHILD_EXIT_FAILED:-6`. Run directly under `lldb`,
+  libmalloc reports `pointer being freed was not allocated` for a stack
+  address, and the abort is in `QObjectPrivate::deleteChildren()` from
+  `~epoch_line`, under `~epoch_comparison_control`, from the course's window
+  reset in `test_epoch_line_menu_goes_with_its_window`. That is the defect the
+  card describes: the window frees the menu that sits on the handler's
+  stack. With the file restored and rebuilt, the rows pass again.
+
+Linux is still reported only by reasoning.
