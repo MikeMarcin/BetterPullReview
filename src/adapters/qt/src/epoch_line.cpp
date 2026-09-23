@@ -687,16 +687,25 @@ namespace bpr::qt {
 			return;
 		}
 		const auto index = *hit;
-		QMenu      menu{ this };
-		menu.setObjectName(QStringLiteral("epochLineMenu"));
-		auto* const from = menu.addAction(QStringLiteral("Compare from here"));
+		// [[BPR-1034]]. As [[BPR-1028]] did for the Windows strip's menu: a
+		// heap child that deletes itself on close, opened with popup(), not a
+		// menu on this handler's stack run by exec(). Anything that destroys the
+		// window while the menu is open (an accessible Quit or close, a profile
+		// shutdown, an update's quit) then deletes the menu with the line's other
+		// children, and no frame of this handler is left waiting for it. The
+		// actions' connections carry the update index by value and have this
+		// line as their context, so they need nothing from this frame.
+		auto* const menu = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("epochLineMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		auto* const from = menu->addAction(QStringLiteral("Compare from here"));
 		from->setObjectName(QStringLiteral("compareFromUpdateAction"));
-		auto* const to = menu.addAction(QStringLiteral("Compare to here"));
+		auto* const to = menu->addAction(QStringLiteral("Compare to here"));
 		to->setObjectName(QStringLiteral("compareToUpdateAction"));
-		auto* const alone = menu.addAction(QStringLiteral("Show this update alone"));
+		auto* const alone = menu->addAction(QStringLiteral("Show this update alone"));
 		alone->setObjectName(QStringLiteral("showUpdateAloneAction"));
-		menu.addSeparator();
-		auto* const copy = menu.addAction(QStringLiteral("Copy head commit"));
+		menu->addSeparator();
+		auto* const copy = menu->addAction(QStringLiteral("Copy head commit"));
 		copy->setObjectName(QStringLiteral("copyUpdateHeadAction"));
 		from->setEnabled(Offered && (Updates[index].Id || Updates[index].ImportOccurrence));
 		to->setEnabled(Offered && (Updates[index].Id || Updates[index].ImportOccurrence));
@@ -724,7 +733,7 @@ namespace bpr::qt {
 					view.data(), static_cast<qsizetype>(view.size())));
 			}
 		});
-		menu.exec(aEvent->globalPos());
+		menu->popup(aEvent->globalPos());
 		aEvent->accept();
 	}
 

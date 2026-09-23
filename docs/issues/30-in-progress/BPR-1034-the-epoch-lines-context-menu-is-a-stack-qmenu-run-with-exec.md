@@ -49,3 +49,43 @@ Not reproduced. Found by reading the code while fixing [[BPR-1028]].
   behind, and the menu destroyed with its window. Against the stack form, the
   same course fails, at least under the MSVC Debug CRT.
 - AC2 The epoch line's existing courses pass on macOS, Linux and Windows.
+
+## Fixed, with the course and its negative control (bpr-main-win, 2026-09-23)
+
+**The fix.** In `epoch_line::contextMenuEvent`
+(`src/adapters/qt/src/epoch_line.cpp`), the menu is now a heap child of the
+line with `WA_DeleteOnClose`, opened with `popup()`. This is the shape
+[[BPR-1028]] gave `workbench_window::open_strip_menu`. The object names, the
+enabled rules and the `choose` calls are unchanged. The actions'
+connections carry the update index by value and use the line as their
+context, so they need nothing from the handler's frame. No course relied on
+`exec()` blocking: nothing else in `tests/` sends the line a context-menu
+event.
+
+**The course.** `test_epoch_line_menu_goes_with_its_window`
+(`tests/adapters_qt/epoch_comparison_control_tests.cpp`) runs in every
+`qt_epoch_comparison_scale_*` row, on every platform. It places the epoch
+comparison control in a window, publishes three updates, and sends the line
+a context-menu request on the middle update. It then checks:
+
+- The menu is the line's own child, named `epochLineMenu`. It offers the
+  four actions in order. Closed, it deletes itself.
+- Opened again, the window is destroyed from the event loop while the menu is
+  open. The window, the control, the line and the menu all go, and no popup
+  is left behind.
+
+The helper runs its step from the event loop once the menu shows, so the
+same course also runs against the old nested `exec()` loop.
+
+**Rows (`build/dev`, MSVC 19.51 Debug, Qt 6.11.2, offscreen, serial).** The
+records are station logs under `build/logs/bpr-1034-main-win/` and are not
+committed.
+
+| Product | `qt_epoch_comparison_scale_100` |
+| --- | --- |
+| Old stack `exec()` menu (the negative control) | `Exception: SegFault`, 2.22 s. The Debug CRT reports `debug_heap.cpp(904) : Assertion failed: _CrtIsValidHeapPointer(block)` and `(908) … is_block_type_valid`, then the child exits `0xC0000005`. |
+| Heap child with `popup()` | Passes. `_100`, `_125` and `_200` pass (2.10–2.47 s), and `_100` passes again 5 of 5 (`--repeat until-fail:5`). |
+
+`clang-format --dry-run --Werror` is clean on both files. macOS and Linux
+were not run from this station. The course is the same there, and the
+product change is platform-neutral Qt.

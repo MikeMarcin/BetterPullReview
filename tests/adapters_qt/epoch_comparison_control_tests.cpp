@@ -5,6 +5,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
+#include <QElapsedTimer>
 #include <QFont>
 #include <QKeyEvent>
 #include <QLabel>
@@ -14,6 +16,7 @@
 #include <QMouseEvent>
 #include <QPersistentModelIndex>
 #include <QPixmap>
+#include <QPointer>
 #include <QPushButton>
 #include <QStyle>
 #include <QStyleOptionToolButton>
@@ -25,7 +28,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -1766,6 +1771,100 @@ namespace {
 	}
 }
 
+namespace {
+	/// Sends the epoch line a context-menu request at aPoint and runs aStep
+	/// once, from the event loop, once the menu shows. It does not matter
+	/// whether the menu waits in a nested loop of its own, so the same course
+	/// runs against the stack `exec()` form [[BPR-1034]] replaced and fails
+	/// there. The line must not be used after aStep, which may destroy it.
+	auto with_open_epoch_line_menu(qt::epoch_line& aLine, const QPoint aPoint, const std::function<void(QMenu&)>& aStep) -> void
+	{
+		auto context  = QObject{ };
+		auto ran      = false;
+		auto attempts = 0;
+		auto poll     = std::function<void()>{ };
+		poll          = [&] {
+			if (auto* const popup = qobject_cast<QMenu*>(QApplication::activePopupWidget()); popup != nullptr) {
+				ran = true;
+				aStep(*popup);
+			} else if (++attempts < 250) {
+				QTimer::singleShot(20, &context, poll);
+			}
+		};
+		QTimer::singleShot(0, &context, poll);
+		auto request = QContextMenuEvent{ QContextMenuEvent::Mouse, aPoint, aLine.mapToGlobal(aPoint) };
+		QApplication::sendEvent(&aLine, &request);
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (!ran && attempts < 250 && elapsed.elapsed() < 10'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 20);
+		}
+		expect(ran, "a context-menu request on an update opens the epoch line's menu");
+	}
+
+	// [[BPR-1034]]. The epoch line's context menu and its window's lifetime,
+	// as [[BPR-1028]] settled for the Windows strip menu. Anything that
+	// destroys the window while the menu is open (an accessible Quit or close,
+	// a profile shutdown, an update's quit) has to take the menu with it and
+	// leave no frame of the line waiting for the menu. With the old stack menu
+	// run by `exec()`, the destruction below deleted a stack object.
+	auto test_epoch_line_menu_goes_with_its_window() -> void
+	{
+		auto window  = std::make_unique<QWidget>();
+		auto control = QPointer<qt::epoch_comparison_control>{ new qt::epoch_comparison_control{ [](application::epoch_intent) { }, window.get() } };
+		window->resize(700, 80);
+		control->resize(700, 80);
+		window->show();
+		QApplication::processEvents();
+		const auto third  = epoch_row(3, '1', '4');
+		const auto second = epoch_row(2, '1', '3');
+		const auto first  = epoch_row(1, '1', '2');
+		control->publish(loaded_catalog_update({ third, second, first }));
+		control->publish(comparison_update(
+			core::named_selection(core::named_comparison::whole_pr),
+			{
+				.Left  = anchor(first, core::comparison_anchor_kind::epoch_base),
+				.Right = anchor(third, core::comparison_anchor_kind::epoch_head),
+			}));
+		QApplication::processEvents();
+		auto line = QPointer<qt::epoch_line>{ control->line() };
+		expect(!line.isNull() && line->update_count() == 3U, "the line shows the three updates");
+
+		auto closed = QPointer<QMenu>{ };
+		auto names  = QStringList{ };
+		with_open_epoch_line_menu(*line, line->node_centre(1), [&](QMenu& aMenu) {
+			closed = &aMenu;
+			for (const auto* const action : aMenu.actions()) {
+				if (!action->isSeparator()) {
+					names.push_back(action->objectName());
+				}
+			}
+			expect(aMenu.objectName() == QStringLiteral("epochLineMenu") && aMenu.parent() == line.data(),
+				   "the epoch line's menu is the line's own child");
+			aMenu.close();
+		});
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		QApplication::processEvents();
+		expect(names
+				   == QStringList{ QStringLiteral("compareFromUpdateAction"), QStringLiteral("compareToUpdateAction"),
+								   QStringLiteral("showUpdateAloneAction"), QStringLiteral("copyUpdateHeadAction") },
+			   "the menu offers Compare from here, Compare to here, Show this update alone and Copy head commit");
+		expect(closed.isNull() && line->findChildren<QMenu*>(QStringLiteral("epochLineMenu")).isEmpty(),
+			   "a closed epoch-line menu deletes itself, so opening it again leaves nothing behind");
+
+		auto open = QPointer<QMenu>{ };
+		with_open_epoch_line_menu(*line, line->node_centre(1), [&](QMenu& aMenu) {
+			open = &aMenu;
+			window.reset();
+		});
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		QApplication::processEvents();
+		expect(window == nullptr && control.isNull() && line.isNull(), "the window, its control and its line were destroyed with the menu open");
+		expect(open.isNull(), "the open epoch-line menu went with its window");
+		expect(QApplication::activePopupWidget() == nullptr, "no popup is left behind");
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -1779,6 +1878,7 @@ auto main(int argc, char** argv) -> int
 	test_occurrence_evidence_and_unavailable_gestures();
 	test_epoch_line_selects_updates_by_click_drag_and_keys();
 	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
+	test_epoch_line_menu_goes_with_its_window();
 	std::cout << "epoch-comparison-control-tests:pass\n";
 	return EXIT_SUCCESS;
 }
