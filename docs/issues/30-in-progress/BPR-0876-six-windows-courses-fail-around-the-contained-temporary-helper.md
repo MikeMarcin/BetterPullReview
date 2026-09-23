@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0876"
 title: "Windows: six contained courses fail around the temporary helper, at a denied chmod and an exit-3 seed"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
