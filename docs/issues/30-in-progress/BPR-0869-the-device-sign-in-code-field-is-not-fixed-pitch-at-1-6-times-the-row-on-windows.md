@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0869"
 title: "Windows: the device sign-in code is not fixed-pitch at 1.6 times the row's size"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
