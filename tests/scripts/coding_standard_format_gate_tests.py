@@ -358,7 +358,12 @@ class configure_passes_over_an_older_clang_format(unittest.TestCase):
     station that can check the tree.
     """
 
-    def discover(self, aBanners: List[str]) -> str:
+    def discover(self, aBanners: List[str]) -> Optional[int]:
+        """Return the index of the stub discovery chose, or None for NOTFOUND.
+
+        Compared by real path, so a temporary root reached through a symlink,
+        as /var is on macOS, still matches.
+        """
         cmake = CMAKE_COMMAND or shutil.which("cmake")
         if cmake is None:
             self.skipTest("no cmake to run the discovery module with")
@@ -404,23 +409,28 @@ class configure_passes_over_an_older_clang_format(unittest.TestCase):
             self.assertFalse(
                 (root / "invoked.log").exists(), "discovery asked a candidate to format"
             )
-            for line in completed.stdout.splitlines():
-                if "discovered=[" in line:
-                    found = line.split("discovered=[", 1)[1].rsplit("]", 1)[0]
-                    return found.replace(str(root), "<root>")
-            self.fail(completed.stdout)
+            reported = [
+                line.split("discovered=[", 1)[1].rsplit("]", 1)[0]
+                for line in completed.stdout.splitlines()
+                if "discovered=[" in line
+            ]
+            self.assertEqual(len(reported), 1, completed.stdout)
+            found = reported[0]
+            if found == "BPR_CLANG_FORMAT_EXECUTABLE-NOTFOUND":
+                return None
+            for index, directory in enumerate(directories):
+                if os.path.realpath(found) == os.path.realpath(Path(directory) / "clang-format"):
+                    return index
+            self.fail(f"discovery chose {found}, which is none of the stubs: {completed.stdout}")
 
     def test_an_older_tool_first_on_the_path_is_passed_over(self) -> None:
-        found = self.discover([UNSUPPORTED_BANNER, SUPPORTED_BANNER])
-        self.assertEqual(found, "<root>/tool-1/clang-format")
+        self.assertEqual(self.discover([UNSUPPORTED_BANNER, SUPPORTED_BANNER]), 1)
 
     def test_the_first_supported_tool_is_taken(self) -> None:
-        found = self.discover([SUPPORTED_BANNER, NEWER_BANNER])
-        self.assertEqual(found, "<root>/tool-0/clang-format")
+        self.assertEqual(self.discover([SUPPORTED_BANNER, NEWER_BANNER]), 0)
 
     def test_only_an_older_tool_is_not_found(self) -> None:
-        found = self.discover([UNSUPPORTED_BANNER])
-        self.assertEqual(found, "BPR_CLANG_FORMAT_EXECUTABLE-NOTFOUND")
+        self.assertIsNone(self.discover([UNSUPPORTED_BANNER]))
 
 
 class the_installed_tool_satisfies_the_recorded_minimum(unittest.TestCase):
