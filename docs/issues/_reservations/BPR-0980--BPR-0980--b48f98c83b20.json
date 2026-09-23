@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0980"
+  ],
+  "reserve_for": "rfc0024-owner-amendment-r3",
+  "purpose": "Owner-authorized standalone Windows native desktop activation/New Window observation follow-up deferred from RFC-0024 BPR-0979",
+  "created": "2026-09-23T00:04:01.312204+00:00",
+  "base": "0c65b9284bbca2932c9d6cdd2a00f0fa2593afc7"
+}
