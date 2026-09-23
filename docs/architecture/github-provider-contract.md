@@ -110,7 +110,7 @@ clone; an unavailable boundary refuses the CLI profile. This covers `gh`'s
 possible first-use global configuration migration, which a post-request check
 cannot prevent. BetterPullReview must not read the helper's token exchange or
 change global authentication. Full Git comparison currently requires
-`gh` 2.100.0 and Apple Git 2.50.1 (Apple Git-155), with a 32 MiB per-file
+`gh` 2.100.0 or 2.101.0 and Apple Git 2.50.1 (Apple Git-155), with a 32 MiB per-file
 ceiling and supervised 96 MiB/128-entry temporary-store abort threshold; the
 aggregate threshold is not a hard disk quota. Local refs reflect the accepted
 API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
