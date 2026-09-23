@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0983"
 title: "Reconcile the composition contract with the updater's boundary readers and the moved vault selection"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0035"]
 depends_on: []
 priority: "P2"
