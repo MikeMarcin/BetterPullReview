@@ -469,6 +469,13 @@ namespace bpr::qt {
 		CancelButton->setVisible(cancel);
 		CopyButton->setEnabled(code);
 		OpenButton->setEnabled(address);
+		// While a code is live, Open browser is the row's one filled control,
+		// said again here because a dialog holding the row (the shared sign-in,
+		// [[BPR-0915]]) picks its own default when it is shown and clears this
+		// one ([[BPR-0940]]).
+		if (address) {
+			OpenButton->setDefault(true);
+		}
 		CodeLine->setVisible(code);
 		AddressLine->setVisible(address);
 		ActionLine->setVisible(address);

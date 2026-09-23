@@ -5036,7 +5036,13 @@ namespace {
 			   "before any review-history update the review surface states only its own "
 			   "state");
 
-		window.publish(retained_epochs({ }));
+		// An empty loaded catalog is said to be empty only once review history
+		// is ready (eecdda2a); before that it is still setting up, not empty.
+		auto emptyCatalog       = retained_epochs({ });
+		emptyCatalog.Transition = application::epoch_transition_projection{
+			.Status = core::epoch_status_delta{ .Status = core::epoch_status::ready },
+		};
+		window.publish(emptyCatalog);
 		const auto empty = window.status_text();
 		window.publish(retained_epochs({ epoch_row(1), epoch_row(2) }));
 		const auto retained = window.status_text();
@@ -7375,16 +7381,38 @@ namespace {
 
 		auto* const epochs = window.epoch_selectors();
 		auto* const client = window.centralWidget();
-		const auto  spans  = [&window, epochs, client] {
+		// [[BPR-0929]], [[BPR-0795]]. Above the epoch row the review surface
+		// keeps only its own entry rows: Compose review and Draft comment or
+		// reply, and the readiness line while a pull request loads. The epoch
+		// row sits directly beneath whichever of them show, so nothing else
+		// may come between the strip and it.
+		const auto entriesBottom = [&window, epochs, client] {
+			const auto top    = epochs->mapTo(&window, QPoint{ 0, 0 }).y();
+			auto       bottom = client->mapTo(&window, QPoint{ 0, 0 }).y();
+			for (const auto* const row : epochs->parentWidget()->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+				const auto placed = QRect{ row->mapTo(&window, QPoint{ 0, 0 }), row->size() };
+				if (row == epochs || !row->isVisible() || placed.top() >= top) {
+					continue;
+				}
+				const auto name = row->objectName();
+				if (name != QStringLiteral("reviewReadiness") && name != QStringLiteral("composeReviewActionButton")
+					&& name != QStringLiteral("composeInlineDraftActionButton")) {
+					return -1;
+				}
+				bottom = std::max(bottom, placed.bottom() + 1);
+			}
+			return bottom;
+		};
+		const auto spans = [&window, epochs, client, &entriesBottom] {
 			const auto row   = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
 			const auto area  = QRect{ client->mapTo(&window, QPoint{ 0, 0 }), client->size() };
 			const auto panes = window.central_splitter()->mapTo(&window, QPoint{ 0, 0 });
 			return epochs->isVisible() && row.left() == area.left() && row.width() == area.width()
-				&& row.top() == area.top() && row.bottom() < panes.y();
+				&& row.top() == entriesBottom() && row.bottom() < panes.y();
 		};
 		const auto before = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
 		expect(spans() && before.width() == client->width() && before.width() > window.width() / 2,
-			   "the epoch row is the first row of the client area and as wide as it");
+			   "the epoch row is the first row of the client area below the review surface's entries, and as wide as it");
 
 		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
 									 qt::review_modality::review, qt::review_modality::discuss }) {

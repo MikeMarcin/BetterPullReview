@@ -980,6 +980,10 @@ namespace bpr::e2e::large_review {
 				require(report.Rendered, "approximate full-window capture failed");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "approximate course bypassed the real diff host");
 			} else {
+				// [[BPR-0940]]. The ordinary course reads the large file where a
+				// reviewer does: in Read, so its measurement, navigation and
+				// wheel run on the visible comparison and its render shows it.
+				enter_read(*application, report, budget);
 				const auto          beforeMeasurement = surface.statistics().MeasurementBatches;
 				QTimer              inputDuringMeasurement;
 				QElapsedTimer       measurementInputClock;
@@ -1055,6 +1059,16 @@ namespace bpr::e2e::large_review {
 							&& application->status().ClassificationSubmissions == classificationBefore && controller->position() == 1000.0,
 						"scroll gesture work/position contract");
 				surface.shared_scrollbar()->setValue(0);
+				QApplication::processEvents();
+				const auto topLine = [](const QPlainTextEdit* const aPane) {
+					return aPane->cursorForPosition(QPoint{ 0, 0 }).block().text();
+				};
+				require(window.modality()->current() == qt::review_modality::read && surface.isVisible()
+							&& surface.left_pane()->isVisible() && surface.right_pane()->isVisible()
+							&& selected(surface, QStringLiteral("large/comparison.cpp"))
+							&& topLine(surface.left_pane()) == QStringLiteral("int sample_00000 = 0;")
+							&& topLine(surface.right_pane()) == QStringLiteral("int sample_00000 = 1;"),
+						"the full-window render shows Read with the large file's first source lines in both panes");
 				report.WindowWidth      = window.width();
 				report.WindowHeight     = window.height();
 				report.DevicePixelRatio = window.devicePixelRatioF();
