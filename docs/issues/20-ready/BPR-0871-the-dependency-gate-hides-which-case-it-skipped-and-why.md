@@ -274,3 +274,38 @@ SKIPPED: dependency_modernization_tests.DependencyModernizationTests.test_syntax
 
 The path is the cache's `KF6SyntaxHighlighting_DIR` in `build/dev/CMakeCache.txt`.
 The macOS observation holds.
+
+## The Windows run (bpr-main-win, 2026-09-23)
+
+The run was at `585c8a8f`, which contains `867ed35f`. It used the documented
+Windows developer preset, `windows-dev` (Visual Studio 18 2026, multi-config,
+Debug), reconfigured at this head so that `skip_report_contract` is
+registered. The command was
+`ctest --preset windows-dev -j1 -V -R "^(dependency_modernization_contract|skip_report_contract|coding_standard_format_gate_contract)$"`,
+run through a `.cmd` file. The log is
+`build/logs/bpr-0871-main-win/wdev-rows.log`, a station record that is not
+committed. All three rows passed:
+
+| Row | Result |
+|---|---|
+| `skip_report_contract` | Pass, 0.33 s, `Ran 9 tests`, `OK`. Contained: it ran through `better_pull_review_network_sandbox.exe`, label `bpr_network_isolated`. |
+| `coding_standard_format_gate_contract` | Pass, 1.80 s, `Ran 20 tests`, `OK (skipped=3)` |
+| `dependency_modernization_contract` | Pass, 94.31 s, `Ran 27 tests`, `OK`, with no skip |
+
+Against each expectation:
+
+- **All three pass.** Met.
+- **`dependency_modernization_contract` prints no `SKIPPED:` line for
+  `test_syntax_prefix_installs_one_library_per_configuration`.** Met. The row
+  prints no `SKIPPED:` line at all, and 27 of 27 cases ran, so the case
+  compared the DEBUG and RELEASE installs.
+- **`coding_standard_format_gate_contract` names its three discovery
+  cases.** Met. There is one `SKIPPED:` line each, for
+  `test_an_older_tool_first_on_the_path_is_passed_over`,
+  `test_only_an_older_tool_is_not_found` and
+  `test_the_first_supported_tool_is_taken`. Each gives the reason "find_program
+  on Windows looks for .com and .exe files, and these stubs are batch files".
+- **`skip_report_contract` passes contained.** Met.
+
+The Windows observation holds. This note does not move the card. Linux
+finishes it.
