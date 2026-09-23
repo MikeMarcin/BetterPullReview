@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0888"
 title: "The reconciliation conflict signal is unreachable in production and misses the delete-versus-local-edit case"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
