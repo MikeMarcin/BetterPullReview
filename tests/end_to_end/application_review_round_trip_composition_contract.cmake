@@ -53,6 +53,11 @@ endfunction()
 # BPR-0984 reseal: the BPR_BUILD_TESTING workbench composition probe ignores
 # the window's observed geometry in its session-fallback comparison; no
 # product path changes. Review recorded on BPR-0984.
+# BPR-0987 reseal: the setup open reads a pasted link's typed location, keeps
+# the pull request the window already shows instead of reading it again, and
+# places the location after acceptance; a Recently viewed row of the shown pull
+# request lands on Overview without a read. No credential, provider, vault or
+# mutation path changes. Review recorded on BPR-0987.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -71,7 +76,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8ffa0e73517c48aafa985ff27f61bbd7484b19a7bef3dd3635485ff2501cb201"
+		"2585f4eafa5740799dc15d9d3b9ea6539480a6a778b120219c8df232046c4826"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -206,7 +211,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ac94ddb31847481b5104404312faac7724051487b7eacbb03a0e7a96083b0c1c"
+        "7f6458ae9209746c0ae2f026101dbefc928ea950c7bbd37bc65e21a87259f238"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

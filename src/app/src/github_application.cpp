@@ -69,6 +69,7 @@
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
+#include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
 
@@ -155,6 +156,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cctype>
 #include <cerrno>
 #include <charconv>
 #include <chrono>
@@ -5955,6 +5957,18 @@ namespace bpr::app {
 			const auto& destination = recent[index].Destination;
 			retire_setup_effects();
 			cancel_restoration(true);
+			// [[BPR-0987]]. The row's pull request is already shown here under
+			// the same session: it lands on Overview as a row does, without
+			// being read again.
+			const auto& session = Host != nullptr ? Host->accepted_session() : std::optional<application::github_session_read_model>{ };
+			const auto* profile = session ? find_profile(session->Profile) : nullptr;
+			if (profile != nullptr && session->Mode == destination.Mode && profile->hostname() == destination.Hostname
+				&& WindowRead->state().ActiveProfile == session->Profile
+				&& shows_destination({ .Hostname = destination.Hostname, .Repository = destination.Repository, .Number = destination.Number })) {
+				Window->choose_home(false);
+				Window->choose_modality(qt::review_modality::overview);
+				return;
+			}
 			SetupDestination->submit("https://" + destination.Hostname + "/" + destination.Repository.Owner + "/" + destination.Repository.Name + "/pull/" + std::to_string(destination.Number.value()));
 		}
 		std::optional<core::request_id>                    RestorationReadRequest;
@@ -6064,6 +6078,7 @@ namespace bpr::app {
 		{
 			Window->publish(aProjection);
 			schedule_reading_restoration();
+			schedule_link_location();
 		}
 		void fail(const application::workbench_failure_publication& aFailure) override
 		{
@@ -6191,7 +6206,8 @@ namespace bpr::app {
 					Window->publish(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
-					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get());
+					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
+					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get());
 			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? WindowRead->open_markdown_link(aIntent, Profile->ComposedBrowser)
@@ -6864,6 +6880,7 @@ namespace bpr::app {
 					correlate_defects();
 					retain_reading_position();
 					schedule_reading_restoration();
+					schedule_link_location();
 				},
 				[this] { if (ReadingRestoration) { ReadingFailed = true; schedule_reading_restoration(); } });
 			DiffHost = std::make_unique<application::diff_application_host>(
@@ -9830,6 +9847,9 @@ namespace bpr::app {
 		}
 		void retire_setup_effects()
 		{
+			// [[BPR-0987]]. A newer gesture or an account change retires the
+			// location an earlier link was still waiting to place.
+			PendingLinkLocation.reset();
 			SetupConfigurationRequest.reset();
 			SetupConfigurationSubmitted = false;
 			SetupAcceptedGeneration.reset();
@@ -9947,7 +9967,7 @@ namespace bpr::app {
 				present({ .Pending = std::nullopt, .Notice = "Reading without signing in is unavailable here. The requested link is retained; sign in to open it.", .Opened = false });
 			}
 		}
-		void open(const core::host_profile_id aProfile, const core::setup_destination& aDestination) override
+		auto open(const core::host_profile_id aProfile, const core::setup_destination& aDestination) -> application::setup_destination_opening override
 		{
 			const auto& session = Host ? Host->accepted_session() : std::optional<application::github_session_read_model>{ };
 			const auto* profile = find_profile(aProfile);
@@ -9958,10 +9978,169 @@ namespace bpr::app {
 			// Accepted sessions cover both native credentials and token-free CLI leases.
 			const auto authenticated = session && session->Mode == core::github_access_mode::authenticated && session->Profile == aProfile
 				&& profile != nullptr && session->Host == profile->host() && profile->hostname() == aDestination.Hostname;
+			PendingLinkLocation.reset();
 			if (!previewing && !authenticated) {
-				return;
+				return application::setup_destination_opening::reading;
+			}
+			// [[BPR-0987]]. A link to the pull request this window already
+			// shows under this session reads nothing again: the window keeps
+			// its review and goes to the location. Anything else opens here
+			// and goes to the location once this window accepts it.
+			const auto shown = shows_destination(aDestination) && WindowRead->state().ActiveProfile == aProfile;
+			if (shown || aDestination.Target.Kind != core::pull_request_location_kind::pull_request) {
+				PendingLinkLocation = link_location{ .Destination = aDestination };
+			}
+			if (shown) {
+				Window->choose_home(false);
+				schedule_link_location();
+				return application::setup_destination_opening::navigated;
 			}
 			WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
+			return application::setup_destination_opening::reading;
+		}
+
+		/// [[BPR-0987]]. A pasted link's location, waiting for this window to
+		/// accept its pull request, then its file, then that file's diff.
+		struct link_location
+		{
+			core::setup_destination                           Destination;
+			std::optional<core::pull_request_location_target> Target;
+			std::optional<core::workbench_file_id>            File;
+		};
+		std::optional<link_location> PendingLinkLocation;
+		bool                         LinkLocationQueued = false;
+
+		[[nodiscard]] static auto same_name(const std::string_view aLeft, const std::string_view aRight) -> bool
+		{
+			// GitHub owner and repository names compare without case; a link
+			// may carry either.
+			return std::ranges::equal(aLeft, aRight, [](const char aOne, const char aTwo) {
+				return std::tolower(static_cast<unsigned char>(aOne)) == std::tolower(static_cast<unsigned char>(aTwo));
+			});
+		}
+		[[nodiscard]] auto shows_destination(const core::setup_destination& aDestination) const -> bool
+		{
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			return snapshot.has_value() && !WindowRead->state().PendingPullRequest.has_value()
+				&& snapshot->PullRequest.Number == aDestination.Number
+				&& same_name(snapshot->Repository.Owner, aDestination.Repository.Owner)
+				&& same_name(snapshot->Repository.Name, aDestination.Repository.Name);
+		}
+		void schedule_link_location()
+		{
+			if (Closing || !PendingLinkLocation || LinkLocationQueued) {
+				return;
+			}
+			LinkLocationQueued = true;
+			DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (weak.expired()) {
+					return;
+				}
+				LinkLocationQueued = false;
+				advance_link_location();
+			});
+		}
+		void finish_link_location(const core::pull_request_location_refusal aRefusal, const bool aWholeLocation)
+		{
+			const auto requested = PendingLinkLocation ? PendingLinkLocation->Destination.Location : std::string{ };
+			PendingLinkLocation.reset();
+			if (aRefusal == core::pull_request_location_refusal::none || Window == nullptr) {
+				return;
+			}
+			const auto lead = aWholeLocation ? QStringLiteral("The requested location is unavailable; opened the pull request. ")
+											 : QStringLiteral("Opened the file; the requested line is unavailable. ");
+			Window->present_link_location_notice(lead + QString::fromUtf8(core::explanation(aRefusal)) + QStringLiteral(" Requested location: ")
+												 + QString::fromStdString(requested));
+		}
+		[[nodiscard]] auto comparison_ends_at_head() const -> bool
+		{
+			const auto& epoch = EpochHost->state();
+			return epoch.AcceptedComparison.has_value() && !epoch.PendingComparison.has_value()
+				&& conversation_endpoint_is_current(*epoch.AcceptedComparison, core::diff_side::right);
+		}
+		void advance_link_location()
+		{
+			if (Closing || !PendingLinkLocation || Window == nullptr || WorkbenchHost == nullptr || EpochHost == nullptr) {
+				return;
+			}
+			if (WindowRead->state().PendingPullRequest.has_value()) {
+				return;
+			}
+			if (!shows_destination(PendingLinkLocation->Destination)) {
+				// The open failed or the window moved on; nothing is placed.
+				PendingLinkLocation.reset();
+				return;
+			}
+			auto& pending = *PendingLinkLocation;
+			if (!pending.Target) {
+				// A line is judged against the comparison the window settles
+				// on, so resolution waits until one is accepted.
+				if (pending.Destination.Target.Kind == core::pull_request_location_kind::file && pending.Destination.Target.Side
+					&& (!EpochHost->state().AcceptedComparison || EpochHost->state().PendingComparison)) {
+					return;
+				}
+				const auto facts = application::pull_request_link_location_facts_of(*WindowRead->accepted_snapshot());
+				pending.Target   = core::resolve_pull_request_location(pending.Destination.Target, facts.facts(comparison_ends_at_head()));
+			}
+			const auto& target = *pending.Target;
+			switch (target.Action) {
+			case core::pull_request_location_action::none:        finish_link_location(core::pull_request_location_refusal::none, true); return;
+			case core::pull_request_location_action::unavailable: finish_link_location(target.Refusal, true); return;
+			case core::pull_request_location_action::reveal_conversation:
+				if (Window->reveal_conversation(target.Conversation)) {
+					finish_link_location(core::pull_request_location_refusal::none, true);
+				} else {
+					finish_link_location(pending.Destination.Target.Kind == core::pull_request_location_kind::review ? core::pull_request_location_refusal::review_not_read
+																													 : core::pull_request_location_refusal::comment_not_identified,
+										 true);
+				}
+				return;
+			case core::pull_request_location_action::select_file: break;
+			}
+			if (!pending.File) {
+				// The file list is this pull request's once the epoch host holds
+				// its authority: the workbench observes that authority first.
+				const auto& snapshot  = *WindowRead->accepted_snapshot();
+				const auto& authority = EpochHost->state().Authority;
+				if (!authority || authority->PullRequest != snapshot.PullRequest.PullRequest || authority->Repository != snapshot.Repository.Repository
+					|| !WorkbenchHost->state().Navigation.has_value()) {
+					return;
+				}
+				const auto file = core::file_identity_of(target.Path);
+				if (std::ranges::find(WorkbenchHost->actionable(), file) == WorkbenchHost->actionable().end()) {
+					finish_link_location(core::pull_request_location_refusal::file_not_in_pull_request, true);
+					return;
+				}
+				pending.File = file;
+				Window->choose_home(false);
+				Window->choose_modality(qt::review_modality::read);
+				if (WorkbenchHost->selected() != file) {
+					WorkbenchHost->apply(core::select_workbench_file_intent{ file });
+				}
+				if (!target.RightLine) {
+					finish_link_location(target.Refusal, false);
+					return;
+				}
+			}
+			if (WorkbenchHost->selected() != pending.File) {
+				// Another file was chosen first; that gesture wins.
+				PendingLinkLocation.reset();
+				return;
+			}
+			const auto* surface     = Window->comparison_surface();
+			const auto& publication = SelectedDiffPublication;
+			if (!publication || publication->Request.File.File != *pending.File || !surface->current_result() || !surface->current_context()
+				|| surface->current_context()->Key != publication->Key || !surface->current_semantic_index()) {
+				return;
+			}
+			if (!comparison_ends_at_head()) {
+				finish_link_location(core::pull_request_location_refusal::line_needs_head, false);
+				return;
+			}
+			const auto& index     = *surface->current_semantic_index();
+			const auto  selection = core::select_line(index, core::source_line_ref{ .Comparison = index.diff().Alignment.Digest, .Side = core::diff_side::right, .Line = *target.RightLine });
+			const auto  placed    = selection.has_value() && Window->comparison_surface()->restore_selection(*selection);
+			finish_link_location(placed ? core::pull_request_location_refusal::none : core::pull_request_location_refusal::line_not_in_file, false);
 		}
 		void observe_setup_session(const application::github_presentation_update& aUpdate)
 		{
@@ -11435,6 +11614,7 @@ namespace bpr::app {
 			}
 			retain_reading_position();
 			schedule_reading_restoration();
+			schedule_link_location();
 		}
 
 		void clear_diff_selection()

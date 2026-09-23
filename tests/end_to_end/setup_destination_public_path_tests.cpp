@@ -2,6 +2,7 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
+#include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -324,6 +325,95 @@ namespace {
 		wait_for([&] { return owner->status().ShutdownComplete; }, "missing endpoint course quiescence");
 	}
 
+	/// [[BPR-0987]]. Pasted pull request links with locations, in the
+	/// composed window over the two-file recorded pull request: each exact
+	/// location is placed through the ordinary gesture paths, each location
+	/// that cannot be placed opens the pull request and says why, and a link
+	/// to the pull request the window already shows reads nothing again.
+	void run_link_location_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated link-location course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
+		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private link-location course root");
+		options.RepeatReadSessions = true;
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "link-location course startup");
+		expect(owner != nullptr, "link-location course application");
+		auto& window = owner->window();
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_open_action()->isEnabled(); }, "link-location course connection");
+		const auto  base      = QStringLiteral("https://github.com/octo-org/review-repository/pull/17");
+		const auto  digest    = [](const char* aPath) { return QString::fromStdString(core::pull_request_file_digest(aPath)); };
+		auto* const surface   = window.comparison_surface();
+		const auto  secondary = core::file_identity_of("secondary.cpp");
+		const auto  review    = core::file_identity_of("review.cpp");
+		const auto  reads     = [&] { return github_application_fixture_access::evidence(*owner).AccountReadCount; };
+		const auto  said      = [&](const QString& aText) {
+			return window.statusBar()->currentMessage().contains(aText) && window.home_open_notice()->text().contains(aText);
+		};
+
+		// A file and its head-side line, opened from Home by a whole link.
+		submit(window, base + QStringLiteral("/files#diff-") + digest("secondary.cpp") + QStringLiteral("R2"));
+		wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready && window.files_tree()->tree_model()->file_count() == 2U; }, "link-location exact comparison");
+		wait_for([&] {
+			const auto selection = surface->selection();
+			return surface->current_context() && surface->current_context()->Key.File == secondary && selection.has_value()
+				&& selection->PreferredLine.Side == core::diff_side::right && selection->PreferredLine.Line == 1U;
+		},
+				 "a file link with a head-side line selects exactly that file and line");
+		expect(!window.showing_home() && window.current_modality() == qt::review_modality::read, "a file location is shown in Read");
+		expect(!window.statusBar()->currentMessage().contains(QStringLiteral("unavailable")), "an exact location says nothing");
+		const auto opened = reads();
+
+		// The same pull request again, another file: navigated, not read again.
+		submit(window, base + QStringLiteral("#diff-") + digest("review.cpp"));
+		wait_for([&] { return surface->current_context() && surface->current_context()->Key.File == review; }, "a link to the open pull request moves to its file");
+		expect(reads() == opened && window.session_panel()->status() == core::github_status::pull_request_ready, "a link to the pull request the window shows reads nothing again");
+
+		// A review the read identified is revealed in Discuss.
+		submit(window, base + QStringLiteral("#pullrequestreview-4001"));
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss
+						   && window.conversation_view()->currentIndex().data(qt::github_conversation_model::identity_role).toString().startsWith(QStringLiteral("review:")); },
+				 "a review link reveals that review");
+		expect(reads() == opened, "revealing a review reads nothing again");
+
+		// Locations that cannot be placed open the pull request and say why.
+		submit(window, base + QStringLiteral("#discussion_r123456"));
+		wait_for([&] { return said(QStringLiteral("That comment is not identified")) && said(QStringLiteral("#discussion_r123456")); },
+				 "a comment the authenticated read names by node identity alone is explained");
+		submit(window, base + QStringLiteral("/files#diff-") + digest("secondary.cpp") + QStringLiteral("L2"));
+		wait_for([&] { return surface->current_context() && surface->current_context()->Key.File == secondary && said(QStringLiteral("requested line is unavailable"))
+						   && said(QStringLiteral("base side")); },
+				 "a base-side line opens its file and explains the line");
+		submit(window, base + QStringLiteral("/commits/0123456789abcdef"));
+		wait_for([&] { return said(QStringLiteral("A single commit is not shown")); }, "a commit page is explained, not mapped to another revision");
+		submit(window, base + QStringLiteral("/files#diff-") + digest("absent.cpp"));
+		wait_for([&] { return said(QStringLiteral("No changed file")); }, "a digest naming no changed file substitutes nothing");
+		submit(window, base + QStringLiteral("#issuecomment-99"));
+		wait_for([&] { return said(QStringLiteral("discussion comment")); }, "a discussion comment link is explained");
+		expect(reads() == opened && surface->current_context() && surface->current_context()->Key.File == secondary,
+			   "no explained location reads again or moves the review");
+
+		// A repository commit link names no pull request: nothing is guessed.
+		submit(window, QStringLiteral("https://github.com/octo-org/review-repository/commit/0123456789abcdef"));
+		expect(window.home_open_notice()->text().contains(QStringLiteral("not a supported pull request link")) && reads() == opened
+				   && window.session_panel()->status() == core::github_status::pull_request_ready,
+			   "a non-PR link opens nothing and keeps the review");
+		capture(window, QStringLiteral("link-location-refusal.png"));
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "link-location course quiescence");
+	}
+
 	void run_course(const bool aEnterprise)
 	{
 		auto temporary = QTemporaryDir{ };
@@ -436,7 +526,12 @@ namespace {
 			capture(window, QStringLiteral("setup-accepted.png"));
 		}
 		if (aEnterprise) {
-			expect(window.home_open_notice()->text().contains(QStringLiteral("location is unavailable")) && window.statusBar()->currentMessage().contains(QStringLiteral("location is unavailable")), "unmapped exact fragment has an explanation on the accepted review");
+			// [[BPR-0987]]. The receiving window decides once it has accepted
+			// the pull request; `#diff-abcd` names no file digest, so the
+			// location is explained, never guessed.
+			wait_for([&] { return window.home_open_notice()->text().contains(QStringLiteral("location is unavailable")) && window.statusBar()->currentMessage().contains(QStringLiteral("location is unavailable"))
+							   && window.statusBar()->currentMessage().contains(QStringLiteral("/files#diff-abcd")); },
+					 "unmapped exact fragment has an explanation on the accepted review");
 		}
 		submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
 		cancel_setup(window);
@@ -1260,8 +1355,14 @@ int main(int aArgc, char** aArgv)
 		std::cout << "selected-file-safety-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--link-locations")) {
+		run_link_location_course();
+		std::cout << "link-location-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
 	run_course(false);
 	run_course(true);
+	run_link_location_course();
 #if defined(__APPLE__)
 	run_github_cli_discovery_course();
 	run_connected_cli_destination_course(false);

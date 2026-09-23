@@ -9,6 +9,15 @@
 namespace bpr::application {
 	using setup_profile_observation = core::setup_profile_observation;
 
+	/// \brief [[BPR-0987]]. How the host answered an accepted destination.
+	///
+	/// \details `navigated` means the receiving window already showed that
+	/// pull request, so no new read was issued and its view is kept.
+	enum class setup_destination_opening : std::uint8_t {
+		reading,
+		navigated,
+	};
+
 	/// \brief Host-owned default-environment observations and setup capabilities.
 	class setup_destination_port
 	{
@@ -20,9 +29,10 @@ namespace bpr::application {
 		virtual void               configure(const core::pending_setup_destination& aPending)    = 0;
 		virtual void               authenticate(const core::pending_setup_destination& aPending) = 0;
 		/// \brief [[BPR-0732]]. Activates the profile signed out, then reports `previewed`.
-		virtual void preview(const core::pending_setup_destination& aPending)                          = 0;
-		virtual void open(core::host_profile_id aProfile, const core::setup_destination& aDestination) = 0;
-		virtual void present(const setup_destination_projection& aProjection)                          = 0;
+		virtual void preview(const core::pending_setup_destination& aPending) = 0;
+		/// \brief Opens the exact accepted destination in the receiving window.
+		[[nodiscard]] virtual auto open(core::host_profile_id aProfile, const core::setup_destination& aDestination) -> setup_destination_opening = 0;
+		virtual void               present(const setup_destination_projection& aProjection)                                                       = 0;
 	};
 
 	/// \brief Retains one exact pending navigation on the host's serialized decision lane.
@@ -44,7 +54,7 @@ namespace bpr::application {
 
 	private:
 		void                                           resolve();
-		void                                           present(std::string aNotice = { }, bool aOpened = false);
+		void                                           present(std::string aNotice = { }, bool aOpened = false, bool aNavigated = false);
 		setup_destination_port&                        Port;
 		std::optional<core::pending_setup_destination> Pending;
 		std::uint64_t                                  NextRequest = 1U;

@@ -11,11 +11,16 @@ namespace bpr::application {
 		-> std::optional<core::setup_destination>;
 
 	/// \brief Safe navigation presentation, containing no credential capability.
+	///
+	/// \details `Navigated` accompanies `Opened` when the receiving window
+	/// already showed the pull request ([[BPR-0987]]): nothing is loading, and
+	/// the window keeps the view it had.
 	struct setup_destination_projection
 	{
 		std::optional<core::pending_setup_destination> Pending;
 		std::string                                    Notice;
-		bool                                           Opened = false;
+		bool                                           Opened    = false;
+		bool                                           Navigated = false;
 	};
 
 	struct submit_setup_destination

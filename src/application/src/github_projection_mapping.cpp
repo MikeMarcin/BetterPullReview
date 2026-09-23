@@ -1,6 +1,10 @@
 #include "github_projection_mapping.hpp"
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/pull_request_link_location.hpp"
 
+#include <algorithm>
+#include <charconv>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -259,6 +263,37 @@ namespace bpr::application {
 		auto projection  = project_github_session(aSession);
 		projection.Grant = std::move(aGrant);
 		return projection;
+	}
+
+	auto pull_request_link_location_facts_of(const github_pull_request_snapshot& aSnapshot)
+		-> pull_request_link_location_facts
+	{
+		// [[BPR-0987]]. The conversation identities are the ones
+		// `project_github_pull_request` gives the same records below, so a
+		// resolved location reveals exactly the row the window shows.
+		auto facts = pull_request_link_location_facts{ };
+		facts.ChangedPaths.reserve(aSnapshot.Files.size());
+		for (const auto& file : aSnapshot.Files) {
+			facts.ChangedPaths.push_back(file.Path);
+		}
+		for (const auto& review : aSnapshot.Reviews) {
+			if (review.DatabaseId != 0U) {
+				facts.Reviews.push_back({ .Identity = review.DatabaseId, .Conversation = prefixed_id("review:", review.Review.value()) });
+			}
+		}
+		const auto rest = [&facts](const github_review_comment_record& aComment) {
+			const auto text     = aComment.Comment.value();
+			auto       identity = std::uint64_t{ };
+			const auto parsed   = std::from_chars(text.data(), text.data() + text.size(), identity);
+			if (!text.empty() && parsed.ec == std::errc{ } && parsed.ptr == text.data() + text.size() && identity != 0U) {
+				facts.ReviewComments.push_back({ .Identity = identity, .Conversation = prefixed_id("public-preview-comment:", text) });
+			}
+		};
+		for (const auto& group : aSnapshot.ReviewCommentGroups) {
+			rest(group.Root);
+			std::ranges::for_each(group.Replies, rest);
+		}
+		return facts;
 	}
 
 	auto project_github_pull_request(

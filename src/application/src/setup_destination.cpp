@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdint>
 #include <limits>
+#include <optional>
+#include <string>
 
 namespace bpr::application {
 	namespace {
@@ -35,6 +38,71 @@ namespace bpr::application {
 			}
 			return label > 0U && label <= 63U && aHost.back() != '-'
 				&& aHost.find("-.") == std::string_view::npos;
+		}
+		auto hex_digit(const char aValue) -> bool
+		{
+			return digit(aValue) || (aValue >= 'a' && aValue <= 'f') || (aValue >= 'A' && aValue <= 'F');
+		}
+		auto lowercase(std::string_view aText) -> std::string
+		{
+			auto result = std::string{ aText };
+			for (auto& value : result) {
+				if (value >= 'A' && value <= 'F') {
+					value = static_cast<char>(value + ('a' - 'A'));
+				}
+			}
+			return result;
+		}
+		/// A positive decimal number of at most the given width; GitHub writes
+		/// every identity and line in a link this way.
+		template <typename TValue>
+		auto positive_number(const std::string_view aText) -> std::optional<TValue>
+		{
+			auto       value  = TValue{ };
+			const auto parsed = std::from_chars(aText.data(), aText.data() + aText.size(), value);
+			if (aText.empty() || aText.front() == '0' || parsed.ec != std::errc{ } || parsed.ptr != aText.data() + aText.size()) {
+				return std::nullopt;
+			}
+			return value;
+		}
+		/// [[BPR-0987]]. Reads a fragment GitHub writes on a pull request's
+		/// pages into a typed location. A fragment it does not know is kept as
+		/// unrecognized: the pull request is still named, the location is not.
+		auto fragment_location(std::string_view aFragment) -> core::pull_request_location
+		{
+			constexpr auto maximumLine = std::uint32_t{ 10'000'000U };
+			auto           result      = core::pull_request_location{ .Kind = core::pull_request_location_kind::unrecognized };
+			const auto     identity    = [&result](const core::pull_request_location_kind aKind, const std::string_view aDigits) {
+				if (const auto value = positive_number<std::uint64_t>(aDigits)) {
+					result = core::pull_request_location{ .Kind = aKind, .Identity = *value };
+				}
+			};
+			if (aFragment.starts_with("diff-")) {
+				aFragment.remove_prefix(5U);
+				if (aFragment.size() < 64U || !std::ranges::all_of(aFragment.substr(0U, 64U), hex_digit)) {
+					return result;
+				}
+				auto file = core::pull_request_location{ .Kind = core::pull_request_location_kind::file, .FileDigest = lowercase(aFragment.substr(0U, 64U)) };
+				aFragment.remove_prefix(64U);
+				if (!aFragment.empty()) {
+					const auto side = aFragment.front();
+					const auto line = positive_number<std::uint32_t>(aFragment.substr(1U));
+					if ((side != 'L' && side != 'R') || !line || *line > maximumLine) {
+						return result;
+					}
+					file.Side = side == 'L' ? core::diff_side::left : core::diff_side::right;
+					file.Line = *line;
+				}
+				return file;
+			}
+			if (aFragment.starts_with("discussion_r")) {
+				identity(core::pull_request_location_kind::review_comment, aFragment.substr(12U));
+			} else if (aFragment.starts_with("pullrequestreview-")) {
+				identity(core::pull_request_location_kind::review, aFragment.substr(18U));
+			} else if (aFragment.starts_with("issuecomment-")) {
+				identity(core::pull_request_location_kind::issue_comment, aFragment.substr(13U));
+			}
+			return result;
 		}
 	}
 
@@ -112,9 +180,9 @@ namespace bpr::application {
 		const auto fragmentAt = aText.find('#');
 		const auto fragment   = fragmentAt == std::string_view::npos ? std::string_view{ } : aText.substr(fragmentAt);
 		const auto path       = aText.substr(0U, aText.find_first_of("?#"));
+		const auto commit     = path.starts_with("/commits/");
 		if (!path.empty() && path != "/" && path != "/files" && path != "/commits") {
-			if (!path.starts_with("/commits/") || path.size() <= 9U || path.size() > 73U
-				|| !std::ranges::all_of(path.substr(9U), [](const char aValue) { return digit(aValue) || (aValue >= 'a' && aValue <= 'f') || (aValue >= 'A' && aValue <= 'F'); })) {
+			if (!commit || path.size() <= 9U || path.size() > 73U || !std::ranges::all_of(path.substr(9U), hex_digit)) {
 				return std::nullopt;
 			}
 		}
@@ -122,6 +190,14 @@ namespace bpr::application {
 			result.Location = path;
 		}
 		result.Location += fragment;
+		// [[BPR-0987]]. The typed location: a commit page names its commit
+		// whatever its fragment says; otherwise the fragment names the
+		// location and the page (canonical, files, commits) is a view.
+		if (commit) {
+			result.Target = core::pull_request_location{ .Kind = core::pull_request_location_kind::commit, .Commit = lowercase(path.substr(9U)) };
+		} else if (fragment.size() > 1U) {
+			result.Target = fragment_location(fragment.substr(1U));
+		}
 		return result;
 	}
 
@@ -129,9 +205,9 @@ namespace bpr::application {
 		: Port{ aPort }
 	{ }
 	auto setup_destination_host::pending() const -> const std::optional<core::pending_setup_destination>& { return Pending; }
-	void setup_destination_host::present(std::string aNotice, const bool aOpened)
+	void setup_destination_host::present(std::string aNotice, const bool aOpened, const bool aNavigated)
 	{
-		Port.present({ .Pending = Pending, .Notice = std::move(aNotice), .Opened = aOpened });
+		Port.present({ .Pending = Pending, .Notice = std::move(aNotice), .Opened = aOpened, .Navigated = aNavigated });
 	}
 	void setup_destination_host::submit(const std::string_view aText)
 	{
@@ -255,9 +331,11 @@ namespace bpr::application {
 			return;
 		}
 		Pending.reset();
-		Port.open(aProfile, *accepted);
+		const auto opening = Port.open(aProfile, *accepted);
+		// [[BPR-0987]]. Whether the location can be shown is decided once the
+		// receiving window has accepted the pull request, and said there.
 		if (!Pending) {
-			present(accepted->Location.empty() ? std::string{ } : "The requested location is unavailable; opened the pull request. Requested location: " + accepted->Location, true);
+			present({ }, true, opening == setup_destination_opening::navigated);
 		}
 	}
 	void setup_destination_host::previewed(const core::setup_request_id aRequest,

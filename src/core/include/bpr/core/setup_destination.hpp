@@ -2,19 +2,25 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_SETUP_DESTINATION_HPP
 
 #include "bpr/core/github_model.hpp"
+#include "bpr/core/pull_request_location.hpp"
 
 #include <span>
 #include <string_view>
 
 namespace bpr::core {
 	/// \brief Exact bounded navigation input; an empty hostname is local shorthand.
+	///
+	/// \details `Location` keeps the requested path and fragment as written, so
+	/// an explanation can say what was asked for; `Target` is the typed
+	/// location it was read as ([[BPR-0987]]).
 	struct setup_destination
 	{
-		std::string         Hostname;
-		repository_locator  Repository;
-		pull_request_number Number;
-		std::string         Location;
-		auto                operator<=>(const setup_destination&) const = default;
+		std::string           Hostname;
+		repository_locator    Repository;
+		pull_request_number   Number;
+		std::string           Location;
+		pull_request_location Target;
+		auto                  operator<=>(const setup_destination&) const = default;
 	};
 
 	struct setup_request_id_tag;

@@ -61,6 +61,23 @@ column, and RFC-BPR-0032 gives it one job per row.
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
   It has focus when Home appears — on arrival only, so a later projection
   cannot take focus from wherever the reviewer has since moved it.
+- **What a link names** ([[BPR-0987]], RFC-BPR-0026 AC-07/AC-08). A link to
+  the pull request the window already shows reads nothing again: the window
+  returns to its review and keeps its view, and a Recently viewed row of that
+  pull request lands on Overview the same way. `/files` and `/commits` are
+  views of the whole pull request and say nothing. A file fragment
+  (`#diff-<SHA-256 of the path>`) selects exactly that changed file in Read;
+  its `R<n>` line is selected when the comparison on screen ends at the pull
+  request's head. `#pullrequestreview-<id>` reveals that review in Discuss, and
+  `#discussion_r<id>` reveals the comment when the read identified it by that
+  number (a signed-out read does; an authenticated read names comments by
+  node identity only). Everything else — a commit page, a base-side `L<n>`
+  line (GitHub numbers it against a merge base the comparison does not use),
+  an `#issuecomment-` link, a digest naming no changed file, an unread
+  fragment — opens the pull request and says, under the bar and in the status
+  bar, what was asked for and why it is not shown. Nothing nearby is chosen
+  instead, query parameters are ignored, and a link that names no pull
+  request (a repository commit, an issue) opens nothing.
 - **A refusal under the bar**: one sentence from the existing diagnostic
   with **Copy details** beside it. A first load still in progress is said in
   the same place and carries no Copy details, because it is not a refusal.

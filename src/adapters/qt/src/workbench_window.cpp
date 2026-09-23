@@ -7245,7 +7245,10 @@ namespace bpr::qt {
 			&& aProjection.Pending->Stage != core::setup_destination_stage::opening
 			&& aProjection.Pending->Stage != core::setup_destination_stage::public_preview;
 		if (aProjection.Opened) {
-			OpenOnOverview = true;
+			// [[BPR-0987]]. A link to the pull request already shown opens
+			// nothing new, so the window keeps its view rather than returning
+			// to Overview when that review next refreshes.
+			OpenOnOverview = !aProjection.Navigated;
 			HomeOpenBar->clear();
 		}
 		HomeSetupNotice = QString::fromStdString(aProjection.Notice);
@@ -7271,6 +7274,45 @@ namespace bpr::qt {
 		SetupCancelButton->setVisible(aProjection.Pending && aProjection.Pending->Stage != core::setup_destination_stage::opening && (!SignInDialog || !SignInDialog->isVisible()));
 		update_home_landing();
 		ApplyingSetupProjection = false;
+	}
+
+	void workbench_window::present_link_location_notice(const QString& aText)
+	{
+		HomeSetupNotice = aText;
+		update_home_open_notice();
+		if (aText.isEmpty()) {
+			statusBar()->clearMessage();
+		} else {
+			statusBar()->showMessage(aText);
+		}
+	}
+
+	auto workbench_window::reveal_conversation(const std::string& aIdentity) -> bool
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->model() == nullptr || Modality == nullptr) {
+			return false;
+		}
+		const auto previous = Modality->current();
+		choose_home(false);
+		choose_modality(review_modality::discuss);
+		auto index = ConversationPanel->model()->index_for_id(aIdentity);
+		if (!index.isValid()) {
+			// Discuss's file scope or filters may hide it; the link asked for
+			// this conversation, so they widen as Clear filters would.
+			ConversationPanel->scope_whole_pull_request_button()->setChecked(true);
+			ConversationPanel->filter_unread_button()->setChecked(false);
+			ConversationPanel->filter_unresolved_button()->setChecked(false);
+			index = ConversationPanel->model()->index_for_id(aIdentity);
+		}
+		if (!index.isValid()) {
+			choose_modality(previous);
+			return false;
+		}
+		// The view's current row is what reveals a conversation, as a press on
+		// it does; the cards follow it.
+		ConversationPanel->choose(index);
+		ConversationPanel->view()->scrollTo(index);
+		return true;
 	}
 
 	void workbench_window::open_from_home_bar()

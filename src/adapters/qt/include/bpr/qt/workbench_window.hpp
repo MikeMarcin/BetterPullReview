@@ -389,6 +389,13 @@ namespace bpr::qt {
 		void add_setup_profile(application::github_profile_option aProfile);
 		void set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch);
 		void present_setup_destination(const application::setup_destination_projection& aProjection);
+		/// \brief [[BPR-0987]]. Says, beside the Home bar and in the status bar,
+		/// why a pasted link's location was not shown.
+		void present_link_location_notice(const QString& aText);
+		/// \brief [[BPR-0987]]. Reveals one conversation of the open pull request
+		/// in Discuss, as a press on its row would; false when the window does
+		/// not list it.
+		[[nodiscard]] auto reveal_conversation(const std::string& aIdentity) -> bool;
 
 		/// \brief Routes profile gestures and desktop management/quit to their composition owner.
 		void set_profile_management_dispatch(application::profile_management_dispatch aDispatch,
@@ -892,7 +899,7 @@ namespace bpr::qt {
 		std::function<void(application::workbench_window_geometry)> GeometryDispatch;
 		bool                                                        GeometryReady    = false;
 		bool                                                        ApplyingGeometry = false;
-		QString ProfileLabel = QStringLiteral("Default");
+		QString                                                     ProfileLabel     = QStringLiteral("Default");
 		/// \brief Binds one primary action to its presentation wording.
 		///
 		/// \details `Name` is retained action wording for native menus and platform

@@ -36,6 +36,7 @@ add_library(
         src/review_submission.cpp
         src/sha256.cpp
         src/theme_exchange.cpp
+        src/pull_request_location.cpp
         src/setup_destination.cpp
         src/profile_window.cpp
         src/transition.cpp
