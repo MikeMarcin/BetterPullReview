@@ -6,7 +6,7 @@ status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
-platforms: ["mac", "linux", "win"]
+platforms: ["win"]
 metadata: {"found_by":"bpr-main-linux core-only preset run under BPR-0975","red_since":"d1e0f46c","reproduced_at":["a8e9b714","89c6e0f4"],"related_cards":["BPR-0519","BPR-0854","BPR-0948","BPR-0983","BPR-1020"],"reservation":"docs/issues/_reservations/BPR-1024--BPR-1026--f65f9f9f0854.json"}
 ---
 
@@ -115,3 +115,93 @@ row is no longer red on Linux.
 AC1's Windows run is the one [[BPR-0854]] already asks of bpr-main-win. AC2's
 negative control and AC3's builds have not been run against `bac4c745`'s
 change. This note does not move the card.
+
+## Linux and macOS done at the fix; Windows still owed (bpr-main-linux, 2026-09-23)
+
+**Decision: the card stays open, and only Windows remains.** The fix is
+[[BPR-0854]]'s `bac4c745`. AC1 and AC3 each require a Windows observation,
+and no Windows run at or after `bac4c745` is recorded: the last one,
+[[BPR-1031]]'s at `4fd95fe5`, predates it. The board has no "superseded"
+state, and Done needs a passing record for every criterion, so this card
+cannot close as Done or as superseded yet. It stays in Ready and narrows to
+`platforms: ["win"]`, so that the Windows queue offers it.
+
+**AC1: the contract passes 3 of 3.**
+
+- Linux, `e648db24`: `ctest --test-dir build/dev -R '^msvc_secure_crt_contract$'
+  --output-on-failure` passes in 0.36 s. A direct `python3
+  tests/scripts/msvc_secure_crt_tests.py -v` gives `Ran 3 tests`, `OK`
+  (`build/r2-logs/bpr1026-rows-e648db24.log`).
+- macOS, `bac4c745`: pass, 0.30 s, from BPR-0854's Mac record
+  (`build/bpr0854-mac3-rows.log` on that station).
+- Windows: owed.
+
+**AC2: the negative control fails, and the allowlist is sound. Pass on Linux
+at `e648db24`.** The controls ran in a `git archive` export under `/tmp`,
+which was removed afterwards, so the checkout was never edited
+(`build/r2-logs/bpr1026-ac2-negative-control-e648db24.log`):
+
+| Export | Result |
+|---|---|
+| Unmodified | `Ran 3 tests`, `OK` |
+| A: an unspelled `std::getenv` at file scope in `release_update_public_path_tests.cpp`, outside its `__APPLE__` regions. Windows builds this file. | `FAILED (failures=1)`: `tests/end_to_end/release_update_public_path_tests.cpp:6` |
+| B: the scoped `disable : 4996` removed from `release_update_transaction_tests.cpp`'s helper | `FAILED`: `release_update_transaction_tests.cpp:269`. The fix did not allowlist this Apple-only file, so the contract still checks its read. |
+| C: an unspelled read appended to `src/core/src/agent_chat_scope.cpp` | `FAILED`: `src/core/src/agent_chat_scope.cpp:352` |
+| Restored | `OK` |
+
+`bac4c745` did not change `NOT_BUILT_ON_WINDOWS`. It still names two files,
+and CMake registers each only where Windows is excluded:
+
+- `macos_keychain_native_tests.cpp`, inside `if(APPLE)`
+  (`tests/github_contract/CMakeLists.txt:902–1004`);
+- `linux_secret_service_native_tests.cpp`, inside
+  `if(CMAKE_SYSTEM_NAME STREQUAL "Linux")` (`:1006–1099`).
+
+No other CMake file names either one.
+
+**AC3: each changed source still builds, with the same row result.**
+
+- `release_update_transaction` (macOS only): pass at `bac4c745`, 0.44 s, from
+  BPR-0854's Mac record. Before the change, it passed in RFC-BPR-0035's M4
+  candidate verification (`docs/verification/RFC-BPR-0035.md`, 9/9 on macOS,
+  source `518c384a`, which contains both `d1e0f46c` and `b7e2df46`).
+- `application_release_update_public_path`:
+  - macOS: pass at `bac4c745`, 4.50 s. Before the change, it passed in the
+    same M4 run.
+  - Linux: pass at `e648db24`, 3.67 s. The change cannot move this result.
+    The file was preprocessed with its own Linux compile command from
+    `compile_commands.json`, using `-E -P`, at `bac4c745^`, `bac4c745` and
+    `e648db24`. All three outputs are byte-identical (SHA-256
+    `d6d025298fbf…9a6c93af`), because the helper and both of its call sites
+    sit under `#if defined(__APPLE__)`. The file has not changed since
+    `bac4c745`.
+  - Windows: an MSVC build is owed.
+
+**AC3's Windows expectation is out of date.** This is an amendment, not an
+observation. AC3 expects the row's "known late failure ([[BPR-1020]])" to be
+unchanged, but [[BPR-1031]] has since fixed that failure. The row passed on
+bpr-main-win at `4fd95fe5` (7.33 s, BPR-1031's AC1), a revision that does not
+contain `bac4c745`. So the Windows result to match is now a pass. The owner
+has given standing leave to update stale cards. Under it, AC3's Windows part
+now reads: the row builds under MSVC at `bac4c745` or later, and still
+passes. The acceptance text above is left as written, and this note is the
+amendment.
+
+### Still owed: one Windows run (bpr-main-win)
+
+Rebuild `build/dev` at `bac4c745` or later, then make one serial run:
+
+```sh
+ctest --test-dir build/dev -j1 --output-on-failure -R '^(msvc_secure_crt_contract|application_release_update_public_path)$'
+```
+
+Observe:
+
+- `msvc_secure_crt_contract` passes, 3 of 3 (AC1). This same run is the
+  `msvc_secure_crt_contract` half of [[BPR-0854]]'s Windows line.
+- `test_release_update_public_path` builds under MSVC with no warning, and
+  `application_release_update_public_path` passes, as it did at `4fd95fe5`
+  (AC3 as amended).
+
+If both hold, the card can finish with the records above. macOS and Linux
+owe nothing more.
