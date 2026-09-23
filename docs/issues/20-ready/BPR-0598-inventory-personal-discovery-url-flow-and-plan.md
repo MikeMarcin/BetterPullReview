@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0598"
 title: "Inventory personal discovery and URL flow and plan RFC-BPR-0026"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0597","BPR-0244"]
 milestone: "Post-Pack v2"
@@ -16,7 +16,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 Trace repository search in PR loading, current queue observations/membership, viewer identity, provider capability contracts, pending setup, and workspace opening. Define bounded personal discovery and exact URL-to-view routing without broad PR hydration. Allocate the first coherent slice and its fixture/provider/public-path selectors.
 
 Governing design: [RFC-BPR-0026](../../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
-Closeout: [BPR-0599](BPR-0599-close-rfc-0026.md).
+Closeout: [BPR-0599](../10-backlog/BPR-0599-close-rfc-0026.md).
 
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
