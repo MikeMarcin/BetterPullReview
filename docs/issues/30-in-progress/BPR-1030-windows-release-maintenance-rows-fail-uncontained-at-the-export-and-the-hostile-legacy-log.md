@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1030"
 title: "Windows: sqlite_release_maintenance_files and application_release_maintenance_public_path fail uncontained (export preview bytes; hostile legacy diagnostics in the native log)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
