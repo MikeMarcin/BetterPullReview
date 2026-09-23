@@ -113,3 +113,57 @@ fixture. The core decides, the host performs, Qt presents: which ways in exist i
 the account contract's answer, and what the row shows while a flow runs is
 presentation — do not move the decision into the widget. Do not widen this into a
 new preference.
+
+## Stale premise, re-observed 2026-09-22 (RFC-BPR-0015 r3 closeout)
+
+This card was written on 2026-09-17, before [[BPR-0909]] (2026-09-18) made
+GitHub CLI a discovered way in and [[BPR-0915]] moved Home and pasted-link
+sign-in into one shared sign-in dialog. Its code citations still hold for the
+per-card offer: `server_card::apply_account_row` still withdraws the card's own
+CLI offer while `flowRow` is true, and `qt_composed_github_scale_100`'s
+signed-out offer assertion still passes before the suite reaches its unrelated
+[[BPR-0940]] failure. But a card no longer holds a precomposed CLI offer at all
+in the shipped graph, and the page-level **Use GitHub CLI** entry is outside
+the card row, so the title's "unreachable" is no longer true.
+
+A temporary offscreen probe (not committed) composed `workbench_window` with
+the `device_profiles()` fixture set and a GitHub CLI discovery dispatch, as
+the macOS product composition wires it, then opened Settings → Accounts &
+hosts, pressed the GitHub.com card's Sign in and applied an
+`awaiting_authorization` device presentation. Observed at `9f06d5b1` plus the
+RFC-0015 r3 working tree:
+
+- The card's Sign in opens the shared sign-in dialog; the code and address are
+  in the card's account row and the device panel's own Cancel is hidden there
+  (the dialog's Cancel is the way out).
+- During the flow, Use GitHub CLI is visible and enabled below the cards.
+- Pressing it dispatches one CLI discovery and **no** device-flow cancel
+  gesture, and switches the dialog to CLI-only, which hides the GitHub.com card
+  and with it the live code and address. The device flow is left running,
+  unseen.
+
+So the question the owner's note raised has moved. The CLI is reachable
+during the flow without abandoning it; what is undecided is what happens to
+the flow when the reviewer takes that way in. Leaving it polling behind a
+hidden card means a browser authorization completed moments later could sign
+the native profile in while the CLI inventory or its read opt-in is on
+screen. That interaction has not been exercised; nothing here shows it
+misbehaves, and nothing shows it is safe.
+
+Revised decision to make (still one attended question once built):
+
+- Either pressing Use GitHub CLI during a device flow cancels that flow first
+  (the code goes away because the flow ended), or the code stays on screen
+  beside the CLI choice until the reviewer ends one of them. Either way the
+  flow must not keep running where the reviewer cannot see it.
+- The RFC-BPR-0015 read opt-in is still crossed before any read; the discovery
+  inventory that Use GitHub CLI runs first is the owner-accepted BPR-0909
+  model and is not traded away.
+- The earlier acceptance bullets that assumed the offer was hidden during the
+  flow are superseded by the two bullets above; the signed-out offer
+  assertion requirement stands.
+
+This card does not gate RFC-BPR-0015's six criteria: the opt-in, trust
+warning and read/publish boundary it relies on are unchanged. The unexercised
+flow-and-CLI interaction is named in the RFC-0015 independent review scope on
+[[BPR-0788]].
