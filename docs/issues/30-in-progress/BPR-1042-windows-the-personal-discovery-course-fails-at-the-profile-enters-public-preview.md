@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1042"
 title: "Windows: application_personal_discovery_public_path fails at BPR-1017's step \"the profile enters public preview\""
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
