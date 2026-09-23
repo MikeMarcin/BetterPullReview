@@ -102,6 +102,15 @@ endfunction()
 # public-preview session and a window with no session publish nothing new.
 # The mutation-branch pin is unchanged. Covers 14a18b45..the BPR-1017 commit;
 # nothing else touched the pinned scope. Review recorded on BPR-1017.
+# BPR-0863 reseal: the BPR_BUILD_TESTING fixture access gains one shared step
+# that enters a course's stated modality through the strip's public action and
+# names a stall or a withheld surface, plus the facts line a course's failure
+# ends with. The diff probe in main.cpp, the workbench composition probe, the
+# UIforETW probe and the large-review benchmark enter their modality through
+# it. No product path changes; no credential, provider, vault, transport or
+# mutation path changes; the mutation-branch pin is unchanged. Covers
+# bfd927e7..the BPR-0863 commit; nothing else touched the pinned scope. Review
+# recorded on BPR-0863.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -120,7 +129,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b2e1a42d60e93df8572720ae0a210a206430f2b589b0a8b07f44048bbfbca140"
+		"fc0af7d0ff1c4ae386ab847006567bed58f6dd9a823936042312478d52061422"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -255,7 +264,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5f745da5889928f5a44e863cfdbd1e967f64ef6ceddb373bce6914cd71f97ae8"
+        "6295781bbcf3f6d4404a651ca339e015ed97f105a052a9085ed1c49a564455c8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

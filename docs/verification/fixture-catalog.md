@@ -1303,6 +1303,80 @@ execute before maintenance. The dedicated
 `application_review_ledger_composition_contract` owns exact seed/reopen receipt
 load evidence.
 
+### The modality a course states
+
+A pull request named in the Home bar opens on the reviewer's opening modality,
+Overview by default ([[BPR-0661]]), and since [[BPR-0771]] that is how every
+fixture course opens one. Overview shows the pull request in place of the
+comparison and keeps every drawer collapsed. Four courses written against the
+older entry path were stranded there and each failed as a stall or a missing
+label rather than as "wrong modality": [[BPR-0823]], [[BPR-0858]],
+[[BPR-0859]] and [[BPR-0860]] ([[BPR-0863]]).
+
+What each modality shows, once. The product's rule is owned by
+`workbench_window::choose_modality` and the core's
+`set_workbench_modality_intent`; RFC-BPR-0028's Modalities paragraph is its
+normative description.
+
+| Modality | Centre | Files drawer | Conversations drawer | Repositories drawer |
+|---|---|---|---|---|
+| Overview | the overview page | collapsed | collapsed | collapsed |
+| Read | the comparison | collapsed | expanded | collapsed |
+| Review | the comparison | expanded | expanded | unchanged |
+| Discuss | the conversation, full width | collapsed, hidden | expanded, its panel moved to the centre | unchanged, hidden |
+
+- Overview collapses all three drawers, and the core refuses a drawer opened by
+  hand until another modality is chosen ([[BPR-0727]]). Read and Discuss
+  collapse the files drawer ([[BPR-0674]]); Read collapses the repositories
+  drawer ([[BPR-0724]]). Review is the only modality whose files drawer is
+  expanded.
+- "Unchanged" keeps the reviewer's last choice. A manual toggle overrides a
+  drawer until the next modality is chosen.
+- With the drawer controls hidden, the default ([[BPR-0721]]), a collapsed
+  drawer is hidden and takes no width, so the splitter handle beside it moves
+  nothing. With them shown it is an 18-pixel rail.
+- While the core offers no drawer command, because no workbench is active, the
+  files and repositories drawers present expanded whatever the modality says.
+
+A course that reads the comparison or a drawer states the modality it needs
+and the surfaces it needs there in a `course_modality_step`, and advances
+`github_application_fixture_access::enter_course_modality` until it answers.
+The step presses the strip's public modality action once, as a reviewer does.
+It answers `entered` when the window and the host agree on the modality and
+on all three drawers, with no host request outstanding, so the drawer store
+the modality causes has landed, and every needed surface is shown. Otherwise
+it fails by name after five seconds. The bound is time, not ticks, because
+the automated run advances the step every 10 ms and the large-review
+benchmark every millisecond. These lines are from the negative controls
+recorded on BPR-0863:
+
+```text
+COURSE_MODALITY_STALLED:wanted=Review waited_ms=5008 wait_cap_ms=5000 waits=482 modality=Overview host_modality=Overview centre=overview offered=none withheld=comparison,files_drawer,conversations_drawer,repositories_drawer ...
+COURSE_MODALITY_WITHHOLDS:wanted=Read needs=files_drawer missing=files_drawer waited_ms=5009 wait_cap_ms=5000 waits=483 modality=Read host_modality=Read centre=comparison offered=comparison,conversations_drawer withheld=files_drawer,repositories_drawer ...
+```
+
+`STALLED` means the window never reached the stated modality. `WITHHOLDS`
+means it did, and that modality does not show what the course needs. Both end
+with `course_modality_facts`: the modality in the window and in the host, the
+centre, what is offered and withheld, each drawer on both sides, the drawer
+controls, outstanding requests and the splitter sizes. `offered=` and
+`withheld=` are read from the widgets, not from the table above. A course's
+own failure lines end with the same facts, so a course that never entered a
+modality still names the one it is in:
+
+```text
+DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED:modality=Overview host_modality=Overview centre=overview offered=none withheld=comparison,files_drawer,conversations_drawer,repositories_drawer ...
+```
+
+The courses that state a modality:
+
+| Course | Modality | Needs |
+|---|---|---|
+| `--diff-workbench-probe`, used by `application_diff_workbench_public_path` and the appearance theme-customization and store-fallback contracts | Review | comparison |
+| `--workbench-composition-probe`, before its files-drawer drag | Review | files drawer |
+| `--uiforetw-selected-diff-evidence`, before its first file selection | Review | comparison |
+| the large-review benchmark's ordinary, `--unavailable` and `--approximate` courses | Read | comparison |
+
 ## GitHub hosts
 
 - GitHub.com current contract

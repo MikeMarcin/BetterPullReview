@@ -12820,6 +12820,11 @@ namespace bpr::app {
 			/// \details Kept so a stalled store can say what it asked for beside
 			/// what the splitter and the host actually hold.
 			int RequestedFilesWidth = 0;
+			/// \brief [[BPR-0863]]. The drag needs Review's files drawer.
+			detail::course_modality_step Modality{
+				.Modality = qt::review_modality::review,
+				.Needs    = { .FilesDrawer = true },
+			};
 		};
 		std::optional<workbench_composition_probe_state> WorkbenchCompositionProbe;
 		struct uiforetw_selected_diff_probe_state
@@ -12854,6 +12859,12 @@ namespace bpr::app {
 			std::size_t RevealWaits      = 0U;
 			bool        ResourceRevealed = false;
 			bool        RcRevealed       = false;
+			/// \brief [[BPR-0859]], [[BPR-0863]]. The reveal and the paint it
+			/// measures need Review's comparison.
+			detail::course_modality_step Modality{
+				.Modality = qt::review_modality::review,
+				.Needs    = { .Comparison = true },
+			};
 		};
 		std::optional<uiforetw_selected_diff_probe_state>
 			UIforEtwSelectedDiffProbe;
@@ -14506,6 +14517,250 @@ namespace bpr::app {
 		};
 	}
 
+	namespace {
+		/// \brief [[BPR-0863]]. How long a course's modality may take to settle.
+		///
+		/// \details The step is advanced by the automated run about every ten
+		/// milliseconds and by the large-review benchmark about every
+		/// millisecond, so its bound is time rather than a count of calls. Five
+		/// seconds is far longer than a modality change and the drawer store
+		/// behind it take on a loaded machine, and far short of any course's run
+		/// budget. The floor of calls keeps one long tick from reading as a stall.
+		inline constexpr auto        course_modality_wait       = std::chrono::milliseconds{ 5'000 };
+		inline constexpr std::size_t course_modality_wait_floor = 16U;
+
+		[[nodiscard]] auto course_core_modality(const qt::review_modality aModality) noexcept
+			-> core::workbench_modality
+		{
+			switch (aModality) {
+			case qt::review_modality::overview:
+				return core::workbench_modality::overview;
+			case qt::review_modality::read:
+				return core::workbench_modality::read;
+			case qt::review_modality::review:
+				return core::workbench_modality::review;
+			case qt::review_modality::discuss:
+				return core::workbench_modality::discuss;
+			}
+			return core::workbench_modality::review;
+		}
+
+		[[nodiscard]] auto course_core_modality_name(const core::workbench_modality aModality)
+			-> QString
+		{
+			switch (aModality) {
+			case core::workbench_modality::overview:
+				return QStringLiteral("Overview");
+			case core::workbench_modality::read:
+				return QStringLiteral("Read");
+			case core::workbench_modality::review:
+				return QStringLiteral("Review");
+			case core::workbench_modality::discuss:
+				return QStringLiteral("Discuss");
+			}
+			return QStringLiteral("unknown");
+		}
+
+		[[nodiscard]] auto course_drawer_name(const core::workbench_drawer_state aState) -> QString
+		{
+			return aState == core::workbench_drawer_state::expanded
+				? QStringLiteral("expanded")
+				: QStringLiteral("collapsed");
+		}
+
+		/// \brief [[BPR-0863]]. What the window shows a reviewer right now.
+		///
+		/// \details Read from the widgets, not from a table of what each
+		/// modality should show, so the answer follows the product and cannot
+		/// drift from it. A drawer is offered when it is shown and expanded.
+		[[nodiscard]] auto course_offered_surfaces(const qt::workbench_window& aWindow)
+			-> detail::course_surfaces
+		{
+			const auto offered = [&aWindow](const QWidget* const aSurface) {
+				return !aWindow.showing_home() && aSurface != nullptr
+					&& aSurface->isVisibleTo(&aWindow);
+			};
+			const auto expanded = [&offered](const qt::workbench_drawer_panel* const aPanel) {
+				return offered(aPanel)
+					&& aPanel->state() == core::workbench_drawer_state::expanded;
+			};
+			return {
+				.Comparison          = offered(aWindow.comparison_surface()),
+				.FilesDrawer         = expanded(aWindow.files_drawer()),
+				.ConversationsDrawer = expanded(aWindow.conversations_drawer()),
+				.RepositoriesDrawer  = expanded(aWindow.repositories_drawer()),
+			};
+		}
+
+		/// \brief Names the surfaces set in `aSurfaces`, or `none`.
+		[[nodiscard]] auto course_surface_names(const detail::course_surfaces& aSurfaces)
+			-> QString
+		{
+			auto names = QStringList{ };
+			if (aSurfaces.Comparison) {
+				names.append(QStringLiteral("comparison"));
+			}
+			if (aSurfaces.FilesDrawer) {
+				names.append(QStringLiteral("files_drawer"));
+			}
+			if (aSurfaces.ConversationsDrawer) {
+				names.append(QStringLiteral("conversations_drawer"));
+			}
+			if (aSurfaces.RepositoriesDrawer) {
+				names.append(QStringLiteral("repositories_drawer"));
+			}
+			return names.isEmpty() ? QStringLiteral("none") : names.join(QLatin1Char{ ',' });
+		}
+
+		/// \brief The surfaces in `aWanted` that `aOffered` does not show.
+		[[nodiscard]] auto course_surfaces_missing(
+			const detail::course_surfaces& aWanted,
+			const detail::course_surfaces& aOffered) noexcept
+			-> detail::course_surfaces
+		{
+			return {
+				.Comparison          = aWanted.Comparison && !aOffered.Comparison,
+				.FilesDrawer         = aWanted.FilesDrawer && !aOffered.FilesDrawer,
+				.ConversationsDrawer = aWanted.ConversationsDrawer && !aOffered.ConversationsDrawer,
+				.RepositoriesDrawer  = aWanted.RepositoriesDrawer && !aOffered.RepositoriesDrawer,
+			};
+		}
+
+		[[nodiscard]] auto course_surfaces_any(const detail::course_surfaces& aSurfaces) noexcept
+			-> bool
+		{
+			return aSurfaces.Comparison || aSurfaces.FilesDrawer
+				|| aSurfaces.ConversationsDrawer || aSurfaces.RepositoriesDrawer;
+		}
+	} // namespace
+
+	auto detail::github_application_fixture_access::course_modality_facts(
+		const github_application& aApplication) -> QString
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr) {
+			return QStringLiteral("modality=unavailable");
+		}
+		const auto& window  = *implementation->Window;
+		const auto& state   = implementation->WorkbenchHost->state();
+		const auto  offered = course_offered_surfaces(window);
+		const auto  drawer  = [](const qt::workbench_drawer_panel* const aPanel) {
+			return aPanel == nullptr ? QStringLiteral("absent") : course_drawer_name(aPanel->state());
+		};
+		const auto centre = window.showing_home() ? QStringLiteral("home")
+			: window.showing_overview()           ? QStringLiteral("overview")
+			: offered.Comparison                  ? QStringLiteral("comparison")
+			: window.current_modality() == qt::review_modality::discuss
+			? QStringLiteral("discussion")
+			: QStringLiteral("other");
+		auto       sizes  = QStringList{ };
+		if (window.central_splitter() != nullptr) {
+			for (const auto size : window.central_splitter()->sizes()) {
+				sizes.append(QString::number(size));
+			}
+		}
+		const auto withheld = course_surfaces_missing(
+			detail::course_surfaces{
+				.Comparison          = true,
+				.FilesDrawer         = true,
+				.ConversationsDrawer = true,
+				.RepositoriesDrawer  = true,
+			},
+			offered);
+		return QStringList{
+			QStringLiteral("modality=%1").arg(window.modality() != nullptr ? qt::review_modality_title(window.modality()->current()) : QStringLiteral("none")),
+			QStringLiteral("host_modality=%1").arg(course_core_modality_name(state.Modality)),
+			QStringLiteral("centre=%1").arg(centre),
+			QStringLiteral("offered=%1").arg(course_surface_names(offered)),
+			QStringLiteral("withheld=%1").arg(course_surface_names(withheld)),
+			QStringLiteral("files_drawer=%1").arg(drawer(window.files_drawer())),
+			QStringLiteral("host_files_drawer=%1").arg(course_drawer_name(state.FilesDrawer)),
+			QStringLiteral("conversations_drawer=%1").arg(drawer(window.conversations_drawer())),
+			QStringLiteral("host_conversations_drawer=%1").arg(course_drawer_name(state.ConversationsDrawer)),
+			QStringLiteral("repositories_drawer=%1").arg(drawer(window.repositories_drawer())),
+			QStringLiteral("host_repositories_drawer=%1").arg(course_drawer_name(state.RepositoriesDrawer)),
+			QStringLiteral("drawer_controls=%1").arg(window.behaviour().DrawerControls == application::review_drawer_controls::shown ? QStringLiteral("shown") : QStringLiteral("hidden")),
+			QStringLiteral("outstanding_requests=%1").arg(static_cast<qulonglong>(implementation->WorkbenchHost->outstanding_requests())),
+			QStringLiteral("splitter_sizes=%1").arg(sizes.isEmpty() ? QStringLiteral("none") : sizes.join(QLatin1Char{ ',' })),
+		}
+			.join(QLatin1Char{ ' ' });
+	}
+
+	auto detail::github_application_fixture_access::enter_course_modality(
+		github_application&   aApplication,
+		course_modality_step& aStep) -> course_modality_result
+	{
+		if (aStep.Result != course_modality_result::pending) {
+			return aStep.Result;
+		}
+		auto* const implementation = aApplication.Implementation.get();
+		const auto  now            = std::chrono::steady_clock::now();
+		const auto  report         = [&](const char* const aTerm, const QString& aDetail) {
+			auto stream = QTextStream{ stdout };
+			stream << aTerm << ":wanted=" << qt::review_modality_title(aStep.Modality)
+				   << ' ' << aDetail << ' ' << course_modality_facts(aApplication) << '\n';
+			stream.flush();
+			aStep.Result = course_modality_result::failed;
+			return aStep.Result;
+		};
+		if (implementation == nullptr || implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr
+			|| implementation->Window->modality() == nullptr) {
+			return report("COURSE_MODALITY_STALLED", QStringLiteral("strip=absent"));
+		}
+		auto& window = *implementation->Window;
+		// The reviewer's gesture: a press of the strip's segment. Triggered even
+		// when the window already shows the modality, so the course starts from
+		// the modality's own drawers rather than whatever an earlier gesture
+		// left open.
+		if (!aStep.ChosenAt.has_value()) {
+			window.modality()->action(aStep.Modality)->trigger();
+			aStep.ChosenAt = now;
+			return course_modality_result::pending;
+		}
+		++aStep.Waits;
+		const auto& host   = *implementation->WorkbenchHost;
+		const auto& state  = host.state();
+		const auto  agrees = [](const qt::workbench_drawer_panel* const aPanel,
+								const core::workbench_drawer_state      aHost) {
+			return aPanel != nullptr && aPanel->state() == aHost;
+		};
+		const auto settled = !window.showing_home()
+			&& window.current_modality() == aStep.Modality
+			&& state.Modality == course_core_modality(aStep.Modality)
+			&& agrees(window.files_drawer(), state.FilesDrawer)
+			&& agrees(window.conversations_drawer(), state.ConversationsDrawer)
+			&& agrees(window.repositories_drawer(), state.RepositoriesDrawer)
+			&& host.outstanding_requests() == 0U;
+		// Once settled, the modality is the one the course stated and what it
+		// withholds is the product's decision. A needed surface may still be a
+		// layout pass behind the drawers, so it is waited for like the rest; at
+		// the bound, a settled modality withholding it is named as such.
+		const auto missing = settled
+			? course_surfaces_missing(aStep.Needs, course_offered_surfaces(window))
+			: detail::course_surfaces{ };
+		if (settled && !course_surfaces_any(missing)) {
+			aStep.Result = course_modality_result::entered;
+			return aStep.Result;
+		}
+		const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(now - *aStep.ChosenAt);
+		if (waited < course_modality_wait || aStep.Waits < course_modality_wait_floor) {
+			return course_modality_result::pending;
+		}
+		const auto bound = QStringLiteral("waited_ms=%1 wait_cap_ms=%2 waits=%3")
+							   .arg(static_cast<qlonglong>(waited.count()))
+							   .arg(static_cast<qlonglong>(course_modality_wait.count()))
+							   .arg(static_cast<qulonglong>(aStep.Waits));
+		if (settled) {
+			return report(
+				"COURSE_MODALITY_WITHHOLDS",
+				QStringLiteral("needs=%1 missing=%2 %3")
+					.arg(course_surface_names(aStep.Needs), course_surface_names(missing), bound));
+		}
+		return report("COURSE_MODALITY_STALLED", bound);
+	}
+
 	auto detail::github_application_fixture_access::evidence(
 		const github_application& aApplication) noexcept
 		-> detail::github_public_path_fixture_evidence
@@ -15678,31 +15933,6 @@ namespace bpr::app {
 				<< " initial_files_width=" << static_cast<qulonglong>(probe.InitialFilesWidth)
 				<< " host_files_width=" << static_cast<qulonglong>(host->layout().FilesWidth)
 				<< " splitter_widgets=" << static_cast<qulonglong>(sizes.size())
-				<< " splitter_sizes=";
-			for (auto index = qsizetype{ 0 }; index < sizes.size(); ++index) {
-				stream << (index == 0 ? "" : ",") << sizes[index];
-			}
-			stream
-				<< " files_drawer_state="
-				<< (window->files_drawer() != nullptr
-							&& window->files_drawer()->state()
-								== core::workbench_drawer_state::expanded
-						? "expanded"
-						: "collapsed")
-				<< " host_files_drawer="
-				<< (host->state().FilesDrawer
-							== core::workbench_drawer_state::expanded
-						? "expanded"
-						: "collapsed")
-				<< " modality="
-				<< (window->modality() != nullptr
-						? qt::review_modality_title(window->modality()->current())
-						: QStringLiteral("none"))
-				<< " drawer_controls="
-				<< (window->behaviour().DrawerControls
-							== application::review_drawer_controls::shown
-						? "shown"
-						: "hidden")
 				<< " persistence_available="
 				<< (implementation->WorkbenchPersistenceAvailable ? "true" : "false")
 				<< " profile_scoped="
@@ -15710,7 +15940,10 @@ namespace bpr::app {
 							&& implementation->WorkbenchSettings->profile_scoped()
 						? "true"
 						: "false")
-				<< '\n';
+				// [[BPR-0863]]. The modality, what it withholds, both sides of
+				// each drawer, the drawer controls and the splitter sizes, in the
+				// form every course's failure ends with.
+				<< ' ' << course_modality_facts(aApplication) << '\n';
 			stream.flush();
 			return fail();
 		};
@@ -15969,31 +16202,30 @@ namespace bpr::app {
 			// nothing to move, so the drag reported nothing and the course sat
 			// in `awaiting_width_store` until the run budget ended. A reviewer
 			// who wants the files drawer wider leaves Overview first; the
-			// course does the same, through the strip the reviewer presses.
-			if (window->modality() == nullptr) {
-				return fail();
-			}
-			window->modality()
-				->action(qt::review_modality::review)
-				->trigger();
+			// course states Review, the one modality whose files drawer is
+			// expanded, and enters it through the shared step ([[BPR-0863]]).
 			probe.Waits = 0U;
 			probe.Phase = state_type::phase::awaiting_files_drawer;
 			return result::pending;
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_files_drawer) {
-			// The modality, the drawer states and the widths that follow them
-			// travel the decision lane, and choosing Review stores the drawers
-			// it changes. The baselines below are taken only once that has
-			// settled, so the width store the drag causes is the next one.
+			// The step presses the strip's Review and answers once the window
+			// and the host agree on it, the files drawer included, and the
+			// store Review causes has landed.
+			const auto modality = enter_course_modality(aApplication, probe.Modality);
+			if (modality == detail::course_modality_result::pending) {
+				return result::pending;
+			}
+			if (modality == detail::course_modality_result::failed) {
+				return fail();
+			}
+			// The drawer's room follows its state through the splitter. The
+			// baselines below are taken only once it has some and nothing is
+			// outstanding, so the width store the drag causes is the next one.
 			auto* const splitter = window->central_splitter();
 			const auto  sizes    = splitter->sizes();
-			if (window->files_drawer() == nullptr
-				|| window->files_drawer()->state()
-					!= core::workbench_drawer_state::expanded
-				|| host->state().FilesDrawer
-					!= core::workbench_drawer_state::expanded
-				|| sizes.size() != 4 || sizes[1] <= 0
+			if (sizes.size() != 4 || sizes[1] <= 0
 				|| host->outstanding_requests() != 0U) {
 				if (++probe.Waits <= workbench_width_store_waits) {
 					return result::pending;
@@ -16620,13 +16852,14 @@ namespace bpr::app {
 		/// forty-second run budget, and bounded so the stall names itself.
 		inline constexpr std::size_t uiforetw_intraline_reveal_waits = 256U;
 
-		/// \brief [[BPR-0859]]. Ticks entering the Review modality may take.
+		/// \brief [[BPR-0859]]. Ticks both panes may take to show once Review
+		/// is entered.
 		///
-		/// \details The modality travels the decision lane and the layout that
-		/// follows it is applied on the way back, so the panes are shown a few
-		/// ticks after the strip is pressed. Bounded so a modality that never
-		/// arrives names itself rather than expiring the run budget.
-		inline constexpr std::size_t uiforetw_review_modality_waits = 512U;
+		/// \details Entering Review is the shared step's, bounded and named
+		/// there ([[BPR-0863]]). The panes are this course's own need beyond
+		/// the comparison the step waits for, so they keep this bound and name
+		/// their own stall rather than expiring the run budget.
+		inline constexpr std::size_t uiforetw_review_panes_waits = 512U;
 
 		/// \brief [[BPR-0859]]. Reports what one pane's role-paint check saw.
 		///
@@ -17630,40 +17863,36 @@ namespace bpr::app {
 			// never scrolled to the selected change, and therefore never
 			// painting an intraline mark where this course looked for one. A
 			// reviewer who wants to read a file's changes leaves Overview
-			// first, through the strip; the course now does the same.
-			// [[BPR-0863]] records the three other courses caught by this.
-			if (window->modality() == nullptr) {
-				return fail();
-			}
-			window->modality()
-				->action(qt::review_modality::review)
-				->trigger();
+			// first, through the strip; the course states Review and enters it
+			// through the step every course shares ([[BPR-0863]]).
 			probe.Waits = 0U;
 			probe.Phase = state_type::phase::awaiting_review_modality;
 			return result::pending;
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_review_modality) {
+			const auto modality = enter_course_modality(aApplication, probe.Modality);
+			if (modality == detail::course_modality_result::pending) {
+				return result::pending;
+			}
+			if (modality == detail::course_modality_result::failed) {
+				return fail();
+			}
+			// The comparison is shown; this course reads both of its panes.
 			auto* const left  = workbench == nullptr ? nullptr
 													 : workbench->left_pane();
 			auto* const right = workbench == nullptr ? nullptr
 													 : workbench->right_pane();
-			if (window->current_modality() != qt::review_modality::review
-				|| left == nullptr || right == nullptr || !left->isVisible()
-				|| !right->isVisible()
-				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
-				if (++probe.Waits <= uiforetw_review_modality_waits) {
+			if (left == nullptr || right == nullptr || !left->isVisible()
+				|| !right->isVisible()) {
+				if (++probe.Waits <= uiforetw_review_panes_waits) {
 					return result::pending;
 				}
 				QTextStream{ stderr }
-					<< "UIFORETW_REVIEW_MODALITY_STALLED:modality="
-					<< static_cast<int>(window->current_modality())
-					<< " left_shown=" << (left != nullptr && left->isVisible())
+					<< "UIFORETW_REVIEW_PANES_HIDDEN:left_shown="
+					<< (left != nullptr && left->isVisible())
 					<< " right_shown=" << (right != nullptr && right->isVisible())
-					<< " outstanding="
-					<< static_cast<qulonglong>(
-						   implementation->WorkbenchHost->outstanding_requests())
-					<< '\n';
+					<< ' ' << course_modality_facts(aApplication) << '\n';
 				return fail();
 			}
 			// Taken here, after the modality has settled, so the file-selection

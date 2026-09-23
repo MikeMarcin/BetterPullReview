@@ -1120,6 +1120,13 @@ namespace {
 			 DefectCompositionEvidence;
 		bool DiffProbe         = false;
 		bool DiffShutdownProbe = false;
+		// [[BPR-0823]], [[BPR-0863]]. The diff probe loads, measures and
+		// captures the comparison, so it states Review and needs the
+		// comparison shown.
+		bpr::app::detail::course_modality_step DiffModality{
+			.Modality = bpr::qt::review_modality::review,
+			.Needs    = { .Comparison = true },
+		};
 		// A stage that never becomes ready. Every real readiness condition in
 		// an automated run is one the fixture eventually satisfies, so without
 		// a deliberate stall there is no way to reach the run's own timeout and
@@ -6083,10 +6090,18 @@ namespace {
 						// hidden. A reviewer reaches it by leaving Overview, so
 						// the course does that first: Review, the modality the
 						// window showed on this path before the Home bar
-						// carried it.
-						if (window.current_modality()
-							== bpr::qt::review_modality::overview) {
-							window.choose_modality(bpr::qt::review_modality::review);
+						// carried it, entered through the step every course
+						// shares ([[BPR-0863]]).
+						const auto modality = bpr::app::detail::
+							github_application_fixture_access::enter_course_modality(
+								aApplication, aRun->DiffModality);
+						if (modality
+							== bpr::app::detail::course_modality_result::pending) {
+							break;
+						}
+						if (modality
+							== bpr::app::detail::course_modality_result::failed) {
+							fail_automated_run(aApplication, *aRun);
 							break;
 						}
 						if (!aRun->DiffRequested) {
@@ -6165,8 +6180,13 @@ namespace {
 						// running until the harness timeout, which reported this
 						// failure as a timeout ([[BPR-0823]]).
 						if (!comparison_is_wholly_visible(window, *workbench)) {
+							// [[BPR-0863]]. Named with the modality and what it
+							// withholds, so a course in the wrong one says so.
 							QTextStream{ stdout }
-								<< "DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED\n";
+								<< "DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED:"
+								<< bpr::app::detail::github_application_fixture_access::
+									   course_modality_facts(aApplication)
+								<< '\n';
 							fail_automated_run(aApplication, *aRun);
 							break;
 						}

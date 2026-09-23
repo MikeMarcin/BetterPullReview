@@ -422,12 +422,25 @@ namespace bpr::e2e::large_review {
 
 	/// [[BPR-0858]]. The review opens on Overview, which shows the pull request
 	/// in place of the comparison, so a course that reads the comparison's own
-	/// status label first enters Read through the strip's public modality.
+	/// status label first enters Read through the strip's public modality. It
+	/// states Read and the comparison it needs through the step every course
+	/// shares ([[BPR-0863]]), which names the modality and what it withholds
+	/// when it cannot.
 	void enter_read(app::github_application& aApplication, benchmark_report& aReport, QElapsedTimer& aBudget)
 	{
-		auto& window  = aApplication.window();
-		auto& surface = *window.comparison_surface();
-		require(measure_wait(aApplication, aBudget, aReport, "read_modality", [&] { window.modality()->action(qt::review_modality::read)->trigger(); }, [&] { return surface.isVisible() && quiet(aApplication); }), "Read modality did not present the comparison");
+		auto       step    = app::detail::course_modality_step{ .Modality = qt::review_modality::read, .Needs = { .Comparison = true } };
+		auto       outcome = app::detail::course_modality_result::pending;
+		const auto advance = [&] { outcome = access::enter_course_modality(aApplication, step); };
+		const auto settled = [&] {
+			if (outcome == app::detail::course_modality_result::pending) {
+				advance();
+			}
+			return outcome == app::detail::course_modality_result::failed
+				|| (outcome == app::detail::course_modality_result::entered && quiet(aApplication));
+		};
+		require(measure_wait(aApplication, aBudget, aReport, "read_modality", advance, settled)
+					&& outcome == app::detail::course_modality_result::entered,
+				"Read modality did not present the comparison");
 	}
 
 	void select_epoch(qt::epoch_comparison_control& aControl, std::int64_t aOrdinal, core::comparison_side aSide)

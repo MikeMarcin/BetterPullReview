@@ -13,7 +13,9 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 
+#include <chrono>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -734,6 +736,47 @@ namespace bpr::app::detail {
 			= default;
 	};
 
+	/// \brief [[BPR-0863]]. The surfaces a modality can show a course.
+	///
+	/// \details A course states the ones it needs rather than leaving them
+	/// inferred, so a modality that withholds one fails the step by name,
+	/// saying what it withholds, instead of leaving the course to stall on a
+	/// hidden drawer or lose a label.
+	struct course_surfaces
+	{
+		bool Comparison          = false;
+		bool FilesDrawer         = false;
+		bool ConversationsDrawer = false;
+		bool RepositoriesDrawer  = false;
+	};
+
+	/// \brief [[BPR-0863]]. The outcome of a course's step into its modality.
+	enum class course_modality_result {
+		pending,
+		entered,
+		failed,
+	};
+
+	/// \brief [[BPR-0863]]. A course's step into the modality it states.
+	///
+	/// \details A pull request named in the Home bar opens on the reviewer's
+	/// opening modality, Overview by default ([[BPR-0661]], [[BPR-0771]]), and
+	/// Overview shows neither the comparison nor any drawer ([[BPR-0727]]). A
+	/// course that reads either states the modality it reads in and what it
+	/// needs there, and advances this step until it answers. Which modality
+	/// shows what is written down once, in `docs/verification/fixture-catalog.md`
+	/// under "The modality a course states".
+	struct course_modality_step
+	{
+		qt::review_modality Modality = qt::review_modality::review;
+		course_surfaces     Needs;
+		/// \brief Sticky once the step has entered the modality or failed.
+		course_modality_result Result = course_modality_result::pending;
+		/// \brief When the strip's action was triggered; empty until then.
+		std::optional<std::chrono::steady_clock::time_point> ChosenAt;
+		std::size_t                                          Waits = 0U;
+	};
+
 	/// \brief Reports existing diff-host work without copying the accepted review.
 	struct diff_work_fixture_evidence
 	{
@@ -823,6 +866,30 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto request_fixture_diff(
 			github_application& aApplication,
 			bool                aUseSecondHead = false) -> bool;
+		/// \brief [[BPR-0863]]. Advances a course's step into the modality it states.
+		///
+		/// \details The first call triggers the strip's public modality action,
+		/// as a reviewer's press does. Later calls answer `entered` once the
+		/// window and the host agree -- the strip, the core's retained modality
+		/// and all three drawers -- with no host request outstanding, so the
+		/// drawer store the modality causes has landed. Once entered or failed
+		/// the answer is sticky, so a course may call it on every tick. After
+		/// about five seconds it fails by name on standard output, the line
+		/// ending with `course_modality_facts`: `COURSE_MODALITY_WITHHOLDS` when
+		/// the modality has settled but withholds a surface the step needs, and
+		/// `COURSE_MODALITY_STALLED` when the window and the host never agreed.
+		[[nodiscard]] static auto enter_course_modality(
+			github_application&   aApplication,
+			course_modality_step& aStep) -> course_modality_result;
+		/// \brief [[BPR-0863]]. The modality facts a course's failure line ends with.
+		///
+		/// \details The window's modality and the host's, what the centre shows,
+		/// which surfaces are offered and which withheld, each drawer in the
+		/// window and in the host, the drawer-controls preference, outstanding
+		/// host requests and the splitter sizes: enough to tell a course in the
+		/// wrong modality from any other stall in one run.
+		[[nodiscard]] static auto course_modality_facts(
+			const github_application& aApplication) -> QString;
 		/// \brief Replays an accepted metadata-only or changed-head fixture handoff.
 		[[nodiscard]] static auto reaccept_fixture_revision(
 			github_application& aApplication,

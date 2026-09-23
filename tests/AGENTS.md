@@ -22,6 +22,11 @@ Tests are direct evidence, not naming evidence.
   uses Qt's basic Windows style to avoid the offscreen Fusion cached-painter
   fault; native-style UX remains a separate target-native gate.
 - End-to-end tests use the real composition root.
+- A pull request named in the Home bar opens on Overview, which shows no
+  comparison and no drawer. A course that reads either states its modality
+  and needs through `enter_course_modality`; which modality shows what is
+  written once, in `docs/verification/fixture-catalog.md` ("The modality a
+  course states").
 - Selected diff UI claims require a production-workbench interaction trace and
   a full-window rendered public path through the installed Git/cache actor;
   isolated painter output is insufficient.
