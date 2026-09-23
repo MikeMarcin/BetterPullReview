@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0986"
 title: "Paint the hunk-header and current-line roles in the review panes"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
