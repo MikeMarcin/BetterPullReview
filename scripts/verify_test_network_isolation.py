@@ -58,11 +58,12 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # - `credential-manager`: the Windows Credential Manager refuses a lowbox
 #   token; the native vault tests pass uncontained and fail inside.
 # - `child-process-denied`: `CreateProcess` is refused outright with WinError 5,
-#   because the tool being launched lives outside the three granted scopes --
-#   `git.exe` under Program Files, whose ACL carries no application-package
-#   entry. Measured on the Windows station on 2026-09-17 ([[BPR-0872]]). This is
-#   a different obstacle from `dos-volume-name`, which is what Git hits *after*
-#   it starts; the pin names the first failure, not the second.
+#   before the tool runs at all. Measured on the Windows station on 2026-09-17
+#   ([[BPR-0872]]). The image's own ACL is not always the reason: on 2026-09-23
+#   `git.exe` under Program Files granted ALL APPLICATION PACKAGES read and
+#   execute, while the per-user Python the build resolved granted the container
+#   nothing. This is a different obstacle from `dos-volume-name`, which is what
+#   Git hits *after* it starts; the pin names the first failure, not the second.
 # - `repository-content-outside-checkout`: the row reads content the repository
 #   points at but does not contain. `scripts/verify_documentation.py` imports
 #   `board_model` from `.agents/skills/implement-rfc/scripts`, which on the

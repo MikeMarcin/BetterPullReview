@@ -151,3 +151,71 @@ commits leaves `test_network_isolation_manifest` red in between. Land the
 the station has measured the uncontained re-runs. Do not pin a row that has
 not been measured: the gate's exactness means a wrong pin fails the manifest
 row rather than passing quietly.
+
+## Landed, and measured at `470920d5` (bpr-main-win, 2026-09-23)
+
+The decision this card asked for was taken and landed on 2026-09-17, and this
+card was not updated. `bpr-win` measured the rows uncontained (`4030bb6b`: "eleven
+pass the moment they leave the container"). Main then landed the keywords in
+`tests/**` and the dictionary entries in `scripts/**` in one commit, `d3b5a3ef`,
+which kept `test_network_isolation_manifest` green. That commit also added the
+vocabulary term `child-process-denied`.
+
+**Ten rows are pinned `child-process-denied`, and all ten pass.** Run
+`bpr-main-win-20260923`: Windows 11 Home 10.0.26200, MSVC 19.51 Debug,
+`build/dev` at `470920d5`, serial, uncontained as registered. Logs are under
+`build/logs/bpr-0872-0876-main-win/` and are not committed.
+
+| Row | Result |
+|---|---|
+| `issue_id_allocation_contract` | Passes, 2.36 s |
+| `github_recorded_fixture_contract` | Passes, 0.18 s |
+| `large_review_fixture_contract` | Passes, 8.50 s |
+| `attended_review_verdict_contract` | Passes, 7.53 s |
+| `project_source_dump_contract` | Passes, 0.33 s |
+| `dif_assets_contract` | Passes, 182.82 s |
+| `rfc0016_relocated_operator_contract` | Passes, 7.57 s |
+| `rfc0017_public_preview_decision_contract` | Passes, 4.55 s |
+| `rfc0016_production_identity_security` | Passes, 7.92 s |
+| `application_agent_finding_protocol` | Passes, 2.55 s |
+
+`test_network_isolation_manifest` passes at `4fd95fe5` (4.43 s), with every
+pin in place.
+
+**The eleventh row stays contained, and that is a decision.**
+`test_network_isolation_child` is a counterexample probe in
+`EXIT_VERDICT_TESTS`. Its job is to prove that the container denies a child,
+so running it uncontained would make it prove nothing while turning it green.
+At `470920d5` it still fails contained with `PermissionError: [WinError 5]
+Access is denied`: the denial is real, and the probe expects it in its POSIX
+form. [[BPR-0903]] (Backlog) carries the Windows expectation it needs. That
+card, not a pin, is this row's registration decision.
+
+**Did the failures predate the run? Yes.** Each row ran contained on Windows
+from the later of two dates until `d3b5a3ef` on 2026-09-17. The first date is
+`7ecd8e5f` on 2026-08-17 ([[BPR-0347]]), when the AppContainer backend became
+the Windows default. The second is the row's own registration, between
+`161b38a8` (2026-07-30) and `ee1717c2` (2026-09-05). The 2026-09-17 sweep was
+simply the first full Windows sweep. Nothing in that run's changes touched
+these rows.
+
+The refusal depends on where the tools resolve, not on the tree's code.
+[[BPR-0347]] recorded a Python child starting inside the container on
+2026-08-17. Today `icacls` shows that the interpreter the build resolves
+(`C:\Users\mikem\AppData\Local\Python\pythoncore-3.14-64`, the per-user install
+manager) carries no application-package entry. `C:\Program Files\Git\cmd\git.exe`
+and `...\mingw64\bin\git.exe` do grant `ALL APPLICATION PACKAGES:(RX)`. So the
+vocabulary's example for `child-process-denied`, "`git.exe` under Program
+Files, whose ACL carries no application-package entry", is not what refuses the
+child on this host. The pins still stand, because each row is measured to fail
+contained and pass uncontained. The vocabulary comment in
+`scripts/verify_test_network_isolation.py` now states what was measured instead
+of that example, and `docs/development/build-and-test.md` lists the child-process
+refusal among the things the container does not give a test.
+
+**macOS and Linux.** `WINDOWS_UNCONTAINED` removes the launcher only when the
+backend is `windows-appcontainer` (`cmake/BprTestIsolation.cmake`, in
+`bpr_add_network_isolated_test`). The pinned dictionary is checked only on that
+backend. The rows' registration on macOS and Linux is unchanged. The last
+recorded Linux run of these rows is `docs/verification/dsp5-linux-full-sweep.md`,
+2026-09-17. No macOS or Linux run was made from this station.
