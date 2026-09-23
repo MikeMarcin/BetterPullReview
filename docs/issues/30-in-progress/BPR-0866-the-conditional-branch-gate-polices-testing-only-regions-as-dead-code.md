@@ -358,3 +358,34 @@ Both builds must also still compile `installed_git_cache.cpp` and
 `installed_git_process.cpp`, which a normal `cmake --build --preset dev`
 shows. If either host prints a finding, or refuses a platform spelling, the
 line it prints names the file and the branch.
+
+## The macOS run (bpr-main-mac, Mac batch 3, 2026-09-23)
+
+Run on `e648db24`, which contains `c82db490`. `cmake --build --preset dev`
+rebuilt 45 steps with no warning and no error, and `ninja -n` then reported
+no work. The normal dev build still compiles both changed translation units,
+in the adapter and in every test target that takes them directly:
+`installed_git_cache.cpp` in `better_pull_review_adapter_git`, the
+anonymous-public-read tests and the cache contract tests;
+`installed_git_process.cpp` in the adapter, those two targets, the
+agent-workspace ownership tests and the process contract tests
+(`build/bpr0866-mac-build.log`).
+
+The command ran as written (`build/bpr0866-mac-rows.log`), 2/2:
+
+| Row | Result |
+|---|---|
+| `conditional_branch_identifiers` | Pass, 1.76 s, `CONDITIONAL_BRANCH_IDENTIFIERS_OK:792` |
+| `conditional_branch_identifier_contract` | Pass, 0.13 s, `Ran 26 tests`, `OK` |
+
+The scope line reads
+`CONDITIONAL_BRANCH_IDENTIFIERS_SCOPE:host_defines=Q_OS_DARWIN,Q_OS_MACOS,Q_OS_UNIX,__APPLE__ policed_lines=8243 policed_files=77`,
+which is the expected host set and 8,243 policed lines.
+
+`clang++ -dM -E -x c++ /dev/null | grep -E '__unix__|__APPLE__'` prints only
+`#define __APPLE__ 1`. The `clang++` on this Mac's `PATH` is Homebrew clang
+23.1.1. The build's own compiler, `/usr/bin/c++` (Apple clang 21.0.0), and
+`/usr/bin/clang++` print the same single line. So `__unix__` is not defined
+on macOS, as the gate's host set assumes.
+
+The macOS half holds, and the Linux station finishes the card.

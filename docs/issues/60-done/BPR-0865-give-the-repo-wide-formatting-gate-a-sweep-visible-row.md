@@ -235,3 +235,12 @@ the first-sweep confirmations to ask of the other two stations:
   `ctest --preset dev -R "^(coding_format_check|coding_standard_format_gate_contract)$"`
   and expect both to pass under the sandbox runner. The discovery cases run
   there for the first time.
+
+## Post-close macOS run (bpr-main-mac, 2026-09-23)
+
+At `e648db24`, `ctest --preset dev -R "^(coding_format_check|coding_standard_format_gate_contract)$"`
+passed 2/2 (`build/bpr0865-mac-rows.log`).
+`coding_standard_format_gate_contract` ran 20 tests OK in 4.57 s.
+`coding_format_check` checked 791 files with Homebrew `clang-format` 23.1.1,
+reported `Formatting check passed.` and took 16.87 s. This note adds evidence
+only and changes no acceptance.
