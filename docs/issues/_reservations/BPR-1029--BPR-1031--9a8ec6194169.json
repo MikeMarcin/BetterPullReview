@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1029",
+    "BPR-1030",
+    "BPR-1031"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "bpr-main-win: (1) Windows: the Discuss course keeps a thread-card iterator across its own reply press, so qt_workbench_window_scale_* and qt_workbench_conversation_reveal abort under MSVC debug iterators; (2) Windows: sqlite_release_maintenance_files and application_release_maintenance_public_path fail uncontained (export preview bytes; hostile legacy diagnostics in the native log); (3) Windows: application_attended_recent_replay and application_release_update_public_path fail on agent-workspace-recovery repair-required at quit (BPR-0875's mechanism in C++ courses)",
+  "created": "2026-09-23T17:43:37.966121+00:00",
+  "base": "919e21540ffe8b87171a9c35547244a3718a70ac"
+}
