@@ -62,3 +62,33 @@ test.
 - AC2 The test still fails if the panel shows both panes when it is narrow
   by its own rule (a negative control, not committed).
 - AC3 macOS and Linux still pass the row.
+
+## Fixed in the test (bpr-main-win, 2026-09-23)
+
+`test_index_arrows_retain_focus_until_explicit_activation` now sizes the
+panel to 60 average characters of its own font, instead of a fixed 500
+pixels. It also asserts the precondition by name before the layout check:
+"the panel is narrower than 85 average characters, which is narrow by its own
+rule". The product threshold is unchanged. On Windows the panel is now 300
+pixels wide, against a threshold of 425. On a platform whose font averages 7
+pixels it would be 420, against 595.
+
+**Rows (`build/dev`, MSVC 19.51 Debug, Qt 6.11.2, offscreen).** The logs are
+station records under `build/logs/bpr-1038-1041-main-win/` and are not
+committed.
+
+- `qt_github_conversation_panel`, contained as registered, passes 3 of 3
+  (`--repeat until-fail:3`, 5.2–6.4 s). Before the fix it stopped at this
+  check after 1.26 s. The rest of the suite, which never ran before, passes
+  too.
+- **Negative control (not committed).** With the product rule forced wide
+  (`narrow = false`), the suite fails at "narrow Discuss begins in the
+  focused conversation index". So the test still refuses a panel that shows
+  both panes when it is narrow by its own rule. The product source was
+  restored and the tree rebuilt, and the row passes again, 3 of 3.
+
+`clang-format --dry-run --Werror` is clean. macOS and Linux were not run from
+this station. There the panel gets narrower than it was: 60 average
+characters is less than 500 pixels wherever the font averages under 8.3
+pixels. It is still narrow by the same rule. And the new precondition check
+names the failure if a font ever makes it not narrow.

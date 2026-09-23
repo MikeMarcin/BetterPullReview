@@ -581,7 +581,12 @@ namespace {
 	void test_index_arrows_retain_focus_until_explicit_activation()
 	{
 		qt::github_conversation_panel panel;
-		panel.resize(500, 900);
+		// [[BPR-1041]]. Narrow in the unit the panel's own rule uses, fewer
+		// than 85 average characters, rather than a fixed 500 pixels. The
+		// Windows default font averages 5 pixels, and at that size 500 pixels
+		// is wide enough for both panes.
+		const auto characters = panel.fontMetrics().averageCharWidth();
+		panel.resize(characters * 60, 900);
 		panel.adopt(two_files(), QStringLiteral("Accepted conversations"));
 		panel.set_discuss(true);
 		panel.show();
@@ -589,6 +594,7 @@ namespace {
 		panel.cards()->setFocus(Qt::OtherFocusReason);
 		panel.cards()->set_current_thread("left-root");
 		process_events();
+		expect(panel.width() < characters * 85, "the panel is narrower than 85 average characters, which is narrow by its own rule");
 
 		expect(panel.cards()->isVisible() && !panel.discuss_column()->isVisible()
 				   && panel.cards()->hasFocus(),
