@@ -154,7 +154,8 @@ public-preview sibling: status=0 landing=0 queue shown=0 account=Sign in
 personal-discovery-public-path:pass
 ```
 
-The log is the station's `/tmp/bpr-1042-ctest.log` and is not committed.
+The log is the station's `/tmp/bpr-1042-ctest.log`, kept as
+`build/logs/bpr-main-linux-20260923/bpr-1042-ctest.log`. Neither is committed.
 
 The run also printed
 `AGENT_WORKSPACE_RECOVERY_REFUSED:/tmp/personal_discovery_public_path-nhNWtt/agent-workspace-ownership-v1:repair-required`.
