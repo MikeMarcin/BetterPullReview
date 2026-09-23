@@ -363,6 +363,11 @@ namespace {
 			const auto  chunkSize = std::max<std::size_t>(ChunkSize, 1U);
 			std::size_t cursor    = 0U;
 			while (cursor < FetchBody.size()) {
+				if (FailureAfterBytes.has_value() && cursor >= *FailureAfterBytes) {
+					return std::unexpected(application::git_smart_transport_error{
+						.Failure = application::git_smart_transport_failure::network,
+					});
+				}
 				const auto count = std::min(chunkSize, FetchBody.size() - cursor);
 				if (!aConsumer.consume(
 						std::span<const std::byte>{
@@ -390,6 +395,7 @@ namespace {
 																DiscoveryFailure;
 		std::optional<application::git_smart_transport_failure> LsRefsFailure;
 		std::optional<application::git_smart_transport_failure> FetchFailure;
+		std::optional<std::size_t>                              FailureAfterBytes;
 		std::uint64_t                                           CapturedMaximumResponseBytes = 0U;
 		std::size_t                                             ChunkSize                    = 1U;
 		bool                                                    Revoked                      = false;
@@ -1103,6 +1109,133 @@ namespace {
 		}
 	}
 
+	// [[BPR-0889]]. A network that drops mid-pack is ordinary. Wherever a
+	// fetch response stops short, the parser must refuse it as
+	// incomplete_response and abort the pack sink exactly once. A finished
+	// sink would publish a partial pack, and an open one would leave its spool
+	// behind. `git_cache_contract` makes the same cut against the real sink
+	// and checks that no spool remains.
+	auto test_truncated_fetch_streams() -> void
+	{
+		std::string progress(1U, static_cast<char>(2));
+		progress += "counting\n";
+		std::string packData(1U, static_cast<char>(1));
+		packData += "PACKdata";
+		const auto sectionHeader = packet("packfile\n");
+		const auto packStart     = sectionHeader.size() + packet(progress).size();
+		const auto whole         = sectionHeader + packet(progress) + packet(packData) + "0000";
+		expect(bytes(whole) == fetch_response(), "the truncation fixture is the complete response");
+
+		struct truncation
+		{
+			std::string_view Shape;
+			std::size_t      Bytes     = 0U;
+			std::size_t      PackBytes = 0U;
+		};
+		const auto truncations = std::array{
+			truncation{ .Shape = "an empty response", .Bytes = 0U, .PackBytes = 0U },
+			truncation{ .Shape = "mid section header", .Bytes = 6U, .PackBytes = 0U },
+			truncation{ .Shape = "mid packet header", .Bytes = packStart + 2U, .PackBytes = 0U },
+			truncation{ .Shape = "a whole packet header and no channel byte", .Bytes = packStart + 4U, .PackBytes = 0U },
+			truncation{ .Shape = "a channel byte and no payload", .Bytes = packStart + 5U, .PackBytes = 0U },
+			truncation{ .Shape = "a channel byte and part of the payload", .Bytes = packStart + 8U, .PackBytes = 3U },
+			truncation{ .Shape = "a whole pack packet and no flush", .Bytes = whole.size() - 4U, .PackBytes = 8U },
+			truncation{ .Shape = "half a flush", .Bytes = whole.size() - 2U, .PackBytes = 8U },
+		};
+		for (const auto& cut : truncations) {
+			const auto response = bytes(std::string_view{ whole }.substr(0U, cut.Bytes));
+			for (const auto oneByteAtATime : { false, true }) {
+				recording_pack_sink                               sink{ core::git_hash_algorithm::sha1 };
+				application::detail::git_protocol_v2_fetch_parser parser{
+					sink,
+					fetch_limits(),
+					core::git_hash_algorithm::sha1,
+					{ },
+				};
+				auto consumed = true;
+				if (oneByteAtATime) {
+					for (const auto& byte : response) {
+						consumed = consumed && parser.consume(std::span<const std::byte>{ &byte, 1U });
+					}
+				} else {
+					consumed = parser.consume(response);
+				}
+				const auto shape = std::string{ cut.Shape } + (oneByteAtATime ? ", one byte at a time" : ", in one chunk");
+				expect(consumed && sink.Received.size() == cut.PackBytes && !sink.Aborted,
+					   "the stream is valid up to the cut, and only its whole pack bytes reached the sink: " + shape);
+				const auto result = parser.finish();
+				expect(!result.has_value()
+						   && result.error().Failure == application::git_protocol_v2_failure::incomplete_response
+						   && parser.error().has_value()
+						   && parser.error()->Failure == application::git_protocol_v2_failure::incomplete_response,
+					   "a truncated stream finishes as incomplete_response: " + shape);
+				expect(sink.AbortCalls == 1U && !sink.Finished,
+					   "a truncated stream aborts the pack sink once and never finishes it: " + shape);
+				parser.abort();
+				expect(sink.AbortCalls == 1U, "a later abort does not abort the sink again: " + shape);
+			}
+		}
+
+		{
+			recording_pack_sink sink{ core::git_hash_algorithm::sha1 };
+			{
+				application::detail::git_protocol_v2_fetch_parser parser{
+					sink,
+					fetch_limits(),
+					core::git_hash_algorithm::sha1,
+					{ },
+				};
+				expect(parser.consume(bytes(std::string_view{ whole }.substr(0U, packStart + 8U))),
+					   "a partial payload is accepted before the parser is abandoned");
+			}
+			expect(sink.AbortCalls == 1U && !sink.Finished,
+				   "a parser abandoned mid-payload aborts its sink when it is destroyed");
+		}
+
+		{
+			const auto         requestContext = context(core::git_hash_algorithm::sha256);
+			scripted_transport truncated{ requestContext };
+			truncated.FetchBody = bytes(std::string_view{ whole }.substr(0U, packStart + 8U));
+			recording_pack_sink truncatedSink{ core::git_hash_algorithm::sha256 };
+			const auto          result = application::acquire_git_protocol_v2_pack(
+				truncated,
+				requestContext,
+				{ },
+				truncatedSink,
+				fetch_limits(),
+				{ });
+			const auto* error = result.has_value()
+				? nullptr
+				: std::get_if<application::git_protocol_v2_error>(&result.error());
+			expect(error != nullptr
+					   && error->Failure == application::git_protocol_v2_failure::incomplete_response
+					   && truncatedSink.AbortCalls == 1U && !truncatedSink.Finished,
+				   "a transport that ends mid-payload without an error is refused as incomplete and aborts once");
+		}
+
+		{
+			const auto         requestContext = context(core::git_hash_algorithm::sha256);
+			scripted_transport dropped{ requestContext };
+			dropped.FailureAfterBytes = packStart + 8U;
+			recording_pack_sink droppedSink{ core::git_hash_algorithm::sha256 };
+			const auto          result = application::acquire_git_protocol_v2_pack(
+				dropped,
+				requestContext,
+				{ },
+				droppedSink,
+				fetch_limits(),
+				{ });
+			const auto* error = result.has_value()
+				? nullptr
+				: std::get_if<application::git_smart_transport_error>(&result.error());
+			expect(error != nullptr
+					   && error->Failure == application::git_smart_transport_failure::network
+					   && droppedSink.Received.size() == 3U && droppedSink.AbortCalls == 1U
+					   && !droppedSink.Finished,
+				   "a transport that fails after part of the pack aborts the sink once and keeps its own failure");
+		}
+	}
+
 	auto test_end_to_end_acquisition_and_error_mapping() -> void
 	{
 		const auto         requestContext = context(core::git_hash_algorithm::sha256);
@@ -1482,6 +1615,7 @@ int main()
 	test_fetch_parser_rejections();
 	test_fetch_limits_and_framing();
 	test_pack_sink_failures_and_cancellation();
+	test_truncated_fetch_streams();
 	test_end_to_end_acquisition_and_error_mapping();
 	test_public_acquisition_rejects_bypass_inputs();
 	return EXIT_SUCCESS;

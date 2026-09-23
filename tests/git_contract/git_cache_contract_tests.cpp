@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 
 #include "bpr/application/git_cache_port.hpp"
+#include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/epoch_transition.hpp"
 #include "windows_system_root.hpp"
@@ -2892,6 +2893,56 @@ namespace {
 					/ ("." + cancelledFinishText
 					   + ".pack.receiving")),
 			"cancelled pack finish leaves no spool residue");
+
+		// [[BPR-0889]]. The protocol parser refuses a stream that stops
+		// mid-payload, and by then it has written part of the pack into the
+		// real sink's receiving spool. The refusal must remove it. The parser
+		// aborts the sink itself, so the check runs while the sink still exists
+		// and cannot lean on its destructor.
+		const auto truncatedOperation = identity<core::epoch_operation_id>(0x4eU);
+		const auto truncatedText      = lower_hex(truncatedOperation.bytes());
+		const auto truncatedReceiving = root.Path / "incoming" / "v1" / ("." + truncatedText + ".pack.receiving");
+		const auto truncatedCompleted = root.Path / "incoming" / "v1" / (truncatedText + ".pack.part");
+		auto       truncatedSink      = (*primary)->create_pack_sink(truncatedOperation, sha1_pack.size(), { });
+		require(truncatedSink.has_value(), "create truncated-stream pack sink");
+		{
+			const auto pktLine = [](const std::string_view aPayload) {
+				constexpr std::string_view digits = "0123456789abcdef";
+				const auto                 total  = aPayload.size() + 4U;
+				auto                       line   = std::string{ digits[(total >> 12U) & 0x0fU], digits[(total >> 8U) & 0x0fU],
+																 digits[(total >> 4U) & 0x0fU], digits[total & 0x0fU] };
+				line += aPayload;
+				return line;
+			};
+			auto packPayload = std::string(1U, static_cast<char>(1));
+			packPayload.append(reinterpret_cast<const char*>(sha1_pack.data()), sha1_pack.size());
+			const auto                                        sectionHeader = pktLine("packfile\n");
+			const auto                                        whole         = sectionHeader + pktLine(packPayload) + "0000";
+			constexpr auto                                    partialBytes  = std::size_t{ 40U };
+			const auto                                        cut           = sectionHeader.size() + 5U + partialBytes;
+			application::detail::git_protocol_v2_fetch_parser parser{
+				**truncatedSink,
+				application::git_protocol_v2_fetch_limits{
+					.MaximumWireBytes     = 4096U,
+					.MaximumPackBytes     = sha1_pack.size(),
+					.MaximumProgressBytes = 128U,
+					.MaximumPackets       = 16U,
+				},
+				core::git_hash_algorithm::sha1,
+				{ },
+			};
+			require(parser.consume(std::as_bytes(std::span{ whole.data(), cut })), "a stream cut mid-payload is valid up to the cut");
+			require(std::filesystem::is_regular_file(truncatedReceiving) && std::filesystem::file_size(truncatedReceiving) == partialBytes,
+					"the parser wrote the partial pack into the receiving spool");
+			const auto refused = parser.finish();
+			require(!refused.has_value() && refused.error().Failure == application::git_protocol_v2_failure::incomplete_response,
+					"the truncated stream finishes as incomplete_response");
+			require(!std::filesystem::exists(truncatedReceiving) && !std::filesystem::exists(truncatedCompleted),
+					"the refusal removes the partial pack while the sink still exists");
+		}
+		truncatedSink->reset();
+		require(!std::filesystem::exists(truncatedReceiving) && !std::filesystem::exists(truncatedCompleted),
+				"a truncated stream leaves no spool residue");
 
 		const auto operation = identity<core::epoch_operation_id>(0x52U);
 		auto       sink      = (*primary)->create_pack_sink(
