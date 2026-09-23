@@ -67,6 +67,6 @@ history, not evidence of interrupted product implementation.
 
 The owner activated the ordered workstream in the canonical index. Its current
 continuation is [[BPR-0595]]; this closeout remains dependent on the earlier work.
-[BPR-0598](../20-ready/BPR-0598-inventory-personal-discovery-url-flow-and-plan.md) must reconcile
+[BPR-0598](../30-in-progress/BPR-0598-inventory-personal-discovery-url-flow-and-plan.md) must reconcile
 RFC-0028's superseding Home presentation and existing URL/setup behavior before
 planning new authority. This record claims no full RFC acceptance.

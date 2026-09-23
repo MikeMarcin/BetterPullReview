@@ -22,7 +22,7 @@ This is owner direction, not a defect in BPR-0646 as written, and it is
 registered on its own rather than folded into that card. It belongs to
 RFC-BPR-0026's Home (signed-out navigation, AC-09; the composed Home flows,
 AC-10) and is registration only: the adopted plan's `plan-rfc-0026`
-milestone ([BPR-0598](../20-ready/BPR-0598-inventory-personal-discovery-url-flow-and-plan.md))
+milestone ([BPR-0598](../30-in-progress/BPR-0598-inventory-personal-discovery-url-flow-and-plan.md))
 inventories Home and allocates its slices, and this card is an input to that
 inventory. The plan itself is unchanged, so no amendment was published.
 

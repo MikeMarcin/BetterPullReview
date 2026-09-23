@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0598"
 title: "Inventory personal discovery and URL flow and plan RFC-BPR-0026"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0597","BPR-0244"]
 milestone: "Post-Pack v2"
