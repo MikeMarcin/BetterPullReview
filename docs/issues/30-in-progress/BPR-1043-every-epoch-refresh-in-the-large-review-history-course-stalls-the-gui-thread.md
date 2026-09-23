@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1043"
 title: "Every epoch refresh in the large-review history course holds the GUI thread for about 167 ms against a 100 ms budget"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
