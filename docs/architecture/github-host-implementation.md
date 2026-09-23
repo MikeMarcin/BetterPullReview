@@ -581,8 +581,10 @@ server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
 unavailable. Mac qualification is recorded by BPR-0787. RFC-BPR-0014 is now
-Auto-Verified; BPR-0788's formal closeout waits on an independent review of
-the CLI authority and protocol changes made after that qualification.
+Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
+BPR-0788. The product owner approved the pending review of the CLI
+authority and protocol changes made after that qualification. That
+approval is an owner decision, not an independent reviewer's report.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,
@@ -1746,7 +1748,7 @@ production profile set is explicit:
 - optional GHES 3.18 CLI (unavailable in that historical course).
 
 The CLI assertions in the following recorded course describe RFC-BPR-0002,
-not acceptance of the in-progress macOS RFC-BPR-0015 read path.
+not acceptance of the later macOS RFC-BPR-0015 read path.
 
 The provider owns immutable copies of every validated profile and routes by
 exact profile identity. GitHub.com profiles have built-in provenance; GHES
@@ -1924,7 +1926,8 @@ Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the inactive
 CLI broker's process/invocation boundary, and the native HTTPS internal wire
 path on macOS and Linux are directly verified. Positive CLI enablement is
 outside that historical milestone scope; its public profile was visibly
-unavailable and launched zero processes. RFC-BPR-0015 acceptance remains pending.
+unavailable and launched zero processes. RFC-BPR-0015's own ledger records its
+later macOS acceptance.
 BPR-0028 verifies the safe Qt projection and presentation. BPR-0029
 structurally composes the explicit profiles, native HTTPS factory, platform
 vault factory, provider, host, core, and Qt path. Its recorded public fixtures

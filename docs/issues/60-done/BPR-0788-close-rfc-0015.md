@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0788"
 title: "Verify and close RFC-BPR-0015"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0015"]
 depends_on: ["BPR-0787"]
 closeout_for: ["RFC-BPR-0015"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/plans/rfc-bpr-0015-cli-profile/milestone-plan.json"}}
+acceptance: [{"criterion":"C1 opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish without replacing a native profile or claiming exact containment","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"observation","detail":"r3 tests-disabled Release course of 841999ad (CLI-only card naming octo-reviewer, BPR-0933 read question, declining leaves it signed out) reused: the only CLI source change since is BPR-0896's refusal in gh_cli_transport.cpp. r4 fresh tests-disabled Release self-test in application_composition_contract reports CLI_ENTRY_OFFERED_OK and CLI_ENTRY_CARDS; all six hostile consent sources are refused (build/rfc0015-r4/composition-contract.log)."}},{"criterion":"C2 tests-disabled macOS app connects through configured gh and renders a fixture PR; missing or changed dependencies refuse without credential fallback","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"command","detail":"r3 Release course (review.cpp Diff ready, 11-16/21-26; process-failure fixture Could not connect) and d3 compiled knockout reused. r4: rfc0015_cli_read_fixture_tests.py 6/6, application_public_path and application_public_path_ghes_cli_unavailable pass at c1a336a0."}},{"criterion":"C3 CLI reads preserve status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the adapter fails the public path","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"command","detail":"ctest gh_cli_transport, github_cli_process_runner, gh_cli_git_smart_transport, github_provider, github_read_contract, github_paged_read pass (build/rfc0015-r4/focused-ctest.log). BPR-0988's two discovery reads compile to the same closed gh invocation; the one-page search never follows continuation. d3 adapter-removal knockout retained."}},{"criterion":"C4 fixture review and inline publication through ordinary admission, per-write confirmation, exact target, reconciliation and typed terminal; no second POST","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"command","detail":"github_mutation_contract, live_review_mutation_provider (whole binary passes, r3 had 17/18), live_review_submission_provider, both restart recoveries and application_review_round_trip_composition_contract pass; rfc0015_cli_publish_fixture_tests.py 6/6. gh_cli_transport refuses all five GraphQL-rooted shapes before launch (BPR-0896). d4 held-POST course retained; no live PR write."}},{"criterion":"C5 token and private content absent from arguments, environment, logs, settings, SQLite and evidence; no global gh change","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"freeform","detail":"d4 synthetic audit and d5 native structural records retained with their stated limits; gh_cli_transport asserts the exact fresh child environment and stdin-only body for every operation including BPR-0988's reads. r4 ran synthetic fixture gh only; no credential was read or changed."}},{"criterion":"C6 target-native qualification and residual risks; unsupported platforms unavailable; canonical closeout after RFC-BPR-0014 and all evidence","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"observation","detail":"BPR-0787 macOS qualification; application_composition_capabilities_* pass; RFC-BPR-0014 Auto-Verified 2026-09-21. The one open obligation, the review of CLI changes after 26f1c22e, is satisfied by owner amendment r4 (below). Windows/Linux compose no CLI entry; residual executable/config/CA/redirect/account/process risks disclosed, not contained."}},{"criterion":"Owner amendment r4: review obligation","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"freeform","detail":"2026-09-23, product owner in the coordinating chat, verbatim: \"I also approve the BPR-0788 review\". Recorded as an owner decision that satisfies the pending authority/protocol review of the CLI changes after 26f1c22e. It is not an independent reviewer's report; no reviewer findings or identity exist. BPR-0803's device-flow interaction is not accepted by it and stays Backlog."}},{"criterion":"Documentation gate, focused public-path checks and integration check adjudicated","outcome":"pass","revision":"c1a336a0","evidence":{"kind":"command","detail":"verify_documentation.py DOCUMENTATION_OK; integration CTest 10/13 with the three qt_composed_github_scale_* rows failing at the unchanged BPR-0940 assertion; application_composition_contract RFC-0015 assertions pass and its five failing subtests are exactly BPR-0983's recorded findings; architecture_boundary_contract passes (build/rfc0015-r4/integration-ctest.log)."}}]
 ---
 
 # Verify and close RFC-BPR-0015
@@ -31,12 +32,12 @@ BPR-0797's retired compile-time gates. Closeout should rerun both contracts.
 | The opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish choice without silently replacing a native profile or claiming exact account containment. | Rendered account row and explicit opt-in exercise | Passed for tests-disabled macOS fixture and installed-`gh` account UI in d5; BPR-0784/0787. r3 at `0f67560e`: tests-disabled Release of `841999ad` shows the CLI-only card naming `octo-reviewer` and the BPR-0933 read question (host, changing gh account, trusted executable/configuration/certificates, read not publish, details disclosed); declining leaves it signed out |
 | A tests-disabled macOS application connects through configured `gh` and renders a representative fixture PR via the real public path; missing or changed executable, host, account or config produces a typed refusal without credential fallback. | Tests-disabled Mac composition and refusal fixture | Passed for tests-disabled macOS fixture read in d3 and d5; BPR-0785/0787. r3: same Release rendered `review.cpp` `Diff ready — 1 semantic changes` (11–16 / 21–26); process-failure fixture reads `Could not connect` with no native sign-in; d3 compiled knockout retained |
 | CLI reads preserve actual status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the process or response adapter makes a direct public-path negative control fail. | Adapter/provider contract and public negative control | Passed for macOS fixture read in d3; BPR-0785. r3: transport, process-runner, Git-bridge and provider contracts pass at `0f67560e` |
-| Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST. | Fixture public mutation path and ambiguity control | Passed for macOS fixture in d4; BPR-0786; no live PR write authorized. r3: mutation contract, submission provider and restart recoveries pass; 17/18 mutation-provider rows pass, the red one being BPR-0896's reply reconciliation outside this criterion |
+| Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST. | Fixture public mutation path and ambiguity control | Passed for macOS fixture in d4; BPR-0786; no live PR write authorized. r3: mutation contract, submission provider and restart recoveries pass; 17/18 mutation-provider rows pass, the red one being BPR-0896's reply reconciliation outside this criterion. r4 at `c1a336a0` (product source as `d8da166e`): `live_review_mutation_provider` passes whole after [[BPR-0896]]; `gh_cli_transport` refuses its new GraphQL-rooted thread read before launch, so the CLI write surface stays review and inline only |
 | Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration. | Canary and source/runtime audit | Bounded source, synthetic-log and native structural audits passed in d4/d5; exact Keychain-call and credential-generation binding remain unproved (the criterion does not require them). r3 used synthetic fixture `gh` only |
-| Target-native qualification records supported platforms and residual executable/config/CA/redirect/account/process risks; unsupported platforms remain unavailable and canonical closeout awaits RFC-BPR-0014 and all evidence. | Native qualification, docs and RFC index reconciliation | Mac qualification recorded in BPR-0787; Windows/Linux compose no CLI entry (capability rows, Release self-test); RFC-BPR-0014 Auto-Verified since 2026-09-21. Terminal closeout waits on the independent review below |
+| Target-native qualification records supported platforms and residual executable/config/CA/redirect/account/process risks; unsupported platforms remain unavailable and canonical closeout awaits RFC-BPR-0014 and all evidence. | Native qualification, docs and RFC index reconciliation | Mac qualification recorded in BPR-0787; Windows/Linux compose no CLI entry (capability rows, Release self-test); RFC-BPR-0014 Auto-Verified since 2026-09-21. r4, 2026-09-23: the product owner approved the pending review in the coordinating chat (an owner decision, not an independent reviewer's report); RFC-BPR-0015 Auto-Verified |
 
 - [x] Every revised RFC criterion has direct command/public-path evidence, producing revision and explicit residual limitation.
-- [ ] The documentation gate, focused public-path checks, integration check and independent authority/protocol review are adjudicated. (r3: documentation, focused public-path and integration checks adjudicated at `0f67560e`; the d3–d5 independent review does not cover the CLI changes after `26f1c22e`, which remain unreviewed.)
+- [x] The documentation gate, focused public-path checks, integration check and independent authority/protocol review are adjudicated. (r3: documentation, focused public-path and integration checks adjudicated at `0f67560e`; the d3–d5 independent review does not cover the CLI changes after `26f1c22e`. r4: the product owner approved that review obligation on 2026-09-23, recorded below as an owner amendment and not as an independent reviewer's findings; the focused and integration checks were rerun at `c1a336a0`.)
 - [x] RFC-BPR-0014 is Auto-Verified before RFC-BPR-0015 becomes terminal; pending native, human or safe-target evidence remains open. (RFC-BPR-0014 Auto-Verified 2026-09-21; no native, human or safe-target criterion of RFC-0015 remains; live publication stays unauthorized and unclaimed.)
 - [x] RFC front matter, index and live cards agree. The historical strict-containment analysis is retained, not claimed passed by opt-in warnings.
 
@@ -336,3 +337,89 @@ blocking finding, finish this card against the recorded evidence, set
 RFC-BPR-0015 and its index row to Auto-Verified, and record the review.
 No attended session, live GitHub write or credential change was made; task
 applications exited or were reaped and fixture directories were removed.
+
+## Closeout round r4, 2026-09-23
+
+Run `rfc0015-r4`, segment `rfc0015-r4-closeout`, mandate r4,
+coordinator-implementer recipe revision 2, non-delegating leaf. Entry and
+evidence revision `c1a336a0` on local `main`. The product source there is
+identical to `d8da166e`. Binding: plan `rfc-bpr-0015-cli-profile`, milestone
+`native-qualification-and-closeout`, with `opt-in-cli-read` and
+`guarded-cli-publishing` already accepted. The binding is in ignored
+`build/rfc0015-r4/checkpoint-entry.json`.
+
+**Owner amendment r4: the review obligation is approved.** On 2026-09-23 the
+product owner wrote, verbatim, in the chat coordinating this closeout:
+
+> I also approve the BPR-0788 review
+
+This is recorded as an explicit owner amendment that satisfies the one
+obligation r3 left open: the authority and protocol review of the CLI changes
+after `26f1c22e` that is listed in the
+[ledger](../../verification/RFC-BPR-0015.md#pending-independent-authority-and-protocol-review).
+It is an owner decision, not an independent reviewer's report. No reviewer
+examined those commits for this round, and no findings, dispositions or
+reviewer identity exist to record. The approval does not claim that
+[[BPR-0803]]'s device-flow interaction was exercised. That interaction stays
+BPR-0803's own Backlog work.
+
+**Nothing after the candidate invalidates the evidence.** There are 114
+commits from `0f67560e` to `c1a336a0`. Two of them reach the CLI path:
+
+- [[BPR-0896]] (`d8da166e`) adds `observe_review_thread_comments` to the
+  GraphQL-rooted shapes that `gh_cli_transport` refuses before launch. This
+  narrows the CLI write surface. The CLI transport still admits only the REST
+  review and inline-comment shapes of criterion 4.
+- [[BPR-0988]] (`8d1898e7`) adds two bounded REST discovery reads: a one-page
+  repository issue search, whose continuation is never followed, and
+  requested reviewers. It also adds a repository-scoped wire parent. The
+  shared request validation admits that parent only for the search of its
+  exact repository. `gh_cli_transport` compiles both reads to the same closed
+  argument array, fresh environment and neutral working directory as every
+  other read. The owner's approval does not name this change, and BPR-0988
+  itself records that it was self-reviewed only. This round examined it and
+  did not find that it breaks any RFC-0015 criterion. That examination is
+  not an independent review.
+
+Checks at `c1a336a0` (logs in ignored `build/rfc0015-r4/`):
+
+- Focused, 16/16 pass (`focused-ctest.log`): `gh_cli_transport`,
+  `github_cli_process_runner`, `gh_cli_git_smart_transport`,
+  `github_provider`, `github_read_contract`, `github_paged_read`,
+  `github_mutation_contract`, `live_review_mutation_provider` (whole, where
+  r3 had 17/18 rows), `live_review_submission_provider`, both restart
+  recoveries, `application_public_path`,
+  `application_public_path_ghes_cli_unavailable`, both
+  `application_composition_capabilities_*` rows, and
+  `application_review_round_trip_composition_contract`.
+- `rfc0015_cli_read_fixture_tests.py` 6/6 and
+  `rfc0015_cli_publish_fixture_tests.py` 6/6 pass.
+- `application_composition_contract` builds a fresh tests-disabled Release.
+  Every RFC-0015 assertion passes: the CLI runner and both consent gates in
+  the composition, all six hostile consent sources refused, the macOS CLI
+  binary markers, and the Release self-test's `CLI_ENTRY_OFFERED_OK` and
+  `CLI_ENTRY_CARDS`. Five subtests fail, and they are exactly
+  [[BPR-0983]]'s three recorded findings: three vault-selection paths, the
+  updater's two extra readers of the automated-test boundary, and that
+  variable's name in the Release binary. The async-mutation inventory test that failed in r3 now passes.
+- Integration, 10/13 pass (`integration-ctest.log`):
+  `architecture_boundary_contract` (it now passes in the checkout),
+  setup destination core/application/public path, device authorization,
+  anonymous preview and `application_personal_discovery_public_path`. The
+  three `qt_composed_github_scale_*` rows fail at the same pre-existing
+  [[BPR-0940]] assertion as r3.
+- The documentation gate and documentation tests pass on the closeout
+  commit.
+
+Disposition: every revised criterion keeps its r3 evidence. r4 reruns the
+automated checks at `c1a336a0` and reuses the r3 tests-disabled UI course.
+Since that course's `841999ad` source, the only change to a CLI source is
+BPR-0896's refusal in `gh_cli_transport.cpp`. The Release self-test above
+confirms the Use GitHub CLI entry again at `c1a336a0`. The owner has approved the review obligation. RFC-BPR-0014
+is Auto-Verified, and no native, human or safe-target criterion remains.
+RFC-BPR-0015 is Auto-Verified for the qualified macOS scope. Windows and
+Linux compose no CLI entry, live publication stays unauthorized and
+unclaimed, and the d5 residual trust risks are unchanged. r4 made no
+attended session, live GitHub request or credential change. The only
+application processes were the test suites' own offscreen runs, and each one
+exited.

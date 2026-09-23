@@ -1024,8 +1024,8 @@ or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile routes fixture
 whole-review and right-side inline-comment publication through a separate
 exact-target confirmation and server reconciliation. No live PR was
-written. Windows and Linux remain unavailable; BPR-0787/BPR-0788
-track native qualification and formal closeout.
+written. Windows and Linux remain unavailable. BPR-0787 records native
+qualification, and BPR-0788 closed RFC-BPR-0015 as Auto-Verified on 2026-09-23.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,
@@ -2503,8 +2503,8 @@ success claim.
   paths, through Use GitHub CLI, the read opt-in and configured `gh` 2.x,
   minor >= 96. Full Git comparison keeps its separate exact `gh`
   2.100.0/2.101.0 qualification. Windows/Linux and ordinary test compositions
-  offer no CLI entry. Native HTTPS remains the default. BPR-0788 tracks formal
-  RFC-BPR-0015 closeout.
+  offer no CLI entry. Native HTTPS remains the default. RFC-BPR-0015 is
+  Auto-Verified (BPR-0788, 2026-09-23).
 - Supply GHES as a canonical hostname only, such as `ghe.example.com`, not as
   a URL, path, query, fragment, credential-bearing authority, or GitHub.com
   subdomain. Invalid host configuration fails before network or credential

@@ -33,7 +33,7 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 - SQLite 3.53.4 through a verified CPM-acquired, directly linked C API
 - Installed Git executable through `QProcess`
 - Native HTTPS as the default production GitHub authentication transport
-- Explicit macOS CLI read opt-in under the in-progress RFC-BPR-0015 milestone;
+- Explicit macOS CLI read opt-in under RFC-BPR-0015 (Auto-Verified 2026-09-23);
   unsupported platforms retain typed `cli_unavailable`
 - REST-first GitHub provider with narrow GraphQL use
 - KSyntaxHighlighting 6.28.1 through its low-level highlighter interface,
@@ -1306,8 +1306,10 @@ server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
 unavailable. Mac qualification is recorded by BPR-0787. RFC-BPR-0014 is now
-Auto-Verified; BPR-0788's formal closeout waits on an independent review of
-the CLI authority and protocol changes made after that qualification.
+Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
+BPR-0788. The product owner approved the pending review of the CLI
+authority and protocol changes made after that qualification. That
+approval is an owner decision, not an independent reviewer's report.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

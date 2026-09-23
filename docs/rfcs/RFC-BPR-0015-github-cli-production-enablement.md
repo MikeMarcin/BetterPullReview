@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0015"
 title: "Opt-in GitHub CLI Account Profile"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0014"]
@@ -145,6 +145,26 @@ above. It changes no acceptance criterion below and supplies no evidence.
   allowlist beside 2.100.0; Apple Git and the size bounds are unchanged.
 - [[BPR-0933]] shortened the read opt-in: a headline question and a short
   consequence paragraph, with every residual risk above behind Show Details.
+
+## Closeout, 2026-09-23
+
+**Auto-Verified for the qualified macOS scope.** Closeout
+[[BPR-0788]] records direct evidence for all six criteria below, rechecked at
+`c1a336a0` in round r4, in the
+[verification ledger](../verification/RFC-BPR-0015.md#closeout-round-r4-2026-09-23).
+RFC-BPR-0014 became Auto-Verified first.
+
+Owner amendment r4: on 2026-09-23 the product owner wrote, verbatim, in the
+chat coordinating the closeout, "I also approve the BPR-0788 review". That
+approval satisfies the pending authority and protocol review of the CLI
+changes made after the d5 candidate `26f1c22e`. It is an owner decision, not
+an independent reviewer's report. No criterion changed.
+
+Windows and Linux still compose no CLI entry. Live pull-request publication
+remains unauthorized, and no live write was made. The residual executable,
+configuration, CA, redirect, account-switch and process risks recorded above
+are disclosed, not contained. [[BPR-0803]] (Use GitHub CLI during a device
+flow) remains separate Backlog work.
 
 ## Acceptance criteria
 

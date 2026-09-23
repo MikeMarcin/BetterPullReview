@@ -1,6 +1,6 @@
 # RFC-BPR-0015 verification ledger
 
-RFC baseline: `6c9ef2038b7389f49028e71f2bb8219b07191267`. Current formal status: **Proposed**. The d3–d5 tables below are historical; where they differ, the [r3 closeout round](#closeout-round-r3-2026-09-22) records the current state (RFC-BPR-0014 is Auto-Verified, and Windows and Linux compose no CLI entry rather than a refusing row). The 2026-09-13 product-owner amendment supersedes the historical strict-containment eligibility tests. Those tests remain evidence of configured-CLI trust risks, not guarantees supplied by the new opt-in.
+RFC baseline: `6c9ef2038b7389f49028e71f2bb8219b07191267`. Current formal status: **Auto-Verified** (2026-09-23, [closeout round r4](#closeout-round-r4-2026-09-23)). The d3–d5 tables below are historical; where they differ, the [r3 closeout round](#closeout-round-r3-2026-09-22) and r4 record the current state (RFC-BPR-0014 is Auto-Verified, and Windows and Linux compose no CLI entry rather than a refusing row). The 2026-09-13 product-owner amendment supersedes the historical strict-containment eligibility tests. Those tests remain evidence of configured-CLI trust risks, not guarantees supplied by the new opt-in.
 
 The available production surface is macOS. Native HTTPS remains the default; GitHub CLI reading needs explicit opt-in, and each CLI-backed review or inline-comment write needs a separate exact-target confirmation. Windows and Linux visibly refuse the CLI profile pending their own native credential, process, read/write and UI checks. No live pull request was mutated during this qualification.
 
@@ -87,6 +87,10 @@ Product source is unchanged from `841999ad` to the candidate.
 
 ### Pending: independent authority and protocol review
 
+*Closed 2026-09-23 by [owner amendment r4](#owner-amendment-r4): the owner
+approved this obligation. No independent review took place. The r3 text
+below is kept as it was written.*
+
 A reviewer independent of this round needs to adjudicate the CLI credential,
 authority and request-boundary changes made after `26f1c22e`, reusing any
 record that already covers a commit:
@@ -102,3 +106,62 @@ record that already covers a commit:
 A finding that demonstrates a failed criterion blocks closeout; other
 findings become follow-up cards. With no blocking finding, BPR-0788 can finish
 against the evidence above without repeating it.
+
+## Closeout round r4, 2026-09-23
+
+Run `rfc0015-r4`, segment `rfc0015-r4-closeout`, mandate r4,
+coordinator-implementer recipe revision 2, non-delegating leaf. Evidence
+revision `c1a336a0` on local `main`, whose product source is identical to
+`d8da166e`. Formal status is now **Auto-Verified**.
+
+### Owner amendment r4
+
+On 2026-09-23 the product owner wrote, verbatim, in the chat coordinating
+this closeout:
+
+> I also approve the BPR-0788 review
+
+This owner decision satisfies the pending review above. It is not an
+independent reviewer's report. No reviewer examined the listed commits for
+this round, so there are no findings, dispositions or reviewer identity to
+record, and the ledger claims none. The d3–d5 independent reviews still
+cover only their own candidates. The [[BPR-0803]] interaction is not
+exercised by the approval. It remains that card's Backlog work.
+
+### Changes after the r3 candidate
+
+Two of the 114 commits from `0f67560e` to `c1a336a0` reach the CLI path.
+Neither breaks a criterion:
+
+- [[BPR-0896]] (`d8da166e`) makes `gh_cli_transport` refuse the new
+  `observe_review_thread_comments` GraphQL shape before launch, next to the
+  four GraphQL-rooted shapes it already refused. The CLI write surface is
+  still the REST review and inline-comment shapes of criterion 4.
+- [[BPR-0988]] (`8d1898e7`) adds two bounded REST discovery reads (a
+  one-page repository issue search that never follows its continuation, and
+  requested reviewers) under a repository-scoped wire parent. Shared
+  validation admits that parent only for the search of its exact
+  repository. `gh_cli_transport` compiles both reads to the same closed
+  invocation as every other read. The owner's approval does not name this
+  change. BPR-0988 records that it was self-reviewed only, and this round's
+  examination of it is not an independent review.
+
+The only CLI source change since the r3 UI course's `841999ad` is BPR-0896's
+refusal. The r3 tests-disabled UI course is therefore reused, not repeated.
+
+### Checks at `c1a336a0`
+
+Logs are in ignored `build/rfc0015-r4/`.
+
+| Check | Result |
+|---|---|
+| Focused CTest: CLI transport, process runner, Git-object bridge, provider, read contract, paged read, mutation contract, mutation and submission providers, both restart recoveries, public path, GHES `cli_unavailable`, both composition-capability rows, round-trip composition contract | 16/16 pass. `live_review_mutation_provider` now passes whole (17/18 rows in r3) |
+| `rfc0015_cli_read_fixture_tests.py`, `rfc0015_cli_publish_fixture_tests.py` | 6/6 and 6/6 pass |
+| `application_composition_contract` (fresh tests-disabled Release) | Every RFC-0015 assertion passes: CLI runner and consent gates, six hostile consent sources refused, macOS CLI binary markers, Release self-test `CLI_ENTRY_OFFERED_OK` and `CLI_ENTRY_CARDS`. Five subtests fail, and they are exactly [[BPR-0983]]'s recorded findings. The r3 async-mutation inventory failure no longer occurs |
+| Integration CTest, 13 rows | 10 pass, including `architecture_boundary_contract` in the checkout, setup destination, device authorization, anonymous preview and personal discovery public paths. The three `qt_composed_github_scale_*` rows fail at the unchanged [[BPR-0940]] assertion |
+| Documentation gate and documentation tests | Pass on the closeout commit |
+
+All six criteria stand as recorded in r3. RFC-BPR-0014 is Auto-Verified, and
+the review obligation has the owner's approval. The residual trust risks,
+the Windows/Linux absence and the unauthorized live publication are
+unchanged.

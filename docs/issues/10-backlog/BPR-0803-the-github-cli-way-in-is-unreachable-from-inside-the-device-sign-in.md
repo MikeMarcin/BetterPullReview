@@ -167,3 +167,8 @@ This card does not gate RFC-BPR-0015's six criteria: the opt-in, trust
 warning and read/publish boundary it relies on are unchanged. The unexercised
 flow-and-CLI interaction is named in the RFC-0015 independent review scope on
 [[BPR-0788]].
+
+**2026-09-23.** RFC-BPR-0015 is Auto-Verified. The product owner approved
+BPR-0788's pending review, but that approval neither exercised nor accepted
+this interaction. This card stays Backlog as a follow-up to the closed RFC,
+and its acceptance above is unchanged.
