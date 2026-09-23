@@ -1431,14 +1431,14 @@ namespace bpr::application {
 			if (PreferenceSubscription != 0 && OwnedPreferences && (!Settings.profile_scoped() || Settings.window().value() == 0)) {
 				// [[BPR-0783]]. The defaults the preferences host holds carry no
 				// Home, for the reason `submit_settings_store` gives.
-				auto defaults = window_layout(*aResult);
-				defaults.Home = { };
+				auto defaults     = window_layout(*aResult);
+				defaults.Home     = { };
 				defaults.Geometry = { };
 				Preferences->adopt_loaded({ aResult->Behaviour, defaults });
 			}
 			Layout = *aResult;
 			if (profile_defaults_scoped()) {
-				Layout.Home = { };
+				Layout.Home     = { };
 				Layout.Geometry = { };
 			}
 			if (PreferenceSubscription != 0 && Preferences->accepted()) {

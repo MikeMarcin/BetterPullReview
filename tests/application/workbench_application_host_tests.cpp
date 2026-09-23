@@ -1760,12 +1760,12 @@ namespace {
 	// defaults record names no window, so it never carries one.
 	void test_home_is_not_a_profile_default()
 	{
-		auto durable          = fake_settings{ };
-		durable.ProfileScoped = true;
-		durable.Stored        = stored_layout();
-		durable.Stored.Home   = home_view();
+		auto durable            = fake_settings{ };
+		durable.ProfileScoped   = true;
+		durable.Stored          = stored_layout();
+		durable.Stored.Home     = home_view();
 		durable.Stored.Geometry = { 100, 100, 1100, 700, true };
-		auto harnessed        = harness{ { }, &durable };
+		auto harnessed          = harness{ { }, &durable };
 		harnessed.Host.restore();
 		harnessed.settle();
 		expect(harnessed.Host.layout().Home == application::home_view_state{ },

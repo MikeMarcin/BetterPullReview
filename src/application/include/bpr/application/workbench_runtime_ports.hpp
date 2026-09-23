@@ -567,7 +567,7 @@ namespace bpr::application {
 		review_behaviour_settings Behaviour;
 		/// [[BPR-0783]]. This window's Home view. It belongs to the window
 		/// alone: the profile's defaults do not store it.
-		home_view_state Home;
+		home_view_state           Home;
 		workbench_window_geometry Geometry;
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
@@ -583,9 +583,9 @@ namespace bpr::application {
 		core::workbench_one_pane     OnePane       = core::workbench_one_pane::disabled;
 		std::uint32_t                FilesWidth = 320U, ConversationsWidth = 320U, RepositoriesWidth = 300U;
 		/// [[BPR-0783]].
-		home_view_state Home;
+		home_view_state           Home;
 		workbench_window_geometry Geometry;
-		auto            operator<=>(const workbench_window_layout&) const = default;
+		auto                      operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
 	{
@@ -658,8 +658,8 @@ namespace bpr::application {
 			// [[BPR-0783]]. A window's Home view is never a profile default. The
 			// durable adapter strips it; stripping it here too makes that
 			// structural, so no legacy window-bound port can carry one through.
-			auto defaults = window_layout(*loaded);
-			defaults.Home = { };
+			auto defaults     = window_layout(*loaded);
+			defaults.Home     = { };
 			defaults.Geometry = { };
 			return workbench_profile_preferences{ loaded->Behaviour, defaults };
 		}
