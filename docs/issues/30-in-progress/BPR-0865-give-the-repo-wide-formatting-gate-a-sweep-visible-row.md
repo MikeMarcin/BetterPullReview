@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0865"
 title: "Give the repo-wide formatting gate a sweep-visible row, once every station is known to have clang-format 22"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-0862"]
 priority: "P3"
