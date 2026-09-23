@@ -66,7 +66,7 @@ guarantee genuinely does not apply there.
 - The row still passes on macOS, Linux and Windows, and still skips rather
   than fails on a single-configuration tree.
 
-## Linux done at `c50c121e`; macOS and Windows still owed (bpr-main-linux, 2026-09-23)
+## Linux done at `867ed35f`; macOS and Windows still owed (bpr-main-linux, 2026-09-23)
 
 **Decision: the card stays open for two confirmation runs.** The third
 acceptance line names macOS and Windows, and neither station has run the
@@ -75,7 +75,7 @@ per-configuration case actually runs, and this change moved where the case
 looks. So the card goes back to Ready with `platforms: ["mac", "win"]`, so
 that those two queues offer it. Linux owes nothing more.
 
-### What changed (`c50c121e`)
+### What changed (`867ed35f`)
 
 **The rows name what they skipped.** `tests/scripts/skip_report.py` is a
 unittest runner. Before unittest's summary, it prints one line for each
@@ -180,18 +180,23 @@ The same lines are in the JUnit `system-out`.
 | Check | Candidate | Result |
 |---|---|---|
 | **Before:** `ctest --preset dev -R '^dependency_modernization_contract$' -V --output-junit …` | `7d03de48` | Pass, 27 cases, `OK (skipped=1)`. The case and the reason appear nowhere in the output or in JUnit, and JUnit says `skipped="0"` |
-| **After, AC1:** the same row, in a 22-row `ctest --preset dev -j8` pass | `c50c121e` | Pass, 65.7 s. The console, `LastTest.log` and the JUnit `system-out` all carry the `SKIPPED:` line quoted above |
-| **AC2 and AC3, a single-configuration tree and another reason:** `ctest --preset core-only -R '^(dependency_modernization_contract\|skip_report_contract\|test_network_isolation_manifest\|test_network_isolation_structure_contract)$'` | `c50c121e` | 4/4 pass. The dependency row skips the same case for a different reason, and names it: "this tree does not build KSyntaxHighlighting: its cache has no KF6SyntaxHighlighting_DIR" |
+| **After, AC1:** the same row, in a 22-row `ctest --preset dev -j8` pass | `867ed35f` | Pass, 65.7 s. The console, `LastTest.log` and the JUnit `system-out` all carry the `SKIPPED:` line quoted above |
+| **AC2 and AC3, a single-configuration tree and another reason:** `ctest --preset core-only -R '^(dependency_modernization_contract\|skip_report_contract\|test_network_isolation_manifest\|test_network_isolation_structure_contract)$'` | `867ed35f` | 4/4 pass. The dependency row skips the same case for a different reason, and names it: "this tree does not build KSyntaxHighlighting: its cache has no KF6SyntaxHighlighting_DIR" |
 | The case alone, against the `/tmp` Ninja Multi-Config `Debug;Release` tree | `7d03de48` | `skipped 'fewer than two installed KSyntaxHighlighting configurations: not a multi-configuration tree'`, which is false for that tree |
-| The same | `c50c121e` | Runs: `... ok`. DEBUG is `libKF6SyntaxHighlighting_debug.a` and RELEASE is `libKF6SyntaxHighlighting.a` |
-| **Negative control:** the same tree with its DEBUG export pointed at the RELEASE library | `c50c121e` | `FAILED`, "configurations share an installed library". The export was restored afterwards |
-| **Negative control:** a cache that names an empty package directory | `c50c121e` | `FAILED`, "no per-configuration export in /tmp/bpr0871/empty-package …" |
-| `skip_report_contract` directly, under Python 3.13.15 and 3.14.4 | `c50c121e` | 9 cases OK on both. They cover a named skip with its reason, two reasons told apart, an expected failure, a class-level skip naming each case, `CTEST_FULL_OUTPUT` present only when something is named, the script name in place of `__main__`, `unittest.main` building the runner from the class, and the scan |
+| The same | `867ed35f` | Runs: `... ok`. DEBUG is `libKF6SyntaxHighlighting_debug.a` and RELEASE is `libKF6SyntaxHighlighting.a` |
+| **Negative control:** the same tree with its DEBUG export pointed at the RELEASE library | `867ed35f` | `FAILED`, "configurations share an installed library". The export was restored afterwards |
+| **Negative control:** a cache that names an empty package directory | `867ed35f` | `FAILED`, "no per-configuration export in /tmp/bpr0871/empty-package …" |
+| `skip_report_contract` directly, under Python 3.13.15 and 3.14.4 | `867ed35f` | 9 cases OK on both. They cover a named skip with its reason, two reasons told apart, an expected failure, a class-level skip naming each case, `CTEST_FULL_OUTPUT` present only when something is named, the script name in place of `__main__`, `unittest.main` building the runner from the class, and the scan |
 | **Negative control:** the runner with its result class removed | working tree | 6 of 9 fail. Restored |
 | **Negative control:** the dependency row's `testRunner=` removed, and a `skipTest` planted in `type_read_binding_tests.py` | working tree | The scan fails and names both, `tests/scripts/dependency_modernization_tests.py:1092` and `tests/scripts/type_read_binding_tests.py:64`. Restored |
-| `ctest --preset dev -j8` over 22 rows: every changed row, `skip_report_contract`, `test_network_isolation_manifest`, `test_network_isolation_structure_contract`, `contained_temporary_usage_contract`, `platform_configuration_contract`, `rfc0016_test_inventory`, `rfc0017_test_inventory`, `rfc0017_test_inventory_contract`, `documentation_structure`, `documentation_issue_graph_contract` | `c50c121e` | 22/22 pass. The `grep` above lists 16 cases in five rows |
-| `designated_live_macos_capsule_tests.py` and `record_rfc0017_anonymous_contracts_tests.py`, run directly because neither is a Linux row | these paths as committed in `c50c121e` | 49 cases, `OK (skipped=2)`, both named; 166 cases, OK |
-| `python3 scripts/verify_documentation.py --root .`; `python3 tests/scripts/verify_documentation_tests.py`; `git diff --check` | `c50c121e` with this card's edits | `DOCUMENTATION_OK`; 64 tests OK; clean |
+| `ctest --preset dev -j8` over 22 rows: every changed row, `skip_report_contract`, `test_network_isolation_manifest`, `test_network_isolation_structure_contract`, `contained_temporary_usage_contract`, `platform_configuration_contract`, `rfc0016_test_inventory`, `rfc0017_test_inventory`, `rfc0017_test_inventory_contract`, `documentation_structure`, `documentation_issue_graph_contract` | `867ed35f` | 22/22 pass. The `grep` above lists 16 cases in five rows |
+| `designated_live_macos_capsule_tests.py` and `record_rfc0017_anonymous_contracts_tests.py`, run directly because neither is a Linux row | these paths as committed in `867ed35f` | 49 cases, `OK (skipped=2)`, both named; 166 cases, OK |
+| `python3 scripts/verify_documentation.py --root .`; `python3 tests/scripts/verify_documentation_tests.py`; `git diff --check` | `867ed35f` with this card's edits | `DOCUMENTATION_OK`; 64 tests OK; clean |
+
+The runs were made at `c50c121e`. That is the same commit before it was
+rebased onto `7dfece4f` for the push, and it is not on `main`. The rebase
+brought in only issue cards: `git diff --name-only c50c121e 867ed35f` lists
+six files, all under `docs/issues/`. So the results hold for `867ed35f`.
 
 The floor interpreter, 3.10, is not installed on this station, so the runner
 was not run under it. It uses nothing that 3.10's `unittest` lacks.
@@ -206,9 +211,9 @@ checked in.
 ### Acceptance, as it stands
 
 - **AC1**, the output names every skipped case and its reason in a real run:
-  pass on Linux at `c50c121e`.
+  pass on Linux at `867ed35f`.
 - **AC2**, a second skip for a different reason can be told apart: pass on
-  Linux at `c50c121e`. `dev` and `core-only` give the same case different,
+  Linux at `867ed35f`. `dev` and `core-only` give the same case different,
   named reasons. `skip_report_contract` pins two reasons in one run.
 - **AC3**, the row passes on all three platforms and still skips on a
   single-configuration tree: Linux passes, and skips on both `dev` and
@@ -217,7 +222,7 @@ checked in.
 ### Still owed
 
 **bpr-main-win.** `windows-dev` uses Visual Studio with `Debug;Release`, so
-this is where the case runs. Reconfigure `windows-dev` at `c50c121e` or later
+this is where the case runs. Reconfigure `windows-dev` at `867ed35f` or later
 so that `skip_report_contract` is registered, then run:
 
 ```powershell
