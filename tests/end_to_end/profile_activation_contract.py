@@ -113,7 +113,14 @@ def activation_endpoint(profile_root):
 
 
 def windows(root, profile):
-    with sqlite3.connect(root / "state/v1/profile-registry.sqlite3") as connection:
+    """The durable window rows of one profile, read through a closed connection.
+
+    [[BPR-0980]]. `with sqlite3.connect(...)` commits or rolls back; it does not
+    close. On Windows the course's own process then still holds the registry
+    open when the contained temporary root is removed, and the row fails at
+    cleanup with WinError 32 whenever garbage collection has not yet run.
+    """
+    with contextlib.closing(sqlite3.connect(root / "state/v1/profile-registry.sqlite3")) as connection:
         return connection.execute(
             "SELECT window_id,generation,ordinal FROM profile_registry_windows "
             "WHERE profile_id=? ORDER BY ordinal", (str(profile),)
