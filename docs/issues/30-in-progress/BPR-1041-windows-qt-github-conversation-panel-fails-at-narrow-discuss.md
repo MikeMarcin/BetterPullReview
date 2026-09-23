@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1041"
 title: "Windows: qt_github_conversation_panel fails at \"narrow Discuss begins in the focused conversation index\""
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
