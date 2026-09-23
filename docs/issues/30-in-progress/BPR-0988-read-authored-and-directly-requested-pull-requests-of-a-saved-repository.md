@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0988"
 title: "Read authored and directly requested pull requests of a saved repository"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0598"]
 priority: "P1"
