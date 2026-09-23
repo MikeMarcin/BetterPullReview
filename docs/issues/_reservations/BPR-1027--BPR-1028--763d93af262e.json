@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1027",
+    "BPR-1028"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "bpr-main-win: (1) Windows: closing a second window can crash the owner in ~implementation deleting Realigner (0xC0000409 CFG fast fail); (2) Windows: File > Quit through the strip's Application menu destroys the window under its stack QMenu (accessible invoke)",
+  "created": "2026-09-23T17:06:36.047963+00:00",
+  "base": "ee2576fea7a88961b7ff0fc5662cc7df14c6159b"
+}
