@@ -317,3 +317,29 @@ Observe:
 If both hold, the card can finish. Windows is not part of this acceptance. The
 row is registered `WINDOWS_UNCONTAINED` and was last red there on the separate
 `cleanup_failed=1` fault that BPR-0860 recorded.
+
+## The macOS run (bpr-main-mac, Mac batch 3, 2026-09-23)
+
+Run on `cec701b9`, which contains `3dca2d7a`, from 21:31:42Z. `cmake --build
+--preset dev` ran first (exit 0), and `ninja -n` then reported no work.
+Apple Silicon, Qt 6.11.2 Debug, offscreen. The command above ran as written,
+with `-V` added so the passing output could be searched
+(`build/bpr0864-mac-two.log`).
+
+| Row | Result |
+|---|---|
+| `application_workbench_composition_contract` | Pass, 22.22 s |
+| `application_review_round_trip_composition_contract` | Pass, 11.33 s |
+
+- **Both rows pass**, 2/2, ctest exit 0.
+- **No `_STALLED` line**, and no `COURSE_MODALITY_*` or `RUN_BUDGET_EXPIRED`
+  line either: zero occurrences of each in the whole log.
+- **Time and load.** The load average was `{ 11.79 5.39 5.13 }` at the start
+  and `{ 8.40 5.25 5.08 }` at the end. The run followed a rebuild. The
+  workbench row's 22.22 s is in line with BPR-0860's 21 s at load 2.2–4.5,
+  here at a one-minute load near 12, and no phase came near its 5 s cap.
+
+This head also carries [[BPR-1032]]'s measurement change (`27c35729`), which
+touches the workbench panes. Both rows passed with it here as well, as they
+did in that card's own integration pass. The macOS half of the acceptance
+holds, and the Linux station finishes the card.
