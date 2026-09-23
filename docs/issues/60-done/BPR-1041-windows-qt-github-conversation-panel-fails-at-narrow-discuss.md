@@ -93,3 +93,16 @@ this station. There the panel gets narrower than it was: 60 average
 characters is less than 500 pixels wherever the font averages under 8.3
 pixels. It is still narrow by the same rule. And the new precondition check
 names the failure if a font ever makes it not narrow.
+
+## Post-close: macOS at `14afcdee` (Mac main station, 2026-09-23)
+
+This is the macOS half of AC3, which the Windows station reasoned from code.
+macOS 26.6.2 arm64, `build/dev` (Apple clang 21.0.0, Debug, Qt 6.11.2), offscreen, serial (`ctest -j1`), as registered. `14afcdee` contains `47fdc0ed`. It also contains [[BPR-1043]]
+(`7b5d78be`), which changed the conversation panel after this fix.
+
+`qt_github_conversation_panel` passes 7 of 7: once in the batch of this
+card's siblings (0.78 s), once verbose, and 5 of 5 with
+`--repeat until-fail:5` (0.51–0.77 s). The narrow-Discuss test has no
+platform guard, so its new precondition check ("the panel is narrower than
+85 average characters, which is narrow by its own rule") and the layout
+check ran. Linux is still reported only by reasoning.
