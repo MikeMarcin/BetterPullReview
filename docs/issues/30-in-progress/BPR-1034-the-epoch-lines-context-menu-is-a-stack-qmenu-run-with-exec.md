@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1034"
 title: "The epoch line's context menu is a stack QMenu run with exec(), so a window destroyed while it is open frees a stack object"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
