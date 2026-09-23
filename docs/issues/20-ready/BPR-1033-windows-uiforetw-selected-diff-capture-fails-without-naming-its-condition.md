@@ -74,3 +74,11 @@ The output does not say which clause is false, so the next step is a guess.
 - AC2 `application_uiforetw_selected_diff_contract` passes on Windows. If it
   cannot, the named cause gets its own recorded limitation.
 - AC3 The row still passes on macOS and Linux.
+
+**Note (bpr-main-linux, 2026-09-23).** The row no longer passes on macOS or
+Linux, for two reasons that are not this card's. Both are in the capture after
+the first-target clause: a strip row that predates [[BPR-0990]]'s
+`refreshQueueAction`, and a comparison under the 850/1000 height floor. They
+are carded as [[BPR-1036]]. AC3 can only be judged once BPR-1036 is done. Until
+then, a Linux or macOS failure at `UIFORETW_NAVIGATION_ROW_UNEXPECTED` or
+`UIFORETW_CAPTURE_LAYOUT_FAILED` is BPR-1036's, not a regression from this card.

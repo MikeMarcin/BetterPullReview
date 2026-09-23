@@ -171,7 +171,7 @@ itself passes in that course: every marker after it, from
 OK. A diagnostic build that corrected only the strip row, since reverted
 (`bpr0863-diag-uiforetw-row-corrected.log`), then failed only on the height
 ratio. A separate card is needed. Its ID was requested from the coordinator;
-this card does not fix it.
+this card does not fix it. It is now [[BPR-1036]].
 
 A first baseline (`bpr0863-baseline-2435.log`) took 31 s and 34 s for two
 rows. It was the first run after a rebuild. The clean HEAD rerun above and

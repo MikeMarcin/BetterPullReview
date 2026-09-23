@@ -242,7 +242,9 @@ Checked, not widened:
 Four probes share this card's defect exactly: `appearance_theme_customization`,
 `review_ledger_composition`, `review_round_trip_composition` and
 `defect_composition`. The UIforETW probe has both halves of it. Follow-up cards
-are requested from the coordinator rather than allocated here. The same
+were requested from the coordinator rather than allocated here: the four probes
+are now [[BPR-1037]], and the UIforETW probe's half is folded into
+[[BPR-1036]]. The same
 `wait`/`advance`/`stall` shape would fit each one. The course also waits
 before this probe starts, in `main.cpp`'s shared `open` stage
 (`fixture_presentation_passed`). That wait belongs to every fixture course, not
