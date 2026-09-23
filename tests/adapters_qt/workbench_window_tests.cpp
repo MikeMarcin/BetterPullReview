@@ -8594,6 +8594,8 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
 		test_home_strip_holds_group_state_headers_filter_and_refresh();
 		test_home_discovery_glyph_status_and_pull_request_menu();
+		// RFC-BPR-0026 AC-04: the window's own filter beside the profile's.
+		test_home_filter_menu_and_its_gesture();
 		std::cout << "workbench-home-discovery:pass\n";
 		return EXIT_SUCCESS;
 	}
