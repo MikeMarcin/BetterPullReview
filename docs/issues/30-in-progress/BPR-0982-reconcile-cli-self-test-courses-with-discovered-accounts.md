@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0982"
 title: "Reconcile the CLI self-test courses and composition contract with discovered GitHub CLI accounts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
