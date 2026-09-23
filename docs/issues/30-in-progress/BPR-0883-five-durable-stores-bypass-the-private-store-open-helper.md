@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0883"
 title: "Five durable stores bypass the private-store open helper and drop their validated directory handles"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
