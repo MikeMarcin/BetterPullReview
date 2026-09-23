@@ -66,6 +66,9 @@
 #include <QToolButton>
 #include <QWidget>
 #include <QWindow>
+#if defined(_WIN32)
+	#include <qpa/qwindowsysteminterface.h>
+#endif
 
 #include <QTreeView>
 
@@ -2025,6 +2028,299 @@ namespace {
 		QApplication::processEvents();
 		expect(open.isNull() && subMenu.isNull(), "the open strip menu went with its window");
 		expect(QApplication::activePopupWidget() == nullptr, "no popup is left behind");
+	}
+
+	/// [[BPR-1022]]. One key, delivered as the Windows platform plugin delivers
+	/// it: through `QWindowSystemInterface`, which offers it as a shortcut first
+	/// and then hands it to the window, before any widget. The window it goes
+	/// to is the one the platform picks: an open popup holds the keyboard grab.
+	void platform_key(qt::workbench_window&       aWindow,
+					  const QEvent::Type          aType,
+					  const int                   aKey,
+					  const Qt::KeyboardModifiers aModifiers,
+					  const QString&              aText = { })
+	{
+		auto* const popup  = QApplication::activePopupWidget();
+		auto* const target = popup != nullptr ? popup->windowHandle() : aWindow.windowHandle();
+		expect(target != nullptr, "a key has a window to go to");
+		QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+			target, aType, aKey, aModifiers, aText);
+		QApplication::processEvents();
+	}
+
+	/// Alt pressed and released alone, with the modifiers Qt's Windows key
+	/// mapper reports: Alt on the press, none on the release.
+	void press_alt_alone(qt::workbench_window& aWindow)
+	{
+		platform_key(aWindow, QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+		platform_key(aWindow, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+	}
+
+	void press_escape(qt::workbench_window& aWindow)
+	{
+		platform_key(aWindow, QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+		platform_key(aWindow, QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier);
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		QApplication::processEvents();
+	}
+
+	/// A left click on aTarget, delivered to the window as the platform does.
+	void platform_click(qt::workbench_window& aWindow, QWidget* const aTarget, const Qt::KeyboardModifiers aModifiers)
+	{
+		const auto local  = QPointF{ aTarget->mapTo(&aWindow, aTarget->rect().center()) };
+		const auto global = QPointF{ aTarget->mapToGlobal(aTarget->rect().center()) };
+		QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+			aWindow.windowHandle(), local, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, aModifiers);
+		QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+			aWindow.windowHandle(), local, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, aModifiers);
+		QApplication::processEvents();
+	}
+
+	[[nodiscard]] auto open_strip_menu_popup() -> QMenu*
+	{
+		auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+		return menu != nullptr && menu->objectName() == QStringLiteral("workbenchStripMenu") ? menu : nullptr;
+	}
+
+	// [[BPR-1022]]. Alt pressed and released alone, and F10, open the strip's
+	// application menu with its first menu highlighted; Esc closes it and the
+	// keyboard goes back where it was. Alt as a modifier opens nothing and keeps
+	// its own effect. Offscreen, input enters where the Windows platform plugin
+	// hands it to Qt (QWindowSystemInterface), so everything from the shortcut
+	// map onwards is the real path. That the plugin itself passes Alt and F10 on
+	// as these events, and never enters the system's own menu mode, was measured
+	// on the real `windows` platform and is recorded on the card.
+	void test_strip_menu_opens_from_alt_and_f10()
+	{
+		auto window = qt::workbench_window{ };
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(every_primary_command_offered());
+		window.activateWindow();
+		QApplication::processEvents();
+		expect(QGuiApplication::focusWindow() == window.windowHandle(), "the window has the keyboard");
+
+		auto* const bar   = window.menuBar();
+		auto        menus = QList<QAction*>{ };
+		for (auto* const action : bar->actions()) {
+			if (action->isVisible()) {
+				menus.push_back(action);
+			}
+		}
+		expect(!bar->isVisible() && menus.size() >= 2 && menus.front()->menu() != nullptr,
+			   "the menu bar is hidden and holds the menus");
+		auto* const fileMenu = menus.front()->menu();
+
+		// The keyboard starts in an editor, which is where AltGr text goes.
+		auto* editor = static_cast<QLineEdit*>(nullptr);
+		for (auto* const candidate : window.findChildren<QLineEdit*>()) {
+			if (candidate->isVisible() && candidate->isEnabled() && !candidate->isReadOnly()) {
+				editor = candidate;
+				break;
+			}
+		}
+		expect(editor != nullptr, "the workbench has a visible editor to type into");
+		editor->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		expect(QApplication::focusWidget() == editor, "the editor has the keyboard");
+
+		const auto opensHighlighted = [&](const std::string_view aGesture) {
+			auto* const menu = window.findChild<QMenu*>(QStringLiteral("workbenchStripMenu"));
+			expect(menu != nullptr && menu->isVisible(), std::string{ aGesture } + " opens the strip's application menu");
+			expect(menu->actions() == menus, std::string{ aGesture } + " offers exactly the bar's visible menus");
+			expect(menu->activeAction() == menus.front(), std::string{ aGesture } + " highlights the first menu");
+			expect(!fileMenu->isVisible() && QApplication::activePopupWidget() == menu,
+				   std::string{ aGesture } + " highlights the first menu without opening it");
+			press_escape(window);
+			expect(QApplication::activePopupWidget() == nullptr, std::string{ "Esc closes the menu " } + std::string{ aGesture } + " opened");
+			expect(QApplication::focusWidget() == editor, std::string{ "after " } + std::string{ aGesture } + ", Esc returns the keyboard to the editor");
+			expect(window.findChildren<QMenu*>(QStringLiteral("workbenchStripMenu")).isEmpty(),
+				   std::string{ "the menu " } + std::string{ aGesture } + " opened deletes itself once closed");
+		};
+
+		// AC1.
+		press_alt_alone(window);
+		opensHighlighted("Alt pressed and released alone");
+		platform_key(window, QEvent::KeyPress, Qt::Key_F10, Qt::NoModifier);
+		platform_key(window, QEvent::KeyRelease, Qt::Key_F10, Qt::NoModifier);
+		opensHighlighted("F10");
+
+		// Inside the menu, the arrows and the menus' mnemonics work as they do
+		// from the mouse path, and Alt closes it again rather than reopening it.
+		press_alt_alone(window);
+		platform_key(window, QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier);
+		platform_key(window, QEvent::KeyRelease, Qt::Key_Right, Qt::NoModifier);
+		expect(QApplication::activePopupWidget() == fileMenu, "Right opens the highlighted first menu");
+		press_escape(window);
+		expect(open_strip_menu_popup() != nullptr, "Esc from the first menu returns to the application menu");
+		press_escape(window);
+		auto* const lastMenu = menus.back()->menu();
+		const auto  mnemonic = QKeySequence::mnemonic(menus.back()->text());
+		expect(lastMenu != nullptr && !mnemonic.isEmpty(), "the last menu has a mnemonic");
+		press_alt_alone(window);
+		platform_key(window, QEvent::KeyPress, static_cast<int>(mnemonic[0].key()), Qt::NoModifier, menus.back()->text().at(menus.back()->text().indexOf(u'&') + 1).toLower());
+		expect(QApplication::activePopupWidget() == lastMenu, "the last menu's mnemonic opens it from the application menu");
+		press_escape(window);
+		press_escape(window);
+		expect(QApplication::activePopupWidget() == nullptr && QApplication::focusWidget() == editor,
+			   "leaving the menus returns the keyboard to the editor");
+		press_alt_alone(window);
+		expect(open_strip_menu_popup() != nullptr, "Alt opens the menu before it closes it");
+		press_alt_alone(window);
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		QApplication::processEvents();
+		expect(QApplication::activePopupWidget() == nullptr, "Alt pressed and released alone again closes the open menu and does not reopen it");
+		expect(QApplication::focusWidget() == editor, "closing the menu with Alt returns the keyboard to the editor");
+
+		// AC2. Every Alt chord keeps exactly the effect it has as a bare
+		// shortcut, and opens no menu. Its actions are counted both ways.
+		struct chord
+		{
+			const char*           Name;
+			int                   Key;
+			Qt::KeyboardModifiers Modifiers;
+		};
+		const auto chords = std::array{
+			chord{ "Alt+N", Qt::Key_N, Qt::AltModifier },
+			chord{ "Alt+1", Qt::Key_1, Qt::AltModifier },
+			chord{ "Alt+2", Qt::Key_2, Qt::AltModifier },
+			chord{ "Alt+3", Qt::Key_3, Qt::AltModifier },
+			chord{ "Alt+Up", Qt::Key_Up, Qt::AltModifier },
+			chord{ "Alt+Down", Qt::Key_Down, Qt::AltModifier },
+			chord{ "Alt+PgUp", Qt::Key_PageUp, Qt::AltModifier },
+			chord{ "Alt+PgDown", Qt::Key_PageDown, Qt::AltModifier },
+			chord{ "Alt+Shift+1", Qt::Key_1, Qt::AltModifier | Qt::ShiftModifier },
+			chord{ "Alt+Shift+2", Qt::Key_2, Qt::AltModifier | Qt::ShiftModifier },
+			chord{ "Alt+Shift+3", Qt::Key_3, Qt::AltModifier | Qt::ShiftModifier },
+			chord{ "Alt+Shift+4", Qt::Key_4, Qt::AltModifier | Qt::ShiftModifier },
+			chord{ "Alt+Shift+5", Qt::Key_5, Qt::AltModifier | Qt::ShiftModifier },
+			chord{ "Alt+Shift+R", Qt::Key_R, Qt::AltModifier | Qt::ShiftModifier },
+		};
+		auto triggered = 0;
+		auto counted   = QObject{ };
+		for (auto* const action : window.findChildren<QAction*>()) {
+			QObject::connect(action, &QAction::triggered, &counted, [&triggered] { ++triggered; });
+		}
+		// A chord whose control opens a menu of its own (Alt+Shift+4, the
+		// private progress control) runs that menu in a nested loop; it is
+		// counted and closed from there.
+		auto popups     = 0;
+		auto closer     = QTimer{ };
+		auto stripMenus = 0;
+		QObject::connect(&closer, &QTimer::timeout, &counted, [&] {
+			// Closing hides the popup at once, so each showing is counted once.
+			if (auto* const popup = QApplication::activePopupWidget(); popup != nullptr) {
+				++popups;
+				if (popup->objectName() == QStringLiteral("workbenchStripMenu")) {
+					++stripMenus;
+				}
+				popup->close();
+			}
+		});
+		closer.start(10);
+		const auto settle = [] {
+			auto elapsed = QElapsedTimer{ };
+			elapsed.start();
+			while (elapsed.elapsed() < 400) {
+				QApplication::processEvents(QEventLoop::AllEvents, 20);
+			}
+		};
+		// Offscreen, a closed popup can leave no window active, where the
+		// Windows platform never activates a popup at all. Each chord starts
+		// where a reviewer's would: in the window, in the editor.
+		const auto keepActive = [&] {
+			if (QGuiApplication::focusWindow() != window.windowHandle() || QApplication::focusWidget() != editor) {
+				window.activateWindow();
+				editor->setFocus(Qt::OtherFocusReason);
+				QApplication::processEvents();
+			}
+			expect(QGuiApplication::focusWindow() == window.windowHandle() && QApplication::focusWidget() == editor,
+				   "each chord starts in the active window's editor");
+		};
+		auto effective = 0;
+		for (const auto& gesture : chords) {
+			const auto shifted = gesture.Modifiers.testFlag(Qt::ShiftModifier);
+			triggered          = 0;
+			popups             = 0;
+			stripMenus         = 0;
+			keepActive();
+			platform_key(window, QEvent::KeyPress, gesture.Key, gesture.Modifiers);
+			platform_key(window, QEvent::KeyRelease, gesture.Key, gesture.Modifiers);
+			settle();
+			const auto bare = std::pair{ triggered, popups };
+			triggered       = 0;
+			popups          = 0;
+			keepActive();
+			platform_key(window, QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+			if (shifted) {
+				platform_key(window, QEvent::KeyPress, Qt::Key_Shift, Qt::AltModifier | Qt::ShiftModifier);
+			}
+			platform_key(window, QEvent::KeyPress, gesture.Key, gesture.Modifiers);
+			platform_key(window, QEvent::KeyRelease, gesture.Key, gesture.Modifiers);
+			if (shifted) {
+				platform_key(window, QEvent::KeyRelease, Qt::Key_Shift, Qt::AltModifier);
+			}
+			platform_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+			settle();
+			std::cout << "BPR-1022 chord " << gesture.Name << ": bare triggered=" << bare.first << " popups=" << bare.second
+					  << "; with Alt pressed and released triggered=" << triggered << " popups=" << popups
+					  << " strip menus=" << stripMenus << '\n';
+			expect(stripMenus == 0 && QApplication::activePopupWidget() == nullptr,
+				   std::string{ gesture.Name } + " opens no application menu when Alt is released");
+			expect(std::pair{ triggered, popups } == bare, std::string{ gesture.Name } + " keeps exactly the effect it has as a bare shortcut");
+			effective += bare.first + bare.second > 0 ? 1 : 0;
+		}
+		expect(effective >= 8, "most Alt chords do something here, so keeping their effect is not vacuous");
+
+		// Alt+Space (the system menu on the real platform) and Alt+F4 (close,
+		// the platform's) pass through as chords too.
+		for (const auto& [name, key] : std::array{ std::pair{ "Alt+Space", int{ Qt::Key_Space } }, std::pair{ "Alt+F4", int{ Qt::Key_F4 } } }) {
+			stripMenus = 0;
+			keepActive();
+			platform_key(window, QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+			platform_key(window, QEvent::KeyPress, key, Qt::AltModifier, key == Qt::Key_Space ? QStringLiteral(" ") : QString{ });
+			platform_key(window, QEvent::KeyRelease, key, Qt::AltModifier);
+			platform_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+			settle();
+			expect(stripMenus == 0 && QApplication::activePopupWidget() == nullptr,
+				   std::string{ name } + " opens no application menu");
+		}
+
+		// AltGr is Ctrl with Alt: its text reaches the editor and no menu opens.
+		stripMenus = 0;
+		keepActive();
+		const auto before = editor->text();
+		platform_key(window, QEvent::KeyPress, Qt::Key_Control, Qt::ControlModifier);
+		platform_key(window, QEvent::KeyPress, Qt::Key_Alt, Qt::ControlModifier | Qt::AltModifier);
+		platform_key(window, QEvent::KeyPress, Qt::Key_Q, Qt::ControlModifier | Qt::AltModifier, QStringLiteral("@"));
+		platform_key(window, QEvent::KeyRelease, Qt::Key_Q, Qt::ControlModifier | Qt::AltModifier, QStringLiteral("@"));
+		platform_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::ControlModifier);
+		platform_key(window, QEvent::KeyRelease, Qt::Key_Control, Qt::NoModifier);
+		settle();
+		expect(stripMenus == 0 && QApplication::activePopupWidget() == nullptr, "AltGr text entry opens no application menu");
+		expect(editor->text() == before + QStringLiteral("@"), "AltGr text entry types its character into the editor");
+
+		// An Alt-click is the click's, and opens no menu when Alt is released.
+		auto* const files = window.primary_toolbar()->widgetForAction(window.files_drawer_toggle_action());
+		expect(files != nullptr && files->isVisible() && window.files_drawer_toggle_action()->isEnabled(),
+			   "the files drawer toggle is there to Alt-click");
+		triggered  = 0;
+		stripMenus = 0;
+		keepActive();
+		platform_key(window, QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+		platform_click(window, files, Qt::AltModifier);
+		platform_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+		settle();
+		expect(triggered == 1, "an Alt-click presses the control under it");
+		expect(stripMenus == 0 && QApplication::activePopupWidget() == nullptr, "an Alt-click opens no application menu");
+		closer.stop();
+
+		// Alt alone still opens it after all of that.
+		keepActive();
+		press_alt_alone(window);
+		expect(open_strip_menu_popup() != nullptr, "Alt pressed and released alone opens the menu after the chords");
+		press_escape(window);
+		window.hide();
 	}
 #endif
 
@@ -8766,6 +9062,7 @@ auto main(int argc, char** argv) -> int
 	// lifetime: closed, it deletes itself; open, it goes with the window.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--strip-menu"))) {
 		test_strip_menu_goes_with_its_window();
+		test_strip_menu_opens_from_alt_and_f10();
 		std::cout << "workbench-strip-menu:pass\n";
 		return EXIT_SUCCESS;
 	}

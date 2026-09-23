@@ -80,6 +80,7 @@
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QWindow>
 
 #include <algorithm>
 #include <cstddef>
@@ -552,7 +553,7 @@ namespace bpr::qt {
 		return StripMenuButton;
 	}
 
-	void workbench_window::open_strip_menu()
+	auto workbench_window::open_strip_menu() -> QMenu*
 	{
 		// [[BPR-1028]]. This used to be a QMenu on this handler's stack, run
 		// with exec(). An accessible invoke runs a menu action without closing
@@ -571,6 +572,76 @@ namespace bpr::qt {
 			}
 		}
 		menu->popup(StripMenuButton->mapToGlobal(QPoint{ 0, StripMenuButton->height() }));
+		return menu;
+	}
+
+	void workbench_window::open_strip_menu_from_keyboard()
+	{
+		// The first menu is highlighted, not opened, as a menu bar entered
+		// from the keyboard highlights File. Down is the menu's own gesture
+		// for that: it selects the first entry and opens no submenu, where
+		// setActiveAction would open File at once.
+		auto* const menu = open_strip_menu();
+		auto        down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
+		QCoreApplication::sendEvent(menu, &down);
+	}
+
+	auto workbench_window::read_strip_menu_key(const QEvent& aEvent) -> bool
+	{
+		// [[BPR-1022]]. A chord's own modifiers other than Alt: Alt held with
+		// any of these is a chord (Ctrl with Alt is AltGr), never Alt alone.
+		constexpr auto other = Qt::ControlModifier | Qt::ShiftModifier | Qt::MetaModifier;
+		const auto     ready = [this] {
+			return QApplication::activePopupWidget() == nullptr && StripMenuButton != nullptr
+				&& StripMenuButton->isVisible();
+		};
+		const auto type = aEvent.type();
+		if (type == QEvent::KeyPress || type == QEvent::ShortcutOverride || type == QEvent::KeyRelease) {
+			const auto& key = static_cast<const QKeyEvent&>(aEvent);
+			if (key.key() == Qt::Key_Alt) {
+				// A held Alt repeats its press; only the first press arms, and
+				// the release opens the menu only if nothing came between.
+				if (type == QEvent::KeyPress && !key.isAutoRepeat()) {
+					StripMenuAltAlone = (key.modifiers() & other) == 0 && ready();
+				} else if (type == QEvent::KeyRelease && !key.isAutoRepeat() && std::exchange(StripMenuAltAlone, false)
+						   && ready()) {
+					open_strip_menu_from_keyboard();
+				}
+				return false;
+			}
+			if (type == QEvent::KeyRelease) {
+				return false;
+			}
+			// Every other key, chord or shortcut makes a held Alt a modifier.
+			// A shortcut is offered as ShortcutOverride and, when it matches,
+			// never arrives as a press, so both are read.
+			StripMenuAltAlone = false;
+			if (type == QEvent::KeyPress && key.key() == Qt::Key_F10 && !key.isAutoRepeat()
+				&& (key.modifiers() & (other | Qt::AltModifier)) == 0 && ready()) {
+				open_strip_menu_from_keyboard();
+				return true;
+			}
+			return false;
+		}
+		switch (type) {
+		case QEvent::MouseButtonPress:
+		case QEvent::MouseButtonDblClick:
+		case QEvent::NonClientAreaMouseButtonPress:
+		case QEvent::NonClientAreaMouseButtonDblClick:
+		case QEvent::Wheel:
+		case QEvent::TouchBegin:
+		case QEvent::TabletPress:
+		case QEvent::FocusIn:
+		case QEvent::FocusOut:
+		case QEvent::Hide:
+			// An Alt-click, an Alt-wheel, or the window losing the keyboard
+			// between Alt's press and release (Alt+Tab) is not Alt alone.
+			StripMenuAltAlone = false;
+			break;
+		default:
+			break;
+		}
+		return false;
 	}
 
 #endif
@@ -7393,6 +7464,13 @@ namespace bpr::qt {
 
 	auto workbench_window::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
+#if defined(_WIN32)
+		// [[BPR-1022]]. The window's own input, before any of its widgets.
+		if (auto* const handle = windowHandle();
+			aEvent != nullptr && handle != nullptr && aWatched == handle && read_strip_menu_key(*aEvent)) {
+			return true;
+		}
+#endif
 		if (aWatched == DifCornerSlot && aEvent != nullptr
 			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
@@ -7925,6 +8003,13 @@ namespace bpr::qt {
 	void workbench_window::showEvent(QShowEvent* const aEvent)
 	{
 		QMainWindow::showEvent(aEvent);
+#if defined(_WIN32)
+		// [[BPR-1022]]. The native window exists once shown, and a window that
+		// is made again is shown again; installing twice installs once.
+		if (auto* const handle = windowHandle(); handle != nullptr) {
+			handle->installEventFilter(this);
+		}
+#endif
 		// [[BPR-0732]]. The first showing decides where a signed-out Home
 		// starts: at the bar.
 		if (!HomeFocused) {

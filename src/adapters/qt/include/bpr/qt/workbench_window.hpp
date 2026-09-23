@@ -961,8 +961,23 @@ namespace bpr::qt {
 		/// of the window that deletes itself when it closes, shown with
 		/// `popup()`: nothing waits for it, so a Quit or close that destroys the
 		/// window while it is open takes the menu with it and leaves no frame of
-		/// the window's on the stack.
-		void open_strip_menu();
+		/// the window's on the stack. [[BPR-1022]]'s keyboard path opens it here
+		/// too and is handed the menu to highlight its first entry.
+		auto open_strip_menu() -> QMenu*;
+		/// \brief Reads the platform's menu keys from the window's own input.
+		///
+		/// \details [[BPR-1022]]. Alt pressed and released alone, or F10, opens
+		/// the strip's application menu with its first menu highlighted, as the
+		/// hidden menu bar would have. Measured on the Windows station, Qt's
+		/// key mapper consumes both keys, so the platform never enters its own
+		/// menu mode and Qt's hidden bar does nothing: the gesture is read here,
+		/// from the key and mouse events the window receives before any of its
+		/// widgets. Any other key, a shortcut, a mouse button, a wheel turn or a
+		/// change of focus between Alt's press and release makes Alt a modifier,
+		/// and a modifier opens nothing. Returns whether the event was taken.
+		[[nodiscard]] auto read_strip_menu_key(const QEvent& aEvent) -> bool;
+		/// \brief Opens the strip's application menu with its first menu highlighted.
+		void open_strip_menu_from_keyboard();
 #endif
 		/// [[BPR-0981]]. Shows each drawer's empty state when its filter
 		/// leaves nothing, and hides it otherwise.
@@ -1202,6 +1217,8 @@ namespace bpr::qt {
 #if defined(_WIN32)
 		QToolButton*             StripMenuButton = nullptr;
 		windows_caption_buttons* CaptionButtons  = nullptr;
+		/// [[BPR-1022]]. Alt is down, and nothing has yet made it a modifier.
+		bool StripMenuAltAlone = false;
 #endif
 		core::workbench_reason_code           LastRefusal = core::workbench_reason_code::none;
 		workbench_landing*                    HomeLanding = nullptr;

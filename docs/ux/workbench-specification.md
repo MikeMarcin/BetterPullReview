@@ -662,7 +662,12 @@ price of the same answer being true on every platform. The existing toolbar
 popup keeps the private progress actions it already had. **File** holds Quit,
 and **Profiles** lists the profiles by name with the current one checked, then
 New Window and Manage Profiles…. On Windows the strip's application menu
-lists the same menus, Pull Request among them.
+lists the same menus, Pull Request among them. There the bar is hidden, so
+its Alt mnemonics are gone; instead `Alt` pressed and released alone, or
+`F10`, opens the application menu with File highlighted, as a menu bar
+entered from the keyboard would be ([[BPR-1022]]). `Alt` used as a modifier
+(any chord above, `Alt+Space`, `Alt+F4`, AltGr text entry or an Alt-click)
+opens nothing.
 
 The line-number entry is disabled until a pull request is open, because
 line-number visibility is workbench-surface state and an inactive workbench

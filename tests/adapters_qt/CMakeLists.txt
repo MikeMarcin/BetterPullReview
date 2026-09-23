@@ -941,6 +941,21 @@ target_link_libraries(
 )
 bpr_enable_hardening(test_better_pull_review_qt_workbench_window_tests)
 bpr_enable_warnings(test_better_pull_review_qt_workbench_window_tests)
+if(WIN32)
+    # [[BPR-1022]]. The strip menu's keyboard course delivers keys and clicks
+    # through QWindowSystemInterface, where the Windows platform plugin hands
+    # input to Qt, so the shortcut map and the window see them as they would
+    # from the keyboard. Only QtGui's one versioned header directory is taken,
+    # as the composition's title-row host and the macOS native menu course do.
+    file(GLOB bpr_qtgui_private_headers LIST_DIRECTORIES true
+        "${Qt6Gui_DIR}/../../../include/QtGui/[0-9]*.[0-9]*.[0-9]*")
+    list(LENGTH bpr_qtgui_private_headers bpr_qtgui_private_header_count)
+    if(NOT bpr_qtgui_private_header_count EQUAL 1)
+        message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_qtgui_private_headers}")
+    endif()
+    target_include_directories(test_better_pull_review_qt_workbench_window_tests SYSTEM PRIVATE
+        "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+endif()
 
 bpr_add_network_isolated_test(
     NAME qt_shared_snapshot_navigation
@@ -988,7 +1003,9 @@ endforeach()
 
 # [[BPR-1028]]. The strip's application menu against its window's lifetime:
 # closed, it deletes itself; open under an accessible File > Quit, it goes with
-# the window. Windows only, because only the Windows strip has the menu control.
+# the window. [[BPR-1022]]: Alt alone and F10 open it with its first menu
+# highlighted, and Alt as a modifier opens nothing. Windows only, because only
+# the Windows strip has the menu control.
 if(WIN32)
     bpr_add_network_isolated_test(
         NAME qt_workbench_strip_menu
