@@ -235,7 +235,8 @@ manifest `6295781bbcf3f6d4404a651ca339e015ed97f105a052a9085ed1c49a564455c8`.
 
 ### Still needed: the macOS run (Mac integrator)
 
-On macOS, `build/dev` at this card's commit or later, one serial run:
+The candidate is `7c6ba1a5` on `main`: the change, the reseal and this record.
+On macOS, `build/dev` at `7c6ba1a5` or later, one serial run:
 
 ```sh
 ctest --test-dir build/dev -j1 --output-on-failure -R '^(application_diff_workbench_public_path|application_appearance_theme_customization_contract|application_appearance_store_fallback_contract|application_workbench_composition_contract|application_unavailable_diff_public_path|application_approximate_diff_public_path|application_large_review_benchmark|application_review_round_trip_composition_contract)$'
