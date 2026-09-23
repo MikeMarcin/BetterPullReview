@@ -78,3 +78,14 @@ This closeout becomes startable when the four slices are Done; it then re-runs
 the no-slice rows at the closeout head, records superseded parts as
 superseded, and reconciles the RFC and index. This record claims no full RFC
 acceptance.
+
+## Current checkpoint
+
+Run `main-closeout-20260922`, segment `rfc-0026-implementer`, milestone
+`close-rfc-0026` bound at `f6faadeb`'s successor (`build/bpr0599-bind.json`;
+obligations BPR-0987, BPR-0988, BPR-0989, BPR-0990 and this card; both exits
+unchanged). Sole non-delegating `rfc-implementer` on `main`; nothing pushed.
+
+- [[BPR-0987]] Done (`17e40dc8`, finish `87635481`): AC-07/AC-08 slice.
+- [[BPR-0988]] Ready, next. [[BPR-0989]] and [[BPR-0990]] Backlog on it.
+- No attended session, live GitHub use or background command is open.
