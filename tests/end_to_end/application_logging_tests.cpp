@@ -10,12 +10,15 @@
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QThread>
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <utility>
 namespace {
 	void expect(bool aCondition, const char* aMessage)
@@ -88,5 +91,19 @@ int main(int aArgc, char** aArgv)
 		   "one accepted load has one succeeded entry");
 	expect(text.find("access_token") == std::string::npos && text.find("refresh_token") == std::string::npos, "authentication bodies absent");
 	expect(text.find(root.string()) == std::string::npos && text.find("octo-org") == std::string::npos && text.find("synthetic unsafe cache target") == std::string::npos, "epoch logs exclude path and repository data");
+	// [[BPR-0891]]. The native spelling above is not the only one a log could
+	// use: a Windows path can also be written with forward slashes or in
+	// another case. The root's random leaf is unique to this run, so finding it
+	// in any case finds the root however it was spelled. The repository is
+	// looked for by its own name as well as its owner's.
+	const auto folded = [](std::string aText) {
+		std::ranges::transform(aText, aText.begin(), [](const unsigned char aCharacter) {
+			return static_cast<char>(std::tolower(aCharacter));
+		});
+		return aText;
+	};
+	const auto leaf = folded(root.filename().string());
+	expect(!leaf.empty() && folded(text).find(leaf) == std::string::npos, "logs exclude the data root however it is spelled");
+	expect(text.find("review-repository") == std::string::npos, "logs exclude the repository's own name");
 	std::cout << "application-logging-tests:pass\n";
 }

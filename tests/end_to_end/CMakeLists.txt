@@ -1136,6 +1136,11 @@ set_tests_properties(application_approximate_diff_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
     PASS_REGULAR_EXPRESSION "APPROXIMATE_DIFF_COMPOSED_OK")
 
+# [[BPR-0891]]'s sweep: a measurement gate, not a security one. The cache-bytes,
+# cache-entries, loaded-close and resources rows sample the process through the
+# native memory sampler in `large_review_benchmark.cpp`, which is Mac-only and
+# throws on any other platform. The two history rows take no sample, and no
+# reason for keeping them on macOS alone has been recorded.
 if(APPLE)
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes
@@ -2689,6 +2694,12 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "profile-empty-desktop-native-menu-bar:pass")
 endif()
 
+# [[BPR-0891]]'s sweep. The in-place updater is macOS only. Its installation
+# transaction and helper are compiled only there, and elsewhere
+# `release_update_staging.cpp` answers `unsupported_platform` and stages
+# nothing (`src/adapters/update`). Windows and Linux keep manual distribution
+# (`docs/architecture/release-readiness.md`), so this is not a waiver: the
+# other platforms have nothing of this to run.
 if(APPLE)
     bpr_add_executable(test_release_update_transaction release_update_transaction_tests.cpp)
     target_link_libraries(test_release_update_transaction PRIVATE BetterPullReview::AdapterUpdate Qt6::Core)
