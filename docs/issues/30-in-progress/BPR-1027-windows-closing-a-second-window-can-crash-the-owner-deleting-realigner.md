@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1027"
 title: "Windows: closing a second window can crash the owner in ~implementation deleting Realigner (0xC0000409 CFG fast fail)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
