@@ -288,7 +288,15 @@ them.
 
 ### Still needed: the macOS run (Mac integrator)
 
-On macOS, with `build/dev` at the BPR-0864 commit or later, one serial run:
+The candidate is `3dca2d7a` on `main`: the change, the reseal and this record.
+It was rebased onto `470920d5`, which brings no change under `src/app/`. At
+`3dca2d7a`, rebuilt, both rows pass on Linux again: the workbench row in 2.94 s
+and the round-trip contract in 1.62 s, which verifies the new pins
+(`bpr0864-pushed-3dca2d7a.log`). BPR-0863's macOS run at 7c6ba1a5 passed this
+row in 21.67 s at a one-minute load near 14, with the modality step's 5 s bound
+unexceeded.
+
+On macOS, with `build/dev` at `3dca2d7a` or later, one serial run:
 
 ```sh
 ctest --test-dir build/dev -j1 --output-on-failure -R '^(application_workbench_composition_contract|application_review_round_trip_composition_contract)$'
