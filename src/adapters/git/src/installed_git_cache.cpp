@@ -417,8 +417,8 @@ namespace bpr::adapters::git {
 			static_cast<void>(CloseHandle(handle));
 			return result;
 #else
-			static_cast<void>(path);
-			static_cast<void>(kind);
+			static_cast<void>(aPath);
+			static_cast<void>(aKind);
 			return std::nullopt;
 #endif
 		}
@@ -539,7 +539,7 @@ namespace bpr::adapters::git {
 			static_cast<void>(CloseHandle(handle));
 			return result;
 #else
-			static_cast<void>(maximum_bytes);
+			static_cast<void>(aMaximumBytes);
 			return std::nullopt;
 #endif
 		}
@@ -617,7 +617,7 @@ namespace bpr::adapters::git {
 			static_cast<void>(CloseHandle(handle));
 			return synchronized && private_regular_file(aPath);
 #else
-			static_cast<void>(bytes);
+			static_cast<void>(aBytes);
 			return false;
 #endif
 		}
@@ -1009,7 +1009,7 @@ namespace bpr::adapters::git {
 				}
 				return true;
 #else
-				static_cast<void>(path);
+				static_cast<void>(aPath);
 				return false;
 #endif
 			}
@@ -2060,7 +2060,7 @@ namespace bpr::adapters::git {
 					}
 					offset += written;
 #else
-					static_cast<void>(bytes);
+					static_cast<void>(aBytes);
 					return false;
 #endif
 				}
@@ -2191,8 +2191,8 @@ namespace bpr::adapters::git {
 				.CompletedOwned = true,
 			};
 #else
-			static_cast<void>(receiving);
-			static_cast<void>(completed);
+			static_cast<void>(aReceiving);
+			static_cast<void>(aCompleted);
 			return { };
 #endif
 		}
@@ -2520,7 +2520,7 @@ namespace bpr::adapters::git {
 			static_cast<void>(aPath);
 			return true;
 #else
-			static_cast<void>(path);
+			static_cast<void>(aPath);
 			return false;
 #endif
 		}
@@ -2571,9 +2571,9 @@ namespace bpr::adapters::git {
 			};
 			return false;
 #else
-			static_cast<void>(source);
-			static_cast<void>(destination);
-			error = std::make_error_code(
+			static_cast<void>(aSource);
+			static_cast<void>(aDestination);
+			aError = std::make_error_code(
 				std::errc::operation_not_supported);
 			return false;
 #endif

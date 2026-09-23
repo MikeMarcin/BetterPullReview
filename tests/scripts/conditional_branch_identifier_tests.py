@@ -12,6 +12,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -20,11 +21,19 @@ sys.path.insert(0, str(REPOSITORY_ROOT))
 from scripts.contained_temporary_support import (  # noqa: E402
     contained_temporary_directory,
 )
-from scripts.verify_conditional_branches import findings_for  # noqa: E402
+from scripts.verify_conditional_branches import (  # noqa: E402
+    PLATFORM_MACROS,
+    findings_for,
+    host_macros,
+    unknown_platform_macros,
+)
 
 
 WINDOWS = {"_WIN32"}
 POSIX = {"__APPLE__", "__unix__"}
+# The sets `host_macros()` gives on those hosts, Qt's spellings included.
+LINUX = {"__linux__", "__unix__", "Q_OS_LINUX", "Q_OS_UNIX"}
+WINDOWS_QT = {"_WIN32", "_MSC_VER", "Q_OS_WIN"}
 
 
 def source(body: str) -> str:
@@ -393,6 +402,229 @@ class ConditionalBranchIdentifierTests(unittest.TestCase):
         caught = {entry[1] for entry in self.findings(body, WINDOWS)}
         self.assertIn("limit", caught)
         self.assertNotIn("session", caught)
+
+    def test_a_testing_region_is_left_to_the_compiler(self) -> None:
+        """[[BPR-0866]]. A build switch does not decide what the host compiles.
+
+        The `dev` build compiles `BPR_BUILD_TESTING` regions, so the compiler
+        already rejects this stale spelling. The tests-disabled build that
+        `application_composition_contract` makes compiles the other side. The
+        gate polices neither side on any host. Reading the switch as undefined
+        is how BPR-0854 got eleven findings in code a compiler had already
+        accepted.
+        """
+        body = """
+        int measure(int aExpectedBytes)
+        {
+        #if defined(BPR_BUILD_TESTING)
+            return expectedBytes;
+        #else
+            return expected_bytes;
+        #endif
+        }
+        """
+        for host in (POSIX, WINDOWS, LINUX):
+            self.assertEqual(self.findings(body, host), [])
+
+    def test_a_platform_branch_inside_a_testing_region_is_still_policed(
+        self,
+    ) -> None:
+        """The testing region is compiled here, but its Windows branch is not."""
+        body = """
+        #if defined(BPR_BUILD_TESTING)
+        int measure(int aExpectedBytes)
+        {
+        #if defined(_WIN32)
+            return expectedBytes;
+        #else
+            return aExpectedBytes;
+        #endif
+        }
+        #endif
+        """
+        caught = {entry[1] for entry in self.findings(body, LINUX)}
+        self.assertIn("expectedBytes", caught)
+        self.assertEqual(self.findings(body, WINDOWS), [])
+
+    def test_a_platform_macro_decides_a_condition_it_shares_with_a_switch(
+        self,
+    ) -> None:
+        """`defined(_WIN32) && defined(BPR_BUILD_TESTING)` is false off Windows.
+
+        No value of the switch makes it true where `_WIN32` is undefined, so the
+        branch is compiled by no build here. On Windows the switch still
+        decides it, so it stays with the compiler there.
+        """
+        body = """
+        int measure(int aExpectedBytes)
+        {
+        #if defined(_WIN32) && defined(BPR_BUILD_TESTING)
+            return expectedBytes;
+        #else
+            return aExpectedBytes;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, LINUX)}
+        self.assertIn("expectedBytes", caught)
+        self.assertEqual(self.findings(body, WINDOWS), [])
+
+    def test_an_else_after_a_taken_elif_is_policed(self) -> None:
+        """[[BPR-0866]]. `#else` is compiled only when no earlier branch was.
+
+        After a taken `#elif defined(__linux__)`, Linux does not compile the
+        `#else`. The gate used to read that `#else` as the opposite of the
+        `#if` alone and skip it. That is how the fallbacks after Unix and
+        Windows chains in `installed_git_cache.cpp` and
+        `installed_git_process.cpp` kept thirty stale parameter names that no
+        build compiles.
+        """
+        body = """
+        int measure(int aExpectedBytes)
+        {
+        #if defined(_WIN32)
+            return aExpectedBytes + 1;
+        #elif defined(__linux__)
+            return aExpectedBytes;
+        #else
+            return expectedBytes;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, LINUX)}
+        self.assertIn("expectedBytes", caught)
+
+    def test_a_false_elif_after_an_undecided_if_is_policed(self) -> None:
+        """The switch cannot make `#elif defined(_WIN32)` compile off Windows."""
+        body = """
+        int measure(int aExpectedBytes)
+        {
+        #if defined(BPR_BUILD_TESTING)
+            return aExpectedBytes;
+        #elif defined(_WIN32)
+            return expectedBytes;
+        #else
+            return aExpectedBytes + 1;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, LINUX)}
+        self.assertIn("expectedBytes", caught)
+
+    def test_qt_platform_names_follow_the_host(self) -> None:
+        """`Q_OS_UNIX` is compiled on Linux and macOS and nowhere on Windows.
+
+        Before, the gate knew only the compilers' spellings, so it policed a
+        `Q_OS_UNIX` branch on the very hosts that compile it. It also treated
+        that branch's `#else` as compiled there, so its Windows code went
+        unread.
+        """
+        body = """
+        int measure(int aExpectedBytes)
+        {
+        #if defined(Q_OS_UNIX)
+            return aExpectedBytes;
+        #else
+            return expectedBytes;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, LINUX)}
+        self.assertIn("expectedBytes", caught)
+        self.assertEqual(self.findings(body, WINDOWS_QT), [])
+        stale_unix = body.replace("return aExpectedBytes;", "return expected_bytes;")
+        stale_unix = stale_unix.replace("return expectedBytes;", "return aExpectedBytes;")
+        self.assertEqual(self.findings(stale_unix, LINUX), [])
+        caught = {entry[1] for entry in self.findings(stale_unix, WINDOWS_QT)}
+        self.assertIn("expected_bytes", caught)
+
+    def test_a_statement_is_not_a_function(self) -> None:
+        """[[BPR-0866]]. `for (; prefix != aPrefix.end(); ...)` declares nothing.
+
+        Read as a function, the loop had a parameter `aPrefix` and a block
+        that did not hold the `auto prefix` declared above it, so `prefix`
+        looked like a stale spelling. `github_application.cpp`'s `within`
+        lambda has this shape in a branch no platform compiles.
+        """
+        body = """
+        #if defined(_WIN32)
+        bool within(const path& aPath, const path& aPrefix)
+        {
+            auto path   = aPath.begin();
+            auto prefix = aPrefix.begin();
+            for (; prefix != aPrefix.end(); ++prefix, ++path) {
+                if (path == aPath.end() || *path != *prefix) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        #endif
+        """
+        self.assertEqual(self.findings(body, LINUX), [])
+
+    def test_a_rename_inside_a_statement_block_is_still_caught(self) -> None:
+        """The enclosing function still reads the block with its own parameters."""
+        body = """
+        #if defined(_WIN32)
+        int total(int aCount, int aLimit)
+        {
+            int sum = 0;
+            for (int index = 0; index < aCount; ++index) {
+                if (index < aLimit) {
+                    sum += limit;
+                }
+            }
+            return sum;
+        }
+        #endif
+        """
+        caught = {entry[1] for entry in self.findings(body, LINUX)}
+        self.assertIn("limit", caught)
+
+    def test_an_undecided_platform_spelling_is_refused(self) -> None:
+        """A platform macro the gate does not know would leave its branch unread.
+
+        Undecided is the quiet direction, so the gate names the macro instead.
+        A build switch, a Windows header switch and a known platform are not
+        refused.
+        """
+        text = "\n".join(
+            [
+                "#if defined(Q_OS_WINDOWS)",
+                "#endif",
+                "#ifdef __MACH__",
+                "#endif",
+                "#if defined(BPR_BUILD_TESTING) || defined(_WIN64)",
+                "#endif",
+                "#if !defined(WIN32_LEAN_AND_MEAN)",
+                "#endif",
+                "#if defined(Q_OS_WIN) && defined(BPR_SQLITE_TESTING)",
+                "#endif",
+            ]
+        )
+        refused = [(line, name) for line, name, _ in unknown_platform_macros(text)]
+        self.assertEqual(refused, [(1, "Q_OS_WINDOWS"), (3, "__MACH__"), (5, "_WIN64")])
+
+    def test_every_host_names_its_qt_platform_and_only_decided_macros(
+        self,
+    ) -> None:
+        """Each host defines Qt's name for itself, and nothing undecided.
+
+        A host's macro outside `PLATFORM_MACROS` would read as undecided. A
+        host missing Qt's name for itself polices its own `Q_OS_*` branches,
+        which its compiler already reads, and skips their `#else`.
+        """
+        expected = {
+            "Darwin": {"__APPLE__", "Q_OS_MACOS", "Q_OS_UNIX"},
+            "Windows": {"_WIN32", "Q_OS_WIN"},
+            "Linux": {"__linux__", "Q_OS_LINUX", "Q_OS_UNIX"},
+        }
+        for system, required in expected.items():
+            with mock.patch("platform.system", return_value=system):
+                macros = host_macros()
+            self.assertLessEqual(required, macros, system)
+            self.assertLessEqual(macros, PLATFORM_MACROS, system)
 
 
 if __name__ == "__main__":

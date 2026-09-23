@@ -410,7 +410,7 @@ namespace bpr::adapters::git {
 				}
 				return static_cast<std::size_t>(received);
 #else
-				static_cast<void>(destination);
+				static_cast<void>(aDestination);
 				return std::nullopt;
 #endif
 			}
@@ -591,8 +591,8 @@ namespace bpr::adapters::git {
 			static_cast<void>(CloseHandle(handle));
 			return result;
 #else
-			static_cast<void>(path);
-			static_cast<void>(kind);
+			static_cast<void>(aPath);
+			static_cast<void>(aKind);
 			return std::nullopt;
 #endif
 		}
@@ -859,7 +859,7 @@ namespace bpr::adapters::git {
 			return valid && closed && private_regular_file(aPath);
 #else
 			std::error_code error;
-			const auto      status = std::filesystem::symlink_status(path, error);
+			const auto      status = std::filesystem::symlink_status(aPath, error);
 			if (
 				error
 				|| (status.type() != std::filesystem::file_type::not_found
@@ -870,12 +870,12 @@ namespace bpr::adapters::git {
 			}
 			try {
 				std::ofstream output{
-					path,
+					aPath,
 					std::ios::binary | std::ios::trunc
 				};
 				output.write(
-					reinterpret_cast<const char*>(bytes.data()),
-					static_cast<std::streamsize>(bytes.size()));
+					reinterpret_cast<const char*>(aBytes.data()),
+					static_cast<std::streamsize>(aBytes.size()));
 				output.flush();
 				output.close();
 				if (!output) {
@@ -885,12 +885,12 @@ namespace bpr::adapters::git {
 				return false;
 			}
 			std::filesystem::permissions(
-				path,
+				aPath,
 				std::filesystem::perms::owner_read
 					| std::filesystem::perms::owner_write,
 				std::filesystem::perm_options::replace,
 				error);
-			return !error && private_regular_file(path);
+			return !error && private_regular_file(aPath);
 #endif
 		}
 
@@ -1000,29 +1000,29 @@ namespace bpr::adapters::git {
 			};
 #else
 			std::ofstream output{
-				path,
+				aPath,
 				std::ios::binary | std::ios::out | std::ios::noreplace
 			};
 			if (!output) {
 				return { };
 			}
 			output.write(
-				reinterpret_cast<const char*>(bytes.data()),
-				static_cast<std::streamsize>(bytes.size()));
+				reinterpret_cast<const char*>(aBytes.data()),
+				static_cast<std::streamsize>(aBytes.size()));
 			output.flush();
 			output.close();
 			std::error_code error;
 			std::filesystem::permissions(
-				path,
+				aPath,
 				std::filesystem::perms::owner_read
 					| std::filesystem::perms::owner_write,
 				std::filesystem::perm_options::replace,
 				error);
 			return {
 				.Created  = true,
-				.Complete = !error && output && private_regular_file(path),
+				.Complete = !error && output && private_regular_file(aPath),
 				.Identity = exact_identity(
-					path,
+					aPath,
 					exact_artifact_kind::regular_file),
 			};
 #endif
@@ -3085,9 +3085,9 @@ namespace bpr::adapters::git {
 			};
 			return false;
 #else
-			static_cast<void>(source);
-			static_cast<void>(destination);
-			error = std::make_error_code(
+			static_cast<void>(aSource);
+			static_cast<void>(aDestination);
+			aError = std::make_error_code(
 				std::errc::operation_not_supported);
 			return false;
 #endif

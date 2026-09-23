@@ -16,6 +16,25 @@ so this reads the source instead. It looks only where the local compiler
 cannot — inside conditional branches that are false for the host running it —
 and leaves everything the compiler already checks to the compiler.
 
+"The host" is its platform, not one build of it ([[BPR-0866]]). A branch that a
+platform macro removes (`_WIN32`, `__APPLE__`, `Q_OS_WIN` and the others in
+`PLATFORM_MACROS`) is removed from every build on this host, so the gate
+polices it. That includes such a branch nested inside a testing region. A
+branch that only a build switch removes, such as `BPR_BUILD_TESTING`, is a
+branch this host's builds disagree on. The tests-enabled build compiles one
+side, and the tests-disabled build that `application_composition_contract`
+makes compiles the other. So the compiler checks both, and the gate polices
+neither. Treating such a switch as undefined polices code the `dev` build
+compiles, and that is where all eleven of BPR-0854's findings were.
+
+What a green result asserts is narrower than it reads. The gate reports a name
+whose spelling, folded for case and underscores, matches a different name
+declared beside it. A typo that matches nothing declared is not reported, so
+`CONDITIONAL_BRANCH_IDENTIFIERS_OK` does not mean the branches it read are free
+of misspellings. Shapes 1 and 2 below are read only inside a function with an
+`aXxx` parameter. And the gate sees preprocessor branches, not CMake: a file
+built only on another platform is read only inside its own platform branches.
+
 Three shapes, each one a rename that stopped halfway:
 
 1. A parameter's old bare name. Parameters here are `aXxx`; the branch still
@@ -106,27 +125,117 @@ def spelling_key(aName: str) -> str:
     return aName.replace("_", "").lower()
 
 
+# The macros whose value the host's platform fixes: its operating system, Qt's
+# names for that system, and the compiler every Windows build here uses. Each
+# is defined on the host if `host_macros()` names it and undefined otherwise,
+# and a branch one of them removes is compiled by no build on this host.
+#
+# Every other macro is undecided: `BPR_BUILD_TESTING` and the other testing,
+# fault-injection and fixture switches, compiler identity (`__clang__`,
+# `__GNUC__`), feature and include-guard macros. Builds on one host disagree
+# about them, so some build on the host compiles a branch that only they remove
+# ([[BPR-0866]]). A platform macro missing from this list would be undecided
+# too, which is the quiet direction, so `unknown_platform_macros` refuses one
+# by name until it is added here and to `host_macros()`.
+PLATFORM_MACROS = frozenset(
+    {
+        "_WIN32",
+        "_MSC_VER",
+        "__APPLE__",
+        "__linux__",
+        "__unix__",
+        "Q_OS_WIN",
+        "Q_OS_MACOS",
+        "Q_OS_DARWIN",
+        "Q_OS_LINUX",
+        "Q_OS_UNIX",
+    }
+)
+
+
+# What a platform macro looks like: Qt's `Q_OS_*`, the compilers' operating-system
+# macros, and the Windows compiler's. A condition naming one that
+# `PLATFORM_MACROS` lacks would leave its branch undecided and unpoliced on
+# every host that does not compile it, so the gate refuses it by name instead.
+PLATFORM_SPELLING = re.compile(
+    r"^(?:Q_OS_\w+|_WIN(?:32|64)|WIN(?:32|64)|_MSC_VER|__MINGW(?:32|64)__"
+    r"|__(?:APPLE|MACH|linux|gnu_linux|unix|ANDROID|CYGWIN|FreeBSD|NetBSD|OpenBSD)__"
+    r"|__linux|__unix|linux|unix|TARGET_OS_\w+)$"
+)
+
+
+def unknown_platform_macros(aText: str) -> list[tuple[int, str, str]]:
+    """Conditions that name a platform-looking macro the gate does not decide."""
+    found: list[tuple[int, str, str]] = []
+    for number, line in enumerate(aText.split("\n"), start=1):
+        match = DIRECTIVE.match(line)
+        if match is None or match.group(1) in ("else", "endif"):
+            continue
+        rest = match.group(2)
+        names = (
+            re.findall(r"^\s*(\w+)", rest)
+            if match.group(1) in ("ifdef", "ifndef")
+            else re.findall(r"\bdefined\s*\(?\s*(\w+)", rest)
+        )
+        for name in names:
+            if PLATFORM_SPELLING.match(name) and name not in PLATFORM_MACROS:
+                found.append((number, name, line.strip()))
+    return found
+
+
 def host_macros() -> set[str]:
-    """The platform macros that are defined where this is running."""
+    """The platform macros that are defined where this is running.
+
+    Qt defines `Q_OS_UNIX` everywhere except Windows. Apple's compiler does not
+    define `__unix__`, which is why the tree writes
+    `defined(__unix__) || defined(__APPLE__)`. Windows builds here use MSVC
+    only, so `_MSC_VER` follows `_WIN32`.
+    """
     system = platform.system()
     if system == "Darwin":
-        return {"__APPLE__", "__unix__"}
+        return {"__APPLE__", "Q_OS_MACOS", "Q_OS_DARWIN", "Q_OS_UNIX"}
     if system == "Windows":
-        return {"_WIN32"}
+        return {"_WIN32", "_MSC_VER", "Q_OS_WIN"}
     if system == "Linux":
-        return {"__linux__", "__unix__"}
+        return {"__linux__", "__unix__", "Q_OS_LINUX", "Q_OS_UNIX"}
     return set()
 
 
 TOKEN = re.compile(r"\s*(\(|\)|&&|\|\||!|defined\s*\(\s*\w+\s*\)|defined\s+\w+|\S)")
 
 
-def evaluate(aCondition: str, aDefined: set[str]) -> bool | None:
-    """Evaluate a preprocessor condition, or None when it is not this shape.
+class Unparsed(Exception):
+    """A condition that is not built only from `defined`, `!`, `&&` and `||`."""
 
-    Only `defined(X)`, `!`, `&&`, `||`, and parentheses are understood.
-    Anything else returns None and its branch is treated as compiled here,
-    which is the safe direction: the compiler is then the check.
+
+def negation(aValue: bool | None) -> bool | None:
+    return None if aValue is None else not aValue
+
+
+def conjoined(aLeft: bool | None, aRight: bool | None) -> bool | None:
+    """`&&` over undecided values: false if either side is false, whatever the other."""
+    if aLeft is False or aRight is False:
+        return False
+    if aLeft is None or aRight is None:
+        return None
+    return True
+
+
+def disjoined(aLeft: bool | None, aRight: bool | None) -> bool | None:
+    """`||` over undecided values: true if either side is true, whatever the other."""
+    return negation(conjoined(negation(aLeft), negation(aRight)))
+
+
+def evaluate(aCondition: str, aDefined: set[str]) -> bool | None:
+    """Evaluate a preprocessor condition on this host, or None when the host does not decide it.
+
+    `defined(X)` is decided only for a platform macro. Any other macro is
+    undecided, and so is its branch, unless a platform macro decides the whole
+    condition: `defined(_WIN32) && defined(BPR_BUILD_TESTING)` is false on
+    Linux whatever the build switches are. Only `defined(X)`, `!`, `&&`, `||`
+    and parentheses are understood. Anything else is undecided and its branch
+    is treated as compiled here, which is the safe direction: the compiler is
+    then the check.
 
     Parsed rather than evaluated. Nothing in this repository executes text it
     read from a file, and a gate that reads every source file is the last place
@@ -148,51 +257,60 @@ def evaluate(aCondition: str, aDefined: set[str]) -> bool | None:
     def primary() -> bool | None:
         nonlocal index
         if index >= len(tokens):
-            return None
+            raise Unparsed
         token = tokens[index]
         if token == "!":
             index += 1
-            value = primary()
-            return None if value is None else not value
+            return negation(primary())
         if token == "(":
             index += 1
             value = disjunction()
             if index >= len(tokens) or tokens[index] != ")":
-                return None
+                raise Unparsed
             index += 1
             return value
         if token.startswith("defined"):
             index += 1
             name = re.sub(r"^defined\(?|\)?$", "", token)
-            return name in aDefined
-        return None
+            return name in aDefined if name in PLATFORM_MACROS else None
+        raise Unparsed
 
     def conjunction() -> bool | None:
         nonlocal index
         value = primary()
-        while value is not None and index < len(tokens) and tokens[index] == "&&":
+        while index < len(tokens) and tokens[index] == "&&":
             index += 1
-            right = primary()
-            value = None if right is None else (value and right)
+            value = conjoined(value, primary())
         return value
 
     def disjunction() -> bool | None:
         nonlocal index
         value = conjunction()
-        while value is not None and index < len(tokens) and tokens[index] == "||":
+        while index < len(tokens) and tokens[index] == "||":
             index += 1
-            right = conjunction()
-            value = None if right is None else (value or right)
+            value = disjoined(value, conjunction())
         return value
 
-    result = disjunction()
+    try:
+        result = disjunction()
+    except Unparsed:
+        return None
     return result if index == len(tokens) else None
 
 
 def inactive_lines(aText: str, aDefined: set[str]) -> set[int]:
-    """Line numbers (1-based) inside a branch this host does not compile."""
+    """Line numbers (1-based) inside a branch this host does not compile.
+
+    A branch of a chain is compiled when its own condition holds and no earlier
+    branch's did, so an `#else` after a taken `#elif` is not compiled, and
+    neither is an `#elif` whose condition is false after an undecided `#if`.
+    Each is tracked with undecided values, so a branch is inactive only when
+    that is false whatever the build switches are.
+    """
     inactive: set[int] = set()
-    stack: list[dict] = []
+    # Per open chain: whether this branch is compiled, and whether an earlier
+    # branch of the chain already was.
+    stack: list[dict[str, bool | None]] = []
     for number, line in enumerate(aText.split("\n"), start=1):
         match = DIRECTIVE.match(line)
         if match is not None:
@@ -203,21 +321,20 @@ def inactive_lines(aText: str, aDefined: set[str]) -> set[int]:
                 elif keyword == "ifndef":
                     rest = f"!defined({rest.strip()})"
                 value = evaluate(rest, aDefined)
-                stack.append({"taken": value is True, "decided": value is not None, "value": value})
+                stack.append({"compiled": value, "earlier": value})
             elif keyword == "elif" and stack:
-                value = evaluate(rest, aDefined)
                 frame = stack[-1]
-                frame["value"] = value
-                frame["decided"] = frame["decided"] and value is not None
+                value = evaluate(rest, aDefined)
+                frame["compiled"] = conjoined(negation(frame["earlier"]), value)
+                frame["earlier"] = disjoined(frame["earlier"], value)
             elif keyword == "else" and stack:
                 frame = stack[-1]
-                frame["value"] = None if not frame["decided"] else (not frame["taken"])
-                if frame["decided"]:
-                    frame["value"] = not frame["taken"]
+                frame["compiled"] = negation(frame["earlier"])
+                frame["earlier"] = True
             elif keyword == "endif" and stack:
                 stack.pop()
             continue
-        if any(frame["decided"] and frame["value"] is False for frame in stack):
+        if any(frame["compiled"] is False for frame in stack):
             inactive.add(number)
     return inactive
 
@@ -323,12 +440,23 @@ def defined_functions(aText: str) -> set[str]:
 
 
 def function_bodies(aText: str):
-    """Yield (parameters, body_start, body_end) for every braced body."""
+    """Yield (parameters, body_start, body_end) for every braced body.
+
+    A statement's parentheses are not a parameter list. `for (; prefix !=
+    aPrefix.end(); ++prefix)` names `aPrefix` without declaring it, and the
+    loop's block does not hold the `auto prefix` declared just above it. Read
+    as a function, the block has a parameter `aPrefix` and an undeclared
+    `prefix`, a rename that is not there ([[BPR-0866]]). The enclosing
+    function's own body already covers the block with its real parameters.
+    """
     for match in BODY_BRACE.finditer(aText):
         parentheses = declarator_parentheses(aText, match.end())
         if parentheses is None:
             continue
         opening, closing = parentheses
+        declarator = DECLARATOR.search(aText[max(0, opening - 200):opening])
+        if declarator is not None and declarator.group(1) in KEYWORDS:
+            continue
         parameters = {m.group(1) for m in PARAMETER.finditer(aText[opening:closing])}
         if not parameters:
             continue
@@ -547,7 +675,20 @@ def main() -> int:
     )
 
     total = 0
+    policed_lines = 0
+    policed_files = 0
     for path in sources:
+        text = path.read_text(encoding="utf-8")
+        policed = len(inactive_lines(text, defined))
+        policed_lines += policed
+        policed_files += policed > 0
+        for line, name, source in unknown_platform_macros(text):
+            total += 1
+            print(
+                f"{path.relative_to(root)}:{line}: `{name}` names a platform this "
+                f"gate does not decide; add it to PLATFORM_MACROS and "
+                f"host_macros(): {source}"
+            )
         for line, bare, expected, source in findings_for(path, defined):
             total += 1
             print(
@@ -559,12 +700,27 @@ def main() -> int:
         print(
             f"CONDITIONAL_BRANCH_IDENTIFIERS_FAILED:{total}\n"
             "Each of these is in a branch this host does not compile, under a "
-            "spelling the declaration no longer answers to."
+            "spelling the declaration no longer answers to, or names a platform "
+            "the gate cannot decide."
         )
-        return 1
-
-    print(f"CONDITIONAL_BRANCH_IDENTIFIERS_OK:{len(sources)}")
-    return 0
+    else:
+        print(f"CONDITIONAL_BRANCH_IDENTIFIERS_OK:{len(sources)}")
+    # [[BPR-0866]]. What the verdict covers, printed where it is read.
+    print(
+        "CONDITIONAL_BRANCH_IDENTIFIERS_SCOPE:"
+        f"host_defines={','.join(sorted(defined)) or 'none'} "
+        f"policed_lines={policed_lines} policed_files={policed_files}\n"
+        "Read: branches a platform macro removes on this host ("
+        f"{', '.join(sorted(PLATFORM_MACROS))}), including those inside "
+        "testing regions. Not read: a branch that only a build switch such as "
+        "BPR_BUILD_TESTING removes, which the build that sets or clears the "
+        "switch compiles; and a file CMake builds only on another platform, "
+        "outside its own platform branches. Reported: a name whose spelling, "
+        "folded for case and underscores, matches a different declared name, "
+        "within a function that has an aXxx parameter or across a chain. A "
+        "misspelling that matches no declared name is not reported."
+    )
+    return 1 if total else 0
 
 
 if __name__ == "__main__":
