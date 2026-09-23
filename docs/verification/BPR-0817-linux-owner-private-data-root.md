@@ -12,16 +12,23 @@
   and in RFC-BPR-0033:
   - A refused agent workspace recovery leaves an orderly quit at exit 0.
   - The refusal is stated at Home in every window's status bar.
-- **State.** The claim was committed at `0b57fe2e`. The implementation and its
-  automated evidence are recorded below, under "Owner-delegated decisions
-  implemented". The native Linux course on the tests-disabled image is still
-  to run. It needs a visible window on the shared WSLg desktop, so the
-  coordinator must clear it first.
-- **Next.** Build the tests-disabled image from a clean clone of the
-  implementation commit. Then run `tests/scripts/linux_agent_workspace_refusal_course.py`
-  twice under the station lease: once with a pre-existing 0775 parent, and once
-  with no parent as the control. Record both results against criterion 2 and
-  finish the card.
+- **State.** The claim was committed at `0b57fe2e`, and the implementation at
+  `14a18b45`. The automated evidence is recorded below, under "Owner-delegated
+  decisions implemented". The native Linux course is ready but has not run. It
+  needs a visible window on the shared WSLg desktop, so the coordinator must
+  clear it first.
+- **Candidate image.** A clean clone of `14a18b45` is at
+  `/home/mmarcin/bpr0817-native/source`. Its `app-release` build is Release
+  with `BUILD_TESTING=OFF` and `BPR_DISTRIBUTION_BUILD=OFF`, uses GCC 15.2
+  with no first-party `-Wno-error`, and has no first-party warnings. The
+  executable's SHA-256 is
+  `08f6d04d4d2d73af6701f040598bd5230cf2973625bbb66aca43ee118e22cc73`.
+- **Next.** Run `/home/mmarcin/bpr0817-native/run-courses.sh`. It runs
+  `tests/scripts/linux_agent_workspace_refusal_course.py` twice under umask
+  0002, through the station lease and the live-state guard. The first run has
+  a pre-existing 0775 parent; the second has no parent, as the control. Each
+  run shows one window for about 20–40 s. Then record both results against
+  criterion 2 and finish the card.
 
 ## Frontier at `1c6eaf21` (bpr-linux, 2026-09-17; superseded)
 
