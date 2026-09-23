@@ -26,7 +26,21 @@ epoch-line handle criterion stays on [[BPR-0646]]; its v011 owner verdict
 has been consumed and the card is Done. The protected v009/v010/v011
 operator packets retained their original bytes during the board move.
 
-## Current frontier (rfc0029-r1/d3, mandate r1)
+## Claim reconciliation, 2026-09-23 (Mac batch 3)
+
+The d3 claim of 2026-09-12 is stale: its producer, reviewer and test
+commands have not run since that day, and no process from it remains on
+this Mac. The Mac main station (`bpr-main-mac`, Mac batch 3) adopts the
+card at `b93adf45`. The hold recorded below has gone: RFC-BPR-0008 closed
+`Auto-Verified` on 2026-09-21 under owner amendment r4, and RFC-BPR-0029's
+listed dependencies RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017 are all
+`Auto-Verified`. Epoch sources in `src/core`, `src/application`,
+`src/adapters/sqlite` and `src/adapters/qt` have changed since the d3
+candidate `90d4ba28`, so the d3 evidence is not reused as-is: one
+integration pass over this RFC's selectors runs at the current head before
+any status moves.
+
+## Prior frontier (rfc0029-r1/d3, mandate r1)
 
 All nine accepted criteria now have direct passing evidence against
 immutable base `5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d`. Commits
