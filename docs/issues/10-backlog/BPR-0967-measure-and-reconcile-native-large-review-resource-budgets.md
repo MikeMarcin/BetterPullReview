@@ -50,3 +50,29 @@ candidate. Reuse relevant passing evidence with its actual input limits.
 Use safe fixtures; no live account, private-target access, remote mutation or
 release is authorized by this card. Required native or human evidence remains
 pending until actually observed.
+
+## macOS attribution and Mac budget amendment, from BPR-0893 — 2026-09-23
+
+[[BPR-0893]] attributed the Mac failure the transfer records. This is AC1
+evidence for macOS only. AC2's amendment is recorded there, and AC3 is
+untouched:
+
+- **Retained live owners, and a toolkit change.** The growth past 160 MiB at
+  `large_file_ready` is Qt 6.11.2 keeping a HarfBuzz buffer in every shaped
+  line's layout (qtbase `8209078e0e`): 70.4 MiB live across the 40,000
+  measured lines, and none under Qt 6.10.3. The pair `92c4e159^` /
+  `92c4e159` isolates it, 121.6–122.6 MiB against 184.2–186.2 MiB.
+  [[BPR-1032]] owns the product side.
+- **Allocator retention, not a leak.** After cleanup the live heap returns to
+  60–68 MiB with the application open and 13–14 MiB once it is destroyed, in
+  every run. The footprint stays at 128–178 MiB because the default zone keeps
+  freed pages dirty (87% of it free at `application_destroyed`), and
+  `malloc_zone_pressure_relief` does not return them.
+- **Amendment, with its measured basis.** On macOS the sampled footprint budget
+  is 224 MiB (highest observed peak 202.9 MiB), and cleanup is bounded on the
+  live heap at 96 MiB with the application open and 32 MiB once it is
+  destroyed, in `tests/end_to_end/large_review_benchmark.cpp`. All four
+  resource courses pass.
+
+Unsampled peaks, responsiveness budgets, and Windows and Linux budgets on
+eligible hardware remain this card's.
