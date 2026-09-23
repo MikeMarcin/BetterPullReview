@@ -235,6 +235,29 @@ namespace bpr::app {
 			static_cast<void>(FirstProfileStartupRefusal.compare_exchange_strong(
 				expected, static_cast<int>(aFailure), std::memory_order_acq_rel));
 		}
+		// [[BPR-0882]]. The composition arm that refused a startup, with what it
+		// caught in a tests-enabled graph. Guarded because one arm records from
+		// a startup lane and the report reads it from another.
+		std::mutex                 StartupFailureMutex;
+		std::optional<std::string> FirstStartupFailure;
+
+#if defined(BPR_BUILD_TESTING)
+		// One line, so a reader matching the stderr line gets all of it.
+		[[nodiscard]] auto startup_failure_cause_text(const std::exception_ptr& aCause) -> std::string
+		{
+			auto text = std::string{ };
+			try {
+				std::rethrow_exception(aCause);
+			} catch (const std::exception& aError) {
+				text = aError.what();
+			} catch (...) {
+				text = "an exception that is not a std::exception";
+			}
+			std::ranges::replace(text, '\n', ' ');
+			std::ranges::replace(text, '\r', ' ');
+			return text;
+		}
+#endif
 		// [[BPR-0875]]. The workspace-ownership refusal in words, for the one
 		// cleanup name a quit reports.
 		[[nodiscard]] auto named_workspace_ownership_failure(const int aFailure) -> std::string
@@ -13491,6 +13514,9 @@ namespace bpr::app {
 																											   : github_application_startup_failure::registry));
 				return;
 			}
+			// [[BPR-0882]]. Three different steps fail into the one catch below,
+			// so each names itself before it runs and the catch reports which.
+			auto step = std::string_view{ "profile-runtime-construction" };
 			try {
 				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch), OwnerOnly, std::move(RuntimeLease)
 #if defined(BPR_BUILD_TESTING)
@@ -13500,8 +13526,10 @@ namespace bpr::app {
 				);
 				profile->ActivationServer = std::move(ActivationServer);
 				auto runtime              = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
+				step                      = "profile-services-start";
 				runtime->Profile->start_services();
 				if (!OwnerOnly) {
+					step               = "compatibility-window-open";
 					const auto context = compatibility_window_context(aTerminal.Result->Authority.profile());
 					if (!runtime->open_window(context)) {
 						throw std::runtime_error{ "initial window unavailable" };
@@ -13510,6 +13538,11 @@ namespace bpr::app {
 				}
 				finish(std::move(runtime));
 			} catch (...) {
+				// A throw from the completion `finish` already ran is not this
+				// startup refusing, so only an unfinished startup is named.
+				if (!Terminal) {
+					detail::note_startup_failure(step, std::current_exception());
+				}
 				finish(std::unexpected(github_application_startup_failure::unavailable));
 			}
 		}
@@ -13890,6 +13923,33 @@ namespace bpr::app {
 		case application::profile_startup_failure::identity_exhausted:   return "identity_exhausted";
 		}
 		return "unknown";
+	}
+
+	auto startup_failure_source() -> std::string
+	{
+		const std::scoped_lock lock{ StartupFailureMutex };
+		return FirstStartupFailure.value_or(std::string{ });
+	}
+
+	void detail::note_startup_failure(const std::string_view aSource, const std::exception_ptr& aCause) noexcept
+	{
+		try {
+			const std::scoped_lock lock{ StartupFailureMutex };
+			if (FirstStartupFailure) {
+				return;
+			}
+			auto recorded = std::string{ aSource };
+#if defined(BPR_BUILD_TESTING)
+			if (aCause) {
+				recorded += ": " + startup_failure_cause_text(aCause);
+			}
+#else
+			// `what()` can carry a path, and a shipped build has no reader for it.
+			static_cast<void>(aCause);
+#endif
+			FirstStartupFailure = std::move(recorded);
+		} catch (...) { /* Naming a refusal must never turn it into a throw. */
+		}
 	}
 	// [[BPR-0875]]. The profile's name once it has one, else this window's.
 	auto github_application::shutdown_cleanup_detail() const -> std::string

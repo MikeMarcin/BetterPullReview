@@ -13,12 +13,14 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bpr::qt {
@@ -102,6 +104,33 @@ namespace bpr::app {
 	/// names the one that fired, first refusal wins. Diagnostic only: every
 	/// caller keeps reading the mapped failure it already reads.
 	[[nodiscard]] auto profile_startup_refusal_name() -> std::string;
+
+	/// \brief Which composition arm refused a startup, and in a tests-enabled
+	/// graph what it caught, or empty.
+	///
+	/// \details [[BPR-0882]]. Every step between a profile's admission and its
+	/// first window reports `github_application_startup_failure::unavailable`,
+	/// from a runtime constructor that throws to a window that does not open,
+	/// so that one word could not say which step it was. The desktop's own
+	/// registry host reports `registry`, which the profile mapping also
+	/// reports. Each arm records a fixed name before it refuses; the first
+	/// refusal wins, as for the profile refusal above. A tests-enabled graph
+	/// keeps the text of the exception the arm caught after the name, on one
+	/// line: `profile-runtime-construction: Git cache composition failed`. A
+	/// tests-disabled graph keeps the name only, because `what()` is free text
+	/// that can carry a path. Diagnostic only: every caller keeps reading the
+	/// mapped failure it already reads.
+	[[nodiscard]] auto startup_failure_source() -> std::string;
+
+	namespace detail {
+		/// \brief Records the composition arm that is refusing a startup.
+		///
+		/// \details [[BPR-0882]]. `aSource` is a fixed name. A catch passes
+		/// `std::current_exception()` as `aCause`, and a tests-enabled graph
+		/// keeps its text. The first record wins and later ones are dropped.
+		/// Never throws, so a catch block can call it.
+		void note_startup_failure(std::string_view aSource, const std::exception_ptr& aCause = nullptr) noexcept;
+	}
 
 	/// \brief Whether this process runs inside the automated test boundary.
 	///

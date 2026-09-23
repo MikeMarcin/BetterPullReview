@@ -102,6 +102,8 @@ auto main(int aArgc, char** aArgv) -> int
 	// cannot start says why in its own output.
 	if (application == nullptr) {
 		std::cerr << "SEED_STARTUP_PROFILE_REFUSAL:" << bpr::app::profile_startup_refusal_name() << std::endl;
+		// [[BPR-0882]]. And which composition arm refused, with what it caught.
+		std::cerr << "SEED_STARTUP_FAILURE_SOURCE:" << bpr::app::startup_failure_source() << '\n';
 	}
 	expect(application != nullptr, "application startup succeeds");
 

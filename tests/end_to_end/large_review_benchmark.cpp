@@ -963,6 +963,8 @@ namespace bpr::e2e::large_review {
 				// [[BPR-0874]]. Which profile refusal the startup saw, so a failed
 				// start names its cause rather than needing a temporary print.
 				std::cerr << "LARGE_REVIEW_STARTUP_REFUSAL:" << app::profile_startup_refusal_name() << '\n';
+				// [[BPR-0882]]. And which composition arm refused, with what it caught.
+				std::cerr << "LARGE_REVIEW_STARTUP_SOURCE:" << app::startup_failure_source() << '\n';
 			}
 			require(application != nullptr, "application startup succeeds");
 			auto& window = application->window();

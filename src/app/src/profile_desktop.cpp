@@ -20,9 +20,11 @@
 #include <QPointer>
 #include <QTimer>
 #include <algorithm>
+#include <exception>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <string_view>
 #include <utility>
 
 namespace bpr::app {
@@ -355,6 +357,9 @@ namespace bpr::app {
 					Host->apply(application::open_bpr_profile_intent{ Initial });
 				}
 			} else if (!InitialRegistered && aProjection.Failure && Completion && !Quitting) {
+				// [[BPR-0882]]. The profile startup's own mapping also reports
+				// `registry`; this is the desktop's registry host, so it says so.
+				note_initial_refusal("desktop-profile-registry");
 				finish_initial(std::unexpected(github_application_startup_failure::registry));
 				force_shutdown(1);
 			} else if (PendingLaunch && !aProjection.Failure && aProjection.Ready && !aProjection.Busy && !Quitting) {
@@ -495,6 +500,7 @@ namespace bpr::app {
 				return false;
 			}
 			if ((index >= 0 && (arguments.count(flag) != 1 || index + 1 >= arguments.size())) || installed.filename() != "BetterPullReview.app") {
+				note_initial_refusal("update-transaction-argument");
 				finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 				force_shutdown(1);
 				return true;
@@ -522,6 +528,7 @@ namespace bpr::app {
 					// They never receive an installer capability in native composition.
 					if ((!accepted && (failure != core::release_update_reason::read_only || !self->UpdateStartupTransaction.empty()))
 						|| (!self->UpdateStartupTransaction.empty() && (!accepted || !accepted->startup_root()))) {
+						self->note_initial_refusal("update-lifetime-join");
 						self->finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 						self->force_shutdown(1);
 					} else {
@@ -540,6 +547,7 @@ namespace bpr::app {
 				if (HealthyStartWait.elapsed() >= 30000) {
 					UpdateReceiptAttempted = true;
 					PendingHealthyStart.reset();
+					note_initial_refusal("update-healthy-start-timeout");
 					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					force_shutdown(1);
 					return;
@@ -554,6 +562,9 @@ namespace bpr::app {
 					const bool recorded = lease->healthy_start(version);
 					self->Decisions.post([self, recorded, ready] {
 						self->NativeBusy = false;
+						if (!recorded) {
+							self->note_initial_refusal("update-healthy-start-receipt");
+						}
 						self->finish_initial(recorded ? ready : std::unexpected(github_application_startup_failure::unavailable));
 						if (!recorded) {
 							self->force_shutdown(1);
@@ -866,6 +877,16 @@ namespace bpr::app {
 			auto completion = std::exchange(Completion, { });
 			completion(std::move(aResult));
 		}
+		// [[BPR-0882]]. Every arm below that refuses the initial profile as
+		// `unavailable` names itself here first, with the exception it caught if
+		// it caught one. Only while the initial completion is still owed, so the
+		// name recorded is the one that completion reports.
+		void note_initial_refusal(std::string_view aSource, const std::exception_ptr& aCause = nullptr) const noexcept
+		{
+			if (Completion) {
+				detail::note_startup_failure(aSource, aCause);
+			}
+		}
 		void wire(github_application& aRuntime, core::bpr_window_context aContext)
 		{
 			auto* presented = aRuntime.window(aContext);
@@ -928,18 +949,29 @@ namespace bpr::app {
 			if (selected == entry.Windows.end() || selected->second.Context != aContext || selected->second.Opened) {
 				return;
 			}
-			bool opened = false;
+			// [[BPR-0882]]. Three refusals leave the window unopened, so each step
+			// names itself before it runs, and a throw is kept rather than dropped.
+			bool opened  = false;
+			auto refusal = std::string_view{ "desktop-window-not-current" };
+			auto cause   = std::exception_ptr{ };
 			try {
 				if (current(aContext)) {
-					opened = entry.Runtime->configure_desktop_layouts(Host->live_windows(aContext.Profile)) && entry.Runtime->open_window(aContext);
+					refusal = "desktop-window-layout";
+					if (entry.Runtime->configure_desktop_layouts(Host->live_windows(aContext.Profile))) {
+						refusal = "desktop-window-open";
+						opened  = entry.Runtime->open_window(aContext);
+					}
 				}
-			} catch (...) { }
+			} catch (...) {
+				cause = std::current_exception();
+			}
 			if (!opened) {
 				selected->second.Closing = true;
 				if (Host) {
 					static_cast<void>(Host->complete_open(aContext, std::unexpected(application::profile_management_failure::runtime_unavailable)));
 				}
 				if (aContext.Profile == Initial && Completion) {
+					note_initial_refusal(refusal, cause);
 					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					force_shutdown(1);
 				}
@@ -977,11 +1009,13 @@ namespace bpr::app {
 					}
 				}
 			} catch (...) {
+				const auto wiringCause   = std::current_exception();
 				selected->second.Closing = true;
 				entry.Runtime->close_window(aContext);
 				static_cast<void>(Host->complete_open(aContext, std::unexpected(application::profile_management_failure::runtime_unavailable)));
 				static_cast<void>(Host->begin_close(aContext));
 				if (aContext.Profile == Initial && Completion) {
+					note_initial_refusal("desktop-window-wiring", wiringCause);
 					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					force_shutdown(1);
 				}
@@ -995,6 +1029,7 @@ namespace bpr::app {
 					Host->report_runtime_admission_failure(aProfile, application::profile_management_failure::identity_exhausted);
 				}
 				if (aProfile == Initial && Completion) {
+					note_initial_refusal("desktop-startup-serial-exhausted");
 					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					force_shutdown(1);
 				}
@@ -1012,10 +1047,16 @@ namespace bpr::app {
 				entry.Startup     = Factory(aProfile, RegistryRoot, intent, [weak = weak_from_this(), aProfile, serial](github_application_startup_result aResult) {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::move(aResult));
 } });
 				if (!entry.Startup && !entry.Started) {
+					if (aProfile == Initial) {
+						note_initial_refusal("desktop-runtime-factory-empty");
+					}
 					Decisions.post([weak = weak_from_this(), aProfile, serial] {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::unexpected(github_application_startup_failure::unavailable));
 } });
 				}
 			} catch (...) {
+				if (aProfile == Initial) {
+					note_initial_refusal("desktop-runtime-factory", std::current_exception());
+				}
 				Decisions.post([weak = weak_from_this(), aProfile, serial] {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::unexpected(github_application_startup_failure::unavailable));
 } });
 			}
@@ -1053,13 +1094,16 @@ namespace bpr::app {
 			const auto root = entry.Runtime->desktop_update_recovery_root();
 			Effects.post([self = shared_from_this(), aProfile, aSerial, root] {
 				application::release_update_saved_drafts drafts = std::unexpected(application::release_update_recovery_failure::unavailable);
+				auto                                     cause  = std::exception_ptr{ };
 				try {
 					drafts = adapters::sqlite::make_release_update_recovery_store(root)->load();
-				} catch (...) { }
-				self->Decisions.post([self, aProfile, aSerial, loaded = std::move(drafts)]() mutable { self->runtime_ready(aProfile, aSerial, std::move(loaded)); });
+				} catch (...) {
+					cause = std::current_exception();
+				}
+				self->Decisions.post([self, aProfile, aSerial, loaded = std::move(drafts), cause]() mutable { self->runtime_ready(aProfile, aSerial, std::move(loaded), cause); });
 			});
 		}
-		void runtime_ready(core::bpr_profile_id aProfile, std::uint64_t aSerial, application::release_update_saved_drafts aDrafts)
+		void runtime_ready(core::bpr_profile_id aProfile, std::uint64_t aSerial, application::release_update_saved_drafts aDrafts, const std::exception_ptr& aDraftsCause)
 		{
 			const auto found = Runtimes.find(aProfile);
 			if (found == Runtimes.end() || found->second.StartupSerial != aSerial || !found->second.Runtime) {
@@ -1071,6 +1115,7 @@ namespace bpr::app {
 				entry.Closing = true;
 				entry.Runtime->begin_shutdown();
 				if (aProfile == Initial) {
+					note_initial_refusal("desktop-update-recovery-drafts", aDraftsCause);
 					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					force_shutdown(1);
 				}
@@ -1109,7 +1154,8 @@ namespace bpr::app {
 					open_window(context);
 				}
 			} catch (...) {
-				entry.Closing = true;
+				const auto cause = std::current_exception();
+				entry.Closing    = true;
 				for (auto& [id, selected] : entry.Windows) {
 					static_cast<void>(id);
 					selected.Closing = true;
@@ -1125,6 +1171,7 @@ namespace bpr::app {
 					entry.Runtime->begin_shutdown();
 				}
 				if (aProfile == Initial && Completion) {
+					note_initial_refusal("desktop-profile-management", cause);
 					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					force_shutdown(1);
 				}

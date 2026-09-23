@@ -118,6 +118,17 @@ endfunction()
 # provider, vault, transport or mutation path changes; the mutation-branch pin
 # is unchanged. Covers 7c6ba1a5..the BPR-0864 commit; nothing else touched the
 # pinned scope. Review recorded on BPR-0864.
+# BPR-0882 reseal: each startup arm that refuses as `unavailable`, and the
+# desktop's own `registry` arm, records a fixed name before it refuses, first
+# refusal wins, and a tests-enabled graph keeps the caught exception's text
+# beside it (startup_failure_source, detail::note_startup_failure). The
+# startup's catch in github_application.cpp names three steps; the desktop's
+# recovery-drafts worker keeps the exception it used to drop; main.cpp prints
+# the name on stderr in a tests-enabled graph only. Every caller reads the same
+# failure, exit code and ordering as before. No credential, provider, vault,
+# transport or mutation path changes; the mutation-branch pin is unchanged.
+# Covers 3dca2d7a..the BPR-0882 commit; nothing else touched the pinned scope.
+# Review recorded on BPR-0882.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -136,7 +147,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a789ce258d07eeb77fc1ea9156080b337da85ee171c51b8b81aa8f8bf6d77c15"
+		"213a8d12b5e2b8dce5afd3049991804ed7e2d9c16868043f5e2b7b965b008d67"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -271,7 +282,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7a340ea912667450c4405bcf6a400c25514ca18e3265e2ac784ee49705ebd1ae"
+        "63055ca794d71617e48c1f579c7ee76b8ba64b372680b813601cd193a3a686ca"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

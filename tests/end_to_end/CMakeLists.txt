@@ -2354,6 +2354,38 @@ if(UNIX)
     )
 endif()
 
+# [[BPR-0882]]. A startup refused as `unavailable` names the arm that refused
+# and what it threw. The run removes Git by emptying the search path, so it is
+# registered on macOS and Linux only. On Windows the build tree loads Qt through
+# that same search path ([[BPR-0430]]), and the process would exit before
+# `main` instead of reaching the arm under test.
+if(UNIX)
+    bpr_add_network_isolated_test(
+        NAME application_startup_failure_source
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/startup-failure-source"
+            "-DBPR_RUN_BUDGET_MS=${bpr_self_test_budget_ms}"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/startup_failure_source_contract.cmake"
+    )
+    set_tests_properties(
+        application_startup_failure_source
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}"
+            PASS_REGULAR_EXPRESSION
+                "STARTUP_FAILURE_SOURCE_OK:profile-runtime-construction"
+    )
+    bpr_bound_automated_run(
+        application_startup_failure_source
+        TIMEOUT 60
+        BUDGET_MS ${bpr_self_test_budget_ms}
+        RUNS 1
+        RESERVE_MS 4000
+    )
+endif()
+
 bpr_add_network_isolated_test(
     NAME application_epoch_maintenance_public_path
     WINDOWS_UNCONTAINED

@@ -8456,6 +8456,12 @@ auto main(int argc, char** argv) -> int
 					if (const auto refusal = bpr::app::profile_startup_refusal_name(); !refusal.empty()) {
 						QTextStream{ stderr } << "STARTUP_PROFILE_REFUSAL:" << QString::fromStdString(refusal) << '\n';
 					}
+					// [[BPR-0882]]. `unavailable` is what every step between
+					// admission and the first window reports, so the arm that
+					// refused, and what it caught, follow on their own line.
+					if (const auto source = bpr::app::startup_failure_source(); !source.empty()) {
+						QTextStream{ stderr } << "STARTUP_FAILURE_SOURCE:" << QString::fromStdString(source) << '\n';
+					}
 				}
 #endif
 				QTextStream{ stdout } << (aResult.error() == bpr::app::github_application_startup_failure::owner_busy ? "PROFILE_ALREADY_OPEN\n" : "STARTUP_FAILED\n");
@@ -8599,6 +8605,14 @@ auto main(int argc, char** argv) -> int
 				}
 
 			} catch (...) {
+#if defined(BPR_BUILD_TESTING)
+				// [[BPR-0882]]. The runtime and its window exist by now, so what
+				// threw is this entry point's own show or run setup. The outer
+				// handler's cause line never sees it, so it is named here, the
+				// way the composition's own arms are.
+				bpr::app::detail::note_startup_failure("entry-point-run-setup", std::current_exception());
+				QTextStream{ stderr } << "STARTUP_FAILURE_SOURCE:" << QString::fromStdString(bpr::app::startup_failure_source()) << '\n';
+#endif
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
 				desktop->quit(EXIT_FAILURE);
 			}
