@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import scripts.verify_runtime_surface as runtime_surface  # noqa: E402
 from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 from scripts.verify_runtime_surface import (  # noqa: E402
     DARWIN_CHILD_PID_LIMIT,
     DARWIN_PID_MAX,
@@ -340,4 +341,4 @@ class RuntimeSurfaceContractTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

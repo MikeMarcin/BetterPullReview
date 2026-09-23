@@ -33,6 +33,8 @@ import re
 import sys
 import unittest
 
+from skip_report import SkipReportingTestRunner
+
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 HARDENING = pathlib.Path("cmake") / "Hardening.cmake"
@@ -253,4 +255,6 @@ def _test_arguments(argv: list[str]) -> list[str]:
 
 
 if __name__ == "__main__":
-    unittest.main(argv=_test_arguments(sys.argv))
+    unittest.main(
+        argv=_test_arguments(sys.argv), testRunner=SkipReportingTestRunner
+    )

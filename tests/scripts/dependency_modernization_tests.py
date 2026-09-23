@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILD_DIR: Path
@@ -39,6 +40,16 @@ SQLITE_COMPILE_DEFINITIONS = {
     "SQLITE_TRUSTED_SCHEMA=0",
     "SQLITE_USE_URI=0",
 }
+
+
+def cache_entry(build_directory: Path, name: str) -> str | None:
+    """The value a configured tree's CMakeCache.txt holds for name, if any."""
+    prefix = f"{name}:"
+    cache = (build_directory / "CMakeCache.txt").read_text(encoding="utf-8")
+    for line in cache.splitlines():
+        if line.startswith(prefix):
+            return line.partition("=")[2]
+    return None
 
 
 class DependencyModernizationTests(unittest.TestCase):
@@ -416,17 +427,31 @@ class DependencyModernizationTests(unittest.TestCase):
         # (BPR-0429). This reads the installed exports of the configured build
         # and requires each configuration to name its own library. On a
         # single-configuration tree there is one export and nothing to compare.
-        exports = sorted(
-            BUILD_DIR.glob(
-                "_bpr/ksyntaxhighlighting/*/prefix/lib/cmake/KF6SyntaxHighlighting/"
-                "KF6SyntaxHighlightingTargets-*.cmake"
+        #
+        # The exports are read from the directory find_package used, as the
+        # tree's cache records it. A Linux install puts them under
+        # lib/<multiarch>/cmake, which a fixed prefix/lib/cmake glob missed, so
+        # the case skipped as "not a multi-configuration tree" even on a
+        # two-configuration tree (BPR-0871). Each skip says what it found.
+        package = cache_entry(BUILD_DIR, "KF6SyntaxHighlighting_DIR")
+        if package is None or package.endswith("-NOTFOUND"):
+            recorded = (
+                "no KF6SyntaxHighlighting_DIR"
+                if package is None
+                else f"KF6SyntaxHighlighting_DIR={package}"
             )
-        )
-        if len(exports) < 2:
             self.skipTest(
-                "fewer than two installed KSyntaxHighlighting configurations: "
-                "not a multi-configuration tree"
+                f"this tree does not build KSyntaxHighlighting: its cache has {recorded}"
             )
+        package_directory = Path(package)
+        exports = sorted(
+            package_directory.glob("KF6SyntaxHighlightingTargets-*.cmake")
+        )
+        self.assertTrue(
+            exports,
+            f"no per-configuration export in {package_directory}, the directory"
+            " the tree found KSyntaxHighlighting in",
+        )
         locations: dict[str, str] = {}
         for export in exports:
             text = export.read_text(encoding="utf-8")
@@ -436,6 +461,12 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertIsNotNone(match, export)
             assert match is not None
             locations[match.group("config")] = match.group("location")
+        if len(locations) < 2:
+            self.skipTest(
+                "one installed KSyntaxHighlighting configuration, "
+                f"{', '.join(locations)}, in {package_directory}: a"
+                " single-configuration tree has nothing to compare"
+            )
         self.assertEqual(
             len(set(locations.values())),
             len(locations),
@@ -1058,4 +1089,4 @@ if __name__ == "__main__":
     CMAKE_COMMAND = args.cmake.resolve()
     CPM_SOURCE_CACHE = args.cpm_source_cache.resolve()
     SQLITE_SOURCE = args.sqlite_source.resolve()
-    unittest.main(argv=[__file__, *remaining])
+    unittest.main(argv=[__file__, *remaining], testRunner=SkipReportingTestRunner)

@@ -16,6 +16,7 @@ from types import ModuleType
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import ContainedTemporaryDirectory, contained_temporary_directory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPOSITORY_ROOT / "scripts/dif_assets.py"
@@ -1380,4 +1381,4 @@ class SchemaTwoTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(argv=UNITTEST_ARGV)
+    unittest.main(argv=UNITTEST_ARGV, testRunner=SkipReportingTestRunner)

@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 TOOL_PATH = REPOSITORY_ROOT / "scripts" / "capture_rfc0016_device_contracts.py"
@@ -2414,4 +2415,4 @@ class CaptureContractTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

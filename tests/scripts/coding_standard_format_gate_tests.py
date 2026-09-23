@@ -38,6 +38,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "_coding-standard" / "scripts"))
 from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
 
 import _coding_standard as CODING_STANDARD  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 
 STANDARD_SCRIPTS = REPOSITORY_ROOT / "_coding-standard" / "scripts"
@@ -471,4 +472,4 @@ UNITTEST_ARGV, CMAKE_COMMAND = _test_arguments(sys.argv)
 
 
 if __name__ == "__main__":
-    unittest.main(argv=UNITTEST_ARGV)
+    unittest.main(argv=UNITTEST_ARGV, testRunner=SkipReportingTestRunner)

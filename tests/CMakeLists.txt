@@ -434,6 +434,18 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/contained_temporary_support_tests.py"
 )
 
+# [[BPR-0871]]. A passing unittest row that skipped a case showed only an "s"
+# and a count. skip_report.py names each skipped case and its reason in the
+# row's output; this row pins that, and fails when a unittest script under
+# tests/ can skip a case without running through it. Contained on Windows: it
+# runs in-process and only reads the tree.
+bpr_add_network_isolated_test(
+    NAME skip_report_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/skip_report_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME coding_standard_format_gate_contract
     WINDOWS_UNCONTAINED

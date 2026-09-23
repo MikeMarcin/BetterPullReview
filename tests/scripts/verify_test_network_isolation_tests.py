@@ -57,6 +57,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     uncontained_registration_count,
 )
 from scripts.run_network_isolated_test import write_profile  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 
 def write(root: pathlib.Path, relative: str, text: str) -> None:
@@ -1988,4 +1989,4 @@ class ConfiguredManifestAndProfileTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

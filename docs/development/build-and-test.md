@@ -979,6 +979,48 @@ supplies before trusting a run: Visual Studio's bundled LLVM has satisfied the
 minimum since it moved to 22.x, and an instance still shipping 21 or earlier
 gets the refusal above.
 
+### A passing row can leave cases unchecked
+
+CTest has no result for a row that passed but skipped some of its cases.
+`dependency_modernization_contract` was such a row. Its whole output was a line
+of dots with one `s` and `OK (skipped=1)`, so a green sweep could not say which
+guarantee went unchecked, or why ([[BPR-0871]]).
+
+Every Python unittest row that can skip a case now runs through
+`tests/scripts/skip_report.py`. Before unittest's summary, the row prints one
+line for each case it did not check, with the reason:
+
+```
+SKIPPED: dependency_modernization_tests.DependencyModernizationTests.test_syntax_prefix_installs_one_library_per_configuration: one installed KSyntaxHighlighting configuration, DEBUG, in …/prefix/lib/x86_64-linux-gnu/cmake/KF6SyntaxHighlighting: a single-configuration tree has nothing to compare
+```
+
+An expected failure prints `EXPECTED FAILURE: <case>`. To list every unchecked
+case in a sweep, search its log:
+
+```sh
+grep -h -e '^SKIPPED: ' -e '^EXPECTED FAILURE: ' build/dev/Testing/Temporary/LastTest.log
+```
+
+The same lines appear in the JUnit report's `system-out`. CTest keeps only the
+first KiB of a passing row's output there. So when the report has something to
+name, it also prints `CTEST_FULL_OUTPUT`, and CTest keeps the whole output.
+
+When you report a sweep, list these lines as well as the rows that did not run.
+A skipped row, such as `coding_format_check` without a supported clang-format,
+gave no verdict. A row with skipped cases gave a verdict on everything except
+the named cases.
+
+These case skips are deliberately not turned into row skips or failures. Most
+are true for the tree or platform: the per-configuration KSyntaxHighlighting
+check has nothing to compare on a single-configuration tree, and a Linux sweep
+skips the macOS-only cases. A skipped row would report its other, checked
+cases as not run. It would also put a row in "The following tests did not run"
+on every Linux and macOS sweep, and readers would learn to ignore that list.
+
+`skip_report_contract` pins the output. It also fails when a unittest script
+under `tests/` can skip a case but does not use the runner. It reads each
+script's own text, so it does not see a skip raised in an imported helper.
+
 ### On macOS the tests-enabled build is an application bundle
 
 Both macOS graphs are bundles. The executable is at

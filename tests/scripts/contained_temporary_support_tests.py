@@ -62,6 +62,7 @@ from scripts.contained_temporary_support import (  # noqa: E402
     RemovalFailed,
     contained_temporary_directory,
 )
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SUPPORT_MODULE = REPOSITORY_ROOT / "scripts" / "contained_temporary_support.py"
@@ -376,4 +377,5 @@ class a_failed_removal_is_named_and_raised(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    sys.exit(0 if unittest.main(exit=False).result.wasSuccessful() else 1)
+    program = unittest.main(exit=False, testRunner=SkipReportingTestRunner)
+    sys.exit(0 if program.result.wasSuccessful() else 1)

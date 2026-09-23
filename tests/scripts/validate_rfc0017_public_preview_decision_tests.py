@@ -43,6 +43,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from scripts import validate_rfc0017_public_preview_decision as VAL  # noqa: E402
 from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 BUILDER = (
     REPOSITORY_ROOT
@@ -748,4 +749,4 @@ class ModuleShapeTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main(verbosity=2, testRunner=SkipReportingTestRunner)

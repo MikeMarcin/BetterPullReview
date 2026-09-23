@@ -33,6 +33,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from scripts import record_rfc0017_anonymous_contracts as REC  # noqa: E402
 from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 STATEMENT = (
     "I authorize exactly the credential-free read-only requests named below "
@@ -2764,4 +2765,4 @@ class SeededVersionOneEvidenceTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

@@ -26,6 +26,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "designated_live_macos_capsule.py"
 SPEC = importlib.util.spec_from_file_location("designated_live_macos_capsule", SCRIPT)
@@ -1722,4 +1723,4 @@ class MachFramingTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

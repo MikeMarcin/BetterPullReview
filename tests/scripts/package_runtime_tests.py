@@ -14,6 +14,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from contained_temporary_support import ContainedTemporaryDirectory
+from skip_report import SkipReportingTestRunner
 
 spec = importlib.util.spec_from_file_location("package_runtime", ROOT / "packaging/package_runtime.py")
 runtime = importlib.util.module_from_spec(spec)
@@ -243,4 +244,4 @@ class PackageRuntimeTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

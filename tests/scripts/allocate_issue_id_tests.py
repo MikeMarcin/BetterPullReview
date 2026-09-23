@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
+from skip_report import SkipReportingTestRunner  # noqa: E402
 ALLOCATOR = ROOT / "scripts/allocate_issue_id.py"
 
 
@@ -79,4 +80,4 @@ class SharedBoardWrapperTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)
