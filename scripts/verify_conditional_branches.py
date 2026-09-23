@@ -222,6 +222,26 @@ def inactive_lines(aText: str, aDefined: set[str]) -> set[int]:
     return inactive
 
 
+def is_digit_separator(aText: str, aIndex: int) -> bool:
+    """Whether the `'` at `aIndex` is a digit separator, as in `10'000`.
+
+    Read as a quote, it opens a character literal that runs to the next `'` in
+    the file, often lines away, and blanks every brace in between. The bodies
+    around it then have the wrong extents: a local reads as a stale spelling of
+    a parameter it never belonged to, and a real rename inside the blanked
+    span is hidden ([[BPR-0854]]). A separator sits inside a numeric literal,
+    so the token before it starts with a digit and a digit or letter follows.
+    A prefixed character literal (`u8'x'`, `L'x'`) starts with a letter, and a
+    bare one follows punctuation, so both still open a literal.
+    """
+    start = aIndex
+    while start > 0 and (aText[start - 1].isalnum() or aText[start - 1] in "_.'"):
+        start -= 1
+    token = aText[start:aIndex]
+    following = aText[aIndex + 1 : aIndex + 2]
+    return bool(token) and token[0].isdigit() and following.isalnum()
+
+
 def blank_comments_and_literals(aText: str) -> str:
     """Replace comment and string bodies with spaces, keeping every offset."""
     out = list(aText)
@@ -245,6 +265,9 @@ def blank_comments_and_literals(aText: str) -> str:
                 if index < length:
                     out[index] = " "
                     index += 1
+            continue
+        if character == "'" and is_digit_separator(aText, index):
+            index += 1
             continue
         if character in "\"'":
             quote = character
@@ -331,6 +354,19 @@ def declared_in(aRegion: str, aName: str) -> bool:
         rf"\(\s*[^)]*\b{name}\b\s*\)\s*(?:mutable\s*)?(?:->[^{{]+)?\{{",
     )
     return any(re.search(pattern, aRegion) for pattern in patterns)
+
+
+def captured_in(aRegion: str, aName: str) -> bool:
+    """Whether a lambda in `aRegion` captures the outer `aName` as it is.
+
+    Only a simple capture counts, `name` or `&name`. An init-capture's
+    initializer is ordinary code, so `[bytes = expectedBytes]` excuses nothing.
+    """
+    for introducer in re.finditer(r"\[([^\[\]{};]*)\]\s*\(", aRegion):
+        for capture in introducer.group(1).split(","):
+            if re.sub(r"\s+", "", capture) in (aName, f"&{aName}"):
+                return True
+    return False
 
 
 def init_captures(aRegion: str) -> set[str]:
@@ -474,6 +510,13 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
         for match in IDENTIFIER.finditer(body):
             name = match.group(1)
             if name in KEYWORDS or name in declared:
+                continue
+            # A lambda in the branch that captures an outer local names that
+            # local, not a stale spelling of its own parameter:
+            # `[&session](const auto& aSession)` compares the two
+            # ([[BPR-0854]]). Only the capture list excuses a name here, so a
+            # different stale spelling in the same lambda is still reported.
+            if captured_in(region, name):
                 continue
             line = text.count("\n", 0, start + match.start()) + 1
             if line not in skipped:

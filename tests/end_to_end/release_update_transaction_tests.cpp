@@ -257,9 +257,24 @@ namespace {
 		expect(held.replace() == reason::none && held.recover() == reason::none, "replacement is admitted only after actual process exit");
 		lifetime.old_intact();
 	}
+	/// The one disposable root a native qualification course may touch. The
+	/// code that reads it is macOS-only, but the MSVC gate reads text rather
+	/// than branches, and the suppression is what the tree spells everywhere
+	/// `std::getenv` is read (BPR-0519, [[BPR-0854]]).
+	auto qualification_target_root() -> const char*
+	{
+#if defined(_MSC_VER)
+	#pragma warning(push)
+	#pragma warning(disable : 4996)
+#endif
+		return std::getenv("QUALIFICATION_TARGET_ROOT");
+#if defined(_MSC_VER)
+	#pragma warning(pop)
+#endif
+	}
 	auto native_signed_recovery(const fs::path& aRoot, const fs::path& aArchive) -> int
 	{
-		const auto* permitted = std::getenv("QUALIFICATION_TARGET_ROOT");
+		const auto* permitted = qualification_target_root();
 		expect(permitted && fs::canonical(aRoot) == fs::path{ permitted } && aArchive.is_absolute(), "qualification guard names the exact disposable root");
 		const auto installed = aRoot / "installed/BetterPullReview.app", staged = aRoot / "staged/BetterPullReview.app";
 		expect(!fs::exists(installed) && !fs::exists(staged), "native course never overwrites an existing installation");
@@ -300,7 +315,7 @@ namespace {
 	auto native_prepare(char** aArguments) -> int
 	{
 		const fs::path root{ aArguments[2] }, archive{ aArguments[3] }, stateRoot{ aArguments[5] };
-		const auto*    permitted = std::getenv("QUALIFICATION_TARGET_ROOT");
+		const auto*    permitted = qualification_target_root();
 		expect(permitted && fs::canonical(root) == fs::path{ permitted }
 				   && fs::canonical(stateRoot) == stateRoot && stateRoot.string().starts_with(root.string() + "/"),
 			   "native fault course requires disposable scope");

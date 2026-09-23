@@ -298,11 +298,26 @@ namespace {
 		}
 	}
 #if defined(__APPLE__)
+	/// The one disposable root a native qualification course may touch. The
+	/// code that reads it is macOS-only, but the MSVC gate reads text rather
+	/// than branches, and the suppression is what the tree spells everywhere
+	/// `std::getenv` is read (BPR-0519, [[BPR-0854]]).
+	auto qualification_target_root() -> const char*
+	{
+	#if defined(_MSC_VER)
+		#pragma warning(push)
+		#pragma warning(disable : 4996)
+	#endif
+		return std::getenv("QUALIFICATION_TARGET_ROOT");
+	#if defined(_MSC_VER)
+		#pragma warning(pop)
+	#endif
+	}
 	void native_state(char** aArguments)
 	{
 		namespace fs = std::filesystem;
 		const fs::path root{ aArguments[2] }, state{ aArguments[3] };
-		const auto*    permitted = std::getenv("QUALIFICATION_TARGET_ROOT");
+		const auto*    permitted = qualification_target_root();
 		expect(permitted && fs::canonical(root) == fs::path{ permitted } && fs::canonical(state) == state
 				   && state.string().starts_with(root.string() + "/"),
 			   "native state requires exact disposable scope");
@@ -373,7 +388,7 @@ namespace {
 	{
 		namespace fs = std::filesystem;
 		const fs::path root{ aArguments[2] }, archive{ aArguments[3] }, stateRoot{ aArguments[6] };
-		const auto*    permitted = std::getenv("QUALIFICATION_TARGET_ROOT");
+		const auto*    permitted = qualification_target_root();
 		expect(permitted && fs::canonical(root) == fs::path{ permitted }, "native public course requires disposable guard");
 		expect(fs::canonical(stateRoot) == stateRoot && stateRoot.string().starts_with(root.string() + "/"), "native restart state stays in disposable root");
 		const auto installed = root / "installed/BetterPullReview.app";

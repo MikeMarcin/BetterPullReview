@@ -538,3 +538,123 @@ same way:
 pass (85.64 s), and so do all six changed courses. This station takes the
 three recurrences under this card, because its acceptance is that the rows
 pass.
+
+## The three recurrences, fixed at their causes (bpr-main-mac, 2026-09-23)
+
+**`msvc_secure_crt_contract`.** The four reads are the same
+`QUALIFICATION_TARGET_ROOT` guard, two in each release-update test file, and
+none is compiled by MSVC: the public-path pair sits under
+`#if defined(__APPLE__)` and the transaction file is built only under CMake
+`if(APPLE)`. The gate reads text, not branches. Each file now reads the
+variable once, through a small `qualification_target_root()` helper that
+carries the scoped C4996 suppression item 2 used. The four call sites call the
+helper, and the gate sees one spelled read per file. Checked both ways
+through the real binary (`build/bpr0854-mac3-helper-probe.log`):
+`--native-state` with the variable unset fails by name, `native state
+requires exact disposable scope`. With it set to a disposable scratch root,
+`seed` and then `check` both print `native-retained-state:pass`.
+
+**`conditional_branch_identifiers`.** All seven findings were false
+positives, from a gate defect that also hid real renames.
+`blank_comments_and_literals` read the C++14 digit separator in `10'000` as a
+quote. The character literal it opened ran to the next `'` in the file, often
+lines away, and blanked every brace in between. So `with_open_strip_menu`'s
+body (parameter `aWindow`) appeared to run on into
+`test_strip_menu_goes_with_its_window`, and that function's own local
+`window` read as a stale `aWindow`. `profile_second_window_close_public_path_tests.cpp`
+has the same shape (`30'000` at :56, `10'000` at :155). The same defect worked
+the other way too: an odd number of separators blanks the rest of the file,
+so a real rename after a separator went unreported.
+`is_digit_separator` now treats a `'` as a separator only when the token
+before it starts with a digit and a letter or digit follows. A prefixed
+character literal (`u8'x'`, `L'x'`) starts with a letter, so it still opens a
+literal.
+
+Emulating the other hosts' macro sets over the whole tree found a second
+false positive, and it is the one that would keep the row red on Linux and
+Windows. `setup_destination_public_path_tests.cpp:632-633` is `__APPLE__`-only
+code (`8a017743`, 2026-09-19): `[&session](const auto& aSession)` compares
+the captured outer `session` with the lambda's own parameter. The bare-form
+pass already excused a name the branch declares, but the same-spelling pass
+did not, so `session` was reported as a stale `aSession`. That pass now
+excuses a name only when a lambda in the branch captures it simply (`name`
+or `&name`). An init-capture's initializer excuses nothing, so
+`[bytes = expectedBytes]` is still caught.
+
+Five new gate tests pin these cases; the gate's suite is now 16 tests. Against the unpatched
+gate in a detached worktree, four of the five fail
+(`build/bpr0854-gate-negative-control.log`). The fifth, the prefixed literal,
+passes on both gates. It fails under an over-permissive variant that takes
+any `'` between two letters or digits for a separator, so it guards the other
+direction. A rename planted at `workbench_window_tests.cpp:1938`
+(`aWindow.strip_menu_button()` changed to `window.strip_menu_button()`) is
+still reported by the patched gate. Whole tree, patched:
+`CONDITIONAL_BRANCH_IDENTIFIERS_OK:792` on this host. Emulated with the
+Linux and Windows macro sets, 0 findings each, where the unpatched gate
+reports 9 and 2. The emulation runs the gate's own `findings_for` with the
+other host's macros. It is not a Linux or Windows run.
+
+**`test_network_isolation_manifest`.** `release_update_native_https`
+(BPR-0947) registered `LOOPBACK_PORT_COUNT 1` without the independent record
+the gate keeps. The card board's selector trap describes exactly this.
+`verify_release_update_transport.py` was read before recording it. It binds
+its one configured port at 127.0.0.1 and serves as both the CONNECT proxy and
+the TLS origin under a fixture authority it generates. The executable is
+given that port as its proxy (`release_update_transport_tests.cpp:55-56`), and
+nothing connects outward. `MACOS_LOOPBACK_AUTHORITIES` now records it at 1,
+with that reason.
+
+### macOS verification at the fix
+
+Rebuilt (`cmake --build --preset dev`, exit 0, no warning). Nine rows, one
+run (`build/bpr0854-mac3-rows.log`), 9/9:
+
+| Row | Result |
+|---|---|
+| `msvc_secure_crt_contract` | Pass, 0.30 s |
+| `conditional_branch_identifiers` | Pass, 2.61 s |
+| `conditional_branch_identifier_contract` | Pass, 0.10 s (16 tests) |
+| `contained_temporary_usage_contract` | Pass, 2.14 s |
+| `test_network_isolation_manifest` | Pass, 5.02 s |
+| `test_network_isolation_structure_contract` | Pass, 3.09 s |
+| `release_update_native_https` | Pass, 8.51 s |
+| `release_update_transaction` | Pass, 0.44 s |
+| `application_release_update_public_path` | Pass, 4.50 s |
+
+`dependency_modernization_contract` (85.64 s) and the six changed courses of
+item 1 passed at `7fc4f6ab` (`build/mac3-stale-cards.log`), and nothing
+here touches them. The two rfc0015 fixture scripts pass under the
+network-deny launcher, 6 and 6 tests (`build/bpr0854-mac3-direct-scripts.log`).
+`clang-format` 23.1.1 reports both touched C++ files clean. `clang-tidy`
+reports nothing in them. Its one error is `bugprone-signed-bitwise` in
+`src/application/include/bpr/application/home_view_state.hpp:35`, reached
+through an include; this card does not touch that file.
+
+**The unregistered probe, `probe_gh_clone_git_bridge.py`**, ran against
+Homebrew `gh` 2.101.0 and Apple Git 2.50.1 under a scratch profile that denies
+all network except the probe's own `AF_UNIX` socket
+(`build/bpr0854-mac3-probe.log`; `curl` to `api.github.com` under the same
+profile fails, exit 6). The contained temporary directory item 1 changed
+works in every mode and leaves nothing under `/tmp/bpr-gh-*`. Three of the
+eight modes pass: `bridge --current-schema`, and the sandboxed `version` and
+`api`. Five fail on the probe's own expectations about `gh`:
+
+- The four legacy-schema modes (`version`, `api`, `bridge` and
+  `bridge --symlink-hosts`) stop at `legacy-migration-behavior-changed`.
+  `gh` 2.101.0 no longer rewrites a legacy `config.yml` and `hosts.yml` on
+  these commands: the changed set is `[]` where the probe expects both files.
+  No login-keychain item was created for the fixture account.
+- The sandboxed `bridge` fails at `gh-clone-failed`.
+
+Linux measured `gh` 2.97.0. This is a change in `gh`, not in this card's
+line.
+
+### What this card still needs
+
+- **Linux (`bpr-main-linux`)**: the four title rows at this fix's commit.
+  Expect `CONDITIONAL_BRANCH_IDENTIFIERS_OK` where the unpatched gate would
+  report 9.
+- **Windows (`bpr-main-win`)**: `msvc_secure_crt_contract` and
+  `contained_temporary_usage_contract` at this fix's commit.
+
+The macOS half of both acceptance lines is met at the fix.

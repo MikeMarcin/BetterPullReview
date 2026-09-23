@@ -283,6 +283,117 @@ class ConditionalBranchIdentifierTests(unittest.TestCase):
         caught = {entry[1] for entry in self.findings(body, POSIX)}
         self.assertIn("dispatch_run", caught)
 
+    def test_a_digit_separator_does_not_open_a_character_literal(self) -> None:
+        """[[BPR-0854]]. `10'000` is a number, not the start of `'...'`.
+
+        Read as a quote, the first separator blanks everything up to the next
+        `'`, here the one in `run`'s Windows branch. `wait`'s body then runs on
+        into `run`, and `run`'s own local `window` reads as a stale spelling of
+        `wait`'s `aWindow`. This is the shape `workbench_window_tests.cpp` had.
+        """
+        body = """
+        void wait(int aWindow)
+        {
+            const auto budget = 10'000;
+            (void)budget;
+            (void)aWindow;
+        }
+
+        void run()
+        {
+            auto window = 1;
+        #if defined(_WIN32)
+            const auto limit = 10'000;
+            window += limit;
+        #endif
+        }
+        """
+        self.assertEqual(self.findings(body, POSIX), [])
+
+    def test_a_rename_after_a_digit_separator_is_still_caught(self) -> None:
+        """A separator must not hide a real rename either.
+
+        With the separator read as a quote, the literal it opens never closes,
+        so the rest of the file is blanked and this rename went unreported.
+        """
+        body = """
+        int measure(int aExpectedBytes)
+        {
+            const auto limit = 1'000;
+        #if defined(_WIN32)
+            return expectedBytes + limit;
+        #else
+            return aExpectedBytes + limit;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, POSIX)}
+        self.assertIn("expectedBytes", caught)
+
+    def test_a_prefixed_character_literal_is_still_a_literal(self) -> None:
+        """`L'a'` is a literal whose prefix ends in a letter, not a number.
+
+        A rule that took any `'` between two letters or digits for a
+        separator would pass over the opening quote here and open a literal at
+        the closing one instead, blanking the rest of the file and hiding the
+        rename below it.
+        """
+        body = """
+        int count(int aDepth)
+        {
+            const auto letter = L'a';
+            (void)letter;
+        #if defined(_WIN32)
+            return depth;
+        #else
+            return aDepth;
+        #endif
+        }
+        """
+        caught = {entry[1] for entry in self.findings(body, POSIX)}
+        self.assertIn("depth", caught)
+
+    def test_a_captured_outer_local_is_not_the_parameter(self) -> None:
+        """[[BPR-0854]]. `[&session](const auto& aSession)` compares the two.
+
+        The capture names an outer local whose spelling folds onto the
+        lambda's own parameter. The bare-form pass already excused it; the
+        same-spelling pass reported it anyway, so the row was red only on the
+        hosts that skip this branch. `setup_destination_public_path_tests.cpp`
+        has this shape under `__APPLE__`.
+        """
+        body = """
+        #if defined(__APPLE__)
+        bool same(int aValue)
+        {
+            const auto session = aValue;
+            const auto match = [&session](const auto& aSession) {
+                return aSession == session;
+            };
+            return match(aValue);
+        }
+        #endif
+        """
+        self.assertEqual(self.findings(body, WINDOWS), [])
+
+    def test_a_capture_does_not_excuse_a_different_stale_name(self) -> None:
+        """Only the captured name is excused, not every name in the lambda."""
+        body = """
+        #if defined(__APPLE__)
+        bool same(int aValue, int aLimit)
+        {
+            const auto session = aValue;
+            const auto match = [&session](const auto& aSession) {
+                return aSession == session && session < limit;
+            };
+            return match(aLimit);
+        }
+        #endif
+        """
+        caught = {entry[1] for entry in self.findings(body, WINDOWS)}
+        self.assertIn("limit", caught)
+        self.assertNotIn("session", caught)
+
 
 if __name__ == "__main__":
     unittest.main()

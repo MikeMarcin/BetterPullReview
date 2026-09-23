@@ -470,6 +470,13 @@ MACOS_LOOPBACK_AUTHORITIES = {
     # value inside a response body the fixture itself serves.
     "native_https_device_authorization_fixture": 1,
     "github_device_authorization_refresh_contract": 1,
+    # BPR-0947, recorded by [[BPR-0854]]. verify_release_update_transport.py
+    # binds its one configured port at 127.0.0.1 and is both the CONNECT proxy
+    # and the TLS origin, under a fixture authority it generates. The executable
+    # is handed that port and connects nowhere else. Nothing leaves the host:
+    # the api.github.com and release-assets hosts are only names inside the
+    # tunnel.
+    "release_update_native_https": 1,
 }
 MACOS_UNRELATED_ENDPOINT_PROBE = "test_network_isolation_unrelated"
 PRE_BOUNDARY_INJECTION_VARIABLES = (
