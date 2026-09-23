@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0596"
 title: "Inventory tab navigation and plan RFC-BPR-0025"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0025"]
 depends_on: ["BPR-0595"]
 milestone: "Post-Pack v2"
@@ -16,7 +16,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 Trace the current selected-file intent, exact comparison identity, diff-host lifetime, drawer projection, draft binding, and window session persistence. Define the smallest tab-context slice without duplicating file identity or diff semantics. Allocate bounded implementation cards with exact existing regression selectors and one public gesture path.
 
 Governing design: [RFC-BPR-0025](../../rfcs/RFC-BPR-0025-review-workspace-navigation-browser-tabs.md).
-Closeout: [BPR-0597](BPR-0597-close-rfc-0025.md).
+Closeout: [BPR-0597](../10-backlog/BPR-0597-close-rfc-0025.md).
 
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
