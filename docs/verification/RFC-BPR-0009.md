@@ -69,7 +69,7 @@ review-mutation host targets all reported `ninja: no work to do`.
 
 The broad-window failure is exactly `the epoch row is the first row of the
 client area and as wide as it`, already preserved by
-[BPR-0940](../issues/10-backlog/BPR-0940-reconcile-composed-github-legacy-assertions.md).
+[BPR-0940](../issues/20-ready/BPR-0940-reconcile-composed-github-legacy-assertions.md).
 Its prior r23 control failed with the old comparison status restored, and the
 new run fails in the same epoch-row setup before defect navigation. No new
 defect-flow failure was observed. The independent actual-application course
