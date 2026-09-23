@@ -50,9 +50,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto quit_action() const noexcept -> QAction*;
 		/// \brief The window's presentation menu, offered with no window and disabled.
 		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
+		/// \brief [[BPR-1035]]. The window's Pull Request menu, offered with no window and disabled.
+		[[nodiscard]] auto pull_request_menu() const noexcept -> QMenu*;
 
 	private:
 		QMenu*                                   ProfilesMenu         = nullptr;
+		QMenu*                                   PullRequestMenu      = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;
 		QAction*                                 NewBprWindowAction   = nullptr;
 		QAction*                                 ManageProfilesAction = nullptr;

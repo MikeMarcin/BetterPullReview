@@ -47,6 +47,22 @@ namespace bpr::qt {
 				ManageProfiles();
 			}
 		});
+		// [[BPR-1035]]. The workbench window's Pull Request menu ([[BPR-0990]]),
+		// offered here and disabled for the same reason as View below: without it
+		// the last close took Pull Request off the bar. Follow and Save Repository
+		// act on an open pull request, and with no window none is open.
+		PullRequestMenu = addMenu(QStringLiteral("P&ull Request"));
+		PullRequestMenu->setObjectName(QStringLiteral("desktopPullRequestMenu"));
+		PullRequestMenu->setAccessibleName(QStringLiteral("Pull Request"));
+		PullRequestMenu->setAccessibleDescription(
+			QStringLiteral("Keep the open pull request or its repository in my queue, unavailable while no window is open"));
+		auto* const follow = PullRequestMenu->addAction(QStringLiteral("&Follow"));
+		follow->setObjectName(QStringLiteral("desktopFollowPullRequestAction"));
+		follow->setCheckable(true);
+		follow->setEnabled(false);
+		auto* const saveRepository = PullRequestMenu->addAction(QStringLiteral("&Save Repository"));
+		saveRepository->setObjectName(QStringLiteral("desktopSavePullRequestRepositoryAction"));
+		saveRepository->setEnabled(false);
 		// [[BPR-0796]]. The workbench window's View menu, offered here and disabled.
 		// Without it the last close took View off the bar and the merged Preferences
 		// item out of the application menu, leaving one visible menu where
@@ -145,4 +161,5 @@ namespace bpr::qt {
 	auto desktop_menu_bar::manage_profiles_action() const noexcept -> QAction* { return ManageProfilesAction; }
 	auto desktop_menu_bar::quit_action() const noexcept -> QAction* { return QuitProfilesAction; }
 	auto desktop_menu_bar::view_menu() const noexcept -> QMenu* { return ViewMenu; }
+	auto desktop_menu_bar::pull_request_menu() const noexcept -> QMenu* { return PullRequestMenu; }
 }

@@ -357,6 +357,25 @@ namespace {
 			   "none of them actionable, because no window's presentation is theirs to change");
 		expect(viewActions[3]->menuRole() == QAction::PreferencesRole,
 			   "and Settings keeps the preferences role, so the application menu keeps its merged item");
+
+		// [[BPR-1035]]. And the window's Pull Request menu, between Profiles and
+		// View as the window has it, with both of its gestures offered and disabled.
+		auto* const pullRequest = menu.pull_request_menu();
+		expect(pullRequest != nullptr && pullRequest->title() == QStringLiteral("P&ull Request"), "the desktop bar offers Pull Request");
+		const auto titles = [&menu] {
+			auto names = QStringList{ };
+			for (auto* const action : menu.actions()) {
+				names.push_back(action->text());
+			}
+			return names;
+		}();
+		expect(titles == QStringList{ QStringLiteral("&File"), QStringLiteral("&Profiles"), QStringLiteral("P&ull Request"), QStringLiteral("&View") },
+			   "in the window bar's order: File, Profiles, Pull Request, View");
+		const auto pullRequestActions = pullRequest->actions();
+		expect(pullRequestActions.size() == 2 && pullRequestActions[0]->text() == QStringLiteral("&Follow")
+				   && pullRequestActions[1]->text() == QStringLiteral("&Save Repository")
+				   && !pullRequestActions[0]->isEnabled() && !pullRequestActions[1]->isEnabled(),
+			   "with Follow and Save Repository, neither actionable with no pull request open");
 	}
 }
 
