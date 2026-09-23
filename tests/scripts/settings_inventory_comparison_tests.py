@@ -4,7 +4,10 @@ The e93d9215 macOS capture binds the Windows/Linux inventory baseline. Current
 macOS dev/release captures also pin the later General and CLI-entry changes.
 The 2d3bdbdf continuation compares the refreshed Mac and Linux inventories,
 without upgrading Linux's inventory-only course to native lifetime acceptance.
-This is evidence comparison, not a substitute for running a native capture.
+The b651554f BPR-0975 captures add the Linux focus controls, the failed full
+course and its labelled refused-activation diagnosis, whose pages are compared
+again here. This is evidence comparison, not a substitute for running a native
+capture.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2] / "docs" / "verification"
 MAC = ROOT / "BPR-0593-macos-settings-inventory"
 CONTINUATION = ROOT / "BPR-0593-native-settings-continuation"
+LINUX_FOCUS = ROOT / "BPR-0975-linux-native-settings"
 ROLE_NAMES = {
     "Button": "button", "push button": "button", "button": "button", "AXButton": "button",
     "CheckBox": "check", "check box": "check", "AXCheckBox": "check",
@@ -76,6 +80,9 @@ class SettingsInventoryComparison(unittest.TestCase):
         cls.linux = load(ROOT / "BPR-0731-linux-settings-inventory/linux-app-release.json")
         cls.continued_mac = load(CONTINUATION / "macos-app-release-2d3bdbdf.json")
         cls.continued_linux = load(CONTINUATION / "linux-native-inventory-2d3bdbdf.json")
+        cls.focus_control = load(LINUX_FOCUS / "linux-focus-control-b651554f.json")
+        cls.full_course = load(LINUX_FOCUS / "linux-full-course-b651554f.json")
+        cls.bounded = load(LINUX_FOCUS / "linux-bounded-course-b651554f.json")
 
     def test_current_mac_dev_and_release_are_identical(self) -> None:
         self.assertEqual(self.dev["pages"], self.current["pages"])
@@ -84,7 +91,8 @@ class SettingsInventoryComparison(unittest.TestCase):
 
     def test_categories_match_on_every_capture(self) -> None:
         self.assertEqual(len(self.current["categories"]), 7)
-        for capture in (self.dev, self.baseline, self.windows, self.linux, self.continued_mac, self.continued_linux):
+        for capture in (self.dev, self.baseline, self.windows, self.linux, self.continued_mac, self.continued_linux,
+                        self.bounded):
             self.assertEqual(self.current["categories"], capture["categories"])
             self.assertEqual(capture["categories"], [page["category"] for page in capture["pages"]])
 
@@ -175,6 +183,75 @@ class SettingsInventoryComparison(unittest.TestCase):
         self.assertNotEqual(controls(original), controls(changed))
         changed["nodes"].remove(control)
         self.assertNotEqual(controls(original), controls(changed))
+
+
+    def test_bpr0975_controls_attribute_the_x11_revert_and_focus_natively(self) -> None:
+        self.assertEqual(self.focus_control["window_manager"]["name"], "Weston WM")
+        self.assertEqual(self.focus_control["focus_surface"], "wslg-rail")
+        revert = ["FocusOut(B)", "FocusIn(A)", "FocusOut(A)", "FocusIn(B)"]
+        for name in ("qt", "xlib"):
+            with self.subTest(control=name):
+                control = self.focus_control["controls"][name]
+                # X11 alone: focus reached A and was put back; EWMH activation was ignored.
+                self.assertFalse(control["x11_only"]["passed"])
+                self.assertEqual(control["x11_only"]["set_input_focus"], dict(events=revert, focus="B"))
+                self.assertEqual(control["x11_only"]["net_active_window"], dict(events=[], focus="B"))
+                self.assertTrue(control["two_window"]["passed"])
+                self.assertTrue(control["post_close"]["passed"])
+                self.assertEqual(control["exit"], 0)
+                self.assertTrue(all(a["surface"] == "wslg-rail" for a in control["focus_activations"]))
+
+    def test_bpr0975_captures_bind_one_clean_tests_disabled_candidate(self) -> None:
+        for capture in (self.full_course, self.bounded):
+            with self.subTest(course=capture["course"]):
+                build = capture["context"]["build"]
+                self.assertEqual(capture["revision"], build["revision"])
+                self.assertEqual(capture["executable_sha256"], capture["context"]["executable"]["sha256"])
+                self.assertEqual(capture["observed"]["image"], capture["context"]["executable"]["path"])
+                self.assertTrue(build["clean"])
+                self.assertEqual((build["cache"]["BUILD_TESTING"], build["cache"]["CMAKE_BUILD_TYPE"]), ("OFF", "Release"))
+                self.assertEqual(build["first_party_error_demotions"], [])
+                self.assertIn("-Werror", build["main_compile_command"].split())
+                self.assertEqual(capture["observed"]["window_manager"], "Weston WM")
+                self.assertFalse(capture["context"]["environment"]["home_overridden"])
+                for root in capture["context"]["environment"]["owned_roots"].values():
+                    self.assertEqual(root["mode"], "0o700")
+        self.assertEqual(self.full_course["revision"], self.bounded["revision"])
+        self.assertEqual(self.full_course["executable_sha256"], self.bounded["executable_sha256"])
+
+    def test_bpr0975_full_course_fails_at_the_refused_ctrl_comma_activation(self) -> None:
+        self.assertEqual((self.full_course["course"], self.full_course["status"]), ("full", "failed"))
+        self.assertEqual(self.full_course["native_checks"], ["native-menu-opens-profile-labelled-settings"])
+        self.assertIn("Ctrl-comma did not reuse/focus Settings", self.full_course["failure"])
+        self.assertIn("'settings_reused': True", self.full_course["failure"])
+        self.assertEqual(self.full_course["pages"], [])
+
+    def test_bpr0975_refused_activation_diagnosis_is_not_a_lifetime_pass(self) -> None:
+        self.assertEqual((self.bounded["course"], self.bounded["status"]), ("full-refused-activation-bounded", "passed"))
+        self.assertEqual(self.bounded["native_checks"], [
+            "native-menu-opens-profile-labelled-settings",
+            "ctrl-comma-modeless-singleton-activation-refused-by-window-manager",
+            "escape-and-shortcut-reopen",
+            "same-profile-sibling-menu-shortcut-and-retirement",
+            "seven-categories-with-current-page-heading",
+            "native-quit-process-terminated",
+        ])
+        self.assertNotIn("ctrl-comma-modeless-singleton", self.bounded["native_checks"])
+        refused = self.bounded["observed"]["refused_activations"]
+        self.assertTrue(refused)
+        self.assertTrue(all(event["requested"] != event["focus"] for event in refused))
+
+    def test_bpr0975_inventory_is_unchanged_since_2d3bdbdf(self) -> None:
+        # Relevant inputs changed, so the comparison is rerun on the new capture.
+        for expected, observed in zip(self.continued_linux["pages"], self.bounded["pages"]):
+            with self.subTest(page=expected["category"]):
+                self.assertEqual(expected["nodes"], observed["nodes"])
+        for expected, observed in zip(self.continued_mac["pages"], self.bounded["pages"]):
+            with self.subTest(page=expected["category"]):
+                expected_controls = controls(expected)
+                if expected["category"] == "Accounts & hosts":
+                    expected_controls.remove(("button", "Use GitHub CLI", True, ""))
+                self.assertEqual(expected_controls, controls(observed))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,140 @@
+{
+  "schema": "bpr.settings-focus-control.v2",
+  "sources": {
+    "qt": "4b13420085b2f43398d7bfe45a8bba72581a3034f78d40e47c3f5e113ac5d605",
+    "xlib": "a59413c1259a83d717dd4c2a291748363c936c7d6e2253bd4dd45b35f238fc45"
+  },
+  "compiler": "g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "qt_root": "/home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64",
+  "qt_sha256": {
+    "lib/libQt6Core.so.6": "23651543e0ff970f1d21b2abc1250221f0dd854fe68e3027462925532afbe22b",
+    "lib/libQt6Gui.so.6": "c1797794be8cfd5e64e324c5068ff9f32bd54fda21af1a637c087550ebae73a0",
+    "lib/libQt6Widgets.so.6": "0cb5f5ab05e519487b0900a4592351a54420fe703a29bb929e06220a2fc2b616",
+    "lib/libQt6XcbQpa.so.6": "0e582e1461f9fe9fa208d83ff09edab901dcd3ba2702e047f458f72f00f9a9f5",
+    "plugins/platforms/libqxcb.so": "83981915129d4143e1a93d0bc8d190cf430f4f4bed37bfea544244eff18baf2f"
+  },
+  "platform": "Ubuntu 26.04 LTS WSL2 x86_64, native WSLg X11/XCB",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "wslg": "WSLg ( x86_64 ): 1.0.73.2",
+  "display": ":0",
+  "window_manager": {
+    "name": "Weston WM",
+    "net_supported": [
+      "_NET_ACTIVE_WINDOW",
+      "_NET_FRAME_EXTENTS",
+      "_NET_WM_MOVERESIZE",
+      "_NET_WM_STATE",
+      "_NET_WM_STATE_FULLSCREEN",
+      "_NET_WM_STATE_MAXIMIZED_HORZ",
+      "_NET_WM_STATE_MAXIMIZED_VERT"
+    ]
+  },
+  "focus_surface": "wslg-rail",
+  "owned_root": "/home/mmarcin/bpr0975-native/runs/focus-control-d8iec0o8",
+  "controls": {
+    "qt": {
+      "image_sha256": "c41a3b54d23bb41a4f599d63ab8019b53d3817bcfb2232a9d6bfec856b01d792",
+      "pid": 101086,
+      "initial_focus": "B",
+      "x11_only": {
+        "passed": false,
+        "set_input_focus": {
+          "events": [
+            "FocusOut(B)",
+            "FocusIn(A)",
+            "FocusOut(A)",
+            "FocusIn(B)"
+          ],
+          "focus": "B"
+        },
+        "net_active_window": {
+          "events": [],
+          "focus": "B"
+        }
+      },
+      "two_window": {
+        "passed": true,
+        "first": "focus=8388615 target=8388615 sibling=8388622 sibling_owned=True sibling_WM_STATE=[1, 0]",
+        "second": "focus=8388622 target=8388622 sibling=8388615 sibling_owned=True sibling_WM_STATE=[1, 0]"
+      },
+      "post_close": {
+        "passed": true,
+        "detail": "focus=8388615 target=8388615"
+      },
+      "exit": 0,
+      "focus_activations": [
+        {
+          "surface": "wslg-rail",
+          "window": 8388615,
+          "caption": "BPR0018 native focus control A (Ubuntu)",
+          "candidates": 1
+        },
+        {
+          "surface": "wslg-rail",
+          "window": 8388622,
+          "caption": "BPR0018 native focus control B (Ubuntu)",
+          "candidates": 1
+        },
+        {
+          "surface": "wslg-rail",
+          "window": 8388615,
+          "caption": "BPR0018 native focus control A (Ubuntu)",
+          "candidates": 1
+        }
+      ],
+      "final_exit": 0
+    },
+    "xlib": {
+      "image_sha256": "a2f43aca8ac9bdeaa7e14324436ed4c3641d2e18b57c847af69b73213d20090f",
+      "pid": 101101,
+      "initial_focus": "B",
+      "x11_only": {
+        "passed": false,
+        "set_input_focus": {
+          "events": [
+            "FocusOut(B)",
+            "FocusIn(A)",
+            "FocusOut(A)",
+            "FocusIn(B)"
+          ],
+          "focus": "B"
+        },
+        "net_active_window": {
+          "events": [],
+          "focus": "B"
+        }
+      },
+      "two_window": {
+        "passed": true,
+        "first": "focus=6291457 target=6291457 sibling=6291458 sibling_owned=True sibling_WM_STATE=[1, 0]",
+        "second": "focus=6291458 target=6291458 sibling=6291457 sibling_owned=True sibling_WM_STATE=[1, 0]"
+      },
+      "post_close": {
+        "passed": true,
+        "detail": "focus=6291457 target=6291457"
+      },
+      "exit": 0,
+      "focus_activations": [
+        {
+          "surface": "wslg-rail",
+          "window": 6291457,
+          "caption": "BPR0975 Xlib focus control A (Ubuntu)",
+          "candidates": 1
+        },
+        {
+          "surface": "wslg-rail",
+          "window": 6291458,
+          "caption": "BPR0975 Xlib focus control B (Ubuntu)",
+          "candidates": 1
+        },
+        {
+          "surface": "wslg-rail",
+          "window": 6291457,
+          "caption": "BPR0975 Xlib focus control A (Ubuntu)",
+          "candidates": 1
+        }
+      ],
+      "final_exit": 0
+    }
+  }
+}
