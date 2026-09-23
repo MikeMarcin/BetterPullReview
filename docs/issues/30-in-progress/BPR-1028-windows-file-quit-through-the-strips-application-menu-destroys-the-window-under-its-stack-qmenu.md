@@ -130,18 +130,27 @@ platform. None of its own actions destroys the window. A window destroyed
 while that menu is open, for example by an accessible Quit in the window's
 File menu, would free the stack object the same way. That needs its own card.
 
-### Waiting on the desktop
+### On the real desktop (bpr-main-win, 2026-09-23, cleared by the coordinator)
 
-AC1 is met offscreen. AC2 and AC3 need the real `windows` platform. The
-station runs no foreground course without the coordinator's clearance, so
-these are queued as one session of about 6 minutes, on a fresh private root
-each:
+Run at `2a5580d6`, whose product source is `e08a0409`'s, from a `build/dev`
+Debug build (MSVC 19.51, Qt 6.11.2) with executable sha256 `8351faa4…`. JaegAW,
+Windows 11 10.0.26200, session 1, ordinary user. Each probe had a fresh
+owner-private root. The harness is the station's [[BPR-0980]] observer with a
+mouse mode added. It is task-owned and not committed.
 
-1. `application_windows_title_row` in its new form.
-2. The [[BPR-0980]] quit probe three times: the Application menu with a
-   posted click, then File and Quit through UI Automation, then the exit code
-   and any CRT box.
-3. The same probe once with posted mouse clicks on File and Quit.
+| Run, 18:37:04Z to 18:37:46Z | Result |
+| --- | --- |
+| `application_windows_title_row` on the real `windows` platform, new form | Passed, 1.96 s |
+| Quit probe 1: posted click on Application menu, UI Automation expands File and invokes Quit | Owner exited 0. No CRT box, no process left, foreground handed back |
+| Quit probe 2 | The same, exit 0 |
+| Quit probe 3 | The same, exit 0 |
+| Quit with posted mouse clicks on File and Quit | Exit 0, no process left |
 
-The harness is the station's [[BPR-0980]] observer with a mouse mode added.
-It is task-owned and not committed.
+Before the fix, the same accessible Quit left the owner showing
+`_CrtIsValidHeapPointer(block)` in 4 of 4 probes (`c52f5907`, `6f1b83e3…`).
+The records are station logs under `build/logs/bpr-1028-main-win/`
+(`title-row-2a5580d6.log`, `quit-probe-fix-{1,2,3}.json`, `quit-probe-mouse.json`).
+
+**macOS and Linux:** the product change and the new row are compiled only
+under `_WIN32` / `if(WIN32)`, and `application_windows_title_row` is
+Windows-only. Neither platform's source or registration changed.

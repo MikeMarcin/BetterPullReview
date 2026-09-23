@@ -140,3 +140,49 @@ the next step needs the desktop:
    the same conditions. Delayed free turns the crash into a report at the
    first double free, or into an access violation in the `Realigner` delete
    together with the recorded stacks that freed that block.
+
+## On the real desktop: it no longer reproduces, not even from the source that crashed (bpr-main-win, 2026-09-23, cleared)
+
+All runs were on JaegAW (Windows 11 10.0.26200, session 1, ordinary user) with
+`build/dev` Debug (MSVC 19.51, Qt 6.11.2) and a fresh owner-private root each.
+The close probe is the [[BPR-0980]] observer's `close-probe` with the crash
+catcher attached: New Window through the strip menu with UI Automation, then
+the new window's own close 2 s later, then the first window's close. The
+records are station logs under `build/logs/bpr-1027-main-win/`.
+
+| Build (18:37Z to 18:51Z) | Close probe | Other |
+| --- | --- | --- |
+| `2a5580d6` (`8351faa4…`) | 3 of 3 clean: the first window survives, the last close exits 0, the catcher sees `exit_process code=0x00000000` | The second-window course on the `windows` platform passes in three shapes (fixture; `--shipped-composition`; with `--through-strip-menu --walk-accessible`): 15 of 15 closes |
+| `2a5580d6` with only [[BPR-1028]]'s menu change reverted (`68732bab…`, local) | 3 of 3 clean | |
+| `2a5580d6` with only [[BPR-0817]]'s `14a18b45` product change reverted (`c040b5ba…`, local) | 3 of 3 clean | |
+| **`c52f5907` product source**, the source that crashed 5 of 5 this morning (`c71003dd…`, local) | **3 of 3 clean** | No `cmake/`, top-level CMake or preset differs between `c52f5907` and `2a5580d6` |
+| `2a5580d6` (`a00f28be…`, rebuilt after the trials) | | The committed [[BPR-0980]] activation course 2 of 2: three windows, each window's own close, exit 0 |
+
+So the fault is not a function of the product source alone. The same source
+and build configuration crashed in 5 of 5 targeted probes between 16:29Z and
+16:41Z, in builds `b434be9d` and `47164b2a`. It is clean in 3 of 3 now, and
+12 of 12 across four source variants.
+
+**Frontier.** A condition present on the station between 16:29Z and 16:41Z
+is absent now. The only recorded difference is the shared desktop. That
+morning's probes ran while a [[BPR-0975]] WSLg course was starting and
+running on the same desktop: [[BPR-0980]]'s "Shared desktop" note records
+two foreground grabs at 16:32Z and 16:38Z. Today's runs were on a desktop the
+coordinator had cleared, with the Linux station finished. That is a
+correlation, not a cause. The offscreen results (clean with the Debug CRT's
+delayed free) point the same way: the fault needs something from outside
+the process, such as a native activation or focus change at the moment of
+the close. The full course's one crash in five was also during that window
+(`observation-fix-1.json`).
+
+**What would move it.** Run the close probe on this station deliberately
+while a WSLg course runs on the same desktop. That breaks the station's
+foreground-hold protocol, so it has to be arranged by the coordinator with
+the Linux station. If it reproduces, run the local diagnostic build of the
+new course (`--crt-diagnostics`, delayed free plus the free-stack ring) under
+the same condition. That turns the second delete into a report at its first
+free. Until then there is nothing to fix. The destructor path the crash
+named is now covered by `application_profile_second_window_close_public_path`
+on every platform.
+
+Parked on that arrangement: Blocked, `blocked_by: concurrent-desktop-reproduction`.
