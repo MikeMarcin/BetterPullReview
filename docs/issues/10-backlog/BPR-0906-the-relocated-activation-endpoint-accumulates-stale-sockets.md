@@ -122,3 +122,16 @@ doing, and a fix aimed only at those rows would miss this.
   that.
 - The decision is consistent with [[BPR-0895]]'s, and each card says how.
 - Windows is unaffected, or the card says why it is not.
+
+## BPR-0895 decided: no keep-alive, and macOS accumulates too — 2026-09-23
+
+[[BPR-0895]] observed that macOS's daily `$TMPDIR` age reap skips sockets, so
+an idle owner keeps its endpoint and no product change was made there. Nothing
+keeps an endpoint alive or re-binds it, so this card's choice (unlink on exit,
+a launch sweep, or accepting the debris) is unconstrained by that one.
+
+The same observation measured this card's residual on macOS. On 2026-09-23 the
+Mac integrator's `$TMPDIR` held 20 `bpr-activate-*.sock` entries born between
+2026-09-19 and 2026-09-22, none held by any process (`lsof -U`). They are
+test-run debris that the reap leaves because it skips sockets, so macOS
+accumulates them just as `/run/user/<uid>` does. A reboot clears both.

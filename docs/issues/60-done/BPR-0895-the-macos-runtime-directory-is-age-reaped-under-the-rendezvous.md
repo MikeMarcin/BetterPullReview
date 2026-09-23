@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0895"
 title: "macOS: the per-user runtime directory is age-reaped, so a long-idle owner can lose its rendezvous"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"found_by":"dsp-006, as a consequence of BPR-0881's rendezvous relocation","found_at":"68f8152e","run":"run-20260916-stations","dispatch":"dsp-006"}
+acceptance: [{"criterion":"AC1 The card states the measured reaping behaviour: threshold, and whether sockets are exempt","outcome":"pass","revision":"74aca1b8","evidence":{"kind":"observation","detail":"Observed read-only on the dsp-009 host and boot (kern.boottime 2026-09-14 16:51:53; launchctl reports dirhelper runs = 9). Against the 2026-09-23 03:35 run's cutoff (2026-09-20 03:35): 15 sockets older than it by birth and access survive, including dsp-009's 2026-09-14 sockets (six runs) and a stale bpr-activate endpoint born 2026-09-19 13:44. Of 469 regular files, six predate it: four are held open (lsof), two were read after it, and none is both old and idle. So the reap removes regular files over three days old by birth and access, unless held open, and skips sockets.","path":"docs/issues/60-done/BPR-0895-the-macos-runtime-directory-is-age-reaped-under-the-rendezvous.md#the-pending-observation-taken"}},{"criterion":"AC2 An idle owner past the threshold still accepts a handoff, or the card records why that is not worth buying and what the user sees","outcome":"pass","revision":"74aca1b8","evidence":{"kind":"observation","detail":"Not worth buying: the reap skips sockets, so an owner idle past three days keeps its endpoint name and a second launch reaches it; the observation includes a bpr-activate socket past the cutoff. Only the boot-time clean removes sockets, and it ends the owner too. The user sees nothing different. No product change was made; recorded in the card's Decision section.","path":"docs/issues/60-done/BPR-0895-the-macos-runtime-directory-is-age-reaped-under-the-rendezvous.md#decision-no-product-change"}},{"criterion":"AC3 Linux and Windows are unaffected","outcome":"pass","revision":"74aca1b8","evidence":{"kind":"observation","detail":"The product change is a comment in POSIX runtime_directory(); the new row is POSIX-only. Windows' named pipe has no runtime directory and no Windows code changed. Linux behaviour is unchanged; the new row was not observed on Linux by this card."}},{"criterion":"AC4 The contract covers what was chosen, so a future change cannot quietly reintroduce the gap","outcome":"pass","revision":"74aca1b8","evidence":{"kind":"command","detail":"sqlite_profile_activation passes with test_rendezvous_keeps_only_its_socket, which requires binding to add nothing but sockets among the runtime directory's bpr- entries and to add the endpoint. Negative control: binding also creating <endpoint>.pid as a regular file fails with 'binding adds nothing but sockets to the runtime directory'; restored, it passes. runtime_directory() points at the card and the row. architecture_boundaries and architecture_boundary_contract pass; clang-format and project tidy clean."}}]
 ---
 
 # BPR-0895: macOS: the per-user runtime directory is age-reaped, so a long-idle owner can lose its rendezvous
@@ -134,3 +135,81 @@ matches) but a mis-read is possible; no dirhelper "Cleaning … older than"
 lines were visible in the unified log without sudo; the `-machineBoot` path was
 established from a launchd string plus the post-boot emptiness, not traced;
 `com.apple.cache_delete` was not analysed.
+
+## Resolution — 2026-09-23, Mac integrator (Mac batch 2)
+
+### The pending observation, taken
+
+Read-only, on the same Mac and the same boot as dsp-009 (`kern.boottime`
+2026-09-14 16:51:53). `launchctl print system/com.apple.bsd.dirhelper` reports
+`runs = 9` and a normal idle exit, so the daily reap has run since. At
+2026-09-23 10:47, over `$TMPDIR` (`getconf DARWIN_USER_TEMP_DIR`), with the
+03:35 run's cutoff at 2026-09-20 03:35:
+
+- **Sockets past the cutoff survive.** Fifteen sockets whose birth and access
+  times both predate it are present. They include every one dsp-009 listed from
+  2026-09-14 16:52 (the Chrome, Codex and Spotify `SingletonSocket`s,
+  `discord-ipc-0`, `vscode-git-3951a7ae11.sock`), past the cutoff for six daily
+  runs now, and a stale `bpr-activate-c94cdabddc2523d3.sock` (birth and access
+  2026-09-19 13:44) that no process holds.
+- **Idle regular files past it do not.** Of 469 regular files, six were born
+  before the cutoff. Four are held open by a live process (`lsof`: three
+  `cpptools` crash logs and `adb.501.log`); the other two were read after the
+  cutoff (2026-09-21 and 2026-09-23). None is both idle and old. Births then
+  run 104, 49, 287 and 32 a day from 2026-09-20 on.
+
+So the age reap removes a regular file whose birth and access times are both
+more than three days old, and skips sockets. That is observed here, not read
+from disassembly. There is one refinement to dsp-009's criterion: a regular
+file that a process holds open was not removed either.
+
+### Decision: no product change
+
+The exposure is nil. The reap does not remove the endpoint, so an owner idle
+past three days keeps its name and a second launch reaches it as it does on
+the first day. The only macOS event that removes the socket is the boot-time
+clean (`dirhelper -machineBoot`), and that ends the owner too, which is the
+lifetime Linux's `/run/user/<uid>` has. Touching the socket, re-binding it or
+moving off `$TMPDIR` would each pay for a reap that does not happen. The user
+sees nothing different from today.
+
+What would bring the gap back is the rendezvous keeping a regular file in the
+runtime directory, such as a lock, pid or marker beside the socket. The reap
+would remove that after three idle days. The contract now covers it (`74aca1b8`):
+
+- `sqlite_profile_activation`'s new POSIX row
+  `test_rendezvous_keeps_only_its_socket` lists the runtime directory's `bpr-`
+  entries before and after binding. It requires every entry binding adds to be
+  a socket, and the endpoint to be one of them. Only `bpr-` names are compared
+  because Linux's `/run/user/<uid>` is shared with everything else the user
+  runs.
+- `runtime_directory()` in `src/adapters/sqlite/src/profile_activation.cpp`
+  states the measured reap and points at this card and that row.
+
+### Consistent with BPR-0906
+
+Nothing here keeps an endpoint alive or re-binds it, so the accumulation
+[[BPR-0906]] describes gets no worse, and that card stays free to choose
+unlink-on-exit or a sweep. The same observation shows the accumulation is not
+Linux-only. This Mac's `$TMPDIR` holds 20 `bpr-activate-*.sock` entries born
+between 2026-09-19 and 2026-09-22, none held by any process (`lsof -U`). They
+are test-run debris the reap leaves because it skips sockets. BPR-0906 is noted
+accordingly.
+
+## Evidence
+
+At `74aca1b8`, macOS 26.6.2 arm64, `build/dev`:
+
+- `sqlite_profile_activation` passes (4.2 s) with the new row.
+- **Negative control.** With binding also creating `<endpoint>.pid` as a
+  regular file, the row fails with `binding adds nothing but sockets to the
+  runtime directory`. With the source restored it passes again.
+- `architecture_boundaries` (17.8 s) and `architecture_boundary_contract`
+  (91.8 s) pass. They scan `profile_activation.cpp` for forbidden runtime
+  surfaces, so the new comment avoids spelling them.
+- clang-format 23.1.1 passes both files. The project tidy script reports
+  nothing on either translation unit.
+- Windows is unaffected. The row and the comment are in POSIX-only code, and
+  Windows' named pipe has no runtime directory. Linux runs the same row. The
+  product behaviour there is unchanged, since the product change is a comment,
+  but this card did not observe the row on Linux.
