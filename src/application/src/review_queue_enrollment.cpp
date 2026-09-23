@@ -875,7 +875,7 @@ namespace bpr::application {
 				}
 				for (const auto requested : { false, true }) {
 					auto withdrawn = Enrollments.observe_discovery(queue_discovery_answer{
-						.Session    = { .Host = forgotten.Host, .Account = forgotten.Account },
+						.Session    = queue_session_id{ .Host = forgotten.Host, .Account = forgotten.Account },
 						.Repository = forgotten.Repository,
 						.Requested  = requested,
 						.Complete   = true,

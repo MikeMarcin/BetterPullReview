@@ -342,7 +342,7 @@ namespace bpr::adapters::github::detail {
 				if (!wire) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				const github_wire_request request{ .Correlation = { .Parent = Session, .ProfileRevision = Profile.revision(), .Host = Profile.host(), .Operation = read_operation::get_viewer_identity, .Page = 1U }, .Wire = *wire };
+				const github_wire_request request{ .Correlation = github_wire_correlation{ .Parent = Session, .ProfileRevision = Profile.revision(), .Host = Profile.host(), .Operation = read_operation::get_viewer_identity, .Page = 1U }, .Wire = *wire };
 				const auto                response = aTransport.perform(request, aStop);
 				if (std::holds_alternative<github_wire_cancelled>(response)) {
 					return std::unexpected{ git_smart_transport_error{ failure::cancelled } };

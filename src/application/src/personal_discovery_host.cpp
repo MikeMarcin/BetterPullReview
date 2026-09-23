@@ -99,12 +99,13 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		return personal_discovery_session{
-			.Queue   = { .Host = std::string{ hostname }, .Account = viewer.Login, .Generation = aSession.Generation.value() },
-			.Context = {
+			.Queue   = queue_session_id{ .Host = std::string{ hostname }, .Account = viewer.Login, .Generation = aSession.Generation.value() },
+			.Context = core::repository_request_context{
 				.ApplicationSession = aSession.ApplicationSession,
 				.Profile            = aSession.ProfileAuthority.Profile,
 				.Host               = aSession.ProfileAuthority.Host,
 				.Account            = viewer.Account,
+				.Repository         = core::repository_locator{ },
 				.Capabilities       = aSession.CapabilityEvidence.Revision,
 				.IdentityGeneration = aSession.Generation,
 			},
