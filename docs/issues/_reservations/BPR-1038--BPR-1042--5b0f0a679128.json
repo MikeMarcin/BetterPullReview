@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1038",
+    "BPR-1039",
+    "BPR-1040",
+    "BPR-1041",
+    "BPR-1042"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "bpr-main-win: (1) Windows: Purge profile refuses once the Git isolation exists, because its directories carry inherited permissions the purge inventory rejects; (2) Windows: two course cleanups fail with WinError 32 because an application store file is still held when the temporary helper removes the root; (3) Windows: the epoch's Git subprocess intermittently fails revision-prepare in composed courses; (4) Windows: qt_github_conversation_panel fails at \"narrow Discuss begins in the focused conversation index\"; (5) Windows: application_personal_discovery_public_path fails at BPR-1017's step \"the profile enters public preview\"",
+  "created": "2026-09-23T21:03:34.330861+00:00",
+  "base": "b9e72812895b894dff0a8ede06042d784b2ba85d"
+}
