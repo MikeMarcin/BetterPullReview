@@ -15,7 +15,9 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 **Design accepted; implementation complete; closed for the owner-amended r3
 scope on 2026-09-22.** The [owner amendment r3](#owner-amendment-r3--2026-09-22)
-below records the one deferred native observation.
+below records the one deferred native observation. The
+[owner amendment r4](#owner-amendment-r4--2026-09-23) of 2026-09-23 keeps
+AC-07 closed over a recorded evidence gap, with follow-up [[BPR-1019]].
 The product owner approved this daily-workbench design and its Chrome-like
 profile amendment on 2026-09-04. Registration grants no implementation,
 credential, remote-mutation, platform-evidence, or closeout exception. This RFC
@@ -69,6 +71,43 @@ head the macOS activation, owner-admission and window-layout courses pass
 3/3, the documentation gate, board validation and `git diff --check` pass.
 This status does not close BPR-0980 or imply native Windows desktop
 acceptance or RFC-0038 release qualification.
+
+## Owner amendment r4 — 2026-09-23
+
+On 2026-09-23 the owner directed, verbatim: "for RFC-0024, criterion AC-07
+just make an amendment and file a follow-up to fix that test". The owner gave
+this in the coordinating chat, and the coordinator relayed it verbatim to the
+implementer that recorded it. It changes acceptance. It is not an observation
+and passes nothing at the closeout revision.
+
+AC-07 closed on [[BPR-0595]] at `eb73df8b` (2026-09-22) on retained
+[[BPR-0709]]/[[BPR-0710]] evidence. Their public course,
+`application_profile_window_review_restoration_public_path`, was not run for
+that closeout, and it was red at `eb73df8b`: no `src/` or `tests/` change
+separates that revision from `e2f6eb1d`, where [[BPR-0597]] found it failing.
+[[BPR-0985]] traced the failing reading phases to `cc038748` (2026-09-19), a
+product regression. Across a restart, a window lost its retained semantic
+reading position, and an unavailable semantic reading was not reported
+explicitly. Both behaviors are within AC-07.
+
+**Accepted gap.** AC-07 stays closed even though no run of its restoration
+course passed at the closeout revision, and the product at that revision had
+the restoration regression above. The AC-07 row on BPR-0595 stays as written.
+It is not a pass of those two behaviors at `eb73df8b`.
+
+Nothing else changes. RFC-BPR-0024 remains Auto-Verified. Amendment r3 and the
+other eight criteria keep their scope and evidence. So does the rest of
+AC-07's evidence: [[BPR-0707]]'s restart course, [[BPR-0977]]'s layout course
+and native macOS geometry accept, and [[BPR-0715]]'s signed-out accept.
+
+[[BPR-0985]] repaired the regression at `c9c48800`, and the course has passed
+since: 570.40 s at `c9c48800`, 591.97 s at `17e40dc8`, 563.89 s at `0d56cee5`
+and 598.25 s at `0ddf929b` (2026-09-23). Those runs are observations,
+recorded on BPR-0595. They are not written into its historical acceptance
+record. Follow-up [[BPR-1019]] binds AC-07 to a current passing run of this
+course and its sibling AC-07 checks, recorded beside the historical row. The
+course already passes, so the follow-up only re-binds the evidence. If the
+course fails again, BPR-1019 repairs it first.
 
 ## Problem and outcome
 
