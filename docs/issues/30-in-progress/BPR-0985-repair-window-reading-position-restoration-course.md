@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0985"
 title: "Repair deferred reading-position restoration so the window review restoration course passes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0025"]
 depends_on: []
 priority: "P1"
