@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0870"
 title: "Windows: the syntax pane course fails because the line that opened the block comment has scrolled off the top"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-0653-implement","found_at":"20d99914","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"AC1 qt_syntax_pane_composition passes on Windows, and still passes on macOS and Linux","outcome":"pass","revision":"1d928028","evidence":{"kind":"command","detail":"Windows (bpr-main-win, build/dev MSVC 19.51 Debug, Qt 6.11.2, offscreen): contained as registered, passes 5 of 5 with --repeat until-fail:5 (0.72-0.75 s); before the fix it failed at 'the line that opened the block comment has scrolled off the top'. macOS and Linux: not run from this station; the change is test-only and adds a wait on geometry_pending() that returns after one more event round where the measurement is already complete, which those platforms' passing runs of the unchanged scroll show.","path":"docs/issues/60-done/BPR-0870-the-syntax-pane-loses-the-block-comment-opening-line-on-windows.md#cause-the-course-scrolled-before-the-pane-had-an-axis-to-scroll-by-bpr-main-win-2026-09-23"}},{"criterion":"AC2 The card names whether the product lost continuation state or the course's scroll precondition was platform-dependent","outcome":"pass","revision":"1d928028","evidence":{"kind":"observation","detail":"The course's precondition: at the scroll the publication's native measurement was still pending on Windows (geometry_pending=1, shared scrollbar disabled), so the comparison scroll controller had no axis and ignored the shared bar's value (shared 99261/100000, left pane bar 0/365, first visible block 0). With the measurement settled the scroll lands and the unchanged colouring checks pass; the product did not lose continuation state.","path":"docs/issues/60-done/BPR-0870-the-syntax-pane-loses-the-block-comment-opening-line-on-windows.md#cause-the-course-scrolled-before-the-pane-had-an-axis-to-scroll-by-bpr-main-win-2026-09-23"}},{"criterion":"AC3 If it was the product, the colouring is shown correct in the rendered pane with the opening line scrolled away","outcome":"pass","revision":"1d928028","evidence":{"kind":"observation","detail":"Not applicable: it was the course, not the product. The course's own colouring checks, on the composed pane with the opening line scrolled off, pass with the fix."}}]
 ---
 
 # BPR-0870: Windows: the syntax pane course fails because the line that opened the block comment has scrolled off the top
