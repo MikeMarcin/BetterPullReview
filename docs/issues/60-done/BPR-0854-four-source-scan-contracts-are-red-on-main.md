@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0854"
 title: "Four source-scan contracts are red on main"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep; confirmed on macOS by dsp-004","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"All four rows pass on macOS and Linux. msvc_secure_crt_contract and contained_temporary_usage_contract also pass on Windows, if they are registered there","outcome":"pass","revision":"bac4c745","evidence":{"kind":"command","detail":"macOS: conditional_branch_identifiers OK:792, msvc_secure_crt_contract, contained_temporary_usage_contract pass at bac4c745; dependency_modernization_contract at 7fc4f6ab (build/bpr0854-mac3-rows.log, build/mac3-stale-cards.log). Linux (bpr-main-linux) 5/5 at 98e5b796. Windows (bpr-main-win) msvc_secure_crt_contract and contained_temporary_usage_contract pass at f9c3161d.","path":"docs/issues/60-done/BPR-0854-four-source-scan-contracts-are-red-on-main.md#finished-by-the-mac-main-station-2026-09-23"}},{"criterion":"The courses whose files changed still pass on the platforms where they are registered","outcome":"pass","revision":"bac4c745","evidence":{"kind":"command","detail":"macOS: six item-1 courses pass at 7fc4f6ab; release_update_transaction and application_release_update_public_path pass at bac4c745; helper probe fails by name unset and passes set. Linux: seven item-1 courses at 754d0538; the recurrence edits are __APPLE__-only. Windows: the recurrence edits are not compiled by MSVC; four contained item-1 courses stop at pre-existing exit-3 seeds owned by BPR-0876, which records they were not caused by item 1.","path":"docs/issues/60-done/BPR-0854-four-source-scan-contracts-are-red-on-main.md#finished-by-the-mac-main-station-2026-09-23"}}]
 ---
 
 # BPR-0854: Four source-scan contracts are red on main
@@ -699,3 +700,26 @@ station. `build/dev` (Ninja, MSVC 19.51 Debug, Qt 6.11.2) was rebuilt at
 So both Windows rows this card named are met. The same
 `msvc_secure_crt_contract` run finished [[BPR-1026]]. This note does not move
 the card; it is the Mac's.
+
+## Finished by the Mac main station (2026-09-23)
+
+Every line this card asked for is now observed on its own platform:
+
+- **The four rows.** macOS at `bac4c745` (and `contained_temporary_usage_contract`
+  and `dependency_modernization_contract` at `7fc4f6ab`). Linux at `98e5b796`,
+  5/5. Windows at `f9c3161d`: `msvc_secure_crt_contract` and
+  `contained_temporary_usage_contract`, the two this card names for Windows.
+  The gate passes on the one checkout that later changed it too (`c82db490`):
+  `OK:792` on macOS and Linux.
+- **The changed courses.** On macOS the six item-1 courses pass at
+  `7fc4f6ab`, and `release_update_transaction` and
+  `application_release_update_public_path` pass at `bac4c745`. On Linux the
+  seven item-1 courses passed at `754d0538`, and the recurrence fix changes
+  nothing Linux compiles. On Windows the recurrence fix changes nothing MSVC
+  compiles: both files' reads sit in `__APPLE__`-only code. Four of the five
+  contained item-1 courses still stop at their exit-3 seeds. [[BPR-0876]]
+  records those as pre-existing and not caused by item 1, and it owns them.
+  So no course that passed before this card fails because of it.
+
+The `gh` 2.101.0 finding about the unregistered bridge probe stays recorded
+above. It concerns the probe's expectations about `gh`, not this card's line.
