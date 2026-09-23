@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0890"
 title: "A crash after the marker is printed passes every row that has a PASS_REGULAR_EXPRESSION"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable src/app and gates partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"A row whose application prints its marker and then aborts fails, shown by a deliberate abort in the shutdown tail","outcome":"pass","revision":"52c3ab60","evidence":{"kind":"command","detail":"macOS 52c3ab60: test_network_isolation_structure_contract 64 tests OK including the nested real-CTest proof (marker then os._exit non-zero fails). Explicit SIGABRT proofs: macOS dsp6-0890-proof.log (child exit -6), Linux dsp7-0890-seam-proof.log (-6, clean control passes). Windows launcher prints the status and fails no-status reads (3c8f25c0).","path":"docs/issues/60-done/BPR-0890-a-crash-after-the-marker-passes-every-pass-regular-expression-row.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}},{"criterion":"The existing expected-failure rows still behave","outcome":"pass","revision":"52c3ab60","evidence":{"kind":"command","detail":"macOS 7fc4f6ab: application_automated_run_budget passed with child exit 1 (EXPECTS_FAILED_RUN); rfc0017_release_absence_negative_control passed with child exit 1 (EXPECTS_NONZERO_EXIT). Linux dsp-007 measured the same pair.","path":"docs/issues/60-done/BPR-0890-a-crash-after-the-marker-passes-every-pass-regular-expression-row.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}},{"criterion":"The card records how many previously green rows were hiding a non-zero exit, on each platform","outcome":"pass","revision":"52c3ab60","evidence":{"kind":"observation","detail":"macOS one (rfc0017_release_absence_negative_control, by design, now declared); Linux zero of 198 pass-expression rows (369 measured, 88dc42fc); Windows zero by two means (contained rows fail on the marker, none previously green; thirteen uncontained rows measured directly, 86b04901).","path":"docs/issues/60-done/BPR-0890-a-crash-after-the-marker-passes-every-pass-regular-expression-row.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}},{"criterion":"A row that replaces the inherited FAIL_REGULAR_EXPRESSION fails test_network_isolation_manifest, shown by adding one deliberately","outcome":"pass","revision":"52c3ab60","evidence":{"kind":"command","detail":"Live at 52c3ab60: appended set_tests_properties(application_public_path PROPERTIES FAIL_REGULAR_EXPRESSION NEVER_PRINTED_SENTINEL), reconfigured; manifest failed naming the missing inherited verdict. Reverted (byte-compared), reconfigured; manifest passed configured=432. build/bpr0890-mac3-override-negative.log.","path":"docs/issues/60-done/BPR-0890-a-crash-after-the-marker-passes-every-pass-regular-expression-row.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}}]
 ---
 
 # BPR-0890: A crash after the marker is printed passes every row that has a PASS_REGULAR_EXPRESSION
@@ -519,3 +520,51 @@ gate half lives under `scripts/**`, which this station may not edit; and
 mechanically pasting the two strings into the expected set would defeat the
 assertion's whole purpose without anyone confirming bpr-win's measurements.
 Reported to `bpr-main-mac` as an uncarded defect needing an ID.
+
+## Reconciled and finished by the Mac main station (2026-09-23, Mac batch 3)
+
+The card had been idle since 2026-09-17, with every platform's half landed:
+macOS `51c51bec`, Windows `86b04901` and `3c8f25c0` (merged `f413907c`),
+Linux `88dc42fc` (merged `16ef0152`). No writer or command from those runs
+remains. Nothing was left to build, so the card closes on a recheck at the
+current head, `52c3ab60`.
+
+- **A marker followed by an abort fails the row.** macOS at `52c3ab60`:
+  `test_network_isolation_structure_contract` passes 64 tests
+  (`build/bpr0890-mac3-gates.log`). One of them,
+  `test_ctest_fails_a_row_that_prints_its_marker_and_then_exits_non_zero`, is
+  the permanent nested real-CTest proof `51c51bec` added. The explicit abort
+  proofs stand as recorded above: macOS `SIGABRT`, child exit -6
+  (`dsp6-0890-proof.log`), and Linux, the same -6 through the real seam, with
+  the clean-exit control passing (`dsp7-0890-seam-proof.log`). Windows
+  states the status after `GetExitCodeProcess`. When the status cannot be
+  read, it fails the row with `TEST_RUNNER_CHILD_EXIT_FAILED:no-status`.
+- **Expected-failure rows still behave.** macOS at `7fc4f6ab`
+  (`build/mac3-stale-cards.log`): `application_automated_run_budget` passes
+  with child exit 1 (`EXPECTS_FAILED_RUN`), and
+  `rfc0017_release_absence_negative_control` passes with child exit 1
+  (`EXPECTS_NONZERO_EXIT`). Linux measured the same pair in dsp-007.
+- **How many green rows were hiding a non-zero exit.** macOS: one,
+  `rfc0017_release_absence_negative_control`, by design and now declared.
+  Linux: zero of 198 pass-expression rows, all 369 rows measured. Windows:
+  zero, measured two ways (above and in
+  `docs/verification/dsp7-windows-full-sweep.md`). Contained rows now fail
+  on the marker, and not one of the sixteen that printed it had been green
+  before. All thirteen uncontained rows were measured directly.
+- **A replaced inherited verdict fails the manifest gate.** Shown live at
+  `52c3ab60` (`build/bpr0890-mac3-override-negative.log`). The line
+  `set_tests_properties(application_public_path PROPERTIES FAIL_REGULAR_EXPRESSION "NEVER_PRINTED_SENTINEL")`
+  was appended to `tests/end_to_end/CMakeLists.txt` and `build/dev`
+  reconfigured. `test_network_isolation_manifest` then fails with
+  `application_public_path must carry the inherited fail-closed verdict
+  ['PUBLIC_PATH_FAILED', 'TEST_RUNNER_CHILD_EXIT_FAILED']; found
+  ['NEVER_PRINTED_SENTINEL']`. After the line was reverted (byte-compared
+  with a saved copy) and `build/dev` reconfigured, the gate passes
+  (`configured=432:registrations=388`). The row-level replacement is also
+  pinned by `test_row_level_replacement_of_the_inherited_verdict_is_rejected`
+  in the structure contract.
+
+At the head the recheck began from, the manifest gate was red for an
+unrelated reason: a loopback registration nobody had recorded
+(`release_update_native_https`). [[BPR-0854]] fixed it at `bac4c745`, so the
+live control above runs against a green gate.
