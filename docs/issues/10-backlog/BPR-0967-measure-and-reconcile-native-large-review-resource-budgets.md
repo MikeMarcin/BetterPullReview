@@ -99,5 +99,8 @@ and every Windows and Linux measurement, remain this card's.
 While measuring, the Mac station found `application_large_review_history`
 red. Every epoch refresh holds the GUI thread for about 167 ms against the
 100 ms input budget, with or without BPR-1032. That is filed as
-[[BPR-1043]]. The ordinary benchmark's initial load still shows the 290–310 ms
-gap this card already records.
+[[BPR-1043]], and fixed there (`7b5d78be`): the conversation delegate no
+longer reshapes every post on each relayout, and refreshes are back to a
+median worst gap of 68.8 ms. The same change lowers the history course's
+initial-load gap from 292–309 ms to 231–243 ms. That gap is still over
+100 ms, and it remains this card's responsiveness question.
