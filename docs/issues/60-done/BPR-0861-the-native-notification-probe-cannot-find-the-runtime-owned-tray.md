@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0861"
 title: "The native notification probe cannot find the tray icon since the runtime owns the sink"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep; reproduced on macOS by dsp-004; scouted","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"The row passes on macOS and Linux, and on Windows if it is registered there","outcome":"pass","revision":"7fc4f6ab","evidence":{"kind":"command","detail":"macOS 7fc4f6ab: application_native_notification_attended_contract passed 3.82 s with NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK and child exit 0 (build/mac3-stale-cards.log). Linux: passed at 754d0538 (3.72 s) and 271bb452 (3.76 s), bpr-linux. Windows (registered, WINDOWS_UNCONTAINED): passed at c4130c3a (12.87 s), bpr-main-win, recorded on BPR-0875.","path":"docs/issues/60-done/BPR-0861-the-native-notification-probe-cannot-find-the-runtime-owned-tray.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}},{"criterion":"The card names whether any product notification behaviour had regressed","outcome":"pass","revision":"7fc4f6ab","evidence":{"kind":"observation","detail":"No product regression: only the probe's window().findChild lookup broke after BPR-0705 moved the sink into the runtime; the sink still creates, names and shows its tray and delivers through showMessage. The tray outliving a closed window is BPR-0705's ownership, recorded as untested.","path":"docs/issues/60-done/BPR-0861-the-native-notification-probe-cannot-find-the-runtime-owned-tray.md#reconciled-and-finished-by-the-mac-main-station-2026-09-23-mac-batch-3"}}]
 ---
 
 # BPR-0861: The native notification probe cannot find the tray icon since the runtime owns the sink
@@ -156,3 +157,23 @@ all print, with the payload `octo-org/review-repository #17|The code moved after
 you reviewed it.`, and then `NATIVE_NOTIFICATION_REFUSED:shutdown_cleanup_failed`.
 That is the same single fact twelve other application rows fail on here; see the
 sweep record, group D.
+
+## Reconciled and finished by the Mac main station (2026-09-23, Mac batch 3)
+
+Idle since 2026-09-17. The fix had landed and the Windows run was the only
+row still open on the card. That run has since been recorded under
+[[BPR-0875]]. No writer or command from dsp-004 or dsp-005 remains.
+
+| Platform | Result | Where |
+|---|---|---|
+| macOS | Pass at `7fc4f6ab`, 3.82 s, `NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK`, `TEST_RUNNER_CHILD_EXIT:0`, no `NATIVE_NOTIFICATION_REFUSED` line. `qt_system_tray_notification_sink` and `application_review_round_trip_composition_contract` pass beside it | `build/mac3-stale-cards.log` (this station) |
+| Linux | Pass at `754d0538` (3.72 s, above), and again at `271bb452`, 3.76 s, one of BPR-0875's thirteen rows | `bpr-linux`, dsp-005 and dsp-007 |
+| Windows | Pass at `c4130c3a`, 12.87 s, with no cleanup-source line, after [[BPR-0875]] and [[BPR-0817]] removed the shutdown-cleanup refusal the 2026-09-17 run ended on | `bpr-main-win`, recorded on [[BPR-0875]] |
+
+**Product behaviour.** No product notification behaviour regressed. Only the
+probe's `window().findChild` lookup broke when [[BPR-0705]] moved the sink
+into the runtime. The runtime-owned sink still creates, names and shows its
+tray, delivers through `showMessage`, and lives as long as the runtime. The
+one inferred, untested difference from before BPR-0705 remains as the scout
+recorded it: the tray now outlives a closed window. That follows from
+BPR-0705's ownership and is not a regression this card introduced.
