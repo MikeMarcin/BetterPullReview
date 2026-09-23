@@ -6,6 +6,7 @@
 #include <QEvent>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QFontMetrics>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -514,6 +515,22 @@ namespace bpr::qt {
 		code.setStyleHint(QFont::Monospace);
 		code.setFixedPitch(true);
 		code.setPointSizeF(font().pointSizeF() * code_scale);
+		// [[BPR-0869]]. The hint is only a request. A font database with no
+		// alias for the platform's name matches it to a proportional face: Qt's
+		// offscreen platform on Windows names the fixed font "monospace" and gets
+		// Arial. So a face that does not resolve fixed-pitch falls back to
+		// fixed-pitch families the platforms ship, in order.
+		if (!QFontInfo{ code }.fixedPitch()) {
+			code.setFamilies({
+				code.family(),
+				QStringLiteral("Cascadia Mono"),
+				QStringLiteral("Consolas"),
+				QStringLiteral("Courier New"),
+				QStringLiteral("Menlo"),
+				QStringLiteral("DejaVu Sans Mono"),
+				QStringLiteral("Liberation Mono"),
+			});
+		}
 		UserCodeField->setFont(code);
 		fit_to_text(UserCodeField);
 		fit_to_text(AddressField);
