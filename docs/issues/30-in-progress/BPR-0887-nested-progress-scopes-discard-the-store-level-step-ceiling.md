@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0887"
 title: "Nested progress scopes reset the handler to null, silently discarding the store-level step ceiling"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
