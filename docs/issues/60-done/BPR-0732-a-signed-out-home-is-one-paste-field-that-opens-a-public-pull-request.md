@@ -121,7 +121,7 @@ closeout under the d10 continuation.
   a session with an account exists; `test_home_offers_reading_without_signing_in`
   is rewritten to the one-gesture open.
 - RFC-BPR-0028's Home paragraph names the signed-out Home; RFC-BPR-0026
-  AC-09/AC-10 rows on [BPR-0599](../30-in-progress/BPR-0599-close-rfc-0026.md)
+  AC-09/AC-10 rows on [BPR-0599](BPR-0599-close-rfc-0026.md)
   point here.
 - The owner pastes a public link on the signed bundle, signed out, and
   reads it without another screen; accepted in an attended session.

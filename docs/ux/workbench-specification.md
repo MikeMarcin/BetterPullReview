@@ -1,21 +1,21 @@
 # Workbench Specification
 
-## Accepted redesign awaiting implementation
+## The daily-workbench redesign
 
-The daily-workbench design is accepted and registered, but not implemented by
-the registration. Its live contracts are
+The daily-workbench design registered on 2026-09-04 is implemented and closed
+for the scopes reconciled under RFC-BPR-0028:
 [Settings and direct sign-in](../rfcs/RFC-BPR-0018-robust-settings-center.md),
 [BPR profiles and independent windows](../rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md),
-[review drawers and browser-style tabs](../rfcs/RFC-BPR-0025-review-workspace-navigation-browser-tabs.md),
+[review drawers and navigation](../rfcs/RFC-BPR-0025-review-workspace-navigation-browser-tabs.md)
+(browser-style tabs stay registered but unscheduled),
 and [personal Home and PR URL navigation](../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
-Backlog entry/closeout cards are [[BPR-0592]] through [[BPR-0599]]. The sections
-below retain their existing scope; this cross-reference does not claim that
-profiles, multiple windows, tabs, or personal discovery are already shipped.
+Their entry and closeout cards, [[BPR-0592]] through [[BPR-0599]], are Done.
 Home, the Accounts & hosts card page, the empty desktop and the Profiles sheet
 are a later revision of those surfaces and are described as they behave
-(RFC-BPR-0032, RFC-BPR-0033, RFC-BPR-0034). The list on Home still shows exactly
-what the queue projection supplies, which is what personal discovery would
-change.
+(RFC-BPR-0032, RFC-BPR-0033, RFC-BPR-0034). The list on Home shows exactly what
+the queue projection supplies; personal discovery fills it with the viewer's
+authored and directly requested pull requests of the saved repositories
+([[BPR-0988]]–[[BPR-0990]]).
 
 ## Architectural interaction contract
 

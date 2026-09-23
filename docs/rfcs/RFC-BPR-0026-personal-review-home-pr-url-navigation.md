@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0026"
 title: "Personal Review Home and PR URL Navigation"
-status: "Deferred"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0007","RFC-BPR-0010","RFC-BPR-0016","RFC-BPR-0018","RFC-BPR-0024","RFC-BPR-0025"]
@@ -13,7 +13,8 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Design accepted; implementation activated for the reconciled scope; acceptance remains pending.**
+**Design accepted; closed on 2026-09-23 for the scope reconciled under
+RFC-BPR-0028 and the owner's 2026-09-11 Home direction.**
 The product owner approved the daily-review Home and URL workflow on
 2026-09-04. This post-pack RFC is last in the requested sequence
 RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026. It changes no existing
@@ -21,8 +22,10 @@ eligibility, dependency-order, platform, credential, or mutation requirement.
 
 Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 Entry: [[BPR-0598]] records the 2026-09-22 planning reconciliation below.
-Closeout: [[BPR-0599]] remains in backlog until the four allocated slices,
-[[BPR-0987]], [[BPR-0988]], [[BPR-0989]] and [[BPR-0990]], are Done. The
+Closeout: [[BPR-0599]] records direct evidence for every criterion after the
+four allocated slices, [[BPR-0987]], [[BPR-0988]], [[BPR-0989]] and
+[[BPR-0990]], were Done; the superseded parts of AC-01 (automatic restoration
+of other windows at startup, and tabs) are recorded as superseded, not passed. The
 owner's ordered-pack implementation mandate and the planning amendment are
 recorded in the
 [2026-09-22 reconciliation](plans/ux-redesign-pack-0028/rfc-0026-planning-reconciliation.md);
