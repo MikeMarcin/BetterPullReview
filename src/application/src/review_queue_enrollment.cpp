@@ -51,7 +51,7 @@ namespace bpr::application {
 		const auto observerValid = !aPreferences.ObserverReason.has_value()
 			|| *aPreferences.ObserverReason <= core::observer_rule_kind::path;
 		const auto bucketValid = !aPreferences.Bucket.has_value()
-			|| *aPreferences.Bucket <= core::attention_bucket::quiet;
+			|| *aPreferences.Bucket <= core::attention_bucket::detail_unknown;
 		return roleValid && observerValid && bucketValid
 			&& aPreferences.Repository.size()
 			<= core::maximum_observer_rule_pattern_bytes
@@ -73,6 +73,8 @@ namespace bpr::application {
 			return "gone";
 		case enrollment_departure::removed_by_reviewer:
 			return "removed";
+		case enrollment_departure::undiscovered:
+			return "no longer discovered";
 		}
 		return "present";
 	}
@@ -91,6 +93,8 @@ namespace bpr::application {
 			return "This pull request no longer exists where it was.";
 		case enrollment_departure::removed_by_reviewer:
 			return "You removed this from your queue.";
+		case enrollment_departure::undiscovered:
+			return "It is no longer open with my name on it in this saved repository.";
 		}
 		return "This is in your queue.";
 	}
@@ -119,7 +123,13 @@ namespace bpr::application {
 				existing->Membership.MatchedRule = true;
 				existing->Membership.Rule        = aMembership.Rule;
 			}
-			existing->Departed = enrollment_departure::none;
+			// [[BPR-0989]]. Discovery reasons and the reviewer's own choices
+			// are added, never taken away, by an enrollment.
+			existing->Membership.Authored  = existing->Membership.Authored || aMembership.Authored;
+			existing->Membership.Requested = existing->Membership.Requested || aMembership.Requested;
+			existing->Membership.Followed  = existing->Membership.Followed || aMembership.Followed;
+			existing->Membership.Reviewed  = existing->Membership.Reviewed || aMembership.Reviewed;
+			existing->Departed             = enrollment_departure::none;
 			return;
 		}
 		Records.push_back(enrollment_record{
@@ -134,8 +144,13 @@ namespace bpr::application {
 		const core::queue_membership& aMembership)
 	{
 		if (auto* const existing = find(aRef); existing != nullptr) {
-			existing->Membership = aMembership;
-			existing->Departed   = aMembership.enrolled()
+			// [[BPR-0989]]. A rule edit recomputes the role and the rule only;
+			// discovery reasons, a follow and a review are not the rule's to
+			// take away.
+			existing->Membership.Role        = aMembership.Role;
+			existing->Membership.MatchedRule = aMembership.MatchedRule;
+			existing->Membership.Rule        = aMembership.Rule;
+			existing->Departed               = existing->Membership.enrolled()
 				? enrollment_departure::none
 				: enrollment_departure::removed_by_reviewer;
 			return;
@@ -172,6 +187,84 @@ namespace bpr::application {
 				: enrollment_departure::gone);
 	}
 
+	auto queue_enrollment_register::observe_discovery(const queue_discovery_answer& aAnswer) -> std::vector<core::pull_request_ref>
+	{
+		auto       changed = std::vector<core::pull_request_ref>{ };
+		const auto refOf   = [&aAnswer](const std::int64_t aNumber) {
+			return core::pull_request_ref{ .Host = aAnswer.Session.Host, .Account = aAnswer.Session.Account, .Repository = aAnswer.Repository, .Number = aNumber };
+		};
+		const auto flagOf = [&aAnswer](core::queue_membership& aMembership) -> bool& {
+			return aAnswer.Requested ? aMembership.Requested : aMembership.Authored;
+		};
+		for (const auto& found : aAnswer.PullRequests) {
+			const auto ref    = refOf(found.Number);
+			auto*      record = find(ref);
+			if (record == nullptr) {
+				auto membership    = core::queue_membership{ };
+				flagOf(membership) = true;
+				Records.push_back(enrollment_record{ .Ref = ref, .Membership = membership, .Departed = enrollment_departure::none });
+				changed.push_back(ref);
+				continue;
+			}
+			if (!flagOf(record->Membership) || !record->present()) {
+				flagOf(record->Membership) = true;
+				record->Departed           = enrollment_departure::none;
+				changed.push_back(ref);
+			}
+		}
+		if (!aAnswer.Complete) {
+			return changed;
+		}
+		for (auto& record : Records) {
+			const auto ours = record.Ref.Host == aAnswer.Session.Host && record.Ref.Account == aAnswer.Session.Account
+				&& record.Ref.Repository == aAnswer.Repository;
+			const auto kept = std::ranges::any_of(aAnswer.PullRequests, [&record](const queue_discovered_pull_request& aFound) {
+				return aFound.Number == record.Ref.Number;
+			});
+			if (!ours || kept || !flagOf(record.Membership)) {
+				continue;
+			}
+			flagOf(record.Membership) = false;
+			if (record.present() && !record.Membership.enrolled()) {
+				record.Departed = enrollment_departure::undiscovered;
+			}
+			changed.push_back(record.Ref);
+		}
+		return changed;
+	}
+
+	auto queue_enrollment_register::follow(const core::pull_request_ref& aRef, const bool aFollowed) -> bool
+	{
+		auto* record = find(aRef);
+		if (record == nullptr) {
+			if (!aFollowed) {
+				return false;
+			}
+			Records.push_back(enrollment_record{ .Ref = aRef, .Membership = { .Followed = true }, .Departed = enrollment_departure::none });
+			return true;
+		}
+		if (record->Membership.Followed == aFollowed && (!aFollowed || record->present())) {
+			return false;
+		}
+		record->Membership.Followed = aFollowed;
+		if (aFollowed) {
+			record->Departed = enrollment_departure::none;
+		} else if (record->present() && !record->Membership.enrolled()) {
+			record->Departed = enrollment_departure::removed_by_reviewer;
+		}
+		return true;
+	}
+
+	auto queue_enrollment_register::reviewed(const core::pull_request_ref& aRef) -> bool
+	{
+		auto* record = find(aRef);
+		if (record == nullptr || !record->present() || record->Membership.Reviewed) {
+			return false;
+		}
+		record->Membership.Reviewed = true;
+		return true;
+	}
+
 	auto queue_enrollment_register::records() const noexcept
 		-> std::span<const enrollment_record>
 	{
@@ -201,12 +294,12 @@ namespace bpr::application {
 				continue;
 			}
 			// A missing report is not an error and must not be guessed at. The
-			// host supplies what it read; an item it has not read yet is
-			// quiet, which is what `bucket_for` says about an empty one.
+			// host supplies what it read; an item it has not read yet is not
+			// known to be quiet ([[BPR-0989]]), and `bucket_for` says so.
 			const auto found = std::ranges::find(
 				aActivity, record.Ref, &queue_activity_report::Ref);
 			const auto activity  = found == aActivity.end()
-				? core::queue_activity_observation{ }
+				? core::queue_activity_observation{ .Known = false }
 				: found->Observation;
 			auto       facts     = found == aActivity.end() ? core::queue_item_facts{ } : found->Facts;
 			facts.UnseenComments = activity.UnseenComments;
@@ -408,6 +501,8 @@ namespace bpr::application {
 			store_enrollment,
 			saved_repository,
 			saved_server,
+			/// [[BPR-0989]].
+			store_enrollments,
 		};
 
 		struct completion_gate
@@ -565,6 +660,7 @@ namespace bpr::application {
 				.SavedRepositories = SavedRepositories,
 				.SavedServers      = SavedServers,
 				.Failure           = Failure,
+				.Discovery         = Discovery,
 			});
 			++Statistics.Publications;
 		}
@@ -1154,8 +1250,13 @@ namespace bpr::application {
 			++Statistics.AppliedRefreshes;
 			LastObservation = *aCompletion.Observation;
 			remember_activity(aCompletion.Ref, aActivity, *aCompletion.Observation);
-			const auto membership = core::enrollment_for(
-				*aCompletion.Observation, Rules);
+			auto       membership = core::enrollment_for(*aCompletion.Observation, Rules);
+			const auto existing   = Enrollments.record_for(aCompletion.Ref);
+			// [[BPR-0989]]. A review the reviewer is seen to have given keeps a
+			// discovered pull request here after its request goes. A rule's
+			// item still leaves with its rule, as RFC-BPR-0010 decided.
+			membership.Reviewed = existing.has_value() && existing->present() && aActivity.ReviewedByMe
+				&& (existing->Membership.discovered() || existing->Membership.Reviewed);
 			if (membership.enrolled()) {
 				if (!can_enroll(aCompletion.Ref, membership)) {
 					return;
@@ -1165,8 +1266,10 @@ namespace bpr::application {
 				persist_record(aCompletion.Ref, std::move(prior));
 				return;
 			}
-			const auto existing = Enrollments.record_for(aCompletion.Ref);
-			if (existing.has_value() && existing->Membership.Role == core::github_role::none) {
+			// Discovery, a follow or a review hold a record the rules no longer
+			// match; only a record the rules alone held leaves.
+			if (existing.has_value() && existing->Membership.Role == core::github_role::none
+				&& !existing->Membership.discovered() && !existing->Membership.Followed && !existing->Membership.Reviewed) {
 				auto prior = Enrollments;
 				Enrollments.depart(
 					aCompletion.Ref,
@@ -1174,6 +1277,140 @@ namespace bpr::application {
 				persist_record(aCompletion.Ref, std::move(prior));
 				return;
 			}
+			publish();
+		}
+
+		/// [[BPR-0989]]. What a discovery answer read about each pull request,
+		/// merged into the activity an open may already have reported: the
+		/// title, author and awaited reviewers are discovery's; unseen comments
+		/// and review state stay what the open read.
+		void remember_discovery(const queue_discovery_answer& aAnswer)
+		{
+			for (const auto& found : aAnswer.PullRequests) {
+				const auto ref      = core::pull_request_ref{ .Host = aAnswer.Session.Host, .Account = aAnswer.Session.Account, .Repository = aAnswer.Repository, .Number = found.Number };
+				const auto known    = aAnswer.Requested || found.Detailed;
+				auto       existing = std::ranges::find(Activity, ref, &queue_activity_report::Ref);
+				if (existing == Activity.end()) {
+					Activity.push_back(queue_activity_report{
+						.Ref         = ref,
+						.Observation = { .ReviewersAwaited = found.ReviewersAwaited, .Known = known },
+						.Facts       = { .Title = found.Title, .Author = found.Author, .UnseenComments = 0U },
+					});
+					continue;
+				}
+				existing->Facts.Title  = found.Title;
+				existing->Facts.Author = found.Author;
+				if (found.Detailed) {
+					existing->Observation.ReviewersAwaited = found.ReviewersAwaited;
+				}
+				existing->Observation.Known = existing->Observation.Known || known;
+			}
+		}
+
+		void apply(queue_discovery_answer aAnswer)
+		{
+			++Statistics.DiscoveryAnswers;
+			if (Closing || !Restored) {
+				return;
+			}
+			// An answer read under another account or an earlier session is
+			// about someone else's queue.
+			const auto& session = Scheduler.session();
+			if (aAnswer.Session != session || aAnswer.Session.Host.empty() || aAnswer.Session.Account.empty()) {
+				++Statistics.StaleDiscoveryAnswers;
+				return;
+			}
+			auto       prior   = Enrollments;
+			const auto changed = Enrollments.observe_discovery(aAnswer);
+			if (Enrollments.records().size() > maximum_queue_enrollments) {
+				Enrollments = std::move(prior);
+				report_collection_limit();
+				return;
+			}
+			remember_discovery(aAnswer);
+			persist_records(changed, std::move(prior));
+		}
+
+		void apply(queue_follow_intent aIntent)
+		{
+			++Statistics.FollowIntents;
+			if (Closing || !Restored || aIntent.Ref.Host.empty() || aIntent.Ref.Account.empty() || aIntent.Ref.Repository.empty() || aIntent.Ref.Number <= 0) {
+				++Statistics.Failures;
+				return;
+			}
+			auto prior = Enrollments;
+			if (!Enrollments.follow(aIntent.Ref, aIntent.Follow)) {
+				return;
+			}
+			if (Enrollments.records().size() > maximum_queue_enrollments) {
+				Enrollments = std::move(prior);
+				report_collection_limit();
+				return;
+			}
+			if (aIntent.Follow && !aIntent.Title.empty() && std::ranges::find(Activity, aIntent.Ref, &queue_activity_report::Ref) == Activity.end()) {
+				Activity.push_back(queue_activity_report{ .Ref = aIntent.Ref, .Observation = { .Known = false }, .Facts = { .Title = aIntent.Title } });
+			}
+			persist_record(aIntent.Ref, std::move(prior));
+		}
+
+		void present_discovery(queue_discovery_status aStatus)
+		{
+			if (Closing || Discovery == aStatus) {
+				return;
+			}
+			Discovery = std::move(aStatus);
+			publish();
+		}
+
+		void persist_records(const std::vector<core::pull_request_ref>& aRefs, queue_enrollment_register aPrior)
+		{
+			auto records = std::vector<enrollment_record>{ };
+			for (const auto& ref : aRefs) {
+				if (const auto record = Enrollments.record_for(ref); record.has_value()) {
+					records.push_back(*record);
+				}
+			}
+			if (records.empty()) {
+				publish();
+				return;
+			}
+			++Statistics.PersistenceRequests;
+			auto&      request  = begin(request_kind::store_enrollments);
+			const auto id       = request.Id;
+			const auto stop     = request.Stop.get_token();
+			const auto gate     = std::weak_ptr<completion_gate>{ Gate };
+			const auto rollback = std::make_shared<queue_enrollment_register>(std::move(aPrior));
+			try {
+				Effects.post([this, gate, id, stop, stored = std::move(records), rollback] {
+					auto result = Store.store_enrollments(stored, stop);
+					DecisionLane.post([gate, id, rollback, storeResult = std::move(result)]() mutable {
+						if (auto* const host = locked_host(gate); host != nullptr) {
+							host->finish_store_enrollments(id, rollback, std::move(storeResult));
+						}
+					});
+				});
+			} catch (...) {
+				(void)retire(id, request_kind::store_enrollments);
+				Enrollments = *rollback;
+				report_unavailable();
+			}
+		}
+
+		void finish_store_enrollments(
+			const std::uint64_t                               aId,
+			const std::shared_ptr<queue_enrollment_register>& aRollback,
+			const std::expected<void, queue_store_failure>&   aResult)
+		{
+			if (!retire(aId, request_kind::store_enrollments) || Closing) {
+				return;
+			}
+			if (!aResult) {
+				Enrollments = *aRollback;
+				report_unavailable(aResult.error());
+				return;
+			}
+			Failure.reset();
+			Status = queue_landing_status::ready;
 			publish();
 		}
 
@@ -1272,6 +1509,7 @@ namespace bpr::application {
 		queue_landing_status                          Status = queue_landing_status::restoring;
 		review_queue_host_statistics                  Statistics;
 		std::optional<queue_store_failure>            Failure;
+		queue_discovery_status                        Discovery;
 		std::shared_ptr<completion_gate>              Gate;
 		std::uint64_t                                 NextRequest                = 1U;
 		bool                                          Restored                   = false;
@@ -1351,6 +1589,31 @@ namespace bpr::application {
 		-> std::span<const saved_repository>
 	{
 		return Implementation->SavedRepositories;
+	}
+
+	void review_queue_application_host::apply(queue_discovery_answer aAnswer)
+	{
+		Implementation->apply(std::move(aAnswer));
+	}
+
+	void review_queue_application_host::apply(queue_follow_intent aIntent)
+	{
+		Implementation->apply(std::move(aIntent));
+	}
+
+	void review_queue_application_host::present_discovery(queue_discovery_status aStatus)
+	{
+		Implementation->present_discovery(std::move(aStatus));
+	}
+
+	auto review_queue_application_host::enrollments() const noexcept -> std::span<const enrollment_record>
+	{
+		return Implementation->Enrollments.records();
+	}
+
+	auto review_queue_application_host::session() const noexcept -> const queue_session_id&
+	{
+		return Implementation->Scheduler.session();
 	}
 
 	void review_queue_application_host::adopt(queue_session_id aSession)

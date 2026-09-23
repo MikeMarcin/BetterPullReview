@@ -585,6 +585,7 @@ namespace {
 			bucket::authored_awaiting_reviewer_action,
 			bucket::observed_with_new_activity,
 			bucket::quiet,
+			bucket::detail_unknown,
 		};
 		auto words = std::vector<QString>{ };
 		for (const auto value : buckets) {
@@ -601,7 +602,7 @@ namespace {
 		expect(words
 				   == std::vector<QString>{ QStringLiteral("Requested"), QStringLiteral("Changed"), QStringLiteral("Replied"),
 											QStringLiteral("Verify"), QStringLiteral("Waiting"), QStringLiteral("Following"),
-											QStringLiteral("Quiet") },
+											QStringLiteral("Quiet"), QStringLiteral("Unknown") },
 			   "the words are the accepted ones, in bucket order");
 
 		auto requested  = item(1, bucket::initial_review_requested, core::queue_membership{ .Role = core::github_role::requested_reviewer });
@@ -632,6 +633,21 @@ namespace {
 			   "Waiting on others counts mine and claims no reviewer count");
 		expect(qt::home_state_summary(qt::home_group::following, std::array{ watched, quiet }) == QStringLiteral("2 followed"),
 			   "Following counts what I follow");
+		// [[BPR-0989]]. A row nothing has been read about is followed, says so,
+		// and is not quiet: the Quiet-only filter leaves it out.
+		const auto unknown = item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true });
+		expect(qt::home_group_of(bucket::detail_unknown) == qt::home_group::following
+				   && qt::home_why_sentence(unknown) == QStringLiteral("Nothing about it has been read yet."),
+			   "an unread row is followed and says nothing about it has been read");
+		{
+			auto source = qt::review_landing_model{ };
+			auto proxy  = qt::review_landing_filter_model{ source };
+			source.apply(std::vector{ quiet, unknown });
+			proxy.apply(application::queue_presentation_preferences{ .Quiet = application::queue_quiet_filter::quiet });
+			expect(proxy.rowCount() == 1 && proxy.item_at(proxy.index(0, 0))->Ref == quiet.Ref, "the Quiet-only filter does not show an unread row");
+			proxy.apply(application::queue_presentation_preferences{ .Quiet = application::queue_quiet_filter::attention });
+			expect(proxy.rowCount() == 1 && proxy.item_at(proxy.index(0, 0))->Ref == unknown.Ref, "hiding quiet rows keeps it");
+		}
 		expect(qt::home_state_summary(qt::home_group::needs_you, std::span<const core::queue_item>{ }).isEmpty(),
 			   "a state with no row has no summary");
 		const auto entries = std::array{

@@ -49,6 +49,8 @@ namespace bpr::application {
 		// teach the reviewer to ignore its notifications, after which the ones
 		// that matter are ignored too.
 		case core::attention_bucket::quiet:
+		// [[BPR-0989]]. Not knowing is not news.
+		case core::attention_bucket::detail_unknown:
 			return false;
 		}
 		return false;

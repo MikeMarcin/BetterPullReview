@@ -35,6 +35,8 @@ namespace bpr::qt {
 			return home_group::waiting_on_others;
 		case core::attention_bucket::observed_with_new_activity:
 		case core::attention_bucket::quiet:
+		// [[BPR-0989]]. Not known to need me; followed until it is read.
+		case core::attention_bucket::detail_unknown:
 			break;
 		}
 		return home_group::following;
@@ -104,6 +106,8 @@ namespace bpr::qt {
 			return QStringLiteral("Waiting");
 		case core::attention_bucket::observed_with_new_activity:
 			return QStringLiteral("Following");
+		case core::attention_bucket::detail_unknown:
+			return QStringLiteral("Unknown");
 		case core::attention_bucket::quiet:
 			break;
 		}
@@ -148,6 +152,9 @@ namespace bpr::qt {
 			break;
 		case core::attention_bucket::quiet:
 			clauses.push_back(QStringLiteral("Nothing here is waiting on anyone"));
+			break;
+		case core::attention_bucket::detail_unknown:
+			clauses.push_back(QStringLiteral("Nothing about it has been read yet"));
 			break;
 		}
 		if (aItem.Bucket != core::attention_bucket::new_comments_or_author_replies && unseen > 0U) {

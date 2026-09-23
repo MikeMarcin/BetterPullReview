@@ -23,6 +23,7 @@ add_library(
         src/release_maintenance_application_host.cpp
         src/release_diagnostic_snapshot.cpp
         src/release_profile_cleanup.cpp
+        src/personal_discovery_host.cpp
         src/review_queue_enrollment.cpp
         src/setup_destination.cpp
         src/profile_registry.cpp

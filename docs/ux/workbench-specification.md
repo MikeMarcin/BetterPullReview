@@ -87,7 +87,10 @@ column, and RFC-BPR-0032 gives it one job per row.
   its shape.
 - **The list** is always in state order — Needs me, then Waiting on others,
   then Following — from the core's attention projection. Qt invents no
-  urgency, and Group only changes the panels around the rows.
+  urgency, and Group only changes the panels around the rows. A pull request
+  nothing has been read about yet sits in Following with the reason word
+  Unknown and "Nothing about it has been read yet", never Quiet, and the
+  Quiet-only filter does not show it ([[BPR-0989]]).
 - **A row** is the identity, the title, a second line that says why and ends
   in its one-word reason, and at the right the time and my reading progress.
   Recently viewed uses the same anatomy, so a row reads the same way wherever

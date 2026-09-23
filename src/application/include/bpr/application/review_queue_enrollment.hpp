@@ -41,6 +41,11 @@ namespace bpr::application {
 		gone,
 		// The reviewer removed it.
 		removed_by_reviewer,
+		// [[BPR-0989]]. A complete search of its saved repository no longer
+		// finds it open with the reviewer's name on it, and nothing else keeps
+		// it here. Whether it closed, merged or the request was withdrawn was
+		// not read, so none of those is claimed.
+		undiscovered,
 	};
 
 	/// \brief Returns the stable name for the supplied value.
@@ -95,6 +100,35 @@ namespace bpr::application {
 		auto operator<=>(const queue_activity_report&) const = default;
 	};
 
+	/// \brief [[BPR-0989]]. One pull request a personal discovery answer found.
+	struct queue_discovered_pull_request
+	{
+		std::int64_t  Number = 0;
+		std::string   Title;
+		std::string   Author;
+		bool          Detailed         = false;
+		std::uint32_t ReviewersAwaited = 0U;
+
+		auto operator<=>(const queue_discovered_pull_request&) const = default;
+	};
+
+	/// \brief [[BPR-0989]]. What one discovery answer establishes about one
+	/// saved repository under one session.
+	///
+	/// \details `Complete` is true only when the answer can say what is absent:
+	/// then a reason it no longer finds is withdrawn. A partial answer adds and
+	/// refreshes, and withdraws nothing.
+	struct queue_discovery_answer
+	{
+		queue_session_id                           Session;
+		std::string                                Repository;
+		bool                                       Requested = false;
+		bool                                       Complete  = false;
+		std::vector<queue_discovered_pull_request> PullRequests;
+
+		auto operator<=>(const queue_discovery_answer&) const = default;
+	};
+
 	/// \brief Retains enrollments and projects the queue from them.
 	///
 	/// \details Holds no provider, no clock, and no database. The durable store
@@ -127,6 +161,25 @@ namespace bpr::application {
 		void depart(
 			const core::pull_request_ref& aRef,
 			enrollment_departure          aDeparture);
+
+		/// \brief [[BPR-0989]]. Applies one discovery answer; returns the refs
+		/// whose record changed.
+		///
+		/// \details Each found pull request gains the answer's reason. A
+		/// complete answer withdraws that reason from every pull request of
+		/// the same host, account and repository it no longer finds; one that
+		/// is then held by nothing else departs as `undiscovered`, while a
+		/// reviewed or followed one stays. Nothing is withdrawn by a partial
+		/// answer.
+		[[nodiscard]] auto observe_discovery(const queue_discovery_answer& aAnswer) -> std::vector<core::pull_request_ref>;
+
+		/// \brief [[BPR-0989]]. Sets or clears the reviewer's local follow;
+		/// returns whether the record changed.
+		[[nodiscard]] auto follow(const core::pull_request_ref& aRef, bool aFollowed) -> bool;
+
+		/// \brief [[BPR-0989]]. Marks an enrolled pull request as one the
+		/// reviewer has reviewed; returns whether the record changed.
+		[[nodiscard]] auto reviewed(const core::pull_request_ref& aRef) -> bool;
 
 		/// \brief Applies what a refresh concluded about one item.
 		///
@@ -189,6 +242,66 @@ namespace bpr::application {
 		core_priority,
 		repository,
 		pull_request_number,
+	};
+
+	/// \brief [[BPR-0989]]. Where personal discovery stands for one server and account.
+	enum class queue_discovery_state : std::uint8_t {
+		/// No discovery has run under this session yet.
+		idle,
+		refreshing,
+		/// The last refresh read every saved repository completely.
+		current,
+		/// The last refresh answered, but some answer was partial.
+		partial,
+		/// The last refresh failed; earlier rows are kept.
+		stale,
+		/// Discovery cannot run: no account session, or no saved repository.
+		unavailable,
+	};
+
+	/// \brief [[BPR-0989]]. Why discovery is partial, stale or unavailable.
+	enum class queue_discovery_problem : std::uint8_t {
+		none,
+		incomplete_results,
+		result_limit,
+		detail_limit,
+		rate_limited,
+		secondary_rate_limited,
+		offline,
+		authentication,
+		repository_unavailable,
+		failed,
+		no_account,
+		no_saved_repository,
+		store_unavailable,
+	};
+
+	/// \brief [[BPR-0989]]. The discovery status the profile's windows show.
+	///
+	/// \details `LastSuccess` is the host clock's reading, in seconds, when a
+	/// refresh last answered for every saved repository; it lasts for the
+	/// session. `RetryAfterSeconds` is how long a rate limit asked to wait.
+	struct queue_discovery_status
+	{
+		std::string                  Host;
+		std::string                  Account;
+		queue_discovery_state        State   = queue_discovery_state::idle;
+		queue_discovery_problem      Problem = queue_discovery_problem::none;
+		std::optional<std::int64_t>  LastSuccess;
+		std::optional<std::uint32_t> RetryAfterSeconds;
+		std::uint32_t                Repositories = 0U;
+
+		auto operator<=>(const queue_discovery_status&) const = default;
+	};
+
+	/// \brief [[BPR-0989]]. The reviewer's local follow or unfollow of one pull request.
+	struct queue_follow_intent
+	{
+		core::pull_request_ref Ref;
+		std::string            Title;
+		bool                   Follow = true;
+
+		auto operator<=>(const queue_follow_intent&) const = default;
 	};
 
 	/// \brief The private reviewer preferences applied above the decided queue.
@@ -337,6 +450,23 @@ namespace bpr::application {
 			const enrollment_record& aRecord,
 			std::stop_token          aStop)
 			-> std::expected<void, queue_store_failure> = 0;
+
+		/// \brief [[BPR-0989]]. Writes several enrollments together.
+		///
+		/// \details A durable store writes them in one transaction; this
+		/// default writes them in order and stops at the first refusal.
+		[[nodiscard]] virtual auto store_enrollments(
+			std::span<const enrollment_record> aRecords,
+			std::stop_token                    aStop)
+			-> std::expected<void, queue_store_failure>
+		{
+			for (const auto& record : aRecords) {
+				if (auto stored = store_enrollment(record, aStop); !stored) {
+					return stored;
+				}
+			}
+			return { };
+		}
 		[[nodiscard]] virtual auto store_preferences(
 			const queue_presentation_preferences& aPreferences,
 			std::stop_token                       aStop)
@@ -388,6 +518,9 @@ namespace bpr::application {
 		std::vector<saved_server> SavedServers;
 
 		std::optional<queue_store_failure> Failure;
+
+		/// [[BPR-0989]]. Personal discovery for the profile's account session.
+		queue_discovery_status Discovery;
 
 		auto operator<=>(const queue_landing_projection&) const = default;
 	};
@@ -442,6 +575,10 @@ namespace bpr::application {
 		std::uint64_t CancelledCompletions   = 0U;
 		std::uint64_t Publications           = 0U;
 		std::uint64_t Failures               = 0U;
+		/// [[BPR-0989]].
+		std::uint64_t DiscoveryAnswers      = 0U;
+		std::uint64_t StaleDiscoveryAnswers = 0U;
+		std::uint64_t FollowIntents         = 0U;
 
 		auto operator<=>(const review_queue_host_statistics&) const = default;
 	};
@@ -494,6 +631,16 @@ namespace bpr::application {
 		void apply(saved_repository_intent aIntent);
 		/// \brief [[BPR-0660]]. Remembers or forgets one enterprise server, durably before it is shown.
 		void apply(saved_server_intent aIntent);
+		/// \brief [[BPR-0989]]. Applies one personal discovery answer.
+		///
+		/// \details An answer under a session other than the one adopted is
+		/// refused. Changed records are stored together; a refused write
+		/// restores the records as they were and is reported.
+		void apply(queue_discovery_answer aAnswer);
+		/// \brief [[BPR-0989]]. The reviewer's local follow; changes nothing on GitHub.
+		void apply(queue_follow_intent aIntent);
+		/// \brief [[BPR-0989]]. Publishes the discovery status with the queue.
+		void present_discovery(queue_discovery_status aStatus);
 		void adopt(queue_session_id aSession);
 		void refresh(
 			const core::pull_request_ref&    aRef,
@@ -508,6 +655,10 @@ namespace bpr::application {
 		[[nodiscard]] auto saved_servers() const noexcept
 			-> std::span<const saved_server>;
 		[[nodiscard]] auto queue() const -> std::vector<core::queue_item>;
+		/// \brief [[BPR-0989]]. Every retained record, departed ones included.
+		[[nodiscard]] auto enrollments() const noexcept -> std::span<const enrollment_record>;
+		/// \brief [[BPR-0989]]. The session refreshes and answers are issued under.
+		[[nodiscard]] auto session() const noexcept -> const queue_session_id&;
 		[[nodiscard]] auto preferences() const noexcept -> const queue_presentation_preferences&;
 		[[nodiscard]] auto statistics() const noexcept
 			-> review_queue_host_statistics;

@@ -23,7 +23,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// membership remains absent from that table.
 	/// Five since [[BPR-0660]]: the remembered enterprise servers.
 	/// Six since [[BPR-0681]]: notification enablement and pause.
-	inline constexpr std::int64_t queue_enrollment_schema_version = 6;
+	/// Seven since [[BPR-0989]]: discovery reasons, follow and review on each
+	/// enrollment, the `undiscovered` departure and the `detail_unknown` bucket.
+	inline constexpr std::int64_t queue_enrollment_schema_version = 7;
 
 	/// \brief Owns the durable queue enrollment database.
 	///
@@ -56,6 +58,10 @@ namespace bpr::adapters::sqlite::detail {
 		/// enrollment is never half stored — a record with a departure reason
 		/// but no membership would be worse than no record at all.
 		[[nodiscard]] auto store(const application::enrollment_record& aRecord)
+			-> std::expected<void, failure>;
+
+		/// \brief [[BPR-0989]]. Writes several enrollments in one transaction.
+		[[nodiscard]] auto store_all(std::span<const application::enrollment_record> aRecords, std::stop_token aStop)
 			-> std::expected<void, failure>;
 
 		/// \brief Reads every enrollment back, departed ones included.

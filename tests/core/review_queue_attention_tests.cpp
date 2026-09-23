@@ -48,6 +48,7 @@ namespace {
 		core::attention_bucket::authored_awaiting_reviewer_action,
 		core::attention_bucket::observed_with_new_activity,
 		core::attention_bucket::quiet,
+		core::attention_bucket::detail_unknown,
 	};
 
 	// Seven buckets, and every one of them is reachable. A bucket nothing can
@@ -291,10 +292,42 @@ namespace {
 			"ordering carries the bucket and the membership, and derives "
 			"neither");
 	}
+
+	// [[BPR-0989]]. Discovery's reasons decide exactly as the GitHub roles do,
+	// a follow is observed like a rule, and an unread item is not quiet.
+	void test_discovery_reasons_and_unknown_detail()
+	{
+		const auto requested = core::queue_membership{ .Requested = true };
+		const auto authored  = core::queue_membership{ .Authored = true };
+		const auto followed  = core::queue_membership{ .Followed = true };
+		const auto unknown   = core::queue_activity_observation{ .Known = false };
+		expect(core::bucket_for(requested, { }) == core::attention_bucket::initial_review_requested
+				   && core::bucket_for(requested, unknown) == core::attention_bucket::initial_review_requested,
+			   "a discovered direct request needs me, read or not: GitHub lists it only until I review");
+		expect(core::bucket_for(authored, { .ReviewersAwaited = 1U }) == core::attention_bucket::authored_awaiting_reviewer_action,
+			   "my discovered pull request awaiting a reviewer waits on others");
+		expect(core::bucket_for(authored, unknown) == core::attention_bucket::detail_unknown
+				   && core::bucket_for(membership(core::github_role::reviewer), unknown) == core::attention_bucket::detail_unknown,
+			   "with nothing read, the bucket says so instead of quiet");
+		expect(core::bucket_for(authored, { }) == core::attention_bucket::quiet, "read and asking nothing is quiet");
+		expect(core::bucket_for(followed, { .ObservedActivity = true }) == core::attention_bucket::observed_with_new_activity
+				   && core::bucket_for(authored, { .ObservedActivity = true }) == core::attention_bucket::quiet,
+			   "a follow is observed like a rule; a discovered pull request is not merely observed");
+		expect(!core::permits_notification({ }, core::attention_bucket::detail_unknown), "not knowing is never a notification");
+		expect(followed.enrolled() && authored.enrolled() && core::queue_membership{ .Reviewed = true }.enrolled()
+				   && authored.discovered() && requested.discovered() && !followed.discovered() && !core::queue_membership{ }.enrolled(),
+			   "each reason enrolls on its own");
+		const auto items   = std::array{ core::queue_item{ .Ref = ref(1), .Bucket = core::attention_bucket::detail_unknown },
+										 core::queue_item{ .Ref = ref(2), .Bucket = core::attention_bucket::quiet } };
+		const auto ordered = core::ordered_queue(items);
+		expect(ordered.front().Ref == ref(2), "unknown detail sorts after quiet, where no stored value moves");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_discovery_reasons_and_unknown_detail();
 	for (const auto enabled : { false, true }) {
 		for (const auto paused : { false, true }) {
 			for (auto bucket = 0U; bucket < 8U; ++bucket) {

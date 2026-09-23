@@ -20,6 +20,8 @@ namespace bpr::core {
 			return "observed, with new activity";
 		case attention_bucket::quiet:
 			return "quiet";
+		case attention_bucket::detail_unknown:
+			return "detail unknown";
 		}
 		return "quiet";
 	}
@@ -42,6 +44,8 @@ namespace bpr::core {
 			return "Something happened on a pull request you watch.";
 		case attention_bucket::quiet:
 			return "Nothing here is waiting on anyone.";
+		case attention_bucket::detail_unknown:
+			return "Nothing about it has been read yet, so it is not known to be quiet.";
 		}
 		return "Nothing here is waiting on anyone.";
 	}
@@ -52,10 +56,18 @@ namespace bpr::core {
 	{
 		// Being asked and not having answered outranks everything else. It is
 		// the only state where somebody is blocked on this reviewer having done
-		// nothing at all.
-		if (aMembership.Role == github_role::requested_reviewer
-			&& !aActivity.ReviewedByMe) {
+		// nothing at all. A direct request discovery found ([[BPR-0989]]) is
+		// the same fact: GitHub lists a requested reviewer only until they
+		// review.
+		const auto requested = aMembership.Role == github_role::requested_reviewer || aMembership.Requested;
+		if (requested && !aActivity.ReviewedByMe) {
 			return attention_bucket::initial_review_requested;
+		}
+
+		// [[BPR-0989]]. Everything below is read from activity. With none read,
+		// the answer is that it is not known, never that it is quiet.
+		if (!aActivity.Known) {
+			return attention_bucket::detail_unknown;
 		}
 
 		// A review you already gave against code that has since moved is a
@@ -75,16 +87,16 @@ namespace bpr::core {
 		// Authored comes after the reviewer-facing buckets on purpose. Waiting
 		// on somebody else is not work this reviewer can do, so it must not
 		// displace work they can.
-		if (aMembership.Role == github_role::author
+		if ((aMembership.Role == github_role::author || aMembership.Authored)
 			&& aActivity.ReviewersAwaited > 0U) {
 			return attention_bucket::authored_awaiting_reviewer_action;
 		}
 
-		// Only for an item that is here because a rule matched. An item GitHub
-		// put in front of the reviewer is not "observed" — saying so would hide
-		// that they were asked.
-		if (aMembership.MatchedRule && aMembership.Role == github_role::none
-			&& aActivity.ObservedActivity) {
+		// Only for an item that is here because a rule matched or the reviewer
+		// follows it. An item GitHub put in front of the reviewer is not
+		// "observed" — saying so would hide that they were asked.
+		if ((aMembership.MatchedRule || aMembership.Followed) && aMembership.Role == github_role::none
+			&& !aMembership.discovered() && aActivity.ObservedActivity) {
 			return attention_bucket::observed_with_new_activity;
 		}
 

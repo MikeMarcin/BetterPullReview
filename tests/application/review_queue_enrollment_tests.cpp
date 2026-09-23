@@ -1,15 +1,19 @@
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <stdexcept>
 #include <stop_token>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -700,9 +704,11 @@ namespace {
 		expect(queue.front().Ref == ref(8), "which is the one that was asked");
 	}
 
-	// An item the host has not read yet is quiet, not guessed at. Inventing an
-	// observation would put a pull request in a bucket on no evidence.
-	void test_an_unobserved_item_is_quiet()
+	// An item the host has not read yet is not guessed at: inventing an
+	// observation would put a pull request in a bucket on no evidence, and
+	// calling it quiet would be one such guess ([[BPR-0989]], RFC-BPR-0026
+	// AC-02). It is in the queue with its detail unknown.
+	void test_an_unobserved_item_is_not_known_to_be_quiet()
 	{
 		auto records = application::queue_enrollment_register{ };
 		records.enroll(ref(7), by_role(core::github_role::reviewer));
@@ -710,8 +716,8 @@ namespace {
 		const auto queue = records.project({ });
 		expect(queue.size() == 1U, "it is still in the queue");
 		expect(
-			queue.front().Bucket == core::attention_bucket::quiet,
-			"and asks for nothing until something has been read about it");
+			queue.front().Bucket == core::attention_bucket::detail_unknown,
+			"and is not known to be quiet until something has been read about it");
 	}
 
 	// Activity pairs to enrollments by ref, so the caller owes no particular
@@ -770,13 +776,7 @@ namespace {
 			application::queue_activity_report{ .Ref = ref(99), .Observation = moved },
 		};
 		const auto ignored = records.project(unenrolled);
-		expect(
-			std::ranges::all_of(
-				ignored,
-				[](const core::queue_item& aItem) {
-					return aItem.Bucket == core::attention_bucket::quiet;
-				}),
-			"a report about an unenrolled ref moves nothing");
+		expect(ignored == records.project({ }), "a report about an unenrolled ref moves nothing");
 	}
 
 	// [[BPR-0659]]. A saved repository is durable before it is projected, a
@@ -1396,6 +1396,385 @@ namespace {
 		expect(observer->Publications == retired && healthy->Published.back().Session.Account == "after", "overflow retires only the observer while healthy windows continue");
 	}
 
+	// ---- [[BPR-0989]] personal discovery ------------------------------------
+
+	struct recording_discovery final : application::personal_discovery_port
+	{
+		void discover(application::personal_discovery_request aRequest, application::personal_discovery_completion_handler aCompletion) override
+		{
+			Requests.push_back(aRequest);
+			Handlers.push_back(std::move(aCompletion));
+		}
+		void cancel_discovery(const application::personal_discovery_request& aRequest) override
+		{
+			Cancelled.push_back(aRequest.Context.Request);
+		}
+		/// Answers the oldest unanswered request.
+		void answer(application::personal_discovery_completion aCompletion)
+		{
+			expect(Answered < Handlers.size(), "a request is waiting to be answered");
+			Handlers[Answered++](std::move(aCompletion));
+		}
+		[[nodiscard]] auto next() const -> const application::personal_discovery_request&
+		{
+			return Requests[Answered];
+		}
+		[[nodiscard]] auto rows(std::initializer_list<application::personal_discovery_row> aRows,
+								application::personal_discovery_completeness               aCompleteness = application::personal_discovery_completeness::complete) const
+			-> application::personal_discovery_completion
+		{
+			return application::personal_discovery_success{ .Request = next(), .Rows = aRows, .Completeness = aCompleteness };
+		}
+		[[nodiscard]] auto failure(const application::github_provider_failure aFailure, std::optional<std::uint32_t> aRetry = std::nullopt, const bool aSecondary = false) const
+			-> application::personal_discovery_completion
+		{
+			auto error = application::github_provider_error{ .Failure = aFailure, .RetryAfterSeconds = aRetry };
+			if (aSecondary) {
+				error.RateLimitCause = application::github_rate_limit_record{ .SecondaryLimited = true };
+			}
+			return application::personal_discovery_error{ .Request = next(), .Error = error };
+		}
+		std::vector<application::personal_discovery_request>            Requests;
+		std::vector<application::personal_discovery_completion_handler> Handlers;
+		std::vector<core::request_id>                                   Cancelled;
+		std::size_t                                                     Answered = 0U;
+	};
+
+	struct manual_clock final : application::personal_discovery_clock_port
+	{
+		[[nodiscard]] auto now_seconds() const -> std::int64_t override { return Now; }
+		std::int64_t       Now = 1'000;
+	};
+
+	[[nodiscard]] auto discovery_session(const std::string_view aAccount = "reviewer", const std::uint64_t aGeneration = 4U)
+		-> application::personal_discovery_session
+	{
+		const auto account = core::github_account_id{ aAccount == "reviewer" ? 1001U : 1002U };
+		return {
+			.Queue   = { .Host = "github.com", .Account = std::string{ aAccount }, .Generation = aGeneration },
+			.Context = {
+				.ApplicationSession = core::application_session_id{ 7U },
+				.Profile            = core::host_profile_id{ 11U },
+				.Host               = core::git_host_id{ 22U },
+				.Account            = account,
+				.Capabilities       = core::capability_revision{ 44U },
+				.IdentityGeneration = core::github_identity_generation{ aGeneration },
+			},
+			.Viewer = { .Account = account, .Login = std::string{ aAccount } },
+		};
+	}
+
+	[[nodiscard]] auto row(const std::uint32_t aNumber, const bool aDetailed = true, const std::uint32_t aAwaited = 0U) -> application::personal_discovery_row
+	{
+		return { .Number = core::pull_request_number{ aNumber }, .Title = "Pull request " + std::to_string(aNumber), .Author = "author", .Detailed = aDetailed, .ReviewersAwaited = aAwaited };
+	}
+
+	struct discovery_fixture
+	{
+		explicit discovery_fixture(std::vector<application::saved_repository> aSaved = {
+									   { .Host = "github.com", .Account = "reviewer", .Repository = "octo/tools" },
+									   { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" },
+									   { .Host = "github.com", .Account = "someone-else", .Repository = "octo/other" },
+									   { .Host = "ghe.example", .Account = "reviewer", .Repository = "octo/app" },
+								   })
+		{
+			Windows.Live                  = { queue_window(1U), queue_window(2U) };
+			Store.State.SavedRepositories = std::move(aSaved);
+			Queue.restore();
+			run_one(Effects, Decisions);
+			expect(Queue.attach(queue_window(1U), First).has_value() && Queue.attach(queue_window(2U), Second).has_value(), "two windows attach");
+		}
+		/// Runs every posted decision and every posted store effect.
+		void settle()
+		{
+			while (Decisions.pending() != 0U || Effects.pending() != 0U) {
+				Decisions.drain();
+				Effects.drain();
+			}
+		}
+		[[nodiscard]] auto item(const std::int64_t aNumber) const -> std::optional<core::queue_item>
+		{
+			const auto items = Queue.queue();
+			const auto found = std::ranges::find_if(items, [aNumber](const core::queue_item& aItem) { return aItem.Ref.Number == aNumber; });
+			return found == items.end() ? std::nullopt : std::optional{ *found };
+		}
+		[[nodiscard]] auto record(const std::int64_t aNumber) const -> std::optional<application::enrollment_record>
+		{
+			const auto records = Queue.enrollments();
+			const auto found   = std::ranges::find_if(records, [aNumber](const application::enrollment_record& aRecord) { return aRecord.Ref.Number == aNumber; });
+			return found == records.end() ? std::nullopt : std::optional{ *found };
+		}
+
+		memory_queue_store                         Store;
+		observed_refresh                           Refresh;
+		application::manual_executor               Effects;
+		application::manual_executor               Decisions;
+		admitted_queue_windows                     Windows;
+		std::shared_ptr<window_queue_log>          First  = std::make_shared<window_queue_log>();
+		std::shared_ptr<window_queue_log>          Second = std::make_shared<window_queue_log>();
+		application::review_queue_application_host Queue{ Store, Refresh, Effects, Decisions, core::bpr_profile_id{ 2U }, Windows, { } };
+		recording_discovery                        Provider;
+		manual_clock                               Clock;
+		application::personal_discovery_host       Discovery{ Provider, Decisions, Queue, Clock };
+	};
+
+	void test_one_scheduler_discovers_the_saved_repositories_of_its_account()
+	{
+		auto fixture = discovery_fixture{ };
+		fixture.Discovery.adopt(discovery_session());
+		const auto& provider = fixture.Provider;
+		expect(provider.Requests.size() == application::maximum_personal_discovery_in_flight && fixture.Discovery.in_flight() == 2U,
+			   "adoption starts one bounded refresh: two reads in flight");
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::refreshing && fixture.Discovery.status().Repositories == 2U
+				   && fixture.First->Published.back().Discovery == fixture.Discovery.status() && fixture.Second->Published.back().Discovery == fixture.Discovery.status(),
+			   "both windows are told discovery is running over the account's two saved repositories");
+		expect(provider.Requests[0].Context.Repository == core::repository_locator{ "octo", "app" }
+				   && provider.Requests[0].Reason == application::personal_discovery_reason::requested
+				   && provider.Requests[1].Reason == application::personal_discovery_reason::authored
+				   && provider.Requests[0].Context.Request != provider.Requests[1].Context.Request
+				   && provider.Requests[0].Viewer.Login == "reviewer",
+			   "each read names one saved repository, one reason and the viewer");
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 2U), row(8U, false) }));
+		fixture.settle();
+		expect(provider.Requests.size() == 4U, "answers release the remaining reads, still two at a time");
+		expect(std::ranges::all_of(provider.Requests, [](const auto& aRequest) { return aRequest.Context.Repository.Owner == "octo" && (aRequest.Context.Repository.Name == "app" || aRequest.Context.Repository.Name == "tools"); }),
+			   "another account's and another host's saved repositories are never searched");
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		const auto requested = fixture.item(5);
+		const auto authored  = fixture.item(6);
+		const auto unknown   = fixture.item(8);
+		expect(requested && requested->Bucket == core::attention_bucket::initial_review_requested && requested->Membership.Requested
+				   && requested->Facts.Title == "Pull request 5",
+			   "a direct request is discovered without opening it, and needs me");
+		expect(authored && authored->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && authored->Membership.Authored,
+			   "my pull request awaiting two reviewers waits on others and adds nothing to needs me");
+		expect(unknown && unknown->Bucket == core::attention_bucket::detail_unknown, "an authored pull request whose detail was not read is unknown, not quiet");
+		const auto& status = fixture.Discovery.status();
+		expect(status.State == application::queue_discovery_state::current && status.LastSuccess == std::optional<std::int64_t>{ 1'000 }
+				   && fixture.First->Published.back().Discovery == status && fixture.Second->Published.back().Discovery == status,
+			   "a complete refresh is current, with its time, in both windows");
+		expect(fixture.Store.State.Enrollments.size() == 3U, "every discovered pull request is durable");
+		const auto before           = provider.Requests.size();
+		fixture.Refresh.Observation = { .Ref = ref(9), .Role = core::github_role::reviewer };
+		fixture.Queue.refresh(ref(9));
+		fixture.settle();
+		fixture.Clock.Now += 60;
+		fixture.Discovery.activate();
+		expect(provider.Requests.size() == before, "opening a pull request and a fresh activation start no discovery");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_discovery_membership_is_honest_about_absence()
+	{
+		auto fixture = discovery_fixture{ { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" } } };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U), row(7U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 1U), row(9U, true, 1U) }));
+		fixture.settle();
+		fixture.Queue.apply(application::queue_follow_intent{ .Ref = { "github.com", "reviewer", "octo/app", 9 }, .Follow = true });
+		fixture.settle();
+		expect(fixture.record(9) && fixture.record(9)->Membership.Followed && fixture.record(9)->Membership.Authored, "a follow is kept beside the discovery reason");
+		// A partial answer finds less, and removes nothing.
+		fixture.Clock.Now += 400;
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.rows({ }, application::personal_discovery_completeness::incomplete_results));
+		fixture.Provider.answer(fixture.Provider.rows({ }, application::personal_discovery_completeness::result_limit));
+		fixture.settle();
+		expect(fixture.item(5) && fixture.item(6) && fixture.item(7) && fixture.item(9), "an incomplete or limited answer establishes no removal");
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::partial
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::incomplete_results,
+			   "and says the list is partial, with why");
+		// A complete answer that no longer finds them withdraws their reason.
+		fixture.Clock.Now += 400;
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.rows({ row(7U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 1U) }));
+		fixture.settle();
+		expect(!fixture.item(5) && fixture.record(5) && fixture.record(5)->Departed == application::enrollment_departure::undiscovered,
+			   "a request no complete answer finds any more departs, with a reason that claims nothing it did not read");
+		expect(fixture.item(9) && fixture.record(9)->Membership.Followed && !fixture.record(9)->Membership.Authored,
+			   "a followed pull request stays when discovery no longer finds it");
+		expect(fixture.item(6) && fixture.item(7), "what is still found stays");
+		fixture.Queue.apply(application::queue_follow_intent{ .Ref = { "github.com", "reviewer", "octo/app", 9 }, .Follow = false });
+		fixture.settle();
+		expect(!fixture.item(9) && fixture.record(9)->Departed == application::enrollment_departure::removed_by_reviewer, "unfollowing what nothing else holds removes it");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_discovery_failures_keep_rows_and_back_off()
+	{
+		auto fixture = discovery_fixture{ };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.item(5).has_value(), "a first refresh leaves a cached row");
+		fixture.Clock.Now += 400;
+		fixture.Discovery.refresh();
+		const auto cycleStart = fixture.Provider.Requests.size() - 2U;
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::rate_limit, 120U));
+		fixture.settle();
+		const auto& limited = fixture.Discovery.status();
+		expect(limited.State == application::queue_discovery_state::stale && limited.Problem == application::queue_discovery_problem::rate_limited
+				   && limited.RetryAfterSeconds == std::optional<std::uint32_t>{ 120U } && limited.LastSuccess == std::optional<std::int64_t>{ 1'000 },
+			   "a rate limit leaves the list stale with its last success and how long to wait");
+		expect(fixture.Provider.Requests.size() == cycleStart + 2U && fixture.Provider.Cancelled.size() == 1U, "the rest of that refresh is cancelled, not sent");
+		fixture.Provider.answer(application::personal_discovery_cancelled{ .Request = fixture.Provider.next() });
+		fixture.settle();
+		expect(fixture.item(5).has_value(), "the cached row survives the failure");
+		fixture.Discovery.refresh();
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == cycleStart + 2U && fixture.Discovery.statistics().RefusedRefreshes == 1U
+				   && fixture.Discovery.status().RetryAfterSeconds == std::optional<std::uint32_t>{ 120U },
+			   "a refresh inside the backoff is refused and says so; activation waits too");
+		fixture.Clock.Now += 121;
+		fixture.Discovery.refresh();
+		expect(fixture.Provider.Requests.size() == cycleStart + 4U, "after the retry-after a refresh runs again");
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::rate_limit, std::nullopt, true));
+		fixture.settle();
+		expect(fixture.Discovery.status().Problem == application::queue_discovery_problem::secondary_rate_limited
+				   && fixture.Discovery.status().RetryAfterSeconds == std::optional<std::uint32_t>{ application::personal_discovery_default_retry_seconds },
+			   "a secondary limit is its own problem, with the default wait");
+		fixture.Provider.answer(application::personal_discovery_cancelled{ .Request = fixture.Provider.next() });
+		fixture.settle();
+		for (const auto& [failure, problem] : std::array{
+				 std::pair{ application::github_provider_failure::authentication, application::queue_discovery_problem::authentication },
+				 std::pair{ application::github_provider_failure::network, application::queue_discovery_problem::offline },
+			 }) {
+			fixture.Clock.Now += 1'000;
+			fixture.Discovery.refresh();
+			fixture.Provider.answer(fixture.Provider.failure(failure));
+			fixture.settle();
+			expect(fixture.Discovery.status().State == application::queue_discovery_state::stale && fixture.Discovery.status().Problem == problem && fixture.item(5),
+				   "an authentication or network failure is stale, named, and keeps the cached rows");
+			fixture.Provider.answer(application::personal_discovery_cancelled{ .Request = fixture.Provider.next() });
+			fixture.settle();
+		}
+		fixture.Clock.Now += 1'000;
+		fixture.Discovery.refresh();
+		const auto permission = fixture.Provider.Requests.size();
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::permission));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.Provider.Requests.size() == permission + 2U, "a repository that cannot be read does not stop the others");
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::repository_unavailable && fixture.item(5),
+			   "and is named, with nothing removed");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_discovery_refuses_stale_and_foreign_answers()
+	{
+		auto fixture = discovery_fixture{ {
+			{ .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" },
+			{ .Host = "github.com", .Account = "someone-else", .Repository = "octo/other" },
+		} };
+		fixture.Discovery.adopt(discovery_session());
+		auto early = fixture.Provider.rows({ row(5U) });
+		fixture.Discovery.adopt(discovery_session("someone-else", 5U));
+		expect(fixture.Provider.Cancelled.size() == 2U, "an account switch cancels what was in flight");
+		fixture.Provider.answer(std::move(early));
+		fixture.settle();
+		expect(!fixture.item(5) && fixture.Discovery.statistics().StaleCompletions == 1U, "an answer read as the earlier account is refused");
+		expect(fixture.Discovery.status().Account == "someone-else" && fixture.Discovery.status().State == application::queue_discovery_state::refreshing,
+			   "the new account's refresh runs over its own saved repository");
+		fixture.Queue.apply(application::queue_discovery_answer{ .Session = { .Host = "github.com", .Account = "reviewer", .Generation = 4U }, .Repository = "octo/app", .Complete = true, .PullRequests = { { .Number = 6 } } });
+		fixture.settle();
+		expect(!fixture.item(6) && fixture.Queue.statistics().StaleDiscoveryAnswers == 1U, "the queue refuses an answer about another session's queue");
+		fixture.Discovery.adopt(std::nullopt);
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::unavailable
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::no_account,
+			   "with no account session discovery is unavailable, and says why");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	// The same account signs in again: a new identity generation over the same
+	// saved repository. An answer read under the earlier one is refused, and
+	// the new generation's reads go out once the cancelled ones return.
+	void test_discovery_refuses_an_earlier_generation_of_the_same_account()
+	{
+		auto fixture = discovery_fixture{ { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" } } };
+		fixture.Discovery.adopt(discovery_session("reviewer", 6U));
+		expect(fixture.Provider.Requests.size() == 2U, "two reads under generation six");
+		fixture.Discovery.adopt(discovery_session("reviewer", 7U));
+		expect(fixture.Provider.Cancelled.size() == 2U && fixture.Provider.Requests.size() == 2U, "they are cancelled, and hold their slots until they return");
+		fixture.Provider.answer(fixture.Provider.rows({ row(11U) }));
+		fixture.settle();
+		expect(!fixture.item(11) && fixture.Discovery.statistics().StaleCompletions == 1U,
+			   "an answer read under an earlier generation of the same account is refused");
+		expect(fixture.Provider.Requests.size() == 3U && fixture.Provider.Requests.back().Context.IdentityGeneration == core::github_identity_generation{ 7U },
+			   "the freed slot carries a read of the new generation");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	// A discovery answer the profile's store refuses is not shown as if it were
+	// kept: the update is rolled back and the queue reports its store
+	// unavailable, while the rows already stored stay.
+	void test_a_refused_discovery_write_is_reported_not_kept()
+	{
+		auto fixture = discovery_fixture{ { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" } } };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.item(5) && fixture.First->Published.back().Status == application::queue_landing_status::ready, "a stored row");
+		fixture.Store.FailEnrollmentStore = true;
+		fixture.Clock.Now += 400;
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U), row(6U) }));
+		fixture.settle();
+		const auto& published = fixture.First->Published.back();
+		expect(!fixture.item(6) && fixture.item(5) && published.Status == application::queue_landing_status::unavailable
+				   && published.Failure == std::optional{ application::queue_store_failure::unavailable } && fixture.Second->Published.back().Status == published.Status,
+			   "the refused update is rolled back, the kept row stays, and every window is told the store refused it");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_discovery_freshness_and_forgotten_repositories()
+	{
+		auto fixture = discovery_fixture{ };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Discovery.activate();
+		fixture.Discovery.refresh();
+		expect(fixture.Provider.Requests.size() == 2U && fixture.Discovery.statistics().Refreshes == 1U, "activation and Refresh during a refresh add nothing");
+		// octo/app is forgotten while its reads are in flight.
+		fixture.Queue.apply(application::saved_repository_intent{ .Action = application::saved_repository_action::remove, .Repository = { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" } });
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ row(6U) }));
+		fixture.settle();
+		expect(!fixture.item(5) && !fixture.item(6), "a repository forgotten mid-flight publishes nothing");
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::current, "the refresh completes over what is still saved");
+		const auto settled = fixture.Provider.Requests.size();
+		fixture.Clock.Now += application::personal_discovery_freshness_seconds - 1;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == settled, "activation inside the freshness window reads nothing");
+		fixture.Clock.Now += 1;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == settled + 2U && fixture.Discovery.statistics().MaximumInFlight == application::maximum_personal_discovery_in_flight,
+			   "activation after it refreshes, never more than two reads at once");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 } // namespace
 
 auto main() -> int
@@ -1417,7 +1796,7 @@ auto main() -> int
 	test_only_a_withdrawal_moves_an_item_out();
 	test_every_departure_names_and_explains_itself();
 	test_the_projection_is_ordered_by_attention();
-	test_an_unobserved_item_is_quiet();
+	test_an_unobserved_item_is_not_known_to_be_quiet();
 	test_activity_pairs_by_ref_in_any_order();
 	test_composed_host_persists_matches_and_removal();
 	test_rule_removal_reconciles_every_matching_enrollment_before_publish();
@@ -1429,6 +1808,13 @@ auto main() -> int
 	test_a_rule_added_during_a_refresh_still_enrolls();
 	test_saved_repositories_are_durable_before_projection();
 	test_saved_servers_are_durable_before_projection();
+	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
+	test_discovery_membership_is_honest_about_absence();
+	test_discovery_failures_keep_rows_and_back_off();
+	test_discovery_refuses_stale_and_foreign_answers();
+	test_discovery_refuses_an_earlier_generation_of_the_same_account();
+	test_a_refused_discovery_write_is_reported_not_kept();
+	test_discovery_freshness_and_forgotten_repositories();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -365,6 +365,50 @@ namespace {
 		(void)::sqlite3_close_v2(raw);
 	}
 
+	// [[BPR-0989]]. The historical shapes the older-version fixtures carry.
+	// Version seven rebuilt the enrollment and preference tables, so a fixture
+	// made from the current store rebuilds them as they were before.
+	constexpr std::string_view downgrade_enrollment_to_version_one
+		= "CREATE TABLE old_enrollment AS SELECT host, account, repository, pull_request, role, matched_rule,"
+		  " rule_kind, rule_pattern, rule_excluding, departed FROM enrollment;"
+		  "DROP TABLE enrollment;"
+		  "CREATE TABLE enrollment(host TEXT NOT NULL,account TEXT NOT NULL,repository TEXT NOT NULL,pull_request INTEGER NOT NULL,"
+		  "role INTEGER NOT NULL CHECK(role BETWEEN 0 AND 4),matched_rule INTEGER NOT NULL CHECK(matched_rule IN (0, 1)),"
+		  "rule_kind INTEGER NOT NULL CHECK(rule_kind BETWEEN 0 AND 2),rule_pattern TEXT NOT NULL,"
+		  "rule_excluding INTEGER NOT NULL CHECK(rule_excluding IN (0, 1)),departed INTEGER NOT NULL CHECK(departed BETWEEN 0 AND 4),"
+		  "PRIMARY KEY(host, account, repository, pull_request)) STRICT;"
+		  "INSERT INTO enrollment SELECT * FROM old_enrollment;"
+		  "DROP TABLE old_enrollment;";
+	constexpr std::string_view downgrade_preferences_to_version_three
+		= "CREATE TABLE old_preferences AS SELECT singleton, role_filter, observer_filter, bucket_filter, repository_filter,"
+		  " quiet_filter, sort_order FROM presentation_preferences;"
+		  "DROP TABLE presentation_preferences;"
+		  "CREATE TABLE presentation_preferences(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+		  "role_filter INTEGER NOT NULL CHECK(role_filter BETWEEN -1 AND 4),observer_filter INTEGER NOT NULL CHECK(observer_filter BETWEEN -1 AND 2),"
+		  "bucket_filter INTEGER NOT NULL CHECK(bucket_filter BETWEEN -1 AND 6),repository_filter TEXT NOT NULL,"
+		  "quiet_filter INTEGER NOT NULL CHECK(quiet_filter BETWEEN 0 AND 2),sort_order INTEGER NOT NULL CHECK(sort_order BETWEEN 0 AND 2)) STRICT;"
+		  "INSERT INTO presentation_preferences SELECT * FROM old_preferences;"
+		  "DROP TABLE old_preferences;";
+	constexpr std::string_view downgrade_preferences_to_version_six
+		= "CREATE TABLE old_preferences AS SELECT * FROM presentation_preferences;"
+		  "DROP TABLE presentation_preferences;"
+		  "CREATE TABLE presentation_preferences(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+		  "role_filter INTEGER NOT NULL CHECK(role_filter BETWEEN -1 AND 4),observer_filter INTEGER NOT NULL CHECK(observer_filter BETWEEN -1 AND 2),"
+		  "bucket_filter INTEGER NOT NULL CHECK(bucket_filter BETWEEN -1 AND 6),repository_filter TEXT NOT NULL,"
+		  "quiet_filter INTEGER NOT NULL CHECK(quiet_filter BETWEEN 0 AND 2),sort_order INTEGER NOT NULL CHECK(sort_order BETWEEN 0 AND 2),"
+		  "notifications_enabled INTEGER NOT NULL CHECK(notifications_enabled IN (0, 1)),"
+		  "notifications_paused INTEGER NOT NULL CHECK(notifications_paused IN (0, 1))) STRICT;"
+		  "INSERT INTO presentation_preferences SELECT * FROM old_preferences;"
+		  "DROP TABLE old_preferences;";
+
+	[[nodiscard]] auto downgraded(const std::string_view aPreferences, const std::string_view aRest) -> std::string
+	{
+		auto sql = std::string{ downgrade_enrollment_to_version_one };
+		sql += aPreferences;
+		sql += aRest;
+		return sql;
+	}
+
 	void test_a_legal_version_one_database_migrates_to_current()
 	{
 		const scratch_directory directory;
@@ -431,11 +475,12 @@ namespace {
 		}
 		execute_raw_sql(
 			path,
-			"DROP TABLE presentation_preferences;"
-			"DROP TABLE saved_repository;"
-			"DROP TABLE saved_server;"
-			"UPDATE enrollment_meta SET schema_format = 2 WHERE singleton = 1;"
-			"PRAGMA user_version = 2;");
+			downgraded({ },
+					   "DROP TABLE presentation_preferences;"
+					   "DROP TABLE saved_repository;"
+					   "DROP TABLE saved_server;"
+					   "UPDATE enrollment_meta SET schema_format = 2 WHERE singleton = 1;"
+					   "PRAGMA user_version = 2;"));
 
 		auto migrated = queue_enrollment_database::open(path, { });
 		expect(opened_ok(migrated), "a canonical version-two queue migrates");
@@ -476,12 +521,11 @@ namespace {
 		}
 		execute_raw_sql(
 			path,
-			"DROP TABLE saved_repository;"
-			"DROP TABLE saved_server;"
-			"ALTER TABLE presentation_preferences DROP COLUMN notifications_enabled;"
-			"ALTER TABLE presentation_preferences DROP COLUMN notifications_paused;"
-			"UPDATE enrollment_meta SET schema_format = 3 WHERE singleton = 1;"
-			"PRAGMA user_version = 3;");
+			downgraded(downgrade_preferences_to_version_three,
+					   "DROP TABLE saved_repository;"
+					   "DROP TABLE saved_server;"
+					   "UPDATE enrollment_meta SET schema_format = 3 WHERE singleton = 1;"
+					   "PRAGMA user_version = 3;"));
 
 		auto migrated = queue_enrollment_database::open(path, { });
 		expect(opened_ok(migrated), "a canonical version-three queue migrates");
@@ -515,11 +559,10 @@ namespace {
 		}
 		execute_raw_sql(
 			path,
-			"DROP TABLE saved_server;"
-			"ALTER TABLE presentation_preferences DROP COLUMN notifications_enabled;"
-			"ALTER TABLE presentation_preferences DROP COLUMN notifications_paused;"
-			"UPDATE enrollment_meta SET schema_format = 4 WHERE singleton = 1;"
-			"PRAGMA user_version = 4;");
+			downgraded(downgrade_preferences_to_version_three,
+					   "DROP TABLE saved_server;"
+					   "UPDATE enrollment_meta SET schema_format = 4 WHERE singleton = 1;"
+					   "PRAGMA user_version = 4;"));
 		auto migrated = queue_enrollment_database::open(path, { });
 		expect(opened_ok(migrated), "a canonical version-four queue migrates");
 		const auto saved   = migrated->load_saved_repositories();
@@ -677,9 +720,57 @@ namespace {
 			auto store = queue_enrollment_database::open(path, { });
 			expect(opened_ok(store) && store->store_preferences(preferences).has_value(), "version-five fixture starts with nondefault preferences");
 		}
-		execute_raw_sql(path, "ALTER TABLE presentation_preferences DROP COLUMN notifications_enabled; ALTER TABLE presentation_preferences DROP COLUMN notifications_paused; UPDATE enrollment_meta SET schema_format = 5 WHERE singleton = 1; PRAGMA user_version = 5;");
+		execute_raw_sql(path, downgraded(downgrade_preferences_to_version_three, "UPDATE enrollment_meta SET schema_format = 5 WHERE singleton = 1; PRAGMA user_version = 5;"));
 		auto migrated = queue_enrollment_database::open(path, { });
 		expect(opened_ok(migrated) && migrated->load_preferences() == preferences, "version-five filters survive with enabled, unpaused notification defaults");
+	}
+
+	// [[BPR-0989]]. A version-six queue migrates to seven keeping every
+	// enrollment, membership, departure and preference; the new reasons start
+	// false. Version seven round-trips discovery, follow, review, the
+	// `undiscovered` departure and the `detail_unknown` bucket filter.
+	void test_version_six_gains_discovery_reasons_and_they_round_trip()
+	{
+		const scratch_directory directory;
+		const auto              path        = directory.file("version-six.db");
+		auto                    preferences = application::queue_presentation_preferences{ };
+		preferences.Repository              = "octo/app";
+		preferences.Notifications           = { .Enabled = false, .Paused = true };
+		const auto kept                     = application::enrollment_record{ .Ref = ref(7), .Membership = watching("src/parser") };
+		const auto departed                 = application::enrollment_record{ .Ref = ref(8), .Membership = { .Role = core::github_role::reviewer }, .Departed = application::enrollment_departure::closed };
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store) && store->store(kept).has_value() && store->store(departed).has_value() && store->store_preferences(preferences).has_value(),
+				   "the version-six fixture starts with enrollments and nondefault preferences");
+		}
+		execute_raw_sql(path, downgraded(downgrade_preferences_to_version_six, "UPDATE enrollment_meta SET schema_format = 6 WHERE singleton = 1; PRAGMA user_version = 6;"));
+		{
+			auto migrated = queue_enrollment_database::open(path, { });
+			expect(opened_ok(migrated), "a canonical version-six queue migrates");
+			expect(migrated->load_all() == std::vector{ kept, departed } && migrated->load_preferences() == preferences,
+				   "every enrollment, departure and preference survives, with no discovery reason invented");
+			expect(scalar_integer(migrated->handle(), "PRAGMA user_version") == queue_enrollment_schema_version, "the file is stamped version seven");
+		}
+		auto discovered = application::enrollment_record{
+			.Ref        = ref(9),
+			.Membership = { .Authored = true, .Requested = true, .Followed = true, .Reviewed = true },
+		};
+		auto gone = application::enrollment_record{
+			.Ref        = ref(10),
+			.Membership = { .Reviewed = false },
+			.Departed   = application::enrollment_departure::undiscovered,
+		};
+		auto unknown   = preferences;
+		unknown.Bucket = core::attention_bucket::detail_unknown;
+		{
+			auto       store = queue_enrollment_database::open(path, { });
+			const auto batch = std::array{ discovered, gone };
+			expect(opened_ok(store) && store->store_all(batch, { }).has_value() && store->store_preferences(unknown).has_value(),
+				   "discovery reasons, a follow, a review, the undiscovered departure and the unknown bucket are stored");
+		}
+		auto reopened = queue_enrollment_database::open(path, { });
+		expect(opened_ok(reopened) && reopened->load_all() == std::vector{ kept, departed, discovered, gone } && reopened->load_preferences() == unknown,
+			   "they round-trip exactly");
 	}
 
 	void test_presentation_preferences_round_trip_without_a_derived_filter_result()
@@ -961,7 +1052,7 @@ namespace {
 		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_rules - 1) + ") INSERT INTO observer_rule SELECT x, 0, 'repo' || x, 0 FROM n");
 		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_saved_repositories - 1) + ") INSERT INTO saved_repository SELECT 'github.com', 'reviewer', 'octo/repo' || x FROM n");
 		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_saved_servers - 1) + ") INSERT INTO saved_server SELECT 'server' || x || '.example', 'reviewer' FROM n");
-		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_enrollments - 1) + ") INSERT INTO enrollment SELECT 'github.com', 'reviewer', 'octo/app', x, 1, 0, 0, '', 0, 0 FROM n");
+		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_enrollments - 1) + ") INSERT INTO enrollment SELECT 'github.com', 'reviewer', 'octo/app', x, 1, 0, 0, '', 0, 0, 0, 0, 0, 0 FROM n");
 		expect(port->apply_rule_change({ .Rule = { .Kind = core::observer_rule_kind::repository, .Pattern = "last-rule" } }, { }, { }).has_value(), "last rule slot is writable");
 		expect(port->apply_saved_repository_change({ .Repository = { "github.com", "reviewer", "octo/last" } }, { }).has_value(), "last repository slot is writable");
 		expect(port->apply_saved_server_change({ .Server = { "last.example", "reviewer" } }, { }).has_value(), "last server slot is writable");
@@ -994,7 +1085,7 @@ namespace {
 		hostile("INSERT INTO observer_rule VALUES(20000,0,'overflow',0)", "DELETE FROM observer_rule WHERE ordinal=20000");
 		hostile("INSERT INTO saved_repository VALUES('github.com','reviewer','octo/overflow')", "DELETE FROM saved_repository WHERE repository='octo/overflow'");
 		hostile("INSERT INTO saved_server VALUES('overflow.example','reviewer')", "DELETE FROM saved_server WHERE hostname='overflow.example'");
-		hostile("INSERT INTO enrollment VALUES('github.com','reviewer','octo/app',20000,1,0,0,'',0,0)", "DELETE FROM enrollment WHERE pull_request=20000");
+		hostile("INSERT INTO enrollment VALUES('github.com','reviewer','octo/app',20000,1,0,0,'',0,0,0,0,0,0)", "DELETE FROM enrollment WHERE pull_request=20000");
 	}
 
 } // namespace
@@ -1014,6 +1105,7 @@ auto main() -> int
 	test_a_legal_version_four_database_migrates_and_saved_servers_round_trip();
 	test_stamped_current_schema_is_validated_canonically();
 	test_version_five_retains_filters_and_adds_notification_defaults();
+	test_version_six_gains_discovery_reasons_and_they_round_trip();
 	test_presentation_preferences_round_trip_without_a_derived_filter_result();
 	test_the_schema_holds_no_repository_content();
 	test_deleting_the_queue_leaves_the_ledger_intact();

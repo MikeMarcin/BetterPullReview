@@ -26,6 +26,10 @@ namespace bpr::core {
 		authored_awaiting_reviewer_action,
 		observed_with_new_activity,
 		quiet,
+		/// [[BPR-0989]]. Enrolled, but nothing about its activity has been
+		/// read: not known to be quiet, and not a reason to notify. After
+		/// `quiet` so every value stored before it keeps its meaning.
+		detail_unknown,
 	};
 
 	/// \brief Durable local notification choices; pause preserves enablement.
@@ -86,6 +90,12 @@ namespace bpr::core {
 		// Activity since this reviewer last looked, for an item they are here
 		// for only because a rule matched.
 		bool ObservedActivity = false;
+
+		// [[BPR-0989]]. Whether the fields above were read at all. An item
+		// enrolled by discovery or restored from the store has not been read
+		// until a detail read or an open says what it holds, and until then
+		// its quiet is unknown rather than observed.
+		bool Known = true;
 
 		auto operator<=>(const queue_activity_observation&) const = default;
 	};

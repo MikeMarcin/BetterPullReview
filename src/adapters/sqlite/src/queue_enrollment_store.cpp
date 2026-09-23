@@ -169,6 +169,20 @@ namespace bpr::adapters::sqlite {
 					: std::unexpected(translate(stored.error()));
 			}
 
+			auto store_enrollments(
+				const std::span<const application::enrollment_record> aRecords,
+				std::stop_token                                       aStop)
+				-> std::expected<void, application::queue_store_failure> override
+			{
+				if (auto ready = ensure_open(aStop); !ready) {
+					return ready;
+				}
+				auto stored = Database->store_all(aRecords, aStop);
+				return stored
+					? std::expected<void, application::queue_store_failure>{ }
+					: std::unexpected(translate(stored.error()));
+			}
+
 		private:
 			[[nodiscard]] auto ensure_open(std::stop_token aStop)
 				-> std::expected<void, application::queue_store_failure>

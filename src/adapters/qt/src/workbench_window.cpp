@@ -2329,7 +2329,8 @@ namespace bpr::qt {
 								   core::attention_bucket::fixes_awaiting_verification,
 								   core::attention_bucket::authored_awaiting_reviewer_action,
 								   core::attention_bucket::observed_with_new_activity,
-								   core::attention_bucket::quiet }) {
+								   core::attention_bucket::quiet,
+								   core::attention_bucket::detail_unknown }) {
 			QueueBucketFilter->addItem(
 				tr("Bucket: %1").arg(QString::fromUtf8(core::name(bucket).data())),
 				static_cast<int>(bucket));

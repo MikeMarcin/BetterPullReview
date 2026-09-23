@@ -114,6 +114,12 @@ namespace bpr::core {
 	/// local rule did, in which case `Rule` says which. An item that is in the
 	/// queue for both reasons keeps both, because removing the rule should not
 	/// silently remove a pull request the reviewer was assigned.
+	///
+	/// [[BPR-0989]]. Personal discovery adds its own reasons beside the role and
+	/// the rule: `Authored` and `Requested` when a search of a saved repository
+	/// found the pull request, `Followed` when the reviewer chose to follow it
+	/// here, and `Reviewed` once the reviewer's own review of it was observed.
+	/// None overwrites another, and each is kept or withdrawn on its own.
 	struct queue_membership
 	{
 		github_role Role = github_role::none;
@@ -121,9 +127,20 @@ namespace bpr::core {
 		bool          MatchedRule = false;
 		observer_rule Rule;
 
+		bool Authored  = false;
+		bool Requested = false;
+		bool Followed  = false;
+		bool Reviewed  = false;
+
 		[[nodiscard]] auto enrolled() const noexcept -> bool
 		{
-			return Role != github_role::none || MatchedRule;
+			return Role != github_role::none || MatchedRule || Authored || Requested || Followed || Reviewed;
+		}
+
+		/// \brief Whether a search of a saved repository put it here.
+		[[nodiscard]] auto discovered() const noexcept -> bool
+		{
+			return Authored || Requested;
 		}
 
 		auto operator<=>(const queue_membership&) const = default;

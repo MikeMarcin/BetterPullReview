@@ -43,6 +43,8 @@ namespace bpr::qt {
 			return QStringLiteral("waiting");
 		case core::attention_bucket::observed_with_new_activity:
 			return QStringLiteral("following");
+		case core::attention_bucket::detail_unknown:
+			return QStringLiteral("unknown");
 		case core::attention_bucket::quiet:
 			break;
 		}
@@ -60,6 +62,7 @@ namespace bpr::qt {
 		case core::attention_bucket::authored_awaiting_reviewer_action:
 		case core::attention_bucket::observed_with_new_activity:
 		case core::attention_bucket::quiet:
+		case core::attention_bucket::detail_unknown:
 			break;
 		}
 		return false;

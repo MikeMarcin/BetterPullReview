@@ -61,11 +61,14 @@ assignments from review or comment history.
 - **Report** — `application::queue_activity_report`, binding one activity
   observation to the ref it was read about. Projection pairs activity to
   enrollments by ref in any order; a report about an unenrolled ref moves
-  nothing, and an enrollment without a report is quiet.
+  nothing, and an enrollment without a report is `detail unknown`, never
+  quiet ([[BPR-0989]]).
 - **Rule** — `core::observer_rule`: repository, author, or path, including or
   excluding.
 - **Decision** — `core::queue_membership`, carrying the GitHub role, whether a
-  rule matched, and which one.
+  rule matched, and which one, beside the personal reasons: authored and
+  directly requested (found by discovery), followed (a local choice), and
+  reviewed (the viewer reviewed a discovered pull request).
 - **Item** — `core::queue_item`: identity, membership, bucket.
 - **Request** — `application::queue_refresh_request`, carrying the session and
   the validator; `application::queue_notification_request`, carrying identity
@@ -118,6 +121,7 @@ In order of attention:
 | authored, awaiting reviewer action | You are waiting on a reviewer, not the other way round. |
 | observed, with new activity | Something happened on a pull request you watch. |
 | quiet | Nothing here is waiting on anyone. |
+| detail unknown | Nothing about it has been read yet. |
 
 The enumeration order *is* the order of attention. If the two disagreed, every
 surface reading the enumeration would present a different order from the one
@@ -136,7 +140,17 @@ somebody is blocked on this reviewer having done nothing at all.
 is not work this reviewer can do, so it must not displace work they can.
 
 **`observed` is only for items no role brought in.** Labelling an assigned
-review "observed" would hide that they were asked.
+review "observed" would hide that they were asked. A discovery reason counts
+as a role here: a pull request found as authored or requested is never
+"observed".
+
+**Unknown is not quiet.** An enrolled pull request whose activity was never
+read is `detail unknown`, last in the order, because nothing is known to ask
+anything of the reviewer — and not `quiet`, because nothing is known to be
+settled either. A directly requested pull request is `initial review
+requested` whatever else is unknown: the request is itself the fact. An
+authored pull request is `authored, awaiting reviewer action` only when its
+requested reviewers were read and someone is awaited.
 
 ## Ordering
 
@@ -199,8 +213,8 @@ deleting the rule would silently drop a pull request GitHub assigned; a role
 never overwrites the rule, or the reviewer loses the answer to why an
 unfamiliar item is in their queue.
 
-Departures are explicit and distinct: `closed`, `access lost`, `gone`, and
-`removed`. A pull request that simply vanished would leave the reviewer
+Departures are explicit and distinct: `closed`, `access lost`, `gone`,
+`removed`, and `undiscovered`. A pull request that simply vanished would leave the reviewer
 wondering whether they imagined it. `access lost` and `gone` stay separate
 because one is a permission a reviewer may be able to ask for and the other is
 a pull request that is not there any more; collapsing them would send somebody
@@ -212,6 +226,47 @@ would empty the queue during an outage.
 
 A departed item is retained with its reason and dropped from the projection.
 Reopening restores the same record.
+
+**Discovery removes only what it read the absence of** ([[BPR-0989]]). A
+discovery answer adds and refreshes the authored and requested reasons of one
+saved repository. Only a complete answer for the current session may withdraw
+a reason it no longer finds, and the pull request departs as `undiscovered`
+only when no role, rule, follow or review still holds it — a claim about what
+the last complete search found, not that the pull request closed. A partial,
+failed or stale answer adds and never removes. A followed or reviewed pull
+request stays when its request disappears.
+
+## Personal discovery
+
+`application::personal_discovery_host` ([[BPR-0989]]) is the one discovery
+scheduler of a profile, beside its queue host; every window sees what it
+finds through the queue's projection. It adopts one account session — host,
+account and identity generation, named exactly as the queue names its
+session — and searches the saved repositories of that server and account only,
+both reasons for each through `personal_discovery_port` ([[BPR-0988]]), at
+most two reads at a time.
+
+It runs when a session is adopted, on activation when the last success is
+older than five minutes, and on an explicit Refresh. Nothing a window opens or
+selects starts it, and opening a pull request never waits on it. A rate limit
+holds it off until the retry-after has passed (a secondary limit without one
+waits 60 seconds); a Refresh inside that window is refused and says so. A
+different session cancels what is in flight; every read is tagged with its
+session generation and refresh, so a completion from an earlier session or
+refresh, or for a repository no longer saved, is dropped. The queue checks the
+session again when it applies an answer.
+
+`queue_discovery_status` is published in the queue projection, per server and
+account: refreshing, current, partial (with why: GitHub's incomplete results,
+the one-page result limit, or the detail limit), stale (with the failure and,
+for a rate limit, the retry-after), or unavailable (no account session, or no
+saved repository). Cached rows stay through every failure. The last successful
+refresh is kept for the session only: after a restart the stored rows return
+at once and the first refresh under the adopted session supplies it again.
+
+A discovery answer is stored before it is shown. A refused write rolls the
+update back and reports the queue's store unavailable, exactly as any other
+queue write; it is never answered from another profile's store.
 
 ## Notifications
 
@@ -225,7 +280,8 @@ Link: a local reference. Not a URL — a URL opens a browser, which is the one
 thing a native review tool exists to avoid, and a link the operating system can
 hand to any registered handler is one another application can claim.
 
-`quiet` and `authored, awaiting reviewer action` do not notify. Neither asks
+`quiet`, `detail unknown` and `authored, awaiting reviewer action` do not
+notify. Neither asks
 anything of this reviewer, and a tool that interrupted for them would teach the
 reviewer to ignore its notifications — after which the ones that matter are
 ignored too.
@@ -334,7 +390,10 @@ same presenter at the same position rather than creating another stop.
 
 The application host stores only the bounded preference vocabulary after the
 effect succeeds, then publishes the durable choice. SQLite schema version three
-adds one singleton preference row; it stores no derived membership. The
+adds one singleton preference row; it stores no derived membership. Version
+seven ([[BPR-0989]]) adds the authored, requested, followed and reviewed
+reasons and the `undiscovered` departure to each enrollment, and the `detail
+unknown` bucket to the stored filter; version six migrates in place. The
 two-process public contract changes every filter and the alternate sort through
 the real Qt controls, reopens the same store, and observes the exact preference
 with zero provider mutations.
