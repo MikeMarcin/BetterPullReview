@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0933"
 title: "Shorten the GitHub CLI trust confirmation"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P2"
