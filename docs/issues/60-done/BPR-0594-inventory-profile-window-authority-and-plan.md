@@ -16,7 +16,7 @@ acceptance: [{"criterion":"Authority inventory and bounded implementation planni
 Inventory application-data roots, vault bindings, domain stores, shared review records, singleton runtime assumptions, and window shutdown/restore paths. Specify Default adoption and profile/window identity propagation against the live implementation. Allocate the first bounded profile foundation slice with migration and composed-path selectors.
 
 Governing design: [RFC-BPR-0024](../../rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md).
-Closeout: [BPR-0595](../20-ready/BPR-0595-close-rfc-0024.md).
+Closeout: [BPR-0595](../30-in-progress/BPR-0595-close-rfc-0024.md).
 
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
