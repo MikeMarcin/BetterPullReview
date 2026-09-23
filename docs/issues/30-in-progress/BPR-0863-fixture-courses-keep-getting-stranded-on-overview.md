@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0863"
 title: "Fixture courses keep getting stranded on Overview, and each one is rediscovered the hard way"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
