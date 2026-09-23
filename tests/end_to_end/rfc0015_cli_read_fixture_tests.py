@@ -151,6 +151,21 @@ class cli_read_fixture_tests(unittest.TestCase):
                         self.assertNotIn(needle, path.read_bytes())
             self.assertNotIn(needle, Path(fixture.__file__).read_bytes())
 
+    def test_missing_process_refuses_where_an_installed_gh_would_answer(self):
+        with contained_temporary_directory(prefix="bpr-cli-fallback-") as temporary:
+            empty = Path(temporary).resolve() / "empty"
+            installed = Path(temporary).resolve() / "installed"
+            empty.mkdir()
+            installed.mkdir()
+            gh = installed / "gh"
+            gh.write_text("#!/bin/sh\nexit 99\n")
+            gh.chmod(0o700)
+            self.assertIsNone(fixture.missing_process_refusal("missing-process", (str(empty),)))
+            self.assertIsNone(fixture.missing_process_refusal("positive", (str(installed),)))
+            refusal = fixture.missing_process_refusal("missing-process", (str(empty), str(installed)))
+            self.assertIsNotNone(refusal)
+            self.assertIn(str(gh), refusal)
+
     def test_courses_and_exact_objects(self):
         with contained_temporary_directory(prefix="bpr-cli-fixture-") as temporary:
             for course in ("positive", "missing-process", "process-failure", "malformed-response"):

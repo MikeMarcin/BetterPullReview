@@ -40,6 +40,13 @@ Prepare separate directories with `--course missing-process`,
 at the CLI boundary; they do **not** remove an adapter from the compiled graph,
 and therefore do not satisfy the adapter-removal acceptance criterion.
 
+Since [[BPR-0909]] the app looks for `gh` in `/opt/homebrew/bin`,
+`/usr/local/bin` and `/opt/local/bin` when `PATH` has none, so
+`missing-process` no longer fails closed on a machine with an installed `gh`:
+it would run that `gh` and its account. `launch` refuses the course there and
+names the executable it would reach; use `process-failure` or
+`malformed-response` as the refusal control on such a machine.
+
 The fake CLI accepts only the production `gh repo clone` command for
 `https://github.com/octo-org/review-repository.git`, the known base or head OID,
 and the exact closed flag list including empty templates and disabled hooks

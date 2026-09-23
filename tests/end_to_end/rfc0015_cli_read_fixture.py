@@ -19,6 +19,26 @@ from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests/fixtures/github/pull-requests/cli-read-v1"
+# The shipped macOS locator (native_gh_executable in github_application.cpp)
+# falls back to these directories when PATH holds no gh ([[BPR-0909]]).
+PRODUCT_GH_FALLBACK_DIRECTORIES = ("/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin")
+
+
+def missing_process_refusal(course, directories=PRODUCT_GH_FALLBACK_DIRECTORIES):
+    """Why a missing-process launch would reach a real gh, or None.
+
+    Removing the fixture's gh from PATH no longer leaves the app without one
+    where an installed gh sits in a fallback directory: the course would run
+    the machine's own gh and account instead of failing closed.
+    """
+    if course != "missing-process":
+        return None
+    installed = [str(Path(directory) / "gh") for directory in directories
+                 if os.access(Path(directory) / "gh", os.X_OK)]
+    if not installed:
+        return None
+    return ("missing-process would reach the installed gh the app falls back to: "
+            + ", ".join(installed))
 
 
 def is_large(course):
@@ -286,6 +306,9 @@ def fake_gh():
 
 
 def launch(args):
+    course = json.loads((args.directory / "fixture.json").read_text())["course"]
+    if refusal := missing_process_refusal(course):
+        raise ValueError(refusal)
     app = args.app.resolve(strict=True)
     cache = args.cmake_cache.resolve(strict=True).read_text()
     if "BUILD_TESTING:BOOL=OFF" not in cache:
