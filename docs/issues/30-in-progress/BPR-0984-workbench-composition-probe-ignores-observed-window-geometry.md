@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0984"
 title: "Let the workbench composition probe's session fallback hold the window's observed geometry"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
