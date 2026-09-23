@@ -50,6 +50,9 @@ endfunction()
 # 8d072d14 and 9210330a are reviewed on BPR-0976 and BPR-0977; 6f8e44e4
 # changes only the BPR_BUILD_TESTING fixture desktop factory, reviewed on
 # BPR-0978; main's 12d032cf and 841999ad are covered above. No other change.
+# BPR-0984 reseal: the BPR_BUILD_TESTING workbench composition probe ignores
+# the window's observed geometry in its session-fallback comparison; no
+# product path changes. Review recorded on BPR-0984.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -68,7 +71,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"f5969358548bada10b843bb8e5c39a3dd106bb8e6305c9630d5aafc5b5ccf0d3"
+		"8ffa0e73517c48aafa985ff27f61bbd7484b19a7bef3dd3635485ff2501cb201"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -203,7 +206,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a1bbb0cfd9b83dcb6249cc00ed4fdeeb307d49916ac7b22dc421024ee5bedb3f"
+        "ac94ddb31847481b5104404312faac7724051487b7eacbb03a0e7a96083b0c1c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

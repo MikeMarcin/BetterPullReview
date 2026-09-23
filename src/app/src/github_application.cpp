@@ -15470,10 +15470,15 @@ namespace bpr::app {
 					<= application::workbench_host_limits{ }.ActionableFiles
 				&& std::ranges::equal(host->actionable(), probe.ExpectedFiles)
 				&& host->state().Navigation.has_value();
+			// [[BPR-0984]]. The session store also holds this window's observed
+			// native geometry (BPR-0977): presentation the window reported, not
+			// a layout storage supplied. Every stored field is still the default.
+			auto sessionLayout     = host->layout();
+			sessionLayout.Geometry = { };
 			probe.Evidence.SessionSettingsFallback
 				= !implementation->WorkbenchPersistenceAvailable
 				&& implementation->WorkbenchSettings != nullptr
-				&& host->layout() == application::workbench_layout_settings{ };
+				&& sessionLayout == application::workbench_layout_settings{ };
 			if (!probe.Evidence.ExactAuthority
 				|| !probe.Evidence.BoundedObservation
 				|| !probe.Evidence.SessionSettingsFallback
