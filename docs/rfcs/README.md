@@ -164,7 +164,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0030](RFC-BPR-0030-dif-production-animation-revision.md) | Dif Production Animation Revision: Ten Registered Prop-Free Clips | Auto-Verified | Closed in canonical order by BPR-0769: the exact ten-clip production revision, provenance, deterministic regeneration, measured bounds, and bound art/derivative decisions pass after RFC-BPR-0006 |
 | [RFC-BPR-0031](RFC-BPR-0031-dif-workbench-animation-integration.md) | Dif Workbench Integration: Profile Preferences, Bounded Qt Playback, and Truthful Cues | Auto-Verified | Closed after RFC-BPR-0030 by BPR-0769: accepted art is composed on Home and the explicit AI tools surface with profile preferences, bounded cues, focused native/rendered evidence, resource/core-only checks, and qualified memory observations |
 | [RFC-BPR-0032](RFC-BPR-0032-calm-home-and-accounts-surfaces.md) | Calm Home and Accounts & Hosts: One Language for the Surfaces Before a Review | Proposed | Imported 2026-09-13 from the owner's brief for later implementation, Home revised the same day after owner review; a presentation revision that implements the accepted RFC-BPR-0028 Settings and Home statements as one card per server and state-ordered Home panels with grouping, and records the owner's amendment placing Home's Group, State headers, Filter and refresh in the strip; RFC-BPR-0016, RFC-BPR-0018 and RFC-BPR-0028 |
-| [RFC-BPR-0033](RFC-BPR-0033-profile-chooser-and-the-last-window.md) | Profile Chooser and the Last Window: Profiles Are a Menu, Not a Gate | Proposed | Imported 2026-09-13 for later implementation; removes the last-window chooser presentation, adds a per-platform empty-desktop policy and redesigns the chooser as rows; RFC-BPR-0024, whose text it amends in presentation only |
+| [RFC-BPR-0033](RFC-BPR-0033-profile-chooser-and-the-last-window.md) | Profile Chooser and the Last Window: Profiles Are a Menu, Not a Gate | Auto-Verified | Closed 2026-09-23 by [BPR-0782](../issues/60-done/BPR-0782-close-rfc-0033.md) once RFC-BPR-0024 was `Auto-Verified`. Closing the last window presents no chooser; macOS stays resident with its full menu bar, and Windows and Linux quit at exit 0 ([BPR-0798](../issues/60-done/BPR-0798-windows-native-empty-desktop-quit-evidence.md), [BPR-0799](../issues/60-done/BPR-0799-linux-native-empty-desktop-quit-evidence.md), and BPR-0817 under the owner-delegated amendment). The chooser is a sheet of rows. The closing recheck at `871c1185` passed 18/18 after [BPR-1035](../issues/60-done/BPR-1035-the-windowless-macos-menu-bar-drops-the-pull-request-menu.md) restored the windowless bar's Pull Request menu. The owner's 2026-09-16 verdicts stay bound to their candidates, and native activation was last observed unlocked at `a78eefcf` |
 | [RFC-BPR-0034](RFC-BPR-0034-appearance-page-and-per-theme-colours.md) | Appearance Page and Per-Theme Colour Customisation | Auto-Verified | Closed 2026-09-22 by [BPR-0791](../issues/60-done/BPR-0791-close-rfc-0034.md) once RFC-BPR-0006 and RFC-BPR-0018 were `Auto-Verified`. The page is a theme strip, one-line rows with info-glyph popovers, a labelled preview and a colours card for the theme on screen, and the store keeps one customised palette per theme after a migration. The owner accepted the macOS candidate built from `ed2b3f14`, and the focused and end-to-end appearance courses pass again at `f06088b8`. The real macOS colour panel has no automated course, C1's two storage limitations stand, and C4's painter drift is standalone [BPR-0986](../issues/40-parked/BPR-0986-paint-the-hunk-header-and-current-line-roles-in-the-review-panes.md) |
 | [RFC-BPR-0035](RFC-BPR-0035-github-release-auto-updater.md) | GitHub Release Auto-Updater | Proposed | Milestones 1–3 accepted; M4 source `518c384a` fixes the native menu and documents recovery/security. Owner amendment r3 defers Intel validation to nonblocking BPR-0950; BPR-0949 is Done under its Apple Silicon scope. BPR-0911 is Blocked on live private-release/vault AC-03; BPR-0912 remains Backlog with RFC-BPR-0014/canonical-order gates. Full M4/RFC acceptance remains open |
 | [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed, while canonical predecessor eligibility remains pending |
@@ -288,10 +288,13 @@ RFC-BPR-0034 closed on 2026-09-22. Its own criteria were already met and its
 closeout rows complete, and its only gate was RFC-BPR-0018. [BPR-0791](../issues/60-done/BPR-0791-close-rfc-0034.md)
 records the recheck at the closing head. RFC-BPR-0032's own criteria are met
 and its closeout rows are complete. It stays `Proposed` only because closure
-is strictly ordered and RFC-BPR-0028 is not `Auto-Verified`. RFC-BPR-0033 also
-stays `Proposed`. Its recorded gate, RFC-BPR-0024, is now `Auto-Verified`, but
-two things remain. Its closeout rows have not been rechecked at the current
-head. And [BPR-0817](../issues/60-done/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md),
+is strictly ordered and RFC-BPR-0028 is not `Auto-Verified`. RFC-BPR-0033 closed on
+2026-09-23. Its recorded gate, RFC-BPR-0024, is `Auto-Verified`, and
+[BPR-0782](../issues/60-done/BPR-0782-close-rfc-0033.md) records the recheck of
+its closeout rows at the closing head `871c1185`. That recheck first found the
+windowless macOS menu bar missing the Pull Request menu that BPR-0990 had added
+to the window's bar, which [BPR-1035](../issues/60-done/BPR-1035-the-windowless-macos-menu-bar-drops-the-pull-request-menu.md)
+fixed. [BPR-0817](../issues/60-done/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md),
 which is associated with it, is Done. On 2026-09-23 the owner delegated its
 two questions to its implementer, and the decisions are recorded as an
 owner-delegated amendment on the card and in RFC-BPR-0033. A refused agent
@@ -311,8 +314,8 @@ later observed on target-native stations and pass for a fresh data root, on
 [BPR-0798](../issues/60-done/BPR-0798-windows-native-empty-desktop-quit-evidence.md)
 and
 [BPR-0799](../issues/60-done/BPR-0799-linux-native-empty-desktop-quit-evidence.md).
-[BPR-0782](../issues/60-done/BPR-0782-close-rfc-0033.md) still records them as
-not run, because it predates those observations.
+[BPR-0782](../issues/60-done/BPR-0782-close-rfc-0033.md)'s B1 row and closing
+section now record them.
 
 RFC-BPR-0022 and RFC-BPR-0023 were reconciled and imported together on
 2026-09-04 with implementation explicitly deferred. The off-hunk pack retains

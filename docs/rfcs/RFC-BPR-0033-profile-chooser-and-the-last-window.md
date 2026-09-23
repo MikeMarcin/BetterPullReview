@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0033"
 title: "Profile Chooser and the Last Window: Profiles Are a Menu, Not a Gate"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Shell Surfaces v1"
 depends_on: ["RFC-BPR-0024"]
@@ -9,6 +9,26 @@ metadata: {"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plan
 ---
 
 # RFC-BPR-0033: Profile chooser and the last window
+
+## Status
+
+**Closed on 2026-09-23 (`Auto-Verified`).** [[BPR-0782]] records direct
+evidence for B1 to B5. Its closing recheck at `871c1185` passed 18 of 18
+desktop lifecycle, activation, management and crash-recovery courses and the
+four capture courses, with no build work pending. That recheck first found
+that the windowless macOS menu bar had lost the Pull Request menu
+[[BPR-0990]] added to the window's bar, and [[BPR-1035]] fixed it. B1's
+Windows and Linux halves were observed on [[BPR-0798]] and [[BPR-0799]], and
+the owner-delegated amendment below is carried by [[BPR-0817]]. The owner's
+verdicts of 2026-09-16 stay bound to their candidates.
+
+Two limits remain, and this status does not remove them:
+
+- With the screen locked, the closing pass did not observe native hide and
+  unhide activation, or whether a close resigns activation. They were last
+  observed on an unlocked console at `a78eefcf`.
+- B4's failure notice keeps the existing failure text rather than the RFC's
+  illustrative sentence.
 
 ## Summary and scope
 
