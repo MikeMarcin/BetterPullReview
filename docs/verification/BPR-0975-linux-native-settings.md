@@ -98,6 +98,28 @@ incremental and a clean build produced the same bytes).
 | Full default, `linux-full-course-b651554f.json` | **Fails.** View → Settings… passes; Ctrl-comma reuses the one Settings window, but focus cannot move to it: `settings_reused: True`, focus `6291474`, refused request `6291484`. Guard `command-failed`, live files unchanged; the launcher stopped and waited the application. |
 | Refused-activation diagnosis, `linux-bounded-course-b651554f.json` | Passes, and is not acceptance. Two refusals recorded: Ctrl-comma's (`6291484`) and Settings close's `ReturnFocus` (`6291474` requested, `6291503` focused). Escape and Ctrl-comma reopen, New Window, sibling menu reuse, native close, sibling Ctrl-comma reopen, first-workbench retirement keeping Settings, seven showing pages and native File → Quit all pass, process exit 0. |
 
+### Clear-window reproduction
+
+The Mac integrator reported that `bpr-main-win` took the Windows foreground
+around 16:32Z and 16:38Z. The committed runs overlap the second time. By their
+run-directory and output mtimes, they ran at 16:37:42–50Z (focus control),
+16:37:56–16:38:07Z (full course) and 16:38:15–51Z (diagnosis). These courses
+focus windows through Windows' own foreground, so each one was repeated when
+nothing else was taking it. The repeats used the same `13c59e94…b984`
+executable, lease and guard, and gave the same results:
+
+| Course, repeat | Run | Result |
+|---|---|---|
+| Focus control, `linux-focus-control-clear-b651554f.json` | 16:56:15–23Z | The same eight results as in AC1 above. The capture is byte-identical to the committed one once the PIDs and owned-root name are normalised. Guard `passed`, 8/8 live files unchanged. |
+| Full default, `linux-full-course-clear-b651554f.json` | 16:56:23–34Z | The same failure: "Ctrl-comma did not reuse/focus Settings", `settings_reused: True`, focus `6291474`, refused `6291484`. Apart from the PID and roots, the capture differs only in the recorded `linux_settings_course.py` digest, `80f262ca…`, which is `4a16ebdc`'s script. Guard `command-failed`, live files unchanged. |
+| Refused-activation diagnosis, `linux-bounded-course-clear-b651554f.json` | 17:09:26–17:10:37Z, during a Windows-side hold (17:09:25–17:10:37Z, per the integrator) | `LINUX_SETTINGS_COURSE_PASS:full-refused-activation-bounded`, observer and application exit 0. The capture is byte-identical to the committed one once the PID and root name are normalised. The XIDs and both recorded refusals did not change. Guard `passed`, 8/8 live files unchanged. |
+
+The 16:56Z pair is the guarded rerun mentioned at the end of
+[Reproducing](#reproducing). The raw logs and guard receipts are in
+`/home/mmarcin/bpr0975-native/runs/` (`smoke-focus-control.*`, `smoke-full.*`,
+`bounded-course-clear.log`, whose last line is its guard receipt); they are not
+committed. None of the conclusions above changes, and AC2 still fails here.
+
 ## AC3 — binding and inventory
 
 Both captures record the same revision, clean-source flag, CMake cache
@@ -179,4 +201,5 @@ candidate's own revision. The next commit changes only how the two course
 scripts create their owned roots: they use `scripts/contained_temporary_support`,
 as `contained_temporary_usage_contract` requires, which on Linux is the same
 mode-0700 `mkdtemp`. A guarded rerun with the changed scripts gave the same
-control results and the same full-course failure.
+control results and the same full-course failure; it is the 16:56Z pair in
+[Clear-window reproduction](#clear-window-reproduction).

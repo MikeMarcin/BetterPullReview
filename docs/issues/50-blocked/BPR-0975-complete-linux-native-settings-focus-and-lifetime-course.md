@@ -23,6 +23,12 @@ branch `main`, directly on the same JaegAW WSL2/WSLg host. The card is
 a human or qualifies a package. Evidence:
 [BPR-0975 Linux native Settings](../../verification/BPR-0975-linux-native-settings.md).
 
+The Mac integrator reported that `bpr-main-win` took the Windows foreground
+during the committed runs. Repeats with nothing else taking it gave the same
+control results, the same Ctrl-comma failure and the same diagnosis pass
+([clear-window reproduction](../../verification/BPR-0975-linux-native-settings.md#clear-window-reproduction)).
+The table below is unchanged.
+
 | Criterion | Outcome at `b651554f` |
 |---|---|
 | AC1 | **Pass.** The failure is attributed. WSLg's `Weston WM` returns X11 focus to the compositor-focused window and ignores `_NET_ACTIVE_WINDOW`; a toolkit-free Xlib control shows the same, so Qt is not the cause. Both the Qt and Xlib controls focus each window through Windows' own RAIL foreground activation while the sibling stays mapped, focus A after B closes, and exit 0. The X11-only failure is preserved in the same capture. |

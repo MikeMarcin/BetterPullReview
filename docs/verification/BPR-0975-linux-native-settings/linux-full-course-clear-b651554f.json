@@ -1,0 +1,102 @@
+{
+  "schema": "bpr.settings-inventory.atspi.v1",
+  "build": "linux-current-qt6112-release",
+  "revision": "b651554ff50bdde1c5a41fd9a77f6c0e075b16c8",
+  "executable_sha256": "13c59e94f66ea52c963cfd290b5664d272473f2d1674b1742481fc2086bcb984",
+  "platform": "Ubuntu 26.04 LTS WSL2 x86_64, native WSLg X11/XCB",
+  "source": "AT-SPI accessibility and X11/XTest native gestures",
+  "course": "full",
+  "status": "failed",
+  "failure": "RuntimeError: Ctrl-comma did not reuse/focus Settings: {'settings_reused': True, 'settings_window': 6291484, 'focus': 6291474, 'refused': 6291484}",
+  "observed": {
+    "pid": 110273,
+    "image": "/home/mmarcin/bpr0975-native/source/build/app-release/src/app/better_pull_review",
+    "window_manager": "Weston WM",
+    "focus_surface": "wslg-rail",
+    "focus_activations": [
+      {
+        "surface": "wslg-rail",
+        "window": 6291474,
+        "caption": "BetterPullReview \u2014 Default profile \u2014 BetterPullReview (Ubuntu)",
+        "candidates": 1
+      }
+    ],
+    "refused_activations": []
+  },
+  "context": {
+    "build": {
+      "source": "/home/mmarcin/bpr0975-native/source",
+      "revision": "b651554ff50bdde1c5a41fd9a77f6c0e075b16c8",
+      "clean": true,
+      "cache": {
+        "BPR_BUILD_QT": "ON",
+        "BPR_DISTRIBUTION_BUILD": "OFF",
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_FLAGS": "",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG",
+        "Qt6_DIR": "/home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64/lib/cmake/Qt6",
+        "CMAKE_HOME_DIRECTORY": "/home/mmarcin/bpr0975-native/source"
+      },
+      "compiler": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+      "main_compile_command": "/usr/bin/c++ -DBPR_ATTENDED_REVIEW_SOURCE_SHA256=\\\"c133b186ae8af1575e590ac4ad142a6fbfe428f0ffab914b1ee0bcdac2a28fcc\\\" -DBPR_BUILD_CONFIGURATION=\\\"Release\\\" -DBPR_VERSION=\\\"0.1.3\\\" -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NO_DEBUG -DQT_WIDGETS_LIB -I/home/mmarcin/bpr0975-native/source/src/app/include -I/home/mmarcin/bpr0975-native/source/src/application/include -I/home/mmarcin/bpr0975-native/source/src/core/include -I/home/mmarcin/bpr0975-native/source/src/adapters/git/include -I/home/mmarcin/bpr0975-native/source/src/adapters/sqlite/include -I/home/mmarcin/bpr0975-native/source/src/adapters/logging/include -I/home/mmarcin/bpr0975-native/source/src/adapters/syntax/include -I/home/mmarcin/bpr0975-native/source/src/adapters/agent/include -I/home/mmarcin/bpr0975-native/source/src/adapters/mcp/include -I/home/mmarcin/bpr0975-native/source/src/adapters/qt/include -I/home/mmarcin/bpr0975-native/source/src/adapters/update/include -isystem /home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64/include/QtCore -isystem /home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64/include -isystem /home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64/mkspecs/linux-g++ -isystem /home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64/include/QtGui -isystem /home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64/include/QtWidgets -O3 -DNDEBUG -std=c++23 -fstack-protector-strong -fno-omit-frame-pointer -D_FORTIFY_SOURCE=3 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow=local -Werror -Wno-missing-field-initializers -fPIC -fmodules-ts -fmodule-mapper=src/app/CMakeFiles/app_better_pull_review.dir/main.cpp.o.modmap -MD -fdeps-format=p1689r5 -x c++ -o src/app/CMakeFiles/app_better_pull_review.dir/main.cpp.o -c /home/mmarcin/bpr0975-native/source/src/app/main.cpp",
+      "first_party_error_demotions": []
+    },
+    "executable": {
+      "path": "/home/mmarcin/bpr0975-native/source/build/app-release/src/app/better_pull_review",
+      "sha256": "13c59e94f66ea52c963cfd290b5664d272473f2d1674b1742481fc2086bcb984"
+    },
+    "environment": {
+      "kernel": "6.18.33.2-microsoft-standard-WSL2",
+      "wslg": "WSLg ( x86_64 ): 1.0.73.2",
+      "display": ":0",
+      "wayland_display": "wayland-0",
+      "qt_qpa_platform": "xcb",
+      "accessibility": "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1",
+      "owned_root": "/home/mmarcin/bpr0975-native/runs/course-e6ezz_jk",
+      "owned_root_mode": "0o700",
+      "owned_roots": {
+        "XDG_DATA_HOME": {
+          "path": "/home/mmarcin/bpr0975-native/runs/course-e6ezz_jk/data",
+          "mode": "0o700"
+        },
+        "XDG_CONFIG_HOME": {
+          "path": "/home/mmarcin/bpr0975-native/runs/course-e6ezz_jk/config",
+          "mode": "0o700"
+        },
+        "XDG_CACHE_HOME": {
+          "path": "/home/mmarcin/bpr0975-native/runs/course-e6ezz_jk/cache",
+          "mode": "0o700"
+        },
+        "XDG_STATE_HOME": {
+          "path": "/home/mmarcin/bpr0975-native/runs/course-e6ezz_jk/state",
+          "mode": "0o700"
+        },
+        "TMPDIR": {
+          "path": "/home/mmarcin/bpr0975-native/runs/course-e6ezz_jk/tmp",
+          "mode": "0o700"
+        }
+      },
+      "home_overridden": false
+    },
+    "tools": {
+      "linux_settings_course.py": "80f262ca97f112220ba164e6b32d8fe3a90df7362e101289133771eca99587bc",
+      "linux_settings_inventory.py": "dda08247f896fb1979a552bfbf7659ce9bb193661ce976a8efa55aa69a83b1a1",
+      "wslg_rail_activate.ps1": "a134b5585155b119d5795c7e3c3519e7d77da14cefc09ac4c1f653e049a7a957"
+    }
+  },
+  "categories": [
+    "General",
+    "Accounts & hosts",
+    "Reviews & queue",
+    "Appearance",
+    "Notifications",
+    "Agents & context",
+    "Storage & privacy"
+  ],
+  "native_checks": [
+    "native-menu-opens-profile-labelled-settings"
+  ],
+  "pages": []
+}
