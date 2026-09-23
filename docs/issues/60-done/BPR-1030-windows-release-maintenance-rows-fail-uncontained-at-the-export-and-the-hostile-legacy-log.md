@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1030"
 title: "Windows: sqlite_release_maintenance_files and application_release_maintenance_public_path fail uncontained (export preview bytes; hostile legacy diagnostics in the native log)"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win under BPR-1020","found_at":"38cc26d7","rechecked_at":"7bf7de5b","related_cards":["BPR-1020","BPR-0900"],"related_rfcs":["RFC-BPR-0014"],"run":"bpr-main-win-20260923","reservation":"docs/issues/_reservations/BPR-1029--BPR-1031--9a8ec6194169.json"}
+acceptance: [{"criterion":"AC1 sqlite_release_maintenance_files passes on the Windows station","outcome":"pass","revision":"04d22b4a","evidence":{"kind":"command","detail":"bpr-main-win (MSVC 19.51 Debug, Qt 6.11.2), uncontained as registered: passes 1.32 s at 04d22b4a (and 0.76 s at 4fd95fe5, where BPR-1030 landed as 8d6a01bf). Was: 'public host exports exactly preview bytes'; probes showed phase failed, reason io_failure, CreateFileW error 1337 ERROR_INVALID_SID from a temporary private_security whose SID the descriptor pointed into. The deleted rvalue initialize overload rejects the old call with C2280.","path":"docs/issues/60-done/BPR-1030-windows-release-maintenance-rows-fail-uncontained-at-the-export-and-the-hostile-legacy-log.md#the-export-a-dangling-owner-sid-in-the-windows-descriptor-product"}},{"criterion":"AC2 application_release_maintenance_public_path passes its hostile-log, preview and export steps on Windows: the preview excludes the legacy bodies and the export writes exactly the preview bytes to the non-ASCII save path","outcome":"pass","revision":"04d22b4a","evidence":{"kind":"command","detail":"At 04d22b4a, 7 of 7 runs pass 'hostile legacy diagnostics actually reach the selected native log', 'public preview excludes secret, source, comment and malformed legacy bodies', 'export bytes equal exact preview including non-ASCII save path' (diagnostic-é.txt) and 'failed export cannot overwrite an existing destination' (source lines 155-183, before the epoch at :200); each run then fails once, later. Was: failed at the hostile-log check, 1.84 s. The Windows course seeds the log through the product's own quill_log before the desktop starts, because the running logger holds the file shared for reading only.","path":"docs/issues/60-done/BPR-1030-windows-release-maintenance-rows-fail-uncontained-at-the-export-and-the-hostile-legacy-log.md#the-hostile-log-the-running-logger-is-the-only-writer-on-windows-course"}},{"criterion":"AC3 Any later failure in that row is named with its measured cause and handed to its own record","outcome":"pass","revision":"04d22b4a","evidence":{"kind":"observation","detail":"Every later failure has its own record: the purge-inventory refusal at 'native full-profile inventory returns' (invalid_authority from held_identity: validate_private_security refuses <root>\\home, a Git isolation directory with inherited entries) is BPR-1038, 4 of 7 runs at 04d22b4a; the intermittent epoch step (revision-prepare with process_failure, spool_failure or no cache code) is BPR-1040, 3 of 7; the six 0xc0000409 exits at 12:45-12:49 PDT are BPR-1027's stale Guard CF table from incremental links, fixed by 8e36f872, and no run exits 0xc0000409 at 04d22b4a.","path":"docs/issues/60-done/BPR-1030-windows-release-maintenance-rows-fail-uncontained-at-the-export-and-the-hostile-legacy-log.md#where-the-row-now-stops-the-purge-inventory-refuses-the-git-isolations-directories"}},{"criterion":"AC4 macOS and Linux keep their paths: every change is Windows-only code or a Windows-only course branch","outcome":"pass","revision":"4fd95fe5","evidence":{"kind":"observation","detail":"create_private_file is in the _WIN32 half of release_maintenance_files.cpp; windows_private_storage.hpp is guarded by #if defined(_WIN32); the course's seeding is inside #if defined(_WIN32) and the POSIX append is kept under #if !defined(_WIN32) with the same bytes. No macOS or Linux run was made from this station.","path":"docs/issues/60-done/BPR-1030-windows-release-maintenance-rows-fail-uncontained-at-the-export-and-the-hostile-legacy-log.md#verification"}}]
 ---
 
 # BPR-1030: Windows: sqlite_release_maintenance_files and application_release_maintenance_public_path fail uncontained (export preview bytes; hostile legacy diagnostics in the native log)
@@ -160,3 +161,32 @@ AC4 have their evidence above. AC3 asks that the purge refusal have its own
 record. Its ID was requested from the coordinator, because this station does
 not allocate. When the card exists, link it here and finish with the
 prepared acceptance: AC1–AC4 at `4fd95fe5`, the pushed head measured above.
+
+## Handed on, and rechecked at `04d22b4a` (bpr-main-win, 2026-09-23)
+
+Every later failure in the row now has its own record:
+
+- **The purge-inventory refusal is [[BPR-1038]].** The Git owner's Windows
+  directories inherit their parent's entries, and the purge inventory
+  refuses them.
+- **The intermittent epoch step is [[BPR-1040]].** Its adapter codes vary:
+  `process_failure`, `spool_failure`, and one with no cache line.
+- **The six `0xc0000409` exits are [[BPR-1027]]'s.** The station's event log
+  shows `release_maintenance_public_path.exe` failing six times between 12:45
+  and 12:49 PDT, at `ntdll` offset `0x124640`. That is the same fast fail as
+  the stale Guard CF table that [[BPR-1027]] found in incrementally linked
+  images. It was cured by a full relink, which is why "the same source
+  relinked target-only did not crash". [[BPR-1027]]'s `8e36f872` now links
+  every CFG image completely.
+
+**Rechecked at `04d22b4a`,** with `build/dev` rebuilt, offscreen and
+uncontained as registered (`build/logs/bpr-1038-1041-main-win/`, station
+logs):
+
+- `sqlite_release_maintenance_files` passes, 1.32 s.
+- `application_release_maintenance_public_path` ran 7 times. Every run
+  passes the hostile-log, preview and export steps (source lines 155–183,
+  all before the epoch at `:200`), and each run fails exactly once:
+  - 4 runs stop at the purge step (`:254`), [[BPR-1038]];
+  - 3 runs stop at the epoch step, [[BPR-1040]].
+- No run exits `0xc0000409`.
