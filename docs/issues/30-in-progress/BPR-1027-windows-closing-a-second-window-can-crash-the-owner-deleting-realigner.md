@@ -90,6 +90,26 @@ the cause.
   its own close exits 0.
 - AC4 macOS and Linux run the same course and pass.
 
+**Revised 2026-09-23 (bpr-main-win), under the owner's mandate relayed by the
+Mac integrator: "You can revise and update the cards and rfcs if they have
+gone stale."** The criteria above assumed a double free in C++ that runs on
+every platform. The cause turned out to be something else (see "The cause"
+at the end). There is no second free, and the defect needs MSVC's linker. So
+AC1, AC2 and AC4 are revised as below. AC3 is unchanged. The originals stay
+above as they were written.
+
+- AC1 (revised) The cause is named with evidence. The double-free premise is
+  either confirmed or refuted by the evidence.
+- AC2 (revised) The defect is reproduced from source without the fix, and is
+  absent from the same source with the fix. The image that crashed fails its
+  course without the fix; the same source linked with the fix passes N of N
+  (N ≥ 5). The second-window course passes N of N (N ≥ 5) with the fix and
+  the owner exits 0. A contract fails if the cause is ever reintroduced.
+- AC4 (revised) State whether macOS and Linux share the defect, and why.
+
+The amendment prepared under "Disposition" below, which rested on "not
+reproducible", is withdrawn. The cause was found, so it is no longer needed.
+
 ## Offscreen: the course is clean in every shape (bpr-main-win, 2026-09-23)
 
 `application_profile_second_window_close_public_path` is the new course
@@ -339,3 +359,128 @@ The totals are now these:
 The disposition does not change. The card stays **Blocked**
 (`not-reproducible`), and the amendment above is still pending. The reopen
 trigger stays (d).
+
+## The cause: incremental links leave vtable targets out of the Guard CF table (bpr-main-win, 2026-09-23)
+
+The fast fail was never a double free. `cmake/Hardening.cmake` links every
+hardened image `/guard:cf`, and CMake's Debug default links `/INCREMENTAL`.
+MSVC's incremental linker can give a function a new ILT thunk on a relink,
+point the vtable at the new thunk, and leave the Guard CF function table
+listing only the old one. Both thunks jump to the same, correct function. A
+virtual call through the slot is then refused by the CFG dispatch check, and
+the process ends with `0xC0000409` subcode `0xA`. The program is correct; the
+image is not. Whether an image is stale depends on its link history, not on
+its source. That is why the same source crashed 5 of 5 in the morning and
+passed 12 of 12 in the afternoon, and why the Debug CRT's delayed free, which
+watches the heap, found nothing: the Realigner was freed exactly once.
+
+The station's `run/cfg-incremental-link-finding.json` named the mechanism. The
+evidence below confirms it, and reproduces it from source.
+
+**A checker for the table.** `cfg_table_check.py` (a station helper, not
+committed) reads a PE image. For every 64-bit relocation in data that points
+into code, it checks that the target is in the Guard CF function table. It
+skips the guard's own dispatch pointers, which the check never calls through.
+It also reports whether the image is incrementally linked (its entry point
+and its table's targets are ILT `jmp` thunks).
+
+**The image that crashed.** This is `setup_destination_public_path.exe` at
+`4fd95fe5`, as the station linked it at 13:02 PDT, preserved with its PDB.
+It is incremental. Of the 12,928 code pointers in its data, **14 point to
+thunks that are not in the table**. Each one is a vtable's deleting
+destructor, and in each case an older thunk for the same function is listed.
+Among them are `composed_agent_realignment`, which is this card's `Realigner`,
+and `observing_review_ledger_store` at `0x14013A530`, the target the crash
+refused. The others include `workbench_window`, `settings_window`,
+`windows_title_row_host`, `system_tray_notification_sink`, `github_provider`
+and `native_https_transport`. All of them are instantiated in
+`github_application.cpp`, which changed by 298 lines in that relink. Run as CTest
+runs it (offscreen), the image exits `-1073740791` in **3 of 3**. Under
+the station's debugger the stack is
+`std::default_delete<review_ledger_store_port>` ←
+`implementation::retire_review_ledger` (`github_application.cpp:9045`) ←
+`invalidate` ← `github_window_read_host::shutdown` ← `begin_shutdown`, with
+subcode `0xA`. The morning's crashes and the 6-of-6 `--self-test` crash in
+`std::default_delete<agent_realignment_port>` are the same kind of refusal:
+deleting through a vtable whose deleting destructor is on this list.
+
+**Reproduced from source, twice, the same way.** A detached worktree, a fresh
+`dev` tree, offline dependencies:
+
+1. Build `test_setup_destination_public_path` and `app_better_pull_review` at
+   `458719a2`, the station's source before that pull. Both images are
+   incremental and complete: 0 of 12,928 and 0 of 12,718 targets left out.
+2. Check out `4fd95fe5` and build again. Ninja recompiles the changed
+   sources and relinks both images incrementally.
+   `setup_destination_public_path.exe` now leaves **1 target out**:
+   `github_provider`'s deleting destructor, vtable slot `0x141A4B720`. The
+   older thunk for the same function is listed. `better_pull_review.exe`
+   stays complete.
+
+A second fresh tree gave the same result, at the same slot. This course does
+not delete a `github_provider` through its vtable, so the replayed image
+passes (3 of 3). The station's image had fourteen such entries after a longer
+history of relinks, and one of them was on the course's path.
+
+**The fix.** `cmake/Hardening.cmake` passes `/INCREMENTAL:NO` next to
+`/guard:cf`. Target options follow the configuration's `/debug /INCREMENTAL`
+on the link line, and the later option wins. That holds in `link.exe` and in
+CMake 4.4.2's `vs_link_exe` wrapper, which drops its two-link manifest step and
+leaves no `.ilk`. This was checked on a scratch link. Release already linked
+`/INCREMENTAL:NO` (CMake's Release default), so the shipped Windows package
+was never affected. Debug and RelWithDebInfo were. The same two-step replay
+with the fix: both links are complete, with no ILT, and **0 of 12,928 and 0 of
+12,718** targets are left out. The same source (`4fd95fe5`) passes its course
+**5 of 5** and `--self-test` **5 of 5** (exit 0).
+
+**The contract.** `cfg_complete_link_contract`
+(`tests/scripts/cfg_complete_link_tests.py`, contained on Windows) fails when
+the two are combined again:
+
+- `cmake/Hardening.cmake` must end every `/guard:cf` link's incremental
+  choice on `/INCREMENTAL:NO`. Run against the pre-fix file, it fails.
+- No other CMake source or preset may enable CFG, `/INCREMENTAL`, `/ZI` or
+  `EditAndContinue`.
+- Every generated link line in the tree (Ninja `LINK_FLAGS`, or a Visual
+  Studio project's `LinkIncremental`) that links `/guard:cf` must link
+  completely. A bare `/debug` counts as incremental, because that is
+  `link.exe`'s default. Run against `build/dev` before reconfiguring, it
+  reported **221 findings**, and 0 after. Against the `windows-dev` Visual
+  Studio tree it reported 101 before reconfiguring and 0 after. CMake now
+  writes `LinkIncremental` `false` for Debug.
+
+Refusal fixtures cover each rule.
+
+**The whole tree after the fix.** `build/dev` at `414cf5b2` plus the fix,
+reconfigured and rebuilt: 221 complete relinks and 81 compiles, **1 min 41 s**
+wall. All **223 of 223** CFG images are non-incremental with 0 targets left
+out, and no `.ilk` remains. (Before the fix, all 223 were incremental. None was
+stale at that moment, because the earlier relinks had been cleared.)
+
+**Build cost.** Measured in isolation on the worktree:
+
+| Image | Complete link | Incremental relink | First incremental link |
+| --- | --- | --- | --- |
+| `better_pull_review.exe` | 1.9 to 2.2 s | 1.7 s | 3.5 s |
+| `setup_destination_public_path.exe` | 1.8 to 2.0 s | 1.7 s | 3.2 s |
+
+A first incremental link costs two links, because CMake embeds the manifest
+with a second link. So the fix adds about 0.2 to 0.5 s to each relink of a
+large image and saves time on first links. The station's workaround of
+deleting `*.ilk` is no longer needed.
+
+**Rows at the fix, `build/dev`:** `cfg_complete_link_contract` passes
+contained, and `test_network_isolation_manifest` and
+`test_network_isolation_structure_contract` pass.
+`application_setup_destination_public_path` and `application_public_path`
+pass. `application_profile_second_window_close_public_path` passes **5 of 5**
+(6.4 to 6.6 s each, the owner quits 0). The records are station logs under
+`build/logs/bpr-1027-main-win/` and are not committed.
+
+**macOS and Linux do not share the defect.** Guard CF tables and ILT thunks
+exist only in MSVC's PE linker. Clang and GCC on macOS and Linux emit
+neither, and nothing there checks an indirect call against a table. The
+course is registered on every platform. macOS passed it in RFC-BPR-0033's
+closing pass at `871c1185` ([[BPR-0782]]) and among [[BPR-1017]]'s neighbours
+at `bfd927e7`. No Linux run of it is recorded. The mechanism does not need
+one.

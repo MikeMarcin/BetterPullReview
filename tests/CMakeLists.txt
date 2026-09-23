@@ -610,6 +610,19 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/msvc_secure_crt_tests.py"
 )
 
+# BPR-1027. An incremental relink can leave a vtable's new thunk out of the
+# Guard CF function table, and a correct program then fails fast on a virtual
+# call. /guard:cf links must be complete, in the sources and in this tree's
+# generated link lines.
+bpr_add_network_isolated_test(
+    NAME cfg_complete_link_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/cfg_complete_link_tests.py"
+        --build-dir
+        "${CMAKE_BINARY_DIR}"
+)
+
 bpr_add_network_isolated_test(
     NAME type_read_binding_contract
     COMMAND

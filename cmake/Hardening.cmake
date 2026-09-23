@@ -4,7 +4,14 @@ function(bpr_enable_hardening target)
 
     if(MSVC)
         target_compile_options("${target}" PRIVATE /sdl /guard:cf)
-        target_link_options("${target}" PRIVATE /guard:cf /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT)
+        # BPR-1027. A /guard:cf image must be linked whole. An incremental relink
+        # can point a vtable at a new ILT thunk and leave that thunk out of the
+        # Guard CF function table, and the next virtual call through it fails
+        # fast (0xC0000409, subcode 0xA) in a correct program. CMake's Debug and
+        # RelWithDebInfo defaults link /INCREMENTAL; the later option wins, both
+        # in link.exe and in the vs_link_exe wrapper. cfg_complete_link_contract
+        # refuses the combination.
+        target_link_options("${target}" PRIVATE /guard:cf /INCREMENTAL:NO /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT)
         get_target_property(target_type "${target}" TYPE)
         if(target_type STREQUAL "EXECUTABLE")
             # Keep complete public/static link evidence outside the installed payload.

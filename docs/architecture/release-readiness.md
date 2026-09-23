@@ -231,7 +231,10 @@ development fixture. If required inputs cannot satisfy this floor,
 record a plan/mandate reconciliation instead of silently raising it.
 
 **G8: hardening and runtime evidence.** `cmake/Hardening.cmake` enables MSVC
-`/sdl /guard:cf`, non-MSVC stack protection/frame pointers and non-Debug
+`/sdl /guard:cf` with a complete (`/INCREMENTAL:NO`) link in every
+configuration, because an incremental relink can leave a vtable target out of
+the Guard CF table ([[BPR-1027]], `cfg_complete_link_contract`),
+non-MSVC stack protection/frame pointers and non-Debug
 `_FORTIFY_SOURCE=3`, plus Linux RELRO/NOW. M9 inspects emitted flags and actual
 PE/Mach-O/ELF attributes, including helpers and static third-party code; source
 options are not evidence of effective protection. M7/M9 bind applicable
