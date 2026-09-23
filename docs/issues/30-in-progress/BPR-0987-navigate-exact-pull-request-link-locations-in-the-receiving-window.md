@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0987"
 title: "Navigate exact pull request link locations in the receiving window"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0598"]
 priority: "P1"
