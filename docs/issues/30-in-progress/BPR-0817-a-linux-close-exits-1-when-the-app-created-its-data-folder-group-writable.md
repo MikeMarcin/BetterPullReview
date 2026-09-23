@@ -350,3 +350,20 @@ unchanged in both runs.
 
   After that, rerun the 0775 course under a new desktop hold. The course
   shows one window for about 30 s.
+
+### Course fixed for the rerun (2026-09-23)
+
+The course now reads the status line from the workbench frame's AT-SPI
+announcements. It always sends the caption close and records the exit code,
+and its control requires at least one announced line.
+
+On a private Xvfb display, with the same `14a18b45` image:
+
+- **0775 parent.** The course passes. The announced line ends with the
+  refusal sentence, and the caption close exits 0.
+- **Control.** The course passes. The line is "Not signed in. Public pull
+  requests open read-only.", and the close exits 0.
+- **Negative controls.** Both fail as intended.
+
+This validates the course. It is not the WSLg observation. What remains is
+the 0775 rerun on WSLg under a new desktop hold.

@@ -27,10 +27,15 @@
   exit 0. The 0775 course failed in its observer: Qt's status label does not
   expose its text through AT-SPI Text. The details are under "Native
   evidence" below.
-- **Next.** Change the course to read the status line from Qt's polite
-  announcement event, and to perform the caption close even after an
-  observation failure. Then rerun the 0775 course under a new desktop hold,
-  record the result against criterion 2, and finish the card.
+- **Course fixed (schema v2), not yet rerun on WSLg.** The course now reads
+  the status line from the workbench frame's AT-SPI announcements, and it
+  sends the caption close even after an observation failure. The control's
+  "no refusal" check now requires at least one announced line. The course was
+  validated headlessly on a private Xvfb display, and both of its negative
+  controls fail. Details are under "Course fix" below.
+- **Next.** Under a new desktop hold, rerun only the 0775 course on WSLg,
+  using the committed course at its fix commit. Then record criterion 2,
+  including the card's front-matter entry, and finish the card.
 
 ## Frontier at `1c6eaf21` (bpr-linux, 2026-09-17; superseded)
 
@@ -443,3 +448,55 @@ real application.
 The captures and logs are in `/home/mmarcin/bpr0817-native/runs/`:
 `course-0775.json`, `course-absent.json`, the receipts, and `window.txt`.
 They are not committed.
+
+### Course fix (schema v2), validated headlessly on Xvfb
+
+**The failure.** The first WSLg run read the "Workbench status" label through
+the AT-SPI Text interface. The label does not implement that interface: a
+probe lists only `Accessible`, `Action`, `Collection` and `Component`. The
+label's accessible name is fixed as "Workbench status". The course therefore
+read `""` in both runs.
+
+**What Qt does announce.** `workbench_window::announce_update` sends the
+whole status line as a polite `QAccessibleAnnouncementEvent`. Qt 6.11.2's
+AT-SPI bridge delivers it as `object:announcement` from the workbench frame,
+with the line as the event's data. The bridge emits the event only while a
+listener is registered.
+
+**The fix, in `tests/scripts/linux_agent_workspace_refusal_course.py`:**
+
+- **Listener.** It registers the announcement listener before it launches
+  the application.
+- **Status lines.** It keeps every line that the owned frame announces.
+- **The 0775 check.** It requires a line that carries the refusal, with Home
+  showing.
+- **The control check.** The control first waits for the neighbourhood to
+  exist and for at least one announced line, then settles for 2 s. It then
+  requires that no line carries the refusal. The check is therefore about a
+  line that was actually read.
+- **The close.** It always sends WM_DELETE_WINDOW to the one owned workbench
+  window and records the exit code, even after an observation failure. If
+  the observation never found the frame, it matches the window by title. The
+  application is stopped only when the close does not end it.
+- **Record.** The record names the display and the window manager, so a run
+  on another X server cannot be mistaken for the WSLg desktop.
+
+**Headless validation.** The display was a private Xvfb on `:97`, which puts
+no window on the WSLg desktop and has no window manager. The Xvfb 21.1.22
+packages were unpacked with `dpkg-deb -x` into the owned root, and nothing
+was installed. `xkbcomp` was overlaid on `/usr/bin` only inside that
+server's private user and mount namespace. The runs used the same `14a18b45`
+image (`08f6d04d…`), umask 0002, the station lease and the live-state guard.
+The guard left the live files unchanged every time.
+
+| Run | Result | Status lines announced by the frame | Exit | Modes after |
+|---|---|---|---|---|
+| 0775 parent | Pass, 6/6 | "Not signed in. Public pull requests open read-only. Disposable agent workspaces are unavailable: their folder needs repair or has reached its limit." | 0, 65 ms after the close | parent 0775, root 0700, no neighbourhood |
+| Control, no parent | Pass, 8/8 | "Not signed in. Public pull requests open read-only." | 0, 65 ms | parent, root and neighbourhood 0700 |
+| Negative control: the course looks for a sentence the application never says | **Fails** as intended | The same refusal line | 0: the close still ran after the observation failure | parent 0775, no neighbourhood |
+| Negative control: control checks over a 0775 parent | **Fails** as intended, including "no announced status line carries the refusal" | The refusal line | 0 | parent 0775, no neighbourhood |
+
+Xvfb is not the WSLg desktop and has no window manager. These runs validate
+the course; they do not replace the WSLg observation that criterion 2 needs.
+The captures are `runs/xvfb-*.json` in `/home/mmarcin/bpr0817-native/`, and
+they are not committed.

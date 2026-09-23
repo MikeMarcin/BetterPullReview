@@ -9,31 +9,41 @@ desktop login under that umask makes `~/.local/share`. With `--parent-mode
 as an earlier install under umask 0002 leaves it. With `--parent-mode absent`
 the application creates it, which is the fresh-install control.
 
-The course walks the application's AT-SPI tree at Home and reads the
-"Workbench status" label. It then closes the one workbench window natively with
-WM_DELETE_WINDOW, which is the caption close, and waits for the process to
-exit. It never signals the application unless the course has already failed.
-It records the exit code, the status text, standard error, and the modes of
-the data folders and the agent workspace neighbourhood.
+The window's status line is read from Qt's AT-SPI announcements, not from the
+status label. Qt's label exposes no AT-SPI Text interface, and its explicit
+accessible name replaces its text, so the first WSLg run read an empty string
+both times. Each change to the line makes the workbench frame send the whole
+line as an `object:announcement` event. The course registers for those events
+before it launches the application, so the application emits them from its
+first window, and it keeps every line the owned frame announces.
+
+After the observation, and whatever it found, the course closes the one owned
+workbench window natively with WM_DELETE_WINDOW, which is the caption close. It
+then waits for the process to exit and records the exit code. The application
+is stopped only if that close does not end it.
 
 For the group-writable parent the course passes when all of these hold:
 
-- the status bar says the refusal at Home;
+- Home is showing, and a status line the frame announces carries the
+  refusal;
+- the caption close exits 0;
 - the parent keeps mode 0775 and no neighbourhood is created;
-- standard error names the refusal;
-- the process exits 0.
+- standard error names the refusal.
 
 For the control it passes when all of these hold:
 
-- the parent and the root are created 0700;
-- the neighbourhood is created 0700;
-- the status bar does not carry the refusal;
-- the process exits 0.
+- Home is showing, and recovery has created the neighbourhood;
+- the frame has announced at least one status line, so the channel is
+  proven to carry the line, and no announced line carries the refusal;
+- the caption close exits 0;
+- the parent, the root and the neighbourhood are created 0700;
+- standard error names no refusal.
 
 Run it with the system `/usr/bin/python3`, which has PyGObject, and with
 `GI_TYPELIB_PATH` naming an Atspi 2.0 typelib. Run it under the station lease
 and the live-state guard. It changes no setting, signs nothing in and performs
-no maintenance operation.
+no maintenance operation. The record names the display and its window manager,
+so a run on another X server is never mistaken for the WSLg desktop.
 """
 from __future__ import annotations
 
@@ -56,6 +66,8 @@ from linux_settings_inventory import X11, Atspi, children, native_platform, pump
 
 REFUSAL = "Disposable agent workspaces are unavailable"
 STDERR_REFUSAL = "AGENT_WORKSPACE_RECOVERY_REFUSED:"
+ANNOUNCEMENT = "object:announcement"
+MAXIMUM_RECORDED_ANNOUNCEMENTS = 64
 
 
 def require(condition, message):
@@ -80,16 +92,47 @@ def wait(message, predicate, seconds, detail=None):
     raise RuntimeError(f"{message}: {detail()}" if detail else message)
 
 
-def text_of(element):
-    text = element.get_text_iface()
-    return text.get_text(0, text.get_character_count()) if text is not None else ""
+def settle(seconds):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        pump()
+        time.sleep(0.05)
 
 
 def showing(element):
     return element.get_state_set().contains(Atspi.StateType.SHOWING)
 
 
-def observe(pid, refused_expected, neighbourhood):
+class Announcements:
+    """Every AT-SPI announcement, kept with its source's process, role and name."""
+
+    def __init__(self):
+        self.events = []
+        self.listener = Atspi.EventListener.new(self.receive)
+        require(self.listener.register(ANNOUNCEMENT), "AT-SPI refused the announcement listener")
+
+    def receive(self, event):
+        try:
+            source = event.source
+            self.events.append(dict(pid=source.get_process_id() if source is not None else None,
+                                    role=source.get_role_name() if source is not None else None,
+                                    name=source.get_name() if source is not None else None,
+                                    text="" if event.any_data is None else str(event.any_data),
+                                    politeness=event.detail1, at=time.monotonic()))
+        except Exception as error:  # noqa: BLE001 - a source can vanish while its event is read
+            self.events.append(dict(error=f"{type(error).__name__}: {error}", at=time.monotonic()))
+
+    def owned(self, pid):
+        return [event for event in self.events if event.get("pid") == pid]
+
+    def status_lines(self, pid, frame):
+        return [event["text"] for event in self.owned(pid) if event.get("role") == "frame" and event.get("name") == frame]
+
+    def close(self):
+        self.listener.deregister(ANNOUNCEMENT)
+
+
+def find_frame(pid):
     desktop = Atspi.get_desktop(0)
     found = []
 
@@ -97,39 +140,51 @@ def observe(pid, refused_expected, neighbourhood):
         found[:] = [app for app in children(desktop) if app is not None and app.get_process_id() == pid]
         return len(found) == 1
     wait("Application AT-SPI tree absent", application, 20)
-    app = found[0]
     frames = []
 
     def workbench():
-        frames[:] = [frame for frame in children(app) if frame is not None and frame.get_role() == Atspi.Role.FRAME
-                     and showing(frame)]
+        frames[:] = [frame for frame in children(found[0]) if frame is not None
+                     and frame.get_role() == Atspi.Role.FRAME and showing(frame)]
         return len(frames) == 1
     wait("Expected exactly one showing application frame", workbench, 20,
-         lambda: [(frame.get_name(), frame.get_role_name()) for frame in children(app) if frame is not None])
-    frame = frames[0]
-    labels = []
+         lambda: [(frame.get_name(), frame.get_role_name()) for frame in children(found[0]) if frame is not None])
+    return frames[0]
 
-    def status():
-        labels[:] = [element for element, _ in walk(frame) if element.get_name() == "Workbench status"]
-        return len(labels) == 1
-    wait("Workbench status label absent", status, 20)
-    label = labels[0]
-    if refused_expected:
-        wait("The status bar never said the refusal", lambda: REFUSAL in text_of(label), 30, lambda: text_of(label))
-    else:
-        # The neighbourhood exists once recovery has run, so a refusal would
-        # already have reached the status bar. Then allow the decision lane a
-        # moment, and require the sentence to be absent.
-        wait("Startup recovery never created the neighbourhood", lambda: Path(neighbourhood).is_dir(), 30)
-        time.sleep(1.0)
-        pump()
-        require(REFUSAL not in text_of(label), f"The status bar carries a refusal on a fresh install: {text_of(label)}")
+
+def home_showing(frame):
     homes = [dict(role=element.get_role_name(), showing=showing(element))
              for element, _ in walk(frame) if element.get_name() == "Home"]
     # The strip's Home button shares the name; only the page itself says Home is showing.
-    home_page = [home for home in homes if not any(word in home["role"] for word in ("button", "tab", "menu"))]
-    require(any(home["showing"] for home in home_page), f"Home is not showing: {homes}")
-    return dict(frame=frame.get_name(), status_text=text_of(label), status_showing=showing(label), home_elements=homes)
+    page = [home for home in homes if not any(word in home["role"] for word in ("button", "tab", "menu"))]
+    return any(home["showing"] for home in page), homes
+
+
+def observe(pid, announcements, refused_expected, neighbourhood, observed):
+    """Fills `observed` as it goes, so a failure still leaves what was seen."""
+    frame = find_frame(pid)
+    observed["frame"] = frame.get_name()
+    lines = lambda: announcements.status_lines(pid, observed["frame"])  # noqa: E731
+    if refused_expected:
+        wait("The frame never announced a status line carrying the refusal",
+             lambda: any(REFUSAL in line for line in lines()), 30, lines)
+    else:
+        # The neighbourhood exists once recovery has run, and a refusal would
+        # reach the line on the next decision-lane turn. Wait for both the
+        # neighbourhood and a first announced line, then give the lane time.
+        wait("Startup recovery never created the neighbourhood", lambda: Path(neighbourhood).is_dir(), 30)
+        wait("The frame never announced a status line", lambda: len(lines()) > 0, 30)
+        settle(2.0)
+    observed["home_showing"], observed["home_elements"] = home_showing(frame)
+
+
+def owned_workbench(x, frame):
+    owned = x.windows()
+    if frame:
+        candidates = [wid for wid, title in owned.items() if X11.title_matches(title, frame)]
+    else:
+        candidates = [wid for wid, title in owned.items() if title.startswith("BetterPullReview")]
+    require(len(candidates) == 1, f"Expected one owned X11 workbench window for {frame!r}, found {owned}")
+    return candidates[0], owned
 
 
 def course(build_dir, revision, work_root, output, parent_mode, umask):
@@ -137,6 +192,7 @@ def course(build_dir, revision, work_root, output, parent_mode, umask):
     executable = build_dir / "src" / "app" / "better_pull_review"
     build = build_binding(build_dir, revision)
     root = make_contained_temporary_directory(prefix="refusal-", parent=work_root)
+    announcements = Announcements()
     previous = os.umask(umask)
     try:
         environment = os.environ.copy()
@@ -159,8 +215,9 @@ def course(build_dir, revision, work_root, output, parent_mode, umask):
         paths = dict(xdg_data_home=data_home, parent=parent, data_root=data_root, neighbourhood=neighbourhood)
         before = {name: mode_of(path) for name, path in paths.items()}
         wslg = Path("/mnt/wslg/versions.txt")
+        here = Path(__file__).resolve()
         record = dict(
-            schema="bpr.bpr0817.agent-workspace-refusal-course.v1",
+            schema="bpr.bpr0817.agent-workspace-refusal-course.v2",
             revision=revision, build=build,
             executable=dict(path=str(executable), sha256=digest(executable)),
             platform=native_platform(),
@@ -169,38 +226,42 @@ def course(build_dir, revision, work_root, output, parent_mode, umask):
                              display=os.environ.get("DISPLAY"), wayland_display=os.environ.get("WAYLAND_DISPLAY"),
                              qt_qpa_platform="xcb", umask=oct(umask), owned_root=str(root),
                              owned_root_mode=mode_of(root), roots=roots, home_overridden=False),
-            tools={path.name: digest(path) for path in (Path(__file__).resolve(),
-                                                          Path(__file__).resolve().with_name("linux_settings_inventory.py"),
-                                                          Path(__file__).resolve().with_name("linux_settings_course.py"))},
+            tools={path.name: digest(path) for path in (here, here.with_name("linux_settings_inventory.py"),
+                                                          here.with_name("linux_settings_course.py"))},
+            status_line_source="AT-SPI object:announcement events from the owned workbench frame",
             parent_before_launch=oct(parent_mode) if parent_mode is not None else "absent",
             modes_before=before)
         refused_expected = parent_mode is not None and parent_mode & 0o022 != 0
         log = root / "app.log"
         errors = root / "app.stderr"
-        observed = None
-        failure = None
         with log.open("w") as stdout, errors.open("w") as stderr:
             process = subprocess.Popen([str(executable)], env=environment, stdout=stdout, stderr=stderr)
     finally:
         os.umask(previous)
+    observed = dict(frame=None, status_lines=[], home_showing=False, home_elements=[])
+    observation_failure = close_failure = None
     x = None
     try:
-        require(Path(f"/proc/{process.pid}/exe").resolve() == executable.resolve(), "PID executable mismatch")
-        record["observed_process"] = dict(pid=process.pid, image=str(Path(f"/proc/{process.pid}/exe").resolve()))
-        observed = observe(process.pid, refused_expected, neighbourhood)
+        try:
+            require(Path(f"/proc/{process.pid}/exe").resolve() == executable.resolve(), "PID executable mismatch")
+            record["observed_process"] = dict(pid=process.pid, image=str(Path(f"/proc/{process.pid}/exe").resolve()))
+            observe(process.pid, announcements, refused_expected, neighbourhood, observed)
+        except Exception as error:  # noqa: BLE001 - recorded; the close below still runs
+            observation_failure = f"{type(error).__name__}: {error}"
         record["observed"] = observed
-        x = X11(process.pid)
-        owned = x.windows()
-        workbench = [wid for wid, title in owned.items() if X11.title_matches(title, observed["frame"])]
-        require(len(workbench) == 1, f"Expected one owned X11 window titled {observed['frame']!r}, found {owned}")
-        record["closed_window"] = dict(xid=workbench[0], title=owned[workbench[0]], owned=len(owned))
-        record["modes_before_close"] = {name: mode_of(path) for name, path in paths.items()}
-        started = time.monotonic()
-        x.close_window(workbench[0])
-        process.wait(timeout=30)
-        record["exit_after_close_ms"] = round((time.monotonic() - started) * 1000)
-    except Exception as error:  # noqa: BLE001 - recorded, then the owned process is stopped
-        failure = f"{type(error).__name__}: {error}"
+        # The close runs whatever the observation found: the exit code is its own evidence.
+        try:
+            x = X11(process.pid)
+            record["window_manager"] = x.window_manager()
+            window, owned = owned_workbench(x, observed["frame"])
+            record["closed_window"] = dict(xid=window, title=owned[window], owned=len(owned))
+            record["modes_before_close"] = {name: mode_of(path) for name, path in paths.items()}
+            started = time.monotonic()
+            x.close_window(window)
+            process.wait(timeout=30)
+            record["exit_after_close_ms"] = round((time.monotonic() - started) * 1000)
+        except Exception as error:  # noqa: BLE001 - recorded, then the owned process is stopped
+            close_failure = f"{type(error).__name__}: {error}"
     finally:
         if x is not None:
             x.x.XCloseDisplay(x.display)
@@ -212,32 +273,46 @@ def course(build_dir, revision, work_root, output, parent_mode, umask):
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
+        settle(0.5)
+        announcements.close()
+    # Every line the frame announced during the run, read after the close so a
+    # failed observation still reports what was said.
+    if observed["frame"]:
+        observed["status_lines"] = announcements.status_lines(process.pid, observed["frame"])
+    record["announcements"] = announcements.owned(process.pid)[:MAXIMUM_RECORDED_ANNOUNCEMENTS]
     record["exit_code"] = process.returncode
+    record["closed_by_caption"] = "exit_after_close_ms" in record
     record["modes_after"] = {name: mode_of(path) for name, path in paths.items()}
     record["stderr"] = errors.read_text(errors="replace").splitlines()[-20:]
     record["stdout_bytes"] = log.stat().st_size
-    checks = []
-    if failure is None:
-        after = record["modes_after"]
-        refusal_line = any(STDERR_REFUSAL in line for line in record["stderr"])
-        if refused_expected:
-            checks = [("status bar says the refusal at Home", REFUSAL in observed["status_text"]),
-                      ("parent keeps its pre-existing mode", after["parent"] == oct(parent_mode)),
-                      ("no neighbourhood is created", after["neighbourhood"] is None),
-                      ("standard error names the refusal", refusal_line),
-                      ("caption close exits 0", process.returncode == 0)]
-        else:
-            checks = [("status bar carries no refusal", REFUSAL not in observed["status_text"]),
-                      ("parent is created 0700", after["parent"] == "0o700"),
-                      ("data root is created 0700", after["data_root"] == "0o700"),
-                      ("neighbourhood is created 0700", after["neighbourhood"] == "0o700"),
-                      ("standard error names no refusal", not refusal_line),
-                      ("caption close exits 0", process.returncode == 0)]
+    after = record["modes_after"]
+    lines = observed["status_lines"]
+    refusal_line = any(STDERR_REFUSAL in line for line in record["stderr"])
+    closed = [("Home is showing", observed["home_showing"]),
+              ("caption close exits 0", record["closed_by_caption"] and process.returncode == 0)]
+    if refused_expected:
+        checks = [("the frame announces a status line carrying the refusal", any(REFUSAL in line for line in lines)),
+                  *closed,
+                  ("parent keeps its pre-existing mode", after["parent"] == oct(parent_mode)),
+                  ("no neighbourhood is created", after["neighbourhood"] is None),
+                  ("standard error names the refusal", refusal_line)]
+    else:
+        checks = [("the frame announces at least one status line", len(lines) > 0),
+                  ("no announced status line carries the refusal", not any(REFUSAL in line for line in lines)),
+                  *closed,
+                  ("parent is created 0700", after["parent"] == "0o700"),
+                  ("data root is created 0700", after["data_root"] == "0o700"),
+                  ("neighbourhood is created 0700", after["neighbourhood"] == "0o700"),
+                  ("standard error names no refusal", not refusal_line)]
     record["checks"] = [dict(check=name, passed=bool(passed)) for name, passed in checks]
-    record["failure"] = failure
-    record["status"] = "passed" if failure is None and all(passed for _, passed in checks) else "failed"
+    record["observation_failure"] = observation_failure
+    record["close_failure"] = close_failure
+    record["status"] = ("passed" if observation_failure is None and close_failure is None
+                        and all(passed for _, passed in checks) else "failed")
     output.write_text(json.dumps(record, indent=2) + "\n")
-    print(f"COURSE_ROOT:{root} APPLICATION_EXIT:{process.returncode} STATUS:{record['status']} FAILURE:{failure}", flush=True)
+    print(f"COURSE_ROOT:{root} APPLICATION_EXIT:{process.returncode} STATUS:{record['status']} "
+          f"OBSERVATION_FAILURE:{observation_failure} CLOSE_FAILURE:{close_failure}", flush=True)
+    print(f"STATUS_LINES:{json.dumps(lines)}", flush=True)
     for name, passed in checks:
         print(f"{'PASS' if passed else 'FAIL'}:{name}", flush=True)
     return record["status"] == "passed"
