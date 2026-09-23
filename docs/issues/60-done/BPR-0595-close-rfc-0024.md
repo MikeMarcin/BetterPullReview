@@ -695,3 +695,23 @@ acceptance.
   [[BPR-0985]] (Ready). Whether AC-07 as closed needs an owner amendment or a
   reopening is left to the owner and coordinator; RFC-BPR-0024 remains
   Auto-Verified as recorded.
+
+## Restoration course restored, 2026-09-22
+
+[[BPR-0985]] traced the reading phases of
+`application_profile_window_review_restoration_public_path` to `cc038748`
+(RFC-BPR-0037, 2026-09-19), which is older than this closeout's finish
+`eb73df8b`. The conversations drawer's default thread was re-revealed after
+every published file diff as a reading gesture and cancelled the deferred
+reading restoration. `auth-home`'s failure from `9c670d88` was an assertion
+superseded by the owner-accepted [[BPR-0795]] loading Overview; `2fbcc8cb`
+corrected it. After the repair at `c9c48800` the whole course passes again,
+570.40 s at that commit (`build/bpr0985-ev-restoration-course.json`). That
+covers restart restoration of both windows, Close and Quit, the retained
+Resume destination, and the unavailable readings that fabricate nothing.
+
+This is an observation. It changes no acceptance record and not RFC-BPR-0024's
+Auto-Verified status. AC-07 again has a current passing run of the course its
+retained BPR-0709/0710 evidence cites. That evidence was stale when this card
+closed. Whether that needs an owner amendment to the historical close is still
+the owner's question.
