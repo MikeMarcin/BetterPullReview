@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1017"
 title: "A new window of a signed-in profile shows the sign-in card"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P2"
