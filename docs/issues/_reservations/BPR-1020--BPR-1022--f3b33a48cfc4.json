@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1020",
+    "BPR-1021",
+    "BPR-1022"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "bpr-main-win: (1) The Windows isolation manifest gate carries eleven unpinned uncontained rows; (2) Close RFC-BPR-0028; (3) Windows: open the strip's application menu from the keyboard with Alt and F10",
+  "created": "2026-09-23T16:03:50.418062+00:00",
+  "base": "c52f5907260d0f98346ed43b8984fe50f09064bc"
+}
