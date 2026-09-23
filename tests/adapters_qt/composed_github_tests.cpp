@@ -4005,6 +4005,21 @@ namespace {
 				   && files->tree_model()->file_at(files->currentIndex()) == std::optional{ adapt },
 			   "filtering and clearing sent nothing to a provider or the core and left the open pull request and selected file in place");
 
+		// Both empty states at once, rendered for inspection when a path is given.
+		if (const auto path = qEnvironmentVariable("BPR_QT_FILTER_RENDER_PATH"); !path.isEmpty()) {
+			reposFilter->setText(QStringLiteral("zzz"));
+			filesFilter->setText(QStringLiteral("nothing like this"));
+			QApplication::processEvents();
+			expect(!reposNotice->isHidden() && !filesNotice->isHidden() && window.grab().save(path),
+				   "both drawers' empty states render with their Clear filter");
+			reposNotice->clear_button()->click();
+			filesNotice->clear_button()->click();
+			QApplication::processEvents();
+			expect(openRow() == 27 && files->tree_model()->file_at(files->currentIndex()) == std::optional{ adapt }
+					   && intents.size() == githubBefore,
+				   "clearing both empty states restores both current rows without an effect");
+		}
+
 		// A row chosen in the tree opens once; when the window then opens
 		// another pull request, that row is a fresh gesture again.
 		const auto rowOf = [model](const std::int64_t aNumber) {
