@@ -1422,6 +1422,62 @@ namespace {
 		expect(erased && erased->FilesWidth == 432, "erased row returns current defaults");
 	}
 
+	void test_native_geometry_is_window_local_and_migrates_from_eight()
+	{
+		const auto scratch   = scratch_directory{ };
+		const auto path      = scratch.file("native-geometry.sqlite3");
+		auto       first     = application::window_layout(distinct_layout());
+		first.Home.Grouping  = application::home_grouping::organization;
+		first.Home.Collapsed = application::home_collapsed_panel::recently_viewed;
+		first.Geometry       = { -1200, 40, 1100, 760, true };
+		auto second          = first;
+		second.Geometry      = { 180, 120, 950, 600, false };
+		{
+			auto database = workbench_settings_database::open(path, { });
+			expect(database && database->store_window(core::bpr_window_id{ 1 }, first, { })
+					   && database->store_window(core::bpr_window_id{ 2 }, second, { }),
+				   "two independent native placements persist");
+			expect(database->load_window(core::bpr_window_id{ 1 }, { })->Geometry == first.Geometry
+					   && database->load_window(core::bpr_window_id{ 2 }, { })->Geometry == second.Geometry
+					   && database->load_window(core::bpr_window_id{ 3 }, { })->Geometry == application::workbench_window_geometry{ },
+				   "each placement belongs only to its stable window, never defaults");
+			auto invalid           = first;
+			invalid.Geometry.Width = 1;
+			expect(!database->store_window(core::bpr_window_id{ 1 }, invalid, { }), "invalid native geometry refuses before write");
+			invalid.Geometry = { 1, 0, 0, 0, false };
+			expect(!database->store_window(core::bpr_window_id{ 1 }, invalid, { }), "partial absent geometry is not a valid record");
+			// Produce the exact previous schema; SQLite rewrites each dropped
+			// suffix back to the version-eight canonical definition.
+			expect(sqlite3_exec(database->handle(),
+								"ALTER TABLE window_layout DROP COLUMN geometry_maximized;"
+								"ALTER TABLE window_layout DROP COLUMN geometry_height;"
+								"ALTER TABLE window_layout DROP COLUMN geometry_width;"
+								"ALTER TABLE window_layout DROP COLUMN geometry_y;"
+								"ALTER TABLE window_layout DROP COLUMN geometry_x;"
+								"UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
+								nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "canonical version-eight window fixture");
+		}
+		auto migrated   = workbench_settings_database::open(path, { });
+		first.Geometry  = { };
+		second.Geometry = { };
+		expect(migrated.has_value(), "version-eight geometry migration opens");
+		const auto firstLoaded = migrated->load_window(core::bpr_window_id{ 1 }, { });
+		expect(firstLoaded.has_value(), "version-eight migrated first window reads");
+		expect(migrated && application::window_layout(*migrated->load_window(core::bpr_window_id{ 1 }, { })) == first
+				   && application::window_layout(*migrated->load_window(core::bpr_window_id{ 2 }, { })) == second,
+			   "version-eight migration preserves each Home and drawer record with no invented native placement");
+		expect(migrated->erase_window(core::bpr_window_id{ 1 }, { })
+				   && application::window_layout(*migrated->load_window(core::bpr_window_id{ 2 }, { })) == second,
+			   "explicit close erases only its own geometry row");
+		expect(sqlite3_exec(migrated->handle(), "PRAGMA ignore_check_constraints=ON; UPDATE window_layout SET geometry_width=2", nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "hostile native placement fixture bypasses write constraints");
+		const auto before = logical_snapshot(path, false);
+		expect(!workbench_settings_database::open(path, { }) && logical_snapshot(path, false) == before,
+			   "corrupt native placement is refused without modifying the durable file");
+	}
+
 	void test_invalid_one_pane_window_is_refused()
 	{
 		const auto scratch = scratch_directory{ };
@@ -1446,6 +1502,7 @@ auto main() -> int
 {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authoritative_window_retention();
+	test_native_geometry_is_window_local_and_migrates_from_eight();
 	test_invalid_one_pane_window_is_refused();
 	test_hostile_window_rows_refuse_unchanged();
 	test_explicit_defaults_and_bound_factory_views();

@@ -80,6 +80,9 @@ namespace bpr::application {
 		// reverts. A view applied before the layout has loaded is merged into the
 		// loaded record rather than written over it.
 		void apply_home_view(home_view_state aState);
+		// Bounded presentation observation; persisted only after this window's
+		// layout has loaded, so startup geometry cannot replace an unread record.
+		void observe_geometry(workbench_window_geometry aGeometry);
 		void cancel();
 		void shutdown();
 		// Closes ingress while draining the latest accepted window layout. Ports and

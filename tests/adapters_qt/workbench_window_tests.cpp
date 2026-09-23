@@ -45,6 +45,7 @@
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QPushButton>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
@@ -5117,6 +5118,11 @@ namespace {
 		// until a workbench is active, so one is made active first.
 		window.publish(every_primary_command_offered());
 		process_events();
+		// [[BPR-0981]]. The order is claimed at the scale the row registers.
+		if (const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE"); !expected.isEmpty()) {
+			expect(std::abs(window.devicePixelRatioF() - expected.toDouble()) < 0.001,
+				   "the focus order is walked at the exact expected device scale");
+		}
 
 		const auto expanded = window.focus_order();
 		expect(expanded.size() >= 12,
@@ -5139,6 +5145,22 @@ namespace {
 				   && declared.contains(QStringLiteral("Exact right commit OID")),
 			   "both epoch selectors and both exact OIDs are reachable stops in "
 			   "the shell's declared focus order");
+		// [[BPR-0981]]. RFC-BPR-0025 AC-09: each drawer's filter, its Clear
+		// filter and the files order selector are declared stops before their tree.
+		expect(declared.indexOf(QStringLiteral("Filter pull requests")) >= 0
+				   && declared.indexOf(QStringLiteral("Clear pull requests filter"))
+					   == declared.indexOf(QStringLiteral("Filter pull requests")) + 1
+				   && declared.indexOf(QStringLiteral("Filter pull requests"))
+					   < declared.indexOf(window.repositories_tree()->accessibleName())
+				   && declared.indexOf(QStringLiteral("Files order")) >= 0
+				   && declared.indexOf(QStringLiteral("Filter files"))
+					   == declared.indexOf(QStringLiteral("Files order")) + 1
+				   && declared.indexOf(QStringLiteral("Clear files filter"))
+					   == declared.indexOf(QStringLiteral("Filter files")) + 1
+				   && declared.indexOf(QStringLiteral("Filter files"))
+					   < declared.indexOf(window.files_tree()->accessibleName()),
+			   "both drawer filters, their Clear filter and the files order selector are "
+			   "declared stops ahead of their trees");
 		expect(walked_focus_order(expanded) == expanded.mid(1),
 			   "the live focus chain walks the declared order exactly");
 
@@ -6320,6 +6342,17 @@ namespace {
 		window.publish(offered);
 		process_events();
 		expect(intents.size() == asked, "a later epoch publish does not ask again");
+		panel->filter_unresolved_button()->setChecked(false);
+		panel->filter_unread_button()->setChecked(true);
+		window.choose_home(true);
+		window.publish(application::github_presentation_update{
+			.PullRequest              = application::github_pull_request_projection{ .ReviewThreadsAvailable = true },
+			.PreserveWindowNavigation = true,
+		});
+		process_events();
+		expect(window.showing_home() && !panel->filter_unresolved_button()->isChecked()
+				   && panel->filter_unread_button()->isChecked() && intents.size() == asked,
+			   "a sibling server observation preserves Home, user filters and the chosen comparison");
 	}
 
 	// [[BPR-0661]]. With "when fully seen", reaching the end of the shared
@@ -8301,9 +8334,59 @@ namespace {
 	}
 }
 
+void test_native_geometry_fits_current_displays_and_observes_only_after_restore()
+{
+	using namespace bpr;
+	qt::workbench_window                                window;
+	std::vector<application::workbench_window_geometry> observations;
+	window.set_geometry_dispatch([&](auto aGeometry) { observations.push_back(aGeometry); });
+	window.show();
+	process_events();
+	expect(observations.empty(), "initial native events cannot replace unread geometry");
+	window.publish(application::workbench_projection{ .Geometry = application::workbench_window_geometry{ 800000, -800000, 1400, 700, false } });
+	process_events();
+	expect(!observations.empty(), "restored placement enables bounded native observations");
+	const auto available = QGuiApplication::primaryScreen()->availableGeometry();
+	expect(available.contains(window.geometry().topLeft()) && window.width() <= std::max(window.minimumWidth(), available.width())
+			   && window.height() <= std::max(window.minimumHeight(), available.height()),
+		   "obsolete-display placement keeps the top edge and a bounded size reachable");
+	window.move(available.left() + 20, available.top() + 55);
+	window.resize(window.minimumWidth(), 500);
+	process_events();
+	const auto latest  = observations.back();
+	const auto current = window.geometry();
+	window.publish(application::workbench_projection{ .Geometry = application::workbench_window_geometry{ 800000, -800000, 1400, 700, false } });
+	process_events();
+	expect(window.geometry() == current && observations.back() == latest,
+		   "a repeated restore cannot move an already active window");
+	window.showMaximized();
+	process_events();
+	expect(observations.back().Maximized && observations.back().Width == latest.Width
+			   && observations.back().Height == latest.Height,
+		   "maximization preserves the normal placement");
+	window.hide();
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (QCoreApplication::arguments().contains(QStringLiteral("--native-window-geometry"))) {
+		test_native_geometry_fits_current_displays_and_observes_only_after_restore();
+		std::cout << "native-window-geometry:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--shared-snapshot-navigation"))) {
+		test_comments_filter_and_return_comparison_preferences_apply_on_open();
+		std::cout << "shared-snapshot-navigation:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-0981]]. The declared focus order alone, at each registered scale:
+	// the full run stops earlier at the epoch-row assertion [[BPR-0940]] owns.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--focus-order"))) {
+		test_focus_order_is_declared_named_and_walkable();
+		std::cout << "workbench-focus-order:pass\n";
+		return EXIT_SUCCESS;
+	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();

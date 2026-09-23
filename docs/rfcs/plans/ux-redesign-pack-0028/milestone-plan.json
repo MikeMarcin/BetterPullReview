@@ -55,7 +55,7 @@
     },
     {
       "id": "close-rfc-0018",
-      "outcome": "RFC-BPR-0018 is verified and closed against its immutable baseline with every criterion row carrying direct evidence, the documentation gate green and the index reconciled.",
+      "outcome": "RFC-BPR-0018 is verified and closed against its immutable baseline and explicit owner amendment r2, with every retained criterion carrying direct evidence, the transferred Windows and Linux native obligations preserved on open standalone BPR-0974/0975, the documentation gate green and the index reconciled.",
       "work": [
         {
           "issue": "BPR-0593"
@@ -65,15 +65,27 @@
         "attended-preparation-pack-head"
       ],
       "exit_criteria": [
-        "Every RFC-BPR-0018 criterion row records a direct check, result and producing commit, including the native and attended rows",
+        "Every owner-amended r2 RFC-BPR-0018 criterion row records its direct check, actual result and producing commit; accepted native/attended evidence retains its exact candidate and BPR-0974/0975 preserve the transferred unaccepted Windows and Linux native obligations without calling them passed",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0018 and the index are reconciled to the closed status"
       ],
-      "boundary": "The RFC-BPR-0018 closeout card and its RFC/index status; no new product work"
+      "boundary": "The RFC-BPR-0018 closeout card, RFC/index status, direct native inventory/menu evidence and bounded test-course upkeep, including the corrected native Settings entry defect; no new feature scope. Owner amendment r2 in owner-closeout-r2.md explicitly transfers only Windows security disposition/full native course/current inventory to standalone BPR-0974 and Linux native focus/lifetime course to standalone BPR-0975. No failed observation becomes a pass; other criteria, canonical prerequisites and historical human verdicts remain unchanged. Stop at this milestone boundary."
     },
     {
       "id": "close-rfc-0024",
-      "outcome": "RFC-BPR-0024 is verified and closed against its immutable baseline once RFC-BPR-0018 and the canonical predecessor RFC-BPR-0008 (BPR-0242, outside this pack) are closed.",
+      "outcome": "RFC-BPR-0024's remaining profile/window behavior is implemented, directly verified, and closed against its immutable baseline and explicit owner amendment r3 once RFC-BPR-0018 and canonical predecessor BPR-0242 are Done; human and target-native evidence remain required except the one native Windows desktop observation transferred, unaccepted, to standalone BPR-0980.",
       "work": [
+        {
+          "issue": "BPR-0976"
+        },
+        {
+          "issue": "BPR-0977"
+        },
+        {
+          "issue": "BPR-0978"
+        },
+        {
+          "issue": "BPR-0979"
+        },
         {
           "issue": "BPR-0595"
         }
@@ -82,10 +94,10 @@
         "close-rfc-0018"
       ],
       "exit_criteria": [
-        "Every RFC-BPR-0024 criterion row records a direct check, result and producing commit, and the excluded canonical prerequisite BPR-0242 is Done or its absence is reported as the blocker",
+        "Every owner-amended r3 RFC-BPR-0024 criterion row records a direct check, result and producing commit; accepted native/attended evidence retains its exact candidate, BPR-0980 preserves the transferred unaccepted native Windows desktop observation without calling it passed, and the excluded canonical prerequisite BPR-0242 is Done or its absence is reported as the blocker",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0024 and the index are reconciled to the closed status"
       ],
-      "boundary": "The RFC-BPR-0024 closeout card and its RFC/index status; BPR-0242 is not this pack's work"
+      "boundary": "The complete RFC-BPR-0024 milestone, including exact-authority server-conversation fanout (BPR-0976), per-window native geometry and focus/lifecycle (BPR-0977), concurrent same-server two-account profile isolation (BPR-0978), bounded Windows activate/New Window handoff (BPR-0979), and retained BPR-0715 signed-out native acceptance. The owner authorized updating the stale closeout-only plan during implementation planning on 2026-09-21. Owner amendment r3 in owner-closeout-r3.md explicitly transfers only the native Windows desktop activation/--new-window observation to standalone BPR-0980; no failed or unjudged observation becomes a pass and no other criterion is weakened or waived. BPR-0242 is not this pack's work, RFC-BPR-0018 follow-ups BPR-0974/0975 remain independent, live station checkouts are protected, and no live GitHub/GHES mutation is authorized. Stop at this milestone boundary."
     },
     {
       "id": "plan-rfc-0025",
@@ -105,8 +117,11 @@
     },
     {
       "id": "close-rfc-0025",
-      "outcome": "RFC-BPR-0025's allocated slices are implemented and the RFC is verified and closed against its immutable baseline.",
+      "outcome": "RFC-BPR-0025's one allocated slice, resident fuzzy filters with retained selection in the repositories and files drawers (BPR-0981), is implemented and directly verified, and the RFC is verified and closed against its immutable baseline with every criterion row carrying direct evidence or its recorded RFC-BPR-0028 superseding decision.",
       "work": [
+        {
+          "issue": "BPR-0981"
+        },
         {
           "issue": "BPR-0597"
         }
@@ -118,7 +133,7 @@
         "Every allocated RFC-BPR-0025 slice is Done and every criterion row records direct evidence or its superseding decision",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0025 and the index are reconciled to the closed status"
       ],
-      "boundary": "The RFC-BPR-0025 closeout and the slices BPR-0596 allocates"
+      "boundary": "The RFC-BPR-0025 closeout and the one slice BPR-0596 allocated under the 2026-09-22 planning reconciliation (rfc-0025-planning-reconciliation.md): BPR-0981 resident fuzzy filters, parent retention, explicit empty/clear state and semantic selection restoration in both drawers with zero provider effect. Browser-style file tabs and the RFC-0025 layout/focus-mode chrome stay superseded or unscheduled under the owner-locked RFC-BPR-0028 direction and are recorded per criterion as such, never as passed; no other criterion is weakened or waived, and no live GitHub/GHES mutation is authorized. Stop at this milestone boundary."
     },
     {
       "id": "plan-rfc-0026",

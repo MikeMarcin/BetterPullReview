@@ -46,6 +46,10 @@ endfunction()
 # github_application.cpp; the review is recorded on BPR-0933.
 # BPR-0982 reseal: the main.cpp self-test CLI course follows the discovered
 # CLI entry (BPR-0909); no product path changes. Review recorded on BPR-0982.
+# Merge reseal (codex/rfc-0018-0026-closeout into main): the branch's
+# 8d072d14 and 9210330a are reviewed on BPR-0976 and BPR-0977; 6f8e44e4
+# changes only the BPR_BUILD_TESTING fixture desktop factory, reviewed on
+# BPR-0978; main's 12d032cf and 841999ad are covered above. No other change.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -64,7 +68,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"827fad211026353d116a6c7912d85c93724de0216f6b7fb7d948ae6ec2cc111a"
+		"f5969358548bada10b843bb8e5c39a3dd106bb8e6305c9630d5aafc5b5ccf0d3"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -199,7 +203,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b6949ba1ea8c67e0d9d2199e7b8e95e9d1c243e487494b51cd67d06e2c7b4fc0"
+        "a1bbb0cfd9b83dcb6249cc00ed4fdeeb307d49916ac7b22dc421024ee5bedb3f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

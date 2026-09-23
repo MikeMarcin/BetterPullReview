@@ -90,6 +90,22 @@ namespace bpr::core {
 			State.NextRequest = aNext;
 		}
 	}
+	auto github_window_read::share_snapshot(const github_window_read& aSource, const std::uint64_t aSequence) noexcept -> bool
+	{
+		const auto& source = aSource.State;
+		if (!Session || !aSource.Session || *Session != *aSource.Session
+			|| Window.Profile != aSource.Window.Profile
+			|| aSequence == 0U || aSequence <= SharedSnapshotSequence
+			|| !State.AcceptedSnapshot || !source.AcceptedSnapshot
+			|| State.PendingPullRequest || source.PendingPullRequest
+			|| State.Repository != source.Repository || State.PullRequest != source.PullRequest
+			|| State.ActiveLocator != source.ActiveLocator || State.ActiveNumber != source.ActiveNumber) {
+			return false;
+		}
+		SharedSnapshotSequence = aSequence;
+		State.AcceptedSnapshot = source.AcceptedSnapshot;
+		return true;
+	}
 	auto github_window_read::accept_overview_observation(const bpr_window_context            aWindow,
 														 const pull_request_request_context& aRequest) noexcept -> bool
 	{

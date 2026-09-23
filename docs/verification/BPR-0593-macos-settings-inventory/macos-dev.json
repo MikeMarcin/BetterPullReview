@@ -1,0 +1,2433 @@
+{
+  "build" : "macos-dev",
+  "categories" : [
+    "General",
+    "Accounts & hosts",
+    "Reviews & queue",
+    "Appearance",
+    "Notifications",
+    "Agents & context",
+    "Storage & privacy"
+  ],
+  "executable_sha256" : "b6ae3791a26e6278e92b492c519148c33b1ee546b46e2f69564b511e0d59ade9",
+  "native_checks" : [
+    "Preferences menu has Command-comma equivalent",
+    "Preferences opens Settings — Default profile",
+    "modeless workbench focus with Settings visible",
+    "Command-comma reuses the Settings identity",
+    "Escape hides; Command-comma reopens one profile-labelled Settings",
+    "native same-profile New Window",
+    "sibling menu reuses Settings; sibling shortcut reopens one Settings",
+    "closing sibling preserves Settings",
+    "seven categories reached by keyboard in order",
+    "native close and Preferences reopen one Settings",
+    "native Quit terminates"
+  ],
+  "pages" : [
+    {
+      "category" : "General",
+      "index" : 0,
+      "nodes" : [
+        {
+          "depth" : 0,
+          "enabled" : true,
+          "name" : "Settings page",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "General",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Installed: 0.1.3   Available: Unavailable",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Self-update requires a trusted production installation. Use the release page to update manually.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "No successful check yet",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Automatically check for updates",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "No release access account selected",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Choose release access separately from the repository you review. Sign in with native GitHub.com authentication in Accounts & hosts to add an account here.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Update preferences are saved for this application.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Check for Updates…",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Download Update",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Later",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Skip This Version",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Cancel Download",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Install and Restart",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "View Release",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXStaticText"
+        }
+      ]
+    },
+    {
+      "category" : "Accounts & hosts",
+      "index" : 1,
+      "nodes" : [
+        {
+          "depth" : 0,
+          "enabled" : true,
+          "name" : "Settings page",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Accounts & hosts",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "One account per server. Credentials are never shown here.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Host",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Server kind and transport",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Connection state",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "?",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Account",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Sign-in terms",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Sign in to github.com",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Show details for github.com",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Capabilities, rate limits and the last problem.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Use GitHub CLI",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Add enterprise server",
+          "state" : "",
+          "type" : "AXButton"
+        }
+      ]
+    },
+    {
+      "category" : "Reviews & queue",
+      "index" : 2,
+      "nodes" : [
+        {
+          "depth" : 0,
+          "enabled" : true,
+          "name" : "Settings page",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reviews & queue",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Local behaviour only. Nothing here changes assignments or subscriptions on GitHub.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Modality rules",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset modality rules",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "A pull request opens in",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "A pull request opens in: Overview",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "A pull request opens in: Read",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "A pull request opens in: Last used",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Continue review enters",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Continue review enters: Read",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Continue review enters: Review",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reading",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset reading",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Mark a file read",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Mark a file read: By hand",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Mark a file read: When fully seen",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "On return, compare",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "On return, compare: Whole PR",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "On return, compare: Since my last review",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "On return, compare: Since last upload",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Comments drawer opens on",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Comments drawer opens on: All",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Comments drawer opens on: Unread",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Comments drawer opens on: Unresolved",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Drawers",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset drawers",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Drawer controls",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Drawer controls: Hidden",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Drawer controls: Shown",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Queue defaults",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Role: any",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Role",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Observer: any reason",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Observer reason",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Bucket: any",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Attention",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Repository: any",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Repository",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "State: any",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Quiet reviews",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Sort: core priority",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Sort",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "Reset queue defaults",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Queue settings status",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Observer rules",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Saved observer rules",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "repository",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Observer rule pattern",
+          "state" : "",
+          "type" : "AXTextField"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Exclude matching rule",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Add local observer rule",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Remove selected observer rule",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Saved repositories",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Saved repositories list",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Repository to save",
+          "state" : "",
+          "type" : "AXTextField"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Save repository",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Remove saved repository",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXScrollBar"
+        }
+      ]
+    },
+    {
+      "category" : "Appearance",
+      "index" : 3,
+      "nodes" : [
+        {
+          "depth" : 0,
+          "enabled" : true,
+          "name" : "Settings page",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Appearance",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Changes apply as you make them and show in the review window behind this one.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Theme",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset appearance mode",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXScrollBar"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Type",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset type",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Interface font",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About interface font",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : ".AppleSystemUIFont",
+          "state" : "",
+          "type" : "AXComboBox"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXTextField"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Interface size",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About interface size",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Interface font size, in points",
+          "state" : "",
+          "type" : "AXIncrementor"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Interface weight",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About interface weight",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Interface font weight",
+          "state" : "",
+          "type" : "AXIncrementor"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Line height",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About line height",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Interface line height, percent",
+          "state" : "",
+          "type" : "AXIncrementor"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code font",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About code font",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Menlo",
+          "state" : "",
+          "type" : "AXComboBox"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXTextField"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code size",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About code size",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code font size, in points",
+          "state" : "",
+          "type" : "AXIncrementor"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code weight",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About code weight",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code font weight",
+          "state" : "",
+          "type" : "AXIncrementor"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Tab width",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About tab width",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Tab width 2",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Tab width 4",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Tab width 8",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Ligatures",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About ligatures",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Ligatures",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Bold syntax emphasis",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About bold syntax emphasis",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Bold syntax emphasis",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Italic syntax emphasis",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About italic syntax emphasis",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Italic syntax emphasis",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Preview",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Files",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "12 of 40 read",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Engine/Source/Runtime/Renderer",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code preview",
+          "state" : "",
+          "type" : "AXTextArea"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Interface 13 pt, weight 400, line height 100 %. Code 10 pt, weight 400, tabs of 4, ligatures off, bold and italic emphasis on. Diff, selection and current-line colours from Dark.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Colours for Dark",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Import theme",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Export saved theme",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset all colours",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Edits change Dark only. Each theme keeps its own colours.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Filter roles",
+          "state" : "",
+          "type" : "AXTextField"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Surfaces and text",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "7",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Application surface",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Application surface",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#1c2026",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Application text",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Application text",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#e6edf3",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#0d1117",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code gutter background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code gutter background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#141921",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code line number text",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code line number text",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#8b949e",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code selection background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code selection background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#28518c",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code current line background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Code current line background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#161c24",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "8",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff added background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff added background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#153622",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff removed background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff removed background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#3e1f1f",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff in-line added background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff in-line added background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#104a17",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff in-line removed background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff in-line removed background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#672323",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff moved background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff moved background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#2d1900",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff hunk header background",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff hunk header background",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#18212f",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff hunk header text",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff hunk header text",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#9fb6d4",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff group boundary rule",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Diff group boundary rule",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#808080",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Review states",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "6",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State unread",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State unread",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#58a6ff",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State accepted",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State accepted",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#3fb950",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State defect",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State defect",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#ff7b72",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State fixed",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State fixed",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#bc8cff",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State verified",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State verified",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#39c5b0",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State stale",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "State stale",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#8b949e",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "26",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax normal",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax normal",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#dcdcdc",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax keyword",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax keyword",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#6da9db",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax control flow",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax control flow",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#d8a0df",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax operator",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax operator",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#b4b4b4",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax builtin",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax builtin",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#6da9db",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax function",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax function",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#ff8000",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax variable",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax variable",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#bdb76b",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax type",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax type",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#ffd700",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax constant",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax constant",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#b8d7a3",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax number",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax number",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#b5cea8",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax string",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax string",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#d69d85",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax character",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax character",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#d69d85",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax escape sequence",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax escape sequence",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#ffd68f",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax comment",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax comment",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#66b559",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax documentation",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax documentation",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#66b559",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax annotation",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax annotation",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#8fbf72",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax macro",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax macro",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#ce8ad4",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax preprocessor",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax preprocessor",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#a3a3a3",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax import",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax import",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#a3a3a3",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax attribute",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax attribute",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#4ec9b0",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax region marker",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax region marker",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#a3a3a3",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax information",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax information",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#60b5ff",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax warning",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax warning",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#f0a03c",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax alert",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax alert",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#ff8ac7",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax error",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax error",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#f39b73",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax other",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Syntax other",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "#b1bac4",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXScrollBar"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Dif",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset Dif preferences",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Show Dif mascot",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About show dif mascot",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Show Dif mascot",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Dif motion",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "About dif motion",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "System",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Motion now",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Dif motion status",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Appearance settings status",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXScrollBar"
+        }
+      ]
+    },
+    {
+      "category" : "Notifications",
+      "index" : 4,
+      "nodes" : [
+        {
+          "depth" : 0,
+          "enabled" : true,
+          "name" : "Settings page",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Notifications",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Enable review notifications",
+          "state" : "On",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Pause notifications",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Notifications contain the repository, review number, attention category and unread count. They never include titles, source code or comment text. Choosing a notification selects that review in Home.\n\nYour operating system controls permission and presentation. BetterPullReview cannot confirm every system permission setting.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Preview for selected Home review",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Reset notification preferences",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Notification status",
+          "state" : "",
+          "type" : "AXStaticText"
+        }
+      ]
+    },
+    {
+      "category" : "Agents & context",
+      "index" : 5,
+      "nodes" : [
+        {
+          "depth" : 0,
+          "enabled" : true,
+          "name" : "Settings page",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Agents & context",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "The selected host determines which agent profiles are allowed. Choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Allowed agent profile for this request",
+          "state" : "",
+          "type" : "AXMenuButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Private notes included with this request",
+          "state" : "",
+          "type" : "AXList"
+        },
+        {
+          "depth" : 2,
+          "enabled" : true,
+          "name" : "",
+          "state" : "",
+          "type" : "AXColumn"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Include current private draft",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Allowed profile",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Private notes",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Private draft",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Use existing working copy for this request",
+          "state" : "Off",
+          "type" : "AXCheckBox"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Agent request scope",
+          "state" : "",
+          "type" : "AXStaticText"
+        }
+      ]
+    },
+    {
+      "category" : "Storage & privacy",
+      "index" : 6,
+      "nodes" : [
+        {
+          "depth" : 0,
+          "enabled" : true,
+          "name" : "Settings page",
+          "state" : "",
+          "type" : "AXGroup"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Storage & privacy",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Local data location",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Local application data location",
+          "state" : "",
+          "type" : "AXTextField"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Local data includes repository caches, retained review history, drafts, notes, receipts and preferences. Retained epochs remain until explicitly pruned; maintenance can remove revisions needed for an older comparison. Moving this storage location and global purge are not available in this build.",
+          "state" : "",
+          "type" : "AXStaticText"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "&Prune selected epochs",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Delete repository &cache",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : false,
+          "name" : "Cancel history &maintenance",
+          "state" : "",
+          "type" : "AXButton"
+        },
+        {
+          "depth" : 1,
+          "enabled" : true,
+          "name" : "Maintenance is limited to the selected review or repository cache and asks for confirmation. It does not change GitHub or your working copy. Basic diagnostics contain bounded operation metadata; advanced verbosity and export are not available here. Removing the application does not remove its local data folder or system credential entries. Use Accounts & Hosts to sign out of remembered device sessions.",
+          "state" : "",
+          "type" : "AXStaticText"
+        }
+      ]
+    }
+  ],
+  "platform" : "Version 26.6.2 (Build 25G83)",
+  "revision" : "19a3dfd71324d59c3f0f6e4c23ff3ffc3c69faf8",
+  "schema" : "bpr.settings-inventory.ax.v1",
+  "source" : "Native macOS AX tree below Settings page; keyboard sidebar navigation; editable values and descriptions omitted. AX combo titles can be current choices. No setting or sign-in action invoked."
+}

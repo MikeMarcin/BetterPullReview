@@ -41,7 +41,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// per-window table only. Home belongs to the window that shows it, so the
 	/// profile row does not carry it, and every default is the Home a
 	/// version-seven window already showed.
-	inline constexpr std::int64_t workbench_settings_schema_version = 8;
+	inline constexpr std::int64_t workbench_settings_schema_version = 9;
 
 	/// \brief Owns the durable workbench layout database.
 	///

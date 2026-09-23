@@ -396,7 +396,7 @@ state belong to the v001 rejection of 2026-09-07. Read as three findings:
 the strip (AC-01) is accepted; the files and the epoch line were unreachable
 because the signed-out open no longer reaches a comparison, bisected to
 `826fb871` and carded as
-[BPR-0715](../40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
+[BPR-0715](BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
 which is not this card's code; and the Home flow is owner direction under
 RFC-BPR-0026, registered as
 [BPR-0716](BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
@@ -410,7 +410,7 @@ head where BPR-0715 is fixed, in a session prepared again.
 Prepared again in
 [rfc-bpr-0028-attended-v003](../../verification/reviews/rfc-bpr-0028-attended-v003/operator-packet.md)
 on the bundle built at the
-[BPR-0715](../40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
+[BPR-0715](BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
 fix head (executable sha256 `9334b13a…`), candidate revision
 `app-release-9334b13a-2026-09-10.2`. The v002 rejection above stays bound
 to the v002 revision in the session history; the remaining criterion is

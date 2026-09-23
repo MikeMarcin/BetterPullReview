@@ -632,7 +632,15 @@ auto main(int aArgc, char** aArgv) -> int
 		home_lists_recent(*owner, firstContext, { 18, 17 });
 		resume_recent(*owner, firstContext, 17);
 		wait_for([&] { return github_application_fixture_access::held_window_read_terminals(*owner, firstContext) > 0U; }, "resumed read terminal is held before acceptance");
-		expect(first->showing_home(), "pending restoration leaves Home available for user navigation");
+		// [[BPR-0795]]. The owner rejected an opening read that stayed on Home:
+		// a pending read enters Overview's loading state at once. Home stays one
+		// enabled gesture away for user navigation, which the steps below take.
+		std::cerr << "pending-restoration home=" << first->showing_home()
+				  << " modality=" << static_cast<int>(first->current_modality())
+				  << " home-enabled=" << first->home_action()->isEnabled() << '\n';
+		expect(!first->showing_home() && first->current_modality() == qt::review_modality::overview
+				   && first->home_action()->isEnabled(),
+			   "pending restoration shows Overview loading and leaves Home available for user navigation");
 		if (phase == "auth-home") {
 			first->home_action()->trigger();
 			std::cerr << "home-after-gesture=" << first->showing_home() << '\n';

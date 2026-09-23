@@ -51,6 +51,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMoveEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
@@ -60,6 +61,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRectF>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalBlocker>
@@ -1087,7 +1089,29 @@ namespace bpr::qt {
 		Drawers[2].Panel = new workbench_drawer_panel{
 			core::workbench_drawer::repositories
 		};
-		RepositoriesTree = new repositories_tree_view{ Drawers[2].Panel };
+		// [[BPR-0981]]. Its filter above it, resident over the rows the queue
+		// projection already gave the tree; nothing here reaches a provider.
+		auto* const repositoriesSurface = new QWidget;
+		repositoriesSurface->setObjectName(QStringLiteral("workbenchRepositoriesSurface"));
+		auto* const repositoriesColumn = new QVBoxLayout{ repositoriesSurface };
+		repositoriesColumn->setContentsMargins(0, 0, 0, 0);
+		repositoriesColumn->setSpacing(2);
+		RepositoriesFilter = new QLineEdit{ repositoriesSurface };
+		RepositoriesFilter->setObjectName(QStringLiteral("repositoriesFilter"));
+		RepositoriesFilter->setAccessibleName(QStringLiteral("Filter pull requests"));
+		RepositoriesFilter->setAccessibleDescription(QStringLiteral(
+			"Show only repositories and pull requests whose name, title or number "
+			"contains these letters in order; a matching pull request keeps its repository"));
+		RepositoriesFilter->setPlaceholderText(QStringLiteral("Filter"));
+		RepositoriesFilter->setClearButtonEnabled(true);
+		repositoriesColumn->addWidget(RepositoriesFilter);
+		RepositoriesFilterNotice = new filter_empty_notice{
+			QStringLiteral("pull requests"), QStringLiteral("repositories"), repositoriesSurface
+		};
+		RepositoriesFilterNotice->hide();
+		repositoriesColumn->addWidget(RepositoriesFilterNotice);
+		RepositoriesTree = new repositories_tree_view{ repositoriesSurface };
+		repositoriesColumn->addWidget(RepositoriesTree, 1);
 		RepositoriesTree->set_saved_repository_dispatch(
 			[this](application::saved_repository_intent aIntent) {
 				if (SavedRepositoryDispatch && QueueReady) {
@@ -1097,7 +1121,14 @@ namespace bpr::qt {
 		RepositoriesTree->set_open_dispatch([this](const core::queue_item& aItem) {
 			open_pull_request_item(aItem);
 		});
-		Drawers[2].Panel->set_content_widget(RepositoriesTree, RepositoriesTree);
+		connect(RepositoriesFilter, &QLineEdit::textChanged, this, [this](const QString& aText) {
+			RepositoriesTree->set_filter(aText);
+			refresh_filter_notices();
+		});
+		connect(RepositoriesFilterNotice->clear_button(), &QAbstractButton::clicked, this, [this] {
+			RepositoriesFilter->clear();
+		});
+		Drawers[2].Panel->set_content_widget(repositoriesSurface, RepositoriesTree);
 		// [[BPR-0646]]. A rail is the collapsed drawer's one control, and
 		// pressing it is the same gesture as the strip's toggle: the action
 		// is triggered, and the core decides.
@@ -2022,11 +2053,18 @@ namespace bpr::qt {
 			FilesFilter = new QLineEdit{ filesSurface };
 			FilesFilter->setObjectName(QStringLiteral("filesFilter"));
 			FilesFilter->setAccessibleName(QStringLiteral("Filter files"));
-			FilesFilter->setAccessibleDescription(QStringLiteral("Show only files whose path contains this; their folders stay visible"));
+			// [[BPR-0981]]. The resident fuzzy match of RFC-BPR-0025.
+			FilesFilter->setAccessibleDescription(QStringLiteral(
+				"Show only files whose name or path contains these letters in order; their folders stay visible"));
 			FilesFilter->setPlaceholderText(QStringLiteral("Filter"));
 			FilesFilter->setClearButtonEnabled(true);
 			controls->addWidget(FilesFilter, 1);
 			surfaceColumn->addLayout(controls);
+			FilesFilterNotice = new filter_empty_notice{
+				QStringLiteral("files"), QStringLiteral("files"), filesSurface
+			};
+			FilesFilterNotice->hide();
+			surfaceColumn->addWidget(FilesFilterNotice);
 			FilesTree = new files_tree_view{ filesSurface };
 			surfaceColumn->addWidget(FilesTree, 1);
 			FilesTree->set_select_dispatch([this](const core::workbench_file_id& aFile) {
@@ -2045,6 +2083,10 @@ namespace bpr::qt {
 			});
 			connect(FilesFilter, &QLineEdit::textChanged, this, [this](const QString& aText) {
 				FilesTree->set_filter(aText);
+				refresh_filter_notices();
+			});
+			connect(FilesFilterNotice->clear_button(), &QAbstractButton::clicked, this, [this] {
+				FilesFilter->clear();
 			});
 			Drawers[0].Panel->host_beside_list(filesSurface, FilesTree);
 		}
@@ -3284,6 +3326,7 @@ namespace bpr::qt {
 		if (RepositoriesTree != nullptr) {
 			RepositoriesTree->apply(aProjection.Items, aProjection.SavedRepositories);
 			update_rail_summaries();
+			refresh_filter_notices();
 		}
 		// [[BPR-0660]], [[BPR-0774]]. A remembered server is its host's card,
 		// remembering exactly the record the queue keeps.
@@ -3946,6 +3989,9 @@ namespace bpr::qt {
 			// Home shows what was kept rather than what was asked for.
 			adopt_home_view(*aProjection.HomeView);
 		}
+		if (aProjection.Geometry) {
+			restore_geometry(*aProjection.Geometry);
+		}
 		if (aProjection.Drawers || aProjection.Layout || aProjection.Behaviour) {
 			apply_drawer_layout();
 		}
@@ -3996,6 +4042,7 @@ namespace bpr::qt {
 		Drawers[0].Panel->contents()->apply(rows);
 		if (FilesTree != nullptr) {
 			FilesTree->apply(rows);
+			refresh_filter_notices();
 		}
 		FileRowsPresent       = !rows.empty();
 		ApplyingFileSelection = false;
@@ -4666,6 +4713,7 @@ namespace bpr::qt {
 				FilesTree->apply(rows);
 			}
 			FilesTree->apply_overview(aProjection.Files);
+			refresh_filter_notices();
 			OverviewFileFactsDirty = false;
 			ApplyingFileSelection  = false;
 		}
@@ -5944,6 +5992,37 @@ namespace bpr::qt {
 		return FilesFilter;
 	}
 
+	auto workbench_window::files_filter_notice() const noexcept -> filter_empty_notice*
+	{
+		return FilesFilterNotice;
+	}
+
+	auto workbench_window::repositories_filter() const noexcept -> QLineEdit*
+	{
+		return RepositoriesFilter;
+	}
+
+	auto workbench_window::repositories_filter_notice() const noexcept -> filter_empty_notice*
+	{
+		return RepositoriesFilterNotice;
+	}
+
+	void workbench_window::refresh_filter_notices()
+	{
+		// An empty state is a filter that found nothing among rows that exist;
+		// an empty drawer with no filter says nothing new.
+		if (FilesFilterNotice != nullptr && FilesTree != nullptr && FilesFilter != nullptr) {
+			const auto filter = FilesFilter->text().trimmed();
+			FilesFilterNotice->set_filter(filter);
+			FilesFilterNotice->setVisible(!filter.isEmpty() && FilesTree->tree_model()->file_count() == 0U);
+		}
+		if (RepositoriesFilterNotice != nullptr && RepositoriesTree != nullptr && RepositoriesFilter != nullptr) {
+			const auto filter = RepositoriesFilter->text().trimmed();
+			RepositoriesFilterNotice->set_filter(filter);
+			RepositoriesFilterNotice->setVisible(!filter.isEmpty() && RepositoriesTree->tree_model()->rowCount() == 0);
+		}
+	}
+
 	auto workbench_window::central_splitter() const noexcept -> workbench_central_splitter*
 	{
 		return CentralSplitter;
@@ -6018,7 +6097,7 @@ namespace bpr::qt {
 			}
 		}
 		if (aUpdate.PullRequest.has_value()) {
-			apply_github_pull_request(*aUpdate.PullRequest);
+			apply_github_pull_request(*aUpdate.PullRequest, aUpdate.PreserveWindowNavigation);
 		}
 		for (const auto& diagnostic : aUpdate.HostDiagnostics) {
 			apply_github_host_diagnostic(diagnostic);
@@ -6112,7 +6191,7 @@ namespace bpr::qt {
 	}
 
 	void workbench_window::apply_github_pull_request(
-		const application::github_pull_request_projection& aPullRequest)
+		const application::github_pull_request_projection& aPullRequest, const bool aPreserveWindowNavigation)
 	{
 		const auto authority = std::to_string(aPullRequest.Profile.value()) + ":" + std::to_string(aPullRequest.Host.value()) + ":"
 			+ std::to_string(aPullRequest.Account.value()) + ":" + std::to_string(aPullRequest.Repository.value()) + ":" + std::to_string(aPullRequest.PullRequest.value());
@@ -6136,7 +6215,9 @@ namespace bpr::qt {
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
-		HomeRequested     = false;
+		if (!aPreserveWindowNavigation) {
+			HomeRequested = false;
+		}
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->set_pull_request_author(
 				QString::fromStdString(aPullRequest.AuthorLogin));
@@ -6149,6 +6230,14 @@ namespace bpr::qt {
 									  IdentityRepository,
 									  IdentityNumber,
 									  QString::fromStdString(aPullRequest.Title));
+		// [[BPR-0981]]. The repositories tree keeps the open pull request's
+		// row current, however it was opened, so a stale row cannot hold the
+		// current index and swallow the gesture that would open it.
+		if (RepositoriesTree != nullptr) {
+			RepositoriesTree->follow_open_pull_request(
+				aPullRequest.Owner + "/" + aPullRequest.RepositoryName,
+				static_cast<std::int64_t>(aPullRequest.Number.value()));
+		}
 		update_strip_identity();
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
@@ -6174,7 +6263,7 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
-		if (OpenOnOverview) {
+		if (OpenOnOverview && !aPreserveWindowNavigation) {
 			OpenOnOverview = false;
 			// [[BPR-0661]]. The modality is the reviewer's preference: the
 			// overview the design opens on, Read, or the one last used here.
@@ -6183,12 +6272,14 @@ namespace bpr::qt {
 		// [[BPR-0661]]. The drawer's first filter and the comparison on return
 		// are the reviewer's preferences too; the comparison waits until the
 		// history offers it.
-		FirstFilterApplied    = false;
-		ReturnComparisonAsked = false;
-		apply_first_comments_filter();
-		ReturnComparisonPending = Behaviour.ReturnComparison
-			!= application::review_return_comparison::whole_pr;
-		honour_return_comparison();
+		if (!aPreserveWindowNavigation) {
+			FirstFilterApplied    = false;
+			ReturnComparisonAsked = false;
+			apply_first_comments_filter();
+			ReturnComparisonPending = Behaviour.ReturnComparison
+				!= application::review_return_comparison::whole_pr;
+			honour_return_comparison();
+		}
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
 		// [[BPR-0657]]. Resolve is offered once the provider and the server
@@ -6248,6 +6339,9 @@ namespace bpr::qt {
 		IdentityOwner.clear();
 		IdentityRepository.clear();
 		IdentityNumber.clear();
+		if (RepositoriesTree != nullptr) {
+			RepositoriesTree->forget_open_pull_request();
+		}
 		update_strip_identity();
 		update_rail_summaries();
 		PullRequestPanel->clear();
@@ -7422,9 +7516,20 @@ namespace bpr::qt {
 			append(PullRequestPanel->body_editor());
 		}
 		// A collapsed drawer's rail is its one stop; hidden while expanded.
+		// [[BPR-0981]]. Each drawer's filter, its Clear filter (shown only in
+		// the empty state) and, for files, the order selector precede its tree.
 		append(Drawers[2].Panel->rail());
+		append(RepositoriesFilter);
+		if (RepositoriesFilterNotice != nullptr) {
+			append(RepositoriesFilterNotice->clear_button());
+		}
 		append(Drawers[2].Panel->focus_stop());
 		append(Drawers[0].Panel->rail());
+		append(FilesOrderSelector);
+		append(FilesFilter);
+		if (FilesFilterNotice != nullptr) {
+			append(FilesFilterNotice->clear_button());
+		}
 		append(Drawers[0].Panel->focus_stop());
 		// The line and its comparing menu first, then the two selectors on
 		// one grid row above their two exact OIDs, the row order the composed
@@ -7505,6 +7610,68 @@ namespace bpr::qt {
 		QMainWindow::resizeEvent(aEvent);
 		apply_strip_width();
 		update_dif_presentation();
+		dispatch_geometry();
+	}
+
+	void workbench_window::moveEvent(QMoveEvent* const aEvent)
+	{
+		QMainWindow::moveEvent(aEvent);
+		dispatch_geometry();
+	}
+
+	void workbench_window::set_geometry_dispatch(std::function<void(application::workbench_window_geometry)> aDispatch)
+	{
+		GeometryDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::restore_geometry(const application::workbench_window_geometry& aGeometry)
+	{
+		if (GeometryReady) {
+			return;
+		}
+		ApplyingGeometry = true;
+		if (application::valid(aGeometry) && aGeometry.Width != 0) {
+			auto  rectangle = QRect{ aGeometry.X, aGeometry.Y, aGeometry.Width, aGeometry.Height };
+			auto* target    = QGuiApplication::primaryScreen();
+			int   overlap   = 0;
+			for (auto* screen : QGuiApplication::screens()) {
+				const auto visible = rectangle.intersected(screen->availableGeometry());
+				const auto area    = visible.width() * visible.height();
+				if (area > overlap) {
+					target  = screen;
+					overlap = area;
+				}
+			}
+			if (target != nullptr) {
+				const auto available = target->availableGeometry();
+				// Keep the title/resize affordances reachable after a display is
+				// removed. The shell's minimum size remains authoritative on tiny
+				// displays; placement still keeps its upper edge visible.
+				rectangle.setWidth(std::clamp(rectangle.width(), minimumWidth(), std::max(minimumWidth(), available.width())));
+				rectangle.setHeight(std::clamp(rectangle.height(), minimumHeight(), std::max(minimumHeight(), available.height() - 32)));
+				rectangle.moveLeft(std::clamp(rectangle.x(), available.left(), std::max(available.left(), available.right() - rectangle.width() + 1)));
+				rectangle.moveTop(std::clamp(rectangle.y(), available.top() + 32, std::max(available.top() + 32, available.bottom() - rectangle.height() + 1)));
+			}
+			setGeometry(rectangle);
+			if (aGeometry.Maximized) {
+				setWindowState(windowState() | Qt::WindowMaximized);
+			}
+		}
+		ApplyingGeometry = false;
+		GeometryReady    = true;
+		dispatch_geometry();
+	}
+
+	void workbench_window::dispatch_geometry()
+	{
+		if (!GeometryReady || ApplyingGeometry || !GeometryDispatch || !isVisible() || isMinimized() || isFullScreen()) {
+			return;
+		}
+		const auto normal      = normalGeometry();
+		const auto observation = application::workbench_window_geometry{ normal.x(), normal.y(), normal.width(), normal.height(), isMaximized() };
+		if (application::valid(observation) && observation.Width != 0) {
+			GeometryDispatch(observation);
+		}
 	}
 
 	void workbench_window::showEvent(QShowEvent* const aEvent)
@@ -7518,6 +7685,7 @@ namespace bpr::qt {
 		// The native window exists once shown; the title text goes then.
 		hide_native_title_text(*this);
 		update_dif_presentation();
+		dispatch_geometry();
 	}
 
 	void workbench_window::update_rail_summaries()
@@ -7711,6 +7879,9 @@ namespace bpr::qt {
 	{
 		QMainWindow::changeEvent(aEvent);
 		switch (aEvent->type()) {
+		case QEvent::WindowStateChange:
+			dispatch_geometry();
+			break;
 		case QEvent::ActivationChange:
 			update_dif_presentation();
 			break;
@@ -7859,8 +8030,12 @@ namespace bpr::qt {
 		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
 		SettingsAction->setObjectName(QStringLiteral("openSettingsAction"));
 		SettingsAction->setMenuRole(QAction::PreferencesRole);
-		SettingsAction->setShortcut(QKeySequence::Preferences);
-		SettingsAction->setShortcutContext(Qt::ApplicationShortcut);
+		// Preferences has no standard binding on Windows/GNOME. Qt maps CTRL
+		// to Command on macOS; keep the explicit product shortcut on every host.
+		SettingsAction->setShortcut(QKeySequence{ Qt::CTRL | Qt::Key_Comma });
+		// Each workbench owns this action. Application scope makes sibling
+		// windows' identical shortcuts ambiguous instead of selecting the caller.
+		SettingsAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(SettingsAction);
 		ViewMenu->addSeparator();
 		ViewMenu->addAction(SettingsAction);

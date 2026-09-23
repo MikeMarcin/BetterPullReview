@@ -189,7 +189,9 @@ namespace bpr::application {
 		/// presentation is still the host's, so the window's accepted
 		/// snapshot and rate limits are adopted here after each read update.
 		/// Ignored for a window that is not attached.
-		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow);
+		/// Fresh provider acceptance also shares its server snapshot with
+		/// exact-authority siblings, leaving their epoch/navigation untouched.
+		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow, bool aFreshSnapshot = false);
 		// The provenance is the caller's statement about where the material
 		// came from, and only the device-authorization enrollment boundary
 		// says `device_grant`. It decides nothing about the session: it

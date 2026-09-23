@@ -33,6 +33,7 @@ add_library(
         src/conversation_cards_view.cpp
         src/repositories_drawer.cpp
         src/files_tree.cpp
+        src/resident_filter.cpp
         src/theme_preview_strip.cpp
         src/code_sample_painter.cpp
         src/type_preview.cpp

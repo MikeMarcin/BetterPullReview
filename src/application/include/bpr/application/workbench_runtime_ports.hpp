@@ -528,6 +528,23 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_drawer_controls::shown);
 	}
 
+	/// Window-local normal geometry in logical display coordinates. Zero size
+	/// means no saved placement. Qt observes screens and fits it for presentation.
+	struct workbench_window_geometry
+	{
+		std::int32_t X = 0, Y = 0, Width = 0, Height = 0;
+		bool         Maximized                                           = false;
+		auto         operator<=>(const workbench_window_geometry&) const = default;
+	};
+	[[nodiscard]] inline auto valid(const workbench_window_geometry& aGeometry) noexcept -> bool
+	{
+		return aGeometry == workbench_window_geometry{ }
+		|| (aGeometry.X >= -1'000'000 && aGeometry.X <= 1'000'000
+			&& aGeometry.Y >= -1'000'000 && aGeometry.Y <= 1'000'000
+			&& aGeometry.Width >= 64 && aGeometry.Width <= 16'384
+			&& aGeometry.Height >= 64 && aGeometry.Height <= 16'384);
+	}
+
 	/// \brief Describes the workbench layout settings record.
 	///
 	/// \details This is the whole durable workbench layout: the semantic drawer
@@ -551,6 +568,7 @@ namespace bpr::application {
 		/// [[BPR-0783]]. This window's Home view. It belongs to the window
 		/// alone: the profile's defaults do not store it.
 		home_view_state Home;
+		workbench_window_geometry Geometry;
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -566,6 +584,7 @@ namespace bpr::application {
 		std::uint32_t                FilesWidth = 320U, ConversationsWidth = 320U, RepositoriesWidth = 300U;
 		/// [[BPR-0783]].
 		home_view_state Home;
+		workbench_window_geometry Geometry;
 		auto            operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
@@ -577,13 +596,13 @@ namespace bpr::application {
 	[[nodiscard]] inline auto window_layout(const workbench_layout_settings& aSettings) -> workbench_window_layout
 	{
 		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
-				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home };
+				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home, aSettings.Geometry };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
 	{
 		return { aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
-				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home };
+				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home, aLayout.Geometry };
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
 	{
@@ -593,11 +612,12 @@ namespace bpr::application {
 			&& (aLayout.LineNumbers == core::workbench_line_numbers::shown || aLayout.LineNumbers == core::workbench_line_numbers::hidden)
 			&& (aLayout.OnePane == core::workbench_one_pane::disabled || aLayout.OnePane == core::workbench_one_pane::enabled)
 			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth)
-			&& valid(aLayout.Home);
+			&& valid(aLayout.Home) && valid(aLayout.Geometry);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
 	{
-		return valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults);
+		return valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
+			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ };
 	}
 	inline constexpr std::size_t maximum_workbench_window_layouts = 32U;
 	enum class workbench_settings_failure : std::uint8_t {
@@ -640,6 +660,7 @@ namespace bpr::application {
 			// structural, so no legacy window-bound port can carry one through.
 			auto defaults = window_layout(*loaded);
 			defaults.Home = { };
+			defaults.Geometry = { };
 			return workbench_profile_preferences{ loaded->Behaviour, defaults };
 		}
 		[[nodiscard]] virtual auto store_preferences(const workbench_profile_preferences& aPreferences,
@@ -718,6 +739,8 @@ namespace bpr::application {
 		/// first loaded and whenever the accepted view changes, and again when a
 		/// view was refused so Home reverts to what the host holds.
 		std::optional<home_view_state> HomeView;
+		/// Published once after this window's load, never as a sibling preference.
+		std::optional<workbench_window_geometry> Geometry;
 
 		auto operator<=>(const workbench_projection&) const = default;
 	};
@@ -735,7 +758,8 @@ namespace bpr::application {
 			&& !aProjection.Files.has_value()
 			&& !aProjection.Behaviour.has_value()
 			&& !aProjection.Refusal.has_value()
-			&& !aProjection.HomeView.has_value();
+			&& !aProjection.HomeView.has_value()
+			&& !aProjection.Geometry.has_value();
 	}
 
 	enum class workbench_host_failure : std::uint8_t {

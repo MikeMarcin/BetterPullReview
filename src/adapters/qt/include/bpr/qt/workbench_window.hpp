@@ -21,6 +21,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
+#include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -605,6 +606,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto files_tree() const noexcept -> files_tree_view*;
 		[[nodiscard]] auto files_order_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto files_filter() const noexcept -> QLineEdit*;
+		/// \brief [[BPR-0981]]. The files drawer's empty state under a filter.
+		[[nodiscard]] auto files_filter_notice() const noexcept -> filter_empty_notice*;
 		[[nodiscard]] auto central_splitter() const noexcept
 			-> workbench_central_splitter*;
 		[[nodiscard]] auto conversations_drawer() const noexcept
@@ -659,6 +662,7 @@ namespace bpr::qt {
 		/// of the panels that carry no name, and the window's own Filter once it
 		/// owns one. A group panel's collapse is not in it (Decisions (a)).
 		void set_home_view_dispatch(std::function<void(application::home_view_state)> aDispatch);
+		void set_geometry_dispatch(std::function<void(application::workbench_window_geometry)> aDispatch);
 		/// \brief [[BPR-0783]]. The Home view this window shows.
 		[[nodiscard]] auto home_view() const noexcept -> const application::home_view_state&;
 		/// \brief [[BPR-0783]]. Home's strip controls, shown while Home is and an
@@ -804,6 +808,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto repositories_drawer() const noexcept -> workbench_drawer_panel*;
 		[[nodiscard]] auto repositories_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto repositories_tree() const noexcept -> repositories_tree_view*;
+		/// \brief [[BPR-0981]]. The repositories drawer's filter and its empty state.
+		[[nodiscard]] auto repositories_filter() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto repositories_filter_notice() const noexcept -> filter_empty_notice*;
 		/// \brief [[BPR-0652]]. The observer-rule editor, on Reviews & queue.
 		[[nodiscard]] auto rules_editor() const noexcept -> QWidget*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
@@ -869,6 +876,7 @@ namespace bpr::qt {
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void moveEvent(QMoveEvent* aEvent) override;
 		void showEvent(QShowEvent* aEvent) override;
 		/// \brief [[BPR-0733]]. Reads Return on Home's recently viewed list.
 		///
@@ -879,6 +887,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
+		void                                                        restore_geometry(const application::workbench_window_geometry& aGeometry);
+		void                                                        dispatch_geometry();
+		std::function<void(application::workbench_window_geometry)> GeometryDispatch;
+		bool                                                        GeometryReady    = false;
+		bool                                                        ApplyingGeometry = false;
 		QString ProfileLabel = QStringLiteral("Default");
 		/// \brief Binds one primary action to its presentation wording.
 		///
@@ -909,12 +922,15 @@ namespace bpr::qt {
 		};
 
 		void build_primary_toolbar();
+		/// [[BPR-0981]]. Shows each drawer's empty state when its filter
+		/// leaves nothing, and hides it otherwise.
+		void refresh_filter_notices();
 		void build_central_surface();
 		void build_github_header();
 		void apply_github_transition(
 			const application::github_transition_projection& aTransition);
 		void apply_github_pull_request(
-			const application::github_pull_request_projection& aPullRequest);
+			const application::github_pull_request_projection& aPullRequest, bool aPreserveWindowNavigation);
 		void apply_github_content_command(
 			const core::github_command_projection& aCommand);
 		void apply_github_host_diagnostic(
@@ -1227,10 +1243,13 @@ namespace bpr::qt {
 		conversation_read_dispatch      ConversationReadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };
-		files_tree_view*                FilesTree          = nullptr;
-		QComboBox*                      FilesOrderSelector = nullptr;
-		QLineEdit*                      FilesFilter        = nullptr;
-		repositories_tree_view*         RepositoriesTree   = nullptr;
+		files_tree_view*                FilesTree                = nullptr;
+		QComboBox*                      FilesOrderSelector       = nullptr;
+		QLineEdit*                      FilesFilter              = nullptr;
+		filter_empty_notice*            FilesFilterNotice        = nullptr;
+		repositories_tree_view*         RepositoriesTree         = nullptr;
+		QLineEdit*                      RepositoriesFilter       = nullptr;
+		filter_empty_notice*            RepositoriesFilterNotice = nullptr;
 		std::vector<server_card*>       ServerCards;
 		QVBoxLayout*                    ServerCardColumn = nullptr;
 		QWidget*                        RulesEditor      = nullptr;

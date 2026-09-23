@@ -6189,6 +6189,109 @@ namespace {
 		}
 	}
 
+	void test_accepted_server_snapshots_fan_out_without_window_effects()
+	{
+		host_fixture fixture;
+		establish_native_session(fixture);
+		std::vector<std::shared_ptr<application::github_window_read_host>> windows;
+		std::array<recording_epoch_handoffs, 3>                            epochs;
+		std::array<std::size_t, 3>                                         publications{ };
+		bool                                                               detachDuringPublication = false;
+		std::function<void()>                                              supersedeDuringPublication;
+		for (std::size_t index = 0; index < 3; ++index) {
+			windows.push_back(std::make_shared<application::github_window_read_host>(
+				core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ index + 1 }, core::bpr_window_generation{ 1 } },
+				core::application_session_id{ 200 + index }, fixture.Provider, fixture.Lane,
+				[&, index](const application::github_window_read_update& aUpdate) {
+					if (aUpdate.Presentation.PullRequest) {
+						++publications[index];
+					}
+					fixture.Host.observe_attached_read(windows[index], aUpdate.Transition.AcceptedSnapshot.has_value());
+					if (index == 1 && supersedeDuringPublication && aUpdate.Presentation.PullRequest) {
+						auto supersede = std::exchange(supersedeDuringPublication, { });
+						supersede();
+					}
+					if (index == 1 && detachDuringPublication && aUpdate.Presentation.PullRequest) {
+						detachDuringPublication = false;
+						fixture.Host.detach_window(windows[2]->window());
+					}
+				},
+				&epochs[index]));
+			expect(fixture.Host.attach_window(windows.back()), "profile admits explicit snapshot subscribers");
+		}
+		const auto complete = [&](const std::size_t aIndex, const std::uint32_t aNumber, const std::uint64_t aRevision) {
+			windows[aIndex]->dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ aNumber } });
+			const auto read  = fixture.Provider.PullRequests.back();
+			auto       value = rich_snapshot(read.Request);
+			value.Snapshot   = core::provider_snapshot_id{ aRevision };
+			read.Completion(application::github_pull_request_success{ read.Request, value });
+			fixture.Lane.drain();
+		};
+		complete(0, 27, 100);
+		complete(1, 27, 101);
+		complete(2, 28, 102);
+		const auto unrelated            = windows[2]->accepted_snapshot();
+		const auto siblingState         = windows[1]->state();
+		const auto siblingEpochs        = epochs[1].Accepted.size();
+		const auto siblingInvalidations = epochs[1].Invalidated.size();
+		for (std::uint64_t revision = 103; revision < 106; ++revision) {
+			const auto beforeReads = fixture.Provider.PullRequests.size();
+			windows[0]->dispatch(core::refresh_pull_request_intent{ });
+			const auto read                                       = fixture.Provider.PullRequests.back();
+			auto       value                                      = rich_snapshot(read.Request);
+			value.Snapshot                                        = core::provider_snapshot_id{ revision };
+			value.IssueComments.front().Body                      = "Edited server post " + std::to_string(revision);
+			value.ReviewThreads.front().Resolved                  = revision % 2U != 0U;
+			value.ReviewThreads.front().ViewerResolvePermission   = value.ReviewThreads.front().Resolved
+				? application::github_permission_state::denied
+				: application::github_permission_state::allowed;
+			value.ReviewThreads.front().ViewerUnresolvePermission = value.ReviewThreads.front().Resolved
+				? application::github_permission_state::allowed
+				: application::github_permission_state::denied;
+			if (revision == 103) {
+				auto added    = value.IssueComments.front();
+				added.Comment = application::github_comment_id{ "new-server-post" };
+				value.IssueComments.push_back(added);
+			} else if (revision == 105) {
+				value.IssueComments.clear();
+			}
+			read.Completion(application::github_pull_request_success{ read.Request, value });
+			fixture.Lane.drain();
+			expect(windows[1]->accepted_snapshot() == windows[0]->accepted_snapshot()
+					   && windows[0]->accepted_snapshot() == value,
+				   "added, edited, deleted and resolve/reopen server observations reach sibling");
+			auto expected             = siblingState;
+			expected.AcceptedSnapshot = value.Snapshot;
+			expect(windows[1]->state() == expected && epochs[1].Accepted.size() == siblingEpochs
+					   && epochs[1].Invalidated.size() == siblingInvalidations
+					   && fixture.Provider.PullRequests.size() == beforeReads + 1,
+				   "fanout preserves sibling requests, navigation and epoch authority with no network loop");
+			expect(windows[2]->accepted_snapshot() == unrelated, "different PR cannot receive the shared observation");
+		}
+		windows[1]->dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ 29 } });
+		const auto pending = fixture.Provider.PullRequests.back();
+		complete(0, 27, 106);
+		expect(!windows[1]->accepted_snapshot(), "pending navigation cannot be overwritten by a sibling");
+		pending.Completion(application::github_pull_request_cancelled{ pending.Request });
+		fixture.Lane.drain();
+		complete(1, 27, 107);
+		complete(2, 27, 108);
+		supersedeDuringPublication = [&] { complete(2, 27, 110); };
+		complete(0, 27, 109);
+		for (const auto& window : windows) {
+			expect(window->accepted_snapshot()->Snapshot == core::provider_snapshot_id{ 110 },
+				   "a reentrant newer server observation supersedes the outer fanout in every window");
+		}
+		const auto thirdPublications = publications[2];
+		detachDuringPublication      = true;
+		complete(0, 27, 111);
+		expect(!windows[2]->accepted_snapshot() && publications[2] == thirdPublications,
+			   "reentrant detach invalidates a captured recipient before delivery");
+		fixture.Host.shutdown();
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent(), "server snapshot sharing creates no additional lifetime work");
+	}
+
 	void test_profile_authentication_shared_by_independent_windows()
 	{
 		host_fixture fixture;
@@ -6437,6 +6540,7 @@ namespace {
 
 auto main() -> int
 {
+	test_accepted_server_snapshots_fan_out_without_window_effects();
 	test_signed_out_explicit_windows_adopt_authentication_at_capacity();
 	test_explicit_first_detach_preserves_existing_legacy_reader();
 	test_profile_authentication_shared_by_independent_windows();

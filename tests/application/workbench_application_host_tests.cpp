@@ -857,6 +857,41 @@ namespace {
 			"a comparison replacement still rejects the in-flight selected-file terminal as stale");
 	}
 
+	// RFC-BPR-0025 AC-03, the one view RFC-BPR-0028 kept: a file chosen and
+	// the next and previous file each look their diff up under the one
+	// comparison the epoch host accepted. Navigation carries no comparison, so
+	// it changes the file and never retargets the pair.
+	void test_file_navigation_keeps_the_accepted_comparison()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U), file(3U) };
+		value.Host.observe(authority());
+		value.settle();
+
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.settle();
+		value.Host.apply(core::navigate_workbench_file_intent{
+			.Direction = core::change_navigation_direction::next });
+		value.settle();
+		value.Host.apply(core::navigate_workbench_file_intent{
+			.Direction = core::change_navigation_direction::previous });
+		value.settle();
+
+		const auto& requests = value.SelectedDiffs.Requests;
+		expect(requests.size() == 3U && requests[0].File.File == file(1U)
+				   && requests[1].File.File == file(2U) && requests[2].File.File == file(1U),
+			   "a file click, next file and previous file each look up the file they reached");
+		expect(std::ranges::all_of(requests,
+								   [](const application::workbench_selected_diff_request& aRequest) {
+									   return aRequest.Diff == selected_diff_context();
+								   }),
+			   "every lookup carries the exact accepted comparison: navigation never retargets the pair");
+		expect(value.SelectedProjections.Published.size() == 3U
+				   && value.SelectedProjections.Published.back().Key.File == file(1U)
+				   && value.SelectedProjections.Failed.empty(),
+			   "each navigation publishes its file's diff in the one view");
+	}
+
 	void test_selected_diff_replays_after_context_arrives_and_changes()
 	{
 		auto value               = selected_harness{ };
@@ -1470,6 +1505,38 @@ namespace {
 			   "draining layout terminals cannot republish a closing window");
 	}
 
+	void test_geometry_load_observation_and_orderly_drain()
+	{
+		auto       value                = harness{ };
+		const auto restored             = application::workbench_window_geometry{ -120, 90, 1100, 700, true };
+		value.Settings->Stored          = stored_layout();
+		value.Settings->Stored.Geometry = restored;
+		value.Host.restore();
+		value.Host.observe_geometry({ 1, 2, 900, 600, false });
+		value.settle();
+		expect(value.Host.layout().Geometry == restored && value.Settings->Stores == 0,
+			   "startup observations cannot overwrite an unread window record");
+		expect(value.Projections.Published.back().Geometry == restored,
+			   "the exact loaded native placement is published once");
+		const auto publications = value.Projections.Published.size();
+		value.Host.observe_geometry({ 2'000'000, 0, 900, 600, false });
+		value.Host.observe_geometry({ });
+		value.settle();
+		expect(value.Settings->Stores == 0, "out-of-bound and empty native observations cannot persist");
+		const auto latest = application::workbench_window_geometry{ 180, 140, 1000, 720, false };
+		value.Host.observe_geometry(latest);
+		value.Host.shutdown_orderly();
+		value.settle();
+		expect(value.Settings->Stored.Geometry == latest && value.Settings->Stored.FilesWidth == 500
+				   && value.Host.is_quiescent(),
+			   "Quit drains the last native geometry beside unchanged drawer layout");
+		expect(value.Projections.Published.size() == publications,
+			   "observing native geometry does not echo a resize or move to presentation");
+		value.Host.observe_geometry(restored);
+		value.settle();
+		expect(value.Settings->Stored.Geometry == latest, "closed window cannot replace durable placement");
+	}
+
 	void test_orderly_shutdown_drains_layout_at_request_capacity()
 	{
 		auto limits                = application::workbench_host_limits{ };
@@ -1697,11 +1764,17 @@ namespace {
 		durable.ProfileScoped = true;
 		durable.Stored        = stored_layout();
 		durable.Stored.Home   = home_view();
+		durable.Stored.Geometry = { 100, 100, 1100, 700, true };
 		auto harnessed        = harness{ { }, &durable };
 		harnessed.Host.restore();
 		harnessed.settle();
 		expect(harnessed.Host.layout().Home == application::home_view_state{ },
 			   "the profile's defaults record answers the default view whatever it held");
+		expect(harnessed.Host.layout().Geometry == application::workbench_window_geometry{ },
+			   "profile defaults cannot publish another window's native placement");
+		harnessed.Host.observe_geometry({ 80, 60, 900, 500, false });
+		harnessed.settle();
+		expect(durable.Stores == 0U, "native placement cannot be written through a profile-default port");
 
 		auto chosen     = home_view();
 		chosen.Grouping = application::home_grouping::account;
@@ -1713,7 +1786,8 @@ namespace {
 		harnessed.Host.resize(core::workbench_drawer::files, 480U);
 		harnessed.settle();
 		expect(durable.Stores == 1U && durable.Stored.FilesWidth == 480U
-				   && durable.Stored.Home == application::home_view_state{ },
+				   && durable.Stored.Home == application::home_view_state{ }
+				   && durable.Stored.Geometry == application::workbench_window_geometry{ },
 			   "a later defaults write carries the new width and no Home view");
 	}
 
@@ -1799,6 +1873,7 @@ auto main() -> int
 {
 	test_orderly_shutdown_flushes_latest_layout_serially();
 	test_orderly_shutdown_drains_layout_at_request_capacity();
+	test_geometry_load_observation_and_orderly_drain();
 	test_orderly_shutdown_failure_and_forced_escalation();
 	test_the_signed_out_authority_is_valid_and_a_half_named_one_is_not();
 	test_invalid_limits_are_rejected();
@@ -1807,6 +1882,7 @@ auto main() -> int
 	test_navigation_resolves_through_the_host_order();
 	test_selected_diff_lifecycle_is_exactly_once_and_typed();
 	test_selected_diff_replays_after_context_arrives_and_changes();
+	test_file_navigation_keeps_the_accepted_comparison();
 	test_actionability_refresh_preserves_selected_diff_identity();
 	test_failed_authority_refresh_clears_rows_and_old_selection();
 	test_exact_invalidation_clears_authority_bound_selection();

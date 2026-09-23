@@ -273,6 +273,9 @@ with current qualification gaps.
 
 ## Application updates
 
+The [Settings guide](docs/development/settings.md) describes all seven
+categories, their defaults, persistence, reset scopes and platform capabilities.
+
 On eligible production-signed macOS installations, **Check for Updates…** and
 General Settings share application-wide update preferences. Select native
 GitHub.com release access explicitly, then choose Download and Install and Restart

@@ -96,6 +96,10 @@ namespace bpr::application {
 		{
 			home_view_state View;
 		};
+		struct deferred_workbench_geometry
+		{
+			workbench_window_geometry Geometry;
+		};
 
 		struct deferred_workbench_preferences
 		{
@@ -120,7 +124,7 @@ namespace bpr::application {
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
-														deferred_workbench_behaviour, deferred_workbench_home_view,
+														deferred_workbench_behaviour, deferred_workbench_home_view, deferred_workbench_geometry,
 														deferred_workbench_preferences,
 														deferred_workbench_cancel,
 														deferred_workbench_shutdown, deferred_workbench_orderly_shutdown,
@@ -372,6 +376,8 @@ namespace bpr::application {
 						apply_behaviour_now(aTyped.Settings);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_home_view>) {
 						apply_home_view_now(aTyped.View);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_geometry>) {
+						observe_geometry_now(aTyped.Geometry);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_preferences>) {
 						accept_preferences(aTyped.Preferences);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_cancel>) {
@@ -787,6 +793,7 @@ namespace bpr::application {
 				// inherit without having chosen it.
 				auto defaults             = window_layout(Layout);
 				defaults.Home             = { };
+				defaults.Geometry         = { };
 				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults };
 				PendingPreferenceDefaults = true;
 				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
@@ -1092,6 +1099,16 @@ namespace bpr::application {
 		[[nodiscard]] auto current_home() const noexcept -> const home_view_state&
 		{
 			return HeldHome ? *HeldHome : Layout.Home;
+		}
+
+		void observe_geometry_now(const workbench_window_geometry& aGeometry)
+		{
+			if (Closing || !LayoutLoaded || profile_defaults_scoped() || !valid(aGeometry)
+				|| aGeometry.Width == 0 || Layout.Geometry == aGeometry) {
+				return;
+			}
+			Layout.Geometry = aGeometry;
+			submit_settings_store();
 		}
 
 		/// \brief [[BPR-0783]]. Accepts one window's Home view.
@@ -1416,11 +1433,13 @@ namespace bpr::application {
 				// Home, for the reason `submit_settings_store` gives.
 				auto defaults = window_layout(*aResult);
 				defaults.Home = { };
+				defaults.Geometry = { };
 				Preferences->adopt_loaded({ aResult->Behaviour, defaults });
 			}
 			Layout = *aResult;
 			if (profile_defaults_scoped()) {
 				Layout.Home = { };
+				Layout.Geometry = { };
 			}
 			if (PreferenceSubscription != 0 && Preferences->accepted()) {
 				Layout.Behaviour = Preferences->accepted()->Behaviour;
@@ -1554,6 +1573,10 @@ namespace bpr::application {
 			if (PublishedLayout != layout) {
 				projection.Layout = layout;
 			}
+			if (LayoutLoaded && !PublishedGeometry) {
+				projection.Geometry = valid(Layout.Geometry) ? Layout.Geometry : workbench_window_geometry{ };
+				PublishedGeometry   = true;
+			}
 			if (PublishedBehaviour != std::optional{ Layout.Behaviour } || RepublishBehaviour) {
 				projection.Behaviour = Layout.Behaviour;
 			}
@@ -1657,6 +1680,7 @@ namespace bpr::application {
 		/// [[BPR-0783]]. A Home view applied before this window's own record
 		/// loaded, waiting to be merged into it.
 		std::optional<home_view_state> HeldHome;
+		bool                           PublishedGeometry = false;
 		/// [[BPR-0783]]. Whether that record has arrived. Until it has, a
 		/// view is held rather than applied, and none is published.
 		bool LayoutLoaded = false;
@@ -1782,6 +1806,10 @@ namespace bpr::application {
 	void workbench_application_host::apply_home_view(home_view_state aState)
 	{
 		Implementation->enqueue(deferred_workbench_home_view{ .View = aState });
+	}
+	void workbench_application_host::observe_geometry(workbench_window_geometry aGeometry)
+	{
+		Implementation->enqueue(deferred_workbench_geometry{ .Geometry = aGeometry });
 	}
 
 	void workbench_application_host::cancel()

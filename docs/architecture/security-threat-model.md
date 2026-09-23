@@ -218,7 +218,8 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
 
 - No hosted BetterPullReview service.
 - No TCP/UDP server or local web service. The existing owner-authenticated,
-  owner-private AF_UNIX profile activation listener is the sole declared listener
+  owner-private AF_UNIX profile activation listener (on Windows, the equivalent
+  owner-private local named pipe, [[BPR-0979]]) is the sole declared listener
   exception under RFC-BPR-0014 mandate r3; it admits only bounded activation
   intents under the exact profile lease. It grants no network-service capability.
 - No embedded browser, HTML renderer, JavaScript runtime, CDN, remote font, analytics, or telemetry.

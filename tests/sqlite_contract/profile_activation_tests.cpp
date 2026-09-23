@@ -11,8 +11,18 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+	#include "bpr/adapters/sqlite/storage_root.hpp"
+	#if !defined(NOMINMAX)
+		#define NOMINMAX
+	#endif
+	#if !defined(WIN32_LEAN_AND_MEAN)
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#include <Windows.h>
+#else
 	#include <sys/socket.h>
 	#include <sys/stat.h>
 	#include <sys/un.h>
@@ -31,6 +41,18 @@ namespace {
 			std::cerr << "FAILED: " << aMessage << '\n';
 			std::exit(EXIT_FAILURE);
 		}
+	}
+	auto receive_request(const std::shared_ptr<bpr::application::profile_activation_server>& aServer) -> bpr::application::profile_activation_request
+	{
+		const auto until = std::chrono::steady_clock::now() + std::chrono::seconds{ 3 };
+		while (std::chrono::steady_clock::now() < until) {
+			if (auto request = aServer->receive()) {
+				return std::move(*request);
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		expect(false, "bounded request arrival");
+		std::abort();
 	}
 #if !defined(_WIN32)
 	// The geometry this contract has to reproduce. A real macOS profile root is
@@ -144,19 +166,6 @@ namespace {
 	{
 		int status = 0;
 		expect(::waitpid(aChild, &status, 0) == aChild && WIFEXITED(status) && WEXITSTATUS(status) == 0, "independent client terminal");
-	}
-
-	auto receive_request(const std::shared_ptr<bpr::application::profile_activation_server>& aServer) -> bpr::application::profile_activation_request
-	{
-		const auto until = std::chrono::steady_clock::now() + std::chrono::seconds{ 3 };
-		while (std::chrono::steady_clock::now() < until) {
-			if (auto request = aServer->receive()) {
-				return std::move(*request);
-			}
-			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
-		}
-		expect(false, "bounded request arrival");
-		std::abort();
 	}
 
 	void test_process_handoff()
@@ -294,12 +303,234 @@ namespace {
 		receive_request(*server).Reply->complete(outcome::queued);
 		await_child(child);
 	}
+#else
+	// [[BPR-0979]]. The Windows contract mirrors the POSIX one over the named
+	// pipe: authority, real independent client processes, hostile framing and a
+	// stalled peer. There is no stale-endpoint course because a pipe dies with the
+	// process that bound it; instead the name is shown bindable again after drain.
+	class scratch_directory
+	{
+	public:
+		scratch_directory()
+		{
+			Path = std::filesystem::temp_directory_path() / ("bpr-act-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(++Counter));
+			expect(std::filesystem::create_directory(Path), "make private scratch");
+			expect(make_storage_root_owner_private(Path), "private scratch root");
+			Path = std::filesystem::canonical(Path);
+		}
+		~scratch_directory()
+		{
+			std::error_code ignored;
+			std::filesystem::remove_all(Path, ignored);
+		}
+		scratch_directory(const scratch_directory&)                                      = delete;
+		auto                   operator=(const scratch_directory&) -> scratch_directory& = delete;
+		std::filesystem::path  Path;
+		static inline unsigned Counter = 0U;
+	};
+
+	/// \brief Polls the server for a while and requires that nothing is ever admitted.
+	void expect_nothing_admitted(const std::shared_ptr<bpr::application::profile_activation_server>& aServer, const std::chrono::milliseconds aWindow, std::string_view aMessage)
+	{
+		const auto until = std::chrono::steady_clock::now() + aWindow;
+		while (std::chrono::steady_clock::now() < until) {
+			expect(!aServer->receive(), aMessage);
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+	}
+	class process_handle
+	{
+	public:
+		explicit process_handle(HANDLE aValue = nullptr)
+			: Value(aValue)
+		{ }
+		~process_handle()
+		{
+			if (Value != nullptr) {
+				::CloseHandle(Value);
+			}
+		}
+		process_handle(const process_handle&)                    = delete;
+		auto operator=(const process_handle&) -> process_handle& = delete;
+		process_handle(process_handle&& aOther) noexcept
+			: Value(std::exchange(aOther.Value, nullptr))
+		{ }
+		auto operator=(process_handle&& aOther) noexcept -> process_handle&
+		{
+			if (this != &aOther) {
+				process_handle old{ std::exchange(Value, std::exchange(aOther.Value, nullptr)) };
+			}
+			return *this;
+		}
+		HANDLE Value;
+	};
+
+	auto launch_client(const std::filesystem::path& aRoot, const char* aIntent, const char* aExpected) -> process_handle
+	{
+		const auto          executable = std::filesystem::path{ BPR_ACTIVATION_TEST_EXECUTABLE }.wstring();
+		const auto          intent     = std::string{ aIntent };
+		const auto          expected   = std::string{ aExpected };
+		std::wstring        command    = L"\"" + executable + L"\" --client \"" + aRoot.wstring() + L"\" " + std::wstring{ intent.begin(), intent.end() } + L" " + std::wstring{ expected.begin(), expected.end() };
+		STARTUPINFOW        startup{ };
+		PROCESS_INFORMATION information{ };
+		startup.cb = sizeof(startup);
+		expect(::CreateProcessW(executable.c_str(), command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &information) != 0, "launch client");
+		::CloseHandle(information.hThread);
+		return process_handle{ information.hProcess };
+	}
+
+	void await_child(const process_handle& aChild)
+	{
+		DWORD code = 1U;
+		expect(::WaitForSingleObject(aChild.Value, 10000U) == WAIT_OBJECT_0 && ::GetExitCodeProcess(aChild.Value, &code) != 0 && code == 0U, "independent client terminal");
+	}
+
+	class raw_client
+	{
+	public:
+		explicit raw_client(const std::filesystem::path& aRoot)
+		{
+			// The fixture asks the product where the rendezvous is rather than assuming its name.
+			const auto endpoint = profile_activation_endpoint(aRoot);
+			expect(endpoint.has_value(), "raw client resolves the product's endpoint");
+			Value = ::CreateFileW(endpoint->c_str(), GENERIC_READ | GENERIC_WRITE, 0U, nullptr, OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
+			expect(Value != INVALID_HANDLE_VALUE, "raw connect");
+			DWORD mode = PIPE_READMODE_MESSAGE;
+			expect(::SetNamedPipeHandleState(Value, &mode, nullptr, nullptr) != 0, "raw client message mode");
+		}
+		~raw_client() { ::CloseHandle(Value); }
+		raw_client(const raw_client&)                    = delete;
+		auto operator=(const raw_client&) -> raw_client& = delete;
+		void send(const unsigned char* aBytes, const std::size_t aSize) const
+		{
+			DWORD written = 0U;
+			expect(::WriteFile(Value, aBytes, static_cast<DWORD>(aSize), &written, nullptr) != 0 && written == aSize, "hostile send");
+		}
+		HANDLE Value = INVALID_HANDLE_VALUE;
+	};
+
+	void test_authority()
+	{
+		const scratch_directory root;
+		const scratch_directory other;
+		const auto              endpoint = profile_activation_endpoint(root.Path);
+		expect(endpoint.has_value() && endpoint->wstring().starts_with(L"\\\\.\\pipe\\bpr-activate-"), "a private root resolves a local named pipe");
+		expect(profile_activation_endpoint(other.Path) != endpoint, "distinct roots resolve distinct pipes");
+		const auto unowned = profile_activation_endpoint(root.Path / "absent");
+		expect(!unowned && unowned.error() == profile_activation_endpoint_failure::root_refused, "a root this caller does not own resolves no endpoint");
+		auto lease = acquire_profile_runtime_lease(root.Path);
+		expect(lease.has_value(), "acquire lease");
+		expect(!make_profile_activation_server(root.Path, profile, { }), "null lease refused");
+		expect(!make_profile_activation_server(root.Path, profile, std::make_shared<bpr::application::profile_runtime_lease>()), "forged lease refused");
+		expect(!make_profile_activation_server(other.Path, profile, *lease), "wrong root lease refused");
+		auto server = make_profile_activation_server(root.Path, profile, *lease);
+		expect(server.has_value(), "bind admitted profile");
+		expect(!make_profile_activation_server(root.Path, profile, *lease), "duplicate listener refused");
+		lease->reset();
+		expect(!acquire_profile_runtime_lease(root.Path), "server retains lease");
+		server->reset();
+		expect(acquire_profile_runtime_lease(root.Path).has_value(), "lease released after server");
+		const auto missing = send_profile_activation(root.Path, profile, intent::activate);
+		expect(!missing && missing.error() == outcome::unavailable, "missing owner unavailable");
+		lease       = acquire_profile_runtime_lease(root.Path);
+		auto rebind = make_profile_activation_server(root.Path, profile, *lease);
+		expect(rebind.has_value(), "the drained name binds again");
+	}
+
+	void test_process_handoff()
+	{
+		const scratch_directory root;
+		const scratch_directory other;
+		auto                    lease      = acquire_profile_runtime_lease(root.Path);
+		auto                    otherLease = acquire_profile_runtime_lease(other.Path);
+		expect(lease && otherLease, "independent leases");
+		auto server      = make_profile_activation_server(root.Path, profile, *lease);
+		auto otherServer = make_profile_activation_server(other.Path, profile, *otherLease);
+		expect(server && otherServer, "independent endpoints");
+		const auto child   = launch_client(root.Path, "activate", "queued");
+		auto       request = receive_request(*server);
+		expect(request.Intent == intent::activate && !(*otherServer)->receive(), "exact profile route");
+		expect(!(*server)->receive(), "one pending request bound");
+		request.Reply->complete(outcome::queued);
+		request.Reply->complete(outcome::refused);
+		await_child(child);
+		const auto second    = launch_client(other.Path, "new-window", "refused");
+		auto       newWindow = receive_request(*otherServer);
+		expect(newWindow.Intent == intent::new_window && !(*server)->receive(), "new-window exact intent");
+		newWindow.Reply->complete(outcome::refused);
+		await_child(second);
+		const auto lost    = launch_client(root.Path, "new-window", "indeterminate");
+		auto       pending = receive_request(*server);
+		await_child(lost);
+		// Client has timed out; acknowledgement must neither fail loudly nor admit a retry.
+		pending.Reply->complete(outcome::queued);
+		const auto closing      = launch_client(root.Path, "activate", "indeterminate");
+		auto       closeRequest = receive_request(*server);
+		server->reset();
+		await_child(closing);
+		closeRequest.Reply->complete(outcome::queued);
+	}
+
+	void test_hostile_framing()
+	{
+		const scratch_directory root;
+		auto                    lease  = acquire_profile_runtime_lease(root.Path);
+		auto                    server = make_profile_activation_server(root.Path, profile, *lease);
+		expect(server.has_value(), "framing server");
+		const std::array<unsigned char, 17> valid{ 'B', 'P', 'R', 'A', 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
+		for (unsigned int test = 0; test < 6U; ++test) {
+			auto        bytes = valid;
+			std::size_t size  = 16U;
+			if (test == 0U) {
+				bytes[4] = 2U;
+			}
+			if (test == 1U) {
+				bytes[5] = 9U;
+			}
+			if (test == 2U) {
+				bytes[8] = 2U;
+			}
+			if (test == 3U) {
+				size = 17U;
+			}
+			if (test == 4U) {
+				size = 15U;
+			}
+			if (test == 5U) {
+				bytes[6] = 1U;
+			}
+			const raw_client client{ root.Path };
+			client.send(bytes.data(), size);
+			expect_nothing_admitted(*server, std::chrono::milliseconds{ 200 }, "hostile frame never admitted");
+		}
+		{
+			// Two messages of eight bytes are two frames, neither complete; message mode does not reassemble.
+			const raw_client client{ root.Path };
+			client.send(valid.data(), 8U);
+			client.send(valid.data() + 8U, 8U);
+			expect_nothing_admitted(*server, std::chrono::milliseconds{ 200 }, "split frame never admitted");
+		}
+		{
+			const raw_client client{ root.Path };
+			client.send(valid.data(), 16U);
+			auto request = receive_request(*server);
+			request.Reply->complete(outcome::queued);
+		}
+		{
+			const raw_client stalled{ root.Path };
+			expect_nothing_admitted(*server, std::chrono::milliseconds{ 50 }, "empty peer bounded");
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 2100 });
+			expect(!(*server)->receive(), "stalled peer expires");
+		}
+		const auto child = launch_client(root.Path, "activate", "queued");
+		receive_request(*server).Reply->complete(outcome::queued);
+		await_child(child);
+	}
 #endif
 }
 
 auto main(int aCount, char** aArguments) -> int
 {
-#if !defined(_WIN32)
 	if (aCount == 5 && std::string_view{ aArguments[1] } == "--client") {
 		const auto             result = send_profile_activation(aArguments[2], profile, std::string_view{ aArguments[3] } == "activate" ? intent::activate : intent::new_window);
 		const std::string_view expected{ aArguments[4] };
@@ -308,14 +539,8 @@ auto main(int aCount, char** aArguments) -> int
 	test_authority();
 	test_process_handoff();
 	test_hostile_framing();
+#if !defined(_WIN32)
 	test_stale_endpoint();
-#else
-	(void)aCount;
-	(void)aArguments;
-	expect(!make_profile_activation_server({ }, profile, { }), "Windows explicit unavailable");
-	expect(!send_profile_activation({ }, profile, intent::activate), "Windows client unavailable");
-	const auto endpoint = profile_activation_endpoint({ });
-	expect(!endpoint && endpoint.error() == profile_activation_endpoint_failure::platform_unsupported, "Windows has no native endpoint");
 #endif
 	std::cout << "profile-activation-tests:pass\n";
 }

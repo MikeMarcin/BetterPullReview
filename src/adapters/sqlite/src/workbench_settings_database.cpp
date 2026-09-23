@@ -21,14 +21,14 @@ namespace bpr::adapters::sqlite::detail {
 
 		/// \brief The widest table this store admits, in columns.
 		///
-		/// \details [[BPR-0783]]. `window_layout` reached seventeen columns when
-		/// the Home view joined it. `SQLITE_LIMIT_COLUMN` bounds a table
+		/// \details `window_layout` has twenty-two columns after native geometry
+		/// joined Home. `SQLITE_LIMIT_COLUMN` bounds a table
 		/// definition, the values of one INSERT, and the result of one `SELECT *`
-		/// alike, so below this a version-eight file could not even be parsed,
+		/// alike, so below this a version-nine file could not even be parsed,
 		/// let alone read: a column added later has to raise this in the same
 		/// schema step. Three admissible tables bound the whole enumerated
 		/// schema at three times this.
-		constexpr std::size_t MaximumTableColumns = 17U;
+		constexpr std::size_t MaximumTableColumns = 22U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -146,6 +146,15 @@ namespace bpr::adapters::sqlite::detail {
 		static_assert(static_cast<std::int64_t>(application::queue_quiet_filter::quiet) == 2);
 		static_assert(static_cast<std::int64_t>(application::queue_sort_order::pull_request_number) == 2);
 
+		// Version nine adds only window-local native placement. Zero dimensions
+		// keep older windows on the platform's initial placement.
+		constexpr std::string_view GeometryColumns
+			= ",geometry_x INTEGER NOT NULL DEFAULT 0 CHECK(geometry_x BETWEEN -1000000 AND 1000000),"
+			  "geometry_y INTEGER NOT NULL DEFAULT 0 CHECK(geometry_y BETWEEN -1000000 AND 1000000),"
+			  "geometry_width INTEGER NOT NULL DEFAULT 0 CHECK(geometry_width = 0 OR geometry_width BETWEEN 64 AND 16384),"
+			  "geometry_height INTEGER NOT NULL DEFAULT 0 CHECK(geometry_height = 0 OR geometry_height BETWEEN 64 AND 16384),"
+			  "geometry_maximized INTEGER NOT NULL DEFAULT 0 CHECK(geometry_maximized BETWEEN 0 AND 1)";
+
 		constexpr std::string_view MetaSql = "CREATE TABLE workbench_meta(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),schema_format INTEGER NOT NULL) STRICT";
 		[[nodiscard]] auto         window_table(const std::int64_t aVersion = workbench_settings_schema_version) -> std::string
 		{
@@ -159,6 +168,9 @@ namespace bpr::adapters::sqlite::detail {
 			sql.resize(sql.find(",open_modality"));
 			if (aVersion >= 8) {
 				sql += HomeColumns;
+			}
+			if (aVersion >= 9) {
+				sql += GeometryColumns;
 			}
 			return sql + ") STRICT";
 		}
@@ -221,7 +233,8 @@ namespace bpr::adapters::sqlite::detail {
 			statements.push_back(window_table());
 			if (aVersion >= 5) {
 				const auto windowColumns = std::string{ "window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width" }
-					+ (aVersion >= 7 ? ",one_pane" : "");
+					+ (aVersion >= 7 ? ",one_pane" : "")
+					+ (aVersion >= 8 ? ",home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort" : "");
 				statements.push_back("INSERT INTO window_layout(" + windowColumns + ") SELECT " + windowColumns + " FROM old_window_layout");
 				statements.emplace_back("DROP TABLE old_window_layout");
 			}
@@ -345,6 +358,14 @@ namespace bpr::adapters::sqlite::detail {
 						}
 					} else if (name == "files_width" || name == "conversations_width" || name == "repositories_width") {
 						if (value < application::minimum_workbench_drawer_width || value > application::maximum_workbench_drawer_width) {
+							return false;
+						}
+					} else if (name == "geometry_x" || name == "geometry_y") {
+						if (value < -1'000'000 || value > 1'000'000) {
+							return false;
+						}
+					} else if (name == "geometry_width" || name == "geometry_height") {
+						if (value != 0 && (value < 64 || value > 16'384)) {
 							return false;
 						}
 					} else if (value < 0 || value > stored_maximum(name)) {
@@ -502,11 +523,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to seven specifically,
+			// migration named here carries versions one to eight specifically,
 			// written out rather than derived from the constant, so a version
 			// this build has no step for is refused rather than handed to the
 			// wrong one.
-			if (*current < 0 || *current > 7) {
+			if (*current < 0 || *current > 8) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -940,7 +961,7 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(defaults.error());
 		}
 		const bounded_read_scope guard{ Handle, aStop };
-		auto                     statement = prepare(Handle, "SELECT files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort FROM window_layout WHERE window_id=?1");
+		auto                     statement = prepare(Handle, "SELECT files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort,geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized FROM window_layout WHERE window_id=?1");
 		const auto               key       = std::to_string(aWindow.value());
 		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
 			return std::unexpected(failure::integrity_failure);
@@ -952,7 +973,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (stepped != SQLITE_ROW) {
 			return std::unexpected(catalog_failure_from_sqlite_result(stepped));
 		}
-		for (int column = 0; column < 16; ++column) {
+		for (int column = 0; column < 21; ++column) {
 			if (sqlite3_column_type(statement->Value, column) != SQLITE_INTEGER) {
 				return std::unexpected(failure::integrity_failure);
 			}
@@ -981,10 +1002,17 @@ namespace bpr::adapters::sqlite::detail {
 		if (!home) {
 			return std::unexpected(home.error());
 		}
+		const application::workbench_window_geometry geometry{
+			static_cast<std::int32_t>(sqlite3_column_int64(statement->Value, 16)),
+			static_cast<std::int32_t>(sqlite3_column_int64(statement->Value, 17)),
+			static_cast<std::int32_t>(sqlite3_column_int64(statement->Value, 18)),
+			static_cast<std::int32_t>(sqlite3_column_int64(statement->Value, 19)),
+			sqlite3_column_int64(statement->Value, 20) != 0
+		};
 		const application::workbench_window_layout layout{ *files, *conversations, *repositories, *lines, *onePane,
 														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 2)),
 														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 3)),
-														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 6)), *home };
+														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 6)), *home, geometry };
 		if (!application::valid(layout)) {
 			return std::unexpected(failure::integrity_failure);
 		}
@@ -1020,12 +1048,14 @@ namespace bpr::adapters::sqlite::detail {
 			}
 		}
 		static_cast<void>(sqlite3_reset(existing->Value));
-		auto statement = prepare(Handle, "INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17) ON CONFLICT(window_id) DO UPDATE SET files_state=excluded.files_state,conversations_state=excluded.conversations_state,files_width=excluded.files_width,conversations_width=excluded.conversations_width,line_numbers=excluded.line_numbers,repositories_state=excluded.repositories_state,repositories_width=excluded.repositories_width,one_pane=excluded.one_pane,home_grouping=excluded.home_grouping,home_state_headers=excluded.home_state_headers,home_collapsed=excluded.home_collapsed,home_filter_owned=excluded.home_filter_owned,home_role=excluded.home_role,home_added_by=excluded.home_added_by,home_quiet=excluded.home_quiet,home_sort=excluded.home_sort");
+		auto statement = prepare(Handle, "INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort,geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22) ON CONFLICT(window_id) DO UPDATE SET files_state=excluded.files_state,conversations_state=excluded.conversations_state,files_width=excluded.files_width,conversations_width=excluded.conversations_width,line_numbers=excluded.line_numbers,repositories_state=excluded.repositories_state,repositories_width=excluded.repositories_width,one_pane=excluded.one_pane,home_grouping=excluded.home_grouping,home_state_headers=excluded.home_state_headers,home_collapsed=excluded.home_collapsed,home_filter_owned=excluded.home_filter_owned,home_role=excluded.home_role,home_added_by=excluded.home_added_by,home_quiet=excluded.home_quiet,home_sort=excluded.home_sort,geometry_x=excluded.geometry_x,geometry_y=excluded.geometry_y,geometry_width=excluded.geometry_width,geometry_height=excluded.geometry_height,geometry_maximized=excluded.geometry_maximized");
 		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
 			return std::unexpected(failure::integrity_failure);
 		}
-		std::array<std::int64_t, 16> values{ static_cast<std::int64_t>(aLayout.Files), static_cast<std::int64_t>(aLayout.Conversations), aLayout.FilesWidth, aLayout.ConversationsWidth, static_cast<std::int64_t>(aLayout.LineNumbers), static_cast<std::int64_t>(aLayout.Repositories), aLayout.RepositoriesWidth, static_cast<std::int64_t>(aLayout.OnePane) };
+		std::array<std::int64_t, 21> values{ static_cast<std::int64_t>(aLayout.Files), static_cast<std::int64_t>(aLayout.Conversations), aLayout.FilesWidth, aLayout.ConversationsWidth, static_cast<std::int64_t>(aLayout.LineNumbers), static_cast<std::int64_t>(aLayout.Repositories), aLayout.RepositoriesWidth, static_cast<std::int64_t>(aLayout.OnePane) };
 		std::ranges::copy(home_columns_of(aLayout.Home), values.begin() + 8);
+		const std::array<std::int64_t, 5> geometry{ aLayout.Geometry.X, aLayout.Geometry.Y, aLayout.Geometry.Width, aLayout.Geometry.Height, aLayout.Geometry.Maximized };
+		std::ranges::copy(geometry, values.begin() + 16);
 		for (std::size_t index = 0; index < values.size(); ++index) {
 			if (sqlite3_bind_int64(statement->Value, static_cast<int>(index + 2U), values[index]) != SQLITE_OK) {
 				return std::unexpected(failure::integrity_failure);

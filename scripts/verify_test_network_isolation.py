@@ -98,6 +98,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # make_storage_root_owner_private refusing the package temp root exactly as
     # the BPR-0806 profile rows do; both pass uncontained.
     "application_profile_multi_window_public_path": "dos-volume-name",
+    # [[BPR-0978]]. The same two-profile registry, private-root and fixture
+    # composition as the BPR-0806 profile rows above, so the same refusal;
+    # pinned by that shape, not yet measured contained on Windows.
+    "application_profile_two_account_isolation_public_path": "dos-volume-name",
     "application_setup_destination_public_path": "dos-volume-name",
     # BPR-0622: measured on JaegAW 2026-09-17. Contained, the canary course exits
     # 3 with no output at std::filesystem::canonical of its root argument, the
@@ -116,6 +120,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # Contained, std::filesystem::canonical of the test root (lease) or of the
     # Git executable (sparse cache) throws "Access is denied" and aborts.
     "sqlite_profile_runtime_lease": "dos-volume-name",
+    # [[BPR-0979]]. The activation contract now binds a real lease over the same
+    # canonical private root before creating its named pipe, and its public course
+    # composes the same profile roots as the BPR-0806 rows; both pinned by that
+    # shape, not yet measured contained on Windows.
+    "sqlite_profile_activation": "dos-volume-name",
+    "application_profile_activation_public_path": "dos-volume-name",
     # BPR-0813: measured on JaegAW 2026-09-17. Contained, the contract's scratch
     # root stops at `canonical: Access is denied.` of the temporary directory.
     "sqlite_private_store_open": "dos-volume-name",

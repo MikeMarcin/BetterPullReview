@@ -1,0 +1,175 @@
+# Settings
+
+Open Settings from the application menu, the Settings button, or `Command+,`
+on macOS (`Ctrl+,` on Windows and Linux). The title identifies the BPR profile
+being edited. Windows in the same profile share one modeless Settings window;
+opening it from another review brings that profile's window forward and supplies
+the invoking review's context. Another BPR profile has separate preferences.
+
+Choose a category in the sidebar. Each page scrolls within the window and keeps
+its position when you switch categories. Tab reaches controls below the visible
+area. Escape first belongs to an active editor, picker or confirmation; an
+unhandled Escape closes Settings and returns focus to the invoking window.
+
+Ordinary changes apply immediately after their owning host accepts them; there
+is no global Apply button. A refused change returns to the accepted value and
+shows its reason. Closing Settings cancels an uncommitted colour preview or
+pending import. It does not undo an accepted save or cancel a committed storage
+operation. If a store is unavailable, only that domain loses durable changes;
+where session changes remain possible, the page labels them session-only.
+
+## General
+
+New windows start on Home. Profile/window restoration is managed by the desktop
+lifecycle, not by an editable startup preference on this page. The present
+release-update panel is supplied by RFC-BPR-0035 and uses application-wide
+preferences even though Settings belongs to a profile. It explains unavailable
+platform or installation capabilities. See [Application updates and
+recovery](application-updates.md) for the defaults, explicit release-access
+account, checks, download, installation and cancellation behavior.
+
+## Accounts & hosts
+
+Each configured server has a card showing its connection state, account and
+available access. Details contains capability, rate-budget and diagnostic facts.
+Those facts describe the current session; they are not editable authority.
+Credentials are never shown or copied by the card.
+
+Use Sign in to open the dedicated sign-in flow. Supported GitHub.com device
+sign-in starts the code flow directly; the code and browser action remain
+reachable while waiting. Cancel discards that setup request. Manual token entry
+remains available, including for enterprise servers whose device flow is
+unavailable. GitHub CLI access, where supported, requires its own explicit trust
+choice. A pending PR destination resumes only after its exact host accepts
+authentication; cancelling setup keeps the existing review usable.
+
+Add enterprise server validates and remembers the hostname and optional account
+selection as local configuration. This does not grant access. Forget server
+confirms removal of that configuration; it does not remove remote data or sign
+out a session. Sign out removes the exact remembered device binding and its
+vault token slots. Manual-token sessions are session-only; device grants can
+survive orderly Quit and are revalidated on startup. Changing servers never
+reuses another host's credentials.
+
+Public preview is available on macOS for GitHub.com only. It has no authenticated
+viewer or publishing authority. Linux and Windows report it unavailable; GHES
+refuses it. CLI and native-device capabilities also depend on the selected
+platform and configured host. The page reports these limitations rather than
+silently selecting another transport.
+
+## Reviews & queue
+
+These choices change local review behavior, not GitHub assignments or
+subscriptions. Saved preferences belong to the current BPR profile.
+
+| Group | Default | Reset scope |
+|---|---|---|
+| Modality rules | Open on Overview; Continue enters Read | These two choices |
+| Reading | Mark read by hand; return comparison Whole PR; comments All | These three choices |
+| Drawers | Drawer controls Hidden | Drawer-control preference |
+| Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
+
+Observer rules match local repository, author or path facts. Add/remove changes
+the local rule and its matched membership. Saved repositories keep an exact
+host/account/repository choice; saving one is not a GitHub subscription or a
+promise of personal discovery. RFC-BPR-0026 owns automatic authored/requested
+review discovery. Removing a saved repository affects that local record only.
+Rule and repository controls explain unavailable storage or missing authority;
+failed saves preserve the accepted list.
+
+## Appearance
+
+System is the default mode. Explicit Light, Dark, High contrast system,
+High contrast light and High contrast dark choices are also available. Interface and code
+fonts start from the platform's respective native defaults; code tabs default
+to four spaces, ligatures off, and bold/italic syntax emphasis on. Type controls
+set family, size and weight independently for interface and code, plus interface
+line height and code options. The preview reports the accepted values.
+
+Each theme keeps its own customized semantic colours. Filter the colour-role
+list and choose a swatch to preview. Keep changes saves that theme's palette;
+Cancel or closing Settings discards the preview. Import validates a bounded
+theme document before previewing it. Export saved theme writes the accepted
+palette for the theme on screen, excluding unsaved previews. Theme files contain
+colour roles, not credentials, review content or an application-data archive.
+
+Reset appearance mode restores System. Reset type restores the platform-derived
+font defaults and code options. Reset all colours clears only the current
+theme's overrides. Other themes and unrelated preferences remain intact. Dif is
+shown by default with System motion; reduced or unobservable system motion uses
+the static pose. Its separate reset restores visibility and motion preferences.
+Appearance storage failure permits labelled session changes and returns to
+defaults after restart under the same failure.
+
+## Notifications
+
+Review notifications default enabled and not paused. These durable preferences
+are separate from operating-system permission. Reset notification preferences
+changes only enablement and pause; Reset queue defaults does not change them.
+
+Preview for selected Home review uses the existing notification path and reports
+whether a request was submitted. Submission does not prove that the system
+displayed a banner. Payloads contain repository, review number, attention category
+and unread count, without titles, source code or comment text. A notification
+can activate only its exact accepted review. Native delivery and activation may
+be unavailable or limited; the current tray implementation retains at most the
+first actionable payload in a process because the platform callback carries no
+per-message identity.
+
+## Agents & context
+
+Open a review to see the agent profiles its host permits. The profile, selected
+private notes, private draft and existing-working-copy choice apply to the next
+explicit request in that review; they are not saved as global defaults. Private
+context is included only when selected. Start and cancel remain in the review's
+agent panel. Settings cannot create an agent credential, broaden host policy or
+publish an agent's output. Unsupported launch capabilities remain explained.
+
+## Storage & privacy
+
+The local data location is read-only. It contains repository caches, retained
+history, drafts, notes, receipts and preferences. Relocation, all-profiles purge
+and automatic retention editing are not available here.
+
+Prune selected epochs and Delete repository cache use the current review's exact
+accepted scope and require confirmation. Cancel is the default choice; accepted
+maintenance follows its own cancellation boundary. Pruning can make an older
+comparison unavailable. These operations do not change GitHub or a developer
+working copy. They are separate from resetting preferences.
+
+RFC-BPR-0014 now supplies **Preview diagnostics** and **Export preview…**.
+The read-only preview contains classified bounded metadata, not the readable
+log, private text, credentials or crash memory. Export writes exactly those
+previewed bytes to a new local file and uploads nothing. Advanced verbosity
+controls remain separate RFC-BPR-0027 work.
+
+**Prepare diagnostic cleanup…** and **Prepare profile purge…** first warn that
+the selected profile and all its producers will stop before an exact inventory
+is captured. Preparation deletes nothing. The corresponding **Clear prepared
+diagnostics…** or **Purge prepared profile data…** action requires confirmation
+of that inventory. **Cancel maintenance** does not restart a stopped profile,
+and cannot reverse an operation past its commit boundary. Shared registry and
+updater data, sibling profiles, exports and documented empty roots/locks remain.
+Purge is not uninstall or secure erasure.
+
+The [storage, diagnostics and removal guide](storage-and-diagnostics.md) gives
+the exact scope, recovery rules and residuals. Native vault/crash/full-removal
+qualification remains with RFC-BPR-0038; visible controls are not evidence of
+those pending courses. Uninstalling the application retains local state and
+system credential entries. Sign out of remembered device sessions through
+Accounts & hosts before removal if you want those bindings removed.
+
+## Ownership and verification
+
+The [authority inventory](settings-authority-inventory.md) identifies the typed
+host, store, schema, reset and failure boundary for each group. The
+[RFC-0018 closeout](../issues/60-done/BPR-0593-close-rfc-0018.md) records
+which automated, native and attended claims have actually been verified. Later
+Accounts/Appearance and update work has its own acceptance; this guide does not
+turn those RFCs into closed work or imply release approval. The RFC-0014
+foundation dependency is accepted; its remaining qualification is RFC-0038.
+Owner amendment r2 closes the recorded Settings scope while BPR-0974 remains
+Blocked for the Windows Defender/security disposition, complete native course
+and current inventory, and BPR-0975 remains Blocked for the Linux native
+focus/lifetime course. The finding is not declared a false positive and the
+Linux inventory-only pass is not a complete native course.

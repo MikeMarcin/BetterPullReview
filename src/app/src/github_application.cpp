@@ -6189,7 +6189,7 @@ namespace bpr::app {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
 					Window->publish(aUpdate.Presentation);
-					Host->observe_attached_read(WindowRead);
+					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get());
 			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
@@ -6433,6 +6433,12 @@ namespace bpr::app {
 				[this](const application::home_view_state& aView) {
 					if (!Closing && WorkbenchHost != nullptr) {
 						WorkbenchHost->apply_home_view(aView);
+					}
+				});
+			Window->set_geometry_dispatch(
+				[this](const application::workbench_window_geometry& aGeometry) {
+					if (!Closing && WorkbenchHost != nullptr) {
+						WorkbenchHost->observe_geometry(aGeometry);
 					}
 				});
 			Window->set_saved_repository_dispatch(
@@ -14066,8 +14072,12 @@ namespace bpr::app {
 		auto       policy   = std::move(aOptions.EmptyDesktopPolicy);
 		aOptions.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
 		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
-            auto next = aProfile == options.Profile ? options : detail::github_public_path_fixture_options{};
+            auto next = aProfile == options.Profile || options.DistinctProfileAccounts ? options : detail::github_public_path_fixture_options{};
 			next.DifCatalog = options.DifCatalog;
+			if (aProfile != options.Profile && options.DistinctProfileAccounts) {
+				next.BeforeFilesPage = {};
+				next.SharedDeviceVault.reset();
+			}
             if (!aRoot.empty()) { next.ApplicationDataRoot = aRoot; next.GitExecutable = options.GitExecutable; }
             next.Profile = aProfile;
             next.ProfileLaunchIntent = aIntent;
@@ -14160,6 +14170,12 @@ namespace bpr::app {
 		const auto found = aApplication.Sessions.find(aContext);
 		if (found != aApplication.Sessions.end() && !found->second->Closing && found->second->ReadDecision) {
 			found->second->ReadDecision->hold(aHold);
+		}
+	}
+	void detail::github_application_fixture_access::stage_server_conversation(github_application& aApplication, std::string aThread, const bool aAddedAndResolved)
+	{
+		if (aApplication.Implementation->Fixture) {
+			aApplication.Implementation->Fixture->stage_server_conversation(std::move(aThread), aAddedAndResolved);
 		}
 	}
 	auto detail::github_application_fixture_access::held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t

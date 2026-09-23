@@ -6,6 +6,17 @@ record design and source ownership rather than implemented behavior; the
 closing section on the empty desktop records shipped behavior and says so.
 BPR-0595 is the acceptance ledger.
 
+## RFC-0024 r2 implementation continuation
+
+BPR-0976 now shares fresh validated server conversation snapshots through the
+profile/read hosts to exact-authority siblings. A content-only projection
+preserves their navigation and retained comparison; no Qt event bus or second
+provider read is involved. BPR-0977 adds bounded window-local native geometry
+to the existing layout row and serialized write lane. Its composed restart
+course checks distinct observed placements, immediate Quit, exact stable IDs,
+explicit Close, defaults isolation and unavailable storage; offscreen checks
+are not native focus/lifetime acceptance. Native gaps remain on its live card.
+
 ## Existing ownership
 
 | Surface | Current owner and consequence |
@@ -114,7 +125,29 @@ The owner's management host remains the sole window allocator. A sender has no
 runtime or window; bounded queued/refused/indeterminate results never authorize
 retry or lock stealing. Exact MRU reactivation, new-window admission, different
 profiles, lost endpoints and owner death use independent real fixture processes.
-Windows transport, oversized native socket addresses and packaged focus evidence
-remain unavailable/unverified. The global registry's existing compare-and-set conflicts still require explicit Reload
+BPR-0979 adds the Windows transport: an owner-private local named pipe bound
+under the same lease, same frame and same acknowledgement, with the peer
+process's token user checked on both ends and a second instance keeping the
+name bound while a request is pending. Its adapter contract and the public
+activation course pass on the Windows station at `1cd7f2f1` (2/2, real
+processes under the offscreen platform); the native Windows desktop
+observation of repeated launch and `--new-window` is deferred, unaccepted,
+to standalone BPR-0980 under owner amendment r3. Oversized POSIX socket
+addresses and packaged focus evidence remain unavailable/unverified. The global registry's existing compare-and-set conflicts still require explicit Reload
 Profiles before retry; this foundation does not add automatic cross-process
-preference synchronization, two-account acceptance or native package evidence.
+preference synchronization or native package evidence.
+
+BPR-0978 records the concurrent two-account course
+(`application_profile_two_account_isolation_public_path`): Default and a
+seeded Work profile run at once on one registry root, each signed in to the
+same fixture server as a different account (the fixture substitutes a
+distinct viewer id, node id and login for every non-Default profile when a
+course asks for `DistinctProfileAccounts`). The course reads the same pull
+request under both accounts, writes a reviewed-head receipt in each profile
+and checks the ledger rows directly under each private root and exact
+account, changes Work's appearance without moving Default's, and signs Work
+out while a Work refresh terminal is held: the release cannot revive Work's
+retired session, Default's vault slot, read lane, review and preferences are
+unchanged, and Default still refreshes afterwards. Replacing the ledger scope's
+account with a constant fails the course at the exact-account row, so the
+partition it checks is the product's, not the fixture's.

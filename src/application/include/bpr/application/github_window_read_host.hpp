@@ -13,6 +13,7 @@
 
 #include <functional>
 #include <memory>
+#include <span>
 
 namespace bpr::application {
 	class device_authorization_browser_port;
@@ -82,6 +83,9 @@ namespace bpr::application {
 		[[nodiscard]] auto retire(const github_profile_session& aSession) -> bool;
 		void               advance_request_floor(core::request_id aNext) noexcept;
 		void               dispatch(const core::github_window_read_event& aEvent);
+		/// Share one immutable accepted server observation with bounded sibling
+		/// readers. Does not fetch, move comparisons, or hand off another epoch.
+		void share_snapshot(std::span<const std::shared_ptr<github_window_read_host>> aWindows, std::uint64_t aSequence);
 		/// \brief Revalidates a displayed body gesture on the decision lane before the browser handoff.
 		[[nodiscard]] auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		void               cancel();

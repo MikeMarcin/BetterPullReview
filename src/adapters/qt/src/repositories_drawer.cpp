@@ -1,9 +1,11 @@
 #include "bpr/qt/repositories_drawer.hpp"
+#include "bpr/qt/resident_filter.hpp"
 
 #include <QFont>
 #include <QHeaderView>
 #include <QPainter>
 #include <QPalette>
+#include <QScopedValueRollback>
 #include <QStyle>
 #include <QStyleOptionViewItem>
 
@@ -74,12 +76,42 @@ namespace bpr::qt {
 		const std::span<const core::queue_item>              aItems,
 		const std::span<const application::saved_repository> aSaved)
 	{
+		Items.assign(aItems.begin(), aItems.end());
+		Saved.assign(aSaved.begin(), aSaved.end());
+		rebuild();
+	}
+
+	void repositories_tree_model::clear()
+	{
+		apply({ });
+	}
+
+	void repositories_tree_model::set_filter(const QString& aFilter)
+	{
+		const auto trimmed = aFilter.trimmed();
+		if (Filter == trimmed) {
+			return;
+		}
+		Filter = trimmed;
+		rebuild();
+	}
+
+	auto repositories_tree_model::filter() const noexcept -> const QString&
+	{
+		return Filter;
+	}
+
+	void repositories_tree_model::rebuild()
+	{
 		beginResetModel();
 		Repositories.clear();
-		const auto nodeFor = [this](const std::string& aHost, const std::string& aAccount, const std::string& aRepository) {
-			auto found = std::ranges::find_if(Repositories, [&](const repository_node& aNode) {
+		const auto findNode = [this](const std::string& aHost, const std::string& aAccount, const std::string& aRepository) {
+			return std::ranges::find_if(Repositories, [&](const repository_node& aNode) {
 				return aNode.Host == aHost && aNode.Account == aAccount && aNode.Repository == aRepository;
 			});
+		};
+		const auto nodeFor = [this, &findNode](const std::string& aHost, const std::string& aAccount, const std::string& aRepository) {
+			auto found = findNode(aHost, aAccount, aRepository);
 			if (found == Repositories.end()) {
 				Repositories.push_back(repository_node{
 					.Host       = aHost,
@@ -90,9 +122,24 @@ namespace bpr::qt {
 			}
 			return found;
 		};
+		// [[BPR-0981]]. A repository matches by name or host and keeps every
+		// row beneath; otherwise a pull request matches by title or number and
+		// keeps its repository row above it.
+		const auto repositoryShown = [this](const std::string& aHost, const std::string& aRepository) {
+			return Filter.isEmpty() || resident_filter_matches(text(aRepository), Filter)
+				|| resident_filter_matches(text(aHost), Filter);
+		};
+		const auto itemShown = [this, &repositoryShown](const core::queue_item& aItem) {
+			return repositoryShown(aItem.Ref.Host, aItem.Ref.Repository)
+				|| resident_filter_matches(text(aItem.Facts.Title), Filter)
+				|| resident_filter_matches(QStringLiteral("#%1").arg(aItem.Ref.Number), Filter);
+		};
 		// Home's order, repositories in the order they first appear in it.
-		const auto ordered = core::ordered_queue(aItems);
+		const auto ordered = core::ordered_queue(Items);
 		for (const auto& item : ordered) {
+			if (!itemShown(item)) {
+				continue;
+			}
 			auto found = nodeFor(item.Ref.Host, item.Ref.Account, item.Ref.Repository);
 			found->Items.push_back(item);
 			if (repository_needs_me(item.Bucket)) {
@@ -101,15 +148,15 @@ namespace bpr::qt {
 		}
 		// [[BPR-0659]]. Then every saved repository, after the ones with pull
 		// requests of interest: a saved one with nothing in it is an empty row.
-		for (const auto& saved : aSaved) {
-			nodeFor(saved.Host, saved.Account, saved.Repository)->Saved = true;
+		for (const auto& saved : Saved) {
+			const auto found = findNode(saved.Host, saved.Account, saved.Repository);
+			if (found != Repositories.end()) {
+				found->Saved = true;
+			} else if (repositoryShown(saved.Host, saved.Repository)) {
+				nodeFor(saved.Host, saved.Account, saved.Repository)->Saved = true;
+			}
 		}
 		endResetModel();
-	}
-
-	void repositories_tree_model::clear()
-	{
-		apply({ });
 	}
 
 	auto repositories_tree_model::index(const int aRow, const int aColumn, const QModelIndex& aParent) const
@@ -294,13 +341,25 @@ namespace bpr::qt {
 		return { };
 	}
 
+	auto repositories_tree_model::index_for(const std::string_view aRepository, const std::int64_t aNumber) const
+		-> QModelIndex
+	{
+		for (std::size_t repository = 0U; repository < Repositories.size(); ++repository) {
+			const auto& items = Repositories[repository].Items;
+			for (std::size_t row = 0U; row < items.size(); ++row) {
+				if (items[row].Ref.Repository == aRepository && items[row].Ref.Number == aNumber) {
+					return createIndex(static_cast<int>(row), name_column, static_cast<quintptr>(repository) + 1U);
+				}
+			}
+		}
+		return { };
+	}
+
 	auto repositories_tree_model::needs_me_count() const noexcept -> std::size_t
 	{
-		auto count = std::size_t{ 0U };
-		for (const auto& node : Repositories) {
-			count += node.NeedsMe;
-		}
-		return count;
+		return static_cast<std::size_t>(std::ranges::count_if(Items, [](const core::queue_item& aItem) {
+			return repository_needs_me(aItem.Bucket);
+		}));
 	}
 
 	auto repositories_tree_model::item_count() const noexcept -> std::size_t
@@ -484,19 +543,81 @@ namespace bpr::qt {
 		const std::span<const core::queue_item>              aItems,
 		const std::span<const application::saved_repository> aSaved)
 	{
+		const auto applying = QScopedValueRollback{ Applying, true };
 		Model->apply(aItems, aSaved);
 		expandAll();
+		restore_current();
 		update_saved_actions();
+	}
+
+	void repositories_tree_view::set_filter(const QString& aFilter)
+	{
+		const auto applying = QScopedValueRollback{ Applying, true };
+		Model->set_filter(aFilter);
+		expandAll();
+		restore_current();
+		update_saved_actions();
+	}
+
+	void repositories_tree_view::follow_open_pull_request(const std::string& aRepository, const std::int64_t aNumber)
+	{
+		// The row the reviewer chose here keeps its exact host and account.
+		if (Current.has_value() && Current->Repository == aRepository && Current->Number == aNumber) {
+			return;
+		}
+		Current             = core::pull_request_ref{ .Repository = aRepository, .Number = aNumber };
+		const auto applying = QScopedValueRollback{ Applying, true };
+		restore_current();
+	}
+
+	void repositories_tree_view::forget_open_pull_request()
+	{
+		if (!Current.has_value()) {
+			return;
+		}
+		Current.reset();
+		const auto applying = QScopedValueRollback{ Applying, true };
+		restore_current();
+	}
+
+	auto repositories_tree_view::current_pull_request() const noexcept -> const std::optional<core::pull_request_ref>&
+	{
+		return Current;
+	}
+
+	void repositories_tree_view::restore_current()
+	{
+		// The row is found again by the pull request's identity, exactly when
+		// it was chosen here and by repository and number when the window
+		// opened it; a filter that hides it leaves nothing current until it
+		// shows again.
+		auto index = QModelIndex{ };
+		if (Current.has_value()) {
+			index = Model->index_for(*Current);
+			if (!index.isValid()) {
+				index = Model->index_for(Current->Repository, Current->Number);
+			}
+		}
+		setCurrentIndex(index);
+		if (index.isValid()) {
+			scrollTo(index);
+		}
 	}
 
 	void repositories_tree_view::currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious)
 	{
 		QTreeView::currentChanged(aCurrent, aPrevious);
 		update_saved_actions();
+		if (Applying) {
+			return;
+		}
 		// A pull request row chosen by the reviewer opens it; a repository
 		// row is a heading and reports nothing.
-		if (const auto item = Model->item_at(aCurrent); item.has_value() && OpenDispatch) {
-			OpenDispatch(*item);
+		if (const auto item = Model->item_at(aCurrent); item.has_value()) {
+			Current = item->Ref;
+			if (OpenDispatch) {
+				OpenDispatch(*item);
+			}
 		}
 	}
 } // namespace bpr::qt

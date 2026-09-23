@@ -507,6 +507,57 @@ auto main(int aArgc, char** aArgv) -> int
 			   && windowB->comparison_surface()->selection() == noteSelectionB
 			   && windowB->comparison_surface()->shared_scrollbar()->value() == noteScrollB,
 		   "private-note fanout preserves independent comparisons and reading position");
+	// Change only fixture wire responses, then use the shipped Refresh gesture.
+	// The other window must update its rendered model without issuing a read or
+	// replaying its comparison/selection/scroll restoration.
+	const auto serverSnapshot = app::detail::github_application_fixture_access::large_review_snapshot(*owner, second);
+	expect(serverSnapshot && !serverSnapshot->ReviewThreads.empty()
+			   && !serverSnapshot->ReviewThreads.front().Comments.empty(),
+		   "server fanout course has an existing thread and root post");
+	const auto serverThread         = std::string{ serverSnapshot->ReviewThreads.front().Thread.value() };
+	const auto serverRoot           = "review-comment:" + std::string{ serverSnapshot->ReviewThreads.front().Comments.front().Comment.value() };
+	const auto serverThreadIdentity = "review-thread:" + serverThread;
+	// The retained Read selection is deliberately a different source line.
+	// Discuss shows the whole conversation, not only threads on that line.
+	windowA->modality()->action(qt::review_modality::discuss)->trigger();
+	expect(windowA->conversation_model()->index_for_id(serverRoot).isValid(), "Discuss renders the existing server root before refresh");
+	const auto siblingScroll = windowA->comparison_surface()->shared_scrollbar()->value();
+	const auto modelResets   = windowA->conversation_model()->statistics().ModelResets;
+	for (const auto addedAndResolved : { true, false }) {
+		if (!addedAndResolved) {
+			windowA->choose_home(true);
+		}
+		app::detail::github_application_fixture_access::stage_server_conversation(*owner, serverThread, addedAndResolved);
+		windowB->github_refresh_action()->trigger();
+		wait_for([&] {
+			const auto* model       = windowA->conversation_model();
+			const auto  rootIndex   = model->index_for_id(serverRoot);
+			const auto  threadIndex = model->index_for_id(serverThreadIdentity);
+			return windowB->session_panel()->status() == core::github_status::pull_request_ready
+				&& rootIndex.isValid() && threadIndex.isValid()
+				&& model->data(rootIndex, qt::github_conversation_model::body_role).toString()
+				== (addedAndResolved ? QStringLiteral("Edited server root") : QStringLiteral("Reopened server root"))
+				&& model->data(threadIndex, qt::github_conversation_model::resolved_role).toBool() == addedAndResolved
+				&& model->index_for_id("review-comment:PRRC_shared_server_reply").isValid() == addedAndResolved; },
+				 "public Refresh fans out added/edited/deleted posts and resolved/reopened state to rendered sibling", [&] {
+			const auto source = app::detail::github_application_fixture_access::large_review_snapshot(*owner, second);
+			const auto target = app::detail::github_application_fixture_access::large_review_snapshot(*owner, first);
+			std::cerr << "fanout phase=" << addedAndResolved << " source status=" << windowB->session_panel()->status_text()
+				<< " source=" << (source ? source->Snapshot.value() : 0U) << " target=" << (target ? target->Snapshot.value() : 0U)
+				<< " root=" << windowA->conversation_model()->data(windowA->conversation_model()->index_for_id(serverRoot), qt::github_conversation_model::body_role).toString().toStdString()
+				<< " thread=" << serverThread << '\n';
+			if (source && !source->ReviewThreads.empty()) {
+				std::cerr << "source root=" << source->ReviewThreads.front().Comments.front().Body
+					<< " resolved=" << source->ReviewThreads.front().Resolved << " posts=" << source->ReviewThreads.front().Comments.size() << '\n';
+			} });
+		expect(windowA->comparison_surface()->current_result() == comparisonA
+				   && windowA->comparison_surface()->selection() == noteSelectionA
+				   && windowA->comparison_surface()->shared_scrollbar()->value() == siblingScroll
+				   && windowA->conversation_model()->statistics().ModelResets == modelResets,
+			   "server fanout preserves sibling exact comparison, reading position and incremental model");
+		expect(windowA->showing_home() == !addedAndResolved,
+			   "shared server observations retain the sibling's explicit Home or Discuss destination");
+	}
 	submit(*windowB, 18);
 	wait_for([&] { return windowB->session_panel()->status() == core::github_status::pull_request_ready; }, "second window returns to its independent review");
 	select_file(*owner, *windowB);

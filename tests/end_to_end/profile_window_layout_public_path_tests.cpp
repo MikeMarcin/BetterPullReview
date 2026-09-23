@@ -16,6 +16,7 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QPushButton>
+#include <QScreen>
 #include <QThread>
 
 #include <array>
@@ -126,11 +127,19 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	const auto                   layoutUnavailable = QStringLiteral("The saved workbench layout is unavailable.");
 	std::array<std::uint64_t, 4> saved{ }; // A/B identities and chosen files widths.
+	std::array<QRect, 2>         geometry;
 	if (phase != "seed") {
 		std::ifstream input{ root / "layout-expectations.txt" };
 		for (auto& value : saved) {
 			input >> value;
 			expect(input.good() && value > 0, "seed expectations readable");
+		}
+		std::ifstream placements{ root / "geometry-expectations.txt" };
+		for (auto& rectangle : geometry) {
+			int x = 0, y = 0, width = 0, height = 0;
+			placements >> x >> y >> width >> height;
+			expect(placements.good() && width > 0 && height > 0, "seed native placement observations readable");
+			rectangle = { x, y, width, height };
 		}
 	}
 	auto options                      = app::detail::github_public_path_fixture_options{ };
@@ -250,12 +259,30 @@ auto main(int aArgc, char** aArgv) -> int
 				   && b->home_view().Collapsed == application::home_collapsed_panel::recently_viewed
 				   && b->home_view().Filter.Role == core::github_role::requested_reviewer,
 			   "B holds only its own");
+		const auto available = QGuiApplication::primaryScreen()->availableGeometry();
+		a->setGeometry(available.left(), available.top() + 50, a->minimumWidth(), std::max(a->minimumHeight(), std::min(500, available.height() - 160)));
+		b->setGeometry(available.left(), available.top() + 70, b->minimumWidth(), std::max(b->minimumHeight(), std::min(620, available.height() - 100)));
+		QApplication::processEvents();
+		geometry = { a->normalGeometry(), b->normalGeometry() };
+		expect(geometry[0] != geometry[1], "two native top-level placements are distinct");
+		std::ofstream placements{ root / "geometry-expectations.txt" };
+		for (const auto& rectangle : geometry) {
+			placements << rectangle.x() << ' ' << rectangle.y() << ' ' << rectangle.width() << ' ' << rectangle.height() << '\n';
+		}
+		placements.close();
+		expect(placements.good(), "observed native geometry saved before immediate Quit");
 		quitWindow = a;
 	} else {
 		const auto expected = phase == "restore" ? 2U : 1U;
 		wait_for([&] { return desktop->windows(core::default_bpr_profile_id).size() == expected; }, "retained window count");
 		auto* b = select_window(*desktop, saved[1]);
 		expect(b != nullptr, "surviving stable window");
+		wait_for([&] { return b->normalGeometry() == geometry[1]; }, "B restores its own native position and size before any review opens");
+		if (phase == "restore") {
+			auto* a = select_window(*desktop, saved[0]);
+			expect(a != nullptr, "A exists for native placement restoration");
+			wait_for([&] { return a->normalGeometry() == geometry[0]; }, "A restores its distinct native position and size");
+		}
 		open_review(*owner, *b, 18, true);
 		expect(!b->status_text().contains(layoutUnavailable), "a readable layout store reports no unavailable layout");
 		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B restores its own drawer state");
@@ -311,6 +338,7 @@ auto main(int aArgc, char** aArgv) -> int
 				}
 			}
 		}
+		b->setGeometry(geometry[1]);
 		quitWindow = b;
 	}
 	expect(quitWindow != nullptr, "Quit exact window available");

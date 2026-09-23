@@ -213,6 +213,8 @@ namespace bpr::app::detail {
 		core::profile_launch_intent ProfileLaunchIntent             = core::profile_launch_intent::activate;
 		/// Bounded recorded PR 17/18 reads, independently repeatable per request.
 		bool IndependentWindowReads = false;
+		/// Two same-server accounts selected only by the test-owned BPR profile.
+		bool DistinctProfileAccounts = false;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -714,6 +716,8 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication)
 			-> std::optional<application::github_pull_request_snapshot>;
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication, core::bpr_window_context aContext) -> std::optional<application::github_pull_request_snapshot>;
+		/// Change fake remote records; the course must still issue a public Refresh.
+		static void               stage_server_conversation(github_application& aApplication, std::string aThread, bool aAddedAndResolved);
 		static void               hold_window_read_terminal(github_application& aApplication, core::bpr_window_context aContext, bool aHold);
 		[[nodiscard]] static auto held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t;
 		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> diff_work_fixture_evidence;

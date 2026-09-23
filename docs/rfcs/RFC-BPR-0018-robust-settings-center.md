@@ -1,17 +1,98 @@
 ---
 id: "RFC-BPR-0018"
 title: "Robust Settings Center and Preference Ownership"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0014"]
 pack_version: "post-v2"
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"mandate_revision":"r2","deferred_followups":["BPR-0974","BPR-0975"]}
 ---
 
 # RFC-BPR-0018: Robust Settings Center and Preference Ownership
 
-## Current attended pointer, 2026-09-12
+## Owner amendment r2 — 2026-09-21
+
+The owner explicitly directs the remaining Windows Defender/security
+disposition and Linux native focus/lifetime limitation to standalone follow-up
+cards, then closes this RFC against the amended accepted scope. The
+[bounded mandate](plans/ux-redesign-pack-0028/owner-closeout-r2.md) and
+[[BPR-0593]] record the distinction between this acceptance change and actual
+observations. It is not a false-positive verdict, a Linux course pass or a
+release approval.
+
+[[BPR-0974]] remains Blocked for security-owner disposition of the exact
+quarantined Windows candidate, then its complete native menu/shortcut/lifetime
+course and current inventory refresh. [[BPR-0975]] remains Blocked for the
+Linux native focus/shortcut/lifetime course, preserving the bare-Qt control's
+reproduction. Their original obligations and failure evidence remain intact;
+neither card is a dependency of this amended closeout. Broader native package
+and release-security qualification remains RFC-0038/BPR-0960–0962.
+
+Only AC-01 and AC-11 terminal scope changes below. All other acceptance and
+candidate-bound Settings/Accounts/Appearance human verdicts are unchanged.
+The current Mac native course, exact shortcut regressions, baseline
+three-platform inventory and current Mac/Linux inventory refresh retain their
+direct evidence. RFC-0014's accepted foundation (`b7eb3722`, exact handoff
+`61907e20`) satisfies the canonical prerequisite. Prior checkpoints below are
+historical, not current blocking or status claims.
+
+**Status: Auto-Verified for the r2 accepted scope.** The closeout ledger retains
+all fourteen criterion/check/result/revision rows and exact earlier human
+verdicts. Current focused Settings checks pass 6/6, the workbench integration
+passes 1/1 and inventory comparison passes 11 tests; documentation/board and
+explicit closeout checks are recorded on BPR-0593. This status does not close
+BPR-0974/0975 or imply full Windows/Linux native-course or release acceptance.
+
+## Prior r1 reconciliation, 2026-09-21
+
+The ordered 0018 → 0024 → 0025 → 0026 closeout run adopts the existing
+`close-rfc-0018` milestone. Its twenty implementation/follow-up cards are Done;
+[[BPR-0593]] records current checks and remaining acceptance. The missing
+[Settings guide](../development/settings.md) now describes the composed
+categories, defaults, persistence, resets and platform limitations.
+
+The owner's planning amendment permits updating stale design context. The
+initial fragmentation described below is historical: all seven categories are
+composed, RFC-BPR-0024 supplies the profile-owned singleton, RFC-BPR-0032 revises
+Accounts & hosts, and RFC-BPR-0034 supplies the current Appearance page and
+per-theme palettes. Their accepted observations remain bound to their original
+candidates. RFC-BPR-0035 now owns the General page's application-wide updater;
+its separate release/platform acceptance is not implied by this Settings RFC.
+These ownership corrections change none of AC-01 through AC-14.
+
+The macOS Settings review below and the later Accounts/Appearance reviews are
+accepted. Windows/Linux packaged inventories are complete on [[BPR-0730]] and
+[[BPR-0731]]. The [2026-09-20 Mac capture and comparison](../verification/BPR-0593-macos-settings-inventory.md)
+now supplies the missing like-for-like native inventory at the Windows source
+revision: all seven pages match Windows/Linux actionable controls. Current Mac
+dev/release trees also match, and real Preferences/Command-comma/same-profile
+window courses pass. The required appearance restart contract is repaired and
+passes without production changes. The ledger still requires Windows/Linux
+native menu/shortcut courses and a current refresh of the later updater/CLI
+rows; neither is inferred from the baseline capture. On 2026-09-21 the merged
+RFC-BPR-0014 owner-amended foundation closeout (`b7eb3722`, exact handoff
+`61907e20`) satisfied that canonical dependency. RFC-0038 retains its full
+native/release-security qualification gaps; no release approval transfers to
+this RFC.
+
+The [native continuation](../verification/BPR-0593-native-settings-continuation.md)
+found and corrected the Windows/Linux standard-key omission: `2d3bdbdf` uses
+explicit Ctrl/Command-comma scoped to the invoking workbench. Current Mac's
+full native course and focused regressions pass. Current Mac/Linux inventories
+now include the updater, explicit CLI capability distinction and seven RFC-0014
+Storage & Privacy buttons. The Linux inventory-only course passes, but its
+complete native focus/lifetime course does not. Windows' corrected candidate
+was quarantined by Defender; no security bypass was attempted. The configured
+Ubuntu 26.04 station also fails the distribution producer's declared-baseline
+gate, already tracked by BPR-0961/RFC-0038, not added as a new Settings gate.
+Linux's current tests-OFF release-graph inventory supplies the same scope as
+the earlier accepted BPR-0731 capture. BPR-0593 is Blocked on Windows' full
+course/inventory and Linux's native focus/lifetime course, not on the now-closed
+RFC-0014. AC-01/AC-11 and RFC status
+remain unaccepted; prior human verdicts are preserved.
+
+## Accepted attended history, 2026-09-12
 
 The shared UX pack's latest prepared page is
 [RFC-BPR-0028 attended v011](../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md).
@@ -22,12 +103,15 @@ one-pane verdict remains bound to its own bundle. The initial fifteen-candidate
 included this RFC's macOS Settings candidate [[BPR-0683]] and its digest-bound
 offline page. Those decisions do not complete this RFC's Settings closeout. The bound
 `attended-preparation-pack-head` milestone and remaining exits are recorded
-on [[BPR-0593]]. This RFC remains Proposed.
+on [[BPR-0593]]. This history alone did not close the RFC; the r2 amendment
+above separately governs the terminal scope.
 
 ## Status and scope
 
-This is a deferred post-pack RFC. It does not alter the canonical fourteen-RFC
-sequence and blocks no pack-v2 implementation or closeout.
+This is an activated post-pack RFC with implementation and attended evidence.
+It does not alter the canonical fourteen-RFC sequence and blocks no pack-v2
+implementation or closeout. Owner amendment r2 bounds terminal acceptance;
+open BPR-0974/0975 preserve the remaining native obligations independently.
 
 **Implementation resumed by owner direction, 2026-09-07.**
 The product owner's 2026-09-04 daily-workbench amendment adds direct sign-in,
@@ -66,11 +150,11 @@ selection, retention, and diagnostics. Their ownership is intentionally split
 across core policy, application hosts, narrow stores, Qt presenters, and the
 composition root.
 
-The visible controls are not yet a coherent product surface. Appearance is
-embedded beside the review workbench; queue preferences live with queue
-controls; account and repository configuration occupy session chrome; other
-preferences are represented only by their immediate feature. This has four
-costs:
+At the registration baseline, the visible controls were not a coherent product
+surface. Appearance was embedded beside the review workbench; queue preferences
+lived with queue controls; account and repository configuration occupied session
+chrome; other preferences were represented only by their immediate feature.
+This had four costs:
 
 - reviewers cannot discover what is configurable or distinguish durable from
   session-only choices;
@@ -280,9 +364,11 @@ the sidebar, rebuild every page, or discard focus and selection.
   assignment, subscription, label, or review mutation.
 - Destructive storage/privacy actions name exact affected scopes, support
   cancellation before commitment, and produce secret-free completion evidence.
-- Automatic updates remain prohibited until RFC-BPR-0014 selects and verifies
-  an update mechanism. The reference application's update toggle is explicitly
-  not precedent.
+- Update controls require their own selected mechanism and verified authority.
+  RFC-BPR-0035 now owns the user-confirmed updater composed in General, with
+  installation/platform limits and remaining release qualification recorded in
+  its ledger. This Settings RFC grants no update or installation authority;
+  the reference application's update toggle is not precedent.
 
 ## Performance and resource limits
 
@@ -320,9 +406,15 @@ the sidebar, rebuild every page, or discard focus and selection.
 
 ## Acceptance criteria
 
-- AC-01: The shipped application exposes a native Settings action and one singleton,
-  modeless window per available BPR profile through platform-appropriate menus
-  and shortcuts, with the edited profile visibly identified.
+Owner amendment r2 changes only AC-01 and AC-11 terminal scope. Their original
+wording and unsatisfied native portions are retained immediately after this
+list. A transferred observation is not a passing observation.
+
+- AC-01: The shipped application exposes the profile-identified singleton Settings
+  window with explicit per-workbench Ctrl/Command-comma binding, verified by
+  the composed profile and four-scale key courses and the complete macOS native
+  menu/shortcut/window-lifetime course; remaining Windows and Linux native
+  courses are preserved as unaccepted standalone BPR-0974 and BPR-0975.
 - AC-02: All seven initial categories are present when their capabilities are composed,
   with stable sidebar/page/row identities and truthful unavailable states.
 - AC-03: Appearance is migrated from the embedded workbench surface to the settings
@@ -348,9 +440,10 @@ the sidebar, rebuild every page, or discard focus and selection.
   previews coalesce; cancelled or superseded loads publish nothing late; and
   instrumentation observes zero database, vault, filesystem, network, process,
   or blocking-wait work on the Qt thread.
-- AC-11: Tests-disabled packaged applications on macOS, Windows, and Linux expose the
-  same setting inventory except for explicitly documented platform capability
-  rows.
+- AC-11: The recorded tests-disabled macOS, Windows and Linux baseline inventories
+  match except for documented platform capability rows, and the current
+  macOS/Linux inventories refresh later updater, CLI and maintenance rows;
+  the current Windows refresh remains unaccepted on standalone BPR-0974.
 - AC-12: Sign in starts supported device authorization directly and shows its code and
   browser action without Details, another Get code gesture, or pane scrolling;
   cancellation, expiry, and supported manual-token alternatives remain reachable.
@@ -360,6 +453,22 @@ the sidebar, rebuild every page, or discard focus and selection.
 - AC-14: Configuration leaves the primary review surface compact, preserves tuned
   diff/appearance behavior, and exposes direct reconnect plus an exact pending
   destination handoff without changing credential or provider authority.
+
+## Original native criteria — retained as follow-ups
+
+- Original AC-01: The shipped application exposes a native Settings action and
+  one singleton, modeless window per available BPR profile through
+  platform-appropriate menus and shortcuts, with the edited profile visibly
+  identified. Windows' complete course remains on BPR-0974; Linux's complete
+  native focus/lifetime course remains on BPR-0975.
+- Original AC-11: Tests-disabled packaged applications on macOS, Windows, and
+  Linux expose the same setting inventory except for explicitly documented
+  platform capability rows. Current Windows refresh remains on BPR-0974.
+
+The broader target-native verification matrix below still describes those
+product obligations, not a claim that the missing observations passed. R2
+explicitly removes only the named follow-ups from this RFC's terminal gate.
+
 ## Verification matrix
 
 | Claim | Direct surface | Proof |
@@ -411,7 +520,7 @@ Creating these two cards does not satisfy the eligibility gate above.
 
 ## Documentation impact
 
-The settings guide must explain every category, default, durability state,
+The [settings guide](../development/settings.md) must explain every category, default, durability state,
 reset, platform difference, unavailable state, destructive operation, and
 privacy consequence. Architecture documentation must identify domain
 ownership, typed intent/projection paths, persistence schemas, generations,

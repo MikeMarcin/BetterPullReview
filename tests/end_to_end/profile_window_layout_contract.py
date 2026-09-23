@@ -32,6 +32,8 @@ def main():
 
         run("seed")
         first, second, width_a, width_b = map(int, (root / "layout-expectations.txt").read_text().split())
+        geometry = [list(map(int, row.split())) for row in
+                    (root / "geometry-expectations.txt").read_text().splitlines()]
         settings = root / "state/v1/workbench-settings.sqlite3"
         if not settings.is_file():
             raise SystemExit("actual Default layout store was not created")
@@ -50,6 +52,10 @@ def main():
                 " FROM window_layout")}
             if home != {str(first): [1, 0, 0, 0, 0], str(second): [0, 1, 8, 1, 4]}:
                 raise SystemExit(f"per-window Home views disagree: {home}")
+            placements = {window: values for window, *values in database.execute(
+                "SELECT window_id,geometry_x,geometry_y,geometry_width,geometry_height FROM window_layout")}
+            if placements != {str(first): geometry[0], str(second): geometry[1]}:
+                raise SystemExit(f"native geometry does not match observed windows: {placements}")
             tables = [name for (name,) in database.execute(
                 "SELECT name FROM sqlite_schema WHERE type='table' AND name!='window_layout' ORDER BY name")]
             defaults = {name: database.execute(f'SELECT * FROM "{name}"').fetchall() for name in tables}

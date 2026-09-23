@@ -409,14 +409,15 @@ namespace bpr::application {
 			return std::move(result.Projection);
 		}
 		void publish_transition(const core::github_transition_output& aOutput,
-								const github_session_read_model* aSession = nullptr, const github_pull_request_snapshot* aSnapshot = nullptr)
+								const github_session_read_model* aSession = nullptr, const github_pull_request_snapshot* aSnapshot = nullptr,
+								const bool aPreserveWindowNavigation = false)
 		{
 			if (!Publish || Closing || SuppressPublication) {
 				return;
 			}
 			try {
 				auto error        = std::exchange(LastError, std::nullopt);
-				auto presentation = github_presentation_update{ .Transition = project_github_transition(aOutput) };
+				auto presentation = github_presentation_update{ .Transition = project_github_transition(aOutput), .PreserveWindowNavigation = aPreserveWindowNavigation };
 				if (aSession != nullptr) {
 					presentation.Session = project_github_session(*aSession);
 				}
@@ -646,6 +647,21 @@ namespace bpr::application {
 				&& !ReviewMutationTransport->active()) {
 				ReviewMutationTransport.reset();
 			}
+		}
+
+		void install_snapshot(github_pull_request_snapshot aSnapshot)
+		{
+			AcceptedSnapshot = std::move(aSnapshot);
+			if (MarkdownRevision != std::numeric_limits<std::uint64_t>::max()) {
+				++MarkdownRevision;
+			} else {
+				MarkdownExhausted = true;
+			}
+			if (!is_public_preview()) {
+				// Signed out there is no mutation lease to acquire.
+				renew_review_mutation_transport();
+			}
+			static_cast<void>(merge(RateLimits, AcceptedSnapshot->RateLimits));
 		}
 
 		[[nodiscard]] static auto invalidation_for(
@@ -1012,20 +1028,8 @@ namespace bpr::application {
 					record_pull_request(diagnostic_outcome::succeeded,
 										success->Request.Context.Request, std::nullopt, std::nullopt,
 										success->LastReadOperation);
-					AcceptedSnapshot = std::move(StagedSnapshot);
-					if (MarkdownRevision != std::numeric_limits<std::uint64_t>::max()) {
-						++MarkdownRevision;
-					} else {
-						MarkdownExhausted = true;
-					}
+					install_snapshot(std::move(*StagedSnapshot));
 					StagedSnapshot.reset();
-					if (!is_public_preview()) {
-						// Signed out there is nothing to mutate with. The
-						// absence of a lease is the refusal.
-						renew_review_mutation_transport();
-					}
-					static_cast<void>(
-						merge(RateLimits, AcceptedSnapshot->RateLimits));
 					publish_transition(
 						output,
 						nullptr,
@@ -1301,6 +1305,37 @@ namespace bpr::application {
 		}
 	}
 	void github_window_read_host::cancel() { Implementation->cancel(); }
+	void github_window_read_host::share_snapshot(
+		const std::span<const std::shared_ptr<github_window_read_host>> aWindows,
+		const std::uint64_t                                             aSequence)
+	{
+		auto& source = *Implementation;
+		if (source.Closing || !source.Session || !source.AcceptedSnapshot
+			|| aWindows.size() > core::maximum_bpr_windows_per_profile
+			|| !source.Policy.share_snapshot(source.Policy, aSequence)) {
+			return;
+		}
+		// Publication can close/navigate/reauthenticate any window, or admit a
+		// newer observation. Keep the payload and authority immutable across
+		// callbacks; each recipient rechecks lifetime, session and sequence.
+		const auto policy   = source.Policy;
+		const auto session  = *source.Session;
+		const auto snapshot = *source.AcceptedSnapshot;
+		for (const auto& window : aWindows) {
+			if (!window || window.get() == this) {
+				continue;
+			}
+			auto& target = *window->Implementation;
+			if (target.Closing || !target.Session || *target.Session != session
+				|| !target.Policy.share_snapshot(policy, aSequence)) {
+				continue;
+			}
+			target.install_snapshot(snapshot);
+			// No AcceptedSnapshot delta: this is not a provider completion and
+			// must not initiate another fanout or a restoration/epoch handoff.
+			target.publish_transition({ .Changed = core::github_changed_domain::pull_request }, nullptr, &*target.AcceptedSnapshot, true);
+		}
+	}
 	void github_window_read_host::shutdown()
 	{
 		Implementation->Closing = true;

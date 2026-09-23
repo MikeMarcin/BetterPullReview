@@ -275,6 +275,9 @@ namespace bpr::application {
 		std::vector<github_host_diagnostic_projection>    HostDiagnostics{ };
 		std::optional<github_read_progress>               ReadProgress    = std::nullopt;
 		std::optional<github_loading_overview_projection> LoadingOverview = std::nullopt;
+		/// A sibling's server observation updates content, not Home/modality,
+		/// first-open filters or the window's chosen comparison.
+		bool PreserveWindowNavigation = false;
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};
