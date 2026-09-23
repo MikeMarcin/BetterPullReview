@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0597"
 title: "Verify and close RFC-BPR-0025"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0025"]
 depends_on: ["BPR-0596","BPR-0981"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0025"]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0025-planning-reconciliation.md"}
+blocked_by: "window-reading-restoration-regression"
 ---
 
 # Verify and close RFC-BPR-0025
@@ -178,6 +179,11 @@ Current checkpoint.
   the BPR-0981 and BPR-0597 cards, and the RFC-BPR-0025 status note and index row.
 - Evidence files (build tree, not committed): `build/rfc0025-integration-full*.log`,
   `build/rfc0025-bpr0981-*`, `build/rfc0025-closeout-*`.
+- Gates: `verify_documentation.py --root .` is `DOCUMENTATION_OK` (run with
+  `PYTHONPATH` set to the installed implement-rfc scripts, since this worktree
+  has no `.agents` link), `git diff --check` is clean and `issue_board validate
+  --rfc RFC-BPR-0025` is valid over 973 cards, at `1275188f` and again after
+  this card moved to Blocked.
 - Pending obligations: AC-05 reading-position restoration and AC-06 explicit
   unavailable-reading report (blocker above). AC-04 stays superseded and
   unscheduled: not built, not passed. No attended verdict is required by the
