@@ -7434,18 +7434,27 @@ namespace {
 			const auto name = "file-" + std::to_string(index) + ".cpp";
 			overview.Files.push_back(application::overview_file_row{ .Path = "src/" + name, .Folder = "src", .Name = name });
 		}
-		auto pageResets = 0;
-		auto treeResets = 0;
-		QObject::connect(window.overview_page()->file_model(), &QAbstractItemModel::modelReset, [&pageResets] { ++pageResets; });
+		// [[BPR-0934]]. The page's folder tree is retained: it projects by
+		// inserting and removing rows and never resets, so any structural
+		// signal counts as a page rebuild.
+		auto        pageBuilds     = 0;
+		auto        treeResets     = 0;
+		auto* const pageModel      = window.overview_page()->file_model();
+		const auto  countPageBuild = [&pageBuilds] { ++pageBuilds; };
+		QObject::connect(pageModel, &QAbstractItemModel::modelReset, countPageBuild);
+		QObject::connect(pageModel, &QAbstractItemModel::rowsInserted, countPageBuild);
+		QObject::connect(pageModel, &QAbstractItemModel::rowsRemoved, countPageBuild);
+		QObject::connect(pageModel, &QAbstractItemModel::rowsMoved, countPageBuild);
+		QObject::connect(pageModel, &QAbstractItemModel::layoutChanged, countPageBuild);
 		QObject::connect(window.files_tree()->tree_model(), &QAbstractItemModel::modelReset, [&treeResets] { ++treeResets; });
 		window.publish(overview);
-		const auto firstPageResets = pageResets;
+		const auto firstPageBuilds = pageBuilds;
 		const auto firstTreeResets = treeResets;
-		expect(firstPageResets > 0 && firstTreeResets > 0, "initial overview projects both real file models");
+		expect(firstPageBuilds > 0 && firstTreeResets > 0, "initial overview projects both real file models");
 		for (auto repeat = 0; repeat < 5; ++repeat) {
 			window.publish(overview);
 		}
-		expect(pageResets == firstPageResets && treeResets == firstTreeResets,
+		expect(pageBuilds == firstPageBuilds && treeResets == firstTreeResets,
 			   "equal 515-file overviews rebuild neither page nor drawer tree");
 		overview.Title                     = "Changed overview";
 		overview.Files.front().ThreadCount = 7U;
@@ -7456,21 +7465,21 @@ namespace {
 			   "changed overview updates visible title and per-file facts");
 		window.publish(application::workbench_projection{ .Files = std::vector<application::workbench_file_projection>{ } });
 		expect(!window.files_tree()->tree_model()->index_for_file(firstFile).isValid(), "observation gap clears the drawer rows");
-		const auto beforeFallbackPageResets = pageResets;
+		const auto beforeFallbackPageBuilds = pageBuilds;
 		const auto beforeFallbackTreeResets = treeResets;
 		window.publish(overview);
-		expect(pageResets == beforeFallbackPageResets && treeResets > beforeFallbackTreeResets
+		expect(pageBuilds == beforeFallbackPageBuilds && treeResets > beforeFallbackTreeResets
 				   && window.files_tree()->tree_model()->index_for_file(firstFile).isValid()
 				   && window.files_tree()->tree_model()->index_for_file(firstFile).data(qt::files_tree_model::thread_count_role).toULongLong() == 7U,
 			   "equal overview restores cleared fallback rows and facts without rebuilding its unchanged page");
 		window.clear_overview();
-		const auto beforeReopen = pageResets;
+		const auto beforeReopen = pageBuilds;
 		window.publish(overview);
-		expect(pageResets > beforeReopen && window.overview_page()->presented(), "clear then identical reopen projects the overview again");
+		expect(pageBuilds > beforeReopen && window.overview_page()->presented(), "clear then identical reopen projects the overview again");
 		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .PullRequest = core::pull_request_summary_delta{ } } });
-		const auto beforeAuthority = pageResets;
+		const auto beforeAuthority = pageBuilds;
 		window.publish(overview);
-		expect(pageResets > beforeAuthority, "authority clear does not suppress the next PR's identical visible overview");
+		expect(pageBuilds > beforeAuthority, "authority clear does not suppress the next PR's identical visible overview");
 	}
 
 	void test_overview_entry_preserves_start_and_continue_semantics()
@@ -8614,6 +8623,16 @@ auto main(int argc, char** argv) -> int
 		test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 		test_defect_queue_navigation_and_semantic_dispatch();
 		std::cout << "workbench-conversation-reveal:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-0934]]. The window's Overview courses, which the full run does not
+	// reach past the epoch-row assertion [[BPR-0940]] owns: the retained
+	// folder tree must still skip equal overviews and re-project after a clear.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--overview"))) {
+		test_overview_refuses_a_hand_opened_drawer_and_says_so();
+		test_overview_entry_preserves_start_and_continue_semantics();
+		test_identical_overview_skips_rebuild_but_restores_cleared_files();
+		std::cout << "workbench-overview:pass\n";
 		return EXIT_SUCCESS;
 	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
