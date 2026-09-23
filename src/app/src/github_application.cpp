@@ -5666,13 +5666,11 @@ namespace bpr::app {
 		// gates used to put to the preprocessor.
 		[[nodiscard]] auto cli_read_offered_here() const noexcept -> bool
 		{
-#if defined(BPR_BUILD_TESTING)
-	#if defined(__APPLE__)
+#if defined(BPR_BUILD_TESTING) && defined(__APPLE__)
 			return GithubCliDiscoveryAccounts.has_value()
 				|| cli_read_offered(InsideAutomatedTestBoundary);
-	#else
-			return false;
-	#endif
+#elif defined(BPR_BUILD_TESTING)
+			return cli_read_offered(InsideAutomatedTestBoundary);
 #else
 			return cli_read_offered(false);
 #endif

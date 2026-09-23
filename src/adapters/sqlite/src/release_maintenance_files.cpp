@@ -10,6 +10,7 @@
 #include <exception>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <vector>
 #if !defined(_WIN32)
@@ -434,6 +435,12 @@ namespace bpr::adapters::sqlite {
 				return *this;
 			}
 		};
+		// A stateless deleter: a function-pointer deleter would drop closedir's
+		// declaration attributes from the template argument.
+		struct directory_closer
+		{
+			void operator()(DIR* aStream) const noexcept { static_cast<void>(::closedir(aStream)); }
+		};
 		auto identity(const struct stat& aStat, std::string aPath) -> entry
 		{
 			if ((!S_ISREG(aStat.st_mode) && !S_ISDIR(aStat.st_mode)) || aStat.st_uid != ::geteuid()
@@ -629,8 +636,8 @@ namespace bpr::adapters::sqlite {
 			if (!stream) {
 				fail(reason::io_failure);
 			}
-			const std::unique_ptr<DIR, decltype(&::closedir)> owned{ stream, ::closedir };
-			std::size_t                                       observed = 0U;
+			const std::unique_ptr<DIR, directory_closer> owned{ stream };
+			std::size_t                                  observed = 0U;
 			while (true) {
 				cancelled(aStop);
 				errno      = 0;

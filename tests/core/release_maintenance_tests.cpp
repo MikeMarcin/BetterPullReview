@@ -111,7 +111,7 @@ namespace {
 			std::pair{ command::prepare_clear, command::clear_diagnostics },
 			std::pair{ command::prepare_purge, command::purge_profile }
 		};
-		for (const auto [preparation, execution] : courses) {
+		for (const auto& [preparation, execution] : courses) {
 			auto active = current();
 			reject_unchanged(active, release_maintenance_intent{ authority(), execution, { } }, reason::no_selection);
 			const auto selection = preparation == command::preview_diagnostics ? release_maintenance_selection{ snapshot() } : release_maintenance_selection{ inventory(preparation) };

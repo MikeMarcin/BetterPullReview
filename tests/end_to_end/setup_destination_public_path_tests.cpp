@@ -122,6 +122,8 @@ namespace {
 		expect(surface->grab().save(root + QLatin1Char{ '/' } + aName), "public fixture window capture");
 	}
 
+#if defined(__APPLE__)
+	// Only the Apple-only CLI source update course composes these checks.
 	void verify_composed_code_metrics(app::github_application& aApplication, const std::uint32_t aWidth)
 	{
 		auto* const workbench = aApplication.window().comparison_surface();
@@ -220,6 +222,7 @@ namespace {
 				   "actual composed drawer keeps names neutral and paints plus/minus counts independently");
 		}
 	}
+#endif
 
 	void run_folder_selection_course()
 	{

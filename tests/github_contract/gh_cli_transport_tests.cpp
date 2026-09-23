@@ -1718,13 +1718,13 @@ namespace {
 			expect(argument != "--show-token" && argument != "-t", "auth inventory cannot request a token");
 		}
 
-		const auto parsed = parse_gh_cli_auth_status(R"({"hosts":{"github.example.com":[{"active":true,"host":"github.example.com","login":"enterprise-reviewer","state":"success","tokenSource":"keyring","scopes":"repo"}],"github.com":[{"active":false,"host":"github.com","login":"old-account","state":"success"},{"active":true,"host":"github.com","login":"octocat","state":"success"}],"unavailable.example.com":[{"active":true,"host":"unavailable.example.com","login":"broken","state":"failure"}]}})");
+		const auto parsed           = parse_gh_cli_auth_status(R"({"hosts":{"github.example.com":[{"active":true,"host":"github.example.com","login":"enterprise-reviewer","state":"success","tokenSource":"keyring","scopes":"repo"}],"github.com":[{"active":false,"host":"github.com","login":"old-account","state":"success"},{"active":true,"host":"github.com","login":"octocat","state":"success"}],"unavailable.example.com":[{"active":true,"host":"unavailable.example.com","login":"broken","state":"failure"}]}})");
+		const auto expectedAccounts = std::vector<gh_cli_authenticated_account>{
+			{ .Hostname = "github.com", .Login = "octocat" },
+			{ .Hostname = "github.example.com", .Login = "enterprise-reviewer" },
+		};
 		expect(
-			parsed.has_value()
-				&& *parsed == std::vector<gh_cli_authenticated_account>{
-					   { .Hostname = "github.com", .Login = "octocat" },
-					   { .Hostname = "github.example.com", .Login = "enterprise-reviewer" },
-				   },
+			parsed.has_value() && *parsed == expectedAccounts,
 			"only successful active host/login pairs cross the discovery boundary in stable order");
 
 		for (const auto& hostile : {
