@@ -18,6 +18,8 @@ namespace bpr::application {
 			return "removed";
 		case reconciliation_kind::conflicted:
 			return "conflicted";
+		case reconciliation_kind::removed_conflicted:
+			return "removed_conflicted";
 		}
 		return "unchanged";
 	}
@@ -26,7 +28,8 @@ namespace bpr::application {
 	{
 		auto identifiers = std::vector<std::string>{ };
 		for (const auto& entry : Entries) {
-			if (entry.Kind == reconciliation_kind::conflicted) {
+			if (entry.Kind == reconciliation_kind::conflicted
+				|| entry.Kind == reconciliation_kind::removed_conflicted) {
 				identifiers.push_back(entry.ServerId);
 			}
 		}
@@ -90,6 +93,8 @@ namespace bpr::application {
 		// Anything the server no longer reports is gone. Retaining it because
 		// the projection remembers it would show a reader a comment that is not
 		// there, which is the projection asserting itself over the authority.
+		// A deletion under an unpublished edit is still a conflict: the edit
+		// has nowhere to go, and a person must be told ([[BPR-0888]]).
 		auto present = std::unordered_set<std::string>{ };
 		for (const auto& observed : aObserved) {
 			present.insert(observed.ServerId);
@@ -98,7 +103,9 @@ namespace bpr::application {
 			if (!present.contains(comment.ServerId)) {
 				result.Entries.push_back(reconciliation_entry{
 					.ServerId = comment.ServerId,
-					.Kind     = reconciliation_kind::removed,
+					.Kind     = edited.contains(comment.ServerId)
+						? reconciliation_kind::removed_conflicted
+						: reconciliation_kind::removed,
 				});
 			}
 		}

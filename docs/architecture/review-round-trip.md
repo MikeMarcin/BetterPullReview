@@ -97,8 +97,8 @@ credentials, grants or HTTP requests.
   immediately before the first exact effect is queued; invalid attempts do not
   consume it, and cancellation, invalidation, timeout, or shutdown revoke it.
 - **Observation** — `review_comment_projection` records the server reports.
-- **Delta** — `reconciliation_entry`: unchanged, added, updated, removed, or
-  conflicted.
+- **Delta** — `reconciliation_entry`: unchanged, added, updated, removed,
+  conflicted, or removed_conflicted.
 
 ## Drafts
 
@@ -540,6 +540,19 @@ resolve rather than a resolution — discarding either side quietly would lose
 someone's words. Holding an unpublished edit on a comment the server did not
 touch is *not* a conflict, or every unsaved draft would raise a false alarm on
 every refresh.
+
+A deletion is a change too. An edited comment the server no longer reports
+leaves the projection like any other, and its entry is reported
+`removed_conflicted` rather than `removed`, so the reader learns that the edit
+has nowhere to go ([[BPR-0888]]). `conflicts()` lists both kinds.
+
+No shipped feature holds an unpublished edit of a published comment yet.
+Drafts are new comments and thread replies, and a published comment is out of
+every draft command's reach (see [Drafts](#drafts)). So the production refresh
+passes an empty edited set, and neither conflict kind can occur there today. A
+feature that adds editing of published comments must pass its edited set to
+`reconcile`, and must give both kinds a surface that shows the reviewer the
+text they were holding.
 
 Refreshing the same state twice produces an identical result, not merely an
 equivalent one: the projection and entries are ordered by identity.

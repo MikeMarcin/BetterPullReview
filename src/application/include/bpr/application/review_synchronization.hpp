@@ -30,12 +30,20 @@ namespace bpr::application {
 	};
 
 	/// \brief Names what a refresh did to one comment.
+	///
+	/// \details `conflicted` and `removed_conflicted` both mean the server
+	/// changed a comment that carries an unpublished local edit: it changed the
+	/// text in the first case and deleted the comment in the second
+	/// ([[BPR-0888]]). A deletion is kept distinct because the comment is no
+	/// longer in the projection, and a reader must still be told what became
+	/// of the edit.
 	enum class reconciliation_kind : std::uint8_t {
 		unchanged,
 		added,
 		updated,
 		removed,
 		conflicted,
+		removed_conflicted,
 	};
 
 	/// \brief Returns the stable name for the supplied value.
@@ -56,6 +64,8 @@ namespace bpr::application {
 		std::vector<review_comment_projection> Projection;
 		std::vector<reconciliation_entry>      Entries;
 
+		/// \brief Lists the comments whose unpublished local edit the server
+		/// changed or deleted.
 		[[nodiscard]] auto conflicts() const -> std::vector<std::string>;
 
 		auto operator<=>(const reconciliation_result&) const = default;
@@ -74,8 +84,12 @@ namespace bpr::application {
 	/// assumption never overwrites an external change — and the conflict is
 	/// surfaced so a person can decide what to do with the edit they were
 	/// holding. Discarding either side quietly would lose someone's words.
+	/// A deletion is a change too: an edited comment the server no longer
+	/// reports leaves the projection and is reported `removed_conflicted`.
 	///
 	/// \param aLocallyEdited Server ids carrying an unpublished local edit.
+	/// No shipped feature edits a published comment yet, so the production
+	/// caller passes none.
 	[[nodiscard]] auto reconcile(
 		std::span<const review_comment_projection> aLocal,
 		std::span<const review_comment_projection> aObserved,

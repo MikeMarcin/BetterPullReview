@@ -167,6 +167,53 @@ namespace {
 			"nothing is reported for a comment the server did not touch");
 	}
 
+	// [[BPR-0888]]. A deletion is a change too. Reporting it as a plain
+	// removal would tell the reader the comment is gone and nothing about the
+	// unpublished text they were holding in it.
+	void test_a_deletion_under_a_local_edit_is_a_conflict()
+	{
+		const auto local    = std::array{ comment("a", "what I had", 1U) };
+		const auto editing  = std::array{ std::string{ "a" } };
+		const auto observed = std::vector<application::review_comment_projection>{ };
+
+		const auto result = application::reconcile(local, observed, editing);
+
+		expect(
+			result.Projection.empty(),
+			"the deleted comment leaves the projection even though it was being edited");
+		expect(
+			result.Entries.size() == 1U
+				&& kind_of(result, "a")
+					== application::reconciliation_kind::removed_conflicted,
+			"the deletion is reported as a conflict rather than a plain removal");
+		expect(
+			result.conflicts() == std::vector<std::string>{ "a" },
+			"the deleted comment is listed so a person can decide about the edit");
+	}
+
+	void test_both_conflicts_are_listed_together()
+	{
+		const auto local = std::array{
+			comment("a", "what I had", 1U),
+			comment("b", "also mine", 1U),
+			comment("c", "not being edited", 1U),
+		};
+		const auto observed = std::array{ comment("a", "what they wrote", 2U) };
+		const auto editing  = std::array{ std::string{ "a" }, std::string{ "b" } };
+
+		const auto result = application::reconcile(local, observed, editing);
+
+		expect(
+			kind_of(result, "a") == application::reconciliation_kind::conflicted
+				&& kind_of(result, "b")
+					== application::reconciliation_kind::removed_conflicted
+				&& kind_of(result, "c") == application::reconciliation_kind::removed,
+			"a change, a deletion and an unedited deletion each keep their own kind");
+		expect(
+			result.conflicts() == std::vector<std::string>{ "a", "b" },
+			"both conflicts are listed, and the unedited deletion is not");
+	}
+
 	void test_a_refresh_of_the_same_state_is_identical_not_merely_equivalent()
 	{
 		const auto local = std::array{
@@ -206,6 +253,9 @@ namespace {
 					== "conflicted"
 				&& application::name(application::reconciliation_kind::removed)
 					== "removed"
+				&& application::name(
+					   application::reconciliation_kind::removed_conflicted)
+					== "removed_conflicted"
 				&& application::name(application::reconciliation_kind::added)
 					== "added",
 			"every reconciliation kind names itself");
@@ -220,6 +270,8 @@ auto main() -> int
 	test_resolution_and_reopening_round_trip();
 	test_a_local_edit_never_overwrites_an_external_change();
 	test_a_local_edit_on_an_unchanged_comment_is_not_a_conflict();
+	test_a_deletion_under_a_local_edit_is_a_conflict();
+	test_both_conflicts_are_listed_together();
 	test_a_refresh_of_the_same_state_is_identical_not_merely_equivalent();
 	test_every_enumerator_names_itself();
 
