@@ -1052,11 +1052,15 @@ build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review --ghe
 
 Activating native HTTPS opens the Qt-owned password prompt, then enrolls the
 credential through the selected platform vault and authenticated `/user`
-observation. Activating CLI shows the bounded unavailable state and starts
-zero processes. `--self-test` enumerates every visible CLI choice, requires the
-same bounded unavailable presentation for each, and reports
-`CLI_UNAVAILABLE_COUNT:1` for the default profile set or
-`CLI_UNAVAILABLE_COUNT:2` with `--ghes-host`. It then reports whether
+observation. Since [[BPR-0909]] no card carries a precomposed GitHub CLI
+choice: GitHub CLI is the discovered Use GitHub CLI entry, wired only where
+the composed run offers the read. `--self-test` checks once, before any
+gesture and without pressing anything, that no server card carries a GitHub
+CLI profile and that the entry is offered exactly when the read is
+([[BPR-0982]]). Inside the automated test boundary it reports
+`CLI_ENTRY_ABSENT_OK`; a tests-disabled macOS run reports
+`CLI_ENTRY_OFFERED_OK`. `CLI_ENTRY_CARDS:1` counts the default server card,
+`CLI_ENTRY_CARDS:2` the pair with `--ghes-host`. It then reports whether
 composition selected the native platform vault. On macOS, Windows, and Linux
 its successful fixed output includes `NATIVE_PLATFORM_VAULT_SELECTED:true`.
 
@@ -1173,9 +1177,8 @@ symbols in the application. Its production-profile composed-host audit also
 requires every shared exact demangled anchor, including the generic
 reconciliation decision, and the live mutation provider type and factory while
 rejecting the fixture component type and testing-grant factory. The
-tests-disabled `--self-test` enumerates every
-visible CLI profile and requires `CLI_UNAVAILABLE_OK` plus the exact
-`CLI_UNAVAILABLE_COUNT`; provider
+tests-disabled `--self-test` requires `CLI_ENTRY_OFFERED_OK` on macOS
+(`CLI_ENTRY_ABSENT_OK` elsewhere) plus the exact `CLI_ENTRY_CARDS`; provider
 counter tests prove the CLI viewer rejection makes zero transport-factory,
 wire, capability, or CLI-specific effect calls, while the transport contract
 proves a fake successful process port still receives zero calls. Public
@@ -1183,7 +1186,7 @@ clean-start selection itself performs one bounded noncredential
 profile-resolution effect per row. Existing host lifecycle coverage separately
 proves a native-to-CLI switch exact-deletes the predecessor credential binding
 without enrolling or retrieving a credential for the CLI profile.
-`application_public_path_ghes_cli_unavailable` supplies the explicit two-row
+`application_public_path_ghes_cli_unavailable` supplies the explicit two-card
 GitHub.com/GHES case.
 
 On macOS, the fake-backed contract test is non-mutating. The native fixture

@@ -42,8 +42,10 @@ endfunction()
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
 # docs/rfcs/plans/rfc-bpr-0008-owner-closeout/composition-reseal-review.md.
-# BPR-0933 reseal: 4b1988dc..its finish commit changes only the read opt-in's
-# presentation; the review is on docs/issues/60-done/BPR-0933-*.md.
+# BPR-0933 reseal: 12d032cf changes only the read opt-in's presentation in
+# github_application.cpp; the review is recorded on BPR-0933.
+# BPR-0982 reseal: the main.cpp self-test CLI course follows the discovered
+# CLI entry (BPR-0909); no product path changes. Review recorded on BPR-0982.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -197,7 +199,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0ed1f246fae49e1b05b3d79eb420978484afca5ce0374fc04fbaab1a3b6c0a67"
+        "b6949ba1ea8c67e0d9d2199e7b8e95e9d1c243e487494b51cd67d06e2c7b4fc0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

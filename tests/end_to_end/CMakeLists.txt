@@ -167,7 +167,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1"
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_ENTRY_ABSENT_OK[\r\n]+CLI_ENTRY_CARDS:1"
 )
 bpr_bound_automated_run(
     application_public_path
@@ -193,7 +193,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:2"
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_ENTRY_ABSENT_OK[\r\n]+CLI_ENTRY_CARDS:2"
 )
 bpr_bound_automated_run(
     application_public_path_ghes_cli_unavailable
@@ -225,7 +225,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true"
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_ENTRY_ABSENT_OK[\r\n]+CLI_ENTRY_CARDS:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true"
 )
 bpr_bound_automated_run(
     application_device_authorization_public_path
@@ -546,14 +546,17 @@ bpr_bound_automated_run(
 # the device wire against a closed loopback port besides, and on macOS the
 # sandbox denies egress. Independent reasons, because the row that gets this
 # wrong opens a browser on whoever is running the suite.
+# [[BPR-0982]]. Since [[BPR-0909]] the CLI way in is the Use GitHub CLI entry,
+# wired only where the composed run offers the read; no card carries a
+# precomposed GitHub CLI label any more.
 if(APPLE)
     set(bpr_product_run_cli_read "available")
-    set(bpr_product_run_cli_label "GitHub CLI \\(uses your gh sign-in\\)")
+    set(bpr_product_run_cli_entry "offered")
 else()
     # RFC-BPR-0015 enables the CLI read on macOS only, so off macOS the product
     # run composes the same answer as a suite does, for a different reason.
     set(bpr_product_run_cli_read "unavailable")
-    set(bpr_product_run_cli_label "GitHub CLI \\(unavailable\\)")
+    set(bpr_product_run_cli_entry "absent")
 endif()
 bpr_add_network_isolated_test(
     NAME application_composition_capabilities_inside_boundary
@@ -571,7 +574,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "COMPOSITION_TEST_BOUNDARY:inside[\r\n]+COMPOSITION_BROWSER:recording[\r\n]+COMPOSITION_CLI_READ:unavailable[\r\n]+COMPOSITION_CLI_LABEL:GitHub\\.com .+ GitHub CLI \\(unavailable\\)"
+            "COMPOSITION_TEST_BOUNDARY:inside[\r\n]+COMPOSITION_BROWSER:recording[\r\n]+COMPOSITION_CLI_READ:unavailable[\r\n]+COMPOSITION_CLI_ENTRY:absent"
 )
 bpr_bound_automated_run(
     application_composition_capabilities_inside_boundary
@@ -597,7 +600,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "COMPOSITION_TEST_BOUNDARY:outside[\r\n]+COMPOSITION_BROWSER:system[\r\n]+COMPOSITION_CLI_READ:${bpr_product_run_cli_read}[\r\n]+COMPOSITION_CLI_LABEL:GitHub\\.com .+ ${bpr_product_run_cli_label}"
+            "COMPOSITION_TEST_BOUNDARY:outside[\r\n]+COMPOSITION_BROWSER:system[\r\n]+COMPOSITION_CLI_READ:${bpr_product_run_cli_read}[\r\n]+COMPOSITION_CLI_ENTRY:${bpr_product_run_cli_entry}"
 )
 # The one row in the tree that stands outside the boundary on purpose. Appended
 # after the seam's own `set:1`, and `ENVIRONMENT_MODIFICATION` is applied in
@@ -754,7 +757,7 @@ set_tests_properties(
         # tests-disabled Release inherits. What it cannot check here is symbol
         # absence, which is the separate closeout scan.
         PASS_REGULAR_EXPRESSION
-            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+${bpr_device_selection_denied_self_test_expression}"
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_ENTRY_ABSENT_OK[\r\n]+CLI_ENTRY_CARDS:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+${bpr_device_selection_denied_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_device_authorization_release_contract
@@ -799,7 +802,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:2[\r\n]+${bpr_public_preview_enterprise_self_test_expression}"
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_ENTRY_ABSENT_OK[\r\n]+CLI_ENTRY_CARDS:2[\r\n]+${bpr_public_preview_enterprise_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_unavailable
@@ -829,7 +832,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+${bpr_public_preview_selection_self_test_expression}"
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_ENTRY_ABSENT_OK[\r\n]+CLI_ENTRY_CARDS:1[\r\n]+${bpr_public_preview_selection_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_release_contract
@@ -861,7 +864,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_ENTRY_ABSENT_OK[\r\n]+CLI_ENTRY_CARDS:1[\r\n]+PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_enabled_probe

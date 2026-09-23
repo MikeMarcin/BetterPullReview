@@ -72,3 +72,61 @@ accepted BPR-0909 model. No `gh` process is launched by any course. The consent
 itself is exercised by the tests-enabled discovery courses in
 `application_setup_destination_public_path` and by native tests-disabled
 observation, not here.
+
+## Implementation
+
+- `src/app/main.cpp`: the self-test's `cli_unavailable_probe_state` and its
+  ten row-activation helpers are replaced by `cli_entry_probe_state` and one
+  `cli_entry_presentation_passed` check, made once in the non-fixture connect
+  stage before the run moves on to its public-preview or device course. It
+  requires at least one card, no card holding a GitHub CLI profile or offer,
+  the Use GitHub CLI entry offered (shown and enabled) exactly when
+  `ComposedCliReadAvailable`, `Not authenticated`, and no full reset. It
+  presses nothing. The report prints `CLI_ENTRY_ABSENT_OK` or
+  `CLI_ENTRY_OFFERED_OK` (or `_FAILED`) and `CLI_ENTRY_CARDS:<n>`. The
+  capability probe prints `COMPOSITION_CLI_ENTRY:offered|absent` in place of
+  the retired label.
+- `tests/end_to_end/CMakeLists.txt`: the seven public path rows expect
+  `CLI_ENTRY_ABSENT_OK` with their former counts as card counts (1, or 2 with
+  `--ghes-host`); the capability rows expect `absent` inside the boundary and
+  `offered` (macOS) or `absent` (elsewhere) in the product run.
+- `tests/end_to_end/composition_contract_tests.py`: the `cli_read_offered_here`
+  pattern matches the as-built definition, including the fixture-only
+  `GithubCliDiscoveryAccounts.has_value() ||` in the tests-enabled macOS
+  branch; a new check requires that member to be assigned once and only from a
+  fixture. Hostile controls: dropped boundary answer (retargeted), offer open
+  inside the boundary, discovery accounts without a fixture (new), retitled
+  read warning and a read answer supplied for the reviewer. The UTF-8
+  `gh sign-in` byte marker is retired; the tests-disabled Release self-test
+  now requires `CLI_ENTRY_OFFERED_OK` on macOS.
+- Documentation of the self-test markers in the build guide, fixture catalog,
+  provider contract and host implementation now describes the entry course.
+
+### Composition reseal review
+
+`src/app/main.cpp` is in the pinned production manifest. Its change is
+confined to the `--self-test` automated run: state, one check, the start and
+connect stage branches that used to activate CLI rows, the report markers and
+the capability probe line. No window, host, provider, transport, vault,
+consent or publication code changes; `github_application.cpp` is untouched
+(full-file pin `827fad21…` unchanged) and the mutation-branch pin is unchanged.
+The manifest pin is resealed to `b6949ba1…`.
+
+## Verification (dev, macOS arm64, 2026-09-22)
+
+- Baseline at unchanged `2218ef1f` (working changes stashed): the seven public
+  path rows and both capability rows fail as described above;
+  `application_review_round_trip_composition_contract` passes.
+- After: all nine rows pass, plus the resealed round-trip contract
+  (`build/rfc0015-r3/bpr0982-rows-final.log`).
+- Negative control: composing the discovery dispatch unconditionally (so the
+  entry is offered inside the boundary) makes `application_public_path` report
+  `CLI_ENTRY_ABSENT_FAILED` and the inside-boundary capability row print
+  `COMPOSITION_CLI_ENTRY:offered`; both fail. The source was restored and
+  rebuilt.
+- `application_composition_contract` (241 s, fresh tests-disabled Release
+  tree): the consent-gate findings are empty, every hostile control is
+  refused, the Release `--self-test` reports `CLI_ENTRY_OFFERED_OK` with one
+  and two cards, and the async mutation inventory passes after the reseal. The
+  remaining failures are [[BPR-0983]]'s vault-location, one-reader and
+  Release-bytes findings, unchanged from the baseline.

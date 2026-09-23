@@ -1732,7 +1732,11 @@ After the provider receives the CLI viewer request, provider and transport
 counter tests independently require zero transport-factory, wire, capability,
 CLI-specific effect, and process-port calls. The
 `application_public_path_ghes_cli_unavailable` case supplies the direct
-two-row public-path evidence.
+two-row public-path evidence. Since [[BPR-0909]] those rows are gone: GitHub
+CLI is the discovered Use GitHub CLI entry, and the self-test instead
+requires no precomposed CLI row and the entry offered exactly where the read
+is (`CLI_ENTRY_ABSENT_OK` / `CLI_ENTRY_OFFERED_OK` with `CLI_ENTRY_CARDS`,
+[[BPR-0982]]).
 
 The visible ownership order is:
 

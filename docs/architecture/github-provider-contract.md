@@ -162,6 +162,12 @@ predecessor credential binding; it does not enroll or retrieve a credential
 for the CLI profile. Provider rejection schedules no transport, wire,
 capability, or CLI-specific effect.
 
+That milestone-one description is retained as history. RFC-BPR-0015 later
+enabled opt-in macOS CLI reads, and [[BPR-0909]] replaced the precomposed CLI
+rows with the discovered Use GitHub CLI entry; the self-test now reports
+`CLI_ENTRY_ABSENT_OK` or `CLI_ENTRY_OFFERED_OK` with `CLI_ENTRY_CARDS`
+([[BPR-0982]]).
+
 - Invoke an explicitly resolved `gh` executable.
 - Never request or print the token.
 - Pass request bodies through standard input.

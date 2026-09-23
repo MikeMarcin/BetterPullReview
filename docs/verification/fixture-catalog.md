@@ -1241,11 +1241,15 @@ system-Dark startup, controlled application-local response, and the completed
 owner-authorized native gate in which one real process started under system
 Light and followed an operating-system-global transition to Dark.
 
-The tests-disabled `--self-test` enumerates every visible CLI profile and
-requires the bounded `cli_unavailable` presentation for each. The default
-profile set reports `CLI_UNAVAILABLE_COUNT:1`; the explicit GHES case
-`application_public_path_ghes_cli_unavailable` reports
-`CLI_UNAVAILABLE_COUNT:2`. Provider counters independently require zero
+Since [[BPR-0909]] no server card carries a precomposed GitHub CLI profile;
+the CLI is the discovered Use GitHub CLI entry. The `--self-test` checks once,
+before any gesture and pressing nothing, that no card carries a CLI profile
+and that the entry is offered exactly where the composed run offers the read
+([[BPR-0982]]): `CLI_ENTRY_ABSENT_OK` inside the automated test boundary,
+`CLI_ENTRY_OFFERED_OK` in a tests-disabled macOS run. The default set reports
+`CLI_ENTRY_CARDS:1`; the explicit GHES case
+`application_public_path_ghes_cli_unavailable` reports `CLI_ENTRY_CARDS:2`.
+Provider counters independently require zero
 transport-factory, wire, capability, or CLI-specific effect calls after the
 provider receives each viewer request, and the CLI transport contract proves a
 fake successful process port receives zero calls. Public selection itself

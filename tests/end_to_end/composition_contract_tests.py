@@ -72,12 +72,14 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
     # only in the tests-enabled graph.
     b"BPR_AUTOMATED_TEST_BOUNDARY",
 )
+# [[BPR-0982]]. The UTF-8 `gh sign-in` label went with the precomposed CLI
+# rows ([[BPR-0909]]); the release self-test below now observes the Use
+# GitHub CLI entry the shipped graph offers.
 MAC_CLI_BINARY_MARKERS = (
     b"gh_cli_transport",
     b"github_cli_process_runner",
     b"validate_gh_cli_configuration",
     b"compile_gh_cli_process_request",
-    b"gh sign-in",
 )
 
 
@@ -242,11 +244,23 @@ CLI_READ_OFFERED_DEFINITION = re.compile(
     r"#\s*else\s*return\s+true\s*;\s*#\s*endif\s*"
     r"#\s*else\s*return\s+false\s*;\s*#\s*endif\s*\}"
 )
+# [[BPR-0982]]. [[BPR-0909]] let a tests-enabled macOS run that carries
+# fixture-discovered CLI accounts offer the read, so its discovery courses
+# meet the real read opt-in. That only widens where the question is asked;
+# the accounts exist only with a fixture (checked below), non-Apple graphs
+# still answer false, and the shipped graph still asks its one question.
 CLI_READ_OFFERED_HERE_DEFINITION = re.compile(
     r"auto\s+cli_read_offered_here\(\s*\)\s*const\s+noexcept\s*->\s*bool\s*\{\s*"
     r"#\s*if\s+defined\(BPR_BUILD_TESTING\)\s*"
-    r"return\s+cli_read_offered\(\s*InsideAutomatedTestBoundary\s*\)\s*;\s*"
+    r"#\s*if\s+defined\(__APPLE__\)\s*"
+    r"return\s+GithubCliDiscoveryAccounts\.has_value\(\)\s*\|\|\s*"
+    r"cli_read_offered\(\s*InsideAutomatedTestBoundary\s*\)\s*;\s*"
+    r"#\s*else\s*return\s+false\s*;\s*#\s*endif\s*"
     r"#\s*else\s*return\s+cli_read_offered\(\s*false\s*\)\s*;\s*#\s*endif\s*\}"
+)
+CLI_DISCOVERY_ACCOUNTS_ASSIGNMENT = re.compile(
+    r"GithubCliDiscoveryAccounts\s*=\s*aFixture\.has_value\(\)\s*"
+    r"\?\s*aFixtureOptions\.GithubCliDiscoveryAccounts\s*:\s*std::nullopt\s*;"
 )
 # Each consent's title and the call that asks it. [[BPR-0933]] moved the read
 # opt-in's layout into the Qt adapter, so it is asked through that adapter's
@@ -269,7 +283,16 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
     if len(CLI_READ_OFFERED_HERE_DEFINITION.findall(code)) != 1:
         findings.append(
             "cli_read_offered_here must pass the run's boundary answer in the "
-            "tests-enabled graph and false in the shipped graph"
+            "tests-enabled macOS graph, widened only by fixture-discovered "
+            "accounts, and the unconditional answer in the shipped graph"
+        )
+    if (
+        len(CLI_DISCOVERY_ACCOUNTS_ASSIGNMENT.findall(code)) != 1
+        or len(re.findall(r"GithubCliDiscoveryAccounts\s*=[^=]", code)) != 1
+    ):
+        findings.append(
+            "fixture-discovered CLI accounts must be assigned once, and only "
+            "from a fixture"
         )
     for title, question in CLI_CONSENT_QUESTIONS:
         gate = re.compile(
@@ -653,7 +676,7 @@ class CompositionContractTests(unittest.TestCase):
         executable: Path,
         runtime_environment: dict[str, str],
         expected_vault_selection: str,
-        expected_cli_count: int,
+        expected_cards: int,
         *extra_arguments: str,
     ) -> None:
         completed = subprocess.run(
@@ -670,15 +693,12 @@ class CompositionContractTests(unittest.TestCase):
             completed.stdout + completed.stderr,
         )
         self.assertIn("AUTOMATED_PROFILE_PRIVATE_OK", completed.stdout)
+        # [[BPR-0982]]. The shipped macOS graph offers the Use GitHub CLI
+        # entry and precomposes no CLI row; elsewhere the entry is absent.
         cli_marker = (
-            "CLI_OPT_IN_REQUIRED_OK"
+            "CLI_ENTRY_OFFERED_OK"
             if sys.platform == "darwin"
-            else "CLI_UNAVAILABLE_OK"
-        )
-        count_marker = (
-            "CLI_OPT_IN_GUARD_COUNT"
-            if sys.platform == "darwin"
-            else "CLI_UNAVAILABLE_COUNT"
+            else "CLI_ENTRY_ABSENT_OK"
         )
         self.assertRegex(
             completed.stdout,
@@ -687,7 +707,7 @@ class CompositionContractTests(unittest.TestCase):
                 r"NATIVE_PLATFORM_VAULT_SELECTED:"
                 + expected_vault_selection
                 + rf"[\r\n]+{cli_marker}"
-                + rf"[\r\n]+{count_marker}:{expected_cli_count}"
+                + rf"[\r\n]+CLI_ENTRY_CARDS:{expected_cards}"
             ),
         )
         self.assertNotIn("GITHUB_FIXTURE", completed.stdout)
@@ -726,8 +746,14 @@ class CompositionContractTests(unittest.TestCase):
                 "return !aInsideAutomatedTestBoundary;", "return true;", 1
             ),
             "boundary-answer-dropped": composition_source.replace(
-                "return cli_read_offered(InsideAutomatedTestBoundary);",
-                "return cli_read_offered(false);",
+                "cli_read_offered(InsideAutomatedTestBoundary);",
+                "cli_read_offered(false);",
+                1,
+            ),
+            # [[BPR-0982]]. Discovered accounts must come only with a fixture.
+            "discovery-accounts-without-a-fixture": composition_source.replace(
+                "GithubCliDiscoveryAccounts = aFixture.has_value()",
+                "GithubCliDiscoveryAccounts = true",
                 1,
             ),
             "read-warning-removed": composition_source.replace(
