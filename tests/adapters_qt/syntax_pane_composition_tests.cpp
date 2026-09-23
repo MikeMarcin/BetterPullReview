@@ -19,6 +19,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QTextBlock>
@@ -54,6 +55,21 @@ namespace {
 		for (auto count = 0; count < 4; ++count) {
 			QApplication::processEvents();
 		}
+	}
+
+	// [[BPR-0870]]. The shared scrollbar moves the panes only once the
+	// publication's native measurement has given the controller an axis;
+	// before that its value changes and the panes stay where they are. Four
+	// rounds of events were enough on macOS and Linux, and not on Windows.
+	void settle_geometry(qt::diff_workbench& aWorkbench)
+	{
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		do {
+			QApplication::processEvents();
+		} while (aWorkbench.geometry_pending() && timer.elapsed() < 5'000);
+		expect(!aWorkbench.geometry_pending(), "the publication's native measurement completes before the course scrolls");
+		process_events();
 	}
 
 	template <typename Identity>
@@ -271,6 +287,7 @@ namespace {
 			"the classifier's spans arrive in the order the pane requires");
 		process_events();
 
+		settle_geometry(workbench);
 		const auto  marker = line_of(left, comment_marker);
 		auto* const bar    = workbench.shared_scrollbar();
 		bar->setValue(

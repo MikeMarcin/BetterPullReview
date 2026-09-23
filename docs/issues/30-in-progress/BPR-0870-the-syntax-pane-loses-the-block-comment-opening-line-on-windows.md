@@ -70,3 +70,49 @@ Still red at the merged head: `qt_syntax_pane_composition` fails at `FAILED: the
 line that opened the block comment has scrolled off the top, so nothing on
 screen says the marker line is a comment`. It uses the diff workbench, not the
 strip, and passed on this station in August.
+
+## Cause: the course scrolled before the pane had an axis to scroll by (bpr-main-win, 2026-09-23)
+
+**The course's scroll precondition was platform-dependent. The product did
+not lose continuation state.**
+
+A local probe (not committed) printed the state at the scroll on Windows
+(`build/dev`, MSVC 19.51 Debug, offscreen):
+
+```text
+marker=403 answer=406 top=0 shared[min=0 max=100000 value=99261 page=10]
+pane-bar[min=0 max=365 value=0] viewport=638 row=14 blocks=409
+before-settle geometry_pending=1 shared-enabled=0
+```
+
+The course set the shared scrollbar to 99,261 of 100,000, but the left pane's
+own scrollbar stayed at 0, so the first visible block was 0. The shared
+scrollbar moves the panes only once the publication's native measurement has
+given the comparison scroll controller an axis. Until then its `valueChanged`
+handler returns early (`comparison_scroll_controller.cpp:65`), and the bar is
+disabled. The course waited four rounds of events after publishing. That was
+enough on macOS and Linux. On Windows the measurement was still pending when
+it scrolled, so the precondition was never reached.
+
+**The fix is in the course** (`tests/adapters_qt/syntax_pane_composition_tests.cpp`).
+Before it scrolls, it waits until `geometry_pending()` is false, with a
+5-second deadline, and asserts that by name: "the publication's native
+measurement completes before the course scrolls". This is the settle that
+`diff_workbench_tests.cpp` and `workbench_window_tests.cpp` already use. The
+existing "the line that opened the block comment has scrolled off the top"
+check still guards the scroll itself, and the colouring checks are
+unchanged.
+
+**Rows (`build/dev`, offscreen):**
+
+| Run | Measurement at the scroll | Result |
+| --- | --- | --- |
+| Probe with the settle disabled | `geometry_pending=1`, shared bar disabled | Fails at the scrolled-off check |
+| Probe with the settle | `geometry_pending=0`, shared bar enabled | Passes |
+| `qt_syntax_pane_composition` as registered (contained), with the fix | | Passes 5 of 5 (`--repeat until-fail:5`), 0.72–0.75 s |
+
+The records are station logs under `build/logs/bpr-0870-main-win/` and are
+not committed. On macOS and Linux, where the measurement was already done
+after four rounds of events, the wait returns after one more round. No run
+was made on those platforms from this station. `clang-format --dry-run
+--Werror` is clean. No `src/app` file changed, so no pins move.
