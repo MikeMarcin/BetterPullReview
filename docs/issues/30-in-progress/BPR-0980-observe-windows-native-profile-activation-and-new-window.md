@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0980"
 title: "Observe native Windows profile activation and New Window on the desktop"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-0979"]
 priority: "P2"
