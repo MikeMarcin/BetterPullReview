@@ -968,6 +968,18 @@ foreach(bpr_focus_order_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-0985]]. Which conversation moves code, reached directly: the full
+# window run stops earlier at the epoch-row assertion [[BPR-0940]] owns.
+bpr_add_network_isolated_test(
+    NAME qt_workbench_conversation_reveal
+    COMMAND test_better_pull_review_qt_workbench_window_tests --conversation-reveal
+)
+set_tests_properties(qt_workbench_conversation_reveal PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "workbench-conversation-reveal:pass"
+    TIMEOUT 60
+)
+
 bpr_add_network_isolated_test(
     NAME qt_native_window_geometry
     COMMAND test_better_pull_review_qt_workbench_window_tests --native-window-geometry

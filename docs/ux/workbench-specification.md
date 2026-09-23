@@ -702,10 +702,15 @@ Filters include New, Unresolved, Defects, Needs Verification, Pending Drafts,
 Outdated, and All. The current comparison filters roots to the exact file. A
 reviewer-selected source line narrows that forest to the exact diff side and
 line; selecting a root or reply drives the reciprocal code reveal described
-above. Unplaceable threads remain readable at file scope and state why no code
-marker is drawn. Retained historical navigation requires a revision identity
-and remains separate work; an outdated thread is never placed against the
-current panes by reusing its original line.
+above. The first thread the drawer makes current by itself, so that its detail
+has something to show, is not a selection: it moves no code, and a comparison
+published again reveals only a thread the reviewer chose ([[BPR-0985]]).
+Otherwise every file's first thread would take the reader's line, and a
+resumed reading would lose its saved line to it. Unplaceable threads remain
+readable at file scope and state why no code marker is drawn. Retained
+historical navigation requires a revision identity and remains separate work;
+an outdated thread is never placed against the current panes by reusing its
+original line.
 
 ### The thread map
 

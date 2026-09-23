@@ -17,6 +17,7 @@
 class QAction;
 class QComboBox;
 class QLabel;
+class QModelIndex;
 class QSplitter;
 class QStackedWidget;
 class QToolButton;
@@ -116,6 +117,20 @@ namespace bpr::qt {
 		[[nodiscard]] auto anchor_line() const noexcept
 			-> const std::optional<core::source_line_ref>&;
 
+		/// \brief [[BPR-0985]]. Whether the current row is the one the panel
+		/// made current to show a detail, rather than one the reviewer chose.
+		///
+		/// \details A default row selects a detail without moving code, so the
+		/// workbench reveals again only a thread the reviewer chose when a
+		/// comparison or the conversations are published. Any change of the
+		/// tree's current row that is heard, and `choose`, ends the default.
+		[[nodiscard]] auto current_is_default() const noexcept -> bool;
+		/// \brief Makes one thread current as the reviewer's choice.
+		///
+		/// \details Choosing the row that is current only by default is still
+		/// a choice, so it is announced like any other.
+		void choose(const QModelIndex& aIndex);
+
 		/// \brief Compatibility no-op; accepted conversations reveal automatically.
 		void set_reveal_action(QAction* aAction);
 
@@ -212,6 +227,9 @@ namespace bpr::qt {
 		/// A reviewer who then collapses a thread keeps it collapsed across the
 		/// next refresh, which re-expanding on every projection would undo.
 		bool ExpandOnNextProjection = true;
+		/// [[BPR-0985]]. The panel made the current row current to show a
+		/// detail; the reviewer did not choose it.
+		bool DefaultCurrent = false;
 		/// The file whose threads are shown, or nothing for all of them.
 		std::optional<core::file_identity>   AnchorFile;
 		std::optional<core::file_identity>   DiscussFile;

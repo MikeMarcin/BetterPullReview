@@ -3700,7 +3700,9 @@ namespace {
 		window.publish(application::github_presentation_update{
 			.PullRequest = pullRequest,
 		});
-		window.conversation_view()->setCurrentIndex(
+		// [[BPR-0985]]. The sole thread is the drawer's default row, which
+		// moves no code until the reviewer chooses it.
+		window.conversation_panel()->choose(
 			window.conversation_model()->index_for_id("refresh-thread"));
 		process_events();
 		expect(surface->conversation_anchor().has_value()
@@ -3737,6 +3739,79 @@ namespace {
 				   && surface->conversation_anchor()->Side == core::diff_side::right
 				   && surface->conversation_anchor()->Line == 3U,
 			   "same-identity line-change refresh moves the marker to the new exact line");
+	}
+
+	// [[BPR-0985]]. The drawer makes its first thread current to show a
+	// detail. That is not the reviewer's choice: the application places the
+	// conversation endpoints again after every published file diff, and doing
+	// so must neither move the reader's line nor report a reading gesture, which
+	// superseded the saved reading a restart was restoring. Choosing the same
+	// thread is the reviewer's, and does both.
+	void test_a_default_conversation_row_never_moves_code()
+	{
+		const auto diff = computed_comparison(
+			"left-0\nleft-1\nleft-2\nleft-3\n",
+			"right-0\nright-1\nright-2\nright-3\n",
+			0U,
+			core::file_identity_of("src/file.cpp"));
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto* const surface  = publish_fixture(window, diff);
+		auto        gestures = 0U;
+		surface->set_reading_gesture_sink([&gestures] { ++gestures; });
+		window.set_conversation_endpoint_placement(true, true);
+		window.conversation_panel()->adopt({
+											   application::github_conversation_projection{
+												   .Id       = "right-thread",
+												   .Kind     = application::github_conversation_kind::review_thread,
+												   .Path     = "src/file.cpp",
+												   .Line     = 3U,
+												   .DiffSide = application::github_conversation_diff_side::right,
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::current,
+											   },
+											   application::github_conversation_projection{
+												   .Id       = "left-thread",
+												   .Kind     = application::github_conversation_kind::review_thread,
+												   .Path     = "src/file.cpp",
+												   .Line     = 4U,
+												   .DiffSide = application::github_conversation_diff_side::left,
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::current,
+											   },
+										   },
+										   QStringLiteral("two conversations"));
+		process_events();
+		const auto reading = surface->selection();
+		expect(reading.has_value()
+				   && window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()) == "right-thread"
+				   && window.conversation_panel()->current_is_default(),
+			   "the drawer makes its first thread current by default beside a published reading");
+		window.set_conversation_endpoint_placement(true, true);
+		process_events();
+		expect(!surface->conversation_anchor().has_value() && surface->selection() == reading && gestures == 0U,
+			   "placing the endpoints again after a published diff leaves a default thread's line unrevealed and reports no reading gesture");
+
+		auto* const cards = window.conversation_panel()->cards();
+		cards->setFocus(Qt::OtherFocusReason);
+		auto choose = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(cards, &choose);
+		process_events();
+		expect(!window.conversation_panel()->current_is_default()
+				   && window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()) == "right-thread"
+				   && surface->conversation_anchor().has_value()
+				   && surface->conversation_anchor()->Side == core::diff_side::right
+				   && surface->conversation_anchor()->Line == 2U
+				   && surface->selection() != reading && gestures == 1U,
+			   "choosing the default thread's card reveals its exact line as one reading gesture");
+		const auto chosen = surface->selection();
+		window.set_conversation_endpoint_placement(true, true);
+		process_events();
+		expect(surface->conversation_anchor().has_value() && surface->conversation_anchor()->Line == 2U
+				   && surface->selection() == chosen,
+			   "a chosen thread stays revealed when the endpoints are placed again");
 	}
 
 	void test_conversation_line_outside_selected_comparison_is_explicit()
@@ -8387,6 +8462,23 @@ auto main(int argc, char** argv) -> int
 		std::cout << "workbench-focus-order:pass\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-0985]]. The conversation courses, which the full run does not reach
+	// past that same assertion: which thread moves code, and when.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--conversation-reveal"))) {
+		test_the_conversations_drawer_hosts_the_threaded_conversation();
+		test_same_automatically_selected_line_click_filters_conversations();
+		test_selected_file_filter_survives_diff_loading();
+		test_conversation_selection_reveals_exact_diff_anchor();
+		test_a_default_conversation_row_never_moves_code();
+		test_conversation_line_outside_selected_comparison_is_explicit();
+		test_failed_replacement_keeps_conversations_on_the_requested_file();
+		test_refresh_gap_retains_only_visual_conversation_scope();
+		test_refresh_without_a_selection_shows_review_wide_roots();
+		test_discuss_uses_main_content_and_open_in_code_returns_to_read();
+		test_defect_queue_navigation_and_semantic_dispatch();
+		std::cout << "workbench-conversation-reveal:pass\n";
+		return EXIT_SUCCESS;
+	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();
@@ -8422,6 +8514,7 @@ auto main(int argc, char** argv) -> int
 	test_same_automatically_selected_line_click_filters_conversations();
 	test_selected_file_filter_survives_diff_loading();
 	test_conversation_selection_reveals_exact_diff_anchor();
+	test_a_default_conversation_row_never_moves_code();
 	test_conversation_line_outside_selected_comparison_is_explicit();
 	test_failed_replacement_keeps_conversations_on_the_requested_file();
 	test_refresh_gap_retains_only_visual_conversation_scope();

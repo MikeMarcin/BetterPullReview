@@ -390,7 +390,7 @@ namespace bpr::qt {
 		Cards->set_thread_dispatch([this](const std::string& aIdentity, const bool aOpenDetail) {
 			const auto target = Model->index_for_id(aIdentity);
 			if (target.isValid()) {
-				View->setCurrentIndex(target);
+				choose(target);
 				if (aOpenDetail) {
 					DetailOpened = true;
 					arrange_discuss();
@@ -502,7 +502,7 @@ namespace bpr::qt {
 		ThreadMap->set_selection_sink([this](const std::string& aIdentity) {
 			const auto target = Model->index_for_id(aIdentity);
 			if (target.isValid()) {
-				View->setCurrentIndex(target);
+				choose(target);
 			}
 		});
 		connect(
@@ -510,6 +510,9 @@ namespace bpr::qt {
 			&QItemSelectionModel::currentChanged,
 			this,
 			[this](const QModelIndex& aIndex) {
+				// Only the panel's own restores are silent, so a change heard
+				// here is never the default row.
+				DefaultCurrent = false;
 				synchronize_map_focus();
 				View->expandAll();
 				View->scrollTo(aIndex, QAbstractItemView::PositionAtTop);
@@ -727,6 +730,7 @@ namespace bpr::qt {
 		if (!View->currentIndex().isValid() && Model->rowCount() > 0) {
 			const QSignalBlocker blocker{ View->selectionModel() };
 			View->setCurrentIndex(Model->index(0, 0));
+			DefaultCurrent = true;
 		}
 		// Set explicitly rather than through the signal, which the restore
 		// above deliberately blocks: the map has to end an adopt showing the
@@ -750,6 +754,7 @@ namespace bpr::qt {
 		Body->set_link_dispatch({ });
 		DetailRoot.clear();
 		DiscussSelection.clear();
+		DefaultCurrent       = false;
 		DiscussReadingOffset = 0;
 		DiscussScope         = cards_scope::whole_pull_request;
 		DiscussFilters       = { };
@@ -962,6 +967,21 @@ namespace bpr::qt {
 		View->setMaximumHeight(fontMetrics().lineSpacing() * 7);
 		View->doItemsLayout();
 		arrange_discuss();
+	}
+
+	auto github_conversation_panel::current_is_default() const noexcept -> bool
+	{
+		return DefaultCurrent;
+	}
+
+	void github_conversation_panel::choose(const QModelIndex& aIndex)
+	{
+		if (DefaultCurrent && aIndex.isValid() && View->currentIndex() == aIndex) {
+			// Setting the same row again would say nothing.
+			const QSignalBlocker blocker{ View->selectionModel() };
+			View->setCurrentIndex({ });
+		}
+		View->setCurrentIndex(aIndex);
 	}
 
 	auto github_conversation_panel::view() const noexcept -> QTreeView*

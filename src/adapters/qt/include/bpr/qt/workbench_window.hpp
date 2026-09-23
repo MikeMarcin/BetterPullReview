@@ -1051,8 +1051,10 @@ namespace bpr::qt {
 		void               update_defect_surface();
 		[[nodiscard]] auto selected_conversation_classification() const
 			-> std::optional<workbench_defect_classification>;
-		void synchronize_selected_conversation(const QModelIndex& aIndex);
-		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
+		/// \brief The current conversation if the reviewer chose it, else none.
+		[[nodiscard]] auto chosen_conversation() const -> QModelIndex;
+		void               synchronize_selected_conversation(const QModelIndex& aIndex);
+		void               build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
 		/// \brief Points device sign-in at the host profile last chosen.
 		void rebind_device_authorization_profile();
 		/// \brief [[BPR-0773]]. Lays the device sign-in into the account row of

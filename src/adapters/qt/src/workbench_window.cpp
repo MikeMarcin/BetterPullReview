@@ -1247,7 +1247,7 @@ namespace bpr::qt {
 					// current and the draft editor takes focus.
 					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
 					if (index.isValid()) {
-						ConversationPanel->view()->setCurrentIndex(index);
+						ConversationPanel->choose(index);
 					}
 					if (select_thread_line(aIdentity) && ReviewReplyDispatch
 						&& ReviewEditor != nullptr) {
@@ -1266,7 +1266,7 @@ namespace bpr::qt {
 					// thread made current so the line is revealed.
 					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
 					if (index.isValid()) {
-						ConversationPanel->view()->setCurrentIndex(index);
+						ConversationPanel->choose(index);
 						enter_read_at(index.data(github_conversation_model::path_role).toString());
 						synchronize_selected_conversation(index);
 					}
@@ -4309,6 +4309,15 @@ namespace bpr::qt {
 		update_defect_surface();
 	}
 
+	auto workbench_window::chosen_conversation() const -> QModelIndex
+	{
+		// [[BPR-0985]]. The panel's default row shows a detail without moving
+		// code. Revealing it again after every published comparison moved the
+		// reader to the first thread of each file, and as a reading gesture it
+		// superseded the saved reading a restart was restoring.
+		return ConversationPanel->current_is_default() ? QModelIndex{ } : ConversationPanel->view()->currentIndex();
+	}
+
 	void workbench_window::synchronize_selected_conversation(
 		const QModelIndex& aIndex)
 	{
@@ -6256,8 +6265,7 @@ namespace bpr::qt {
 					  aPullRequest.ReviewThreadCount,
 					  aPullRequest.Capabilities.ReviewThreads));
 		ApplyingConversationAnchor = false;
-		synchronize_selected_conversation(
-			ConversationPanel->view()->currentIndex());
+		synchronize_selected_conversation(chosen_conversation());
 		refresh_cards();
 		update_defect_surface();
 		HasGithubPullRequest = true;
@@ -7584,8 +7592,7 @@ namespace bpr::qt {
 		ConversationPanel->set_current_endpoint_placement(
 			aLeftHasCurrentDiffRevision, aRightHasCurrentDiffRevision);
 		ApplyingConversationAnchor = false;
-		synchronize_selected_conversation(
-			ConversationPanel->view()->currentIndex());
+		synchronize_selected_conversation(chosen_conversation());
 		update_defect_surface();
 	}
 
