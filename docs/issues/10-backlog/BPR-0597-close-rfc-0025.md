@@ -79,3 +79,7 @@ allocated slice. This closeout becomes startable when BPR-0981 is Done; it
 then re-runs the surviving checks at the closeout head, records superseded
 rows as superseded, and reconciles the RFC and index. This record claims no
 tab implementation or acceptance.
+
+Stopped 2026-09-22 under the owner's stop condition with [[BPR-0981]] In
+Progress at `fe41b77b`, an unbuilt checkpoint; its card carries the exact
+resume steps. Nothing in this checklist has been run at the closeout head.

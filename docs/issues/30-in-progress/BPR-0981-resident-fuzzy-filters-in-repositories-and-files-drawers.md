@@ -81,3 +81,47 @@ Pending. At planning head `9097723a` the files filter is a literal
 case-insensitive substring over the path with no empty state beyond the line
 edit's clear button, and the repositories tree has no text filter; neither
 filter is in the declared focus order. Nothing here is claimed passed.
+
+## Checkpoint — 2026-09-22, owner stop condition
+
+Run `rfc-0018-0026-closeout-20260920`, segment `rfc-0025-claude`, milestone
+`close-rfc-0025` (bound `build/rfc0025-claude-milestone-checkpoint-close.json`,
+definition `d1cc095c…`, obligations BPR-0981 and BPR-0597). The owner's stop
+condition arrived after the product, test and specification edits were
+written and **before the first build**. They are committed as `fe41b77b`
+so nothing is lost; that commit is **unbuilt, untested and unformatted**, and
+nothing in it is claimed to pass.
+
+What `fe41b77b` contains: `src/adapters/qt/include/bpr/qt/resident_filter.hpp`
+and `src/resident_filter.cpp` (space-separated terms, ordered case-folded
+subsequence match; `filter_empty_notice` with a named Clear filter button),
+registered in `src/adapters/qt/CMakeLists.txt`; `files_tree.cpp` uses the
+matcher; `repositories_drawer.hpp/.cpp` gain `set_filter`, a `rebuild` over
+retained items and saved repositories (repository or host match keeps every
+row beneath, title or `#number` match keeps the repository row; the rail
+count stays the queue's), and the view keeps `Current` and restores it under
+an `Applying` guard without a second open; `workbench_window.hpp/.cpp` add
+the `repositoriesFilter` surface, both `filter_empty_notice` widgets,
+`refresh_filter_notices()`, accessors and the declared focus stops; tests in
+`files_tree_tests.cpp`, `repositories_drawer_tests.cpp`,
+`composed_github_tests.cpp` (`test_drawer_filters_are_resident_and_keep_the_open_views`)
+and `workbench_window_tests.cpp` (focus-order names); the File drawer
+section of `docs/ux/workbench-specification.md`.
+
+Next action for the resuming owner, in order: build
+`test_better_pull_review_qt_files_tree_tests`,
+`test_better_pull_review_qt_repositories_drawer_tests`,
+`test_better_pull_review_qt_github_tests` and
+`test_better_pull_review_qt_workbench_window_tests` with `cmake --build
+--preset dev`; run `ctest --preset dev -R
+'^(qt_files_tree|qt_repositories_drawer|qt_composed_github_scale_100|qt_workbench_window_scale_(100|125|200))$'`;
+fix what fails (likely spots: the composed test's `choose_modality(review)`
+visibility assumptions use `isHidden()` deliberately; `QStringView::split`
+with `u' '`; the focus-order walk now includes the two Clear filter buttons
+while hidden); run `coding-format-check` on the touched C++; then the
+documentation gate, board validate, and `finish BPR-0981` with the exact
+selectors and elapsed times before BPR-0597 starts. No attended verdict is
+required by this slice; none was prepared.
+
+No task-owned process is running. No push, merge to `main`, live provider
+mutation or credential was used.
