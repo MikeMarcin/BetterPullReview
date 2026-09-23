@@ -13,16 +13,23 @@ is proven by the *absence* of a formatting call rather than by the exit status
 alone.
 
 See `docs/issues/*/BPR-0367-format-gate-fails-under-clang-format-22.md`.
+
+The later cases cover what `coding_format_check` relies on ([[BPR-0865]]).
+Configure's discovery passes over an older clang-format that comes first on the
+search path. The row's driver fails on unformatted source, and it reports a skip,
+not a failure, when there is no supported tool.
 """
 
 from __future__ import annotations
 
 import io
 import os
+import shutil
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT))
@@ -36,22 +43,43 @@ import _coding_standard as CODING_STANDARD  # noqa: E402
 STANDARD_SCRIPTS = REPOSITORY_ROOT / "_coding-standard" / "scripts"
 FORMAT_CHECK_SCRIPT = STANDARD_SCRIPTS / "format_check.py"
 FORMAT_SCRIPT = STANDARD_SCRIPTS / "format.py"
+FORMAT_CHECK_OR_SKIP_SCRIPT = STANDARD_SCRIPTS / "format_check_or_skip.py"
+CLANG_FORMAT_DISCOVERY_MODULE = (
+    REPOSITORY_ROOT / "_coding-standard" / "cmake" / "CodingStandardClangFormat.cmake"
+)
+
+# The code `tests/CMakeLists.txt` gives `coding_format_check` as its
+# SKIP_RETURN_CODE.
+SKIP_EXIT_CODE = 77
 
 # One version below the minimum and one at it. Written as text rather than
 # derived from the constant so that raising the minimum has to be a deliberate
 # edit here too.
 UNSUPPORTED_BANNER = "Ubuntu clang-format version 21.1.8"
 SUPPORTED_BANNER = "Homebrew clang-format version 22.1.8"
+NEWER_BANNER = "Homebrew clang-format version 23.1.0"
 
 SOURCE_TEXT = "int main() {\n\treturn 0;\n}\n"
 
 
-def write_stub(aDirectory: Path, aBanner: str, aMarker: Path) -> Path:
+# What clang-format 22 writes for a file `--dry-run --Werror` finds unformatted.
+DIRTY_DIAGNOSTIC = "probe.cpp:1:1: error: code should be clang-formatted [-Wclang-format-violations]"
+
+
+def write_stub(
+    aDirectory: Path,
+    aBanner: str,
+    aMarker: Path,
+    *,
+    aName: str = "clang-format-stub",
+    aDirty: bool = False,
+) -> Path:
     """Write an executable clang-format stub that reports `aBanner`.
 
     Any invocation that is not `--version` or `--help` appends to `aMarker`, so
     a test can distinguish "the gate refused" from "the gate ran and happened to
-    pass".
+    pass". With `aDirty` that invocation reports the file unformatted, as a real
+    `--dry-run --Werror` does.
     """
     if os.name == "nt":
         # Inside a parenthesised `if` block cmd reads an unescaped `)` as the
@@ -59,7 +87,10 @@ def write_stub(aDirectory: Path, aBanner: str, aMarker: Path) -> Path:
         # `Debian ... (tags/RELEASE)` was truncated and the stub reported no
         # version at all. `^` escapes both brackets.
         escaped = aBanner.replace("(", "^(").replace(")", "^)")
-        stub = aDirectory / "clang-format-stub.bat"
+        verdict = (
+            f">&2 echo {DIRTY_DIAGNOSTIC}\r\nexit /b 1\r\n" if aDirty else "exit /b 0\r\n"
+        )
+        stub = aDirectory / f"{aName}.bat"
         stub.write_text(
             "@echo off\r\n"
             'if "%~1"=="--version" (\r\n'
@@ -71,13 +102,14 @@ def write_stub(aDirectory: Path, aBanner: str, aMarker: Path) -> Path:
             "  exit /b 0\r\n"
             ")\r\n"
             f'>>"{aMarker}" echo formatted\r\n'
-            "exit /b 0\r\n",
+            f"{verdict}",
             encoding="ascii",
             newline="",
         )
         return stub
 
-    stub = aDirectory / "clang-format-stub"
+    verdict = f'echo "{DIRTY_DIAGNOSTIC}" >&2\nexit 1\n' if aDirty else "exit 0\n"
+    stub = aDirectory / aName
     stub.write_text(
         "#!/bin/sh\n"
         'if [ "$1" = "--version" ]; then\n'
@@ -89,7 +121,7 @@ def write_stub(aDirectory: Path, aBanner: str, aMarker: Path) -> Path:
         "  exit 0\n"
         "fi\n"
         f'echo formatted >> "{aMarker}"\n'
-        "exit 0\n",
+        f"{verdict}",
         encoding="ascii",
     )
     stub.chmod(0o755)
@@ -210,6 +242,187 @@ class format_gate_refuses_an_unsupported_tool(unittest.TestCase):
         self.assertTrue(formatted, "the override refused instead of continuing")
 
 
+class the_format_check_row_fails_on_rot_and_skips_without_a_tool(unittest.TestCase):
+    """`coding_format_check` runs format_check_or_skip.py ([[BPR-0865]]).
+
+    A missing or old tool must end in the skip code, and it must never ask that
+    tool to format anything. Unformatted source must end in a failure, never in
+    a skip.
+    """
+
+    def run_row(
+        self, aBanner: Optional[str], *, aDirty: bool = False, aTool: Optional[str] = None
+    ) -> Tuple[subprocess.CompletedProcess, bool]:
+        with ContainedTemporaryDirectory() as scratch:
+            root = Path(scratch)
+            marker = root / "invoked.log"
+            (root / "src").mkdir()
+            (root / "src" / "probe.cpp").write_text(SOURCE_TEXT, encoding="ascii")
+            arguments: List[str] = []
+            if aBanner is not None:
+                stub_root = root / "stub"
+                stub_root.mkdir()
+                stub = write_stub(stub_root, aBanner, marker, aDirty=aDirty)
+                arguments = ["--clang-format", str(stub)]
+            elif aTool is not None:
+                arguments = ["--clang-format", aTool]
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(FORMAT_CHECK_OR_SKIP_SCRIPT),
+                    "--root",
+                    str(root),
+                    "--skip-exit-code",
+                    str(SKIP_EXIT_CODE),
+                    *arguments,
+                ],
+                cwd=str(REPOSITORY_ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return completed, marker.exists()
+
+    def test_formatted_source_passes_with_a_supported_tool(self) -> None:
+        completed, formatted = self.run_row(SUPPORTED_BANNER)
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("Formatting check passed.", completed.stdout)
+        self.assertTrue(formatted, "the row passed without asking clang-format")
+
+    def test_unformatted_source_fails_and_is_never_a_skip(self) -> None:
+        completed, formatted = self.run_row(SUPPORTED_BANNER, aDirty=True)
+        self.assertEqual(completed.returncode, 1, completed.stdout + completed.stderr)
+        self.assertIn("Files needing formatting:", completed.stdout)
+        self.assertIn("src/probe.cpp", completed.stdout)
+        self.assertNotIn("SKIPPED", completed.stdout)
+        self.assertTrue(formatted)
+
+    def test_no_tool_from_configure_is_a_skip(self) -> None:
+        completed, _ = self.run_row(None)
+        self.assertEqual(completed.returncode, SKIP_EXIT_CODE, completed.stdout + completed.stderr)
+        self.assertIn("SKIPPED: configure found no clang-format 22 or newer", completed.stdout)
+        self.assertIn("not a formatting verdict", completed.stdout)
+
+    def test_an_older_tool_is_a_skip_and_is_never_asked_to_format(self) -> None:
+        completed, formatted = self.run_row(UNSUPPORTED_BANNER)
+        self.assertEqual(completed.returncode, SKIP_EXIT_CODE, completed.stdout + completed.stderr)
+        self.assertIn("reports version 21.1.8", completed.stdout)
+        self.assertFalse(formatted, "an unsupported clang-format was asked for a verdict")
+
+    def test_an_older_tool_is_a_skip_even_when_the_source_is_unformatted(self) -> None:
+        """A missing or old tool gives no verdict, whatever the tree holds."""
+        completed, formatted = self.run_row(UNSUPPORTED_BANNER, aDirty=True)
+        self.assertEqual(completed.returncode, SKIP_EXIT_CODE, completed.stdout + completed.stderr)
+        self.assertFalse(formatted)
+
+    def test_an_unreadable_version_is_a_skip(self) -> None:
+        completed, formatted = self.run_row("some other tool 99.9")
+        self.assertEqual(completed.returncode, SKIP_EXIT_CODE, completed.stdout + completed.stderr)
+        self.assertIn("cannot read a version", completed.stdout)
+        self.assertFalse(formatted)
+
+    def test_a_configured_tool_that_has_gone_is_a_skip(self) -> None:
+        completed, _ = self.run_row(None, aTool=str(REPOSITORY_ROOT / "no-such-clang-format"))
+        self.assertEqual(completed.returncode, SKIP_EXIT_CODE, completed.stdout + completed.stderr)
+        self.assertIn("reconfigure", completed.stdout)
+
+    def test_the_skip_code_cannot_be_one_of_the_gate_verdicts(self) -> None:
+        for gate_code in ("0", "1", "2"):
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(FORMAT_CHECK_OR_SKIP_SCRIPT),
+                    "--root",
+                    str(REPOSITORY_ROOT),
+                    "--skip-exit-code",
+                    gate_code,
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 2, gate_code)
+            self.assertIn("must differ from the gate's own exit codes", completed.stderr)
+
+
+@unittest.skipIf(
+    os.name == "nt",
+    "find_program on Windows looks for .com and .exe files, and these stubs are batch files",
+)
+class configure_passes_over_an_older_clang_format(unittest.TestCase):
+    """CodingStandardClangFormat.cmake, run in script mode against stubs ([[BPR-0865]]).
+
+    The Linux station's PATH gives clang-format 21.1.8 first and has 22.1.8 at
+    /usr/bin/clang-format. Stopping at the first one would skip the row on a
+    station that can check the tree.
+    """
+
+    def discover(self, aBanners: List[str]) -> str:
+        cmake = CMAKE_COMMAND or shutil.which("cmake")
+        if cmake is None:
+            self.skipTest("no cmake to run the discovery module with")
+        with ContainedTemporaryDirectory() as scratch:
+            root = Path(scratch)
+            directories: List[str] = []
+            for index, banner in enumerate(aBanners):
+                directory = root / f"tool-{index}"
+                directory.mkdir()
+                write_stub(directory, banner, root / "invoked.log", aName="clang-format")
+                directories.append(str(directory))
+
+            script = root / "discover.cmake"
+            script.write_text(
+                'include("${MODULE}")\n'
+                'coding_standard_find_clang_format("${PYTHON}")\n'
+                'message(STATUS "discovered=[${BPR_CLANG_FORMAT_EXECUTABLE}]")\n',
+                encoding="ascii",
+            )
+            environment = dict(os.environ)
+            for variable in (
+                "CMAKE_PREFIX_PATH",
+                "CMAKE_PROGRAM_PATH",
+                "CMAKE_APPBUNDLE_PATH",
+                "CMAKE_FRAMEWORK_PATH",
+            ):
+                environment.pop(variable, None)
+            environment["PATH"] = os.pathsep.join(directories)
+            completed = subprocess.run(
+                [
+                    cmake,
+                    f"-DMODULE={CLANG_FORMAT_DISCOVERY_MODULE}",
+                    f"-DPYTHON={sys.executable}",
+                    "-P",
+                    str(script),
+                ],
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout)
+            self.assertFalse(
+                (root / "invoked.log").exists(), "discovery asked a candidate to format"
+            )
+            for line in completed.stdout.splitlines():
+                if "discovered=[" in line:
+                    found = line.split("discovered=[", 1)[1].rsplit("]", 1)[0]
+                    return found.replace(str(root), "<root>")
+            self.fail(completed.stdout)
+
+    def test_an_older_tool_first_on_the_path_is_passed_over(self) -> None:
+        found = self.discover([UNSUPPORTED_BANNER, SUPPORTED_BANNER])
+        self.assertEqual(found, "<root>/tool-1/clang-format")
+
+    def test_the_first_supported_tool_is_taken(self) -> None:
+        found = self.discover([SUPPORTED_BANNER, NEWER_BANNER])
+        self.assertEqual(found, "<root>/tool-0/clang-format")
+
+    def test_only_an_older_tool_is_not_found(self) -> None:
+        found = self.discover([UNSUPPORTED_BANNER])
+        self.assertEqual(found, "BPR_CLANG_FORMAT_EXECUTABLE-NOTFOUND")
+
+
 class the_installed_tool_satisfies_the_recorded_minimum(unittest.TestCase):
     def test_this_host_can_produce_a_gate_verdict_or_says_why_not(self) -> None:
         try:
@@ -227,5 +440,25 @@ class the_installed_tool_satisfies_the_recorded_minimum(unittest.TestCase):
             )
 
 
+def _test_arguments(aArgv: List[str]) -> Tuple[List[str], Optional[str]]:
+    """Take `--cmake PATH` from the command line and leave the rest to unittest."""
+    unittest_argv = [aArgv[0]]
+    cmake: Optional[str] = None
+    index = 1
+    while index < len(aArgv):
+        if aArgv[index] == "--cmake":
+            if index + 1 >= len(aArgv):
+                raise SystemExit("--cmake requires a path")
+            cmake = aArgv[index + 1]
+            index += 2
+            continue
+        unittest_argv.append(aArgv[index])
+        index += 1
+    return unittest_argv, cmake
+
+
+UNITTEST_ARGV, CMAKE_COMMAND = _test_arguments(sys.argv)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(argv=UNITTEST_ARGV)

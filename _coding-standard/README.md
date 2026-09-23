@@ -64,6 +64,21 @@ This adds non-default local targets:
 - `coding-format-check`
 - `coding-tidy`
 
+Configure finds the clang-format these targets run
+(`cmake/CodingStandardClangFormat.cmake`). It asks each `clang-format` on
+CMake's program search path whether it is supported, using
+`scripts/supported_clang_format.py`. If it is older, the search moves on to the
+next one. So a station whose `PATH` puts 21 ahead of a 22 elsewhere still gets
+the 22. The result is cached as `BPR_CLANG_FORMAT_EXECUTABLE`, and you can set
+that variable to choose a tool. When configure finds none, the targets fall
+back to `clang-format` on `PATH`, and the gate refuses as described above.
+
+The same tool runs the repo-wide check as the CTest row `coding_format_check`,
+through `scripts/format_check_or_skip.py`. The row fails when a file is
+unformatted. It reports **Skipped**, not failed, when configure found no
+supported tool or the tool it found is no longer supported. That result is not
+a formatting verdict.
+
 BetterPullReview adapts the neutral helper to reuse the centrally discovered
 `Python3::Interpreter` target. `BPR_ENABLE_CODING_TARGETS` defaults to the
 value of `BUILD_TESTING`; an explicitly enabled tests-disabled graph therefore

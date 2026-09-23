@@ -440,7 +440,53 @@ bpr_add_network_isolated_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/coding_standard_format_gate_tests.py"
+        --cmake
+        "${CMAKE_COMMAND}"
 )
+
+# [[BPR-0865]]. The repo-wide format gate as a test in the sweep. The row
+# above tests the gate script. This row runs the gate on the project, so an
+# unformatted file under src/ or tests/ fails the sweep.
+#
+# It runs the clang-format that configure found (CodingStandardClangFormat.cmake).
+# Configure passes over an older tool earlier on PATH. Where no supported tool
+# exists, the row reports Skipped: an old or missing tool says nothing about
+# whether the source is formatted, so it must not fail the row. A skip still
+# appears in the sweep's summary, so it is not mistaken for a pass.
+#
+# The skip is an exit code, not an output expression. If CTest stopped applying
+# SKIP_RETURN_CODE before the inherited TEST_RUNNER_CHILD_EXIT_FAILED error
+# expression, the row would fail, which is visible, rather than pass. It is
+# applied first on CMake 4.4.2 (measured).
+#
+# Uncontained on Windows: the gate launches clang-format.exe from outside the
+# checkout. It is pinned as child-process-denied because it has the same shape
+# as BPR-0872's rows, but it has not yet been measured contained.
+if(BPR_ENABLE_CODING_TARGETS)
+    set(bpr_format_check_skip_exit_code 77)
+    set(bpr_format_check_tool)
+    if(BPR_CLANG_FORMAT_EXECUTABLE)
+        set(bpr_format_check_tool --clang-format "${BPR_CLANG_FORMAT_EXECUTABLE}")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME coding_format_check
+        WINDOWS_UNCONTAINED
+        COMMAND
+            Python3::Interpreter
+            "${CODING_STANDARD_FORMAT_CHECK_OR_SKIP_SCRIPT}"
+            --root
+            "${PROJECT_SOURCE_DIR}"
+            --skip-exit-code
+            "${bpr_format_check_skip_exit_code}"
+            ${bpr_format_check_tool}
+    )
+    set_tests_properties(
+        coding_format_check
+        PROPERTIES
+            SKIP_RETURN_CODE "${bpr_format_check_skip_exit_code}"
+            TIMEOUT 600
+    )
+endif()
 
 bpr_add_network_isolated_test(
     NAME platform_configuration_contract

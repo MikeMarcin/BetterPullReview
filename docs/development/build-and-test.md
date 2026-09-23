@@ -925,17 +925,56 @@ renders the style file differently is not a gate verdict.
 `coding_standard_format_gate_contract` covers the refusal, the override, and the
 accepted path.
 
+### The sweep checks formatting: `coding_format_check`
+
+The repo-wide format gate is also a CTest row, `coding_format_check`
+([[BPR-0865]]). It checks every file under `src/` and `tests/`. Before this
+row, a fully green sweep could hide an unformatted tree. That happened twice:
+[[BPR-0862]] found seventeen unformatted files, and four more were found at
+`95343750` when this row was added.
+
+The row uses the clang-format that configure found. Configure does not simply
+take the first one on `PATH`. It asks each candidate on CMake's program search
+path for its version and passes over any older than 22. On `bpr-linux`,
+`PATH` gives 21.1.8 from `~/.local/bin` first, and `/usr/bin/clang-format` is
+22.1.8. Configure picks the second, and prints the result:
+
+```
+-- Coding standard clang-format: /usr/bin/clang-format
+```
+
+The `coding-format` and `coding-format-check` targets now use the same tool.
+To choose one yourself, set `-DBPR_CLANG_FORMAT_EXECUTABLE=<path>`.
+
+The row has three outcomes:
+
+| Result | Meaning |
+|---|---|
+| Passed | Every file is formatted, as judged by a supported clang-format |
+| Failed | The row lists the files needing formatting. Fix them with `coding-format` |
+| Skipped | There was no supported clang-format, so there is no verdict. The row prints why |
+
+A skip is not a pass. It appears in CTest's "The following tests did not run"
+list and in the JUnit `skipped` count. When you report a sweep, report the
+skip as well; a sweep where this row was skipped says nothing about whether the
+source is formatted. The row exits 77, its `SKIP_RETURN_CODE`. On Linux and
+macOS, the isolation launcher also prints `TEST_RUNNER_CHILD_EXIT_FAILED:77`.
+CTest applies the skip code before the error expression, so the row is still
+reported as skipped. This was measured on CMake 4.4.2.
+
 On **Windows**, `clang-format` is not on `PATH` by default even with Visual
 Studio 2022 installed, so the gate's first failure on a fresh checkout is
-`Tool not found on PATH: clang-format` rather than a formatting complaint. Add
-the Visual Studio LLVM directory:
+`Tool not found on PATH: clang-format` rather than a formatting complaint, and
+configure finds no tool, so `coding_format_check` is skipped. Add
+the Visual Studio LLVM directory before configuring:
 
 ```powershell
 $env:PATH = "$env:PATH;${env:ProgramFiles}\Microsoft Visual Studio\18\Community\VC\Tools\Llvm\x64\bin"
 ```
 
-Adjust the edition and version segments to the installed instance, or pass the
-executable directly with `--clang-format`. Check what the toolchain actually
+Adjust the edition and version segments to the installed instance. You can
+also give the executable directly: pass `--clang-format` to the scripts, or
+`-DBPR_CLANG_FORMAT_EXECUTABLE` to configure. Check what the toolchain actually
 supplies before trusting a run: Visual Studio's bundled LLVM has satisfied the
 minimum since it moved to 22.x, and an instance still shipping 21 or earlier
 gets the refusal above.
