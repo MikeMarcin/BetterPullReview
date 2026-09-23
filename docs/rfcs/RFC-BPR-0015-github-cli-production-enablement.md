@@ -49,11 +49,14 @@ The narrower enforceable connector boundary is:
   account status runs and require an explicit upgrade. Human auth-status text
   and stderr do not enter the process result or typed account boundary, and
   the app never passes `--show-token`. This compatibility floor does not
-  weaken the separate exact 2.100.0 qualification for Git-object cloning.
-- Only an explicitly selected CLI profile may execute `gh`; native profiles
-  never use it. Resolve an absolute official executable, record its version
-  and observed identity, and refuse detected changes. Path preflight cannot
-  prove the exact image loaded against concurrent replacement.
+  weaken the separate exact 2.100.0/2.101.0 qualification for Git-object
+  cloning.
+- Only the explicit Use GitHub CLI gesture (for the bounded version and
+  active-account inventory requests) or an explicitly selected CLI profile may
+  execute `gh`; native profiles never use it. Resolve an absolute official
+  executable, record its version and observed identity, and refuse detected
+  changes. Path preflight cannot prove the exact image loaded against
+  concurrent replacement.
 - Invoke directly with an argument array, never a shell. Construct a narrow
   noninteractive child environment, choose the exact HTTPS hostname, use a
   neutral non-repository directory and bound input/output/time/cancellation.
@@ -84,9 +87,10 @@ The narrower enforceable connector boundary is:
   configuration. Bound temporary-disk use, output, time and cancellation;
   remove the store on all terminal paths. This local Git subprocess does not
   provide stronger identity containment for the earlier authenticated clone.
-- The initial macOS Git-object qualification is deliberately exact: `gh`
-  2.100.0 and Apple Git 2.50.1 (Apple Git-155), a 32 MiB per-file ceiling,
-  and a supervised 96 MiB/128-entry temporary-store abort threshold. The
+- The macOS Git-object qualification is deliberately exact: `gh` 2.100.0 or
+  the directly checked 2.101.0, and Apple Git 2.50.1 (Apple Git-155), a 32 MiB
+  per-file ceiling and a supervised 96 MiB/128-entry temporary-store abort
+  threshold. The
   aggregate threshold is not an OS disk quota; an in-flight write can exceed
   it before observation. Refuse an unsupported version or over-limit pack
   without silently falling back to native credentials. The refs supplied to
@@ -100,8 +104,9 @@ The narrower enforceable connector boundary is:
   Fixture or owner-designated safe-test-repository publication is the only
   validation authorized here.
 - Initial production enablement is macOS-only. Windows and Linux remain
-  visibly unavailable pending target-native connector, credential, process,
-  read/write and UI evidence. Test fakes cannot enable production support.
+  unavailable, composing no GitHub CLI entry, pending target-native connector,
+  credential, process, read/write and UI evidence. Test fakes cannot enable
+  production support.
 
 The original BPR-0037 investigation showed that official `gh` 2.95/2.96
 followed a cross-authority 302, honored ambient `http_unix_socket`, and sent
@@ -116,6 +121,30 @@ CLI authority alone does not make `EpicGames/UnrealEngine#1773` render. The
 separate RFC-BPR-0013 parser currently rejects its reported 9,311 commits at
 `MaximumCommits=250` with `response_limit`, despite CLI HTTP 200 on the first
 two requests. This RFC does not change that ceiling.
+
+## Closeout reconciliation r3, 2026-09-22
+
+This records how the as-built product differs from the amendment's wording
+above. It changes no acceptance criterion below and supplies no evidence.
+
+- [[BPR-0909]], [[BPR-0913]], [[BPR-0914]] and [[BPR-0915]] (owner directed,
+  2026-09-18) made GitHub CLI a discovered way in. Use GitHub CLI, on Home,
+  in the shared sign-in dialog and on Accounts & hosts, is the only gesture
+  that runs `gh` before a profile exists: `gh --version` and
+  `gh auth status --active --json hosts` under the same write-denied
+  boundary, never `--show-token`, never on merely opening a surface. Each
+  admitted exact active host/login becomes a CLI profile; a GHES host needs no
+  pre-added account and gets a CLI-only card naming the observed login. A
+  pasted PR link for that exact host reuses the accepted CLI session. Every
+  read still passes the read opt-in, and every write its own confirmation.
+- No card carries a precomposed `GitHub CLI (uses your gh sign-in)` or
+  `GitHub CLI (unavailable)` row any more. Windows and Linux therefore show no
+  CLI entry at all rather than a visibly unavailable row; they still cannot
+  run `gh`.
+- eecdda2a added the directly checked `gh` 2.101.0 to the Git-object
+  allowlist beside 2.100.0; Apple Git and the size bounds are unchanged.
+- [[BPR-0933]] shortened the read opt-in: a headline question and a short
+  consequence paragraph, with every residual risk above behind Show Details.
 
 ## Acceptance criteria
 
