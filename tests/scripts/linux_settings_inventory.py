@@ -3,14 +3,31 @@
 Only menu/window/navigation gestures are sent. Editable values, private content,
 credentials, setting changes and destructive actions are deliberately absent.
 Requires the native XCB surface, libXtst and the Atspi GObject typelib.
+
+`--focus-surface wslg-rail` moves focus between owned windows the way WSLg
+does natively: Windows makes the exact RAIL window foreground (BPR-0975). The
+X11 path cannot do it there, because Weston's XWayland window manager returns
+X11 input focus to the compositor-focused surface. Either way, keys are sent
+only after X11 focus is on the exact owned target window.
+
+The observer also watches the application's own `_NET_ACTIVE_WINDOW`
+requests. Qt applies such a request to itself at once, so when the window
+manager does not honour it, Qt routes keys to the requested window while X11
+focus stays elsewhere. The full course fails on such a refusal.
+`--bound-refused-activation` is a diagnosis, never acceptance: it records each
+refusal, moves native focus through the surface and continues.
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import ctypes as c
 import hashlib
 import json
+import os
 from pathlib import Path
+import platform
+import subprocess
 import time
 
 import gi
@@ -29,14 +46,14 @@ def pump():
         context.iteration(False)
 
 
-def wait(message, predicate):
+def wait(message, predicate, detail=None):
     deadline = time.monotonic() + 8
     while time.monotonic() < deadline:
         pump()
         if predicate():
             return
         time.sleep(0.08)
-    raise RuntimeError(message)
+    raise RuntimeError(f"{message}: {detail()}" if detail else message)
 
 
 def children(element):
@@ -67,9 +84,56 @@ def press(element):
     pump()
 
 
+class WslgRail:
+    """Ask Windows to make an owned window's exact WSLg RAIL window foreground."""
+
+    SCRIPT = Path(__file__).resolve().with_name("wslg_rail_activate.ps1")
+    POWERSHELL = Path("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
+
+    def __init__(self, distribution):
+        require(distribution, "WSLg RAIL activation needs WSL_DISTRO_NAME")
+        require(self.POWERSHELL.is_file() and self.SCRIPT.is_file(), "WSLg RAIL activation helper unavailable")
+        self.distribution = distribution
+        self.script = self.SCRIPT.read_text(encoding="utf-8")
+
+    def run(self, caption, handle=None):
+        quoted = caption.replace("'", "''")
+        command = f"& {{\n{self.script}\n}} -Title '{quoted}'" + (f" -Activate -Handle {handle}" if handle else "")
+        encoded = base64.b64encode(command.encode("utf-16-le")).decode("ascii")
+        result = subprocess.run([str(self.POWERSHELL), "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+                                capture_output=True, timeout=30, cwd=self.POWERSHELL.parent)
+        require(result.returncode == 0, f"WSLg RAIL helper exited {result.returncode}: {result.stderr[-400:]!r}")
+        return json.loads(result.stdout.decode("utf-8"))
+
+    def activate(self, x11, window):
+        # WSLg captions a RAIL window with the X11 title and the distribution.
+        caption = f"{x11.property(window, '_NET_WM_NAME')} ({self.distribution})"
+        candidates = self.run(caption)["candidates"]
+        require(candidates, f"No exact WSLg RAIL window for owned X11 window {window}: {caption}")
+        # Same-profile siblings share a caption; only X11 focus names the target.
+        for handle in candidates:
+            answer = self.run(caption, handle)
+            require(answer["error"] is None, f"WSLg RAIL activation refused: {answer}")
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                if x11.focused() == window:
+                    x11.activations.append(dict(surface="wslg-rail", window=window, caption=caption,
+                                                candidates=len(candidates)))
+                    return
+                time.sleep(0.05)
+        raise RuntimeError(f"WSLg RAIL activation did not focus owned X11 window {window}; "
+                           f"focus={x11.focused()}, caption={caption}, candidates={candidates}")
+
+
 class X11:
-    def __init__(self, pid):
+    def __init__(self, pid, rail=None):
         self.pid = pid
+        self.rail = rail
+        self.activations = []
+        self.watching = False
+        self.bound_refused_activation = False
+        self.claim = None
+        self.refusals = []
         self.x = c.CDLL("libX11.so.6")
         self.xtest = c.CDLL("libXtst.so.6")
         signatures = {
@@ -96,6 +160,13 @@ class X11:
         self.xtest.XTestFakeKeyEvent.argtypes = [c.c_void_p, c.c_uint, c.c_int, c.c_ulong]
         self.xtest.XTestFakeButtonEvent.argtypes = [c.c_void_p, c.c_uint, c.c_int, c.c_ulong]
         self.xtest.XTestFakeMotionEvent.argtypes = [c.c_void_p, c.c_int, c.c_int, c.c_int, c.c_ulong]
+        # A window can be destroyed between XQueryTree and a property read.
+        # Xlib's default handler would exit the observer before its cleanup
+        # stops the owned process; a failed read returns no owned properties.
+        self.errors = c.CFUNCTYPE(c.c_int, c.c_void_p, c.c_void_p)(lambda display, event: 0)
+        self.x.XSetErrorHandler.argtypes = [c.c_void_p]
+        self.x.XSetErrorHandler.restype = c.c_void_p
+        self.x.XSetErrorHandler(c.cast(self.errors, c.c_void_p))
         self.display = self.x.XOpenDisplay(None)
         require(self.display, "Native X11 display unavailable")
         self.root = self.x.XDefaultRootWindow(self.display)
@@ -147,9 +218,69 @@ class X11:
         self.x.XGetInputFocus(self.display, c.byref(window), c.byref(revert))
         return window.value
 
+    def window_manager(self):
+        check = self.property(self.root, "_NET_SUPPORTING_WM_CHECK")
+        return self.property(check[0], "_NET_WM_NAME") if check else ""
+
+    def watch_activation_requests(self, bound_refused_activation=False):
+        # Qt asks an EWMH window manager to activate a window with a
+        # _NET_ACTIVE_WINDOW client message to the root; any client that
+        # selects StructureNotify on the root also receives it.
+        self.watching = True
+        self.bound_refused_activation = bound_refused_activation
+        self.x.XSelectInput.argtypes = [c.c_void_p, c.c_ulong, c.c_long]
+        self.x.XPending.argtypes = [c.c_void_p]
+        self.x.XNextEvent.argtypes = [c.c_void_p, c.c_void_p]
+        self.x.XSelectInput(self.display, self.root, (1 << 17) | (1 << 19))
+        self.x.XSync(self.display, 0)
+
+    def activation_requests(self):
+        """Drain the root's events; return the _NET_ACTIVE_WINDOW requests among them."""
+        class Message(c.Structure):
+            _fields_ = [("type", c.c_int), ("serial", c.c_ulong), ("send_event", c.c_int), ("display", c.c_void_p),
+                        ("window", c.c_ulong), ("message_type", c.c_ulong), ("format", c.c_int), ("data", c.c_long * 5)]
+        class Event(c.Union):
+            _fields_ = [("type", c.c_int), ("message", Message), ("pad", c.c_long * 24)]
+        active = self.x.XInternAtom(self.display, b"_NET_ACTIVE_WINDOW", 0)
+        requests = []
+        while self.x.XPending(self.display):
+            event = Event()
+            self.x.XNextEvent(self.display, c.byref(event))
+            if event.type == 33 and event.message.message_type == active:
+                requests.append(dict(window=event.message.window, source=event.message.data[0]))
+                self.claim = event.message.window
+        return requests
+
+    def refused_claim(self):
+        """The window the application last asked to activate, when the window manager did not."""
+        if not self.watching:
+            return None
+        self.activation_requests()
+        deadline = time.monotonic() + 1
+        while self.claim is not None and self.focused() != self.claim and time.monotonic() < deadline:
+            time.sleep(0.05)
+            self.activation_requests()
+        if self.claim is not None and self.focused() == self.claim:
+            self.claim = None
+        return self.claim
+
     def focus(self, window):
         require(window in self.windows(), "Focus target is not owned")
+        refused = self.refused_claim()
+        if refused is not None:
+            # Qt applies its own _NET_ACTIVE_WINDOW request at once, so after a
+            # refusal it routes keys to `refused` while X11 focus is elsewhere.
+            event = dict(requested=refused, focus=self.focused(), target=window)
+            self.refusals.append(event)
+            require(self.bound_refused_activation and self.rail is not None,
+                    f"The window manager refused the application's own activation request: {event}")
+            if self.focused() == window and refused in self.windows():
+                self.rail.activate(self, refused)  # A real FocusIn there, then on the target below.
+            self.claim = None
         if self.focused() == window:
+            return
+        if self.rail is not None:
+            self.rail.activate(self, window)
             return
         self.x.XRaiseWindow(self.display, window)
         self.x.XSync(self.display, 0)
@@ -225,9 +356,20 @@ class X11:
         self.client_message(window, window, "WM_PROTOCOLS", [self.x.XInternAtom(self.display, b"WM_DELETE_WINDOW", 0), 0, 0, 0, 0])
 
 
-def course(pid, executable, revision, output, inventory_only=False):
+def native_platform():
+    release = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
+    name = release.get("PRETTY_NAME", "Linux").strip('"')
+    wsl = " WSL2" if "microsoft" in platform.release().lower() else ""
+    return f"{name}{wsl} {platform.machine()}, native {'WSLg ' if wsl else ''}X11/XCB"
+
+
+def course(pid, executable, revision, output, inventory_only=False, focus_surface="x11", context=None,
+           bound_refused_activation=False):
     require(Path(f"/proc/{pid}/exe").resolve() == executable.resolve(), "PID executable mismatch")
     require(not output.exists(), "Capture output already exists")
+    require(not (inventory_only and bound_refused_activation), "Choose one weaker course")
+    observed_image = str(Path(f"/proc/{pid}/exe").resolve())
+    kind = "inventory-only" if inventory_only else "full-refused-activation-bounded" if bound_refused_activation else "full"
     desktop = Atspi.get_desktop(0)
     selected = []
     def find_application():
@@ -235,7 +377,35 @@ def course(pid, executable, revision, output, inventory_only=False):
         return len(selected) == 1
     wait("Application AT-SPI tree absent", find_application)
     app = selected[0]
-    x = X11(pid)
+    x = X11(pid, WslgRail(os.environ.get("WSL_DISTRO_NAME", "")) if focus_surface == "wslg-rail" else None)
+    window_manager = x.window_manager()
+    x.watch_activation_requests(bound_refused_activation)
+    checks, pages = [], []
+
+    def record(status, failure=None):
+        data = dict(schema="bpr.settings-inventory.atspi.v1", build="linux-current-qt6112-release", revision=revision,
+                    executable_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
+                    platform=native_platform(), source="AT-SPI accessibility and X11/XTest native gestures",
+                    course=kind, status=status, failure=failure,
+                    observed=dict(pid=pid, image=observed_image, window_manager=window_manager, focus_surface=focus_surface,
+                                  focus_activations=x.activations, refused_activations=x.refusals),
+                    context=context or {},
+                    categories=categories, native_checks=checks, pages=pages)
+        output.write_text(json.dumps(data, indent=2) + "\n")
+
+    categories = ["General", "Accounts & hosts", "Reviews & queue", "Appearance", "Notifications", "Agents & context", "Storage & privacy"]
+    try:
+        drive(app, x, pid, inventory_only, bound_refused_activation, categories, checks, pages)
+    except Exception as failure:
+        record("failed", f"{type(failure).__name__}: {failure}")
+        x.x.XCloseDisplay(x.display)
+        raise
+    record("passed")
+    x.x.XCloseDisplay(x.display)
+    print("LINUX_SETTINGS_INVENTORY_OK", kind, [len(page["nodes"]) for page in pages])
+
+
+def drive(app, x, pid, inventory_only, bound_refused_activation, categories, checks, pages):
     def frames(prefix):
         return [frame for frame in children(app) if frame.get_name().startswith(prefix)
                 and frame.get_state_set().contains(Atspi.StateType.SHOWING)]
@@ -243,6 +413,9 @@ def course(pid, executable, revision, output, inventory_only=False):
         return frames("Settings — Default profile")
     def workbenches():
         return frames("BetterPullReview — Default profile")
+    def state():
+        return dict(workbenches=len(workbenches()), settings=len(settings()), focus=x.focused(), owned=x.windows(),
+                    frames=[(frame.get_name(), frame.get_state_set().contains(Atspi.StateType.SHOWING)) for frame in children(app)])
     def menu(window, menu_name, command):
         x.focus(window)
         # Regular Linux menubar, not the toolbar Settings shortcut.
@@ -250,9 +423,12 @@ def course(pid, executable, revision, output, inventory_only=False):
         require(len(active) == 1, "Expected one active native frame for its menu")
         bar = next(element for element, _ in walk(active[0]) if element.get_role_name() == "menu bar"
                    and element.get_state_set().contains(Atspi.StateType.SHOWING))
-        press(named(bar, menu_name))
-        # Use a native pointer selection for the actual menu command.
-        x.click(named(app, command))
+        opened = named(bar, menu_name)
+        press(opened)
+        # Use a native pointer selection for the actual menu command, taken
+        # from the menu just opened; a sibling window's menus carry the same
+        # command names.
+        x.click(named(opened, command))
 
     wait("Initial workbench absent", lambda: len(workbenches()) == 1)
     first = x.window(workbenches()[0].get_name())
@@ -260,13 +436,23 @@ def course(pid, executable, revision, output, inventory_only=False):
     wait("Native Settings menu failed", lambda: len(settings()) == 1)
     shared = x.window(settings()[0].get_name())
     x.focus(shared)
-    checks = ["native-menu-opens-profile-labelled-settings"]
+    checks.append("native-menu-opens-profile-labelled-settings")
     if not inventory_only:
         x.focus(first)
         require(len(settings()) == 1, "Settings is not modeless")
         x.key(0x2c, control=True)
-        wait("Ctrl-comma did not reuse/focus Settings", lambda: len(settings()) == 1 and x.focused() == shared)
-        checks.append("ctrl-comma-modeless-singleton")
+        try:
+            wait("Ctrl-comma did not reuse/focus Settings", lambda: len(settings()) == 1 and x.focused() == shared)
+            checks.append("ctrl-comma-modeless-singleton")
+        except RuntimeError as failure:
+            reused = len(settings()) == 1 and x.window(settings()[0].get_name()) == shared
+            observed = dict(settings_reused=reused, settings_window=shared, focus=x.focused(), refused=x.refused_claim())
+            # Only the exact platform refusal is bounded: the same Settings
+            # window asked for its own activation and focus did not move.
+            if not (bound_refused_activation and reused and observed["refused"] == shared):
+                raise RuntimeError(f"{failure}: {observed}") from None
+            x.focus(shared)
+            checks.append("ctrl-comma-modeless-singleton-activation-refused-by-window-manager")
         x.key(0xff1b)
         wait("Escape did not close Settings", lambda: not settings())
         x.focus(first)
@@ -285,10 +471,8 @@ def course(pid, executable, revision, output, inventory_only=False):
         x.key(0x2c, control=True)
         wait("Sibling shortcut did not reopen Settings", lambda: len(settings()) == 1)
         x.close_window(first)
-        wait("Sibling retirement lost Settings", lambda: len(workbenches()) == 1 and len(settings()) == 1)
+        wait("Sibling retirement lost Settings", lambda: len(workbenches()) == 1 and len(settings()) == 1, state)
         checks.append("same-profile-sibling-menu-shortcut-and-retirement")
-    categories = ["General", "Accounts & hosts", "Reviews & queue", "Appearance", "Notifications", "Agents & context", "Storage & privacy"]
-    pages = []
     for index, category in enumerate(categories):
         window = settings()[0]
         x.focus(x.window(window.get_name()))
@@ -318,16 +502,13 @@ def course(pid, executable, revision, output, inventory_only=False):
         x.close_window(first)
     else:
         menu(second, "File", "Quit")
-    wait("Native Quit did not terminate", lambda: not Path(f"/proc/{pid}").exists() or Path(f"/proc/{pid}/stat").read_text().split()[2] == "Z")
+    def exited():
+        return not Path(f"/proc/{pid}").exists() or Path(f"/proc/{pid}/stat").read_text().split()[2] == "Z"
+    def remaining():
+        return dict(owned=x.windows(), focus=x.focused(),
+                    frames=[(frame.get_name(), frame.get_state_set().contains(Atspi.StateType.SHOWING)) for frame in children(app)])
+    wait("Native Quit did not terminate", exited, remaining)
     checks.append("native-window-close-process-terminated" if inventory_only else "native-quit-process-terminated")
-    data = dict(schema="bpr.settings-inventory.atspi.v1", build="linux-current-qt6112-release", revision=revision,
-                executable_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
-                platform="Ubuntu 26.04 WSL2 x86_64, native WSLg X11/XCB", source="AT-SPI accessibility and X11/XTest native gestures",
-                course="inventory-only" if inventory_only else "full",
-                categories=categories, native_checks=checks, pages=pages)
-    output.write_text(json.dumps(data, indent=2) + "\n")
-    x.x.XCloseDisplay(x.display)
-    print("LINUX_SETTINGS_INVENTORY_OK", [len(page["nodes"]) for page in pages])
 
 
 if __name__ == "__main__":
@@ -338,5 +519,13 @@ if __name__ == "__main__":
     parser.add_argument("output", type=Path)
     parser.add_argument("--inventory-only", action="store_true",
                         help="Capture pages without claiming shortcut/modeless/window-lifetime acceptance")
+    parser.add_argument("--focus-surface", choices=("x11", "wslg-rail"), default="x11",
+                        help="How focus moves between owned windows; wslg-rail uses Windows RAIL foreground")
+    parser.add_argument("--context", type=Path, help="JSON build/environment binding recorded in the capture")
+    parser.add_argument("--bound-refused-activation", action="store_true",
+                        help="Diagnosis, not acceptance: continue past a window manager that refuses the application's "
+                             "own activation request, recording the refusal and focusing through the surface")
     arguments = parser.parse_args()
-    course(arguments.pid, arguments.executable, arguments.revision, arguments.output, arguments.inventory_only)
+    course(arguments.pid, arguments.executable, arguments.revision, arguments.output, arguments.inventory_only,
+           arguments.focus_surface, json.loads(arguments.context.read_text()) if arguments.context else None,
+           arguments.bound_refused_activation)
