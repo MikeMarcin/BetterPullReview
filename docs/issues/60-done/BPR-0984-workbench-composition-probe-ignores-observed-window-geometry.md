@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0984"
 title: "Let the workbench composition probe's session fallback hold the window's observed geometry"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"found_by":"integration pass after merging codex/rfc-0018-0026-closeout into main, 2026-09-22","found_at":"6a897af8","regressed_by":"9210330a (BPR-0977)","related_rfcs":["RFC-BPR-0018","RFC-BPR-0024"],"related_cards":["BPR-0593","BPR-0595","BPR-0977"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"827ca5f6","evidence":{"kind":"observation","detail":"Probe compares a copy of host->layout() with Geometry cleared against the defaults, still requiring unavailable persistence and a session store. Negative control (FilesWidth+1 in the copy) fails with WORKBENCH_SESSION_FALLBACK_FAILED; build/bpr0984-negative.log"}},{"criterion":"AC2","outcome":"pass","revision":"827ca5f6","evidence":{"kind":"command","detail":"ctest --preset dev -j 1 -R '^(application_workbench_composition_contract|application_review_round_trip_composition_contract)$': 2/2 pass (22.79 s, 11.70 s); build/bpr0984-focused.log"}},{"criterion":"AC3","outcome":"pass","revision":"827ca5f6","evidence":{"kind":"artifact","detail":"Full application 8ffa0e73..., manifest ac94ddb3... resealed with the review on this card; mutation-branch pin a7e2081e... unchanged","path":"docs/issues/60-done/BPR-0984-workbench-composition-probe-ignores-observed-window-geometry.md#evidence--2026-09-22"}}]
 ---
 
 # BPR-0984: Let the workbench composition probe's session fallback hold the window's observed geometry
