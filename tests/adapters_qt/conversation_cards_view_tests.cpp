@@ -726,6 +726,55 @@ namespace {
 		expect(view.cards().empty(), "clearing empties the cards");
 		view.hide();
 	}
+
+	// [[BPR-1029]]. The window's dispatch relays the cards out, or makes
+	// another thread current, before it reads the identity it was handed. That
+	// identity must still name the card that was pressed, not whichever card
+	// the relayout rebuilt in its slot.
+	auto test_a_dispatch_that_relays_out_still_names_the_pressed_card() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.show();
+		QApplication::processEvents();
+		view.set_feed(true);
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		const auto first    = std::string{ "review-thread:pressed-first-v1" };
+		const auto second   = std::string{ "review-thread:pressed-second-v1" };
+		const auto arranged = [&view, &first, &second](const std::string& aFirstPath, const std::string& aSecondPath) {
+			view.adopt({ thread(first, aFirstPath, 1U), reply("review-comment:first-v1", first, "someone", "first"),
+						 thread(second, aSecondPath, 1U), reply("review-comment:second-v1", second, "someone", "second") });
+		};
+		arranged("src/a.cpp", "src/z.cpp");
+		QApplication::processEvents();
+		expect(view.cards().size() == 2U && view.cards()[0].Id == first && !view.cards()[0].Actions.empty(),
+			   "the thread to press comes first in file order and offers an action");
+		const auto pressAt = [&view](const QPoint aContent) {
+			const auto point = aContent - QPoint{ 0, view.verticalScrollBar()->value() };
+			auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
+											Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(view.viewport(), &press);
+		};
+
+		auto reported = std::vector<std::string>{ };
+		view.set_action_dispatch([&reported, &arranged](const qt::card_action, const std::string& aId) {
+			arranged("src/z.cpp", "src/a.cpp");
+			reported.push_back(aId);
+		});
+		pressAt(view.cards()[0].Actions.front().second.center());
+		expect(view.cards().size() == 2U && view.cards()[0].Id == second
+				   && reported == std::vector<std::string>{ first },
+			   "an action whose dispatch relays the cards out still names the pressed thread");
+
+		view.set_thread_dispatch([&reported, &view, &first](const std::string& aId, const bool) {
+			view.set_current_thread(first);
+			reported.push_back(aId);
+		});
+		pressAt(view.cards()[0].Rect.topLeft() + QPoint{ 2, 2 });
+		expect(reported == std::vector<std::string>{ first, second },
+			   "a press whose dispatch makes another thread current still names the pressed thread");
+		view.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -739,6 +788,7 @@ auto main(int argc, char** argv) -> int
 	test_alternating_widths_keep_both_widths_measured();
 	test_feed_geometry_refresh_updates_excerpts();
 	test_cached_geometry_matches_a_fresh_view();
+	test_a_dispatch_that_relays_out_still_names_the_pressed_card();
 	std::cout << "conversation-cards-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }

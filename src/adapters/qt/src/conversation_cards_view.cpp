@@ -1093,7 +1093,11 @@ namespace bpr::qt {
 		}
 		viewport()->update();
 		if (ThreadDispatch) {
-			ThreadDispatch(Current, aOpenDetail);
+			// [[BPR-1029]]. The dispatch may make another thread current, so it
+			// is handed its own copy of the identity rather than a reference
+			// into state it can change.
+			const auto chosen = Current;
+			ThreadDispatch(chosen, aOpenDetail);
 		}
 	}
 
@@ -1116,7 +1120,12 @@ namespace bpr::qt {
 				viewport()->update();
 			}
 			if (ActionDispatch) {
-				ActionDispatch(*action, Cards[index].Id);
+				// [[BPR-1029]]. The window's dispatch can relay these cards out
+				// before it reads the identity, which rebuilds the vector the
+				// card lives in; a reference into it would then name whichever
+				// card was rebuilt in that slot.
+				const auto identity = Cards[index].Id;
+				ActionDispatch(*action, identity);
 			}
 			aEvent->accept();
 			return;

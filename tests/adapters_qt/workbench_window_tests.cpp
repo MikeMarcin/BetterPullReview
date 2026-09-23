@@ -5874,9 +5874,16 @@ namespace {
 					   QStringLiteral("Open this thread in code")),
 			   "Reply refuses an off-file anchor without dispatching or changing the retained code selection");
 
-		const auto open = std::ranges::find(sameFile->Actions, qt::card_action::open_in_code,
+		// [[BPR-1029]]. The reply's dispatch relays the feed out, which rebuilds
+		// its cards, so the iterators taken before the press are spent. MSVC's
+		// debug iterators abort on them; elsewhere they silently point at
+		// whichever card was rebuilt in that slot.
+		const auto sameFileAfterReply = std::ranges::find(cards, std::string{ "review-thread:late" },
+														  &qt::thread_card::Id);
+		expect(sameFileAfterReply != cards.end(), "the same-file conversation survives the refused reply");
+		const auto open = std::ranges::find(sameFileAfterReply->Actions, qt::card_action::open_in_code,
 											&std::pair<qt::card_action, QRect>::first);
-		expect(open != sameFile->Actions.end(), "the feed offers Open in code");
+		expect(open != sameFileAfterReply->Actions.end(), "the feed offers Open in code");
 		const auto point = open->second.center()
 			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
 		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
