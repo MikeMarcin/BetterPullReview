@@ -186,3 +186,105 @@ verifier tests, 957-card validation with no errors, valid milestone-plan referen
 and `git diff --check`. All invoked command sessions completed. The disposable
 additive-plan proposal was removed; ignored build output and the two inspection
 captures remain available for local evidence and were not committed.
+
+## Main landing (2026-09-23)
+
+### Assignment and recovery
+
+On 2026-09-23 the owner asked to "take up codex/rfc0037-overview-folders
+branch and see if we can land that on main". The coordinator dispatched a
+coordinator-implementer leaf on `main`. That first leaf built main at
+`392751fc` and ran the 13-test baseline batch. It then started
+`git merge --no-ff --no-commit`, resolved the conflict, and built and reran
+the batch on the merged tree. It stopped before committing. A fresh leaf
+recovered that work from its transcript and scratch logs, confirmed that the
+staged index held exactly the branch-owned paths, and completed the landing.
+A concurrent docs-only writer (RFC-BPR-0024 amendment r4 and BPR-1019) shared
+main throughout. Every commit used explicit paths, and neither writer staged
+the other's files.
+
+### Assessment
+
+The branch was 5 commits ahead of `392751fc` and 245 behind it, from base
+`a578f8ec`. It contains plan `f91b73ff`, claim `0742cc13`, product `a88c0d19`,
+Done acceptance `f6103a7d` and handoff `b0001610`. BPR-0934 was complete and
+Done on the branch but still in Backlog on main. Main had not touched the
+Overview page sources, its focused test, this plan or the RFC body since the
+base. So nothing in the branch was superseded. Main did change the composed
+setup test (BPR-0987) and the workbench UX specification, and both merged
+automatically. Both gates the branch recorded have cleared: BPR-0954 no longer
+owns the main checkout, and RFC-BPR-0037's dependency status only limits the
+RFC's own status, not landing an accepted slice. The decision was to land the
+whole branch with a merge commit.
+
+### Merge
+
+Merge `0ddf929b` preserves all five branch commits. The one conflict was the
+RFC-BPR-0037 row in `docs/rfcs/README.md`. The resolution keeps main's newer
+dependency statuses and adds the branch's AC-10 note. The branch touched
+neither `NEXT_ID` nor `_reservations`, so no ID was duplicated or renumbered.
+`verify_documentation.py` reported no digest drift, so nothing was resealed.
+
+### Masked regression and correction
+
+The baseline and merged-tree batches both failed seven tests, with identical
+assertions. The full `qt_workbench_window` run stops at the BPR-0940
+epoch-row assertion, so its later Overview courses never ran on either side.
+Run directly through the new `--overview` entry, the merged tree failed
+`test_identical_overview_skips_rebuild_but_restores_cleared_files` at "initial
+overview projects both real file models". That course existed at the base, from
+`4a2be1b1`, and counted the page model's `modelReset`, which the retained tree
+never emits. Temporarily restoring main's two Overview production files made the
+same entry pass, which places the regression on the branch. The merged files
+were restored afterwards and matched `HEAD`.
+
+Test-only correction `b6e14081` counts reset, rows inserted, removed or moved,
+and layout changed as page rebuilds. Equal overviews must emit none of them;
+reopening after a clear or an authority clear must emit one. The commit also
+registers `qt_workbench_overview`, which runs the window's three Overview
+courses directly. Product code remains `a88c0d19`.
+
+### Verification at `b6e14081`
+
+```sh
+cmake --build --preset dev
+ctest --preset dev -R '^(test_network_isolation_structure_contract|test_network_isolation_manifest|application_pull_request_overview|qt_composed_github_scale_(100|125|200)|qt_pull_request_overview_page|qt_shared_snapshot_navigation|qt_workbench_focus_order_scale_(100|125|200)|qt_workbench_home_discovery_scale_(100|125|200)|qt_workbench_conversation_reveal|qt_workbench_overview|qt_native_window_geometry|qt_workbench_window_scale_(100|125|200)|qt_composed_markdown_(1_0|1_25|2_0)|application_composition_contract|application_workbench_composition_contract|application_overview_since_review_contract|application_setup_destination_public_path|application_profile_multi_window_public_path)$' --output-on-failure
+python3 _coding-standard/scripts/format_check.py --root . tests/adapters_qt/workbench_window_tests.cpp
+python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnings-as-errors --paths tests/adapters_qt/workbench_window_tests.cpp
+python3 scripts/verify_documentation.py --root .
+python3 tests/scripts/verify_documentation_tests.py
+```
+
+The full dev build passed. The integration pass ran 28 tests, and 20 passed:
+`qt_workbench_overview`, `qt_pull_request_overview_page`,
+`application_setup_destination_public_path`, the Overview-since-review,
+multi-window and workbench-composition contracts, the composed Markdown scales,
+and every other direct entry in the workbench binary. The eight failures all
+reproduce from main with unchanged assertions:
+
+- `qt_composed_github_scale_*`: the BPR-0940 sign-in card.
+- `qt_workbench_window_scale_*`: the BPR-0940 epoch row.
+- `application_composition_contract`: the five BPR-0983 assertions.
+- `test_network_isolation_manifest`: the BPR-0962 `release_update_native_https`
+  row. It is the only finding reported, so the new registration is accepted.
+
+clang-format passed. clang-tidy found three inherited diagnostics and none on
+changed lines: `dif_runtime.hpp:1`, `home_view_state.hpp:35` and the
+`wait_for_frame` naming at `4bbecb48`.
+
+The documentation gate and its 64 verifier tests passed, both on the merged
+tree and after these records. Board validation passed. Evidence remains offscreen
+Qt 6.11.2 on macOS arm64. It asserts no human, native Windows/Linux or live
+GitHub result.
+
+### Checkpoint and retirement
+
+`milestone_checkpoint.py bind` refuses the milestone because it is already
+accepted. Replaying the frozen branch observation would bind a different
+worktree and revision. So this section is the landing reconciliation, and the
+branch checkpoint and observation records stay unchanged. Every task-owned
+build and test has finished, and no server or background writer remains.
+`codex/rfc0037-overview-folders` is fully contained in main, so its branch
+and the `.codex/worktrees/714d` worktree can be retired by whoever owns them.
+Next: a status-only RFC-BPR-0037 reconciliation once RFC-BPR-0028 and
+RFC-BPR-0029 are `Auto-Verified`.

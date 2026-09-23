@@ -20,18 +20,19 @@ Registration baseline: `9bd2002b859ce4c5599d86dcc51771aa365fa90b`.
 Closeout is [[BPR-0927]].
 The implementation, design follow-ups and target-native macOS review are now
 technically accepted through BPR-0918 through BPR-0929. BPR-0927 records the
-combined closeout candidate `e4096e05`. This RFC remains `Proposed`, because
-RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 are
-not all `Auto-Verified`; technical completion does not waive dependency-ordered
-status.
+combined closeout candidate `e4096e05`. This RFC remains `Proposed`.
+RFC-BPR-0008, RFC-BPR-0013 and RFC-BPR-0015 are now `Auto-Verified`, but
+RFC-BPR-0028 (`Proposed`) and RFC-BPR-0029 (`Accepted`) are not; technical
+completion does not waive dependency-ordered status.
 
 Owner follow-up [[BPR-0934]], recorded on 2026-09-20 in attended decision
 441, adds collapsible Overview folders. It extends this RFC as AC-10 and the
 `overview-folder-collapse` milestone. The original nine criteria and their
 technical acceptance remain intact. BPR-0934 is technically accepted at
 `a88c0d19`: nested folders have retained, accessible native disclosure controls,
-and focused plus rendered public-path checks pass. Its branch candidate is not
-yet landed in main; the active BPR-0954 checkout must not be disrupted.
+and focused plus rendered public-path checks pass. Merge `0ddf929b` landed it
+on main on 2026-09-23, followed by test-only correction `b6e14081`. The
+technical closeout result below records that landing.
 
 Markdown rendering remains independently owned by RFC-BPR-0036 and BPR-0916/
 BPR-0917. It is neither part of this RFC's delivery nor a prerequisite for fixing
@@ -245,6 +246,20 @@ are recorded as baseline failures, not passing evidence.
 The technical criteria and BPR-0927 may close while the RFC status remains
 `Proposed`. A later status-only reconciliation may move this RFC and its index row
 to `Auto-Verified` only after every listed dependency is `Auto-Verified`; it does
-not require re-running unchanged RFC-BPR-0037 engineering evidence. Main landing
-of the BPR-0934 branch remains a separate pending obligation until the main
-checkout is safe to update; no dependency status or concurrent work is changed.
+not require re-running unchanged RFC-BPR-0037 engineering evidence.
+
+Merge `0ddf929b` landed `codex/rfc0037-overview-folders` on main on 2026-09-23
+and preserved its five commits. Main had not changed the Overview page, its
+focused test or this plan since the branch base `a578f8ec`. The only conflict
+was this RFC's index row, and the branch allocated no issue IDs. Landing found
+one regression: the masked window course
+`test_identical_overview_skips_rebuild_but_restores_cleared_files` still counted
+the page model's resets, which the retained folder tree never emits. The full
+window run never reaches that course, because it stops earlier at BPR-0940's
+epoch-row assertion. Test-only correction `b6e14081` counts every structural
+signal and adds `qt_workbench_overview`, which runs the window's Overview
+courses directly. Product code is unchanged from `a88c0d19`. The focused
+integration pass shows only failures that main already had (BPR-0940,
+BPR-0983 and BPR-0962); `milestone-overview-folder-collapse-evidence.md`
+records the details. This landing changes no dependency status and asserts no
+human or other-platform result.

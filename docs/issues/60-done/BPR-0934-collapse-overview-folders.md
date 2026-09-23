@@ -53,5 +53,34 @@ assets. This is offscreen Qt automation on macOS, not a new human verdict.
 The exact acceptance records and broader baseline-failure qualifications are in
 `docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/acceptance-BPR-0934.json` and
 `milestone-overview-folder-collapse-evidence.md`. RFC-BPR-0037 remains Proposed
-because its canonical dependencies are not all Auto-Verified. The active
-BPR-0954 main checkout was not changed; safe main landing remains pending.
+because its canonical dependencies are not all Auto-Verified. At closeout the
+main checkout belonged to BPR-0954, so it was left unchanged and landing was
+deferred; the next section records the landing.
+
+## Main landing (2026-09-23)
+
+Merge `0ddf929b` landed `codex/rfc0037-overview-folders` (tip `b0001610`) on
+main and preserved the branch's five commits. The only conflict was the
+RFC-BPR-0037 index row. It keeps main's newer dependency statuses and this
+card's AC-10 note. No issue ID was allocated on the branch, and the
+documentation gate reports no digest drift.
+
+Landing exposed a regression the branch introduced. The window course
+`test_identical_overview_skips_rebuild_but_restores_cleared_files` counts the
+Overview page model's `modelReset`, and the retained tree deliberately never
+resets. It failed at "initial overview projects both real file models". It
+passes with main's pre-merge Overview sources, so the failure is not in main.
+The full `qt_workbench_window` run never reached the course, because it stops
+at [[BPR-0940]]'s epoch-row assertion, so neither side saw it.
+Test-only correction `b6e14081` counts every structural page-model signal as
+a rebuild. It also adds the `qt_workbench_overview` selector, which runs the
+window's three Overview courses directly. Product code is unchanged from
+`a88c0d19`, and the four acceptance records above still hold for it.
+
+At `b6e14081`, `qt_workbench_overview`, `qt_pull_request_overview_page`,
+`application_setup_destination_public_path` and the other Overview,
+multi-window and workbench-composition courses pass. The only failures are
+pre-existing ones that are unchanged from main `392751fc`: [[BPR-0940]]
+(sign-in card and epoch row), [[BPR-0983]] (composition contract) and
+[[BPR-0962]] (the `release_update_native_https` manifest row). This is still
+offscreen macOS automation; no human, Windows or Linux result is claimed.
