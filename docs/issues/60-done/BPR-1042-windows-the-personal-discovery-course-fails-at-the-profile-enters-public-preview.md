@@ -110,7 +110,8 @@ never activate public preview. The rest already force it.
 **Negative control (simulated non-macOS selection, never committed).** The
 `__APPLE__` branch of `shipped_public_preview_capability()` was changed
 locally to `{ .Available = false }`, which is the Linux and Windows value, and
-the course was rebuilt (`build/dev`, Apple clang, Debug, Qt 6.11.2, offscreen):
+the course was rebuilt (`build/dev`, Apple clang, Debug, Qt 6.11.2, offscreen;
+station records under `build/logs/mac-batch4-main-mac/`, not committed):
 
 | Product selection | Course | `application_personal_discovery_public_path` |
 | --- | --- | --- |

@@ -771,7 +771,7 @@ result now reports `gh_legacy_migration_expected`, and the docstring says to
 run `--sandbox-config` outside any other sandbox.
 
 **Runs at the change** (`gh` 2.101.0, Apple Git 2.50.1, macOS 26.6.2 arm64;
-records in the session scratch directory, not committed):
+station records under `build/logs/mac-batch4-main-mac/`, not committed):
 
 - The 7 unsandboxed modes ran under a profile that denies all network except
   Unix sockets under `/private/tmp`, where the probe's API socket lives.

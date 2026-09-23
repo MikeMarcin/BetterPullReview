@@ -109,6 +109,7 @@ macOS 26.6.2 arm64, `build/dev` (Apple clang 21.0.0, Debug, Qt 6.11.2), offscree
   `~epoch_line`, under `~epoch_comparison_control`, from the course's window
   reset in `test_epoch_line_menu_goes_with_its_window`. That is the defect the
   card describes: the window frees the menu that sits on the handler's
-  stack. With the file restored and rebuilt, the rows pass again.
+  stack. With the file restored and rebuilt, the rows pass again. The station
+records are under `build/logs/mac-batch4-main-mac/` and are not committed.
 
 Linux is still reported only by reasoning.
