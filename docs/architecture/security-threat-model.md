@@ -329,8 +329,9 @@ a separate exact-host/account/PR/operation confirmation for each write, and
 server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
-unavailable. Mac qualification is recorded by BPR-0787; formal RFC closeout
-remains with BPR-0788 and the canonical predecessor gate.
+unavailable. Mac qualification is recorded by BPR-0787. RFC-BPR-0014 is now
+Auto-Verified; BPR-0788's formal closeout waits on an independent review of
+the CLI authority and protocol changes made after that qualification.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

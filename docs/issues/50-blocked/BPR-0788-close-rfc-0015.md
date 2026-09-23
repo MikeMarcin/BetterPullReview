@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0788"
 title: "Verify and close RFC-BPR-0015"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0015"]
 depends_on: ["BPR-0787"]
 closeout_for: ["RFC-BPR-0015"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/plans/rfc-bpr-0015-cli-profile/milestone-plan.json"}}
+blocked_by: "independent-review"
 ---
 
 # Verify and close RFC-BPR-0015
@@ -28,16 +29,16 @@ BPR-0797's retired compile-time gates. Closeout should rerun both contracts.
 
 | Criterion | Direct check | Current result |
 |---|---|---|
-| The opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish choice without silently replacing a native profile or claiming exact account containment. | Rendered account row and explicit opt-in exercise | Passed for tests-disabled macOS fixture and installed-`gh` account UI in d5; BPR-0784/0787 |
-| A tests-disabled macOS application connects through configured `gh` and renders a representative fixture PR via the real public path; missing or changed executable, host, account or config produces a typed refusal without credential fallback. | Tests-disabled Mac composition and refusal fixture | Passed for tests-disabled macOS fixture read in d3 and d5; BPR-0785/0787 |
-| CLI reads preserve actual status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the process or response adapter makes a direct public-path negative control fail. | Adapter/provider contract and public negative control | Passed for macOS fixture read in d3; BPR-0785 |
-| Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST. | Fixture public mutation path and ambiguity control | Passed for macOS fixture in d4; BPR-0786; no live PR write authorized |
-| Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration. | Canary and source/runtime audit | Bounded source, synthetic-log and native structural audits passed in d4/d5; exact Keychain-call and credential-generation binding remain unproved |
-| Target-native qualification records supported platforms and residual executable/config/CA/redirect/account/process risks; unsupported platforms remain unavailable and canonical closeout awaits RFC-BPR-0014 and all evidence. | Native qualification, docs and RFC index reconciliation | Mac qualification recorded in BPR-0787; Windows/Linux unavailable; RFC-BPR-0014 Proposed blocks terminal closeout |
+| The opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish choice without silently replacing a native profile or claiming exact account containment. | Rendered account row and explicit opt-in exercise | Passed for tests-disabled macOS fixture and installed-`gh` account UI in d5; BPR-0784/0787. r3 at `0f67560e`: tests-disabled Release of `841999ad` shows the CLI-only card naming `octo-reviewer` and the BPR-0933 read question (host, changing gh account, trusted executable/configuration/certificates, read not publish, details disclosed); declining leaves it signed out |
+| A tests-disabled macOS application connects through configured `gh` and renders a representative fixture PR via the real public path; missing or changed executable, host, account or config produces a typed refusal without credential fallback. | Tests-disabled Mac composition and refusal fixture | Passed for tests-disabled macOS fixture read in d3 and d5; BPR-0785/0787. r3: same Release rendered `review.cpp` `Diff ready — 1 semantic changes` (11–16 / 21–26); process-failure fixture reads `Could not connect` with no native sign-in; d3 compiled knockout retained |
+| CLI reads preserve actual status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the process or response adapter makes a direct public-path negative control fail. | Adapter/provider contract and public negative control | Passed for macOS fixture read in d3; BPR-0785. r3: transport, process-runner, Git-bridge and provider contracts pass at `0f67560e` |
+| Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST. | Fixture public mutation path and ambiguity control | Passed for macOS fixture in d4; BPR-0786; no live PR write authorized. r3: mutation contract, submission provider and restart recoveries pass; 17/18 mutation-provider rows pass, the red one being BPR-0896's reply reconciliation outside this criterion |
+| Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration. | Canary and source/runtime audit | Bounded source, synthetic-log and native structural audits passed in d4/d5; exact Keychain-call and credential-generation binding remain unproved (the criterion does not require them). r3 used synthetic fixture `gh` only |
+| Target-native qualification records supported platforms and residual executable/config/CA/redirect/account/process risks; unsupported platforms remain unavailable and canonical closeout awaits RFC-BPR-0014 and all evidence. | Native qualification, docs and RFC index reconciliation | Mac qualification recorded in BPR-0787; Windows/Linux compose no CLI entry (capability rows, Release self-test); RFC-BPR-0014 Auto-Verified since 2026-09-21. Terminal closeout waits on the independent review below |
 
 - [x] Every revised RFC criterion has direct command/public-path evidence, producing revision and explicit residual limitation.
-- [x] The documentation gate, focused public-path checks, integration check and independent authority/protocol review are adjudicated.
-- [ ] RFC-BPR-0014 is Auto-Verified before RFC-BPR-0015 becomes terminal; pending native, human or safe-target evidence remains open.
+- [ ] The documentation gate, focused public-path checks, integration check and independent authority/protocol review are adjudicated. (r3: documentation, focused public-path and integration checks adjudicated at `0f67560e`; the d3–d5 independent review does not cover the CLI changes after `26f1c22e`, which remain unreviewed.)
+- [x] RFC-BPR-0014 is Auto-Verified before RFC-BPR-0015 becomes terminal; pending native, human or safe-target evidence remains open. (RFC-BPR-0014 Auto-Verified 2026-09-21; no native, human or safe-target criterion of RFC-0015 remains; live publication stays unauthorized and unclaimed.)
 - [x] RFC front matter, index and live cards agree. The historical strict-containment analysis is retained, not claimed passed by opt-in warnings.
 
 Dispatch `d1` checkpoint under run `rfc0015-r1`, mandate `r1`:
@@ -302,3 +303,37 @@ RFC-BPR-0014 is Proposed in the canonical index. Preserve this closeout
 criterion pending until that predecessor becomes Auto-Verified and any
 remaining required native or human evidence is adjudicated. A command or
 local bundle does not supply the missing canonical or distribution evidence.
+
+## Closeout round r3 checkpoint, 2026-09-22
+
+Run `rfc0015-r3`, segment `rfc0015-r3-closeout`, mandate r3 ("implement
+available unattended work, focus on closing out rfcs. You can revise and
+update the cards and rfcs if they have gone stale."), coordinator-implementer
+recipe revision 2, non-delegating leaf. Entry `2218ef1f`; candidate
+`0f67560e` (product source unchanged since `841999ad`). Binding: plan
+`rfc-bpr-0015-cli-profile`, milestone `native-qualification-and-closeout`,
+accepted `opt-in-cli-read` and `guarded-cli-publishing`; ignored
+`build/rfc0015-r3/checkpoint-entry.json`.
+
+Done this round: [[BPR-0933]] (short read opt-in, Done), [[BPR-0982]] (self-test
+and contract reconciliation after BPR-0909, Done), the missing-process fixture
+guard, stale-text reconciliation of the RFC and six architecture/guide
+copies, [[BPR-0983]] recorded, [[BPR-0803]] re-observed. Every revised
+criterion has current evidence in the
+[r3 ledger section](../../verification/RFC-BPR-0015.md#closeout-round-r3-2026-09-22):
+native tests-disabled Release course (SHA-256 `4ed0aa15…a532`), integration
+pass 22/26 with the four failures classified (BPR-0940 ×3, BPR-0896), the
+composition contract's RFC-0015 parts, architecture boundaries on an archive of
+the candidate, fixture and documentation tests.
+
+Blocked on one obligation this leaf cannot supply: an independent
+authority/protocol review of the CLI changes after the d5 candidate
+`26f1c22e` (discovery `1210eecc`/`4efd549c`/`1b73d61f`, routing `1a74b36d`,
+shared sign-in `cbd50b74`, CLI Git objects `c3a2ba95`/`60dba14e`/`c97bb64a`/
+`37343abf`/`0c66306f`/`eecdda2a`/`12e9bdb8`, thread check `9a2cae53`, this
+round's `12d032cf`, and the BPR-0803 device-flow interaction). Next action:
+the coordinator arranges that review against the ledger's scope; with no
+blocking finding, finish this card against the recorded evidence, set
+RFC-BPR-0015 and its index row to Auto-Verified, and record the review.
+No attended session, live GitHub write or credential change was made; task
+applications exited or were reaped and fixture directories were removed.

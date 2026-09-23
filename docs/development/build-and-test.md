@@ -2499,12 +2499,12 @@ success claim.
 
 ### GitHub and native credentials
 
-- CLI reads are in progress for tests-disabled macOS with explicit Connect
-  opt-in and configured `gh` 2.x, minor >= 96. Full Git comparison retains
-  its separate exact `gh` 2.100.0 qualification. Windows/Linux and ordinary
-  test compositions remain unavailable. Native HTTPS remains the default.
-  Read connection is not full-diff or publishing acceptance; BPR-0788 tracks
-  outstanding public-path evidence.
+- CLI reads are qualified for tests-disabled macOS on the recorded fixture
+  paths, through Use GitHub CLI, the read opt-in and configured `gh` 2.x,
+  minor >= 96. Full Git comparison keeps its separate exact `gh`
+  2.100.0/2.101.0 qualification. Windows/Linux and ordinary test compositions
+  offer no CLI entry. Native HTTPS remains the default. BPR-0788 tracks formal
+  RFC-BPR-0015 closeout.
 - Supply GHES as a canonical hostname only, such as `ghe.example.com`, not as
   a URL, path, query, fragment, credential-bearing authority, or GitHub.com
   subdomain. Invalid host configuration fails before network or credential
