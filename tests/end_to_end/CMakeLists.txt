@@ -2744,6 +2744,20 @@ set_tests_properties(application_profile_multi_window_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "profile-multi-window-public-path:pass")
 
+# [[BPR-1027]]. A New Window window closed while the first stays open: its
+# close is the last reference to its session, so the session's whole
+# destructor runs from the OnClosed erase.
+bpr_add_executable(test_profile_second_window_close_public_path profile_second_window_close_public_path_tests.cpp)
+target_link_libraries(test_profile_second_window_close_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_profile_second_window_close_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_profile_second_window_close_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_profile_second_window_close_public_path)
+bpr_enable_warnings(test_profile_second_window_close_public_path)
+bpr_add_network_isolated_test(NAME application_profile_second_window_close_public_path WINDOWS_UNCONTAINED COMMAND test_profile_second_window_close_public_path)
+set_tests_properties(application_profile_second_window_close_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "profile-second-window-close:pass")
+
 # [[BPR-0990]]. Personal discovery through the composed application: a saved
 # repository with thousands of unrelated open pull requests, two windows, and
 # only the bounded personal reads.

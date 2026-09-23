@@ -89,3 +89,54 @@ the cause.
   (N ≥ 3): New Window, close the new window, the first window survives, and
   its own close exits 0.
 - AC4 macOS and Linux run the same course and pass.
+
+## Offscreen: the course is clean in every shape (bpr-main-win, 2026-09-23)
+
+`application_profile_second_window_close_public_path` is the new course
+(`tests/end_to_end/profile_second_window_close_public_path_tests.cpp`). It
+opens the first window, then five times opens a second window with New
+Window, waits 250 ms, closes it with its own `close()`, and waits until the
+session has finished its shutdown. It checks that the first window stays open
+each time, and it ends with Quit. The data root sits one owned level down,
+like [[BPR-0875]]'s courses. Without that, the agent workspace recovery
+refuses, and the agent host with its realigner is left out of the
+composition.
+
+On Windows it is registered uncontained and pinned in
+`scripts/verify_test_network_isolation.py` as `dos-volume-name`. That was
+measured: run contained, it stops at "FAILED: the test root's parent is
+owner-private", the same `make_storage_root_owner_private` refusal as
+[[BPR-0810]]'s rows. `test_network_isolation_manifest` and
+`test_network_isolation_structure_contract` pass with the pin.
+
+Three options move the course closer to the desktop probe. None of them
+reproduces the crash offscreen:
+
+| Run, offscreen, at `5670bc68` plus this course | Result |
+| --- | --- |
+| Fixture composition (the registered row) | 5 of 5 closes clean, owner quits 0 |
+| `--shipped-composition`: `profile_desktop::start` with no fixture, the graph `main.cpp` starts | clean |
+| `--through-strip-menu`: New Window through the strip menu with accessible invokes, against the fixed `popup()` menu | clean |
+| The same against the old stack `exec()` menu (pre-[[BPR-1028]] source, built locally) | clean |
+| `--walk-accessible`: accessibility on, and all 1,098 accessible interfaces of every window walked before each close, as a UI Automation descendant search does | clean |
+| All three together | clean |
+| Local diagnostic build with the Debug CRT's `_CRTDBG_DELAY_FREE_MEM_DF`, `_CrtCheckMemory` before and after every close, a report hook and a free-stack ring (not committed) | clean: no double free and no write into a freed block |
+
+The last row matters most. Delayed free keeps every freed block out of reuse
+and poisoned, so a double free or a stale write would have been reported at
+the culprit whether or not a later reuse lined up. Offscreen, nothing
+happens. What the desktop probe had and none of these runs has is the real
+`windows` platform: native windows, the [[BPR-0653]] title-row host with its
+native event filter, UI Automation's providers, and native activation. So
+the next step needs the desktop:
+
+1. The close probe at the current head, with the [[BPR-1028]] menu, 3 times.
+   It shows whether the crash survives the menu change.
+2. This course on the `windows` platform
+   (`QT_QPA_PLATFORM=windows`, `--shipped-composition`, then with
+   `--through-strip-menu --walk-accessible`). It shows whether a scripted
+   native close reproduces the crash.
+3. If either one reproduces, the local diagnostic build of this course under
+   the same conditions. Delayed free turns the crash into a report at the
+   first double free, or into an access violation in the `Realigner` delete
+   together with the recorded stacks that freed that block.

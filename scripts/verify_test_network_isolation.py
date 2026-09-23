@@ -98,6 +98,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # make_storage_root_owner_private refusing the package temp root exactly as
     # the BPR-0806 profile rows do; both pass uncontained.
     "application_profile_multi_window_public_path": "dos-volume-name",
+    # [[BPR-1027]]: measured on JaegAW 2026-09-23. Contained, the course stops
+    # at "FAILED: the test root's parent is owner-private", the same
+    # make_storage_root_owner_private refusal of the package temp root as the
+    # BPR-0810 rows; it passes uncontained.
+    "application_profile_second_window_close_public_path": "dos-volume-name",
     # [[BPR-0978]]. The same two-profile registry, private-root and fixture
     # composition as the BPR-0806 profile rows above, so the same refusal;
     # pinned by that shape, not yet measured contained on Windows.
