@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0888"
 title: "The reconciliation conflict signal is unreachable in production and misses the delete-versus-local-edit case"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable core+application partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"AC1 (revised under the owner's stale-card mandate): reconcile reports a comment deleted on the server while carrying an unpublished local edit as a conflict, asserted by a contract row","outcome":"pass","revision":"19e8ec19","evidence":{"kind":"command","detail":"bpr-main-mac: application_review_synchronization passes with test_a_deletion_under_a_local_edit_is_a_conflict (the card's counterexample now gives an empty projection, one entry a: removed_conflicted, conflicts() == {a}) and test_both_conflicts_are_listed_together. It fails with the removal loop reverted to plain removed, and with conflicts() listing only conflicted.","path":"docs/issues/60-done/BPR-0888-the-reconciliation-conflict-signal-is-unreachable-in-production.md#contract-rows-application_review_synchronization"}},{"criterion":"AC2 (revised): the architecture records that no shipped feature holds an unpublished edit of a published comment, that the production refresh therefore passes an empty edited set, and what a future edit feature must wire and show","outcome":"pass","revision":"19e8ec19","evidence":{"kind":"observation","detail":"The premise was checked at HEAD: drafts are new comments and thread replies, the mutations are create, reply, resolve and unresolve, and review-round-trip.md already says no draft command touches a published comment. The architecture's reconciliation section now states the deletion rule, the empty production set, and the obligation for a feature that adds editing of published comments.","path":"docs/architecture/review-round-trip.md"}},{"criterion":"AC3: the existing updated-plus-edited conflict still holds","outcome":"pass","revision":"19e8ec19","evidence":{"kind":"command","detail":"test_a_local_edit_never_overwrites_an_external_change is unchanged and passes; test_both_conflicts_are_listed_together also asserts conflicted for the changed edited comment. application_review_round_trip_composition_contract and application_review_ledger_composition_contract, which run the production reconcile call after a fixture publication, pass (3/3 serial run). Linux and Windows confirmation runs are named on the card.","path":"docs/issues/60-done/BPR-0888-the-reconciliation-conflict-signal-is-unreachable-in-production.md#confirmation-runs-owed-linux-windows"}}]
 ---
 
 # BPR-0888: The reconciliation conflict signal is unreachable in production and misses the delete-versus-local-edit case
