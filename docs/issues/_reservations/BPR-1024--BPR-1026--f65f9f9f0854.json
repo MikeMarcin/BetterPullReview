@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1024",
+    "BPR-1025",
+    "BPR-1026"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "bpr-main-linux: (1) On WSLg, keys go to the window whose activation the window manager refused (Settings close with sibling workbenches); (2) survey_gcc_aggregate_cleanups.py calibrates with the first database entry's compiler, so an app-release database alone fails; (3) msvc_secure_crt_contract: std::getenv in release_update_* end-to-end tests",
+  "created": "2026-09-23T17:00:11.897460+00:00",
+  "base": "4a16ebdcd3db8c1281739f5e92b7eaa569101790"
+}
