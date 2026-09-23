@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1020"
 title: "The Windows isolation manifest gate carries eleven unpinned uncontained rows"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
