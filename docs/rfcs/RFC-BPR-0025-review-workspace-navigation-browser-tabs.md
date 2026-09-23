@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0025"
 title: "Review Workspace Navigation and Browser-Style Tabs"
-status: "Deferred"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0003","RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0006","RFC-BPR-0024"]
@@ -13,9 +13,9 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Design accepted; implementation activated for the reconciled scope; acceptance remains pending.**
-The product owner approved the navigation and browser-tab behavior on
-2026-09-04. This post-pack RFC follows RFC-BPR-0024 and precedes
+**Design accepted; closed on 2026-09-22 for the scope reconciled under
+RFC-BPR-0028.** The product owner approved the navigation and browser-tab
+behavior on 2026-09-04. This post-pack RFC follows RFC-BPR-0024 and precedes
 RFC-BPR-0026 in the requested workstream beginning with RFC-BPR-0018. Registration
 waives no eligibility, dependency order, existing authority, or evidence gate.
 
@@ -24,14 +24,27 @@ Entry: [[BPR-0596]] records the 2026-09-22 planning reconciliation below.
 The one allocated slice, [[BPR-0981]], is Done (`2c4dfcd1`). Closeout
 [[BPR-0597]] found RFC-BPR-0024's reading-position restoration red since before
 this RFC's work (AC-05's restored semantic selection and AC-06's explicit
-unavailable-reading report). After the 2026-09-22 merge to main the repair is
-[[BPR-0985]], a new BPR-0597 dependency, so the closeout waits in Backlog and
-this RFC is not closed until that repair or an owner decision. The owner's
-ordered-pack implementation mandate and
+unavailable-reading report). The repair, [[BPR-0985]], is Done (`c9c48800`):
+since `cc038748` the conversations drawer's default thread had been revealed
+again after every published file diff as a reading gesture, which cancelled
+the restoration. BPR-0597 is Done: every criterion row carries its direct check,
+result and producing commit at closeout head `15bf265d`, or its superseding
+decision. The owner's ordered-pack implementation mandate and
 planning amendment are recorded in the
 [2026-09-22 reconciliation](plans/ux-redesign-pack-0028/rfc-0025-planning-reconciliation.md);
 the prior registration-only restriction is superseded by that mandate, not by
 an inferred waiver. The immutable baseline and all nine criteria are unchanged.
+
+The closure does not cover this RFC's browser-style tabs or its superseded
+chrome. AC-04 (Duplicate Tab), the tab parts of AC-03, AC-05, AC-06, AC-07 and
+AC-09, and AC-01's Reviews drawer, compact centre and focus mode are
+superseded or unscheduled under the owner-locked RFC-BPR-0028 direction. They
+are not implemented and not passed. The rest of those criteria and all of
+AC-02 and AC-08 pass as shipped in the RFC-BPR-0028 composition. RFC-BPR-0028
+keeps browser-style file tabs registered but unscheduled; the tab design below
+remains that registration, and scheduling it needs a new card or RFC. No
+native, attended or live-GitHub evidence is claimed or required by the
+surviving criteria.
 
 ## Planning reconciliation — 2026-09-22
 
