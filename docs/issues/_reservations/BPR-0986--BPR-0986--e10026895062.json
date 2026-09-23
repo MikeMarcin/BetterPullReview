@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0986"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-0034 closeout: C4 painter drift follow-up",
+  "created": "2026-09-23T05:28:54.589172+00:00",
+  "base": "f06088b8077b04af95fb180430cd17a3cef4af84"
+}
