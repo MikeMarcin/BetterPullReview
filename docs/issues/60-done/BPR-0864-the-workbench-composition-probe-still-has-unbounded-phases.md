@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0864"
 title: "The workbench composition probe's remaining phases can still expire the run budget with only a stage number"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-005, from the BPR-0860 fix","found_at":"7d548233","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"No phase of the workbench composition probe can reach RUN_BUDGET_EXPIRED before naming why; each names its own stall","outcome":"pass","revision":"3dca2d7a","evidence":{"kind":"command","detail":"bpr-main-linux: each of the eight waiting phases returns through the 5 s wall-clock wait, and the modality step bounds itself. Each of the nine breaks named its phase at 6.4-6.7 s. HEAD's probe with break 3 expired at 40.56 s with RUN_BUDGET_EXPIRED ... stage=2","path":"docs/issues/60-done/BPR-0864-the-workbench-composition-probe-still-has-unbounded-phases.md#negative-controls-one-break-per-phase"}},{"criterion":"Each named term is shown to fire, by a deliberately broken run per phase or by an equivalent check","outcome":"pass","revision":"3dca2d7a","evidence":{"kind":"command","detail":"Nine breaks, each in a temporary diagnostic build of candidate source a789ce25..., which is identical after restoration. Each break printed its own term and the facts that name the cause: WORKBENCH_OBSERVATION_STALLED, _FILE_SELECTION_STALLED, _SELECTED_DIFF_STALLED, _CHANGE_DISPATCH_STALLED, _FILES_DRAWER_EXPAND_STALLED (break 5, an equivalent forced check), _DRAWER_WIDTH_DISPATCH_STALLED, _DRAWER_WIDTH_STORE_STALLED, _INVALIDATION_STALLED, _FAILURE_DELIVERY_STALLED. None printed RUN_BUDGET_EXPIRED","path":"docs/issues/60-done/BPR-0864-the-workbench-composition-probe-still-has-unbounded-phases.md#negative-controls-one-break-per-phase"}},{"criterion":"The row still passes on macOS and Linux (macOS)","outcome":"pass","revision":"cec701b9","evidence":{"kind":"command","detail":"bpr-main-mac, Apple Silicon, Qt 6.11.2 Debug, offscreen, at cec701b9, which contains 3dca2d7a (checked here with git merge-base). Built first, then one serial ctest -j1 -V: application_workbench_composition_contract passes in 22.22 s and application_review_round_trip_composition_contract in 11.33 s, 2/2, exit 0. The log has no _STALLED, COURSE_MODALITY_* or RUN_BUDGET_EXPIRED line. Load { 11.79 5.39 5.13 } at start, { 8.40 5.25 5.08 } at end. Taken from the Mac's record on the card; this station has not read the Mac log.","path":"docs/issues/60-done/BPR-0864-the-workbench-composition-probe-still-has-unbounded-phases.md#the-macos-run-bpr-main-mac-mac-batch-3-2026-09-23"}},{"criterion":"The row still passes on macOS and Linux (Linux)","outcome":"pass","revision":"e648db24","evidence":{"kind":"command","detail":"bpr-main-linux, build/dev rebuilt at e648db24, one serial ctest -j1 -V: application_workbench_composition_contract passes in 3.04 s with WORKBENCH_COMPOSITION_CONTRACT_OK, and application_review_round_trip_composition_contract passes in 1.63 s, so the pins match. No _STALLED, COURSE_MODALITY_* or RUN_BUDGET_EXPIRED line; load 4.24 -> 2.93. Also passed at 3dca2d7a (2.94 s, 1.62 s). Log build/r2-logs/closeout-0863-0864-rows-e648db24.log on the station.","path":"docs/issues/60-done/BPR-0864-the-workbench-composition-probe-still-has-unbounded-phases.md#finished-on-linux-bpr-main-linux-2026-09-23"}}]
 ---
 
 # BPR-0864: The workbench composition probe's remaining phases can still expire the run budget with only a stage number
@@ -343,3 +344,43 @@ This head also carries [[BPR-1032]]'s measurement change (`27c35729`), which
 touches the workbench panes. Both rows passed with it here as well, as they
 did in that card's own integration pass. The macOS half of the acceptance
 holds, and the Linux station finishes the card.
+
+## Finished on Linux (bpr-main-linux, 2026-09-23)
+
+**The macOS record meets the acceptance.** `cec701b9` contains `3dca2d7a`
+(`git merge-base --is-ancestor`). As the record says, the Mac head also
+carries later changes outside `src/app/`, among them [[BPR-1032]]'s. Both
+rows passed. No line ending in `_STALLED` appeared, and no `COURSE_MODALITY_*`
+or `RUN_BUDGET_EXPIRED` line either. The row time and the load at both ends
+are recorded. This station relies on the Mac's record. It has not read the
+Mac log.
+
+**Linux at `e648db24`.** Both rows ran in the same serial `-V` run as
+[[BPR-0863]]'s eight, on `build/dev` rebuilt at that head
+(`build/r2-logs/closeout-0863-0864-rows-e648db24.log`):
+
+- `application_workbench_composition_contract`: pass, 3.04 s, with
+  `WORKBENCH_COMPOSITION_CONTRACT_OK`;
+- `application_review_round_trip_composition_contract`: pass, 1.63 s, with
+  `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK`, so the pinned digests
+  match at this head. [[BPR-0865]]'s reformat (`5795dfa3`) has touched
+  `src/app/` since this card's reseal.
+
+The log has no `_STALLED`, `COURSE_MODALITY_*` or `RUN_BUDGET_EXPIRED` line.
+Load was `4.24 1.64 1.12` at the start and `2.93 1.60 1.13` at the end.
+
+One known-red note above is now out of date. `msvc_secure_crt_contract` was
+red on Linux at `f28f696a`. [[BPR-0854]]'s `bac4c745` fixed it, and it passes
+at `e648db24` (see [[BPR-1026]]).
+
+**Acceptance:**
+
+- **No phase can reach `RUN_BUDGET_EXPIRED` before naming why:** pass, from
+  the Linux breaks at the candidate.
+- **Each named term is shown to fire:** pass, from the nine Linux breaks.
+  Break 5 is the equivalent forced check.
+- **The row still passes on macOS and Linux:** pass. macOS passed at
+  `cec701b9`. Linux passed at `3dca2d7a` and again at `e648db24`.
+
+The sibling probes belong to [[BPR-1037]], and the UIforETW probe's half
+belongs to [[BPR-1036]].
