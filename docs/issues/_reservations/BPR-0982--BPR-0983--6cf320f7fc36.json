@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0982",
+    "BPR-0983"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "",
+  "created": "2026-09-23T03:20:56.543302+00:00",
+  "base": "12d032cf96d7f0bea2fd06f5debdb648b70e1096"
+}
