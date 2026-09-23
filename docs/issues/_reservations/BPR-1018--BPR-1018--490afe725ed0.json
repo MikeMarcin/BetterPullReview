@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1018"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-0896 finding: native HTTPS treats every review-mutation POST as a REST write",
+  "created": "2026-09-23T14:18:12.309574+00:00",
+  "base": "29238c74a23b5e2226866831dd001413024f5597"
+}
