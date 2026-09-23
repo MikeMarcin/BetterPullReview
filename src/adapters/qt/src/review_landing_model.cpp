@@ -2,6 +2,8 @@
 
 #include "bpr/qt/home_row_delegate.hpp"
 
+#include <QDateTime>
+#include <QLocale>
 #include <QStringList>
 
 #include <algorithm>
@@ -227,6 +229,69 @@ namespace bpr::qt {
 	auto home_all_empty_sentence() -> QString
 	{
 		return QStringLiteral("Nothing needs me. Pull requests from saved repositories and observer rules appear here.");
+	}
+
+	auto home_discovery_time(const std::int64_t aSeconds) -> QString
+	{
+		return QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(aSeconds).time(), QLocale::ShortFormat);
+	}
+
+	auto home_discovery_sentence(const application::queue_discovery_status& aStatus) -> QString
+	{
+		using state             = application::queue_discovery_state;
+		using problem           = application::queue_discovery_problem;
+		const auto repositories = aStatus.Repositories == 1U
+			? QStringLiteral("1 saved repository")
+			: QStringLiteral("%1 saved repositories").arg(aStatus.Repositories);
+		const auto last         = aStatus.LastSuccess.has_value() ? home_discovery_time(*aStatus.LastSuccess) : QString{ };
+		auto       sentence     = QString{ };
+		switch (aStatus.State) {
+		case state::idle:
+			break;
+		case state::unavailable:
+			if (aStatus.Problem == problem::no_saved_repository) {
+				sentence = QStringLiteral("Save a repository to find the pull requests in it that need me.");
+			}
+			break;
+		case state::refreshing:
+			sentence = last.isEmpty() ? QStringLiteral("Finding my pull requests in %1…").arg(repositories)
+									  : QStringLiteral("Finding my pull requests in %1; last found at %2.").arg(repositories, last);
+			break;
+		case state::current:
+			sentence = QStringLiteral("Found at %1 in %2.").arg(last, repositories);
+			break;
+		case state::partial: {
+			auto why = QString{ };
+			switch (aStatus.Problem) {
+			case problem::incomplete_results: why = QStringLiteral("GitHub said its search was incomplete"); break;
+			case problem::result_limit:       why = QStringLiteral("more matched than one search returns"); break;
+			case problem::detail_limit:       why = QStringLiteral("more review requests than could be checked"); break;
+			default:                          why = QStringLiteral("part of the search was not read"); break;
+			}
+			sentence = QStringLiteral("Found at %1 in %2, but the list may be missing some: %3.").arg(last, repositories, why);
+			break;
+		}
+		case state::stale: {
+			auto why = QString{ };
+			switch (aStatus.Problem) {
+			case problem::rate_limited:           why = QStringLiteral("GitHub's rate limit was reached"); break;
+			case problem::secondary_rate_limited: why = QStringLiteral("GitHub asked to slow down"); break;
+			case problem::offline:                why = QStringLiteral("GitHub could not be reached"); break;
+			case problem::authentication:         why = QStringLiteral("the account needs to sign in again"); break;
+			case problem::repository_unavailable: why = QStringLiteral("a saved repository could not be read"); break;
+			default:                              why = QStringLiteral("GitHub's answer could not be used"); break;
+			}
+			sentence = last.isEmpty() ? QStringLiteral("Not refreshed: %1.").arg(why)
+									  : QStringLiteral("Not refreshed: %1. Showing what was found at %2.").arg(why, last);
+			break;
+		}
+		}
+		if (aStatus.RetryAfterSeconds.has_value() && !sentence.isEmpty()) {
+			sentence += *aStatus.RetryAfterSeconds == 1U
+				? QStringLiteral(" Refresh again in 1 second.")
+				: QStringLiteral(" Refresh again in %1 seconds.").arg(*aStatus.RetryAfterSeconds);
+		}
+		return sentence;
 	}
 
 	review_landing_model::review_landing_model(QObject* const aParent)

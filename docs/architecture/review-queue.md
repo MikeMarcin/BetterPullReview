@@ -247,7 +247,8 @@ both reasons for each through `personal_discovery_port` ([[BPR-0988]]), at
 most two reads at a time.
 
 It runs when a session is adopted, on activation when the last success is
-older than five minutes, and on an explicit Refresh. Nothing a window opens or
+older than five minutes, when a repository it has not searched is saved (at
+the end of a running refresh if one runs), and on an explicit Refresh. Nothing a window opens or
 selects starts it, and opening a pull request never waits on it. A rate limit
 holds it off until the retry-after has passed (a secondary limit without one
 waits 60 seconds); a Refresh inside that window is refused and says so. A
@@ -267,6 +268,23 @@ at once and the first refresh under the adopted session supplies it again.
 A discovery answer is stored before it is shown. A refused write rolls the
 update back and reports the queue's store unavailable, exactly as any other
 queue write; it is never answered from another profile's store.
+
+**Composition** ([[BPR-0990]]). The profile runtime owns the discovery host
+beside its queue host, over the authenticated provider's personal reads. It
+adopts `personal_discovery_session_of(accepted_profile_session())` after each
+GitHub presentation — the same session again changes nothing, a public-preview
+or signed-out session adopts none — and after each queue projection posts one
+coalesced `reconcile()`, so a repository saved from any window is searched at
+once and a forgotten one only stops being searched. Each window sends its
+Home's Refresh and Home's activation as `queue_discovery_intent` values, and
+the Pull Request menu's Follow as `queue_follow_intent`; no widget reaches the
+provider.
+
+**Forgetting a repository withdraws what was found only there.** The queue
+host treats a forgotten saved repository as a complete answer that finds
+nothing for either reason, so its discovered pull requests depart as
+`undiscovered` unless a role, rule, follow or review still holds them. Kept,
+they would be rows no search would ever refresh.
 
 ## Notifications
 

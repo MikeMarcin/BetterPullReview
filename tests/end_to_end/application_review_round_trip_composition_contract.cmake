@@ -63,6 +63,13 @@ endfunction()
 # read explained as not read, and a file location placed only once the epoch
 # holds the shown pull request's authority), so they never matched 17e40dc8.
 # Resealed to the committed file; no other change. Review recorded on BPR-0987.
+# BPR-0990 reseal: the profile runtime composes one personal discovery host
+# over the authenticated provider's personal reads and its queue host, adopts
+# the accepted account session on each presentation, reconciles saved
+# repositories after each queue projection, and wires each window's Follow and
+# discovery intents; a fixture-only accessor reports its evidence. No
+# credential, vault, transport or mutation path changes; the mutation-branch
+# pin is unchanged. Review recorded on BPR-0990.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -81,7 +88,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"07c49397d8225016655447cf2d48f7a997272087147ca961859bb995664e0955"
+		"8a20d05502285fd69c4c8084efc1d58c757718349b23f1c09d7a42e54c6072dc"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -216,7 +223,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "9ad3bbe313fc77b9fae7aa87f9a9b9cd05cc5d29b1af111504359b646d55f615"
+        "f1bb7571353eb501112652a22eca2068d88e5aa25792f631aa9f8b39bca0d9ef"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

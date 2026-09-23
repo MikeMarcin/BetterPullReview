@@ -4915,14 +4915,18 @@ namespace {
 				&& !window.modality()->isVisible()
 				// [[BPR-0783]]. Home's strip carries Group, State headers, Filter
 				// and the refresh glyph before the account and settings, because
-				// an account can fill the list here.
+				// an account can fill the list here. [[BPR-0990]]: on Home that
+				// glyph is the profile's discovery, not the pull request's refresh.
 				&& window.home_group_button()->isVisible()
 				&& window.home_group_button()->text() == QStringLiteral("Group: None")
 				&& window.home_state_headers_action()->isChecked()
 				&& window.home_filter_button()->isVisible()
 				&& window.primary_toolbar()
-					   ->widgetForAction(window.github_refresh_action())
+					   ->widgetForAction(window.queue_refresh_action())
 					   ->isVisible()
+				&& !window.primary_toolbar()
+						->widgetForAction(window.github_refresh_action())
+						->isVisible()
 				&& window.primary_toolbar()
 					   ->widgetForAction(window.account_action())
 					   ->isVisible()

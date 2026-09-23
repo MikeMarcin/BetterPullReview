@@ -89,6 +89,33 @@ namespace bpr::application {
 		}
 	} // namespace
 
+	auto personal_discovery_session_of(const github_profile_session& aSession)
+		-> std::optional<personal_discovery_session>
+	{
+		const auto& viewer   = aSession.Session.Viewer;
+		const auto  hostname = std::string_view{ aSession.ProfileAuthority.Hostname.value() };
+		if (aSession.Session.Mode != core::github_access_mode::authenticated || hostname.empty() || viewer.Login.empty()
+			|| viewer.Account.value() == 0U || aSession.Generation.value() == 0U) {
+			return std::nullopt;
+		}
+		return personal_discovery_session{
+			.Queue   = { .Host = std::string{ hostname }, .Account = viewer.Login, .Generation = aSession.Generation.value() },
+			.Context = {
+				.ApplicationSession = aSession.ApplicationSession,
+				.Profile            = aSession.ProfileAuthority.Profile,
+				.Host               = aSession.ProfileAuthority.Host,
+				.Account            = viewer.Account,
+				.Capabilities       = aSession.CapabilityEvidence.Revision,
+				.IdentityGeneration = aSession.Generation,
+			},
+			.ProfileAuthority      = aSession.ProfileAuthority,
+			.Viewer                = viewer,
+			.CapabilityEvidence    = aSession.CapabilityEvidence,
+			.AccountTransport      = aSession.AccountTransport,
+			.AuthenticationSession = aSession.ApplicationSession,
+		};
+	}
+
 	struct personal_discovery_host::implementation final : std::enable_shared_from_this<implementation>
 	{
 		struct job
@@ -180,6 +207,40 @@ namespace bpr::application {
 			start_cycle();
 		}
 
+		/// Whether the account now saves a repository the last refresh did
+		/// not search.
+		[[nodiscard]] auto unsearched(const std::vector<std::string>& aRepositories) const -> bool
+		{
+			return std::ranges::any_of(aRepositories, [this](const std::string& aRepository) {
+				return std::ranges::find(Searched, aRepository) == Searched.end();
+			});
+		}
+
+		void reconcile()
+		{
+			if (Closing || !Session || CycleRunning || backing_off(Clock.now_seconds())) {
+				return;
+			}
+			auto repositories = partition();
+			if (repositories == Searched) {
+				return;
+			}
+			if (unsearched(repositories)) {
+				start_cycle();
+				return;
+			}
+			// Only forgotten: nothing new to read, and what was found in them
+			// is the queue's to withdraw.
+			Searched            = std::move(repositories);
+			Status.Repositories = static_cast<std::uint32_t>(Searched.size());
+			if (Searched.empty()) {
+				Status.State   = queue_discovery_state::unavailable;
+				Status.Problem = queue_discovery_problem::no_saved_repository;
+				Status.RetryAfterSeconds.reset();
+			}
+			publish();
+		}
+
 		[[nodiscard]] auto partition() const -> std::vector<std::string>
 		{
 			auto repositories = std::vector<std::string>{ };
@@ -197,6 +258,7 @@ namespace bpr::application {
 		void start_cycle()
 		{
 			const auto repositories = partition();
+			Searched                = repositories;
 			Status.Host             = Session->Queue.Host;
 			Status.Account          = Session->Queue.Account;
 			Status.LastSuccess      = LastSuccess;
@@ -379,6 +441,10 @@ namespace bpr::application {
 			}
 			Status.LastSuccess = LastSuccess;
 			publish();
+			// A repository saved while this refresh ran is searched now.
+			if (!backing_off(now) && unsearched(partition())) {
+				start_cycle();
+			}
 		}
 
 		void shutdown()
@@ -396,6 +462,7 @@ namespace bpr::application {
 		const personal_discovery_clock_port&      Clock;
 		std::optional<personal_discovery_session> Session;
 		std::deque<job>                           Queued;
+		std::vector<std::string>                  Searched;
 		std::vector<job>                          Active;
 		std::optional<std::int64_t>               LastSuccess;
 		std::optional<std::int64_t>               BackoffUntil;
@@ -436,6 +503,11 @@ namespace bpr::application {
 	void personal_discovery_host::refresh()
 	{
 		Implementation->refresh();
+	}
+
+	void personal_discovery_host::reconcile()
+	{
+		Implementation->reconcile();
 	}
 
 	void personal_discovery_host::shutdown()

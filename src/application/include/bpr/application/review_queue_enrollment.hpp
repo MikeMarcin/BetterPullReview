@@ -304,6 +304,15 @@ namespace bpr::application {
 		auto operator<=>(const queue_follow_intent&) const = default;
 	};
 
+	/// \brief [[BPR-0990]]. What a window asks of its profile's discovery.
+	enum class queue_discovery_intent : std::uint8_t {
+		/// Home was shown, or its window activated while showing Home:
+		/// refresh only when the list is older than the freshness window.
+		activate,
+		/// The explicit Refresh.
+		refresh,
+	};
+
 	/// \brief The private reviewer preferences applied above the decided queue.
 	struct queue_presentation_preferences
 	{

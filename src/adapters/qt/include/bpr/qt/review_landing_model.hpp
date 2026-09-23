@@ -11,6 +11,7 @@
 #include <QSortFilterProxyModel>
 #include <QString>
 
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <vector>
@@ -77,6 +78,20 @@ namespace bpr::qt {
 
 	/// \brief [[BPR-0776]]. What Home's list says when a ready queue is empty.
 	[[nodiscard]] auto home_all_empty_sentence() -> QString;
+
+	/// \brief [[BPR-0990]]. The clock time a discovery refresh succeeded at,
+	/// in the reviewer's locale.
+	[[nodiscard]] auto home_discovery_time(std::int64_t aSeconds) -> QString;
+
+	/// \brief [[BPR-0990]]. The one sentence Home says about discovery.
+	///
+	/// \details When the list was last refreshed and from how many saved
+	/// repositories, that a refresh is running, that the list is partial and
+	/// why, that it is stale with its failure and how long GitHub asked to
+	/// wait, or that nothing is saved to search. Empty with no account
+	/// session: the signed-out Home carries the sign-in. Built only from the
+	/// projected status; it never claims how long ago, which needs a clock.
+	[[nodiscard]] auto home_discovery_sentence(const application::queue_discovery_status& aStatus) -> QString;
 
 	/// \brief [[BPR-0783]]. One account the decided queue's rows name.
 	///

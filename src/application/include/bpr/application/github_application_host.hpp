@@ -262,6 +262,16 @@ namespace bpr::application {
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
 		[[nodiscard]] auto accepted_session() const noexcept
 			-> const std::optional<github_session_read_model>&;
+		/// \brief [[BPR-0990]]. The accepted session's exact read authority.
+		///
+		/// \details What a pull request read of this session carries: the
+		/// profile authority, the viewer, the capability evidence and the
+		/// opaque account transport, under the session's identity generation.
+		/// Absent until all of them are accepted together. For composition,
+		/// which hands it to profile-wide reads such as personal discovery;
+		/// no credential byte is reachable through it.
+		[[nodiscard]] auto accepted_profile_session() const
+			-> std::optional<github_profile_session>;
 		[[nodiscard]] auto accepted_snapshot() const noexcept
 			-> const std::optional<github_pull_request_snapshot>&;
 		/// \brief Returns the vault authority the accepted session is keyed by.

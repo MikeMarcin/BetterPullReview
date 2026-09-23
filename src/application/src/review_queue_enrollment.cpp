@@ -863,9 +863,33 @@ namespace bpr::application {
 				report_unavailable(aResult.error());
 				return;
 			}
+			// [[BPR-0990]]. A forgotten repository is no longer searched, so
+			// what discovery found only there is no longer found: its reasons
+			// are withdrawn as a complete answer that finds nothing would
+			// withdraw them. A follow, a review, a role or a rule still holds.
+			auto prior   = Enrollments;
+			auto changed = std::vector<core::pull_request_ref>{ };
+			for (const auto& forgotten : SavedRepositories) {
+				if (std::ranges::find(aSaved, forgotten) != aSaved.end()) {
+					continue;
+				}
+				for (const auto requested : { false, true }) {
+					auto withdrawn = Enrollments.observe_discovery(queue_discovery_answer{
+						.Session    = { .Host = forgotten.Host, .Account = forgotten.Account },
+						.Repository = forgotten.Repository,
+						.Requested  = requested,
+						.Complete   = true,
+					});
+					changed.insert(changed.end(), withdrawn.begin(), withdrawn.end());
+				}
+			}
 			SavedRepositories = std::move(aSaved);
 			Failure.reset();
 			Status = queue_landing_status::ready;
+			if (!changed.empty()) {
+				persist_records(changed, std::move(prior));
+				return;
+			}
 			publish();
 		}
 

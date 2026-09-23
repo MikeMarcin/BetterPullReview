@@ -968,6 +968,23 @@ foreach(bpr_focus_order_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-0990]]. RFC-BPR-0026 AC-10: Home's discovery glyph, its sentence and the
+# Pull Request menu, at each scale, reached directly past the epoch-row
+# assertion [[BPR-0940]] owns.
+foreach(bpr_home_discovery_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_home_discovery_whole "${bpr_home_discovery_scale} / 100")
+    math(EXPR bpr_home_discovery_fraction "${bpr_home_discovery_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_workbench_home_discovery_scale_${bpr_home_discovery_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --home-discovery
+    )
+    set_tests_properties(qt_workbench_home_discovery_scale_${bpr_home_discovery_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_home_discovery_whole}.${bpr_home_discovery_fraction};BPR_EXPECTED_QT_SCALE=${bpr_home_discovery_whole}.${bpr_home_discovery_fraction}"
+        PASS_REGULAR_EXPRESSION "workbench-home-discovery:pass"
+        TIMEOUT 60
+    )
+endforeach()
+
 # [[BPR-0985]]. Which conversation moves code, reached directly: the full
 # window run stops earlier at the epoch-row assertion [[BPR-0940]] owns.
 bpr_add_network_isolated_test(

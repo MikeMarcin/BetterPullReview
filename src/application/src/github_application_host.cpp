@@ -4518,6 +4518,12 @@ namespace bpr::application {
 		return Implementation->AcceptedSession;
 	}
 
+	auto github_application_host::accepted_profile_session() const
+		-> std::optional<github_profile_session>
+	{
+		return Implementation->current_profile_session();
+	}
+
 	auto github_application_host::attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool { return Implementation->attach_window(aWindow); }
 	void github_application_host::detach_window(const core::bpr_window_context aWindow) { Implementation->detach_window(aWindow); }
 	void github_application_host::observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow, const bool aFreshSnapshot) { Implementation->observe_attached_read(aWindow, aFreshSnapshot); }

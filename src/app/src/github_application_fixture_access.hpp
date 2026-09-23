@@ -12,6 +12,7 @@
 #include "bpr/application/agent_finding_host.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
+#include "bpr/application/personal_discovery_host.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -76,6 +77,27 @@ namespace bpr::app::detail {
 	[[nodiscard]] auto export_github_fixture_vault(const std::shared_ptr<github_fixture_vault_state>& aState) -> std::string;
 	/// \brief Recreates the exact synthetic authority and slots with fresh per-process effect counters.
 	[[nodiscard]] auto import_github_fixture_vault(std::string_view aBytes) -> std::shared_ptr<github_fixture_vault_state>;
+
+	/// \brief [[BPR-0990]]. The fixture repository's open pull requests, as
+	/// the personal discovery reads see them.
+	///
+	/// \details The fixture server answers the personal search by evaluating
+	/// its qualifier over this list, as GitHub would: `author:` matches the
+	/// author, `review-requested:` matches a named user or any team request
+	/// (the viewer is taken to be on every team) on a pull request someone
+	/// else authored. Everything else in the list is unrelated, and a read
+	/// that fetched it would have to ask for it.
+	struct github_personal_discovery_fixture
+	{
+		struct pull_request
+		{
+			std::uint32_t            Number = 0U;
+			std::string              Author;
+			std::vector<std::string> RequestedUsers;
+			std::size_t              RequestedTeams = 0U;
+		};
+		std::vector<pull_request> OpenPullRequests;
+	};
 
 	struct github_public_path_fixture_options
 	{
@@ -215,6 +237,8 @@ namespace bpr::app::detail {
 		bool IndependentWindowReads = false;
 		/// Two same-server accounts selected only by the test-owned BPR profile.
 		bool DistinctProfileAccounts = false;
+		/// [[BPR-0990]]. Serves personal discovery over this repository list.
+		std::optional<github_personal_discovery_fixture> PersonalDiscovery;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -230,6 +254,15 @@ namespace bpr::app::detail {
 		std::optional<application::delivered_notification> LastSubmitted;
 
 		auto operator<=>(const queue_notification_fixture_evidence&) const = default;
+	};
+
+	/// \brief [[BPR-0990]]. The profile's one discovery scheduler, as composed.
+	struct personal_discovery_fixture_evidence
+	{
+		bool                                       Composed = false;
+		application::personal_discovery_statistics Statistics;
+		application::queue_discovery_status        Status;
+		bool                                       Quiescent = false;
 	};
 
 	struct review_mutation_fixture_evidence
@@ -323,6 +356,13 @@ namespace bpr::app::detail {
 		// than granting has no recorded token to compare a store against, and
 		// this is what it compares instead.
 		std::string LastEnrollmentDigest;
+		/// [[BPR-0990]]. The personal searches and requested-reviewer reads the
+		/// fixture answered, each search's terms, and the operation name of
+		/// every account-transport read in the order it arrived.
+		std::size_t              DiscoverySearches    = 0U;
+		std::size_t              DiscoveryDetailReads = 0U;
+		std::vector<std::string> DiscoverySearchTerms;
+		std::vector<std::string> AccountReadOperations;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence
@@ -758,6 +798,10 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;
+		/// \brief [[BPR-0990]]. The profile's discovery counters and status.
+		[[nodiscard]] static auto personal_discovery_evidence(
+			const github_application& aApplication) noexcept
+			-> personal_discovery_fixture_evidence;
 		/// \brief Reports the composed queue-to-platform notification evidence.
 		[[nodiscard]] static auto queue_notification_evidence(
 			const github_application& aApplication) noexcept

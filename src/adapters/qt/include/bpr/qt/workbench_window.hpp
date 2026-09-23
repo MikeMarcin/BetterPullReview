@@ -143,6 +143,10 @@ namespace bpr::qt {
 	using conversation_read_dispatch = std::function<void(const std::string&)>;
 	/// \brief Save or forget a repository ([[BPR-0659]]).
 	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
+	/// \brief [[BPR-0990]]. The local Follow or Unfollow of the open pull request.
+	using workbench_queue_follow_dispatch = std::function<void(application::queue_follow_intent)>;
+	/// \brief [[BPR-0990]]. Home's activation and its explicit Refresh.
+	using workbench_queue_discovery_dispatch = std::function<void(application::queue_discovery_intent)>;
 	/// \brief [[BPR-0660]]. One remember or forget gesture for an enterprise server.
 	using workbench_saved_server_dispatch = std::function<void(application::saved_server_intent)>;
 	/// \brief Presentation state for the explicit GitHub CLI account inventory.
@@ -441,6 +445,11 @@ namespace bpr::qt {
 			workbench_queue_preferences_dispatch aDispatch);
 		/// \brief Where Save and Forget go, from the tree and from Settings.
 		void set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch);
+		/// \brief [[BPR-0990]]. Where the Pull Request menu's Follow goes.
+		void set_queue_follow_dispatch(workbench_queue_follow_dispatch aDispatch);
+		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
+		/// activation go: the profile's discovery, never a provider.
+		void set_queue_discovery_dispatch(workbench_queue_discovery_dispatch aDispatch);
 		/// \brief [[BPR-0660]], [[BPR-0774]]. Receives the enterprise servers the
 		/// reviewer keeps: Add enterprise server, a card's Remember switch and
 		/// its confirmed Forget server.
@@ -756,6 +765,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto github_connect_action() const noexcept -> QAction*;
 		[[nodiscard]] auto github_open_action() const noexcept -> QAction*;
 		[[nodiscard]] auto github_refresh_action() const noexcept -> QAction*;
+		/// \brief [[BPR-0990]]. Home's refresh glyph: the profile's discovery.
+		[[nodiscard]] auto queue_refresh_action() const noexcept -> QAction*;
+		/// \brief [[BPR-0990]]. The one sentence Home says about discovery.
+		[[nodiscard]] auto home_discovery_status() const noexcept -> QLabel*;
+		/// \brief [[BPR-0990]]. The Pull Request menu and its two local gestures.
+		[[nodiscard]] auto pull_request_menu() const noexcept -> QMenu*;
+		[[nodiscard]] auto follow_pull_request_action() const noexcept -> QAction*;
+		[[nodiscard]] auto save_pull_request_repository_action() const noexcept -> QAction*;
 		[[nodiscard]] auto show_review_threads_action() const noexcept -> QAction*;
 
 		/// \brief RFC-BPR-0002's session wording, which the shell now presents.
@@ -1099,8 +1116,13 @@ namespace bpr::qt {
 		void confirm_forget_server(const application::saved_server& aServer);
 		void dispatch_saved_repository(application::saved_repository_action aAction);
 		void update_saved_repository_actions();
-		void dispatch_queue_preferences(QComboBox* aSource);
-		void build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
+		// [[BPR-0990]]. Discovery's glyph and sentence, and the open pull
+		// request's Follow and Save repository.
+		void               update_discovery_controls();
+		void               update_pull_request_queue_actions();
+		[[nodiscard]] auto open_queue_ref() const -> std::optional<core::pull_request_ref>;
+		void               dispatch_queue_preferences(QComboBox* aSource);
+		void               build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
 		// [[BPR-0783]]. Home's view: the strip's three controls, one Filter menu
 		// over the four surviving typed preferences, and the window's own view.
 		void build_home_strip_controls();
@@ -1316,35 +1338,48 @@ namespace bpr::qt {
 		QLabel*                                            NotificationStatus    = nullptr;
 		QLineEdit*                                         StorageLocation       = nullptr;
 		std::function<bool(const core::pull_request_ref&)> NotificationPreviewDispatch;
-		QComboBox*                                         QueueRuleSelector     = nullptr;
-		QComboBox*                                         QueueRuleKind         = nullptr;
-		QLineEdit*                                         QueueRulePattern      = nullptr;
-		QCheckBox*                                         QueueRuleExcluding    = nullptr;
-		QAction*                                           AddQueueRule          = nullptr;
-		QAction*                                           RemoveQueueRule       = nullptr;
-		QToolButton*                                       AddQueueRuleButton    = nullptr;
-		QToolButton*                                       RemoveQueueRuleButton = nullptr;
-		QLabel*                                            QueueStatus           = nullptr;
-		QLabel*                                            SettingsQueueStatus   = nullptr;
-		QLineEdit*                                         HomeOpenBar           = nullptr;
-		QLabel*                                            HomeOpenLabel         = nullptr;
-		QWidget*                                           HomeOpenFrame         = nullptr;
-		QAction*                                           HomeFocusBarAction    = nullptr;
-		QAction*                                           HomeOpenAction        = nullptr;
-		QLabel*                                            HomeOpenNotice        = nullptr;
-		QPushButton*                                       HomeOpenDetails       = nullptr;
-		QString                                            HomeSetupNotice;
-		QString                                            HomeRestorationNotice;
-		QString                                            HomeRefusalDetails;
-		QString                                            DismissedHomeRefusal;
-		std::vector<core::observer_rule>                   QueueRules;
-		application::queue_landing_projection              QueueProjection;
-		workbench_saved_repository_dispatch                SavedRepositoryDispatch;
-		workbench_saved_server_dispatch                    SavedServerDispatch;
-		workbench_review_reply_dispatch                    ReviewReplyDispatch;
-		workbench_thread_resolution_dispatch               ThreadResolutionDispatch;
-		bool                                               ProviderResolvesThreads = false;
-		core::github_capabilities                          Capabilities;
+		QComboBox*                                         QueueRuleSelector         = nullptr;
+		QComboBox*                                         QueueRuleKind             = nullptr;
+		QLineEdit*                                         QueueRulePattern          = nullptr;
+		QCheckBox*                                         QueueRuleExcluding        = nullptr;
+		QAction*                                           AddQueueRule              = nullptr;
+		QAction*                                           RemoveQueueRule           = nullptr;
+		QToolButton*                                       AddQueueRuleButton        = nullptr;
+		QToolButton*                                       RemoveQueueRuleButton     = nullptr;
+		QLabel*                                            QueueStatus               = nullptr;
+		QLabel*                                            HomeDiscoveryStatus       = nullptr;
+		QAction*                                           QueueRefreshAction        = nullptr;
+		QMenu*                                             PullRequestMenu           = nullptr;
+		QAction*                                           FollowPullRequest         = nullptr;
+		QAction*                                           SavePullRequestRepository = nullptr;
+		workbench_queue_follow_dispatch                    QueueFollowDispatch;
+		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
+		// The open pull request as the queue names it: owner/name, number and
+		// title, and whether it was read signed out.
+		std::string                           OpenQueueRepository;
+		std::int64_t                          OpenQueueNumber = 0;
+		std::string                           OpenQueueTitle;
+		bool                                  OpenQueuePublicPreview = false;
+		QLabel*                               SettingsQueueStatus    = nullptr;
+		QLineEdit*                            HomeOpenBar            = nullptr;
+		QLabel*                               HomeOpenLabel          = nullptr;
+		QWidget*                              HomeOpenFrame          = nullptr;
+		QAction*                              HomeFocusBarAction     = nullptr;
+		QAction*                              HomeOpenAction         = nullptr;
+		QLabel*                               HomeOpenNotice         = nullptr;
+		QPushButton*                          HomeOpenDetails        = nullptr;
+		QString                               HomeSetupNotice;
+		QString                               HomeRestorationNotice;
+		QString                               HomeRefusalDetails;
+		QString                               DismissedHomeRefusal;
+		std::vector<core::observer_rule>      QueueRules;
+		application::queue_landing_projection QueueProjection;
+		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
+		workbench_saved_server_dispatch       SavedServerDispatch;
+		workbench_review_reply_dispatch       ReviewReplyDispatch;
+		workbench_thread_resolution_dispatch  ThreadResolutionDispatch;
+		bool                                  ProviderResolvesThreads = false;
+		core::github_capabilities             Capabilities;
 		// [[BPR-0661]].
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;

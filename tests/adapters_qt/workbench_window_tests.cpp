@@ -7835,7 +7835,7 @@ namespace {
 		const auto groupAt    = named(QStringLiteral("homeGroupAction"));
 		const auto headersAt  = at(window.home_state_headers_action());
 		const auto filterAt   = named(QStringLiteral("homeFilterAction"));
-		const auto refreshAt  = at(window.github_refresh_action());
+		const auto refreshAt  = at(window.queue_refresh_action());
 		const auto dividerAt  = named(QStringLiteral("workbenchStripRightDividerAction"));
 		const auto accountAt  = at(window.account_action());
 		const auto settingsAt = at(window.settings_action());
@@ -7859,10 +7859,13 @@ namespace {
 				   && window.home_state_headers_action()->isChecked()
 				   && window.home_filter_button()->isVisible()
 				   && window.home_filter_button()->text() == QStringLiteral("Filter")
-				   && toolbar->widgetForAction(window.github_refresh_action())->isVisible(),
+				   && toolbar->widgetForAction(window.queue_refresh_action())->isVisible()
+				   && !toolbar->widgetForAction(window.github_refresh_action())->isVisible(),
 			   "signed in on Home all four are shown, Group says None and State headers is on");
-		expect(!window.github_refresh_action()->isEnabled(),
-			   "the refresh glyph keeps its own enablement: there is no pull request to refresh");
+		// [[BPR-0990]]. The glyph is discovery's, and says so while nothing
+		// can run it: no discovery dispatch and no account session yet.
+		expect(!window.queue_refresh_action()->isEnabled() && !window.queue_refresh_action()->toolTip().isEmpty(),
+			   "the refresh glyph is disabled, and says why, until discovery can run");
 		for (auto* const stop : { static_cast<QWidget*>(window.home_group_button()), headers,
 								  static_cast<QWidget*>(window.home_filter_button()) }) {
 			expect(stop->focusPolicy() == Qt::StrongFocus && !stop->accessibleName().isEmpty()
@@ -7904,9 +7907,133 @@ namespace {
 		expect(!window.home_group_button()->isVisible() && !headers->isVisible()
 				   && !window.home_filter_button()->isVisible()
 				   && !toolbar->widgetForAction(window.github_refresh_action())->isVisible()
+				   && !toolbar->widgetForAction(window.queue_refresh_action())->isVisible()
 				   && toolbar->widgetForAction(window.account_action())->isVisible()
 				   && toolbar->widgetForAction(window.settings_action())->isVisible(),
 			   "signed out the strip is Home, account and settings, with no disabled ghosts");
+		window.hide();
+	}
+
+	/// [[BPR-0990]]. The queue as discovery leaves it: a session, a saved
+	/// repository, one row found and the status of the last refresh.
+	[[nodiscard]] auto discovery_projection(const application::queue_discovery_status& aStatus)
+		-> application::queue_landing_projection
+	{
+		auto projection              = two_account_projection();
+		projection.Session           = { .Host = "github.com", .Account = "octo-reviewer", .Generation = 3U };
+		projection.SavedRepositories = { { .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app" } };
+		projection.Discovery         = aStatus;
+		return projection;
+	}
+
+	// [[BPR-0990]], [[BPR-0801]]. On Home the refresh glyph is the profile's
+	// discovery: it sends one typed intent, arriving at Home asks discovery to
+	// catch up, one sentence says what discovery last did, and the Pull
+	// Request menu follows the open pull request or saves its repository
+	// without reaching GitHub.
+	void test_home_discovery_glyph_status_and_pull_request_menu()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto discovery = std::vector<application::queue_discovery_intent>{ };
+		auto follows   = std::vector<application::queue_follow_intent>{ };
+		auto saves     = std::vector<application::saved_repository_intent>{ };
+		window.set_queue_discovery_dispatch([&discovery](application::queue_discovery_intent aIntent) { discovery.push_back(aIntent); });
+		window.set_queue_follow_dispatch([&follows](application::queue_follow_intent aIntent) { follows.push_back(std::move(aIntent)); });
+		window.set_saved_repository_dispatch([&saves](application::saved_repository_intent aIntent) { saves.push_back(std::move(aIntent)); });
+		window.show();
+		process_events();
+		sign_in(window);
+		using state   = application::queue_discovery_state;
+		using problem = application::queue_discovery_problem;
+		auto status   = application::queue_discovery_status{ .Host = "github.com", .Account = "octo-reviewer", .State = state::refreshing, .Repositories = 1U };
+		window.publish(discovery_projection(status));
+		process_events();
+		auto* const toolbar = window.primary_toolbar();
+		auto* const glyph   = qobject_cast<QToolButton*>(toolbar->widgetForAction(window.queue_refresh_action()));
+		auto* const label   = window.home_discovery_status();
+		expect(window.showing_home() && glyph != nullptr && glyph->isVisible() && !window.queue_refresh_action()->isEnabled()
+				   && label->isVisible() && label->text() == QStringLiteral("Finding my pull requests in 1 saved repository…"),
+			   "while a refresh runs the glyph waits and Home says what is being searched");
+		expect(glyph->focusPolicy() == Qt::StrongFocus && !glyph->accessibleName().isEmpty() && !glyph->accessibleDescription().isEmpty()
+				   && window.focus_order().contains(glyph)
+				   && window.focus_order().indexOf(glyph) > window.focus_order().indexOf(window.home_filter_button()),
+			   "the glyph is a named, described stop after Filter in the declared order");
+
+		status.State       = state::current;
+		status.LastSuccess = 1'700'000'000;
+		window.publish(discovery_projection(status));
+		process_events();
+		const auto at = qt::home_discovery_time(1'700'000'000);
+		expect(window.queue_refresh_action()->isEnabled() && label->text() == QStringLiteral("Found at %1 in 1 saved repository.").arg(at),
+			   "a current list says when it was found, from how many repositories, and the glyph can run again");
+		window.queue_refresh_action()->trigger();
+		expect(discovery == std::vector{ application::queue_discovery_intent::refresh }, "the glyph sends exactly the refresh intent");
+
+		const auto says = [&](const application::queue_discovery_status& aStatus, const QString& aText, const char* aWhat) {
+			window.publish(discovery_projection(aStatus));
+			process_events();
+			expect(label->isVisible() == !aText.isEmpty() && label->text() == aText,
+				   message_for(aWhat, label->text().toStdString()));
+		};
+		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::partial, .Problem = problem::result_limit, .LastSuccess = 1'700'000'000, .Repositories = 2U },
+			 QStringLiteral("Found at %1 in 2 saved repositories, but the list may be missing some: more matched than one search returns.").arg(at),
+			 "a partial list says so, and why");
+		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::stale, .Problem = problem::rate_limited, .LastSuccess = 1'700'000'000, .RetryAfterSeconds = 120U, .Repositories = 1U },
+			 QStringLiteral("Not refreshed: GitHub's rate limit was reached. Showing what was found at %1. Refresh again in 120 seconds.").arg(at),
+			 "a stale list names its failure, keeps what was found and says how long to wait");
+		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::stale, .Problem = problem::offline, .Repositories = 1U },
+			 QStringLiteral("Not refreshed: GitHub could not be reached."),
+			 "an offline first refresh says so");
+		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::unavailable, .Problem = problem::no_saved_repository },
+			 QStringLiteral("Save a repository to find the pull requests in it that need me."),
+			 "with nothing saved Home says what to do");
+		says({ .State = state::unavailable, .Problem = problem::no_account }, QString{ }, "with no account session there is no sentence");
+		expect(!window.queue_refresh_action()->isEnabled(), "and nothing to refresh");
+
+		// Leaving Home and coming back asks discovery to catch up.
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{ .Owner = "octo-org", .RepositoryName = "tools", .Number = core::pull_request_number{ 7U }, .Title = "Opened by link" },
+		});
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(!window.showing_home() && !glyph->isVisible() && toolbar->widgetForAction(window.github_refresh_action())->isVisible(),
+			   "the review strip's refresh is the pull request's");
+		discovery.clear();
+		window.home_action()->trigger();
+		process_events();
+		expect(window.showing_home() && discovery == std::vector{ application::queue_discovery_intent::activate },
+			   "arriving at Home asks discovery once to catch up");
+
+		// The open pull request's two local gestures.
+		auto* const follow = window.follow_pull_request_action();
+		auto* const save   = window.save_pull_request_repository_action();
+		expect(window.pull_request_menu() != nullptr && window.pull_request_menu()->actions().contains(follow) && window.pull_request_menu()->actions().contains(save)
+				   && follow->isEnabled() && !follow->isChecked() && save->isEnabled(),
+			   "an unsaved repository's pull request can be followed and its repository saved");
+		follow->trigger();
+		save->trigger();
+		const auto opened = core::pull_request_ref{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/tools", .Number = 7 };
+		expect(follows.size() == 1U && follows.back().Ref == opened && follows.back().Follow && follows.back().Title == "Opened by link"
+				   && saves.size() == 1U && saves.back().Action == application::saved_repository_action::add
+				   && saves.back().Repository == application::saved_repository{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/tools" },
+			   "Follow and Save Repository send the queue's typed intents for exactly the open pull request");
+		expect(!follow->isChecked(), "the check mark waits for the queue");
+		auto followed = discovery_projection(status);
+		followed.SavedRepositories.push_back({ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/tools" });
+		followed.Items.push_back(core::queue_item{ .Ref = opened, .Membership = { .Followed = true }, .Bucket = core::attention_bucket::detail_unknown });
+		window.publish(followed);
+		process_events();
+		expect(follow->isChecked() && !save->isEnabled() && !save->toolTip().isEmpty(), "once the queue keeps both, Follow is checked and Save is done");
+		follow->trigger();
+		expect(follows.size() == 2U && !follows.back().Follow, "following again unfollows");
+
+		// Signed out there is nothing to follow for.
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{ .Owner = "octo-org", .RepositoryName = "tools", .Number = core::pull_request_number{ 8U }, .PublicPreview = true },
+		});
+		process_events();
+		expect(!follow->isEnabled() && !save->isEnabled(), "a pull request read signed out cannot be kept for an account");
 		window.hide();
 	}
 
@@ -8460,6 +8587,14 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--focus-order"))) {
 		test_focus_order_is_declared_named_and_walkable();
 		std::cout << "workbench-focus-order:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-0990]]. Home's discovery glyph, sentence and the Pull Request menu,
+	// reached directly past the epoch-row assertion [[BPR-0940]] owns.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
+		test_home_strip_holds_group_state_headers_filter_and_refresh();
+		test_home_discovery_glyph_status_and_pull_request_menu();
+		std::cout << "workbench-home-discovery:pass\n";
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-0985]]. The conversation courses, which the full run does not reach

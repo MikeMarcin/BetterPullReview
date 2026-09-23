@@ -1745,6 +1745,83 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	// [[BPR-0990]]. The session composition hands discovery is the accepted
+	// session's own authority, named as the queue names a pull request opened
+	// under it; a signed-out session has no discovery session at all.
+	void test_the_discovery_session_of_an_accepted_session()
+	{
+		auto session = application::github_profile_session{
+			.BprProfile         = core::bpr_profile_id{ 2U },
+			.ApplicationSession = core::application_session_id{ 7U },
+			.ProfileAuthority   = { .Profile = core::host_profile_id{ 11U }, .Host = core::git_host_id{ 22U }, .Hostname = application::github_canonical_hostname{ "ghe.example" } },
+			.Session            = { .Viewer = { .Account = core::github_account_id{ 1001U }, .Login = "reviewer" }, .Mode = core::github_access_mode::authenticated },
+			.Generation         = core::github_identity_generation{ 9U },
+		};
+		session.CapabilityEvidence.Revision = core::capability_revision{ 44U };
+		const auto discovery                = application::personal_discovery_session_of(session);
+		expect(discovery && discovery->Queue == application::queue_session_id{ .Host = "ghe.example", .Account = "reviewer", .Generation = 9U }
+				   && discovery->Context.ApplicationSession == session.ApplicationSession && discovery->Context.Profile == core::host_profile_id{ 11U }
+				   && discovery->Context.Host == core::git_host_id{ 22U } && discovery->Context.Account == core::github_account_id{ 1001U }
+				   && discovery->Context.Capabilities == core::capability_revision{ 44U } && discovery->Context.IdentityGeneration == session.Generation
+				   && discovery->AuthenticationSession == std::optional{ session.ApplicationSession } && discovery->Viewer.Login == "reviewer",
+			   "an accepted account session names its server, login and generation, and carries its exact authority");
+		auto signedOut         = session;
+		signedOut.Session.Mode = core::github_access_mode::public_preview;
+		auto noLogin           = session;
+		noLogin.Session.Viewer.Login.clear();
+		expect(!application::personal_discovery_session_of(signedOut) && !application::personal_discovery_session_of(noLogin),
+			   "a signed-out session, or one without a viewer login, has nothing to search for");
+	}
+
+	// [[BPR-0990]]. Saving a repository is searched without waiting for the
+	// freshness window, a repository saved during a refresh is searched when it
+	// ends, and forgetting one withdraws only what was found there.
+	void test_discovery_follows_the_saved_repositories()
+	{
+		auto fixture = discovery_fixture{ { } };
+		fixture.Discovery.adopt(discovery_session());
+		expect(fixture.Provider.Requests.empty() && fixture.Discovery.status().State == application::queue_discovery_state::unavailable
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::no_saved_repository,
+			   "with nothing saved nothing is read, and the status says what to do");
+		const auto save = [&fixture](const std::string& aRepository, const application::saved_repository_action aAction) {
+			fixture.Queue.apply(application::saved_repository_intent{ .Action = aAction, .Repository = { .Host = "github.com", .Account = "reviewer", .Repository = aRepository } });
+			fixture.settle();
+			fixture.Discovery.reconcile();
+		};
+		save("octo/app", application::saved_repository_action::add);
+		expect(fixture.Provider.Requests.size() == 2U && fixture.Provider.Requests[0].Context.Repository == core::repository_locator{ "octo", "app" },
+			   "saving a repository searches it at once");
+		// Saved while that refresh runs: searched when it ends.
+		save("octo/tools", application::saved_repository_action::add);
+		expect(fixture.Provider.Requests.size() == 2U, "nothing more while a refresh runs");
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 1U) }));
+		fixture.settle();
+		expect(fixture.Provider.Requests.size() == 4U && fixture.Discovery.statistics().Refreshes == 2U, "the refresh that ends catches up with the saved list");
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 1U) }));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.item(5) && fixture.item(6) && fixture.Discovery.status().State == application::queue_discovery_state::current,
+			   "both repositories are searched and octo/app's rows are still found");
+		fixture.Queue.apply(application::queue_follow_intent{ .Ref = { "github.com", "reviewer", "octo/app", 6 }, .Follow = true });
+		fixture.settle();
+		const auto before = fixture.Provider.Requests.size();
+		save("octo/app", application::saved_repository_action::remove);
+		expect(fixture.Provider.Requests.size() == before && fixture.Discovery.status().Repositories == 1U,
+			   "forgetting a repository reads nothing, and the status counts what is still saved");
+		expect(!fixture.item(5) && fixture.record(5)->Departed == application::enrollment_departure::undiscovered,
+			   "what was found only there is no longer found");
+		expect(fixture.item(6) && fixture.record(6)->Membership.Followed && !fixture.record(6)->Membership.Authored,
+			   "a followed pull request stays, without the reason it was found for");
+		fixture.Discovery.reconcile();
+		expect(fixture.Provider.Requests.size() == before, "an unchanged saved list reads nothing");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	void test_discovery_freshness_and_forgotten_repositories()
 	{
 		auto fixture = discovery_fixture{ };
@@ -1814,6 +1891,8 @@ auto main() -> int
 	test_discovery_refuses_stale_and_foreign_answers();
 	test_discovery_refuses_an_earlier_generation_of_the_same_account();
 	test_a_refused_discovery_write_is_reported_not_kept();
+	test_the_discovery_session_of_an_accepted_session();
+	test_discovery_follows_the_saved_repositories();
 	test_discovery_freshness_and_forgotten_repositories();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";

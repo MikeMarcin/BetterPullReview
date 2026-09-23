@@ -1866,6 +1866,21 @@ namespace bpr::qt {
 		GithubRefreshAction->setShortcut(QKeySequence::Refresh);
 		GithubRefreshAction->setShortcutContext(Qt::ApplicationShortcut);
 		addAction(GithubRefreshAction);
+		// [[BPR-0990]]. Home's refresh glyph is the profile's discovery, not
+		// the pull request's refresh: the same place in the strip, its own
+		// action, shown only on Home with an account. It has no shortcut of
+		// its own; the window's Refresh shortcut stays the pull request's.
+		QueueRefreshAction = new QAction{ QStringLiteral("Refresh my pull requests"), this };
+		QueueRefreshAction->setObjectName(QStringLiteral("refreshQueueAction"));
+		QueueRefreshAction->setIconText(QStringLiteral("Refresh"));
+		QueueRefreshAction->setVisible(false);
+		QueueRefreshAction->setEnabled(false);
+		addAction(QueueRefreshAction);
+		connect(QueueRefreshAction, &QAction::triggered, this, [this] {
+			if (QueueDiscoveryDispatch) {
+				QueueDiscoveryDispatch(application::queue_discovery_intent::refresh);
+			}
+		});
 
 		SessionPanel = new github_session_panel{
 			GithubProfiles,
@@ -2210,6 +2225,11 @@ namespace bpr::qt {
 		// comments toggle, as the design places it. Same action as the
 		// session chrome's button, so there is one refresh with one state.
 		PrimaryToolbar->insertAction(Drawers[1].Toggle, GithubRefreshAction);
+		PrimaryToolbar->insertAction(Drawers[1].Toggle, QueueRefreshAction);
+		if (auto* const glyph = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(QueueRefreshAction)); glyph != nullptr) {
+			glyph->setFocusPolicy(Qt::StrongFocus);
+			glyph->setAccessibleName(QStringLiteral("Refresh my pull requests"));
+		}
 		// [[BPR-0783]]. Home's own controls sit before the refresh glyph, so the
 		// strip reads Group, State headers, Filter, refresh, the divider, account
 		// and settings.
@@ -2260,6 +2280,14 @@ namespace bpr::qt {
 		QueueStatus->setAccessibleName(QStringLiteral("Review queue status"));
 		QueueStatus->setWordWrap(true);
 		layout->addWidget(QueueStatus);
+		// [[BPR-0990]]. What discovery last did, in one sentence, where Home
+		// already reports what the queue refused.
+		HomeDiscoveryStatus = new QLabel{ surface };
+		HomeDiscoveryStatus->setObjectName(QStringLiteral("homeDiscoveryStatus"));
+		HomeDiscoveryStatus->setAccessibleName(QStringLiteral("My pull requests status"));
+		HomeDiscoveryStatus->setWordWrap(true);
+		HomeDiscoveryStatus->setVisible(false);
+		layout->addWidget(HomeDiscoveryStatus);
 
 		QueueLanding     = new review_landing_model{ surface };
 		QueueFilterModel = new review_landing_filter_model{ *QueueLanding, surface };
@@ -3381,6 +3409,8 @@ namespace bpr::qt {
 		update_queue_rule_actions();
 		update_saved_repository_actions();
 		update_enterprise_server_actions();
+		update_discovery_controls();
+		update_pull_request_queue_actions();
 		apply_focus_order();
 	}
 
@@ -3832,6 +3862,7 @@ namespace bpr::qt {
 	{
 		SavedRepositoryDispatch = std::move(aDispatch);
 		update_saved_repository_actions();
+		update_pull_request_queue_actions();
 	}
 
 	auto workbench_window::saved_repositories_editor() const noexcept -> QWidget*
@@ -5420,8 +5451,10 @@ namespace bpr::qt {
 			HomeAction->setChecked(home);
 		}
 		auto leavingHome = false;
+		auto arrivedHome = false;
 		if (CentralStack != nullptr) {
 			const auto arriving = home && CentralStack->currentWidget() != HomePage;
+			arrivedHome         = arriving;
 			leavingHome         = !home && CentralStack->currentWidget() == HomePage;
 			if (arriving) {
 				// [[BPR-0775]]. What had focus in the review has it again when
@@ -5469,15 +5502,19 @@ namespace bpr::qt {
 			// [[BPR-0783]]. Group, State headers and Filter are Home's own, and
 			// only while an account can fill the list: absent from the review
 			// strip, and absent rather than disabled while signed out, which is
-			// how RFC-BPR-0028's rule still holds there. The refresh glyph acts
-			// on the pull request open beneath Home, so it stands with them.
+			// how RFC-BPR-0028's rule still holds there. [[BPR-0990]]: on Home
+			// the refresh glyph standing with them is the profile's discovery;
+			// the pull request's refresh is the review strip's.
 			for (auto* const action : { HomeGroupItem, HomeStateHeaders, HomeFilterItem }) {
 				if (action != nullptr) {
 					action->setVisible(home && HomeAccount);
 				}
 			}
 			if (GithubRefreshAction != nullptr) {
-				GithubRefreshAction->setVisible(!home || HomeAccount);
+				GithubRefreshAction->setVisible(!home);
+			}
+			if (QueueRefreshAction != nullptr) {
+				QueueRefreshAction->setVisible(home && HomeAccount);
 			}
 			apply_strip_width();
 			// The toolbar shows and hides a widget action's widget on its
@@ -5507,6 +5544,12 @@ namespace bpr::qt {
 			if (const auto line = status_line(); StatusLabel->text() != line) {
 				StatusLabel->setText(line);
 			}
+		}
+		update_discovery_controls();
+		// [[BPR-0990]]. Arriving at Home asks discovery to catch up if its list
+		// is older than the freshness window; the host decides whether it is.
+		if (arrivedHome && HomeAccount && QueueDiscoveryDispatch) {
+			QueueDiscoveryDispatch(application::queue_discovery_intent::activate);
 		}
 	}
 
@@ -6235,11 +6278,16 @@ namespace bpr::qt {
 		IdentityOwner      = QString::fromStdString(aPullRequest.Owner);
 		IdentityRepository = QString::fromStdString(aPullRequest.RepositoryName);
 		IdentityNumber     = QString::number(aPullRequest.Number.value());
-		IdentityText       = QStringLiteral("%1/%2  #%3 %4")
-								 .arg(IdentityOwner,
-									  IdentityRepository,
-									  IdentityNumber,
-									  QString::fromStdString(aPullRequest.Title));
+		// [[BPR-0990]]. The open pull request as the queue names it.
+		OpenQueueRepository    = aPullRequest.Owner + "/" + aPullRequest.RepositoryName;
+		OpenQueueNumber        = static_cast<std::int64_t>(aPullRequest.Number.value());
+		OpenQueueTitle         = aPullRequest.Title;
+		OpenQueuePublicPreview = aPullRequest.PublicPreview;
+		IdentityText           = QStringLiteral("%1/%2  #%3 %4")
+									 .arg(IdentityOwner,
+										  IdentityRepository,
+										  IdentityNumber,
+										  QString::fromStdString(aPullRequest.Title));
 		// [[BPR-0981]]. The repositories tree keeps the open pull request's
 		// row current, however it was opened, so a stale row cannot hold the
 		// current index and swallow the gesture that would open it.
@@ -6270,6 +6318,7 @@ namespace bpr::qt {
 		refresh_cards();
 		update_defect_surface();
 		HasGithubPullRequest = true;
+		update_pull_request_queue_actions();
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
 		if (OpenOnOverview && !aPreserveWindowNavigation) {
@@ -6348,6 +6397,11 @@ namespace bpr::qt {
 		IdentityOwner.clear();
 		IdentityRepository.clear();
 		IdentityNumber.clear();
+		OpenQueueRepository.clear();
+		OpenQueueNumber = 0;
+		OpenQueueTitle.clear();
+		OpenQueuePublicPreview = false;
+		update_pull_request_queue_actions();
 		if (RepositoriesTree != nullptr) {
 			RepositoriesTree->forget_open_pull_request();
 		}
@@ -6933,6 +6987,113 @@ namespace bpr::qt {
 	auto workbench_window::github_refresh_action() const noexcept -> QAction*
 	{
 		return GithubRefreshAction;
+	}
+
+	auto workbench_window::queue_refresh_action() const noexcept -> QAction*
+	{
+		return QueueRefreshAction;
+	}
+
+	auto workbench_window::home_discovery_status() const noexcept -> QLabel*
+	{
+		return HomeDiscoveryStatus;
+	}
+
+	auto workbench_window::pull_request_menu() const noexcept -> QMenu*
+	{
+		return PullRequestMenu;
+	}
+
+	auto workbench_window::follow_pull_request_action() const noexcept -> QAction*
+	{
+		return FollowPullRequest;
+	}
+
+	auto workbench_window::save_pull_request_repository_action() const noexcept -> QAction*
+	{
+		return SavePullRequestRepository;
+	}
+
+	void workbench_window::set_queue_follow_dispatch(workbench_queue_follow_dispatch aDispatch)
+	{
+		QueueFollowDispatch = std::move(aDispatch);
+		update_pull_request_queue_actions();
+	}
+
+	void workbench_window::set_queue_discovery_dispatch(workbench_queue_discovery_dispatch aDispatch)
+	{
+		QueueDiscoveryDispatch = std::move(aDispatch);
+		update_discovery_controls();
+	}
+
+	auto workbench_window::open_queue_ref() const -> std::optional<core::pull_request_ref>
+	{
+		// Only a pull request read under this window's account session can be
+		// kept for that account: the queue session names the server and login.
+		if (!HasGithubPullRequest || OpenQueuePublicPreview || OpenQueueRepository.empty() || OpenQueueNumber <= 0 || !QueueReady
+			|| QueueProjection.Session.Host.empty() || QueueProjection.Session.Account.empty()) {
+			return std::nullopt;
+		}
+		return core::pull_request_ref{
+			.Host       = QueueProjection.Session.Host,
+			.Account    = QueueProjection.Session.Account,
+			.Repository = OpenQueueRepository,
+			.Number     = OpenQueueNumber,
+		};
+	}
+
+	void workbench_window::update_discovery_controls()
+	{
+		const auto& discovery = QueueProjection.Discovery;
+		const auto  session   = !discovery.Account.empty();
+		if (QueueRefreshAction != nullptr) {
+			const auto refreshing = discovery.State == application::queue_discovery_state::refreshing;
+			QueueRefreshAction->setEnabled(static_cast<bool>(QueueDiscoveryDispatch) && HomeAccount && session && !refreshing);
+			const auto tip = !QueueDiscoveryDispatch || !HomeAccount || !session
+				? QStringLiteral("Sign in to find my pull requests in saved repositories.")
+				: refreshing ? QStringLiteral("Finding my pull requests in saved repositories…")
+							 : QStringLiteral("Find my pull requests in saved repositories again; this never changes GitHub.");
+			QueueRefreshAction->setToolTip(tip);
+			QueueRefreshAction->setStatusTip(tip);
+			if (auto* const glyph = PrimaryToolbar != nullptr ? PrimaryToolbar->widgetForAction(QueueRefreshAction) : nullptr; glyph != nullptr) {
+				glyph->setAccessibleDescription(tip);
+			}
+		}
+		if (HomeDiscoveryStatus != nullptr) {
+			const auto sentence = HomeAccount && session ? home_discovery_sentence(discovery) : QString{ };
+			if (HomeDiscoveryStatus->text() != sentence) {
+				HomeDiscoveryStatus->setText(sentence);
+			}
+			HomeDiscoveryStatus->setVisible(!sentence.isEmpty());
+		}
+	}
+
+	void workbench_window::update_pull_request_queue_actions()
+	{
+		if (FollowPullRequest == nullptr || SavePullRequestRepository == nullptr) {
+			return;
+		}
+		const auto ref      = open_queue_ref();
+		const auto followed = ref.has_value() && std::ranges::any_of(QueueProjection.Items, [&ref](const core::queue_item& aItem) {
+								  return aItem.Ref == *ref && aItem.Membership.Followed;
+							  });
+		FollowPullRequest->setEnabled(ref.has_value() && static_cast<bool>(QueueFollowDispatch));
+		FollowPullRequest->setChecked(followed);
+		const auto followTip = ref.has_value()
+			? (followed ? QStringLiteral("Stop following this pull request in my queue; nothing changes on GitHub.")
+						: QStringLiteral("Keep this pull request in my queue; nothing changes on GitHub."))
+			: QStringLiteral("Open a pull request signed in to follow it.");
+		FollowPullRequest->setToolTip(followTip);
+		FollowPullRequest->setStatusTip(followTip);
+		const auto saved = ref.has_value() && std::ranges::any_of(QueueProjection.SavedRepositories, [&ref](const application::saved_repository& aSaved) {
+							   return aSaved.Host == ref->Host && aSaved.Account == ref->Account && aSaved.Repository == ref->Repository;
+						   });
+		SavePullRequestRepository->setEnabled(ref.has_value() && !saved && static_cast<bool>(SavedRepositoryDispatch));
+		const auto saveTip = !ref.has_value() ? QStringLiteral("Open a pull request signed in to save its repository.")
+			: saved                           ? QStringLiteral("This pull request's repository is saved.")
+											  : QStringLiteral("Keep this repository so my pull requests in it are found; nothing changes on GitHub.");
+		SavePullRequestRepository->setToolTip(saveTip);
+		SavePullRequestRepository->setStatusTip(saveTip);
 	}
 
 	auto workbench_window::show_review_threads_action() const noexcept -> QAction*
@@ -7531,6 +7692,7 @@ namespace bpr::qt {
 		append(presenter(HomeStateHeaders));
 		append(HomeFilterButton);
 		append(presenter(GithubRefreshAction));
+		append(presenter(QueueRefreshAction));
 		append(presenter(Drawers[1].Toggle));
 		append(presenter(AccountAction));
 		append(presenter(SettingsAction));
@@ -7934,6 +8096,11 @@ namespace bpr::qt {
 			break;
 		case QEvent::ActivationChange:
 			update_dif_presentation();
+			// [[BPR-0990]]. Coming back to a window that shows Home is the
+			// other activation discovery hears.
+			if (isActiveWindow() && showing_home() && HomeAccount && QueueDiscoveryDispatch) {
+				QueueDiscoveryDispatch(application::queue_discovery_intent::activate);
+			}
 			break;
 		case QEvent::ApplicationPaletteChange:
 		case QEvent::PaletteChange:
@@ -8042,6 +8209,45 @@ namespace bpr::qt {
 			if (QuitProfiles) {
 				QuitProfiles();
 			}
+		});
+
+		// [[BPR-0990]]. The open pull request's two local gestures. Neither
+		// reaches GitHub: Follow keeps it in my queue, Save Repository keeps
+		// its repository for discovery.
+		PullRequestMenu = PrimaryMenuBar->addMenu(QStringLiteral("P&ull Request"));
+		PullRequestMenu->setObjectName(QStringLiteral("workbenchPullRequestMenu"));
+		PullRequestMenu->setAccessibleName(QStringLiteral("Pull Request"));
+		PullRequestMenu->setAccessibleDescription(
+			QStringLiteral("Keep the open pull request or its repository in my queue; nothing changes on GitHub"));
+		FollowPullRequest = PullRequestMenu->addAction(QStringLiteral("&Follow"));
+		FollowPullRequest->setObjectName(QStringLiteral("followPullRequestAction"));
+		FollowPullRequest->setCheckable(true);
+		FollowPullRequest->setEnabled(false);
+		connect(FollowPullRequest, &QAction::triggered, this, [this] {
+			const auto ref = open_queue_ref();
+			if (!ref || !QueueFollowDispatch) {
+				update_pull_request_queue_actions();
+				return;
+			}
+			const auto followed = std::ranges::any_of(QueueProjection.Items, [&ref](const core::queue_item& aItem) {
+				return aItem.Ref == *ref && aItem.Membership.Followed;
+			});
+			QueueFollowDispatch(application::queue_follow_intent{ .Ref = *ref, .Title = OpenQueueTitle, .Follow = !followed });
+			// The check mark is the queue's to decide.
+			update_pull_request_queue_actions();
+		});
+		SavePullRequestRepository = PullRequestMenu->addAction(QStringLiteral("&Save Repository"));
+		SavePullRequestRepository->setObjectName(QStringLiteral("savePullRequestRepositoryAction"));
+		SavePullRequestRepository->setEnabled(false);
+		connect(SavePullRequestRepository, &QAction::triggered, this, [this] {
+			const auto ref = open_queue_ref();
+			if (!ref || !SavedRepositoryDispatch) {
+				return;
+			}
+			SavedRepositoryDispatch(application::saved_repository_intent{
+				.Action     = application::saved_repository_action::add,
+				.Repository = { .Host = ref->Host, .Account = ref->Account, .Repository = ref->Repository },
+			});
 		});
 
 		ViewMenu = PrimaryMenuBar->addMenu(QStringLiteral("&View"));
@@ -8751,6 +8957,9 @@ namespace bpr::qt {
 		Drawers[1].Toggle->setIcon(strip_icon(strip_glyph::comments_drawer, ink));
 		if (GithubRefreshAction != nullptr) {
 			GithubRefreshAction->setIcon(strip_icon(strip_glyph::refresh, ink));
+		}
+		if (QueueRefreshAction != nullptr) {
+			QueueRefreshAction->setIcon(strip_icon(strip_glyph::refresh, ink));
 		}
 		if (AccountAction != nullptr) {
 			AccountAction->setIcon(strip_icon(strip_glyph::account, ink));

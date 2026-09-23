@@ -102,6 +102,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # composition as the BPR-0806 profile rows above, so the same refusal;
     # pinned by that shape, not yet measured contained on Windows.
     "application_profile_two_account_isolation_public_path": "dos-volume-name",
+    # [[BPR-0990]]. The multi-window row's private root and fixture composition,
+    # so the same refusal; pinned by that shape, not yet measured contained.
+    "application_personal_discovery_public_path": "dos-volume-name",
     "application_setup_destination_public_path": "dos-volume-name",
     # BPR-0622: measured on JaegAW 2026-09-17. Contained, the canary course exits
     # 3 with no output at std::filesystem::canonical of its root argument, the

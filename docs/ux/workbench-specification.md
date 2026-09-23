@@ -55,7 +55,23 @@ column, and RFC-BPR-0032 gives it one job per row.
   them. Signed out those four act on nothing, so they are absent rather than
   disabled, which is how RFC-BPR-0028's rule that the strip carries only
   Home, account and settings still holds there. They are absent from the
-  review strip for the same reason.
+  review strip for the same reason. On Home the refresh glyph is the
+  profile's personal discovery (RFC-BPR-0026, [[BPR-0990]], answering
+  [[BPR-0801]]): it asks for the authored and directly requested pull
+  requests of the saved repositories again, is disabled while that refresh
+  runs and says so, and is its own action, so the review strip's refresh
+  and its shortcut stay the open pull request's. Arriving at Home, or
+  activating a window that shows it, asks discovery to catch up; discovery
+  reads only when its list is more than five minutes old.
+- **What discovery last did** is one sentence under the bar, where Home
+  already reports what the queue refused: "Found at 14:05 in 2 saved
+  repositories.", "Finding my pull requests in 1 saved repository…", a
+  partial list with why ("…but the list may be missing some: more matched
+  than one search returns."), a stale one with its failure, what it still
+  shows and how long GitHub asked to wait, or "Save a repository to find
+  the pull requests in it that need me." It says a clock time, never how
+  long ago, and nothing without an account session, whose Home already
+  carries the sign-in. Rows found before a failure stay.
 - **The bar**, alone in the first row: one bordered field labelled Open,
   with the placeholder "Paste a link, or write owner/name#123", its shortcut
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
@@ -616,7 +632,12 @@ the model.
 
 ## Menu bar
 
-The window carries a menu bar. **View** holds the line-number toggle, the
+The window carries a menu bar. **Pull Request** ([[BPR-0990]]) holds the
+open pull request's two local gestures: **Follow**, checked while the queue
+keeps it because it is followed, and **Save Repository**, offered while its
+repository is not saved for the account. Neither reaches GitHub; a pull
+request opened by link is only Recently viewed until one of them is used,
+and one read signed out offers neither. **View** holds the line-number toggle, the
 one-pane toggle and, after a separator, Settings…. The bar was added by
 BPR-0457 because the owner asked for a "view menu option" and, offered the
 choice between a real menu bar and a checkable entry in the existing toolbar
@@ -625,7 +646,8 @@ costs the window no height; on Windows and Linux it takes a row, which is the
 price of the same answer being true on every platform. The existing toolbar
 popup keeps the private progress actions it already had. **File** holds Quit,
 and **Profiles** lists the profiles by name with the current one checked, then
-New Window and Manage Profiles….
+New Window and Manage Profiles…. On Windows the strip's application menu
+lists the same menus, Pull Request among them.
 
 The line-number entry is disabled until a pull request is open, because
 line-number visibility is workbench-surface state and an inactive workbench

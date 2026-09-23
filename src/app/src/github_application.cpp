@@ -89,6 +89,7 @@
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/observing_review_ledger_store.hpp"
+#include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
@@ -786,6 +787,17 @@ namespace bpr::app {
 				.Title        = aSnapshot.PullRequest.Title,
 			};
 		}
+
+		/// [[BPR-0990]]. Discovery's clock: wall seconds, read only to decide
+		/// freshness and backoff and to say when a refresh succeeded.
+		class system_discovery_clock final : public application::personal_discovery_clock_port
+		{
+		public:
+			[[nodiscard]] auto now_seconds() const -> std::int64_t override
+			{
+				return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			}
+		};
 
 		class composition_queue_refresh final
 			: public application::queue_refresh_effect_port
@@ -3944,6 +3956,7 @@ namespace bpr::app {
 			for_each_window([](const window_observer& aObserver) { if (aObserver.RecentChanged) { aObserver.RecentChanged(); } });
 		}
 		void publish(const application::github_presentation_update& aUpdate) override;
+		void adopt_discovery();
 		template <class Function>
 		void for_each_window(Function aFunction)
 		{
@@ -4244,6 +4257,9 @@ namespace bpr::app {
 			if (Host) {
 				Host->shutdown();
 			}
+			if (Discovery) {
+				Discovery->shutdown();
+			}
 			if (QueueHost) {
 				QueueHost->shutdown();
 			}
@@ -4266,7 +4282,7 @@ namespace bpr::app {
 				return;
 			}
 			if (ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
-				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent())
+				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent()) || (Discovery && !Discovery->is_quiescent())
 				|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
 				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
 				return;
@@ -4855,6 +4871,11 @@ namespace bpr::app {
 				DecisionLane,
 				Config.Profile, *this, application::queue_session_id{ },
 				std::shared_ptr<application::queue_landing_projection_port>(this, [](auto*) { }));
+			// [[BPR-0990]]. One discovery per profile, over the authenticated
+			// provider's personal reads and this profile's queue. It adopts the
+			// accepted account session as each presentation publishes.
+			DiscoveryClock = std::make_unique<system_discovery_clock>();
+			Discovery      = std::make_unique<application::personal_discovery_host>(*Provider, DecisionLane, *QueueHost, *DiscoveryClock);
 			// Queue projections arrive at this composition first. It forwards the
 			// accepted value unchanged to the real window, then asks this notifier
 			// only for newly warranting session/ref/bucket transitions.
@@ -5746,15 +5767,19 @@ namespace bpr::app {
 																  DeviceClock;
 		std::unique_ptr<application::queue_enrollment_store_port> QueueStore;
 		std::unique_ptr<composition_queue_refresh>                QueueRefresh;
-		std::optional<queue_activity_baseline>                    QueueActivityBaseline;
-		std::optional<queue_activity_fact>                        QueueActivity;
-		std::vector<queue_notification_transition>                ActiveQueueNotifications;
-		std::unique_ptr<application::notification_sink_port>      NotificationSink;
-		qt::system_tray_notification_sink*                        SystemNotificationSink = nullptr;
-		std::unique_ptr<application::review_queue_notifier>       Notifications;
-		std::size_t                                               NotificationRequestsAttempted = 0U;
-		std::size_t                                               NotificationSelections        = 0U;
-		std::size_t                                               NotificationSelectionFailures = 0U;
+		// [[BPR-0990]]. The profile's one discovery scheduler and its clock.
+		// Constructed after the queue host and destroyed before it.
+		std::unique_ptr<application::personal_discovery_clock_port> DiscoveryClock;
+		bool                                                        DiscoveryReconcilePosted = false;
+		std::optional<queue_activity_baseline>                      QueueActivityBaseline;
+		std::optional<queue_activity_fact>                          QueueActivity;
+		std::vector<queue_notification_transition>                  ActiveQueueNotifications;
+		std::unique_ptr<application::notification_sink_port>        NotificationSink;
+		qt::system_tray_notification_sink*                          SystemNotificationSink = nullptr;
+		std::unique_ptr<application::review_queue_notifier>         Notifications;
+		std::size_t                                                 NotificationRequestsAttempted = 0U;
+		std::size_t                                                 NotificationSelections        = 0U;
+		std::size_t                                                 NotificationSelectionFailures = 0U;
 #if defined(BPR_BUILD_TESTING)
 		fixture_notification_sink* FixtureNotificationSink = nullptr;
 #endif
@@ -5788,6 +5813,7 @@ namespace bpr::app {
 		std::unique_ptr<application::workbench_preferences_host>              WorkbenchPreferences;
 		std::shared_ptr<application::appearance_preferences_application_host> AppearancePreferences;
 		std::unique_ptr<application::review_queue_application_host>           QueueHost;
+		std::unique_ptr<application::personal_discovery_host>                 Discovery;
 	};
 
 	void github_profile_runtime::publish(const application::github_presentation_update& aUpdate)
@@ -5817,6 +5843,18 @@ namespace bpr::app {
 		}
 		for_each_window([&](const window_observer& aObserver) { if (aObserver.Github){ aObserver.Github(aUpdate);
 } });
+		adopt_discovery();
+	}
+
+	void github_profile_runtime::adopt_discovery()
+	{
+		// [[BPR-0990]]. The accepted account session, or none. The same session
+		// again changes nothing, so every presentation may ask.
+		if (Closing || Discovery == nullptr || Host == nullptr) {
+			return;
+		}
+		const auto session = Host->access_mode() == core::github_access_mode::authenticated ? Host->accepted_profile_session() : std::nullopt;
+		Discovery->adopt(session ? application::personal_discovery_session_of(*session) : std::nullopt);
 	}
 
 	void github_profile_runtime::publish(
@@ -5824,6 +5862,23 @@ namespace bpr::app {
 	{
 		if (Closing) {
 			return;
+		}
+		// [[BPR-0990]]. A repository saved since discovery last searched is
+		// searched now. Posted, so discovery never publishes into the queue
+		// projection that is being delivered; coalesced, so a burst of
+		// projections asks once.
+		if (Discovery != nullptr && !DiscoveryReconcilePosted) {
+			DiscoveryReconcilePosted = true;
+			try {
+				DecisionLane.post([this] {
+					DiscoveryReconcilePosted = false;
+					if (!Closing && Discovery != nullptr) {
+						Discovery->reconcile();
+					}
+				});
+			} catch (...) {
+				DiscoveryReconcilePosted = false;
+			}
 		}
 
 		// Presentation receives the exact accepted projection before any
@@ -6461,6 +6516,26 @@ namespace bpr::app {
 				[this](application::saved_repository_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {
 						QueueHost->apply(std::move(aIntent));
+					}
+				});
+			// [[BPR-0990]]. Follow is the queue's; Home's glyph and Home's
+			// activation are the profile's discovery. Neither reaches GitHub
+			// from here: discovery reads, and only under the accepted session.
+			Window->set_queue_follow_dispatch(
+				[this](application::queue_follow_intent aIntent) {
+					if (!Closing && QueueHost != nullptr) {
+						QueueHost->apply(std::move(aIntent));
+					}
+				});
+			Window->set_queue_discovery_dispatch(
+				[this](const application::queue_discovery_intent aIntent) {
+					if (Closing || Discovery == nullptr) {
+						return;
+					}
+					if (aIntent == application::queue_discovery_intent::refresh) {
+						Discovery->refresh();
+					} else {
+						Discovery->activate();
 					}
 				});
 			// [[BPR-0660]]. Remembering a server is the same durable path.
@@ -13085,6 +13160,7 @@ namespace bpr::app {
 		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
 		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;
 		decltype(github_profile_runtime::QueueHost)&                    QueueHost                = Profile->QueueHost;
+		decltype(github_profile_runtime::Discovery)&                    Discovery                = Profile->Discovery;
 		decltype(github_profile_runtime::QueueActivityBaseline)&        QueueActivityBaseline    = Profile->QueueActivityBaseline;
 		decltype(github_profile_runtime::QueueActivity)&                QueueActivity            = Profile->QueueActivity;
 		decltype(github_profile_runtime::ActiveQueueNotifications)&     ActiveQueueNotifications = Profile->ActiveQueueNotifications;
@@ -14430,6 +14506,23 @@ namespace bpr::app {
 		return implementation != nullptr && implementation->SystemNotificationSink != nullptr
 			? implementation->SystemNotificationSink->tray_icon()
 			: nullptr;
+	}
+
+	auto detail::github_application_fixture_access::personal_discovery_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::personal_discovery_fixture_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Discovery == nullptr) {
+			return { };
+		}
+		const auto& discovery = *implementation->Discovery;
+		return {
+			.Composed   = true,
+			.Statistics = discovery.statistics(),
+			.Status     = discovery.status(),
+			.Quiescent  = discovery.is_quiescent(),
+		};
 	}
 
 	auto detail::github_application_fixture_access::queue_notification_evidence(

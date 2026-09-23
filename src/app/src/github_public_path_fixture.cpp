@@ -6,6 +6,7 @@
 #include "github_read_contract.hpp"
 
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "github_wire_request_validation.hpp"
 #include "github_wire_transport.hpp"
 
 #include "bpr/application/git_protocol_v2.hpp"
@@ -442,7 +443,7 @@ namespace bpr::app::detail {
 			auto resource  = std::string{ "core" };
 			auto limit     = std::string{ "5000" };
 			auto remaining = std::string{ "4999" };
-			if (aOperation == read_operation::search_pull_requests) {
+			if (aOperation == read_operation::search_pull_requests || aOperation == read_operation::search_personal_pull_requests) {
 				resource  = "search";
 				limit     = "30";
 				remaining = "29";
@@ -1203,8 +1204,83 @@ namespace bpr::app::detail {
 				std::optional<std::string>                       RootBody;
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
-			mutable std::mutex                    Mutex;
+			// [[BPR-0990]]. The repository's open pull requests discovery
+			// searches, and what it asked.
+			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
+			std::size_t                                      DiscoverySearches    = 0U;
+			std::size_t                                      DiscoveryDetailReads = 0U;
+			std::vector<std::string>                         DiscoverySearchTerms;
+			std::vector<std::string>                         AccountReadOperations;
+			mutable std::mutex                               Mutex;
 		};
+
+		/// [[BPR-0990]]. One answer of the fixture server to a personal
+		/// discovery read: the search evaluated over the repository's open pull
+		/// requests, or one pull request's requested reviewers.
+		[[nodiscard]] auto personal_discovery_response(const fixture_recording_state& aState, const adapters::github::detail::wire_request& aRequest)
+			-> adapters::github::detail::wire_response
+		{
+			const auto& fixture  = *aState.PersonalDiscovery;
+			const auto& semantic = aRequest.Semantic;
+			auto        response = adapters::github::detail::wire_response{ .Status = 200, .Completeness = page_completeness::complete };
+			response.Headers.push_back({ .Name = "Content-Type", .Value = "application/json; charset=utf-8" });
+			const auto ours = semantic.Owner == aState.Descriptor.Owner && semantic.Repository == aState.Descriptor.Name;
+			const auto fold = [](std::string aText) {
+				std::ranges::transform(aText, aText.begin(), [](const unsigned char aCharacter) { return static_cast<char>(std::tolower(aCharacter)); });
+				return aText;
+			};
+			if (aRequest.Operation == read_operation::list_requested_reviewers) {
+				const auto found = std::ranges::find(fixture.OpenPullRequests, semantic.PullRequestNumber, &github_personal_discovery_fixture::pull_request::Number);
+				auto       users = QJsonArray{ };
+				auto       teams = QJsonArray{ };
+				if (ours && found != fixture.OpenPullRequests.end()) {
+					for (const auto& login : found->RequestedUsers) {
+						users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
+					}
+					for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+						teams.append(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("team-%1").arg(team) }, { QStringLiteral("node_id"), QStringLiteral("T_%1").arg(team) } });
+					}
+				}
+				response.Body = QJsonDocument{ QJsonObject{ { QStringLiteral("users"), users }, { QStringLiteral("teams"), teams } } }.toJson(QJsonDocument::Compact).toStdString();
+				return response;
+			}
+			const auto terms     = std::string_view{ semantic.SearchTerms };
+			const auto separator = terms.find(':');
+			const auto qualifier = terms.substr(0U, separator);
+			const auto login     = fold(std::string{ terms.substr(separator + 1U) });
+			auto       items     = QJsonArray{ };
+			auto       total     = 0;
+			const auto root      = QString::fromStdString(std::string{ aState.Profile.rest_root() });
+			const auto path      = QStringLiteral("/repos/%1/%2").arg(QString::fromUtf8(aState.Descriptor.Owner.data(), static_cast<qsizetype>(aState.Descriptor.Owner.size())), QString::fromUtf8(aState.Descriptor.Name.data(), static_cast<qsizetype>(aState.Descriptor.Name.size())));
+			for (const auto& pullRequest : ours ? fixture.OpenPullRequests : std::vector<github_personal_discovery_fixture::pull_request>{ }) {
+				// An author is never asked to review their own pull request.
+				const auto matches = qualifier == "author"
+					? fold(pullRequest.Author) == login
+					: fold(pullRequest.Author) != login
+						&& (pullRequest.RequestedTeams != 0U || std::ranges::any_of(pullRequest.RequestedUsers, [&](const std::string& aUser) { return fold(aUser) == login; }));
+				if (!matches) {
+					continue;
+				}
+				++total;
+				if (items.size() >= 100) {
+					continue;
+				}
+				const auto number = QString::number(pullRequest.Number);
+				items.append(QJsonObject{
+					{ QStringLiteral("number"), static_cast<qint64>(pullRequest.Number) },
+					{ QStringLiteral("title"), QStringLiteral("Discovered pull request ") + number },
+					{ QStringLiteral("state"), QStringLiteral("open") },
+					{ QStringLiteral("draft"), false },
+					{ QStringLiteral("pull_request"), QJsonObject{ { QStringLiteral("url"), root + path + QStringLiteral("/pulls/") + number } } },
+					{ QStringLiteral("repository_url"), root + path },
+					{ QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QString::fromStdString(pullRequest.Author) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(pullRequest.Author) } } },
+				});
+			}
+			response.Body = QJsonDocument{ QJsonObject{ { QStringLiteral("total_count"), total }, { QStringLiteral("incomplete_results"), false }, { QStringLiteral("items"), items } } }
+								.toJson(QJsonDocument::Compact)
+								.toStdString();
+			return response;
+		}
 
 		enum class fixture_transport_role {
 			bootstrap,
@@ -1640,6 +1716,30 @@ namespace bpr::app::detail {
 						.Error       = provider_error(
 							application::github_provider_failure::authentication),
 					};
+				}
+				// [[BPR-0990]]. Personal discovery is answered by the fixture
+				// server, not the recorded review script, and only on the
+				// account's transport.
+				if (Role == fixture_transport_role::account) {
+					State->AccountReadOperations.emplace_back(adapters::github::detail::operation_name(aRequest.Wire.Operation));
+				}
+				if (State->PersonalDiscovery.has_value()
+					&& (aRequest.Wire.Operation == read_operation::search_personal_pull_requests || aRequest.Wire.Operation == read_operation::list_requested_reviewers)) {
+					// The exact canonical request production validation admits,
+					// under the repository it names, or nothing is answered.
+					if (Role != fixture_transport_role::account || !adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
+						State->RecordingFailure = -5;
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::authentication) };
+					}
+					if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {
+						++State->DiscoverySearches;
+						State->DiscoverySearchTerms.push_back(aRequest.Wire.Semantic.SearchTerms);
+					} else {
+						++State->DiscoveryDetailReads;
+					}
+					auto discovered = personal_discovery_response(*State, aRequest.Wire);
+					append_rate_limit_headers(discovered, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(discovered) };
 				}
 				if (Role == fixture_transport_role::account) {
 					if (!State->advance_history(aRequest.Wire, lock)) {
@@ -3245,6 +3345,7 @@ namespace bpr::app::detail {
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
+			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Factory                            = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                         = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since
@@ -3387,6 +3488,10 @@ namespace bpr::app::detail {
 				Implementation->Recording->SmartLsRefsCalls);
 			result.SmartFetchCount = static_cast<int>(
 				Implementation->Recording->SmartFetchCalls);
+			result.DiscoverySearches     = Implementation->Recording->DiscoverySearches;
+			result.DiscoveryDetailReads  = Implementation->Recording->DiscoveryDetailReads;
+			result.DiscoverySearchTerms  = Implementation->Recording->DiscoverySearchTerms;
+			result.AccountReadOperations = Implementation->Recording->AccountReadOperations;
 			{
 				const std::scoped_lock vaultLock{
 					Implementation->VaultState->Mutex

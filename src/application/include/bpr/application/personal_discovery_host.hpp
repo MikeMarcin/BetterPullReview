@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PERSONAL_DISCOVERY_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PERSONAL_DISCOVERY_HOST_HPP
 
+#include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/personal_discovery_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
@@ -40,6 +41,16 @@ namespace bpr::application {
 		auto operator<=>(const personal_discovery_session&) const = default;
 	};
 
+	/// \brief [[BPR-0990]]. The discovery session of an accepted account session.
+	///
+	/// \details Absent for a public-preview session, which has no viewer to
+	/// search for, and for a session without a viewer login. The queue
+	/// session is the profile's canonical hostname, the viewer's login and
+	/// the identity generation, exactly as a pull request opened under the
+	/// same session names it.
+	[[nodiscard]] auto personal_discovery_session_of(const github_profile_session& aSession)
+		-> std::optional<personal_discovery_session>;
+
 	/// \brief How long a successful refresh stays fresh for activation.
 	inline constexpr std::int64_t personal_discovery_freshness_seconds = 300;
 	/// \brief How many discovery reads one profile has in flight at once.
@@ -71,8 +82,9 @@ namespace bpr::application {
 	/// read with its session generation and refresh: a completion from an
 	/// earlier session or refresh is refused. It runs when a session is
 	/// adopted, when activated and the last success is older than the
-	/// freshness window, and on an explicit refresh; a rate limit holds it
-	/// off until its retry-after has passed. Nothing a window opens or selects
+	/// freshness window, when a repository it has not searched is saved, and
+	/// on an explicit refresh; a rate limit holds it off until its
+	/// retry-after has passed. Nothing a window opens or selects
 	/// starts it. All calls run on the decision lane; provider completions are
 	/// posted there. The port, lane, queue host and clock outlive the host
 	/// until it is quiescent.
@@ -102,6 +114,14 @@ namespace bpr::application {
 		/// \brief The explicit Refresh: refreshes now unless one is running or
 		/// a rate limit holds discovery off, which is said instead.
 		void refresh();
+		/// \brief [[BPR-0990]]. Catches up with the account's saved repositories.
+		///
+		/// \details Refreshes when a repository is saved that the last refresh
+		/// did not search, unless a refresh is running (it catches up when that
+		/// one ends) or a rate limit holds discovery off. A forgotten repository
+		/// is only no longer searched. The composition calls it after each queue
+		/// projection; an unchanged set reads nothing.
+		void reconcile();
 		void shutdown();
 
 		[[nodiscard]] auto status() const noexcept -> const queue_discovery_status&;

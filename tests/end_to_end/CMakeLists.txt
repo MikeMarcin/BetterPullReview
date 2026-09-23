@@ -2744,6 +2744,20 @@ set_tests_properties(application_profile_multi_window_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "profile-multi-window-public-path:pass")
 
+# [[BPR-0990]]. Personal discovery through the composed application: a saved
+# repository with thousands of unrelated open pull requests, two windows, and
+# only the bounded personal reads.
+bpr_add_executable(test_personal_discovery_public_path personal_discovery_public_path_tests.cpp)
+target_link_libraries(test_personal_discovery_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_personal_discovery_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_personal_discovery_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_personal_discovery_public_path)
+bpr_enable_warnings(test_personal_discovery_public_path)
+bpr_add_network_isolated_test(NAME application_personal_discovery_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path)
+set_tests_properties(application_personal_discovery_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "personal-discovery-public-path:pass")
+
 # [[BPR-0978]]. Two concurrent profiles, two accounts on one fixture server.
 bpr_add_executable(test_profile_two_account_isolation_public_path profile_two_account_isolation_public_path_tests.cpp)
 target_link_libraries(test_profile_two_account_isolation_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
