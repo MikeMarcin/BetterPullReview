@@ -282,7 +282,61 @@ one step:
 > and Linux run the course) stays, for those stations' next sweeps.
 
 Once confirmed, the card finishes as Done with the guard as its deliverable.
-Nothing else is left to run unless the trigger fires. The one experiment not
-done is the UI Automation close probe while a WSLg window is up but not in
-front. It would need the stations to arrange a window that does not take the
-foreground.
+Nothing else is left to run unless the trigger fires. The UI Automation close
+probe under overlap, the one experiment still open when the above was written,
+has since been run (below).
+
+## The UI Automation close probe under overlap: 5 real closes, no crash (2026-09-23)
+
+The Linux station held one plain WSLg BetterPullReview window up, with no
+activations. The coordinator ran the staged probe twice. The probe's build was
+a detached worktree at `1de0ca9a` plus local diagnostics (exe `b4fc27e5…`,
+never committed). Its harness was made loud before the runs:
+
+- The observer exits nonzero on any recorded error.
+- It checks and records who holds the foreground before the launch and again
+  before the close, with the window title.
+- It records whether the close was actually performed: the new window gone,
+  or the owner exited.
+- An evaluator turns each record into `FOREGROUND_OK`, `CLOSE_PERFORMED`,
+  `CRASH` and an exit code.
+
+On the three archived overlap probes above, which had read as exit 0, it now
+gives `CLOSE_PERFORMED=no`, and on the morning's crash record it gives
+`CRASH=yes code=-1073740791`.
+
+| Run | Probe | Heap diagnostics | Foreground | Close performed | Result |
+| --- | --- | --- | --- | --- | --- |
+| `uia`, 19:16:08Z to 19:17:09Z | 1 | no | lost before launch, to the WSLg window | **no** (the harness failed loudly, exit 1) | not counted |
+| | 2 | yes | the new window | yes | clean: first window survived, last close exit 0, catcher `0x0` |
+| | 3 | yes | the new window | yes | clean, the same |
+| `uia2`, 19:17:15Z to 19:18:21Z | 1 | no | the new window | yes | clean, the same |
+| | 2 | yes | the new window | yes | clean, the same |
+| | 3 | yes | the new window | yes | clean, the same |
+
+`FOREGROUND_AT_START` was the WSLg window both times, and
+`wsl_course_processes_at_start=1`. So these are **5 real UI Automation closes
+of a New Window window under overlap, 0 crashes**: 1 on a plain heap and 4
+with the heap diagnostics. The `uia` run also ran the diagnostic course on the
+`windows` platform: 5 of 5 closes, exit 0.
+
+**Realigner diagnostics from these runs.** The four app logs are
+`uia{,2}-probe-{2,3}-app-diag.log`, station logs. In each, the first window's
+session and the new window's session each registered with their Realigner.
+Both session destructors reported `freed=0` for their Realigner: the new
+window's at its UI Automation close, and the first window's at the last close.
+No session was freed before its destructor, and there was no access violation,
+CRT report or heap-check failure. The course log (`uia-course-diag.log`)
+matches: 6 sessions, 6 destructors, `freed=0` at every one, nothing else. In
+every run that reached it, the destructor the crash named deletes a Realigner
+freed exactly once.
+
+The totals are now these:
+
+- 27 clean runs without overlap, including `c52f5907`'s product source.
+- Under overlap, 10 course closes and 5 UI Automation closes, every one
+  clean.
+
+The disposition does not change. The card stays **Blocked**
+(`not-reproducible`), and the amendment above is still pending. The reopen
+trigger stays (d).
