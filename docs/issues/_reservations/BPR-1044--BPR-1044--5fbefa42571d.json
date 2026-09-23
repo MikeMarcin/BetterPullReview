@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1044"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "bpr-main-linux: Fixture courses create their temporary roots without owner-private permissions, so BPR-0817's workspace-recovery refusal fires inside them (seen in application_personal_discovery_public_path on Linux)",
+  "created": "2026-09-23T23:02:54.470870+00:00",
+  "base": "e54d203edd5b00ec8de1dd34225ad6b5b911f70c"
+}
