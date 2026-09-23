@@ -539,3 +539,12 @@ same run checked the two rows named in the bpr-main-win reservation for
 `FAILED: both windows retain distinct text durably`, after an exit-0 quit.
 That is a durability assertion, not the quit's exit code, so that
 reservation's premise has moved.
+
+### Finished: the thirteenth row has its own record
+
+The integrator reserved [[BPR-1033]] for the UIforETW row, and it is now
+written (Ready, Windows). It takes the capture failure, which names none of
+its nine clauses, off this card. That row's cleanup is fixed
+(`cleanup_failed=0` at `c4130c3a`), and what fails is unrelated to shutdown.
+With that, every acceptance line has its evidence, and the card is finished
+on the bpr-main-win station.
