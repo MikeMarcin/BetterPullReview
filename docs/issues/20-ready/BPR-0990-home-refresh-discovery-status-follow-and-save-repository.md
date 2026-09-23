@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0990"
 title: "Home refresh, discovery status, Follow and Save repository"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0988","BPR-0989"]
 priority: "P1"
