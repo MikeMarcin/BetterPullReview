@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1026"
 title: "msvc_secure_crt_contract: std::getenv in release_update_* end-to-end tests"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
