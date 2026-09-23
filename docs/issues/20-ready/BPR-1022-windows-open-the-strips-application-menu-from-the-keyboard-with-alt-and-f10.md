@@ -83,3 +83,29 @@ keyboard path. So it is not a dependency of RFC-BPR-0028's closeout.
   `qt_composed_github_scale_100` pass on the Windows station.
 - AC4 macOS and Linux are unchanged. Their window and focus-order rows pass at
   merge.
+
+## Two design notes rechecked (bpr-main-win, 2026-09-23)
+
+**The stack-menu note is out of date.** [[BPR-1028]] (`e08a0409`) replaced
+the stack `exec()` menu. `workbench_window::open_strip_menu()` is now the one
+opening path: a heap child of the window with `WA_DeleteOnClose`, opened with
+`popup()`. Quit through a menu opened by the keyboard no longer waits on
+anything. Alt and F10 should call that function and then highlight the first
+menu.
+
+**A hidden `QMenuBar` does not react at the Qt level.** A standalone probe
+(station helper, not committed; Qt 6.11.2, `offscreen`, Fusion,
+`SH_MenuBar_AltKeyNavigation=1`) sent key events to a focused line edit in a
+`QMainWindow` with File and View menus:
+
+| Keys | Bar shown | Bar hidden |
+| --- | --- | --- |
+| Alt pressed and released alone | Bar enters keyboard mode, File active, focus to the bar | Nothing |
+| F10 | Nothing (Qt binds no F10) | Nothing |
+| Alt+F | File opens | Nothing |
+
+So a handler in the Windows branch would not compete with the bar's own Alt
+handling. What `DefWindowProc` does with `SC_KEYMENU` in the frameless title
+row is still unmeasured, and so is whether Qt's Windows key mapper passes the
+released Alt on to it. That needs the real `windows` platform with a shown
+window, which is a foreground run on this station.
