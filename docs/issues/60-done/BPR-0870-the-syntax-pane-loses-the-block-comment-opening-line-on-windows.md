@@ -117,3 +117,15 @@ not committed. On macOS and Linux, where the measurement was already done
 after four rounds of events, the wait returns after one more round. No run
 was made on those platforms from this station. `clang-format --dry-run
 --Werror` is clean. No `src/app` file changed, so no pins move.
+
+## Post-close: macOS at `14afcdee` (Mac main station, 2026-09-23)
+
+This is the macOS half of AC1, which the Windows station reasoned from code.
+macOS 26.6.2 arm64, `build/dev` (Apple clang 21.0.0, Debug, Qt 6.11.2), offscreen, serial (`ctest -j1`), as registered. `14afcdee` contains `1d928028`, and the course has not changed since.
+
+`qt_syntax_pane_composition` passes 7 of 7: once in the batch of this
+card's siblings (0.66 s), once verbose, and 5 of 5 with
+`--repeat until-fail:5` (0.24–0.57 s). The course has no platform guard, so
+the new settle check ("the publication's native measurement completes
+before the course scrolls") and the unchanged scrolled-off and colouring
+checks all ran. Linux is still reported only by reasoning.
