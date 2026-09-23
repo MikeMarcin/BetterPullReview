@@ -1283,6 +1283,15 @@ namespace bpr::application {
 		host.RateLimits                 = aSession.Session.RateLimits;
 		return true;
 	}
+	auto github_window_read_host::adopted_presentation() const -> std::optional<github_presentation_update>
+	{
+		const auto& host     = *Implementation;
+		const auto& adoption = host.Policy.adoption();
+		if (host.Closing || !adoption || !host.Session || host.Session->Session.Mode != core::github_access_mode::authenticated) {
+			return std::nullopt;
+		}
+		return github_presentation_update{ .Transition = project_github_transition(*adoption), .Session = project_github_session(host.Session->Session) };
+	}
 	auto github_window_read_host::retire(const github_profile_session& aSession) -> bool
 	{
 		auto& host = *Implementation;

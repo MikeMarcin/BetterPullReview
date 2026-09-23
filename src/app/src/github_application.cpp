@@ -6332,6 +6332,11 @@ namespace bpr::app {
 			if (!Host->attach_window(WindowRead)) {
 				throw std::runtime_error{ "window read admission unavailable" };
 			}
+			// [[BPR-1017]]. A window attached after the profile accepted its account
+			// session presents it now, as its siblings did when it was accepted.
+			if (const auto adopted = WindowRead->adopted_presentation()) {
+				Window->publish(*adopted);
+			}
 			WorkbenchHost->restore();
 			AppearanceHost->restore();
 			if (Window) {

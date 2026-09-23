@@ -6,11 +6,21 @@ int main()
 	const bpr_window_context first{ bpr_profile_id{ 1 }, bpr_window_id{ 1 }, bpr_window_generation{ 1 } };
 	github_window_read       lane{ first, application_session_id{ 1 } };
 	github_window_session    session{ .Profile = bpr_profile_id{ 1 }, .Identity = { .Context = { request_id{ 1 }, application_session_id{ 1 }, host_profile_id{ 1 }, github_identity_generation{ 1 } }, .Host = git_host_id{ 1 }, .Account = github_account_id{ 1 }, .CapabilityRevision = capability_revision{ 1 } } };
-	if (!lane.adopt(session)) {
+	if (lane.adoption() || !lane.adopt(session)) {
+		return EXIT_FAILURE;
+	}
+	// [[BPR-1017]]. Adoption keeps what it decided, so a window attached after the
+	// profile's acceptance can present the session before it reads. The lane's
+	// first change of state ends that.
+	const auto& adopted = lane.adoption();
+	if (!adopted || !adopted->AcceptedSession || !adopted->Requests.empty()
+		|| adopted->Status != github_status_delta{ .Status = github_status::session_ready }
+		|| !adopted->Identity || adopted->Identity->Account != github_account_id{ 1 }
+		|| !lane.adopt(session) || !lane.adoption()) {
 		return EXIT_FAILURE;
 	}
 	const auto read = lane.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 1 } });
-	if (!read.Fetch || !read.Projection.Requests.empty()) {
+	if (!read.Fetch || !read.Projection.Requests.empty() || lane.adoption()) {
 		return EXIT_FAILURE;
 	}
 	const auto beforeObservation = lane.state();
@@ -35,6 +45,10 @@ int main()
 		return EXIT_FAILURE;
 	}
 	if (!lane.retire(session) || lane.adopt(session)) {
+		return EXIT_FAILURE;
+	}
+	github_window_read unread{ first, application_session_id{ 2 } };
+	if (!unread.adopt(session) || !unread.adoption() || !unread.retire(session) || unread.adoption()) {
 		return EXIT_FAILURE;
 	}
 	const auto late = lane.apply(first, pull_request_loaded_event{ read.Fetch->Context, repository_id{ 1 }, pull_request_id{ 1 }, provider_snapshot_id{ 1 } });

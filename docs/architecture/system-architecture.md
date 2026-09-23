@@ -122,7 +122,10 @@ provider requests additionally carry the accepted profile authentication session
 as separate provenance, checked against the opaque account transport lease.
 This lets sibling windows share a sign-in without changing request or completion
 identity. Replacing the accepted account retires the old session before existing
-windows can adopt the new authority.
+windows can adopt the new authority. Acceptance is presented when it happens, so
+a window opened later presents the account session its read host adopted as soon
+as it is admitted, before any read and without one ([[BPR-1017]]). A
+public-preview session keeps the profile host's own presentation.
 
 Settings has one presentation per profile and mounts the invoking window's
 controls over shared accepted preferences. Window geometry remains independent.

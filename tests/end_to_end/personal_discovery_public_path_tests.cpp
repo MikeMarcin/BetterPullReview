@@ -34,6 +34,7 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -187,6 +188,33 @@ auto main(int aArgc, char** aArgv) -> int
 				  << " status-text=" << windowA->home_discovery_status()->text().toStdString() << '\n';
 	};
 
+	// [[BPR-1017]]. Without an accepted account session a new window presents as
+	// it always has, because there is no account session to give it: signed out,
+	// and then in public preview. It reads nothing, and closing it leaves the
+	// first window as it was.
+	const auto siblingWithoutAccount = [&](const char* aVariant) {
+		const auto before = evidence().AccountReadOperations.size();
+		windowA->findChild<QAction*>(QStringLiteral("newBprWindowAction"))->trigger();
+		wait_for([&] { return owner->windows().size() == 2U; }, "New Window admits a window without an account");
+		const auto contexts = owner->windows();
+		auto*      sibling  = owner->window(contexts.front() == first ? contexts.back() : contexts.front());
+		QApplication::processEvents();
+		const auto observed = std::tuple{ sibling->session_panel()->status(), sibling->home_landing()->state(), sibling->home_list()->queue_shown(), sibling->account_action()->text() };
+		std::cerr << aVariant << " sibling: status=" << static_cast<int>(std::get<0>(observed)) << " landing=" << static_cast<int>(std::get<1>(observed))
+				  << " queue shown=" << std::get<2>(observed) << " account=" << std::get<3>(observed).toStdString() << '\n';
+		expect(sibling->showing_home() && evidence().AccountReadOperations.size() == before, "a window without an account reads nothing");
+		sibling->close();
+		wait_for([&] { return owner->windows().size() == 1U && owner->windows().front() == first; }, "the sibling closes and the first window stays");
+		return observed;
+	};
+	expect(!owner->status().PublicPreviewSignedOut && windowA->home_landing()->state() == qt::landing_state::sign_in, "the profile opens signed out");
+	expect(siblingWithoutAccount("signed-out") == std::tuple{ core::github_status::no_profile, qt::landing_state::sign_in, false, QStringLiteral("Sign in") },
+		   "signed out, a new window lands on the sign-in card with no queue");
+	owner->activate_public_preview();
+	wait_for([&] { return owner->status().PublicPreviewSignedOut; }, "the profile enters public preview");
+	expect(siblingWithoutAccount("public-preview") == std::tuple{ core::github_status::no_profile, qt::landing_state::sign_in, false, QStringLiteral("Sign in") },
+		   "in public preview, a new window lands on the sign-in card with no queue");
+
 	// Signed in from Home, with nothing saved: nothing is searched, and Home
 	// says what would change that.
 	windowA->home_landing()->primary_button()->click();
@@ -270,25 +298,43 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(queue_item(*windowA, 17)->Membership.Followed && !queue_item(*windowA, 17)->Membership.discovered(), "it is there because it is followed");
 
 	// A second window of the profile sees the same list and asks for nothing.
+	// [[BPR-1017]]. It presents the profile's session from its first frame:
+	// signed-in Home with the queue, the account on the strip and the strip's
+	// refresh, before it reads anything, and without an account read or a
+	// vault operation to get there.
+	const auto beforeWindow = evidence();
 	windowA->findChild<QAction*>(QStringLiteral("newBprWindowAction"))->trigger();
 	wait_for([&] { return owner->windows().size() == 2U; }, "New Window admits a second window");
 	const auto contexts = owner->windows();
 	const auto second   = contexts.front() == first ? contexts.back() : contexts.front();
 	auto*      windowB  = owner->window(second);
 	expect(windowB != nullptr && windowB->showing_home(), "the second window starts on Home");
-	// A new window is told the profile's session when it first reads; until
-	// then its Home shows the sign-in card ([[BPR-1017]]). It reads the other
-	// recorded pull request, then comes back to Home, which asks discovery to
-	// catch up and finds the list fresh.
-	submit(*windowB, 18);
-	wait_for([&] { return windowB->session_panel()->status() == core::github_status::pull_request_ready; }, "the second window opens a pull request under the shared session", diagnose);
-	windowB->home_action()->trigger();
+	const auto diagnoseB = [&] {
+		std::cerr << "B status=" << static_cast<int>(windowB->session_panel()->status()) << " B landing=" << static_cast<int>(windowB->home_landing()->state())
+				  << " B queue shown=" << windowB->home_list()->queue_shown() << " B account=" << windowB->account_action()->text().toStdString()
+				  << " A rows=" << queue_numbers(*windowA).size() << " B rows=" << queue_numbers(*windowB).size() << " A text=" << windowA->home_discovery_status()->text().toStdString()
+				  << " B text=" << windowB->home_discovery_status()->text().toStdString() << '\n';
+	};
 	wait_for([&] { return windowB->showing_home() && queue_numbers(*windowB) == queue_numbers(*windowA) && windowB->home_discovery_status()->text() == windowA->home_discovery_status()->text()
 					   && contains(state_rows(*windowB, qt::home_group::needs_you), "octo-org/review-repository#4003"); },
-			 "the second window's Home shows the same queue and the same discovery sentence", [&] { std::cerr << "B landing=" << static_cast<int>(windowB->home_landing()->state()) << " B queue shown=" << windowB->home_list()->queue_shown()
-																											  << " A rows=" << queue_numbers(*windowA).size() << " B rows=" << queue_numbers(*windowB).size() << " A text=" << windowA->home_discovery_status()->text().toStdString()
-																											  << " B text=" << windowB->home_discovery_status()->text().toStdString() << '\n'; });
+			 "the second window's Home shows the same queue and the same discovery sentence", diagnoseB);
 	QApplication::processEvents();
+	if (windowB->session_panel()->status() != core::github_status::session_ready || windowB->home_landing()->state() != qt::landing_state::choose_pull_request) {
+		diagnoseB();
+	}
+	expect(windowB->session_panel()->status() == core::github_status::session_ready, "the second window presents the account session before it reads");
+	expect(windowB->home_landing()->state() == qt::landing_state::choose_pull_request && windowB->home_list()->queue_shown(),
+		   "the second window's Home is the signed-in Home with its queue, not the sign-in card");
+	if (windowB->account_action()->text() != windowA->account_action()->text()) {
+		std::cerr << "A account=" << windowA->account_action()->text().toStdString() << " B account=" << windowB->account_action()->text().toStdString() << '\n';
+	}
+	expect(windowB->account_action()->text().contains(QStringLiteral("@%1").arg(QString::fromUtf8(viewer))) && windowB->account_action()->text() == windowA->account_action()->text(),
+		   "the second window's strip names the account");
+	expect(windowB->queue_refresh_action()->isVisible() && windowB->queue_refresh_action()->isEnabled(), "the second window's strip can refresh the queue");
+	const auto afterWindow = evidence();
+	expect(afterWindow.AccountReadOperations.size() == beforeWindow.AccountReadOperations.size() && afterWindow.VaultStoreAttempts == beforeWindow.VaultStoreAttempts
+			   && afterWindow.VaultRetrieveAttempts == beforeWindow.VaultRetrieveAttempts && afterWindow.VaultDeleteAttempts == beforeWindow.VaultDeleteAttempts,
+		   "presenting the session in the second window reads no account and touches no vault");
 	expect(evidence().DiscoverySearches == 6U && discovery().Statistics.Refreshes == 2U, "a second window adds no discovery request");
 
 	// The explicit Refresh, from the second window: one more refresh, which

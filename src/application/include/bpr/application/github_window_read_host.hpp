@@ -81,6 +81,14 @@ namespace bpr::application {
 		auto               operator=(const github_window_read_host&) -> github_window_read_host& = delete;
 		[[nodiscard]] auto adopt(const github_profile_session& aSession) -> bool;
 		[[nodiscard]] auto retire(const github_profile_session& aSession) -> bool;
+		/// \brief The adopted account session, as this window would have presented its acceptance.
+		/// \details [[BPR-1017]]. An account session's acceptance is published when it
+		/// happens, so a window attached afterwards never presented it. This is that
+		/// presentation: the adoption's transition and the accepted session, with no pull
+		/// request, read or credential behind it. Empty before adoption, once this window
+		/// has moved on from it, and for a public-preview session, whose presentation is
+		/// the profile host's.
+		[[nodiscard]] auto adopted_presentation() const -> std::optional<github_presentation_update>;
 		void               advance_request_floor(core::request_id aNext) noexcept;
 		void               dispatch(const core::github_window_read_event& aEvent);
 		/// Share one immutable accepted server observation with bounded sibling

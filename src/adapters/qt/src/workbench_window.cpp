@@ -6177,6 +6177,9 @@ namespace bpr::qt {
 			if (StatusLabel != nullptr) {
 				StatusLabel->setText(status_line());
 			}
+			// [[BPR-1017]]. So does the strip's account button. A window told the
+			// session in one presentation has no later transition to correct it.
+			update_account_action();
 			if (ConversationPanel != nullptr) {
 				ConversationPanel->cards()->set_viewer_login(
 					QString::fromStdString(aUpdate.Session->Login));

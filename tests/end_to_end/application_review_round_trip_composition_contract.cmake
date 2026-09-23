@@ -94,6 +94,14 @@ endfunction()
 # bar. Only the quit's own workspace cleanup still folds into the profile's
 # flag. No credential, provider, vault, transport or mutation path changes; the
 # mutation-branch pin is unchanged. Review recorded on BPR-0817.
+# BPR-1017 reseal: after a window's read host is admitted, the composition
+# publishes to that window alone the account session its read host adopted
+# (github_window_read_host::adopted_presentation), so a window opened after
+# sign-in presents the session before its first read. It reads nothing and
+# touches no credential, provider, vault, transport or mutation path; a
+# public-preview session and a window with no session publish nothing new.
+# The mutation-branch pin is unchanged. Covers 14a18b45..the BPR-1017 commit;
+# nothing else touched the pinned scope. Review recorded on BPR-1017.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -112,7 +120,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3310863dc52f182c47b8bac10706fd91436230714d6b183135fb32e8b1c6eebe"
+		"b2e1a42d60e93df8572720ae0a210a206430f2b589b0a8b07f44048bbfbca140"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -247,7 +255,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e7fa2809312c1aa38f9b5c6196b67fe83d7251ab2e460f2beb3c5bd210b5a016"
+        "5f745da5889928f5a44e863cfdbd1e967f64ef6ceddb373bce6914cd71f97ae8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

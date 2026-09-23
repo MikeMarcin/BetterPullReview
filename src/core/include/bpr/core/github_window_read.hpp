@@ -45,16 +45,23 @@ namespace bpr::core {
 		/// pending request, without changing command or snapshot authority.
 		[[nodiscard]] auto accept_overview_observation(bpr_window_context                  aWindow,
 													   const pull_request_request_context& aRequest) noexcept -> bool;
+		/// \brief What this lane presents for its adopted session, while nothing has moved it since.
+		/// \details [[BPR-1017]]. The session-ready projection adoption decided, for a
+		/// window attached after the profile accepted the session and so never shown
+		/// that acceptance. Empty before adoption, after retirement, and once the lane
+		/// has changed state.
+		[[nodiscard]] auto adoption() const noexcept -> const std::optional<github_transition_output>&;
 		[[nodiscard]] auto state() const noexcept -> const github_state&;
 		[[nodiscard]] auto window() const noexcept -> bpr_window_context;
 
 	private:
-		bpr_window_context                   Window;
-		github_state                         State;
-		std::optional<github_window_session> Session;
-		github_identity_generation           RetiredGeneration{ };
-		bool                                 OverviewObserved = false;
-		std::uint64_t                        SharedSnapshotSequence = 0U;
+		bpr_window_context                      Window;
+		github_state                            State;
+		std::optional<github_window_session>    Session;
+		std::optional<github_transition_output> Adoption;
+		github_identity_generation              RetiredGeneration{ };
+		bool                                    OverviewObserved       = false;
+		std::uint64_t                           SharedSnapshotSequence = 0U;
 	};
 }
 

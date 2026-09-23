@@ -35,12 +35,14 @@ namespace bpr::core {
 		candidate.PendingSession->ApplicationSession = State.ApplicationSession;
 		auto ready                                   = identity;
 		ready.Context                                = *candidate.PendingSession;
-		const auto output                            = transition(candidate, ready);
+		auto output                                  = transition(candidate, ready);
 		if (!output.AcceptedSession) {
 			return false;
 		}
 		State   = std::move(candidate);
 		Session = aSession;
+		output.Requests.clear();
+		Adoption = std::move(output);
 		return true;
 	}
 
@@ -51,6 +53,7 @@ namespace bpr::core {
 		}
 		RetiredGeneration = Session->Identity.Context.IdentityGeneration;
 		Session.reset();
+		Adoption.reset();
 		State            = github_state{ .ApplicationSession = State.ApplicationSession,
 										 .NextRequest        = State.NextRequest };
 		OverviewObserved = false;
@@ -65,6 +68,7 @@ namespace bpr::core {
 			result.Projection.Diagnostics.push_back({ .Code = github_reason_code::stale_completion });
 			return result;
 		}
+		const auto before   = State;
 		const auto previous = State.PendingPullRequest;
 		auto       output   = std::visit([this](const auto& aTyped) {
 			return transition(State, github_event{ aTyped });
@@ -72,6 +76,9 @@ namespace bpr::core {
 										 aEvent);
 		if (State.PendingPullRequest != previous) {
 			OverviewObserved = false;
+		}
+		if (State != before) {
+			Adoption.reset();
 		}
 		github_window_read_output result;
 		for (const auto& request : output.Requests) {
@@ -116,6 +123,7 @@ namespace bpr::core {
 		OverviewObserved = true;
 		return true;
 	}
+	auto github_window_read::adoption() const noexcept -> const std::optional<github_transition_output>& { return Adoption; }
 	auto github_window_read::state() const noexcept -> const github_state& { return State; }
 	auto github_window_read::window() const noexcept -> bpr_window_context { return Window; }
 }
