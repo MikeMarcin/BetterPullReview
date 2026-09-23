@@ -255,3 +255,46 @@ Observe:
 two unrelated reasons above. Worth one look: no `COURSE_MODALITY_*` line, and
 `UIFORETW_RESOURCE_GESTURE_OK` printed. If all of this holds, the card can
 finish. Windows is not part of this acceptance.
+
+## The macOS run (bpr-main-mac, Mac batch 3, 2026-09-23)
+
+Run on `1dfe0600`, which contains `7c6ba1a5` and `3a290c71` and differs from
+them only in `docs/issues`. `cmake --build --preset dev` rebuilt the
+application first (exit 0), and `ninja -n` then reported no work. Apple
+Silicon, Qt 6.11.2 Debug, offscreen; application SHA-256
+`c578adad998d1580c9c9779d7110e8d0f22b5da5f34785dde16ba1e18cfe90bc`. The
+command above ran as written, with `-V` in place of `--output-on-failure` so
+that passing rows' output could be searched as well
+(`build/bpr0863-mac-eight.log`).
+
+| Row | Result |
+|---|---|
+| `application_large_review_benchmark` | Pass, 22.77 s |
+| `application_unavailable_diff_public_path` | Pass, 15.05 s |
+| `application_approximate_diff_public_path` | Pass, 13.05 s |
+| `application_diff_workbench_public_path` | Pass, 12.27 s |
+| `application_workbench_composition_contract` | Pass, 21.67 s |
+| `application_review_round_trip_composition_contract` | Pass, 11.38 s |
+| `application_appearance_theme_customization_contract` | Pass, 24.44 s |
+| `application_appearance_store_fallback_contract` | Pass, 12.77 s |
+
+- **All eight pass**, 8/8, ctest exit 0.
+- **No `COURSE_MODALITY_*` line** appears anywhere in the log: no
+  `COURSE_MODALITY_STALLED` and no `COURSE_MODALITY_WITHHOLDS`.
+- **Load average.** `{ 13.92 5.69 4.15 }` at the start, because the run
+  began immediately after the rebuild, and `{ 5.91 5.22 4.17 }` at the end.
+  The 5 s step bound held throughout, including the first rows, which ran
+  with the one-minute load near 14.
+
+**The one look at `application_uiforetw_selected_diff_contract`**
+(`build/bpr0863-mac-uiforetw.log`, load `{ 5.75 5.20 4.17 }`). Red as
+expected, and not for this card's reason. `UIFORETW_RESOURCE_GESTURE_OK` is
+printed and no `COURSE_MODALITY_*` line appears. It fails at
+`UIFORETW_NAVIGATION_ROW_ACTION:23=refreshQueueAction` and
+`UIFORETW_CAPTURE_LAYOUT_FAILED:985:835`. That is the stale strip row from
+[[BPR-0990]]'s `refreshQueueAction` and the layout floor that
+[[BPR-1036]] was reserved for. The macOS ratio here is 835/985, where Linux
+measured 842/1000.
+
+So both macOS halves of the acceptance hold at this head. The Linux station
+finishes the card.
