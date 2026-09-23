@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1045"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "bpr-main-linux: A throw in the entry point's run setup prints STARTUP_FAILED and never exits",
+  "created": "2026-09-23T23:10:25.101163+00:00",
+  "base": "7eb4aa8740af6f680d16a5f12c6d1d4fbdab7ca6"
+}
