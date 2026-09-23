@@ -8598,6 +8598,16 @@ auto main(int argc, char** argv) -> int
 		std::cout << "workbench-focus-order:pass\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-0653]]. The strip as the title row -- its order, its width sweep
+	// down to the platform's floor and its bare-surface gestures -- reached
+	// directly past the epoch-row assertion [[BPR-0940]] owns.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
+		test_compact_icon_row_preserves_exact_order_and_edges();
+		test_strip_identity_stays_at_every_width();
+		test_strip_is_the_title_row();
+		std::cout << "workbench-title-row:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-0990]]. Home's discovery glyph, sentence and the Pull Request menu,
 	// reached directly past the epoch-row assertion [[BPR-0940]] owns.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {

@@ -825,14 +825,25 @@ namespace bpr::qt {
 #if defined(_WIN32)
 		// [[BPR-0653]]. The Windows form of the title row, after Visual Studio
 		// Code: no menu bar row, but one compact menu control first in the
-		// strip that opens the same File, Profiles and View menus the window
-		// builds, read from the menu bar each time so a menu added later is
-		// there too.
+		// strip that opens the same menus the window builds (File, Profiles,
+		// Pull Request and View), read from the menu bar each time so a menu
+		// added later is there too. Its description names them from the bar
+		// for the same reason.
 		StripMenuButton = new QToolButton{ PrimaryToolbar };
 		StripMenuButton->setObjectName(QStringLiteral("workbenchStripMenuButton"));
 		StripMenuButton->setAccessibleName(QStringLiteral("Application menu"));
-		StripMenuButton->setAccessibleDescription(
-			QStringLiteral("The File, Profiles and View menus"));
+		{
+			auto menus = QStringList{ };
+			for (auto* const action : PrimaryMenuBar->actions()) {
+				if (action->menu() != nullptr) {
+					menus.push_back(action->menu()->accessibleName());
+				}
+			}
+			const auto last = menus.isEmpty() ? QString{ } : menus.takeLast();
+			StripMenuButton->setAccessibleDescription(
+				menus.isEmpty() ? QStringLiteral("The %1 menu").arg(last)
+								: QStringLiteral("The %1 and %2 menus").arg(menus.join(QStringLiteral(", ")), last));
+		}
 		StripMenuButton->setToolTip(QStringLiteral("Menu"));
 		StripMenuButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
 		StripMenuButton->setFocusPolicy(Qt::StrongFocus);

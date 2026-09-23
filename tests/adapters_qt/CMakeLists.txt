@@ -968,6 +968,24 @@ foreach(bpr_focus_order_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-0653]]. RFC-BPR-0028 AC-01: the strip as the title row -- its order,
+# the width sweep down to the platform's floor with no control folded into an
+# overflow menu, and its bare-surface gestures -- at each scale, reached
+# directly past the epoch-row assertion [[BPR-0940]] owns.
+foreach(bpr_title_row_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_title_row_whole "${bpr_title_row_scale} / 100")
+    math(EXPR bpr_title_row_fraction "${bpr_title_row_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_workbench_title_row_scale_${bpr_title_row_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --title-row
+    )
+    set_tests_properties(qt_workbench_title_row_scale_${bpr_title_row_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_title_row_whole}.${bpr_title_row_fraction};BPR_EXPECTED_QT_SCALE=${bpr_title_row_whole}.${bpr_title_row_fraction}"
+        PASS_REGULAR_EXPRESSION "workbench-title-row:pass"
+        TIMEOUT 120
+    )
+endforeach()
+
 # [[BPR-0990]]. RFC-BPR-0026 AC-10: Home's discovery glyph, its sentence and the
 # Pull Request menu, at each scale, reached directly past the epoch-row
 # assertion [[BPR-0940]] owns.
