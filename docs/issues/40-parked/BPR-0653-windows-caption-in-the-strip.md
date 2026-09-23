@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1 RFC-BPR-0028 AC-01 on Windows at 1280x852 and 1920x1080: the chrome above the comparison is the strip and the epoch line, and the strip is the row the caption buttons sit in","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"The Windows form passes: ctest --preset dev -R application_windows_title_row on the real windows platform (Qt 6.11.2, 150% scale) passes at f62b745d and at 53d229d7 and prints title-row:1280x852:ok and title-row:1920x1080:ok: no title bar, the strip first and as wide as the window with the caption buttons in it (46 px, row height, close ending the row) and their hit codes, the client area directly beneath the strip with no menu bar row, the epoch line across the window above the panes. The portable half, 'the strip and the epoch line only', fails on main on every platform: RFC-BPR-0037's composition entry row (cc038748, BPR-0929) sits between them, measured composeReviewActionButton@30+20 and composeInlineDraftActionButton@30+20 at both sizes, and qt_workbench_window_scale_{100,125,200} stop at 'the epoch row is the first row of the client area' (BPR-0940). Pending the owner's choice: amend AC-01 to admit the row, or move the entries."}},{"criterion":"AC2 Snap layouts appear on hovering the maximise button; dragging empty strip space moves the window; double-click maximises and restores","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"application_windows_title_row passes: a posted WM_NCLBUTTONDBLCLK on bare strip surface maximises with the strip at the work area's top and restores the same rectangle; bare strip surface answers HTCAPTION and maximise HTMAXBUTTON, restored and maximised, at 1280x852 and 1920x1080; minimised while maximised and restored from the taskbar it returns maximised and then restores the original rectangle. The snap layout flyout and the dragged window are the platform's responses to those codes; observing them needs a real pointer on the owner's desktop, which this unattended dispatch did not move, so they ride criterion 4's attended capture (steps 3 and 4)."}},{"criterion":"AC3 The Windows station's focused Qt selectors and the manifest gate pass; the new uncontained registration, if any, is pinned by name in the same commit","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"At f62b745d, 14 of 19 focused selectors pass, including application_windows_title_row, the new contained qt_workbench_title_row_scale_{100,125,200} (the strip order, the width sweep to the 902 floor with the three-character labels, the bare-surface gestures; 14.1, 18.2, 18.8 s) and qt_workbench_focus_order_scale_{100,125,200}; the title-row, focus-order and structure rows pass again at 53d229d7. No uncontained registration is added. Red on main for reasons that are not this card's: qt_workbench_window_scale_{100,125,200} at BPR-0940's epoch-row assertion (after their strip courses pass); qt_composed_github_scale_100 at BPR-0940's CLI-card assertion; test_network_isolation_manifest on eleven unpinned uncontained rows from other work (a new card is requested); and at 53d229d7 application_review_round_trip_composition_contract since f863ce1b (BPR-0975) changed github_application.cpp without a reseal. Logs: build/logs/bpr-0653-main-win/candidate-1.log and rebased-1.log on the Windows station."}},{"criterion":"AC4 Attended capture on the Windows station showing the strip with the caption buttons and the snap layout flyout","outcome":"pending","revision":"53d229d7","evidence":{"kind":"observation","detail":"Not taken; it needs the owner. Steps 1 to 6 of the card's 'Attended capture (criterion 4)' on JaegAW at 100% and 150% from a tests-disabled app-release bundle built at the candidate; step 7 (minimise from maximised) is now covered by application_windows_title_row. No attended or wizard session was started by this dispatch."}}]
+acceptance: [{"criterion":"AC1 RFC-BPR-0028 AC-01 on Windows at 1280x852 and 1920x1080: the chrome above the comparison is the strip and the epoch line, and the strip is the row the caption buttons sit in","outcome":"pending","revision":"38cc26d7","evidence":{"kind":"command","detail":"The Windows form passes: ctest --preset dev -R application_windows_title_row on the real windows platform (Qt 6.11.2, 150% scale) passes at f62b745d, at 53d229d7 and again on main at 38cc26d7, and prints title-row:1280x852:ok and title-row:1920x1080:ok: no title bar, the strip first and as wide as the window with the caption buttons in it (46 px, row height, close ending the row) and their hit codes, the client area directly beneath the strip with no menu bar row, the epoch line across the window above the panes. The portable half, 'the strip and the epoch line only', does not hold on main as written: RFC-BPR-0037's composition entry row (cc038748, BPR-0929) sits between them, measured composeReviewActionButton@30+20 and composeInlineDraftActionButton@30+20 at both sizes at 38cc26d7, and BPR-0795's readiness line sits there too while a pull request loads. Since BPR-0940 (f839e26a) the window course asserts that arrangement, so no test is red over it; AC-01 and the chrome paragraph still say two rows. Pending the owner's choice: amend AC-01 and the chrome paragraph to admit the entry rows, or move the entries and return the course to 'first row'."}},{"criterion":"AC2 Snap layouts appear on hovering the maximise button; dragging empty strip space moves the window; double-click maximises and restores","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"application_windows_title_row passes: a posted WM_NCLBUTTONDBLCLK on bare strip surface maximises with the strip at the work area's top and restores the same rectangle; bare strip surface answers HTCAPTION and maximise HTMAXBUTTON, restored and maximised, at 1280x852 and 1920x1080; minimised while maximised and restored from the taskbar it returns maximised and then restores the original rectangle. The snap layout flyout and the dragged window are the platform's responses to those codes; observing them needs a real pointer on the owner's desktop, which this unattended dispatch did not move, so they ride criterion 4's attended capture (steps 3 and 4)."}},{"criterion":"AC3 The Windows station's focused Qt selectors and the manifest gate pass; the new uncontained registration, if any, is pinned by name in the same commit","outcome":"pending","revision":"fb4357b1","evidence":{"kind":"command","detail":"At f62b745d, 14 of 19 focused selectors pass, including application_windows_title_row, the new contained qt_workbench_title_row_scale_{100,125,200} and qt_workbench_focus_order_scale_{100,125,200}; no uncontained registration is added. Re-run on main (38cc26d7, and fb4357b1 for the non-foreground set): application_windows_title_row, qt_workbench_title_row_scale_{100,125,200}, qt_workbench_focus_order_scale_{100,125,200}, test_network_isolation_manifest (green since BPR-1020), test_network_isolation_structure_contract, architecture_boundaries, core_dependency_boundary, application_review_round_trip_composition_contract, application_diff_workbench_public_path, qt_home_list_scale_100 and qt_review_queue pass. Red on main, none of it this card's: qt_workbench_window_scale_{100,125,200} now pass BPR-0940's epoch-row assertion and abort later in test_discuss_uses_main_content_and_open_in_code_returns_to_read on an MSVC debug-iterator assertion ('can't dereference invalidated vector iterator'; qt_workbench_conversation_reveal aborts identically; a card is requested); qt_composed_github_scale_100 passes BPR-0940's former stop and fails at BPR-0869's fixed-pitch device code row. Logs: build/logs/bpr-0653-main-win/ on the Windows station."}},{"criterion":"AC4 Attended capture on the Windows station showing the strip with the caption buttons and the snap layout flyout","outcome":"pending","revision":"53d229d7","evidence":{"kind":"observation","detail":"Not taken; it needs the owner. Steps 1 to 6 of the card's 'Attended capture (criterion 4)' on JaegAW at 100% and 150% from a tests-disabled app-release bundle built at the candidate; step 7 (minimise from maximised) is now covered by application_windows_title_row. No attended or wizard session was started by this dispatch."}}]
 ---
 
 # Windows: the strip as the title row
@@ -724,3 +724,87 @@ Criterion 1's portable half cannot pass as written until that is decided.
 3. **The composition entry row**, above: amend AC-01, or move the entries.
 
 The card parks on human-review with the candidate `53d229d7`.
+
+## Re-check on main, 2026-09-23 (bpr-main-win, second pass): the AC-01 ask restated
+
+This was card upkeep in run `bpr-main-win-20260923`, not a new candidate; the
+candidate is still `53d229d7`. Main was at `38cc26d7`, after [[BPR-0940]]
+finished at `d2ee90cb`, and `build/dev` was rebuilt there. The coordinator
+cleared foreground runs for this check alone:
+
+- `application_windows_title_row` took the real platform from 17:11Z to
+  17:16Z, and passed;
+- the window rows run offscreen.
+
+No pointer was moved, and no attended or wizard session was started. The logs
+are under `build/logs/bpr-0653-main-win/` on the station.
+
+### "Found at main", checked against `38cc26d7`
+
+| What the note above says | At `38cc26d7` |
+|---|---|
+| The composition entry row, Compose review and Draft comment or reply, sits between the strip and the epoch line, 20 pixels at y 30 | **Still true.** `build_central_surface` lays out the readiness line (shown only while a pull request loads), then the entry row (`review->insertLayout(1, …)`), then the epoch line, then the splitter. On the real platform the course prints `windows-title-row-host-tests:between-strip-and-epoch-line:1280x852: composeReviewActionButton@30+20 composeInlineDraftActionButton@30+20`, and the same at 1920x1080. |
+| `qt_workbench_window_scale_{100,125,200}` stop at "the epoch row is the first row of the client area" | **No longer.** [[BPR-0940]] (`f839e26a`) reworded that assertion and changed its target. The epoch row must now sit directly beneath the review surface's own entry rows, meaning the two entries and the readiness line, and nothing else may come between the strip and it. On Windows all three rows pass it, and then abort later, in the Discuss course (below). |
+| The row is "the failure BPR-0940 records" | **Superseded.** BPR-0940 closed by reading the old "first row" wording as superseded by the owner's accept of the native candidate `rfc0037-compose-pages`. That accept judged the composition pages; it did not amend RFC-BPR-0028 AC-01 or its chrome paragraph. |
+
+So the conflict remains, but no test is red over it now. It is between
+the RFC's text and main.
+
+### Owner ask 3, restated (it replaces item 3 of "What the owner must do")
+
+> RFC-BPR-0028 AC-01 says the chrome above the comparison is "the strip and
+> the epoch line only", and the chrome paragraph puts the epoch line directly
+> below the strip. On main, every review has a third row between them: Compose
+> review and Draft comment or reply (RFC-BPR-0037, 20 pixels). While a pull
+> request loads, the loading line is there too. Since BPR-0940, the window tests
+> assert this arrangement. Should AC-01 and the chrome paragraph be amended to
+> admit those entry rows? Or should the two entries move, for example into the
+> strip's review controls menu (which costs the strip no width), with the tests
+> returning to "the epoch line is the first row under the strip"?
+
+Asks 1 (the attended capture) and 2 (Qt's private Windows native interface)
+are unchanged.
+
+### Criterion 3 on main
+
+At `38cc26d7`, and at `fb4357b1` for the rows that do not take the
+foreground, these pass:
+
+- `application_windows_title_row` (1.94 s);
+- `qt_workbench_title_row_scale_100`, `_125` and `_200` (14.1, 16.3 and 31.1 s);
+- `qt_workbench_focus_order_scale_100`, `_125` and `_200`;
+- `test_network_isolation_manifest`, green since [[BPR-1020]] (`fb4357b1`)
+  pinned or contained the eleven rows the earlier pass named;
+- `test_network_isolation_structure_contract`, `architecture_boundaries`,
+  `core_dependency_boundary`, `application_review_round_trip_composition_contract`
+  (resealed on main since the last pass), `application_diff_workbench_public_path`,
+  `qt_home_list_scale_100` and `qt_review_queue`.
+
+These are red on main, and none of them is this card's:
+
+- `qt_workbench_window_scale_100`, `_125` and `_200` abort with `0xc0000409`
+  after about 60 s. The cause is an MSVC debug-iterator assertion, "can't
+  dereference invalidated vector iterator", in
+  `test_discuss_uses_main_content_and_open_in_code_returns_to_read`. A
+  temporary, reverted course trace named that course.
+  `qt_workbench_conversation_reveal`, which runs the same course, aborts
+  identically.
+  - The likely cause is in the test itself. It keeps `sameFile`, an iterator
+    into `conversation_cards_view::cards()`, across the off-file reply press
+    and `process_events()`. `relayout()` clears and rebuilds that vector.
+  - The earlier epoch-row stop hid this from the full window run on Windows.
+  - A card is requested.
+- `qt_composed_github_scale_100` now passes BPR-0940's former stop and fails at
+  "the code is in a fixed-pitch font at 1.6 times the row's size", which is
+  [[BPR-0869]].
+
+### Also carded from this card's asks
+
+- [[BPR-1021]] closes RFC-BPR-0028. It is in Backlog on this card and
+  [[BPR-0746]], under the new plan milestone `close-rfc-0028`.
+- [[BPR-1022]] opens the strip's application menu from the keyboard with Alt and
+  F10. That is the integrator's non-blocking review finding above, and it is
+  standalone.
+
+The card stays parked on human-review with candidate `53d229d7`. All three
+owner asks are open.
