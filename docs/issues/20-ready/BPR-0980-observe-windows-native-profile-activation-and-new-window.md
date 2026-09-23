@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0980"
 title: "Observe native Windows profile activation and New Window on the desktop"
-status: "Blocked"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-0979"]
 priority: "P2"
 platforms: ["win"]
-blocked_by: "native-desktop-observation"
 metadata: {"origin_rfc":"RFC-BPR-0024","origin_card":"BPR-0979","closeout_card":"BPR-0595","mandate_revision":"r3","disposition":"owner-deferred standalone follow-up; not an RFC0024 closeout dependency","source_candidate":"1cd7f2f1ae1410aaab38bd0610ecd0d2063032ef","attended_candidate":{"id":"BPR-0979-windows-activation-v001","fingerprint":"bc3d75f62152e8f2a6cb18e6c67222d4b20878bddfebeb00b8b681fd7a39c1e9","revision":"windows-dev-674c68dc-1cd7f2f1-2026-09-22","session":"8d2c2e32f7131447c24c2fd522f18fe6"},"station_build":{"station":"bpr-win","path":"C:/Users/mikem/bpr0979-044e8779/source/build/windows-dev/src/app/Debug/better_pull_review.exe","sha256":"674c68dc0f777c47fa7233bea0f21178bf24f9b52aa05b7fd23a418c18f3d4ef"},"transferred_criteria":["AC-06 native Windows desktop observation: repeated ordinary launch activates the owner's MRU window; --new-window opens another window without a second owner"],"related_cards":["BPR-0974","BPR-0653"]}
 ---
 
@@ -93,3 +92,17 @@ composition, rebuild and re-prepare a new attended candidate revision
 rather than reusing the fingerprint above. Record the verdict through the
 configured attended-review workflow bound to the exact digest reviewed; this
 card supplies no native pass at creation.
+
+### Unblocked on bpr-main-win — 2026-09-23
+
+The block was the observer's reach, not a product or owner dependency: the
+`bpr-win` station ran over SSH, outside the owner's interactive desktop, so
+the observation needed someone at the machine. The `bpr-main-win` station is
+that desktop: an agent session in the owner's signed-in interactive session
+(session 1, user `JaegAW\mikem`, not elevated) on the same host JaegAW,
+checkout `C:/code/git/BetterPullReview` on `main`. It can launch the
+candidate as an ordinary user and read the result back objectively (the
+foreground window, the keyboard focus, the top-level windows and the
+process table), so the observation is now available unattended. The card
+moves to Ready for that station under the Mac integrator's relay of the
+owner's mandate (run `bpr-main-win-20260923`).
