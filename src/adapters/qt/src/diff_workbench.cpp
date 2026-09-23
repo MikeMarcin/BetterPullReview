@@ -165,6 +165,11 @@ namespace bpr::qt {
 				return PaintedRules;
 			}
 
+			[[nodiscard]] auto painted_tab_markers() const noexcept -> std::uint64_t
+			{
+				return PaintedTabMarkers;
+			}
+
 			/// \brief The first block the viewport can show, and where it sits.
 			///
 			/// \details `firstVisibleBlock` and `contentOffset` are protected
@@ -277,6 +282,38 @@ namespace bpr::qt {
 					painter.setBrush(color);
 					painter.drawRoundedRect(marker, 2.0, 2.0);
 				}
+				paint_tab_markers_of_visible_lines(painter);
+			}
+
+			/// \brief [[BPR-0986]]. Marks each visible line's leading tabs at the tab width.
+			///
+			/// \details The Appearance preview's markers, drawn by the same shared
+			/// helper in the same `code_line_number_text` role at this pane's own
+			/// tab stop, so the preview shows what the review window shows. Only
+			/// the blocks the viewport can show are walked.
+			void paint_tab_markers_of_visible_lines(QPainter& aPainter)
+			{
+				if (!GutterText.isValid() || tabStopDistance() <= 0.0) {
+					return;
+				}
+				const auto limit = static_cast<qreal>(viewport()->height());
+				for (auto block = firstVisibleBlock(); block.isValid(); block = block.next()) {
+					const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
+					if (geometry.top() > limit) {
+						break;
+					}
+					if (!block.isVisible()) {
+						continue;
+					}
+					const auto text   = block.text();
+					auto       indent = qsizetype{ 0 };
+					while (indent < text.size() && text.at(indent) == QLatin1Char{ '\t' }) {
+						++indent;
+					}
+					if (indent > 0) {
+						PaintedTabMarkers += paint_tab_markers(aPainter, geometry, static_cast<std::uint32_t>(indent), tabStopDistance(), GutterText);
+					}
+				}
 			}
 
 			void resizeEvent(QResizeEvent* aEvent) override;
@@ -306,6 +343,7 @@ namespace bpr::qt {
 			QColor                       NewThreadMarkColor{ 0x09, 0x69, 0xDA };
 			std::uint64_t                PaintedRules       = 0U;
 			std::uint64_t                PaintedLineNumbers = 0U;
+			std::uint64_t                PaintedTabMarkers  = 0U;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -1265,6 +1303,8 @@ namespace bpr::qt {
 		auto statistics                   = Statistics;
 		statistics.GroupBoundariesPainted = pane(Left)->painted_rules()
 			+ pane(Right)->painted_rules();
+		statistics.TabMarkersPainted = pane(Left)->painted_tab_markers()
+			+ pane(Right)->painted_tab_markers() + pane(Unified)->painted_tab_markers();
 		return statistics;
 	}
 
@@ -2087,6 +2127,8 @@ namespace bpr::qt {
 		const auto  contains     = [](const std::optional<core::line_span> aSpan, const std::optional<std::uint32_t> aLine) {
 			return aSpan && aLine && *aLine >= aSpan->Begin && *aLine < aSpan->End;
 		};
+		const auto currentBase = current_line(core::diff_side::left);
+		const auto currentHead = current_line(core::diff_side::right);
 		for (auto index = visible.Begin; index < visible.End && index < rows.size(); ++index) {
 			const auto& row = rows[index];
 			if (row.Base) {
@@ -2098,6 +2140,12 @@ namespace bpr::qt {
 				head.End   = *row.Head + 1U;
 			}
 			const auto span = core::line_span{ index, index + 1U };
+			// [[BPR-0986]]. As in the two panes: an unchanged reading row, one
+			// with both a base and a head line, wears the current-line band.
+			if (Colors.Supplied && row.Base && row.Head && ((currentBase && row.Base == currentBase) || (currentHead && row.Head == currentHead))) {
+				append_line_band(selections, *Unified, span, code_sample_row_fill(code_sample_row_kind::current_line, Colors.Syntax));
+				++Statistics.CurrentLineBandsPainted;
+			}
 			if (Colors.Supplied) {
 				append_line_band(selections, *Unified, span, !row.Head ? Colors.Removed : !row.Base ? Colors.Added
 																									: QColor{ });
@@ -2220,6 +2268,7 @@ namespace bpr::qt {
 			apply_syntax_formats(aPane, aSide, paintable);
 
 			if (CurrentResult && Colors.Supplied) {
+				const auto  current   = current_line(aSide);
 				const auto& alignment = CurrentResult->Alignment;
 				// Segments are ordered by line, so the visible run is found by
 				// search. Scanning all of them was the shape of cost BPR-0196's
@@ -2276,6 +2325,14 @@ namespace bpr::qt {
 						return { };
 					}();
 					const auto visible = intersection(span, paintable);
+					// [[BPR-0986]]. An unchanged reading line wears the current-line
+					// band, as the Appearance preview's current row does. A changed
+					// one keeps the band that says it changed, so each line wears
+					// one band, and the selection wash lies over either.
+					if (!color.isValid() && current.has_value() && *current >= visible.Begin && *current < visible.End) {
+						append_line_band(selections, aPane, core::line_span{ .Begin = *current, .End = *current + 1U }, code_sample_row_fill(code_sample_row_kind::current_line, Colors.Syntax));
+						++Statistics.CurrentLineBandsPainted;
+					}
 					append_line_band(selections, aPane, visible, color);
 					if (isMoved && !visible.empty()) {
 						++Statistics.MovedBandsPainted;
@@ -2347,6 +2404,27 @@ namespace bpr::qt {
 		return line.has_value()
 			? std::optional<core::line_span>{ core::line_span{
 				  .Begin = line->Line, .End = line->Line + 1U } }
+			: std::nullopt;
+	}
+
+	/// \brief The line the reader is on, when it is on this side.
+	///
+	/// \details [[BPR-0986]]. The selection's preferred line: where a click, a
+	/// change step or a restored reading position put the reader. It is one
+	/// line on one side, which is what the Appearance preview's current row
+	/// stands for; a line past the document's end is no line.
+	auto diff_workbench::current_line(const core::diff_side aSide) const
+		-> std::optional<std::uint32_t>
+	{
+		if (!CurrentResult || !Interaction.Selection.has_value()) {
+			return std::nullopt;
+		}
+		const auto& preferred = Interaction.Selection->PreferredLine;
+		const auto  count     = aSide == core::diff_side::left
+			? CurrentResult->Alignment.LeftLineCount
+			: CurrentResult->Alignment.RightLineCount;
+		return preferred.Side == aSide && preferred.Line < count
+			? std::optional{ preferred.Line }
 			: std::nullopt;
 	}
 

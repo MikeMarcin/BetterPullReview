@@ -1933,7 +1933,13 @@ namespace {
 		}));
 		settle_geometry(workbench);
 		const auto unstyledPositions = tabbed_correspondence_geometry(workbench, 4);
-		const auto spans             = application::token_span_list{
+		// [[BPR-0986]]. Each pane marks its leading tabs as the Appearance preview
+		// does: one marker per tab stop, six a side here, on every paint.
+		const auto markersBefore = workbench.statistics().TabMarkersPainted;
+		workbench.left_pane()->viewport()->repaint();
+		workbench.right_pane()->viewport()->repaint();
+		expect(workbench.statistics().TabMarkersPainted - markersBefore == 12U, "each pane marks its six leading tabs once per paint");
+		const auto spans = application::token_span_list{
 			{ .Line = 0U, .Column = 1U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
 			{ .Line = 1U, .Column = 2U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
 			{ .Line = 2U, .Column = 3U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
@@ -2766,6 +2772,64 @@ namespace {
 			"every line of the selected group carries a selection band");
 	}
 
+	/// \brief [[BPR-0986]]. The reading line wears the Appearance preview's current-line band.
+	///
+	/// \details Read off the panes' own selections, as the other bands are. An
+	/// unchanged reading line wears `code_current_line_background` on its own
+	/// side only; a changed one keeps the band that says it changed; and the one
+	/// pane does the same for the reading row.
+	auto test_the_reading_line_wears_the_current_line_band() -> void
+	{
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1000, 780);
+		auto profile = qt::appearance_profile{ };
+		static_cast<void>(profile.select_mode(core::appearance_mode::light));
+		profile.apply_to(workbench);
+		profile.apply_code_font_to(workbench);
+		workbench.adopt_appearance(profile);
+		workbench.show();
+		const auto diff    = computed("start\nold line\nkeep-a\nkeep-b\nend\n", "start\nnew line\nkeep-a\nkeep-b\nend\n", { }, 81U);
+		const auto request = context(diff, 151U, 151U);
+		workbench.set_loading(request);
+		workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		settle_geometry(workbench);
+		const auto current = profile.color(core::appearance_role::code_current_line_background);
+		expect(current.isValid() && current != profile.color(core::appearance_role::diff_added_background)
+				   && current != profile.color(core::appearance_role::diff_removed_background),
+			   "the current-line role is its own colour, so the assertions below can tell it apart");
+		const auto wears = [&](QPlainTextEdit& aPane, const int aLines) {
+			auto lines = std::vector<int>{ };
+			for (auto line = 0; line < aLines; ++line) {
+				if (band_color(aPane, line) == current) {
+					lines.push_back(line);
+				}
+			}
+			return lines;
+		};
+
+		const auto before = workbench.statistics().CurrentLineBandsPainted;
+		expect(workbench.select_conversation_line(core::diff_side::right, 2U), "select the unchanged line keep-a on the right");
+		process_events();
+		expect(wears(*workbench.right_pane(), 5) == std::vector<int>{ 2 } && wears(*workbench.left_pane(), 5).empty(),
+			   "an unchanged reading line wears the current-line band, on its own side only");
+		expect(workbench.statistics().CurrentLineBandsPainted > before, "the band is counted where it is composed");
+
+		expect(workbench.select_conversation_line(core::diff_side::right, 1U), "select the replaced line on the right");
+		process_events();
+		expect(band_color(*workbench.right_pane(), 1) == profile.color(core::appearance_role::diff_added_background)
+				   && wears(*workbench.right_pane(), 5).empty(),
+			   "a changed reading line keeps the band that says it changed");
+
+		workbench.set_one_pane_enabled(true);
+		process_events();
+		expect(workbench.select_conversation_line(core::diff_side::right, 2U), "select keep-a again in one pane");
+		process_events();
+		auto* const unified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+		expect(unified != nullptr && unified->isVisible(), "one pane shows its single source");
+		// start, old line, new line, keep-a: the reading line is the fourth row.
+		expect(wears(*unified, 6) == std::vector<int>{ 3 }, "the one-pane reading row wears the current-line band");
+	}
+
 	/// \brief A ribbon must meet the pane at the block it names.
 	///
 	/// \details Checked scrolled, which is where BPR-0208 lived. Two separate
@@ -3232,6 +3296,7 @@ auto main(int argc, char** argv) -> int
 	test_selected_rows_derive_their_intraline_fill();
 	test_dark_intraline_preserves_readable_syntax_hues();
 	test_group_selection_washes_every_line();
+	test_the_reading_line_wears_the_current_line_band();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

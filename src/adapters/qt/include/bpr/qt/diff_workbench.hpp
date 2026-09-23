@@ -109,7 +109,12 @@ namespace bpr::qt {
 		std::uint64_t AlignmentSegmentsVisited = 0U;
 		std::uint64_t GroupBoundariesPainted   = 0U;
 		std::uint64_t MovedBandsPainted        = 0U;
-		std::size_t   SemanticIndexEntries     = 0U;
+		/// [[BPR-0986]]. Current-line bands composed for the reading line.
+		std::uint64_t CurrentLineBandsPainted = 0U;
+		/// [[BPR-0986]]. Tab markers the panes actually drew, counted where they
+		/// are drawn, as the boundary rules are.
+		std::uint64_t TabMarkersPainted    = 0U;
+		std::size_t   SemanticIndexEntries = 0U;
 		std::array<
 			diff_geometry_rebuild_cause,
 			diff_geometry_rebuild_history_capacity>
@@ -325,6 +330,9 @@ namespace bpr::qt {
 		/// \brief The lines one side's selection covers.
 		[[nodiscard]] auto selected_lines(core::diff_side aSide) const
 			-> std::optional<core::line_span>;
+		/// \brief [[BPR-0986]]. The reading line, when it is on this side.
+		[[nodiscard]] auto current_line(core::diff_side aSide) const
+			-> std::optional<std::uint32_t>;
 		/// \brief Whether the named segment takes part in a detected move.
 		[[nodiscard]] auto moved(const core::alignment_segment_id& aSegment) const
 			-> bool;
