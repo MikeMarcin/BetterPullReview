@@ -17,7 +17,8 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 scope on 2026-09-22.** The [owner amendment r3](#owner-amendment-r3--2026-09-22)
 below records the one deferred native observation. The
 [owner amendment r4](#owner-amendment-r4--2026-09-23) of 2026-09-23 keeps
-AC-07 closed over a recorded evidence gap, with follow-up [[BPR-1019]].
+AC-07 closed over a recorded evidence gap; the course passes again and needs
+no follow-up.
 The product owner approved this daily-workbench design and its Chrome-like
 profile amendment on 2026-09-04. Registration grants no implementation,
 credential, remote-mutation, platform-evidence, or closeout exception. This RFC
@@ -104,10 +105,9 @@ and native macOS geometry accept, and [[BPR-0715]]'s signed-out accept.
 since: 570.40 s at `c9c48800`, 591.97 s at `17e40dc8`, 563.89 s at `0d56cee5`
 and 598.25 s at `0ddf929b` (2026-09-23). Those runs are observations,
 recorded on BPR-0595. They are not written into its historical acceptance
-record. Follow-up [[BPR-1019]] binds AC-07 to a current passing run of this
-course and its sibling AC-07 checks, recorded beside the historical row. The
-course already passes, so the follow-up only re-binds the evidence. If the
-course fails again, BPR-1019 repairs it first.
+record. The 2026-09-23 run is bound on BPR-0595 as AC-07's current evidence,
+beside the historical row. No follow-up card is open: the course already
+passes, so there was nothing left to fix.
 
 ## Problem and outcome
 
