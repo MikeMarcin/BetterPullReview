@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0034"
 title: "Appearance Page and Per-Theme Colour Customisation"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Shell Surfaces v1"
 depends_on: ["RFC-BPR-0006","RFC-BPR-0018"]
@@ -9,6 +9,26 @@ metadata: {"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plan
 ---
 
 # RFC-BPR-0034: Appearance page and per-theme colours
+
+## Status
+
+**Closed on 2026-09-22 (`Auto-Verified`).** [[BPR-0791]] records direct
+evidence for C1 to C6. On 2026-09-16 the owner accepted the real macOS
+application built from `ed2b3f14`: the rendered page, the VoiceOver walk over
+the tiles, the real macOS colour panel and two cosmetic departures. Those
+verdicts stay bound to that candidate. The page's own sources are unchanged
+since then, and at closeout head `f06088b8` the focused appearance courses and
+all three end-to-end appearance contracts pass. The only thing holding the
+status was closure order. RFC-BPR-0018 became `Auto-Verified` on 2026-09-21
+and reached main on 2026-09-22. RFC-BPR-0006 is not reopened.
+
+Three limitations remain, and this status does not close them:
+
+- C1's two storage limitations.
+- No automated course opens the real macOS colour panel.
+- C4's painter drift: the two hunk-header roles are painted by nothing, and
+  the current-line band and tab markers are painted only by this page's
+  preview. That drift is now [[BPR-0986]].
 
 ## Summary and scope
 

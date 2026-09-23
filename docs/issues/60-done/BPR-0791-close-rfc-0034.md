@@ -14,6 +14,78 @@ acceptance: [{"criterion":"All C1-C6 rows reference direct evidence or a specifi
 
 RFC base: `38f32226351f5cc8e4657d55c3e151d8450c6ce5`.
 
+## Formal closeout on main, 2026-09-22: RFC-BPR-0034 is `Auto-Verified`
+
+The formal-status section below kept this RFC at `Proposed` for one reason:
+closure order. RFC-BPR-0018 was not yet `Auto-Verified`. [[BPR-0593]] closed
+RFC-BPR-0018 on 2026-09-21, and it reached main at `6a897af8`. RFC-BPR-0006 was
+already `Auto-Verified`. This pack's three closeouts share no dependency, so
+neither RFC-BPR-0032 nor RFC-BPR-0033 holds this one. The additional RFCs close
+in the order of their listed dependencies, as RFC-BPR-0016, 0017, 0018, 0024,
+0025, 0030 and 0031 already have.
+
+The recorded evidence was rechecked at `f06088b8` without re-adjudicating
+acceptance. `src/` has moved far since the reviewed source `ed2b3f14`, but the
+page's own sources are byte-identical. That covers `appearance_settings_panel`,
+`theme_preview_strip`, `colour_role_list`, `type_preview`,
+`code_sample_painter`, `appearance_role_display`, `info_glyph.cpp` and the
+schema-7 SQLite appearance store. Four things around them changed:
+
+- `info_glyph.hpp` changed formatting only.
+- `appearance_profile.cpp` has [[BPR-0935]]'s quieter dark intraline fills,
+  which change two built-in values. The Colours card lists those values and
+  counts customisations against them. No painter on the page uses either
+  intraline role.
+- `appearance_contrast` gained a readable emphasis foreground for the diff
+  panes. Only `diff_workbench.cpp` calls it.
+- `appearance_preferences_application_host` moved theme export into
+  `perform_theme_export`, with the same error results, and gained a
+  `durable()` query.
+
+The checks ran at zero pending build actions: `ninja -C build/dev -n` reported
+"no work to do" before and after. The executable was sha256
+`f5d826c6fd0b8bd4ab2f5eda44353de9cb9e42a1963ceffdadf9560a884d31ec`, which is
+not the reviewed binary.
+
+- **25 focused courses: 100% passed, 22.30 s** (`build/rfc0034-close-focused.log`).
+  - Core and host: `core_appearance_policy`, `core_appearance_contrast`,
+    `application_appearance_host`, `application_appearance_profile_consumers`
+    and `sqlite_appearance_settings_storage`.
+  - The page: `qt_appearance_settings_panel`, `qt_code_sample_painter`,
+    `qt_theme_preview_strip`, `qt_appearance_role_display`,
+    `qt_colour_role_list`, `qt_type_preview` and `qt_appearance_profile`.
+  - Settings: `qt_settings_window` at 100/125/150/200 and
+    `qt_settings_effect_boundary`.
+  - The review panes: `qt_syntax_pane_composition` and
+    `qt_diff_workbench_scale_100/125/200`.
+  - Captures: `qt_surface_capture_course_scale_100/125/150/200`.
+
+  C1's five named tests still exist and are still invoked. At scale 100 the
+  capture course walks the Appearance page at `stops=151 unnamed=0`, as C6
+  records (`build/rfc0034-close-focused-verbose.log`). The course renders and
+  asserts without writing files (`written=0`), so C6's 144 captures were not
+  regenerated.
+- **The three end-to-end appearance contracts now pass.** d7 recorded them as
+  red on unrelated diff-evidence, epoch-fixture and public-path stages. With
+  the native appearance probe the run was **4/4, 137.11 s**
+  (`build/rfc0034-close-e2e.log`):
+  - `application_native_appearance_probe_contract`: 23.22 s
+  - `application_appearance_theme_customization_contract`: 25.00 s
+  - `application_appearance_gesture_contract`: 75.79 s
+  - `application_appearance_store_fallback_contract`: 13.08 s
+- The documentation gate printed `DOCUMENTATION_OK` before and after the status
+  change. `test_network_isolation_manifest` was not run, because no test
+  registration or `LOOPBACK_PORT_COUNT` changed.
+
+Not claimed by this closure:
+
+- The owner's four verdicts are bound to sha256 `d500ef7a…` from `ed2b3f14`
+  and were not performed again.
+- No automated course opens the real macOS colour panel.
+- C1's two storage limitations stand.
+- C4's drift is allocated as standalone [[BPR-0986]] in Backlog. It is not
+  fixed, and it is not a closeout dependency.
+
 This card tracks formal closeout for its RFC. The checklist rows are the canonical
 criteria of the live RFC; every row records the check run, its result and the commit.
 
