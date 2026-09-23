@@ -683,3 +683,19 @@ including `setup_destination_public_path_tests.cpp:632-633`
 is what turns this row green on Linux. The Linux half of both acceptance lines
 holds. [[BPR-0866]] later changed the gate itself (`c82db490`), and the row
 still passes on Linux there. Windows is still owed, as listed above.
+
+## Windows at `f9c3161d` (bpr-main-win, 2026-09-23)
+
+This is the Windows line that "What this card still needs" asks of this
+station. `build/dev` (Ninja, MSVC 19.51 Debug, Qt 6.11.2) was rebuilt at
+`f9c3161d`, which contains `bac4c745`. Each row ran serially, as registered
+(`build/logs/bpr-0866-1026-main-win/`, station logs):
+
+| Row | Result |
+|---|---|
+| `msvc_secure_crt_contract` | Pass, 0.65 s, `Ran 3 tests`, `OK` |
+| `contained_temporary_usage_contract` | Pass, contained, 6.51 s, `Ran 6 tests`, `OK` |
+
+So both Windows rows this card named are met. The same
+`msvc_secure_crt_contract` run finished [[BPR-1026]]. This note does not move
+the card; it is the Mac's.
