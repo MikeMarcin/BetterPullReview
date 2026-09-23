@@ -156,8 +156,20 @@
     },
     {
       "id": "close-rfc-0026",
-      "outcome": "RFC-BPR-0026's allocated slices are implemented and the RFC is verified and closed against its immutable baseline.",
+      "outcome": "RFC-BPR-0026's four allocated slices are implemented and directly verified: exact pull request link locations in the receiving window (BPR-0987), the bounded read of authored and directly requested pull requests of a saved repository (BPR-0988), one personal discovery scheduler per profile with honest queue membership (BPR-0989), and Home's refresh, discovery status, Follow and Save repository (BPR-0990); the RFC is verified and closed against its immutable baseline with every criterion row carrying direct evidence or its recorded superseding decision.",
       "work": [
+        {
+          "issue": "BPR-0987"
+        },
+        {
+          "issue": "BPR-0988"
+        },
+        {
+          "issue": "BPR-0989"
+        },
+        {
+          "issue": "BPR-0990"
+        },
         {
           "issue": "BPR-0599"
         }
@@ -169,7 +181,7 @@
         "Every allocated RFC-BPR-0026 slice is Done and every criterion row records direct evidence or its superseding decision",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0026 and the index are reconciled to the closed status"
       ],
-      "boundary": "The RFC-BPR-0026 closeout and the slices BPR-0598 allocates"
+      "boundary": "The RFC-BPR-0026 closeout and the four slices BPR-0598 allocated under the 2026-09-22 planning reconciliation (rfc-0026-planning-reconciliation.md). The owner-accepted Home presentation of RFC-BPR-0028 and RFC-BPR-0032, the owner's 2026-09-11 Recently viewed direction (BPR-0733) and RFC-BPR-0028's unscheduled browser-style tabs are recorded per criterion as superseding decisions, never as passed; no other criterion is weakened or waived. Discovery is verified with fixtures and recordings only; no live GitHub/GHES mutation or credential use is authorized. BPR-0801 (RFC-BPR-0032) is answered by BPR-0990 and is not this pack's work. Stop at this milestone boundary."
     },
     {
       "id": "windows-strip-title-row",

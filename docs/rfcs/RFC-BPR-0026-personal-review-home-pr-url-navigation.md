@@ -13,14 +13,51 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Design accepted; registration only; implementation requires a later request.**
+**Design accepted; implementation activated for the reconciled scope; acceptance remains pending.**
 The product owner approved the daily-review Home and URL workflow on
-2026-09-04. This deferred post-pack RFC is last in the requested sequence
+2026-09-04. This post-pack RFC is last in the requested sequence
 RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026. It changes no existing
 eligibility, dependency-order, platform, credential, or mutation requirement.
 
 Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
-Entry: [[BPR-0598]]. Closeout: [[BPR-0599]]. These cards remain in backlog.
+Entry: [[BPR-0598]] records the 2026-09-22 planning reconciliation below.
+Closeout: [[BPR-0599]] remains in backlog until the four allocated slices,
+[[BPR-0987]], [[BPR-0988]], [[BPR-0989]] and [[BPR-0990]], are Done. The
+owner's ordered-pack implementation mandate and the planning amendment are
+recorded in the
+[2026-09-22 reconciliation](plans/ux-redesign-pack-0028/rfc-0026-planning-reconciliation.md);
+the prior registration-only restriction is superseded by that mandate, not by
+an inferred waiver. The immutable baseline and all ten criteria are unchanged.
+
+## Planning reconciliation — 2026-09-22
+
+[RFC-BPR-0028](RFC-BPR-0028-review-workbench-direction.md), owner-locked on
+2026-09-06, supersedes this RFC's Home presentation where they conflict: Home
+is a view with its button and the grouped action list, and browser-style
+tabs stay unscheduled, so "tab" below reads as the receiving window's one
+review. The owner's 2026-09-11 Home direction ([[BPR-0732]], [[BPR-0733]],
+accepted in an attended session) makes the signed-out Home one paste field
+and replaces automatic restoration at startup with a per-profile Recently
+viewed list whose entries resume their saved reading; that list's Resume is
+this RFC's Resume action, and no window restores a review by itself.
+[RFC-BPR-0032](RFC-BPR-0032-calm-home-and-accounts-surfaces.md) arranges
+Home's panels and leaves personal discovery to this RFC. Planning removes,
+weakens or accepts no criterion: the closeout records, per row, direct
+evidence at the closeout head or the superseding decision, and a superseded
+part is never recorded as passed.
+
+| Criterion | Reconciled disposition |
+|---|---|
+| AC-01 | No slice. Home's button, Recently viewed and Resume exist; automatic restoration of other windows is superseded by the owner's 2026-09-11 direction and tabs by RFC-0028. Re-verified at closeout. |
+| AC-02 | Presentation shipped under RFC-0028/0032; discovery-backed roles and awaited counts ([[BPR-0988]]), the unknown-detail state ([[BPR-0989]]) and its rendered reason ([[BPR-0990]]). |
+| AC-03 | [[BPR-0988]] reads authored and directly requested pull requests of saved repositories; [[BPR-0989]] keeps reviewed and followed membership across request changes and restart. |
+| AC-04 | Saved repositories, recents and per-window filters exist; explicit local Follow ([[BPR-0989]], [[BPR-0990]]) and Save repository for an externally opened pull request ([[BPR-0990]]). |
+| AC-05 | Bounded read without hydration ([[BPR-0988]]), one scheduler per profile ([[BPR-0989]]), and the composed thousands-of-pull-requests, two-window course ([[BPR-0990]]). |
+| AC-06 | Typed provider failures ([[BPR-0988]]) and honest cached availability with generation rejection ([[BPR-0989]]). |
+| AC-07 | Typed exact locations and reuse of the open pull request in the receiving window ([[BPR-0987]]). |
+| AC-08 | Per-location explanations and refusals ([[BPR-0987]]) over the existing malformed/non-PR refusal. |
+| AC-09 | No slice: [[BPR-0689]], [[BPR-0732]], [[BPR-0914]] and [[BPR-0915]]. Re-verified at closeout. |
+| AC-10 | Existing Home, Open and onboarding flows are accepted under RFC-0032 A5–A8; the new controls are covered by [[BPR-0990]]. |
 
 ## Problem and outcome
 
