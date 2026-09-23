@@ -666,3 +666,32 @@ Next eligible milestone: `plan-rfc-0025` (BPR-0596), which the coordinator
 starts. All task-owned commands are quiescent; no push, merge to `main`,
 live provider mutation or credential was used. This is not whole-pack,
 native Windows desktop or release acceptance.
+
+## Post-merge check on main, 2026-09-22
+
+`codex/rfc-0018-0026-closeout` merged into main at `6a897af8` (parents
+`5b14d7e8`, `317f0023`). The main integrator rechecked this closeout's recorded
+evidence on the merged head; this section records observations and changes no
+acceptance.
+
+- Holds at `6a897af8` (`build/merge-0018-0026-integration.log`): AC-01
+  management 3.80 s, startup 2.73 s, multi-window 82.21 s; AC-02 two-account
+  isolation 13.71 s; AC-06 `sqlite_profile_activation` 5.28 s, activation
+  course 5.93 s, owner admission 3.25 s; AC-07 layout course 25.09 s and
+  restart course 7.18 s, with `qt_native_window_geometry`; AC-09
+  `architecture_boundary_contract` 99.24 s.
+- Regression from this RFC's own slice: `application_workbench_composition_contract`
+  failed from `9210330a` ([[BPR-0977]]) until [[BPR-0984]] corrected its probe
+  at `827ca5f6`. No product behavior changed.
+- **Not supported by a current run:** AC-07 cites retained
+  [[BPR-0709]]/[[BPR-0710]] evidence. Their public course,
+  `application_profile_window_review_restoration_public_path`, last passed at
+  `ce63c67b` and was red when this card closed: no `src/` or `tests/` change
+  lies between the finish `eb73df8b` and `e2f6eb1d`, where [[BPR-0597]] found it
+  failing. It fails at `auth-home` on main before the merge (`5b14d7e8`) and at
+  `auth-reading-gesture` on the branch tip and the merge. BPR-0597's full-phase
+  diagnosis adds `unavailable-semantic` and `auth-restore` (the restart keeps
+  the comparison and file but not the semantic selection). The repair is
+  [[BPR-0985]] (Ready). Whether AC-07 as closed needs an owner amendment or a
+  reopening is left to the owner and coordinator; RFC-BPR-0024 remains
+  Auto-Verified as recorded.

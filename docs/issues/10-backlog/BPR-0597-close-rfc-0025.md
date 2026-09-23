@@ -192,3 +192,38 @@ Current checkpoint.
   `application_profile_window_review_restoration_public_path` (all phases) and
   the AC-06 inspection at the new head, reuse the unchanged rows above, then
   close RFC-BPR-0025 and the index. RFC-BPR-0026 stays unstarted until then.
+
+## Merged into main, 2026-09-22
+
+The branch merged into main at `6a897af8` (parents `5b14d7e8`, `317f0023`);
+the main integrator's follow-ups are `1eab67a7` (allocation), `d99aeda7`
+(cards), `827ca5f6` and `6548bca7` ([[BPR-0984]]). Supersedes the checkpoint's
+"not merged" line and its next action.
+
+- Rows that re-pass at `6a897af8` (`build/merge-0018-0026-integration.log`):
+  AC-02/AC-09 `qt_files_tree`, `qt_repositories_drawer`,
+  `qt_composed_resident_drawer_filters`, `qt_workbench_focus_order_scale_100/125/200`;
+  AC-07 `application_workbench_host` and the two-account and multi-window
+  courses; AC-08 `application_review_ledger_composition_contract` 38.12 s and
+  theme customization 26.26 s; restoration core/host/storage tests.
+- Resolved at the merge: the `application_review_round_trip_composition_contract`
+  pin drift listed above (resealed in `6a897af8`; review of `6f8e44e4` on
+  [[BPR-0978]]). `application_workbench_composition_contract` was a real
+  regression from `9210330a`, not an environment failure; [[BPR-0984]] fixed
+  its probe at `827ca5f6`. In the main checkout at `6548bca7` the application
+  public-path, device-authorization and anonymous-preview rows,
+  `application_render` and `application_appearance_store_fallback_contract`
+  pass (`build/merge-0018-0026-public-family.log`), so their failures in the
+  closeout worktree came from that environment. `application_uiforetw_selected_diff_contract`
+  (`UIFORETW_CAPTURE_LAYOUT_FAILED:985:835`) and `qt_anonymous_public_preview_scale_*`
+  fail identically on main before the merge and on the branch tip: pre-existing
+  and outside this closeout.
+- Still red, unchanged: `application_profile_window_review_restoration_public_path`
+  fails at `auth-reading-gesture` on the merge and the branch tip, and at
+  `auth-home` on main before the merge. [[BPR-0985]] is the repair card and is
+  now a dependency, so this card moved from Blocked to Backlog.
+- Next action: finish BPR-0985, then rerun the restoration course (all phases)
+  and the AC-06 inspection at the new head. Reuse the unchanged rows, then
+  close RFC-BPR-0025 and its index row. BPR-0985 is not yet in plan
+  `ux-redesign-pack-0028`'s `close-rfc-0025` milestone; the next owner amends
+  the plan when it binds that milestone.

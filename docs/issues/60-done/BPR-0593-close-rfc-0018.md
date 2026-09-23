@@ -13,6 +13,28 @@ acceptance: [{"criterion":"AC-01: The shipped application exposes the profile-id
 
 # Verify and close RFC-BPR-0018
 
+## Post-merge check on main, 2026-09-22
+
+`codex/rfc-0018-0026-closeout` merged into main at `6a897af8` (parents
+`5b14d7e8`, `317f0023`). Rechecking this closeout's recorded evidence on the
+merged head, without re-adjudicating acceptance:
+
+- Holds: the six focused Settings rows (`qt_settings_window` at 100/125/150/200,
+  `qt_settings_effect_boundary`,
+  `application_appearance_theme_customization_contract` 26.26 s) and
+  `settings_inventory_comparison_tests.py` (11 tests) pass at `6a897af8`
+  (`build/merge-0018-0026-integration.log`,
+  `build/merge-0018-0026-settings-inventory.log`).
+- Went red after this closeout: the integration row
+  `application_workbench_composition_contract`, recorded 1/1 at `95e64b4c`,
+  failed at the branch tip and the merge. A bisect puts it at `9210330a`
+  ([[BPR-0977]]): the probe compared a layout that now carries the window's
+  observed geometry. [[BPR-0984]] corrected the probe at `827ca5f6`, where the
+  row passes again (22.79 s). No Settings behavior changed.
+
+RFC-BPR-0018 stays Auto-Verified on the unchanged r2 scope; BPR-0974/0975
+remain Blocked.
+
 ## Current owner-amended checkpoint r2, 2026-09-21
 
 Run `rfc-0018-0026-closeout-20260920`, segment `rfc-0018`, mandate **r2**;
