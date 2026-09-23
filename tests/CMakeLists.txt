@@ -471,9 +471,10 @@ bpr_add_network_isolated_test(
 # expression, the row would fail, which is visible, rather than pass. It is
 # applied first on CMake 4.4.2 (measured).
 #
-# Uncontained on Windows: the gate launches clang-format.exe from outside the
-# checkout. It is pinned as child-process-denied because it has the same shape
-# as BPR-0872's rows, but it has not yet been measured contained.
+# Contained on Windows too. The gate launches clang-format.exe from its install
+# directory, and the container allows that. Measured on the Windows station on
+# 2026-09-23 ([[BPR-0865]]): contained, it checked all 791 files. It had been
+# pinned child-process-denied only by analogy with BPR-0872's rows.
 if(BPR_ENABLE_CODING_TARGETS)
     set(bpr_format_check_skip_exit_code 77)
     set(bpr_format_check_tool)
@@ -482,7 +483,6 @@ if(BPR_ENABLE_CODING_TARGETS)
     endif()
     bpr_add_network_isolated_test(
         NAME coding_format_check
-        WINDOWS_UNCONTAINED
         COMMAND
             Python3::Interpreter
             "${CODING_STANDARD_FORMAT_CHECK_OR_SKIP_SCRIPT}"

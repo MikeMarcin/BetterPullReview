@@ -244,3 +244,40 @@ passed 2/2 (`build/bpr0865-mac-rows.log`).
 `coding_format_check` checked 791 files with Homebrew `clang-format` 23.1.1,
 reported `Formatting check passed.` and took 16.87 s. This note adds evidence
 only and changes no acceptance.
+
+## Windows: the row runs contained; the pin is removed (bpr-main-win, 2026-09-23)
+
+`coding_format_check` was registered `WINDOWS_UNCONTAINED` and pinned
+`child-process-denied` by analogy with [[BPR-0872]]'s rows, without a
+contained measurement. It has now been measured on JaegAW (Windows 11
+10.0.26200), at `81356f46` plus this change, in both Windows trees. The logs
+are station records under `build/logs/bpr-0865-main-win/` and are not
+committed.
+
+**The presets.** `windows-dev` is the documented Windows developer preset:
+Visual Studio 18 2026, multi-config, `build/windows-dev`, with the sandbox
+launcher under `Debug/`. `dev` is Ninja, single-config Debug, `build/dev`.
+Both resolve the same `C:/Program Files/LLVM/bin/clang-format.exe` (22.1.8),
+and the `windows-dev` configure status line names it. They resolve different
+Pythons: `windows-dev` has `C:/Program Files/Python314`, and `dev` has the
+per-user `pythoncore-3.14-64`.
+
+**Measured.**
+
+| Run | Result |
+| --- | --- |
+| `windows-dev`, as registered (uncontained) | Pass, 19.86 s |
+| `windows-dev`, the row's own command run through `Debug/better_pull_review_network_sandbox.exe` | Exit 0: `Checking 791 file(s) with C:\Program Files\LLVM\bin\clang-format.exe (22.1.8)`, `Formatting check passed.` |
+| `dev`, contained as registered after the change, 3 runs (`--repeat until-fail:3`) | Pass 3 of 3, 22.8–23.4 s, per-user Python |
+| `windows-dev`, contained as registered after the change | Pass, 23.45 s |
+
+The container starts Python and `clang-format.exe` from their install
+directories, so the pin was wrong. Its registration in `tests/CMakeLists.txt`
+no longer says `WINDOWS_UNCONTAINED`, and its entry is gone from
+`scripts/verify_test_network_isolation.py`. After the change,
+`test_network_isolation_manifest` passes in both trees
+(`TEST_NETWORK_ISOLATION_OK:configured=417:registrations=391:backend=windows-appcontainer`
+in `windows-dev`), and so do `test_network_isolation_structure_contract` and
+`coding_standard_format_gate_contract`. The contained Python prints `Failed to
+find real location of …python.exe` on stderr at startup. The row does not
+compare stderr, so it still passes.

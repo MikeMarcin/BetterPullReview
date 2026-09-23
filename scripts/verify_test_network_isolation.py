@@ -255,11 +255,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # the installed Git about every message identifier the adapter ships, so it
     # needs a Git child.
     "fsck_severity_fixture_contract": "child-process-denied",
-    # [[BPR-0865]]. The repo-wide format gate launches clang-format.exe from its
-    # install directory for each file it checks, so it needs that child. Pinned
-    # because it has the same shape as the BPR-0872 rows below; not yet
-    # measured contained on Windows.
-    "coding_format_check": "child-process-denied",
     # [[BPR-0872]]. Eleven tooling rows measured uncontained on the Windows
     # station on 2026-09-17: each launches Git or another interpreter, and the
     # container refuses the child before the tool runs at all.
