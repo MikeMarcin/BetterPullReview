@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0882"
 title: "The startup exception boundaries collapse every cause into one word, even in test builds"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review: the Claude/fable src/app partition and Codex independently","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"A startup failure in a developer or test build names its cause, shown in a real failing run","outcome":"pass","revision":"8e080bbc","evidence":{"kind":"command","detail":"bpr-main-linux (WSL2 Ubuntu, GCC 15.2, Qt 6.11.2, build/dev Debug, tests enabled). better_pull_review --self-test with no Git on the search path: before (fe2216e3) stderr said only STARTUP_FAILED_CAUSE: startup_failure=unavailable; after, it adds STARTUP_FAILURE_SOURCE:profile-runtime-construction: Application data or installed Git is unavailable, stdout still exactly STARTUP_FAILED, exit 1. The new row application_startup_failure_source pins that and failed with publish's record removed. Temporary uncommitted probes drove seven more arms through the sandboxed self-test, and each named itself with its caught text.","path":"docs/issues/60-done/BPR-0882-startup-failure-arms-discard-the-cause.md#every-arm-named-read-from-a-real-failing-run-bpr-main-linux-2026-09-23"}},{"criterion":"The noncanonical-root pin still passes, against whatever name replaces registry","outcome":"pass","revision":"8e080bbc","evidence":{"kind":"command","detail":"No enumerator is split: BPR-0874 closed keeping registry as one arm, and BPR-0877's profile_startup_refusal_name() names the refusal behind it. The desktop's own registry host, which also says registry, now records desktop-profile-registry on its own line. application_epoch_fixture_noncanonical_root_cause passes before and after the rebase (EPOCH_FIXTURE_NONCANONICAL_ROOT_CAUSE_OK:registry).","path":"tests/end_to_end/CMakeLists.txt"}},{"criterion":"No production diagnostic leaks a path, token or repository name that it did not leak before; see the redaction properties BPR-0891 covers","outcome":"pass","revision":"8e080bbc","evidence":{"kind":"observation","detail":"Every new output line is inside BPR_BUILD_TESTING, and in a tests-disabled graph the recorder drops what() without reading it, so a shipped build prints and retains nothing it did not before. The card records why production keeps the single word: what() is free text, and the runtime's std::filesystem::canonical can put the data root, under the person's home, into it. application_composition_contract, which compiles the tests-disabled graph, passes (447 s). application_logging, BPR-0891's redaction course, passes in the 34-row integration pass. The typed diagnostics log is unchanged.","path":"docs/issues/60-done/BPR-0882-startup-failure-arms-discard-the-cause.md#every-arm-named-read-from-a-real-failing-run-bpr-main-linux-2026-09-23"}}]
 ---
 
 # BPR-0882: The startup exception boundaries collapse every cause into one word, even in test builds
@@ -224,6 +225,10 @@ since `3dca2d7a` had touched pinned scope before this change.
   and the production manifest pin moved.
 
 ## Verification at the candidate (bpr-main-linux)
+
+The candidate is `8e080bbc` on main. The rows below ran on it before the
+rebase onto `b9991925`. On the rebased commit the isolation gates, the new
+row, the pin, the pinned contract and `application_public_path` passed again.
 
 | Check | Result |
 | --- | --- |
