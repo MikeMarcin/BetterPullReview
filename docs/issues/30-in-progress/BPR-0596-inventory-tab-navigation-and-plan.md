@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0596"
 title: "Inventory tab navigation and plan RFC-BPR-0025"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0025"]
 depends_on: ["BPR-0595"]
 milestone: "Post-Pack v2"
