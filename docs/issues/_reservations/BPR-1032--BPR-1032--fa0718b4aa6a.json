@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1032"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "local-main: Qt 6.11 keeps a HarfBuzz buffer in every measured line's layout (found by BPR-0893)",
+  "created": "2026-09-23T17:52:20.860431+00:00",
+  "base": "2c01fd604d6cce0342286eadc37608897e1e5f46"
+}
