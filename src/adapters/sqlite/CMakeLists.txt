@@ -51,6 +51,7 @@ if(WIN32)
         PRIVATE
             Advapi32
             Bcrypt
+            User32
     )
 endif()
 if(BUILD_TESTING)

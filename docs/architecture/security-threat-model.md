@@ -222,6 +222,10 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
   owner-private local named pipe, [[BPR-0979]]) is the sole declared listener
   exception under RFC-BPR-0014 mandate r3; it admits only bounded activation
   intents under the exact profile lease. It grants no network-service capability.
+  On Windows the sender also passes its foreground-activation right to that
+  authenticated owner process and to no other, so the owner can bring its own
+  window forward ([[BPR-0980]]). That is a user-interface permission Windows
+  withdraws at the person's next input elsewhere; it carries no data or command.
 - No embedded browser, HTML renderer, JavaScript runtime, CDN, remote font, analytics, or telemetry.
 - No general plugin system or remote theme/highlighter download.
 - No repository code execution, hooks, submodules, filters, textconv, external diff, build, or test invocation.

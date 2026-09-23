@@ -101,8 +101,13 @@ A second instance keeps the name bound while a delivered request is pending, so
 the name is never free while an owner lives, and nothing is left behind when it
 exits. POSIX socket paths beyond the native address bound remain unavailable;
 those roots retain exclusive ownership and explicit contention. The Windows
-transport has no native station evidence yet; its adapter and public courses are
-registered for the Windows lane and remain pending there.
+adapter contract and public activation course pass on the Windows station
+([[BPR-0979]]). Windows lets the process a person launched take the foreground,
+not the owner it hands off to, so before a request the sender passes that right
+to the authenticated owner process, and only that process, with
+`AllowSetForegroundWindow` ([[BPR-0980]]). Without it, a repeated launch on the
+native desktop reached the owner's most recently used window but left it behind
+the launching shell.
 
 The profile runtime owns private storage roots,
 authentication, provider capabilities, queue refresh, preferences, logging,

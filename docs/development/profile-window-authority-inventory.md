@@ -130,9 +130,13 @@ under the same lease, same frame and same acknowledgement, with the peer
 process's token user checked on both ends and a second instance keeping the
 name bound while a request is pending. Its adapter contract and the public
 activation course pass on the Windows station at `1cd7f2f1` (2/2, real
-processes under the offscreen platform); the native Windows desktop
-observation of repeated launch and `--new-window` is deferred, unaccepted,
-to standalone BPR-0980 under owner amendment r3. Oversized POSIX socket
+processes under the offscreen platform). Owner amendment r3 deferred the
+native Windows desktop observation of repeated launch and `--new-window` to
+standalone [[BPR-0980]], which took it on 2026-09-23: the repeated launch
+reached the owner's most recently used window but left it behind the launching
+shell, because Windows gives the foreground right to the launched process only.
+The sender now passes that right to the authenticated owner process before its
+request. Oversized POSIX socket
 addresses and packaged focus evidence remain unavailable/unverified. The global registry's existing compare-and-set conflicts still require explicit Reload
 Profiles before retry; this foundation does not add automatic cross-process
 preference synchronization or native package evidence.

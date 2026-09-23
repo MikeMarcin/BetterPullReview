@@ -814,6 +814,15 @@ namespace bpr::adapters::sqlite {
 				|| ::SetNamedPipeHandleState(pipe.Value, &mode, nullptr, nullptr) == 0 || aStop.stop_requested()) {
 				return std::unexpected(outcome::unavailable);
 			}
+			// [[BPR-0980]]. Windows lets the process a person just launched take the
+			// foreground, not the owner this request asks to show a window. Hand that
+			// right to the authenticated owner, and to nobody else, before asking. A
+			// launch that holds no such right has none to hand on; the owner's window
+			// then flashes in the taskbar, which is what Windows does for any window
+			// raised from the background.
+			if (DWORD owner = 0U; ::GetNamedPipeServerProcessId(pipe.Value, &owner) != 0 && owner != 0U) {
+				(void)::AllowSetForegroundWindow(owner);
+			}
 			const auto     request = make_frame(aProfile, aIntent);
 			pipe_operation write;
 			DWORD          bytes = 0U;
