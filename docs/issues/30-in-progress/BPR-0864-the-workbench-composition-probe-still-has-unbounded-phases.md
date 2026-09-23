@@ -337,7 +337,7 @@ with `-V` added so the passing output could be searched
 - **Time and load.** The load average was `{ 11.79 5.39 5.13 }` at the start
   and `{ 8.40 5.25 5.08 }` at the end. The run followed a rebuild. The
   workbench row's 22.22 s is in line with BPR-0860's 21 s at load 2.2–4.5,
-  here at a one-minute load near 12, and no phase came near its 5 s cap.
+  here at a one-minute load near 12, and no phase reached its 5 s cap.
 
 This head also carries [[BPR-1032]]'s measurement change (`27c35729`), which
 touches the workbench panes. Both rows passed with it here as well, as they
