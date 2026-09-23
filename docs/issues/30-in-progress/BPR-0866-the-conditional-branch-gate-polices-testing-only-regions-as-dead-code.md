@@ -331,8 +331,10 @@ The gate prints this remit after its verdict.
 
 ### Still needed: macOS and Windows runs
 
-The host model changed for both, so each needs one real run. At the candidate
-commit on `main` or later, with `build/dev` rebuilt:
+The host model changed for both, so each needs one real run. The candidate is
+`c82db490` on `main`, which is the change and this record. At `c82db490` or
+later, with `build/dev` rebuilt, the gate prints `OK:792` on Linux with
+`policed_lines=12047` (`bpr0866-gate-c82db490.log`). Run:
 
 ```sh
 ctest --test-dir build/dev -j1 --output-on-failure -V -R '^(conditional_branch_identifiers|conditional_branch_identifier_contract)$'

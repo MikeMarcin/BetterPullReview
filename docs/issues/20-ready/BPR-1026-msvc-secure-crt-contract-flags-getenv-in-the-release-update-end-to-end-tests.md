@@ -100,3 +100,18 @@ python3 tests/scripts/msvc_secure_crt_tests.py
 
 At `a8e9b714` and `89c6e0f4` on bpr-main-linux: `Ran 3 tests`,
 `FAILED (failures=1)`, and the four findings above.
+
+## Superseded at `bac4c745` (bpr-main-linux, 2026-09-23)
+
+[[BPR-0854]] fixed these four reads at `bac4c745`. Each file now reads
+`QUALIFICATION_TARGET_ROOT` once, through a `qualification_target_root()`
+helper that carries the scoped C4996 suppression
+(`release_update_public_path_tests.cpp:305`,
+`release_update_transaction_tests.cpp:264`). On bpr-main-linux at `98e5b796`,
+`msvc_secure_crt_contract` passes: `ctest` in 0.39 s, and a direct run gives
+`Ran 3 tests`, `OK` (`build/r2-logs/bpr0866-bpr0854-rows-98e5b796.log`). The
+row is no longer red on Linux.
+
+AC1's Windows run is the one [[BPR-0854]] already asks of bpr-main-win. AC2's
+negative control and AC3's builds have not been run against `bac4c745`'s
+change. This note does not move the card.

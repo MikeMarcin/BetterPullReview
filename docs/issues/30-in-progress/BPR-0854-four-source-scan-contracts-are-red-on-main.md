@@ -660,3 +660,26 @@ The fix is `bac4c745`.
   `contained_temporary_usage_contract` at `bac4c745` or later.
 
 The macOS half of both acceptance lines is met at the fix.
+
+## Linux at `98e5b796` (bpr-main-linux, 2026-09-23)
+
+This is the Linux run that "What this card still needs" asks of this station,
+taken during [[BPR-0866]]. `build/dev` (GCC 15.2, Qt 6.11.2) was rebuilt at
+`4a4c1e40`. `98e5b796` differs from it only under `docs/issues`. One serial
+`ctest -j1` of the four title rows and the gate's contract
+(`build/r2-logs/bpr0866-bpr0854-rows-98e5b796.log`) passed 5/5:
+
+| Row | Result |
+|---|---|
+| `conditional_branch_identifiers` | Pass, 5.18 s, `CONDITIONAL_BRANCH_IDENTIFIERS_OK:792` |
+| `conditional_branch_identifier_contract` | Pass, 0.06 s |
+| `contained_temporary_usage_contract` | Pass, 3.37 s |
+| `dependency_modernization_contract` | Pass, 64.28 s |
+| `msvc_secure_crt_contract` | Pass, 0.39 s; a direct run gives `Ran 3 tests`, `OK` |
+
+The gate as of `bac4c745^`, run on the same tree, still reports the nine,
+including `setup_destination_public_path_tests.cpp:632-633`
+(`build/r2-logs/bpr0866-condbranch-unpatched-gate-98e5b796.log`). So the fix
+is what turns this row green on Linux. The Linux half of both acceptance lines
+holds. [[BPR-0866]] later changed the gate itself (`c82db490`), and the row
+still passes on Linux there. Windows is still owed, as listed above.
