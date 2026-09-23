@@ -22,10 +22,11 @@ waives no eligibility, dependency order, existing authority, or evidence gate.
 Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 Entry: [[BPR-0596]] records the 2026-09-22 planning reconciliation below.
 The one allocated slice, [[BPR-0981]], is Done (`2c4dfcd1`). Closeout
-[[BPR-0597]] is Blocked: its closeout-head re-run found RFC-BPR-0024's
-reading-position restoration red since before this RFC's work (AC-05's
-restored semantic selection and AC-06's explicit unavailable-reading report),
-so this RFC is not closed until a repair or an owner decision. The owner's
+[[BPR-0597]] found RFC-BPR-0024's reading-position restoration red since before
+this RFC's work (AC-05's restored semantic selection and AC-06's explicit
+unavailable-reading report). After the 2026-09-22 merge to main the repair is
+[[BPR-0985]], a new BPR-0597 dependency, so the closeout waits in Backlog and
+this RFC is not closed until that repair or an owner decision. The owner's
 ordered-pack implementation mandate and
 planning amendment are recorded in the
 [2026-09-22 reconciliation](plans/ux-redesign-pack-0028/rfc-0025-planning-reconciliation.md);

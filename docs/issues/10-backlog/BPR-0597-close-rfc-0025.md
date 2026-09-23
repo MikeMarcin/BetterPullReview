@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0597"
 title: "Verify and close RFC-BPR-0025"
-status: "Blocked"
+status: "Backlog"
 rfcs: ["RFC-BPR-0025"]
-depends_on: ["BPR-0596","BPR-0981"]
+depends_on: ["BPR-0596","BPR-0981","BPR-0985"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0025"]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0025-planning-reconciliation.md"}
-blocked_by: "window-reading-restoration-regression"
 ---
 
 # Verify and close RFC-BPR-0025
