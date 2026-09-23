@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0895"
 title: "macOS: the per-user runtime directory is age-reaped, so a long-idle owner can lose its rendezvous"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
