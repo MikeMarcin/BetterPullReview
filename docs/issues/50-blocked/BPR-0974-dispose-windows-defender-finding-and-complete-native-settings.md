@@ -105,3 +105,71 @@ The inert root `C:/Users/mikem/bpr0018-native-280167ac` and local
 security evidence. No Windows process is left running. Recheck station identity
 and leases before any future execution; no old scheduled task is authorized to
 continue. This card supplies no security verdict or native pass at creation.
+
+## Station refresh — bpr-main-win, 2026-09-23
+
+Rechecked from the `bpr-main-win` station, an agent session in the owner's
+interactive desktop (session 1, `JaegAW\mikem`, not elevated) with the
+`main` checkout, under the owner's mandate relayed by the Mac integrator (run
+`bpr-main-win-20260923`). The card stays **Blocked** on
+`security-owner-disposition`: AC1 is the security owner's decision, and AC2
+and AC3 run only on the image that decision clears. This station can run the
+course, but it cannot supply the disposition. It did not restore quarantine,
+add an exclusion, change Defender, SmartScreen or any other setting, build a
+tests-disabled image, or run one.
+
+### Current record, read-only
+
+Read from `Get-MpThreatDetection` and `Get-MpComputerStatus` at
+2026-09-23T17:03:51Z:
+
+- The finding is unchanged. Threat `2147731250` at the two paths and times
+  above, both with `ActionSuccess` true. No other Defender detection names
+  BetterPullReview on this host, including during the day's tests-enabled
+  Debug `better_pull_review.exe` runs for [[BPR-0980]].
+- Defender client 4.18.26080.4, signatures 1.459.343.0 (updated
+  2026-09-22T20:50Z), real-time protection on, tamper protection on.
+- `C:/Users/mikem/bpr0018-native-280167ac` is still inert: it holds no
+  `better_pull_review.exe`, and no scheduled task names BetterPullReview.
+
+### What the owner decides (AC1)
+
+Any one of these would unblock the card:
+
+1. Authorize a fresh tests-disabled Release image at a named `main` commit,
+   built in a new task root and scanned on demand by Defender. If Defender
+   does not detect it, authorize running that exact digest for AC2/AC3. The
+   old finding stays recorded and is not called a false positive.
+2. Authorize a false-positive submission of the quarantined sample to
+   Microsoft. That is an external disclosure, and its answer becomes the
+   disposition.
+3. Leave the disposition to RFC-0038's release-security qualification
+   ([[BPR-0960]]/[[BPR-0962]]), and keep this card Blocked until then.
+
+### Ready path, revised
+
+The commands under "Ready commands and retained evidence" run from a Mac
+worktree through the SSH station `bpr-win` and a scheduled task. On
+`bpr-main-win` a cleared image needs neither: run the course in the session
+itself. Before
+AC2's exit-0 Quit can be judged, two things in
+[`windows_settings_inventory.ps1`](../../../tests/scripts/windows_settings_inventory.ps1)
+need attention:
+
+- Its `Focus` calls `SetForegroundWindow` from a background process. On this
+  host the foreground lock timeout reads 2147483647 ms, so that call takes
+  the foreground only when the caller already holds the foreground right.
+  [`windows_profile_activation_course.ps1`](../../../tests/scripts/windows_profile_activation_course.ps1)
+  shows a launcher method that works in session.
+- It chooses File > Quit through UI Automation. [[BPR-0980]] found that this
+  path destroys the window while the strip's stack-allocated menu is still
+  executing. The Debug CRT asserts `_CrtIsValidHeapPointer(block)` in 4 of 4
+  probes. In a tests-disabled Release image the same deletion corrupts the
+  heap. Fix that defect, or drive Quit another way, before treating a
+  nonzero Quit exit as a finding about Settings.
+
+One observation bears on the unclassified missing-Profiles-menu stop. On the
+tests-enabled Debug build at current `main`, the strip's Application menu
+opens Profiles > New Window through the same posted click and UI Automation
+path in every [[BPR-0980]] run. That is not AC2 evidence: it was not the
+cleared tests-disabled image, and it was not the full course.
