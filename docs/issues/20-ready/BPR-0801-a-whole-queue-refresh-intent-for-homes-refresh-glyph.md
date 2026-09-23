@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0801"
 title: "A whole-queue refresh intent for Home's refresh glyph"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0032"]
 depends_on: []
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"RFC-BPR-0032 A7 divergence 3, accepted as shipped by the owner on 2026-09-16 (bpr-0779-filter-and-refresh-wording, 910af65f); named as a follow-up by d3/d4 and by d8, allocated on main in d9","acceptance":["A7"]}
