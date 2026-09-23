@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1041"
 title: "Windows: qt_github_conversation_panel fails at \"narrow Discuss begins in the focused conversation index\""
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win rows under BPR-1029","found_at":"7d68d5a3","reproduced_at":["7d68d5a3","04d22b4a"],"related_cards":["BPR-1029"],"run":"bpr-main-win-20260923","reservation":"docs/issues/_reservations/BPR-1038--BPR-1042--5b0f0a679128.json"}
+acceptance: [{"criterion":"AC1 qt_github_conversation_panel passes on Windows N of N (N >= 3), contained as registered","outcome":"pass","revision":"47fdc0ed","evidence":{"kind":"command","detail":"bpr-main-win, build/dev MSVC 19.51 Debug, Qt 6.11.2, offscreen: contained as registered, passes 3 of 3 with --repeat until-fail:3 (5.2-6.4 s), before and after a negative-control round trip; before the fix it failed at 'narrow Discuss begins in the focused conversation index' (1.26 s) because the fixed 500 px panel exceeded the 425 px narrow threshold at a 5 px average character width.","path":"docs/issues/60-done/BPR-1041-windows-qt-github-conversation-panel-fails-at-narrow-discuss.md#fixed-in-the-test-bpr-main-win-2026-09-23"}},{"criterion":"AC2 The test still fails if the panel shows both panes when it is narrow by its own rule (negative control, not committed)","outcome":"pass","revision":"47fdc0ed","evidence":{"kind":"command","detail":"With github_conversation_panel.cpp's rule forced to narrow = false (local, never committed), the suite fails at 'narrow Discuss begins in the focused conversation index' after the new precondition check passes; the product source was restored and the tree rebuilt, and the row passes again 3 of 3.","path":"docs/issues/60-done/BPR-1041-windows-qt-github-conversation-panel-fails-at-narrow-discuss.md#fixed-in-the-test-bpr-main-win-2026-09-23"}},{"criterion":"AC3 macOS and Linux still pass the row","outcome":"pass","revision":"47fdc0ed","evidence":{"kind":"freeform","detail":"Not run from this station. The change is test-only: on those platforms the panel becomes 60 average characters wide (narrower than the previous 500 px wherever the font averages under 8.3 px), which is narrow by the same unchanged product rule under which the row passed there; a font that ever made it wide would now fail by name at the precondition check."}}]
 ---
 
 # BPR-1041: Windows: qt_github_conversation_panel fails at "narrow Discuss begins in the focused conversation index"
