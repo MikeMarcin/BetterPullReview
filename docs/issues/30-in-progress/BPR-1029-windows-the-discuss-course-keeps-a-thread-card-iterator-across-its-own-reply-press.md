@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1029"
 title: "Windows: the Discuss course keeps a thread-card iterator across its own reply press, so qt_workbench_window_scale_* and qt_workbench_conversation_reveal abort under MSVC debug iterators"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
