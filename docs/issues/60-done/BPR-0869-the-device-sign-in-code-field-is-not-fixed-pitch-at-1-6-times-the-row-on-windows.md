@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0869"
 title: "Windows: the device sign-in code is not fixed-pitch at 1.6 times the row's size"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-0653-implement; also in task-20260917-win-hardening","found_at":"20d99914","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"AC1 qt_composed_github_scale_100, _125 and _200 pass on Windows, and still pass on macOS and Linux","outcome":"pass","revision":"1eab866e","evidence":{"kind":"command","detail":"Windows (bpr-main-win, build/dev MSVC 19.51 Debug, Qt 6.11.2, offscreen, serial): with the fix all three pass in two runs (37.7-42.5 s), with qt_device_authorization_scale_100/125/200 and qt_workbench_title_row_scale_100/125/200; without it (same tree) scale_100 fails at 'the code is in a fixed-pitch font at 1.6 times the row's size'. macOS and Linux: not run from this station; the fallback runs only when QFontInfo reports the requested face proportional, and those platforms' rows were green on this same assertion (QFontInfo(code).fixedPitch()) before the change, so their font is unchanged.","path":"docs/issues/60-done/BPR-0869-the-device-sign-in-code-field-is-not-fixed-pitch-at-1-6-times-the-row-on-windows.md#cause-offscreen-on-windows-the-fixed-fonts-name-matches-arial-bpr-main-win-2026-09-23"}},{"criterion":"AC2 The card names whether the product's font selection regressed or the assertion was platform-dependent","outcome":"pass","revision":"1eab866e","evidence":{"kind":"observation","detail":"Platform-dependent, not a regression: on the real windows platform systemFont(FixedFont) is Courier New and resolves fixed-pitch; on offscreen (the rows' platform) it is 'monospace', which the font database over C:/Windows/Fonts matches, with the Monospace hint ignored, to Arial. The product relied on the hint, so the fix is a fixed-pitch fallback in the product.","path":"docs/issues/60-done/BPR-0869-the-device-sign-in-code-field-is-not-fixed-pitch-at-1-6-times-the-row-on-windows.md#cause-offscreen-on-windows-the-fixed-fonts-name-matches-arial-bpr-main-win-2026-09-23"}},{"criterion":"AC3 The rendered Windows sign-in code is shown to be fixed-pitch at the intended size, not only asserted in a view-model test","outcome":"pass","revision":"1eab866e","evidence":{"kind":"artifact","detail":"The composed rows render the whole sign-in and assert QFontInfo on the live code field at 1.6 times the row's point size; their rasters (station copies build/logs/bpr-0869-main-win/rasters/) show WDJB-MJHT in Arial without the fix and in a monospaced face with it at 100% and 200%. The panel's font code run on the windows platform (no window shown) resolves Courier New, fixedPitch 1, 14.25 pt / 19 px for 14.40 requested."}}]
 ---
 
 # BPR-0869: Windows: the device sign-in code is not fixed-pitch at 1.6 times the row's size
