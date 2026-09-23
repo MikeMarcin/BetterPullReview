@@ -42,6 +42,21 @@ authored and directly requested pull requests of the saved repositories
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
 
+## Overview files
+
+Overview groups files under their complete folder hierarchy. Each folder has
+the native tree disclosure control; Left collapses and Right expands it.
+Collapsing an ancestor hides every descendant, while reopening retains nested
+folders' expansion choices and the same file identities and order. These
+gestures never open a comparison. If the focused file becomes hidden, focus
+moves to the collapsed folder without changing the active source selection.
+
+Folder expansion is local to this page. Incremental same-authority refreshes
+retain surviving items, selection and expansion; newly appearing folders start
+expanded. Exact authority invalidation clears that local state. The native tree
+exposes folder names, descendant file counts and expansion state to accessibility.
+[[BPR-0934]] records the focused and rendered public evidence.
+
 ## Home
 
 Home is the window's other page, shown whenever no pull request is open and

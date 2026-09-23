@@ -1,0 +1,85 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "rfc0037-run-20260918",
+  "segment_id": "overview-folder-collapse-20260920",
+  "mandate_revision": "1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0037",
+  "binding": {
+    "plan_id": "rfc-bpr-0037-first-pr-workflow",
+    "plan_path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "milestone_id": "overview-folder-collapse",
+    "definition_fingerprint": "sha256:68998cd300bf1d868a820bb3b78fd4a808206f7bc257fcbdc6038272650106b5",
+    "obligations": [
+      {
+        "id": "BPR-0934:*",
+        "source": "BPR-0934",
+        "selector": null,
+        "source_fingerprint": "sha256:7e33cc1a17f2c30b3426736986364f1dccc60eaa2dc57bcfb1414ac1e4992292"
+      }
+    ],
+    "obligation_fingerprint": "sha256:28b8832839cb50c078430568459c10dafb6aaba2719bdbcb48750279d74924d2",
+    "exit_criteria": [
+      {
+        "id": "overview-folder-collapse:exit:1",
+        "text": "Every folder, including ancestors of nested paths, exposes mouse and keyboard expand/collapse controls that hide all descendant files without opening a source comparison."
+      },
+      {
+        "id": "overview-folder-collapse:exit:2",
+        "text": "Reopening preserves file identities and order; collapsing or refreshing preserves sensible focus and selection without dispatching an unintended file selection."
+      },
+      {
+        "id": "overview-folder-collapse:exit:3",
+        "text": "Qt-local expansion survives an incremental same-authority refresh for surviving folders and is cleared when the owning pull-request authority is invalidated."
+      },
+      {
+        "id": "overview-folder-collapse:exit:4",
+        "text": "Focused nested-folder, refresh, keyboard and accessibility checks and a rendered public Overview course pass against the exact candidate, along with the documentation and board gates; all earlier accepted RFC criteria and canonical dependency gates remain preserved."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:cfb1ee7d479f349e467dd589294dcaf4ed00fd797f32e2b0ca8ba3d1d64a9581",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "source-update-review-entry",
+    "overview-conversation-decisions",
+    "thread-reading-integration",
+    "combined-first-pr-closeout",
+    "overview-folder-collapse"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/714d/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/714d/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/rfc0037-overview-folders",
+    "source_revision": "f6103a7dc874caa0483b9efd93c7c1d14153410b",
+    "workflow_branch": "codex/rfc0037-overview-folders",
+    "workflow_revision": "f6103a7dc874caa0483b9efd93c7c1d14153410b"
+  }
+}

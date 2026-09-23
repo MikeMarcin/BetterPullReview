@@ -440,6 +440,25 @@ namespace bpr::qt {
 		constexpr int side_width = 300;
 		constexpr int chip_width = 58;
 
+		void expand_new_folders(QTreeView& aView, const QModelIndex& aParent, const int aFirst, const int aLast)
+		{
+			auto pending = std::vector<QModelIndex>{ };
+			for (auto row = aFirst; row <= aLast; ++row) {
+				pending.push_back(aView.model()->index(row, 0, aParent));
+			}
+			while (!pending.empty()) {
+				const auto index = pending.back();
+				pending.pop_back();
+				if (!index.data(overview_file_model::folder_role).toBool()) {
+					continue;
+				}
+				aView.expand(index);
+				for (auto row = 0; row < aView.model()->rowCount(index); ++row) {
+					pending.push_back(aView.model()->index(row, 0, index));
+				}
+			}
+		}
+
 	} // namespace
 
 	// ---- overview_file_model ------------------------------------------------
@@ -449,85 +468,193 @@ namespace bpr::qt {
 	{
 	}
 
+	void overview_file_model::update_file(node& aNode, const application::overview_file_row& aRow)
+	{
+		if (aNode.File != aRow) {
+			aNode.File = aRow;
+			emit dataChanged(index_of(aNode), index_of(aNode, column_count - 1));
+		}
+	}
+
+	void overview_file_model::build_tree(node& aRoot, const std::vector<application::overview_file_row>& aRows)
+	{
+		auto       folders = QHash<QString, node*>{ };
+		const auto folder  = [&folders](node& aParent, const QString& aPath) {
+			if (auto* found = folders.value(aPath, nullptr)) {
+				return found;
+			}
+			auto child    = std::make_unique<node>();
+			child->Path   = aPath;
+			child->Parent = &aParent;
+			child->Row    = static_cast<int>(aParent.Children.size());
+			auto* result  = child.get();
+			aParent.Children.push_back(std::move(child));
+			folders.insert(aPath, result);
+			return result;
+		};
+		for (const auto& row : aRows) {
+			auto* parent = &aRoot;
+			if (row.Folder.empty()) {
+				parent = folder(aRoot, QString{ });
+			} else {
+				auto path = QString{ };
+				for (const auto& component : text(row.Folder).split(QLatin1Char{ '/' })) {
+					if (!path.isEmpty()) {
+						path += QLatin1Char{ '/' };
+					}
+					path += component;
+					parent = folder(*parent, path);
+				}
+			}
+			auto file    = std::make_unique<node>();
+			file->Path   = text(row.Path);
+			file->File   = row;
+			file->Parent = parent;
+			file->Row    = static_cast<int>(parent->Children.size());
+			parent->Children.push_back(std::move(file));
+			for (auto* ancestor = parent; ancestor != nullptr; ancestor = ancestor->Parent) {
+				++ancestor->FileCount;
+			}
+		}
+	}
+
+	void overview_file_model::update_rows(node& aParent, const int aFirst, const int aLast)
+	{
+		for (auto row = aFirst; row <= aLast; ++row) {
+			aParent.Children[static_cast<std::size_t>(row)]->Row = row;
+		}
+	}
+
+	void overview_file_model::reconcile(node& aParent, node& aDesired)
+	{
+		auto folders = QHash<QString, node*>{ };
+		auto files   = QHash<QString, node*>{ };
+		for (const auto& child : aParent.Children) {
+			(child->File ? files : folders).insert(child->Path, child.get());
+		}
+		const auto parentIndex = index_of(aParent);
+		for (std::size_t position = 0; position < aDesired.Children.size(); ++position) {
+			auto&      desired  = aDesired.Children[position];
+			auto*      existing = (desired->File ? files : folders).value(desired->Path, nullptr);
+			const auto row      = static_cast<int>(position);
+			if (existing == nullptr) {
+				beginInsertRows(parentIndex, row, row);
+				desired->Parent = &aParent;
+				aParent.Children.insert(aParent.Children.begin() + row, std::move(desired));
+				update_rows(aParent, row, static_cast<int>(aParent.Children.size()) - 1);
+				endInsertRows();
+				continue;
+			}
+			if (existing->Row != row) {
+				const auto previous = existing->Row;
+				beginMoveRows(parentIndex, previous, previous, parentIndex, row);
+				std::rotate(aParent.Children.begin() + row, aParent.Children.begin() + previous,
+							aParent.Children.begin() + previous + 1);
+				update_rows(aParent, row, previous);
+				endMoveRows();
+			}
+			if (desired->File) {
+				update_file(*existing, *desired->File);
+			} else {
+				reconcile(*existing, *desired);
+			}
+		}
+		const auto retained = static_cast<int>(aDesired.Children.size());
+		if (aParent.Children.size() > aDesired.Children.size()) {
+			beginRemoveRows(parentIndex, retained, static_cast<int>(aParent.Children.size()) - 1);
+			aParent.Children.erase(aParent.Children.begin() + retained, aParent.Children.end());
+			endRemoveRows();
+		}
+		if (aParent.FileCount != aDesired.FileCount) {
+			aParent.FileCount = aDesired.FileCount;
+			if (parentIndex.isValid()) {
+				emit dataChanged(parentIndex, index_of(aParent, column_count - 1));
+			}
+		}
+	}
+
+	void overview_file_model::rebuild_lookup(const std::vector<application::overview_file_row>& aRows)
+	{
+		FileNodes.clear();
+		FileOrder.clear();
+		FolderCount  = 0U;
+		auto pending = std::vector<node*>{ &Root };
+		while (!pending.empty()) {
+			auto* parent = pending.back();
+			pending.pop_back();
+			for (const auto& child : parent->Children) {
+				if (child->File) {
+					FileNodes.insert(child->Path, child.get());
+				} else {
+					++FolderCount;
+					pending.push_back(child.get());
+				}
+			}
+		}
+		FileOrder.reserve(aRows.size());
+		for (const auto& row : aRows) {
+			FileOrder.push_back(FileNodes.value(text(row.Path)));
+		}
+	}
+
 	void overview_file_model::apply(const std::vector<application::overview_file_row>& aRows)
 	{
-		// Receipt and surrounding metadata refreshes must not replace Files'
-		// stable indexes while its reader temporarily hides the table.
-		auto       offset    = std::size_t{ 0 };
-		const auto sameOrder = std::ranges::all_of(Folders, [&](const folder& aFolder) {
-								   return std::ranges::all_of(aFolder.Files, [&](const application::overview_file_row& aRow) {
-									   return offset < aRows.size() && aRow.Path == aRows[offset].Path
-										   && aRow.Folder == aRows[offset++].Folder;
-								   });
-							   })
-			&& offset == aRows.size();
+		// Metadata-only refreshes retain the tree and allocate no replacement nodes.
+		const auto sameOrder = std::ranges::equal(FileOrder, aRows,
+												  [](const node* aNode, const application::overview_file_row& aRow) {
+													  return aNode->File->Path == aRow.Path && aNode->File->Folder == aRow.Folder;
+												  });
 		if (sameOrder) {
-			offset = 0;
-			for (std::size_t folderIndex = 0; folderIndex < Folders.size(); ++folderIndex) {
-				auto& files = Folders[folderIndex].Files;
-				for (std::size_t row = 0; row < files.size(); ++row, ++offset) {
-					if (files[row] != aRows[offset]) {
-						files[row]             = aRows[offset];
-						const auto parentIndex = index(static_cast<int>(folderIndex), 0);
-						emit       dataChanged(index(static_cast<int>(row), 0, parentIndex), index(static_cast<int>(row), column_count - 1, parentIndex));
-					}
-				}
+			for (std::size_t row = 0; row < aRows.size(); ++row) {
+				update_file(*FileOrder[row], aRows[row]);
 			}
 			return;
 		}
-		beginResetModel();
-		Folders.clear();
-		for (const auto& row : aRows) {
-			const auto name = text(row.Folder);
-			if (Folders.empty() || Folders.back().Name != name) {
-				Folders.push_back(folder{ .Name = name, .Files = { } });
-			}
-			Folders.back().Files.push_back(row);
-		}
-		endResetModel();
+		auto desired = node{ };
+		build_tree(desired, aRows);
+		reconcile(Root, desired);
+		rebuild_lookup(aRows);
+	}
+
+	auto overview_file_model::node_at(const QModelIndex& aIndex) const -> const node*
+	{
+		return aIndex.isValid() && aIndex.model() == this
+			? static_cast<const node*>(aIndex.internalPointer())
+			: nullptr;
+	}
+
+	auto overview_file_model::index_of(const node& aNode, const int aColumn) const -> QModelIndex
+	{
+		return &aNode == &Root ? QModelIndex{ }
+							   : createIndex(aNode.Row, aColumn, const_cast<node*>(&aNode));
 	}
 
 	auto overview_file_model::index(const int aRow, const int aColumn, const QModelIndex& aParent) const
 		-> QModelIndex
 	{
-		if (aRow < 0 || aColumn < 0 || aColumn >= column_count) {
+		if (aRow < 0 || aColumn < 0 || aColumn >= column_count
+			|| (aParent.isValid() && aParent.column() != 0)) {
 			return { };
 		}
-		if (!aParent.isValid()) {
-			return static_cast<std::size_t>(aRow) < Folders.size()
-				? createIndex(aRow, aColumn, static_cast<quintptr>(0U))
-				: QModelIndex{ };
-		}
-		if (aParent.internalId() != 0U || aParent.column() != 0) {
-			return { };
-		}
-		const auto folderIndex = static_cast<std::size_t>(aParent.row());
-		if (folderIndex >= Folders.size()
-			|| static_cast<std::size_t>(aRow) >= Folders[folderIndex].Files.size()) {
-			return { };
-		}
-		// A file's internal id is its folder's row plus one; folders carry zero.
-		return createIndex(aRow, aColumn, static_cast<quintptr>(folderIndex) + 1U);
+		const auto* parent = aParent.isValid() ? node_at(aParent) : &Root;
+		return parent != nullptr && static_cast<std::size_t>(aRow) < parent->Children.size()
+			? index_of(*parent->Children[static_cast<std::size_t>(aRow)], aColumn)
+			: QModelIndex{ };
 	}
 
 	auto overview_file_model::parent(const QModelIndex& aIndex) const -> QModelIndex
 	{
-		if (!aIndex.isValid() || aIndex.internalId() == 0U) {
-			return { };
-		}
-		return createIndex(static_cast<int>(aIndex.internalId() - 1U), 0, static_cast<quintptr>(0U));
+		const auto* item = node_at(aIndex);
+		return item != nullptr && item->Parent != nullptr ? index_of(*item->Parent) : QModelIndex{ };
 	}
 
 	auto overview_file_model::rowCount(const QModelIndex& aParent) const -> int
 	{
-		if (!aParent.isValid()) {
-			return static_cast<int>(Folders.size());
-		}
-		if (aParent.internalId() != 0U || aParent.column() != 0) {
+		if (aParent.isValid() && aParent.column() != 0) {
 			return 0;
 		}
-		const auto folderIndex = static_cast<std::size_t>(aParent.row());
-		return folderIndex < Folders.size() ? static_cast<int>(Folders[folderIndex].Files.size()) : 0;
+		const auto* parent = aParent.isValid() ? node_at(aParent) : &Root;
+		return parent == nullptr ? 0 : static_cast<int>(parent->Children.size());
 	}
 
 	auto overview_file_model::columnCount(const QModelIndex& aParent) const -> int
@@ -539,25 +666,17 @@ namespace bpr::qt {
 	auto overview_file_model::row_at(const QModelIndex& aIndex) const
 		-> const application::overview_file_row*
 	{
-		if (!aIndex.isValid() || aIndex.internalId() == 0U) {
-			return nullptr;
-		}
-		const auto folderIndex = static_cast<std::size_t>(aIndex.internalId() - 1U);
-		if (folderIndex >= Folders.size()) {
-			return nullptr;
-		}
-		const auto& files = Folders[folderIndex].Files;
-		const auto  row   = static_cast<std::size_t>(aIndex.row());
-		return row < files.size() ? &files[row] : nullptr;
+		const auto* item = node_at(aIndex);
+		return item != nullptr && item->File ? &*item->File : nullptr;
 	}
 
 	auto overview_file_model::data(const QModelIndex& aIndex, const int aRole) const -> QVariant
 	{
-		if (!aIndex.isValid()) {
+		const auto* item = node_at(aIndex);
+		if (item == nullptr) {
 			return { };
 		}
-		if (aIndex.internalId() == 0U) {
-			const auto& folder = Folders[static_cast<std::size_t>(aIndex.row())];
+		if (!item->File) {
 			if (aRole == folder_role) {
 				return true;
 			}
@@ -565,13 +684,13 @@ namespace bpr::qt {
 				return { };
 			}
 			if (aRole == Qt::DisplayRole && aIndex.column() == file_column) {
-				return folder.Name.isEmpty() ? QStringLiteral("/") : folder.Name;
+				return item->Path.isEmpty() ? QStringLiteral("/") : item->Path.section(QLatin1Char{ '/' }, -1);
 			}
 			if (aRole == Qt::DisplayRole && aIndex.column() == operation_column) {
-				return QString::number(folder.Files.size());
+				return QString::number(item->FileCount);
 			}
-			if (aRole == Qt::ToolTipRole) {
-				return QStringLiteral("%1 files").arg(folder.Files.size());
+			if (aRole == Qt::ToolTipRole || aRole == Qt::AccessibleTextRole) {
+				return QStringLiteral("Folder %1, %2 files").arg(item->Path.isEmpty() ? QStringLiteral("/") : item->Path).arg(item->FileCount);
 			}
 			return { };
 		}
@@ -683,30 +802,18 @@ namespace bpr::qt {
 
 	auto overview_file_model::folder_count() const noexcept -> std::size_t
 	{
-		return Folders.size();
+		return FolderCount;
 	}
 
 	auto overview_file_model::file_count() const noexcept -> std::size_t
 	{
-		auto count = std::size_t{ 0U };
-		for (const auto& folder : Folders) {
-			count += folder.Files.size();
-		}
-		return count;
+		return FileOrder.size();
 	}
 
 	auto overview_file_model::index_for_path(const QString& aPath) const -> QModelIndex
 	{
-		const auto path = aPath.toStdString();
-		for (std::size_t folderIndex = 0U; folderIndex < Folders.size(); ++folderIndex) {
-			const auto& files = Folders[folderIndex].Files;
-			for (std::size_t row = 0U; row < files.size(); ++row) {
-				if (files[row].Path == path) {
-					return createIndex(static_cast<int>(row), file_column, static_cast<quintptr>(folderIndex) + 1U);
-				}
-			}
-		}
-		return { };
+		const auto* file = FileNodes.value(aPath, nullptr);
+		return file == nullptr ? QModelIndex{ } : index_of(*file, file_column);
 	}
 
 	// ---- overview_row_delegate ----------------------------------------------
@@ -1055,21 +1162,33 @@ namespace bpr::qt {
 		Files->setAccessibleDescription(QStringLiteral(
 			"Every file with its operation, line counts, whether it changed "
 			"since my last review, my read state, comment counts and my note; "
-			"activate a file to read it"));
+			"activate a file to read it; use Left and Right to collapse and expand folders"));
 		Files->setModel(Model);
 		Files->setItemDelegate(new overview_row_delegate{ Colours, Files });
-		Files->setRootIsDecorated(false);
-		Files->setItemsExpandable(false);
+		Files->setRootIsDecorated(true);
+		Files->setItemsExpandable(true);
+		Files->setTreePosition(overview_file_model::file_column);
 		Files->setUniformRowHeights(true);
 		Files->setAlternatingRowColors(false);
 		Files->setSelectionBehavior(QAbstractItemView::SelectRows);
 		Files->setSelectionMode(QAbstractItemView::SingleSelection);
 		Files->setFrameShape(QFrame::NoFrame);
-		Files->setIndentation(0);
 		Files->setEditTriggers(QAbstractItemView::NoEditTriggers);
 		Files->header()->setStretchLastSection(true);
 		Files->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 		Files->header()->setSectionResizeMode(overview_file_model::note_column, QHeaderView::Stretch);
+		connect(Model, &QAbstractItemModel::rowsInserted, this,
+				[this](const QModelIndex& aModelParent, const int aFirst, const int aLast) {
+					expand_new_folders(*Files, aModelParent, aFirst, aLast);
+				});
+		connect(Files, &QTreeView::collapsed, this, [this](const QModelIndex& aFolder) {
+			for (auto parent = Files->currentIndex().parent(); parent.isValid(); parent = parent.parent()) {
+				if (parent == aFolder) {
+					Files->setCurrentIndex(aFolder);
+					break;
+				}
+			}
+		});
 		connect(Files, &QAbstractItemView::activated, this, [this](const QModelIndex& aIndex) {
 			const auto path = aIndex.siblingAtColumn(overview_file_model::file_column)
 								  .data(overview_file_model::path_role)
@@ -1225,10 +1344,6 @@ namespace bpr::qt {
 		heading += QStringLiteral(", %1 not read").arg(count_text(notRead));
 		FilesHeading->setText(heading);
 		Model->apply(aProjection.Files);
-		Files->expandAll();
-		for (int row = 0; row < Model->rowCount(); ++row) {
-			Files->setFirstColumnSpanned(row, { }, false);
-		}
 
 		rebuild_participants(aProjection.Participants);
 
