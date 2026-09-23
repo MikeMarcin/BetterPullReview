@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1017"
+  ],
+  "reserve_for": "bpr0990-new-window-session",
+  "purpose": "A new window of a signed-in profile presents the sign-in card until it reads",
+  "created": "2026-09-23T08:00:05.367298+00:00",
+  "base": "684858efb4c533402a05571d2960067a9f83b383"
+}
