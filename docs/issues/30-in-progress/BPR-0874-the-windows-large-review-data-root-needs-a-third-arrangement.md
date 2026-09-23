@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0874"
 title: "Windows: five rows refuse at startup with registry_unavailable off the benchmark's bare temporary data root"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
