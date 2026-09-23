@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0981"
 title: "Resident fuzzy filters with retained selection in the repositories and files drawers"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0025"]
 depends_on: ["BPR-0596"]
 priority: "P1"
