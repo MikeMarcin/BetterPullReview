@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1035"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "local-main: the windowless macOS menu bar drops the Pull Request menu BPR-0990 added to the window's bar (found by the RFC-BPR-0033 closeout recheck)",
+  "created": "2026-09-23T19:16:21.890430+00:00",
+  "base": "1de0ca9a5efd87389ae8ab439e9648e8f5f879c9"
+}
