@@ -9,6 +9,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import socket
@@ -39,6 +40,17 @@ CAPABILITY_PART_ROOT = Path(__file__).resolve().parents[1] / "fixtures/github/ca
 CAPABILITY_QUERIES = tuple((CAPABILITY_PART_ROOT / f"part-{part}.graphql").read_text() for part in range(9))
 MUTATION_PATH = "/api/v3/repos/octo-org/review-repository/pulls/17/comments"
 
+# [[BPR-1018]]. The review-mutation exchanges run at the GitHub.com authority,
+# where every answer must carry the rate-limit tuple and name its resource.
+# The identities are the ones native_https_transport_tests.cpp binds its target
+# and acting identity to (`mutation_target_for`, `mutation_identity_for`), so
+# the two files change together.
+REVIEW_PULL_REQUEST_PATH = "/repos/octo-org/review-repository/pulls/17"
+REVIEW_HEAD_OID = "1" * 40
+REVIEW_BASE_OID = "2" * 40
+REVIEW_THREAD = "PRRT_fixture_1"
+GRAPHQL_OPERATION = re.compile(r"(query|mutation) ([A-Za-z_][A-Za-z0-9_]*)\(")
+
 CONNECT_HEADER_LIMIT = 16 * 1024
 ORIGIN_HEADER_LIMIT = 32 * 1024
 ORIGIN_BODY_LIMIT = 256 * 1024
@@ -53,6 +65,11 @@ SCENARIOS = (
     "mutation-witness",
     "mutation-witness-failure",
     "mutation-proxy-no-fallback",
+    "mutation-graphql-course",
+    "mutation-review-submission",
+    "mutation-graphql-witness-failure",
+    "mutation-status-refusal",
+    "mutation-graphql-core-resource",
     "proxy-fallback",
     "same-redirect",
     "same-query-redirect",
@@ -122,10 +139,173 @@ SUITE_LABELS = {
 }
 
 
+def json_bytes(value: object) -> bytes:
+    return json.dumps(value, separators=(",", ":")).encode("utf-8")
+
+
+def review_pull_request() -> dict[str, object]:
+    return {
+        "id": "PR_kwDOTyvof879G6NV",
+        "databaseId": 4246446933,
+        "number": 17,
+        "repository": {
+            "id": "R_kgDOTyvofw",
+            "databaseId": 1328277631,
+            "nameWithOwner": "octo-org/review-repository",
+        },
+    }
+
+
+def thread_answer(resolved: bool) -> bytes:
+    return json_bytes({"data": {"node": {
+        "id": REVIEW_THREAD,
+        "isResolved": resolved,
+        "pullRequest": review_pull_request(),
+    }}})
+
+
+def thread_comments_answer(our_replies: tuple[int, ...]) -> bytes:
+    """The root comment by someone else, then each reply of ours."""
+    commit = {"oid": REVIEW_HEAD_OID}
+    nodes: list[dict[str, object]] = [{
+        "id": "PRRC_fixture_40",
+        "fullDatabaseId": "40",
+        "body": "Root comment.",
+        "path": "fixture/review.txt",
+        "line": 13,
+        "commit": commit,
+        "viewerDidAuthor": False,
+        "author": {"login": "someone-else", "databaseId": 23, "id": "MDQ6VXNlcjIz"},
+    }]
+    nodes.extend({
+        "id": f"PRRC_reply_{reply}",
+        "fullDatabaseId": str(reply),
+        "body": "Please rename this.",
+        "path": "fixture/review.txt",
+        "line": 13,
+        "commit": commit,
+        "viewerDidAuthor": True,
+        "author": {"login": "fixture-reviewer", "databaseId": 22, "id": "MDQ6VXNlcjIy"},
+    } for reply in our_replies)
+    return json_bytes({"data": {"node": {
+        "id": REVIEW_THREAD,
+        "diffSide": "RIGHT",
+        "pullRequest": review_pull_request(),
+        "comments": {"pageInfo": {"hasNextPage": False}, "nodes": nodes},
+    }}})
+
+
+def reply_answer() -> bytes:
+    return json_bytes({"data": {"addPullRequestReviewThreadReply": {"comment": {
+        "id": "PRRC_reply_45",
+        "databaseId": 45,
+        "body": "Please rename this.",
+        "path": "fixture/review.txt",
+        "line": 13,
+        "commit": {"oid": REVIEW_HEAD_OID},
+        "author": {"login": "fixture-reviewer"},
+        "viewerDidAuthor": True,
+        "pullRequest": review_pull_request(),
+    }}}})
+
+
+def resolution_answer(resolve: bool) -> bytes:
+    field_name = "resolveReviewThread" if resolve else "unresolveReviewThread"
+    return json_bytes({"data": {field_name: {"thread": {
+        "id": REVIEW_THREAD,
+        "isResolved": resolve,
+        "pullRequest": review_pull_request(),
+    }}}})
+
+
+def viewer_answer() -> bytes:
+    return json_bytes({"login": "fixture-reviewer", "id": 22, "node_id": "MDQ6VXNlcjIy"})
+
+
+def pull_request_answer() -> bytes:
+    return json_bytes({
+        "id": 4246446933,
+        "node_id": "PR_kwDOTyvof879G6NV",
+        "number": 17,
+        "state": "open",
+        "head": {"sha": REVIEW_HEAD_OID, "ref": "feature/review"},
+        "base": {
+            "sha": REVIEW_BASE_OID,
+            "ref": "main",
+            "repo": {
+                "id": 1328277631,
+                "node_id": "R_kgDOTyvofw",
+                "full_name": "octo-org/review-repository",
+            },
+        },
+    })
+
+
+@dataclass(frozen=True)
+class ReviewExchange:
+    """One request a course expects, and the answer it gets."""
+
+    key: str
+    status: int
+    body: bytes
+    resource: str
+
+
+OBSERVE_THREAD = "POST /graphql query ObserveThread"
+OBSERVE_THREAD_COMMENTS = "POST /graphql query ObserveThreadComments"
+REPLY_TO_THREAD = "POST /graphql mutation ReplyToThread"
+RESOLVE_THREAD = "POST /graphql mutation ResolveThread"
+UNRESOLVE_THREAD = "POST /graphql mutation UnresolveThread"
+COMMENT_WRITE = f"POST {REVIEW_PULL_REQUEST_PATH}/comments"
+REVIEW_WRITE = f"POST {REVIEW_PULL_REQUEST_PATH}/reviews"
+
+# Each course, request by request. GraphQL answers every document 200 and
+# accounts it to `graphql`; the REST reads answer 200 and the new review
+# comment 201, all accounted to `core`. `mutation-graphql-course` is the
+# production session's reply ([[BPR-0896]]'s `reply_course_wires`), then a
+# resolution and an unresolution, each after its thread pre-flight. The other
+# courses are the negative controls: a refused witness, the wrong success
+# status for each class, and a GraphQL answer accounted to `core`.
+REVIEW_COURSES: dict[str, tuple[ReviewExchange, ...]] = {
+    "mutation-graphql-course": (
+        ReviewExchange(OBSERVE_THREAD, 200, thread_answer(False), "graphql"),
+        ReviewExchange(OBSERVE_THREAD_COMMENTS, 200, thread_comments_answer(()), "graphql"),
+        ReviewExchange("GET /user", 200, viewer_answer(), "core"),
+        ReviewExchange(f"GET {REVIEW_PULL_REQUEST_PATH}", 200, pull_request_answer(), "core"),
+        ReviewExchange(REPLY_TO_THREAD, 200, reply_answer(), "graphql"),
+        ReviewExchange(OBSERVE_THREAD_COMMENTS, 200, thread_comments_answer((45,)), "graphql"),
+        ReviewExchange(OBSERVE_THREAD, 200, thread_answer(False), "graphql"),
+        ReviewExchange(RESOLVE_THREAD, 200, resolution_answer(True), "graphql"),
+        ReviewExchange(OBSERVE_THREAD, 200, thread_answer(True), "graphql"),
+        ReviewExchange(UNRESOLVE_THREAD, 200, resolution_answer(False), "graphql"),
+    ),
+    "mutation-review-submission": (
+        ReviewExchange(REVIEW_WRITE, 200, json_bytes({"id": 80, "node_id": "PRR_fixture_80"}), "core"),
+    ),
+    "mutation-graphql-witness-failure": (
+        ReviewExchange(REPLY_TO_THREAD, 200, reply_answer(), "graphql"),
+    ),
+    "mutation-status-refusal": (
+        ReviewExchange(COMMENT_WRITE, 200, json_bytes({"id": 44, "node_id": "PRRC_fixture_44"}), "core"),
+        ReviewExchange(REVIEW_WRITE, 201, json_bytes({"id": 80, "node_id": "PRR_fixture_80"}), "core"),
+        ReviewExchange(REPLY_TO_THREAD, 201, reply_answer(), "graphql"),
+        ReviewExchange(RESOLVE_THREAD, 201, resolution_answer(True), "graphql"),
+        ReviewExchange(OBSERVE_THREAD, 201, thread_answer(False), "graphql"),
+    ),
+    "mutation-graphql-core-resource": (
+        ReviewExchange(OBSERVE_THREAD, 200, thread_answer(False), "core"),
+    ),
+}
+
+# A refused witness aborts the POST once it has been handed to the network, so
+# the fixture may see the connection, and at most that one request.
+ABORTED_POST_SCENARIOS = ("mutation-witness-failure", "mutation-graphql-witness-failure")
+
+
 def scenario_host(scenario: str) -> str:
     return (
         GITHUB_HOST
-        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success" or scenario.startswith("capability-refusal-")
+        if scenario in ANONYMOUS_READ_SCENARIOS or scenario in REVIEW_COURSES or scenario == "capability-success" or scenario.startswith("capability-refusal-")
         else HOST
     )
 
@@ -133,7 +313,7 @@ def scenario_host(scenario: str) -> str:
 def scenario_authority(scenario: str) -> str:
     return (
         GITHUB_AUTHORITY
-        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success" or scenario.startswith("capability-refusal-")
+        if scenario in ANONYMOUS_READ_SCENARIOS or scenario in REVIEW_COURSES or scenario == "capability-success" or scenario.startswith("capability-refusal-")
         else AUTHORITY
     )
 
@@ -179,6 +359,7 @@ class Observation:
     origin_requests: int = 0
     exact_authorization_requests: int = 0
     request_targets: list[str] = field(default_factory=list)
+    exchange_keys: list[str] = field(default_factory=list)
     violations: set[str] = field(default_factory=set)
     next_request: int = 0
 
@@ -268,6 +449,12 @@ class OriginRequest:
     body_size: int
     exact_capability_body: bool
     capability_part: int | None
+    graphql_document: str | None
+
+    def exchange_key(self) -> str:
+        """Method, path and, at the GraphQL root, the document's kind and name."""
+        key = f"{self.method} {self.target}"
+        return key if self.graphql_document is None else f"{key} {self.graphql_document}"
 
 
 def executable_path(value: str | None, fallback: str | None) -> Path:
@@ -499,6 +686,17 @@ def capability_body_part(body: bytearray) -> int | None:
     return None
 
 
+def graphql_document(body: bytearray) -> str | None:
+    """The kind and name a GraphQL envelope's document opens with."""
+    try:
+        payload = json.loads(body)
+    except (ValueError, UnicodeError):
+        return None
+    query = payload.get("query") if isinstance(payload, dict) else None
+    match = GRAPHQL_OPERATION.match(query) if isinstance(query, str) else None
+    return None if match is None else f"{match.group(1)} {match.group(2)}"
+
+
 def read_origin_request(
     connection: ssl.SSLSocket,
 ) -> OriginRequest:
@@ -551,6 +749,7 @@ def read_origin_request(
         received_body.extend(block)
     body_size = len(received_body)
     capability_part = capability_body_part(received_body)
+    document = graphql_document(received_body)
     wipe_mutable_bytes(received_body)
 
     return OriginRequest(
@@ -560,6 +759,7 @@ def read_origin_request(
         body_size=body_size,
         exact_capability_body=capability_part is not None,
         capability_part=capability_part,
+        graphql_document=document,
     )
 
 
@@ -779,13 +979,16 @@ class LoopbackConnectTlsFixture:
             if self.scenario == "capability-success" and request.capability_part != sequence:
                 self.observation.violate("capability-part-order")
             self._inspect_origin_request(request)
-            self._serve_origin_response(connection, sequence)
+            if self.scenario in REVIEW_COURSES:
+                self._serve_review_exchange(connection, sequence, request)
+            else:
+                self._serve_origin_response(connection, sequence)
         except ProbeFailure as error:
             self.observation.violate(error.code)
         except (ConnectionError, OSError, ssl.SSLError):
             if (
                 not self.stop_event.is_set()
-                and self.scenario != "mutation-witness-failure"
+                and self.scenario not in ABORTED_POST_SCENARIOS
             ):
                 self.observation.violate("connection-handler")
         except Exception:
@@ -827,7 +1030,19 @@ class LoopbackConnectTlsFixture:
         if one_header(request.headers, "accept-language") != b"*":
             self.observation.violate("origin-accept-language")
 
-        if self.scenario in {
+        if self.scenario in REVIEW_COURSES:
+            with self.observation.lock:
+                self.observation.exchange_keys.append(request.exchange_key())
+            if request.method == "POST":
+                if (
+                    request.body_size == 0
+                    or one_header(request.headers, "content-type")
+                    != b"application/json"
+                ):
+                    self.observation.violate("review-exchange-post")
+            elif request.method != "GET" or request.body_size != 0:
+                self.observation.violate("review-exchange-get")
+        elif self.scenario in {
             "mutation-witness",
             "mutation-witness-failure",
         }:
@@ -880,6 +1095,30 @@ class LoopbackConnectTlsFixture:
                 or request.body_size != 0
             ):
                 self.observation.violate("rest-request")
+
+    def _serve_review_exchange(
+        self,
+        connection: ssl.SSLSocket,
+        sequence: int,
+        request: OriginRequest,
+    ) -> None:
+        course = REVIEW_COURSES[self.scenario]
+        planned = course[sequence] if sequence < len(course) else None
+        if planned is None or request.exchange_key() != planned.key:
+            # Not the request this course makes next: no answer it could use.
+            self.observation.violate(f"review-exchange-{sequence + 1}-request")
+            connection.sendall(
+                response_bytes(404, "Not Found", b"{}", rate_limit_headers("core"))
+            )
+            return
+        connection.sendall(
+            response_bytes(
+                planned.status,
+                {200: "OK", 201: "Created"}[planned.status],
+                planned.body,
+                rate_limit_headers(planned.resource),
+            )
+        )
 
     def _serve_origin_response(
         self,
@@ -1289,6 +1528,34 @@ class LoopbackConnectTlsFixture:
                 or (targets and targets != (MUTATION_PATH,))
             ):
                 raise ProbeFailure("mutation-witness-failure-observation")
+            return
+
+        if self.scenario in REVIEW_COURSES:
+            with self.observation.lock:
+                keys = tuple(self.observation.exchange_keys)
+            expected_keys = tuple(
+                exchange.key for exchange in REVIEW_COURSES[self.scenario]
+            )
+            if self.scenario in ABORTED_POST_SCENARIOS:
+                # Nothing, or the aborted POST alone; never an answer read.
+                if (
+                    not (
+                        0 <= authorizations <= requests <= handshakes
+                        <= connects <= accepts <= 1
+                    )
+                    or tls_failures != 0
+                    or (keys and keys != expected_keys)
+                ):
+                    raise ProbeFailure(f"{self.scenario}-observation")
+                return
+            count = len(expected_keys)
+            if (
+                (accepts, connects, handshakes, requests, authorizations)
+                != (count,) * 5
+                or tls_failures != 0
+                or keys != expected_keys
+            ):
+                raise ProbeFailure(f"{self.scenario}-observation")
             return
 
         if self.scenario == "anonymous-read":

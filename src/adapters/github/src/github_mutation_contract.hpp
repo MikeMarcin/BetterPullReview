@@ -46,6 +46,35 @@ namespace bpr::adapters::github::detail {
 		observe_review_thread_comments,
 	};
 
+	/// \brief [[BPR-1018]]. What a transport demands of one operation's
+	/// exchange with the server.
+	///
+	/// \details Derived from the operation, never from its path or method, so
+	/// an operation added to `review_mutation_operation` has no exchange until
+	/// it is classified here, and a transport refuses it until then.
+	struct review_mutation_exchange
+	{
+		http_method Method = http_method::get;
+		/// Sent to the GraphQL root and accounted to the `graphql` rate-limit
+		/// resource; otherwise a REST resource accounted to `core`.
+		bool Graphql = false;
+		/// The one status that is success. GitHub answers a new review
+		/// comment 201 Created, and everything else here 200 OK.
+		int SuccessfulStatus = 200;
+		/// The POST may leave only once the caller's transmission witness has
+		/// admitted it. Exactly the writes the sessions keep a recovery record
+		/// for: nothing else consults a witness, whether or not one is given.
+		bool Witnessed = false;
+
+		auto operator<=>(const review_mutation_exchange&) const = default;
+	};
+
+	/// \brief [[BPR-1018]]. The exchange of one operation; none for a value
+	/// outside the enumeration.
+	[[nodiscard]] auto review_mutation_exchange_for(
+		review_mutation_operation aOperation) noexcept
+		-> std::optional<review_mutation_exchange>;
+
 	enum class review_mutation_contract_failure : std::uint8_t {
 		invalid_request,
 		unexpected_method,

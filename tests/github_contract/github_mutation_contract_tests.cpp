@@ -496,6 +496,88 @@ namespace {
 			   "a non-200 answer and an unbound expectation are both refused");
 	}
 
+	// [[BPR-1018]]. What each operation demands of a transport, row by row,
+	// and that each operation's compiled request agrees with its own row: the
+	// method it is sent with, and whether its path is the GraphQL root.
+	void test_every_operation_names_its_exchange()
+	{
+		using operation = review_mutation_operation;
+		struct row
+		{
+			operation   Operation;
+			http_method Method;
+			bool        Graphql;
+			int         SuccessfulStatus;
+			bool        Witnessed;
+		};
+		constexpr auto rows = std::array{
+			row{ operation::observe_pull_request, http_method::get, false, 200, false },
+			row{ operation::observe_viewer, http_method::get, false, 200, false },
+			row{ operation::observe_review_comments, http_method::get, false, 200, false },
+			row{ operation::observe_reviews, http_method::get, false, 200, false },
+			row{ operation::create_review_comment, http_method::post, false, 201, true },
+			row{ operation::create_review, http_method::post, false, 200, true },
+			row{ operation::reply_review_thread, http_method::post, true, 200, true },
+			row{ operation::resolve_review_thread, http_method::post, true, 200, false },
+			row{ operation::unresolve_review_thread, http_method::post, true, 200, false },
+			row{ operation::observe_review_thread, http_method::post, true, 200, false },
+			row{ operation::observe_review_thread_comments, http_method::post, true, 200, false },
+		};
+		for (const auto& [op, method, graphql, status, witnessed] : rows) {
+			expect(review_mutation_exchange_for(op)
+					   == review_mutation_exchange{
+						   .Method           = method,
+						   .Graphql          = graphql,
+						   .SuccessfulStatus = status,
+						   .Witnessed        = witnessed,
+					   },
+				   "operation " + std::to_string(static_cast<int>(op)) + " names its exchange");
+		}
+		// An operation appended to the enumeration has no row here, and no
+		// exchange in the contract, until someone classifies it.
+		expect(!review_mutation_exchange_for(static_cast<operation>(rows.size())).has_value(),
+			   "a value past the classified operations has no exchange");
+
+		auto reply                   = request();
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		const auto resolution        = application::review_thread_resolution_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Thread         = "PRRT_fixture_1",
+			.Resolve        = true,
+			.LiveBinding    = reply.LiveBinding,
+		};
+		auto unresolution     = resolution;
+		unresolution.Resolve  = false;
+		const auto submission = review_submission_request{
+			.Target         = target(),
+			.ActingIdentity = identity(),
+			.Disposition    = core::review_disposition::comment,
+			.Body           = "Looks good.",
+		};
+		const auto compiled = std::array{
+			compile_target_observation_request(target()),
+			compile_viewer_observation_request(identity()),
+			compile_review_comment_observation_request(request()),
+			compile_review_submission_observation_request(submission),
+			compile_review_comment_request(request()),
+			compile_review_submission_request(submission),
+			compile_review_comment_request(reply),
+			compile_thread_resolution_request(resolution),
+			compile_thread_resolution_request(unresolution),
+			compile_thread_target_observation_request(resolution),
+			compile_review_comment_observation_request(reply),
+		};
+		for (std::size_t index = 0U; index < rows.size(); ++index) {
+			const auto& wire = compiled[index];
+			expect(wire.has_value() && wire->Operation == rows[index].Operation
+					   && wire->Method == rows[index].Method
+					   && (wire->Path == "/graphql") == rows[index].Graphql,
+				   "operation " + std::to_string(index) + " compiles to its exchange's method and root");
+		}
+	}
+
 	void test_whole_review_dispositions_and_literal_summary()
 	{
 		struct review_case
@@ -1230,6 +1312,7 @@ auto main() -> int
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
+	test_every_operation_names_its_exchange();
 	test_a_reply_is_reconciled_through_its_thread();
 	test_whole_review_dispositions_and_literal_summary();
 	test_whole_review_request_rejection();

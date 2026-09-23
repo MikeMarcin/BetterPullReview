@@ -1477,6 +1477,48 @@ namespace bpr::adapters::github::detail {
 		}
 	} // namespace
 
+	auto review_mutation_exchange_for(const review_mutation_operation aOperation) noexcept
+		-> std::optional<review_mutation_exchange>
+	{
+		using operation = review_mutation_operation;
+		switch (aOperation) {
+		case operation::observe_pull_request:
+		case operation::observe_viewer:
+		case operation::observe_review_comments:
+		case operation::observe_reviews:
+			return review_mutation_exchange{ };
+		case operation::create_review_comment:
+			return review_mutation_exchange{
+				.Method           = http_method::post,
+				.SuccessfulStatus = 201,
+				.Witnessed        = true,
+			};
+		case operation::create_review:
+			return review_mutation_exchange{
+				.Method    = http_method::post,
+				.Witnessed = true,
+			};
+		case operation::reply_review_thread:
+			return review_mutation_exchange{
+				.Method    = http_method::post,
+				.Graphql   = true,
+				.Witnessed = true,
+			};
+		// A resolution keeps no recovery record ([[BPR-0657]]): the server
+		// treats it as idempotent, so repeating one after an ambiguous outcome
+		// is safe and there is nothing a witness would make durable first.
+		case operation::resolve_review_thread:
+		case operation::unresolve_review_thread:
+		case operation::observe_review_thread:
+		case operation::observe_review_thread_comments:
+			return review_mutation_exchange{
+				.Method  = http_method::post,
+				.Graphql = true,
+			};
+		}
+		return std::nullopt;
+	}
+
 	auto compile_target_observation_request(
 		const application::review_mutation_target_binding& aTarget,
 		const application::github_server_contract          aServer)

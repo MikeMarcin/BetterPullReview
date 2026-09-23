@@ -1,3 +1,4 @@
+#include "github_mutation_contract.hpp"
 #include "github_wire_request_validation.hpp"
 #include "native_https_transport.hpp"
 
@@ -19,6 +20,8 @@
 #include <expected>
 #include <iostream>
 #include <limits>
+#include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -310,21 +313,20 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto mutation_request_for(
+	// The pull request every mutation course writes to. The loopback fixture
+	// answers with these identities, so the two files change together.
+	[[nodiscard]] auto mutation_target_for(
 		const validated_github_host_profile& aProfile)
-		-> github_mutation_wire_request
+		-> application::review_mutation_target_binding
 	{
 		const auto context = pull_request_context(aProfile);
-		const auto head    = *core::parse_git_commit_oid(
-			"1111111111111111111111111111111111111111");
-		const auto base = *core::parse_git_commit_oid(
-			"2222222222222222222222222222222222222222");
-		const auto target = application::review_mutation_target_binding{
+		return {
 			.Semantic = {
 				.Host         = context.Host,
 				.Repository   = *context.ExpectedRepository,
 				.PullRequest  = *context.ExpectedPullRequest,
-				.ExpectedHead = head,
+				.ExpectedHead = *core::parse_git_commit_oid(
+					"1111111111111111111111111111111111111111"),
 			},
 			.Hostname                 = application::github_canonical_hostname{ aProfile.hostname() },
 			.ServerContract           = aProfile.server_contract(),
@@ -335,17 +337,33 @@ namespace {
 			.PullRequestDatabaseId    = 4'246'446'933U,
 			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
 			.BaseRepositoryDatabaseId = 1'328'277'631U,
-			.BaseOid                  = base,
+			.BaseOid                  = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"),
 			.BaseRef                  = "main",
 			.HeadRef                  = "feature/review",
 			.Open                     = true,
 		};
-		const auto identity = application::review_mutation_acting_identity{
-			.Account    = context.Account,
+	}
+
+	[[nodiscard]] auto mutation_identity_for(
+		const validated_github_host_profile& aProfile)
+		-> application::review_mutation_acting_identity
+	{
+		return {
+			.Account    = pull_request_context(aProfile).Account,
 			.DatabaseId = 22U,
 			.NodeId     = "MDQ6VXNlcjIy",
 			.Login      = "fixture-reviewer",
 		};
+	}
+
+	/// \brief A new root comment, or with `aThread` a reply under that thread.
+	[[nodiscard]] auto mutation_semantic_for(
+		const validated_github_host_profile& aProfile,
+		std::optional<std::string>           aThread = std::nullopt)
+		-> application::review_mutation_request
+	{
+		const auto target   = mutation_target_for(aProfile);
+		const auto identity = mutation_identity_for(aProfile);
 		const auto proposal = core::review_publication_proposal{
 			.Draft  = core::review_draft_id{ 31U },
 			.Anchor = {
@@ -353,10 +371,11 @@ namespace {
 				.Side       = core::diff_side::right,
 				.Line       = 12U,
 			},
-			.Body        = "Please rename this.",
-			.Disposition = core::review_disposition::comment,
+			.Body          = "Please rename this.",
+			.Disposition   = core::review_disposition::comment,
+			.ReplyToThread = std::move(aThread),
 		};
-		const auto semantic = application::review_mutation_request{
+		return {
 			.Proposal       = proposal,
 			.Target         = target.Semantic,
 			.ActingIdentity = identity.Account,
@@ -368,15 +387,21 @@ namespace {
 				.Anchor         = {
 					.Semantic = proposal.Anchor,
 					.Path     = "fixture/review.txt",
-					.Commit   = head,
+					.Commit   = target.Semantic.ExpectedHead,
 				},
 			},
 		};
+	}
+
+	[[nodiscard]] auto mutation_request_for(
+		const validated_github_host_profile& aProfile)
+		-> github_mutation_wire_request
+	{
 		const auto wire = compile_review_comment_request(
-			semantic, aProfile.server_contract());
+			mutation_semantic_for(aProfile), aProfile.server_contract());
 		expect(wire.has_value(), "fixture-mutation-wire");
 		return {
-			.Context = account_operation_context(aProfile, context),
+			.Context = account_operation_context(aProfile, pull_request_context(aProfile)),
 			.Wire    = *wire,
 		};
 	}
@@ -958,6 +983,11 @@ namespace {
 		mutation_witness,
 		mutation_witness_failure,
 		mutation_proxy_no_fallback,
+		mutation_graphql_course,
+		mutation_review_submission,
+		mutation_graphql_witness_failure,
+		mutation_status_refusal,
+		mutation_graphql_core_resource,
 		proxy_fallback,
 		same_redirect,
 		same_query_redirect,
@@ -1035,6 +1065,21 @@ namespace {
 		}
 		if (aValue == "mutation-proxy-no-fallback") {
 			return fixture_scenario::mutation_proxy_no_fallback;
+		}
+		if (aValue == "mutation-graphql-course") {
+			return fixture_scenario::mutation_graphql_course;
+		}
+		if (aValue == "mutation-review-submission") {
+			return fixture_scenario::mutation_review_submission;
+		}
+		if (aValue == "mutation-graphql-witness-failure") {
+			return fixture_scenario::mutation_graphql_witness_failure;
+		}
+		if (aValue == "mutation-status-refusal") {
+			return fixture_scenario::mutation_status_refusal;
+		}
+		if (aValue == "mutation-graphql-core-resource") {
+			return fixture_scenario::mutation_graphql_core_resource;
 		}
 		if (aValue == "proxy-fallback") {
 			return fixture_scenario::proxy_fallback;
@@ -1183,6 +1228,16 @@ namespace {
 			return "mutation-witness-failure";
 		case fixture_scenario::mutation_proxy_no_fallback:
 			return "mutation-proxy-no-fallback";
+		case fixture_scenario::mutation_graphql_course:
+			return "mutation-graphql-course";
+		case fixture_scenario::mutation_review_submission:
+			return "mutation-review-submission";
+		case fixture_scenario::mutation_graphql_witness_failure:
+			return "mutation-graphql-witness-failure";
+		case fixture_scenario::mutation_status_refusal:
+			return "mutation-status-refusal";
+		case fixture_scenario::mutation_graphql_core_resource:
+			return "mutation-graphql-core-resource";
 		case fixture_scenario::proxy_fallback:
 			return "proxy-fallback";
 		case fixture_scenario::same_redirect:
@@ -1558,6 +1613,11 @@ namespace {
 		case fixture_scenario::mutation_witness:
 		case fixture_scenario::mutation_witness_failure:
 		case fixture_scenario::mutation_proxy_no_fallback:
+		case fixture_scenario::mutation_graphql_course:
+		case fixture_scenario::mutation_review_submission:
+		case fixture_scenario::mutation_graphql_witness_failure:
+		case fixture_scenario::mutation_status_refusal:
+		case fixture_scenario::mutation_graphql_core_resource:
 		case fixture_scenario::proxy_fallback:
 		case fixture_scenario::same_redirect:
 		case fixture_scenario::response_metadata:
@@ -1805,6 +1865,347 @@ namespace {
 			   "capability-native-response-matches-all-schema-facts");
 	}
 
+	// [[BPR-1018]]. The review-mutation exchanges at the GitHub.com authority,
+	// where every answer must carry the rate-limit tuple and name its
+	// resource. The loopback fixture answers each request by its method, path
+	// and GraphQL operation rather than by position, so each answer pins the
+	// request it answers and a request nobody scripted fails at the fixture.
+	[[nodiscard]] constexpr auto is_review_exchange(const fixture_scenario aScenario) noexcept
+		-> bool
+	{
+		return aScenario == fixture_scenario::mutation_graphql_course
+			|| aScenario == fixture_scenario::mutation_review_submission
+			|| aScenario == fixture_scenario::mutation_graphql_witness_failure
+			|| aScenario == fixture_scenario::mutation_status_refusal
+			|| aScenario == fixture_scenario::mutation_graphql_core_resource;
+	}
+
+	class fixture_review_mutation_lease final
+		: public application::review_mutation_transport_lease
+	{
+	};
+
+	/// \brief The recovery store a reply course needs, kept in memory.
+	///
+	/// \details Only as strict as the course needs: the session is under test
+	/// here, and the SQLite store's own rules are proven by its own suite.
+	class fixture_recovery final : public application::review_mutation_recovery_port
+	{
+	public:
+		using failure = application::review_mutation_recovery_failure;
+		using record  = application::review_mutation_recovery_record;
+
+		[[nodiscard]] auto load(const std::string& aKey)
+			-> std::expected<std::optional<record>, failure> override
+		{
+			if (const auto found = Records.find(aKey); found != Records.end()) {
+				return found->second;
+			}
+			return std::optional<record>{ };
+		}
+
+		[[nodiscard]] auto admit(const record& aRecord)
+			-> std::expected<application::review_mutation_recovery_admission, failure> override
+		{
+			const auto [found, inserted] = Records.try_emplace(aRecord.IdempotencyKey, aRecord);
+			return application::review_mutation_recovery_admission{
+				.Record   = found->second,
+				.Inserted = inserted,
+			};
+		}
+
+		[[nodiscard]] auto mark_possibly_transmitted(
+			const std::string&                  aKey,
+			const std::array<std::uint8_t, 32>& aFingerprint)
+			-> std::expected<record, failure> override
+		{
+			const auto found = Records.find(aKey);
+			if (found == Records.end() || found->second.RequestFingerprint != aFingerprint) {
+				return std::unexpected(failure::conflict);
+			}
+			found->second.Transmission
+				= application::review_mutation_recovery_transmission::possibly_transmitted;
+			return found->second;
+		}
+
+		[[nodiscard]] auto resolve(
+			const std::string&                          aKey,
+			const std::array<std::uint8_t, 32>&         aFingerprint,
+			const application::review_mutation_receipt& aReceipt)
+			-> std::expected<record, failure> override
+		{
+			const auto found = Records.find(aKey);
+			if (found == Records.end() || found->second.RequestFingerprint != aFingerprint
+				|| found->second.Transmission
+					!= application::review_mutation_recovery_transmission::possibly_transmitted) {
+				return std::unexpected(failure::conflict);
+			}
+			found->second.State   = application::review_mutation_recovery_state::succeeded;
+			found->second.Receipt = aReceipt;
+			return found->second;
+		}
+
+		std::map<std::string, record> Records;
+	};
+
+	/// \brief Forwards to the native transport and records, per exchange, the
+	/// operation, whether the session supplied a witness, how often the
+	/// transport consulted it, and whether the exchange succeeded.
+	class recording_mutation_transport final : public github_mutation_wire_transport
+	{
+	public:
+		struct exchange
+		{
+			review_mutation_operation Operation        = review_mutation_operation::observe_pull_request;
+			bool                      WitnessSupplied  = false;
+			std::uint32_t             WitnessConsulted = 0U;
+			bool                      Succeeded        = false;
+		};
+
+		explicit recording_mutation_transport(github_mutation_wire_transport& aInner) noexcept
+			: Inner{ &aInner }
+		{
+		}
+
+		[[nodiscard]] auto perform_review_mutation(
+			const github_mutation_wire_request&  aRequest,
+			const std::stop_token                aStop,
+			github_mutation_transmission_witness aWitness)
+			-> github_mutation_wire_completion override
+		{
+			auto observed = exchange{
+				.Operation       = aRequest.Wire.Operation,
+				.WitnessSupplied = static_cast<bool>(aWitness),
+			};
+			// The transport consults a witness on its own dispatch thread.
+			auto consulted            = std::make_shared<std::atomic_uint32_t>(0U);
+			auto witness              = aWitness
+				? github_mutation_transmission_witness{ [consulted, inner = std::move(aWitness)] {
+					  consulted->fetch_add(1U, std::memory_order_relaxed);
+					  return inner();
+				  } }
+				: github_mutation_transmission_witness{ };
+			auto completion           = Inner->perform_review_mutation(aRequest, aStop, std::move(witness));
+			observed.WitnessConsulted = consulted->load(std::memory_order_relaxed);
+			observed.Succeeded        = std::holds_alternative<github_mutation_wire_success>(completion);
+			Exchanges.push_back(observed);
+			return completion;
+		}
+
+		std::vector<exchange> Exchanges;
+
+	private:
+		github_mutation_wire_transport* Inner = nullptr;
+	};
+
+	[[nodiscard]] auto resolution_request_for(
+		const validated_github_host_profile& aProfile,
+		const bool                           aResolve)
+		-> application::review_thread_resolution_request
+	{
+		const auto target   = mutation_target_for(aProfile);
+		const auto identity = mutation_identity_for(aProfile);
+		return {
+			.Target         = target.Semantic,
+			.ActingIdentity = identity.Account,
+			.Thread         = "PRRT_fixture_1",
+			.Resolve        = aResolve,
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target,
+				.ActingIdentity = identity,
+			},
+		};
+	}
+
+	/// \brief The production session's reply, resolution and unresolution,
+	/// each through the native transport to the loopback fixture.
+	///
+	/// \details The reply is [[BPR-0896]]'s course as `reply_course_wires`
+	/// pins it in live_review_mutation_provider_tests.cpp; the fixture pins
+	/// each request's method, path and GraphQL document in the same order.
+	void run_review_mutation_course(
+		native_https_transport&              aTransport,
+		const validated_github_host_profile& aProfile)
+	{
+		auto        recorder = recording_mutation_transport{ aTransport };
+		auto        recovery = std::make_unique<fixture_recovery>();
+		const auto& records  = recovery->Records;
+		auto        session  = review_mutation_session{
+			recorder,
+			live_review_mutation_configuration{
+				.CredentialContext = account_operation_context(aProfile, pull_request_context(aProfile)),
+				.Target            = mutation_target_for(aProfile),
+				.ActingIdentity    = mutation_identity_for(aProfile),
+			},
+			std::make_shared<fixture_review_mutation_lease>(),
+			std::move(recovery),
+		};
+
+		const auto reply      = mutation_semantic_for(aProfile, "PRRT_fixture_1");
+		const auto submission = session.submit_and_reconcile(reply, { });
+		expect(submission.Result.has_value() && !submission.Result->Duplicate
+				   && submission.Result->ServerCommentId == "PRRC_reply_45"
+				   && submission.MutationAttempted && submission.Reconciliation.has_value()
+				   && submission.Reconciliation->size() == 2U,
+			   "mutation-course-reply-confirmed-against-its-thread");
+		const auto record = records.find(reply.IdempotencyKey);
+		expect(record != records.end()
+				   && record->second.State == application::review_mutation_recovery_state::succeeded
+				   && record->second.Receipt.has_value()
+				   && record->second.Receipt->ServerCommentId == "PRRC_reply_45",
+			   "mutation-course-reply-recorded-as-its-receipt");
+
+		for (const auto resolve : { true, false }) {
+			const auto receipt = session.resolve_thread(resolution_request_for(aProfile, resolve), { });
+			expect(receipt.has_value() && receipt->Thread == "PRRT_fixture_1"
+					   && receipt->Resolved == resolve,
+				   resolve ? "mutation-course-resolved" : "mutation-course-unresolved");
+		}
+
+		// The session witnesses the reply and nothing else: the GraphQL reads
+		// and both resolutions carry no witness and must still complete.
+		using operation = review_mutation_operation;
+		struct expected_exchange
+		{
+			operation Operation = operation::observe_pull_request;
+			bool      Witnessed = false;
+		};
+		constexpr auto expected = std::array{
+			expected_exchange{ .Operation = operation::observe_review_thread },
+			expected_exchange{ .Operation = operation::observe_review_thread_comments },
+			expected_exchange{ .Operation = operation::observe_viewer },
+			expected_exchange{ .Operation = operation::observe_pull_request },
+			expected_exchange{ .Operation = operation::reply_review_thread, .Witnessed = true },
+			expected_exchange{ .Operation = operation::observe_review_thread_comments },
+			expected_exchange{ .Operation = operation::observe_review_thread },
+			expected_exchange{ .Operation = operation::resolve_review_thread },
+			expected_exchange{ .Operation = operation::observe_review_thread },
+			expected_exchange{ .Operation = operation::unresolve_review_thread },
+		};
+		expect(recorder.Exchanges.size() == expected.size(), "mutation-course-exchange-count");
+		for (std::size_t index = 0U; index < expected.size(); ++index) {
+			const auto& observed = recorder.Exchanges[index];
+			expect(observed.Operation == expected[index].Operation && observed.Succeeded
+					   && observed.WitnessSupplied == expected[index].Witnessed
+					   && observed.WitnessConsulted == (expected[index].Witnessed ? 1U : 0U),
+				   "mutation-course-exchange-" + std::to_string(index + 1U));
+		}
+	}
+
+	void run_review_exchange_fixture(
+		const fixture_scenario                 aScenario,
+		const validated_github_host_profile&   aProfile,
+		std::string&                           aCredential,
+		const native_https_test_configuration& aConfiguration)
+	{
+		const auto context   = account_operation_context(aProfile, pull_request_context(aProfile));
+		auto       transport = make_native_https_account_transport_for_test(
+			aProfile,
+			application::github_credential_retrieve_success{
+				.Context    = context,
+				.Credential = credential_material(aCredential),
+			},
+			aConfiguration);
+		wipe(aCredential);
+		expect(transport.has_value(), "review-exchange-transport");
+		if (aScenario == fixture_scenario::mutation_graphql_course) {
+			run_review_mutation_course(**transport, aProfile);
+			return;
+		}
+
+		const auto server = aProfile.server_contract();
+		const auto wire   = [&context](const review_mutation_request_result& aCompiled) {
+			expect(aCompiled.has_value(), "review-exchange-wire");
+			return github_mutation_wire_request{ .Context = context, .Wire = *aCompiled };
+		};
+		const auto comment = wire(compile_review_comment_request(mutation_semantic_for(aProfile), server));
+		const auto review  = wire(compile_review_submission_request(
+			review_submission_request{
+				.Target         = mutation_target_for(aProfile),
+				.ActingIdentity = mutation_identity_for(aProfile),
+				.Disposition    = core::review_disposition::comment,
+				.Body           = "Looks good.",
+			},
+			server));
+		const auto reply   = wire(compile_review_comment_request(
+			mutation_semantic_for(aProfile, "PRRT_fixture_1"), server));
+		const auto resolve = wire(compile_thread_resolution_request(
+			resolution_request_for(aProfile, true), server));
+		const auto observe = wire(compile_thread_target_observation_request(
+			resolution_request_for(aProfile, true), server));
+
+		// One exchange. A witness that admits or refuses, or none at all; the
+		// count is how often the transport consulted it.
+		struct outcome
+		{
+			github_mutation_wire_completion Completion;
+			std::uint32_t                   Consulted = 0U;
+		};
+		const auto perform = [&transport](const github_mutation_wire_request& aRequest,
+										  const std::optional<bool>           aAdmit) {
+			auto consulted  = std::make_shared<std::atomic_uint32_t>(0U);
+			auto witness    = aAdmit.has_value()
+				? github_mutation_transmission_witness{ [consulted, admit = *aAdmit] {
+					  consulted->fetch_add(1U, std::memory_order_relaxed);
+					  return admit;
+				  } }
+				: github_mutation_transmission_witness{ };
+			auto completion = (*transport)->perform_review_mutation(aRequest, { }, std::move(witness));
+			return outcome{
+				.Completion = std::move(completion),
+				.Consulted  = consulted->load(std::memory_order_relaxed),
+			};
+		};
+		// Refused after the POST was handed to the network, so possibly sent.
+		const auto refusedAfterPost = [](const outcome& aOutcome) {
+			const auto* error = std::get_if<github_mutation_wire_error>(&aOutcome.Completion);
+			return error != nullptr
+				&& error->Failure == application::review_mutation_failure::unavailable
+				&& error->Transmission == github_mutation_transmission::indeterminate;
+		};
+
+		if (aScenario == fixture_scenario::mutation_review_submission) {
+			// The other witnessed REST write, which GitHub answers 200 OK.
+			const auto  submitted = perform(review, true);
+			const auto* success   = std::get_if<github_mutation_wire_success>(&submitted.Completion);
+			expect(success != nullptr && success->Response.Status == 200 && submitted.Consulted == 1U,
+				   "review-submission-completes-with-200-after-one-witness");
+			return;
+		}
+		if (aScenario == fixture_scenario::mutation_graphql_witness_failure) {
+			const auto refused = perform(reply, false);
+			expect(refusedAfterPost(refused) && refused.Consulted == 1U,
+				   "graphql-reply-refused-by-its-witness-is-aborted");
+			return;
+		}
+		if (aScenario == fixture_scenario::mutation_graphql_core_resource) {
+			const auto answered = perform(observe, std::nullopt);
+			expect(refusedAfterPost(answered) && answered.Consulted == 0U,
+				   "graphql-review-read-accounted-to-core-is-refused");
+			return;
+		}
+		expect(aScenario == fixture_scenario::mutation_status_refusal, "review-exchange-scenario");
+		// Every answer is a 2xx carrying the right rate-limit resource; only
+		// the status is not the operation's own.
+		struct refusal
+		{
+			const github_mutation_wire_request* Request = nullptr;
+			std::optional<bool>                 Admit;
+			std::string_view                    Name;
+		};
+		for (const auto& row : {
+				 refusal{ .Request = &comment, .Admit = true, .Name = "rest-comment-answered-200-is-refused" },
+				 refusal{ .Request = &review, .Admit = true, .Name = "review-submission-answered-201-is-refused" },
+				 refusal{ .Request = &reply, .Admit = true, .Name = "graphql-reply-answered-201-is-refused" },
+				 refusal{ .Request = &resolve, .Name = "graphql-resolution-answered-201-is-refused" },
+				 refusal{ .Request = &observe, .Name = "graphql-thread-read-answered-201-is-refused" },
+			 }) {
+			const auto answered = perform(*row.Request, row.Admit);
+			expect(refusedAfterPost(answered) && answered.Consulted == (row.Admit.has_value() ? 1U : 0U),
+				   row.Name);
+		}
+	}
+
 	void run_fixture(const fixture_scenario aScenario,
 					 const std::uint16_t    aProxyPort,
 					 const std::uint16_t    aFallbackProxyPort)
@@ -1826,7 +2227,8 @@ namespace {
 		expect(!authorityCertificate.empty(), "fixture-authority-empty");
 
 		const auto profile = validate_github_host_profile(
-			(aScenario == fixture_scenario::capability_success || is_capability_refusal(aScenario))
+			(aScenario == fixture_scenario::capability_success || is_capability_refusal(aScenario)
+			 || is_review_exchange(aScenario))
 				? github_com_profile_candidate()
 				: profile_candidate(application::github_authentication_transport::native_https));
 		expect(profile.has_value(), "fixture-profile");
@@ -1844,6 +2246,10 @@ namespace {
 				: native_https_maximum_response_body_bytes,
 		};
 
+		if (is_review_exchange(aScenario)) {
+			run_review_exchange_fixture(aScenario, *profile, framedCredential, configuration);
+			return;
+		}
 		if (aScenario == fixture_scenario::anonymous_read
 			|| aScenario == fixture_scenario::anonymous_read_canary) {
 			const auto anonymousProfile = validate_github_host_profile(

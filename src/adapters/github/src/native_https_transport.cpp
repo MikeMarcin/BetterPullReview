@@ -204,6 +204,9 @@ namespace bpr::adapters::github::detail {
 			// rather than a failure. Zero admits none, and a hop that reached
 			// no status at all is already refused before this is consulted.
 			int AdmittedContractStatus = 0;
+			// The one status that is success. Only a review mutation's
+			// exchange names another ([[BPR-1018]]).
+			int SuccessfulStatus = 200;
 		};
 
 		struct hop_cancelled
@@ -502,18 +505,22 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto
-		native_request_from(const github_mutation_wire_request& aRequest)
+		native_request_from(const github_mutation_wire_request& aRequest,
+							const review_mutation_exchange&     aExchange)
 			-> native_request
 		{
 			return {
 				.Surface                 = native_request_surface::review_mutation,
-				.RateLimitResource       = application::github_rate_limit_resource::core,
+				.RateLimitResource       = aExchange.Graphql
+					? application::github_rate_limit_resource::graphql
+					: application::github_rate_limit_resource::core,
 				.RequireRateLimitHeaders = true,
 				.Method                  = aRequest.Wire.Method,
 				.Path                    = aRequest.Wire.Path,
 				.Query                   = { },
 				.Headers                 = aRequest.Wire.Headers,
 				.Body                    = aRequest.Wire.Body,
+				.SuccessfulStatus        = aExchange.SuccessfulStatus,
 			};
 		}
 
@@ -2504,19 +2511,25 @@ namespace bpr::adapters::github::detail {
 			if (aStop.stop_requested()) {
 				return github_mutation_wire_cancelled{ };
 			}
+			// [[BPR-1018]]. The operation, not its path, says whether this is
+			// a REST or GraphQL exchange, which status is success, and whether
+			// the POST waits for the caller's witness.
+			const auto     exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
 			native_request native;
 			try {
-				if (!application::valid(aRequest.Context)
+				if (!application::valid(aRequest.Context) || !exchange.has_value()
+					|| exchange->Method != aRequest.Wire.Method
 					|| !validate_outbound_review_mutation_request(aRequest.Wire)
 							.has_value()) {
 					return github_mutation_wire_error{
 						.Failure = application::review_mutation_failure::unavailable,
 					};
 				}
-				native                         = native_request_from(aRequest);
+				native                         = native_request_from(aRequest, *exchange);
 				native.RequireRateLimitHeaders = Profile.server_contract()
 					== application::github_server_contract::github_com_2022_11_28;
-				if (!valid_request_shape(native)) {
+				if (!valid_request_shape(native)
+					|| exchange->Graphql != (native.Path == Profile.graphql_route())) {
 					return github_mutation_wire_error{
 						.Failure = application::review_mutation_failure::unavailable,
 					};
@@ -2526,13 +2539,17 @@ namespace bpr::adapters::github::detail {
 					.Failure = application::review_mutation_failure::unavailable,
 				};
 			}
+			// The hop calls this once its POST has been handed to Qt, and
+			// aborts it unless this admits it. Every POST is possibly sent from
+			// then on; only a witnessed write asks the caller first.
 			auto postCreated = std::make_shared<std::atomic_bool>(false);
-			auto witness     = [postCreated, transmissionWitness = std::move(aWitness)]() mutable {
+			auto admit       = [postCreated, witnessed = exchange->Witnessed,
+								transmissionWitness = std::move(aWitness)]() mutable {
 				postCreated->store(true, std::memory_order_release);
-				return transmissionWitness && transmissionWitness();
+				return !witnessed || (transmissionWitness && transmissionWitness());
 			};
 			auto result = perform_validated(
-				aRequest, std::move(native), aStop, std::move(witness));
+				aRequest, std::move(native), aStop, std::move(admit));
 			return mutation_completion(
 				std::move(result),
 				postCreated->load(std::memory_order_acquire)
@@ -3606,6 +3623,9 @@ namespace bpr::adapters::github::detail {
 				return provider_error(
 					application::github_provider_failure::network);
 			}
+			// A review POST is possibly sent from here on, so it never falls
+			// back to another proxy; the operation's admission decides whether
+			// it may go at all ([[BPR-1018]]).
 			if (aOperation->Request.Surface == native_request_surface::review_mutation
 				&& aOperation->Request.Method == http_method::post) {
 				aOperation->MutationPostCreated = true;
@@ -3751,14 +3771,9 @@ namespace bpr::adapters::github::detail {
 				}
 				return hop_redirect{ .Target = *target };
 			}
-			const auto successfulStatus = aOperation->Request.Surface
-						== native_request_surface::review_mutation
-					&& aOperation->Request.Method == http_method::post
-				? 201
-				: 200;
-			const auto admittedStatus   = state.Status
+			const auto admittedStatus = state.Status
 				== aOperation->Request.AdmittedContractStatus;
-			if (state.Status != successfulStatus && !admittedStatus) {
+			if (state.Status != aOperation->Request.SuccessfulStatus && !admittedStatus) {
 				auto result                   = classify_http_status(state);
 				result.HttpStatus             = static_cast<std::uint16_t>(state.Status);
 				result.TransportFailureSource = application::diagnostic_transport_failure_source::http_response;
