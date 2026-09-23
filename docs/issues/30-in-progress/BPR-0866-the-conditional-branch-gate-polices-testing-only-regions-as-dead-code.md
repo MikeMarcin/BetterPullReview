@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0866"
 title: "The conditional-branch gate polices BPR_BUILD_TESTING regions as code no host compiles"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
