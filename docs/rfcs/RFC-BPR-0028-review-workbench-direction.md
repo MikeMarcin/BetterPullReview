@@ -13,28 +13,39 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Current state, 2026-09-23
 
-This RFC is not ready to close. Of its 63 cards, 61 are Done. Two cards and one
-conflict hold it open:
+This RFC is not ready to close. It is the next RFC in canonical order.
+[[BPR-1021]] is its closeout, in Backlog under the new milestone
+`close-rfc-0028` of plan `ux-redesign-pack-0028` (see the
+[closeout planning record](plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md)).
+Besides BPR-1021, 63 cards are linked to this RFC and 61 of them are Done. The
+two that are not, and one conflict, hold the RFC open:
 
 - [[BPR-0653]], the Windows title row, is parked on human-review. Its Windows
-  form is verified on the real platform at 1280x852 and 1920x1080 at candidate
-  `53d229d7`. What remains is its attended capture on the Windows station
-  (snap layouts, a drag, the look of the caption buttons) and the owner's
-  decision on shipping Qt's private Windows native interface.
-- [[BPR-0746]] is Blocked on the cursor probe the owner declined. A closeout
-  has to say how it is disposed.
-- **AC-01 does not hold on main.** RFC-BPR-0037's composition entry row
-  (Compose review, Draft comment or reply; `cc038748`, [[BPR-0929]]) sits
-  between the strip and the epoch line on every platform, 20 logical pixels
-  at y 30. The chrome above the comparison is three rows rather than "the
+  form is verified on the real platform at 1280x852 and 1920x1080 (candidate
+  `53d229d7`, re-run on main at `38cc26d7`). Three owner asks remain:
+  - its attended capture on the Windows station (snap layouts, a drag, the look
+    of the caption buttons);
+  - the decision on shipping Qt's private Windows native interface;
+  - the AC-01 decision below.
+- [[BPR-0746]] is Blocked on the cursor probe the owner declined. It can close
+  only through a recorded owner amendment of its unobtainable criteria, never
+  as passed. `close-rfc-0028` binds it beside the closeout.
+- **AC-01 does not hold on main as written.** RFC-BPR-0037's composition entry
+  row (Compose review, Draft comment or reply; `cc038748`, [[BPR-0929]]) sits
+  between the strip and the epoch line on every platform, 20 logical pixels at
+  y 30. While a pull request loads, [[BPR-0795]]'s readiness line sits there
+  too. The chrome above the comparison is therefore three rows rather than "the
   strip and the epoch line only", and the epoch line is no longer the row
-  directly under the strip where [[BPR-0737]] put it. `qt_workbench_window_scale_*`
-  stop there ([[BPR-0940]]). The owner chooses between amending AC-01 and the
-  chrome paragraph to admit the row, and moving the two entries (for example
-  into the strip's review controls menu, which costs the strip no width).
+  directly under the strip where [[BPR-0737]] put it.
 
-No closeout card exists, and plan `ux-redesign-pack-0028` has no milestone that
-closes this RFC; one has to be allocated on main.
+  [[BPR-0940]] (`f839e26a`) has since made `qt_workbench_window_scale_*`
+  assert that arrangement, so no test is red over it. The conflict is between
+  this text and main, and the owner chooses between two ways out:
+  - amend AC-01 and the chrome paragraph to admit the entry rows;
+  - move the two entries (for example into the strip's review controls menu,
+    which costs the strip no width) and return the course to "first row".
+
+  The ask is stated on BPR-0653.
 
 ## Current attended pointer, 2026-09-12 (d30)
 

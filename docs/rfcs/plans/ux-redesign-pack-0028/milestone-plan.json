@@ -196,6 +196,28 @@
         "BPR-0653 is Done with Windows-station evidence; it is not eligible on macOS"
       ],
       "boundary": "Windows-only platform work; runs only when a Windows station is available"
+    },
+    {
+      "id": "close-rfc-0028",
+      "outcome": "RFC-BPR-0028 is verified and closed against its immutable baseline 58a853dd: the Windows title row (BPR-0653) is Done; the seam-cursor card BPR-0746 is Done or disposed by a recorded owner amendment of its unobtainable criteria; the owner's AC-01 decision on RFC-BPR-0037's composition entry row between the strip and the epoch line is applied to the RFC text or to the layout; and every criterion row carries its direct check, actual result and producing commit, or its recorded amendment.",
+      "work": [
+        {
+          "issue": "BPR-0746"
+        },
+        {
+          "issue": "BPR-1021"
+        }
+      ],
+      "depends_on": [
+        "windows-strip-title-row"
+      ],
+      "exit_criteria": [
+        "BPR-0653 and BPR-0746 are Done; BPR-0746's unobtainable AC1 and AC2 are closed only through a recorded owner amendment, never as passed",
+        "The owner's AC-01 decision is recorded, and either AC-01 and the chrome paragraph admit the review surface's entry rows between the strip and the epoch line, or the entries are moved and the window course asserts the epoch line as the first row beneath the strip",
+        "Every RFC-BPR-0028 criterion row records its direct check, actual result and producing commit, with attended and native evidence bound to its exact candidate",
+        "verify_documentation.py and git diff --check pass and RFC-BPR-0028 and the index are reconciled to the closed status"
+      ],
+      "boundary": "The RFC-BPR-0028 closeout card BPR-1021 and the disposition of BPR-0746, which names this plan but had no milestone in it. BPR-0653 stays in windows-strip-title-row on the Windows station and is a prerequisite, not work of this milestone. BPR-0653 is parked on three owner asks (the Windows attended capture, Qt's private Windows native interface in a shipped target, and the AC-01 decision) and BPR-0746 is Blocked on owner-declined-probe, so this milestone waits on the owner; no agent may answer those asks, and no failed or unobtainable observation becomes a pass. No new feature scope: BPR-1022 (the Windows application menu from the keyboard) is standalone and not a dependency. No live GitHub/GHES mutation is authorized. Stop at this milestone boundary."
     }
   ],
   "unplanned_work": []
