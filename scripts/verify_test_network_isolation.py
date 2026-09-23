@@ -309,6 +309,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # Uncontained both pass (32.31 s and 16.48 s).
     "application_device_binding_launch_renewal": "dos-volume-name",
     "application_profile_window_restart_public_path": "dos-volume-name",
+    # [[BPR-0874]]. Measured on JaegAW 2026-09-23: with the data root in a
+    # private temporary parent, as on POSIX, the three large-review courses
+    # compose uncontained. Contained they stop at their first step, "private
+    # data root parent": narrowing the QTemporaryDir needs WRITE_DAC, the
+    # refusal BPR-0833 measured.
+    "application_large_review_benchmark": "dos-volume-name",
+    "application_unavailable_diff_public_path": "dos-volume-name",
+    "application_approximate_diff_public_path": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
     # BPR-0846: the same real host, cache and catalog composition as
     # epoch_maintenance_integration, not yet measured contained on Windows.

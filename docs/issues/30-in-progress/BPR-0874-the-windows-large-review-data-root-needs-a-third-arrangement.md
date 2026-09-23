@@ -115,3 +115,79 @@ cleanup sources: say which of the seven `registry`/`unavailable` sub-causes
 fires. That change lands in `src/app/**`, which no station owns. Note also that
 this card couples to the pin at `tests/end_to_end/CMakeLists.txt:2295-2296`,
 which has to move in the same commit.
+
+## One arrangement on every platform, three rows pinned (bpr-main-win, 2026-09-23)
+
+Run `bpr-main-win-20260923`. Windows 11 Home 10.0.26200, MSVC 19.51 Debug,
+`build/dev` at `470920d5` and later, serial and offscreen. Logs are under
+`build/logs/bpr-0872-0876-main-win/` and are not committed.
+
+**The premise, rechecked.** Two of the five rows have moved.
+`application_review_ledger_composition_contract` (21.30 s) and
+`application_defect_composition_contract` (29.65 s) pass at `470920d5`,
+uncontained as pinned. `df54d00b` (2026-09-17) fixed them. Their CMake courses
+had narrowed the root with `file(CHMOD ...)`, which only clears the read-only
+attribute on Windows. They now call the shared owner-private helper and take
+the owned parent [[BPR-0875]] gave the other courses. The three large-review rows
+still failed, contained and uncontained alike, at
+`large-review-benchmark-failed: application startup succeeds`.
+
+**Which refusal, named.** With the old bare `QTemporaryDir` root, printing
+[[BPR-0877]]'s `profile_startup_refusal_name()` gives `registry_unavailable`.
+The benchmark now prints that name itself when startup fails
+(`LARGE_REVIEW_STARTUP_REFUSAL:<name>`), so the next failure needs no
+temporary print.
+
+**The arrangement.** There are three candidates:
+
+- **The bare temporary folder.** It carries `%TEMP%`'s inherited entries, and
+  the profile registry refuses it as a root.
+- **A data child made by `create_storage_root_owner_private`, under the bare
+  folder.** This composes all three courses uncontained once the root is named
+  natively. Named with Qt's '/', the storage root validator refuses it
+  ([[BPR-1031]]'s lesson). But it leaves the agent-workspace neighbourhood in
+  `%TEMP%`, where recovery refuses at quit.
+- **The POSIX arrangement.** Narrow the temporary folder to owner-private,
+  then create `data` inside it and narrow that too. This composes all three
+  uncontained (`LARGE_REVIEW_COMPOSED_BENCHMARK_OK`, `UNAVAILABLE_DIFF_COMPOSED_OK`,
+  `APPROXIMATE_DIFF_COMPOSED_OK`). It prints no
+  `AGENT_WORKSPACE_RECOVERY_REFUSED`, because the neighbourhood sits under the
+  private parent.
+
+So the `#if` is gone. One arrangement serves every platform: the POSIX one,
+with the root named through `bpr::app::native_filesystem_path`. That is
+Windows' native spelling there, and the same UTF-8 bytes as before on macOS
+and Linux. Windows does not need a third arrangement. It needed the existing
+one, spelled natively.
+
+**Contained, nothing passes, which is why three rows are pinned.** Contained,
+the course stops at its first step, "private data root parent": narrowing the
+`QTemporaryDir` needs `WRITE_DAC`, which the container lacks. That is the
+refusal [[BPR-0833]] measured and pinned. `create_storage_root_owner_private`
+on a child is refused contained too. This matches BPR-0833's decision that no
+choice of parent passes contained while the stores walk their ancestor chain.
+The three rows are registered `WINDOWS_UNCONTAINED` and pinned
+`dos-volume-name`, keywords and dictionary in one commit.
+
+| Row | Before (`470920d5`) | After, as registered |
+|---|---|---|
+| `application_large_review_benchmark` | `application startup succeeds` (both ways) | Passes, 38.25 s |
+| `application_unavailable_diff_public_path` | same | Passes, 18.96 s |
+| `application_approximate_diff_public_path` | same | Passes, 28.27 s |
+| `application_review_ledger_composition_contract` | Passes, 21.30 s | Passes, 21.58 s |
+| `application_defect_composition_contract` | Passes, 29.65 s | Passes, 29.56 s |
+
+`test_network_isolation_manifest` reports
+`TEST_NETWORK_ISOLATION_OK:configured=414:registrations=388`, and
+`test_network_isolation_structure_contract` passes.
+
+**Why `registry` stays one arm of `github_application_startup_failure`.** The
+defect was that the arm hid which profile refusal fired, and a station needed a
+temporary print to learn it. [[BPR-0877]] records the first profile refusal
+and names it (`profile_startup_refusal_name()`) for any reader. This course and
+the device-binding seed (`SEED_STARTUP_PROFILE_REFUSAL:`) now print it. Every
+caller of the arm maps it to the same outcome, so a new enumerator would add a
+spelling, not a behaviour. Splitting it would also move the pinned
+`EPOCH_FIXTURE_NONCANONICAL_ROOT_CAUSE_OK:registry`. The other startup
+boundaries that discard their cause are [[BPR-0882]]'s. That card coordinates
+the pin if either card ever splits an arm.

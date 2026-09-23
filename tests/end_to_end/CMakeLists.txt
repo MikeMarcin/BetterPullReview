@@ -1103,8 +1103,12 @@ target_compile_definitions(bench_better_pull_review_large_review PRIVATE
     "BPR_BENCH_BUILD_CONFIGURATION=\"$<CONFIG>\"")
 bpr_enable_hardening(bench_better_pull_review_large_review)
 bpr_enable_warnings(bench_better_pull_review_large_review)
+# [[BPR-0874]]. The three composed courses below run uncontained on Windows:
+# contained, narrowing the private data root parent needs WRITE_DAC the
+# container lacks (dos-volume-name, as BPR-0833).
 bpr_add_network_isolated_test(
     NAME application_large_review_benchmark
+    WINDOWS_UNCONTAINED
     COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
         $<TARGET_FILE:Git::Git>
         "${CMAKE_CURRENT_BINARY_DIR}/large-review-measurement.json"
@@ -1115,6 +1119,7 @@ set_tests_properties(application_large_review_benchmark PROPERTIES
 
 bpr_add_network_isolated_test(
     NAME application_unavailable_diff_public_path
+    WINDOWS_UNCONTAINED
     COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
         $<TARGET_FILE:Git::Git>
         "${CMAKE_CURRENT_BINARY_DIR}/unavailable-diff-measurement.json"
@@ -1127,6 +1132,7 @@ set_tests_properties(application_unavailable_diff_public_path PROPERTIES
 # [[BPR-0858]]: BPR-0719's approximate alignment through the same public path.
 bpr_add_network_isolated_test(
     NAME application_approximate_diff_public_path
+    WINDOWS_UNCONTAINED
     COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
         $<TARGET_FILE:Git::Git>
         "${CMAKE_CURRENT_BINARY_DIR}/approximate-diff-measurement.json"
