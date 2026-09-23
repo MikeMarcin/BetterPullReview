@@ -17,7 +17,7 @@ acceptance: [{"criterion":"Re-audit the live RFC dependencies, accepted scope, g
 Trace repository search in PR loading, current queue observations/membership, viewer identity, provider capability contracts, pending setup, and workspace opening. Define bounded personal discovery and exact URL-to-view routing without broad PR hydration. Allocate the first coherent slice and its fixture/provider/public-path selectors.
 
 Governing design: [RFC-BPR-0026](../../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
-Closeout: [BPR-0599](../20-ready/BPR-0599-close-rfc-0026.md).
+Closeout: [BPR-0599](../30-in-progress/BPR-0599-close-rfc-0026.md).
 
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
