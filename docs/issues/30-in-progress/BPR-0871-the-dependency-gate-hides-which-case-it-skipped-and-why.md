@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0871"
 title: "dependency_modernization_contract reports a skip without naming the case or the reason"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
