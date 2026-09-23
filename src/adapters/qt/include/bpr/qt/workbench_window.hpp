@@ -21,6 +21,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
+#include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -605,6 +606,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto files_tree() const noexcept -> files_tree_view*;
 		[[nodiscard]] auto files_order_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto files_filter() const noexcept -> QLineEdit*;
+		/// \brief [[BPR-0981]]. The files drawer's empty state under a filter.
+		[[nodiscard]] auto files_filter_notice() const noexcept -> filter_empty_notice*;
 		[[nodiscard]] auto central_splitter() const noexcept
 			-> workbench_central_splitter*;
 		[[nodiscard]] auto conversations_drawer() const noexcept
@@ -805,6 +808,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto repositories_drawer() const noexcept -> workbench_drawer_panel*;
 		[[nodiscard]] auto repositories_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto repositories_tree() const noexcept -> repositories_tree_view*;
+		/// \brief [[BPR-0981]]. The repositories drawer's filter and its empty state.
+		[[nodiscard]] auto repositories_filter() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto repositories_filter_notice() const noexcept -> filter_empty_notice*;
 		/// \brief [[BPR-0652]]. The observer-rule editor, on Reviews & queue.
 		[[nodiscard]] auto rules_editor() const noexcept -> QWidget*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
@@ -916,6 +922,9 @@ namespace bpr::qt {
 		};
 
 		void build_primary_toolbar();
+		/// [[BPR-0981]]. Shows each drawer's empty state when its filter
+		/// leaves nothing, and hides it otherwise.
+		void refresh_filter_notices();
 		void build_central_surface();
 		void build_github_header();
 		void apply_github_transition(
@@ -1234,10 +1243,13 @@ namespace bpr::qt {
 		conversation_read_dispatch      ConversationReadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };
-		files_tree_view*                FilesTree          = nullptr;
-		QComboBox*                      FilesOrderSelector = nullptr;
-		QLineEdit*                      FilesFilter        = nullptr;
-		repositories_tree_view*         RepositoriesTree   = nullptr;
+		files_tree_view*                FilesTree                = nullptr;
+		QComboBox*                      FilesOrderSelector       = nullptr;
+		QLineEdit*                      FilesFilter              = nullptr;
+		filter_empty_notice*            FilesFilterNotice        = nullptr;
+		repositories_tree_view*         RepositoriesTree         = nullptr;
+		QLineEdit*                      RepositoriesFilter       = nullptr;
+		filter_empty_notice*            RepositoriesFilterNotice = nullptr;
 		std::vector<server_card*>       ServerCards;
 		QVBoxLayout*                    ServerCardColumn = nullptr;
 		QWidget*                        RulesEditor      = nullptr;

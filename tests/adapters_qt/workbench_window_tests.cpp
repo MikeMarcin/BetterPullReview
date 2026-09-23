@@ -5140,6 +5140,22 @@ namespace {
 				   && declared.contains(QStringLiteral("Exact right commit OID")),
 			   "both epoch selectors and both exact OIDs are reachable stops in "
 			   "the shell's declared focus order");
+		// [[BPR-0981]]. RFC-BPR-0025 AC-09: each drawer's filter, its Clear
+		// filter and the files order selector are declared stops before their tree.
+		expect(declared.indexOf(QStringLiteral("Filter pull requests")) >= 0
+				   && declared.indexOf(QStringLiteral("Clear pull requests filter"))
+					   == declared.indexOf(QStringLiteral("Filter pull requests")) + 1
+				   && declared.indexOf(QStringLiteral("Filter pull requests"))
+					   < declared.indexOf(window.repositories_tree()->accessibleName())
+				   && declared.indexOf(QStringLiteral("Files order")) >= 0
+				   && declared.indexOf(QStringLiteral("Filter files"))
+					   == declared.indexOf(QStringLiteral("Files order")) + 1
+				   && declared.indexOf(QStringLiteral("Clear files filter"))
+					   == declared.indexOf(QStringLiteral("Filter files")) + 1
+				   && declared.indexOf(QStringLiteral("Filter files"))
+					   < declared.indexOf(window.files_tree()->accessibleName()),
+			   "both drawer filters, their Clear filter and the files order selector are "
+			   "declared stops ahead of their trees");
 		expect(walked_focus_order(expanded) == expanded.mid(1),
 			   "the live focus chain walks the declared order exactly");
 

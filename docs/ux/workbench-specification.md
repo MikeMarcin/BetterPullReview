@@ -562,6 +562,20 @@ The complete normative interaction is in
 
 Filters include All, Unread, Changed Since Review, Changed Since Accepted, Defects, Needs Verification, and Excluded. Status is represented by label/icon as well as color.
 
+The files drawer and the repositories drawer each carry a text filter above
+their tree ([[BPR-0981]], RFC-BPR-0025). Both are resident: they narrow the
+rows the drawer already holds and never send a search to a provider. A filter
+matches when its letters appear in order, case-folded, in the file's path or
+in the repository's name or host, the pull request's title or its number;
+each space-separated term must match. A matching file keeps its folders and
+a matching pull request keeps its repository row, so parent context is never
+lost, and a matching repository keeps every row beneath it. When nothing
+matches the drawer says so, names the filter, and offers Clear filter; the
+open pull request and the selected file stay exactly where they were, and
+clearing makes the chosen row current again by its identity without a second
+open or select. The filters, the files order selector and Clear filter are
+declared focus stops ahead of their trees.
+
 Both drawers are independently collapsible and resizable. Collapsing hides the
 panel rather than resizing it to zero, because a splitter distributes a hidden
 child's space among its remaining children; that is what actually returns the

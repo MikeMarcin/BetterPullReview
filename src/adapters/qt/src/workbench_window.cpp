@@ -1089,7 +1089,29 @@ namespace bpr::qt {
 		Drawers[2].Panel = new workbench_drawer_panel{
 			core::workbench_drawer::repositories
 		};
-		RepositoriesTree = new repositories_tree_view{ Drawers[2].Panel };
+		// [[BPR-0981]]. Its filter above it, resident over the rows the queue
+		// projection already gave the tree; nothing here reaches a provider.
+		auto* const repositoriesSurface = new QWidget;
+		repositoriesSurface->setObjectName(QStringLiteral("workbenchRepositoriesSurface"));
+		auto* const repositoriesColumn = new QVBoxLayout{ repositoriesSurface };
+		repositoriesColumn->setContentsMargins(0, 0, 0, 0);
+		repositoriesColumn->setSpacing(2);
+		RepositoriesFilter = new QLineEdit{ repositoriesSurface };
+		RepositoriesFilter->setObjectName(QStringLiteral("repositoriesFilter"));
+		RepositoriesFilter->setAccessibleName(QStringLiteral("Filter pull requests"));
+		RepositoriesFilter->setAccessibleDescription(QStringLiteral(
+			"Show only repositories and pull requests whose name, title or number "
+			"contains these letters in order; a matching pull request keeps its repository"));
+		RepositoriesFilter->setPlaceholderText(QStringLiteral("Filter"));
+		RepositoriesFilter->setClearButtonEnabled(true);
+		repositoriesColumn->addWidget(RepositoriesFilter);
+		RepositoriesFilterNotice = new filter_empty_notice{
+			QStringLiteral("pull requests"), QStringLiteral("repositories"), repositoriesSurface
+		};
+		RepositoriesFilterNotice->hide();
+		repositoriesColumn->addWidget(RepositoriesFilterNotice);
+		RepositoriesTree = new repositories_tree_view{ repositoriesSurface };
+		repositoriesColumn->addWidget(RepositoriesTree, 1);
 		RepositoriesTree->set_saved_repository_dispatch(
 			[this](application::saved_repository_intent aIntent) {
 				if (SavedRepositoryDispatch && QueueReady) {
@@ -1099,7 +1121,14 @@ namespace bpr::qt {
 		RepositoriesTree->set_open_dispatch([this](const core::queue_item& aItem) {
 			open_pull_request_item(aItem);
 		});
-		Drawers[2].Panel->set_content_widget(RepositoriesTree, RepositoriesTree);
+		connect(RepositoriesFilter, &QLineEdit::textChanged, this, [this](const QString& aText) {
+			RepositoriesTree->set_filter(aText);
+			refresh_filter_notices();
+		});
+		connect(RepositoriesFilterNotice->clear_button(), &QAbstractButton::clicked, this, [this] {
+			RepositoriesFilter->clear();
+		});
+		Drawers[2].Panel->set_content_widget(repositoriesSurface, RepositoriesTree);
 		// [[BPR-0646]]. A rail is the collapsed drawer's one control, and
 		// pressing it is the same gesture as the strip's toggle: the action
 		// is triggered, and the core decides.
@@ -2024,11 +2053,18 @@ namespace bpr::qt {
 			FilesFilter = new QLineEdit{ filesSurface };
 			FilesFilter->setObjectName(QStringLiteral("filesFilter"));
 			FilesFilter->setAccessibleName(QStringLiteral("Filter files"));
-			FilesFilter->setAccessibleDescription(QStringLiteral("Show only files whose path contains this; their folders stay visible"));
+			// [[BPR-0981]]. The resident fuzzy match of RFC-BPR-0025.
+			FilesFilter->setAccessibleDescription(QStringLiteral(
+				"Show only files whose name or path contains these letters in order; their folders stay visible"));
 			FilesFilter->setPlaceholderText(QStringLiteral("Filter"));
 			FilesFilter->setClearButtonEnabled(true);
 			controls->addWidget(FilesFilter, 1);
 			surfaceColumn->addLayout(controls);
+			FilesFilterNotice = new filter_empty_notice{
+				QStringLiteral("files"), QStringLiteral("files"), filesSurface
+			};
+			FilesFilterNotice->hide();
+			surfaceColumn->addWidget(FilesFilterNotice);
 			FilesTree = new files_tree_view{ filesSurface };
 			surfaceColumn->addWidget(FilesTree, 1);
 			FilesTree->set_select_dispatch([this](const core::workbench_file_id& aFile) {
@@ -2047,6 +2083,10 @@ namespace bpr::qt {
 			});
 			connect(FilesFilter, &QLineEdit::textChanged, this, [this](const QString& aText) {
 				FilesTree->set_filter(aText);
+				refresh_filter_notices();
+			});
+			connect(FilesFilterNotice->clear_button(), &QAbstractButton::clicked, this, [this] {
+				FilesFilter->clear();
 			});
 			Drawers[0].Panel->host_beside_list(filesSurface, FilesTree);
 		}
@@ -3286,6 +3326,7 @@ namespace bpr::qt {
 		if (RepositoriesTree != nullptr) {
 			RepositoriesTree->apply(aProjection.Items, aProjection.SavedRepositories);
 			update_rail_summaries();
+			refresh_filter_notices();
 		}
 		// [[BPR-0660]], [[BPR-0774]]. A remembered server is its host's card,
 		// remembering exactly the record the queue keeps.
@@ -4001,6 +4042,7 @@ namespace bpr::qt {
 		Drawers[0].Panel->contents()->apply(rows);
 		if (FilesTree != nullptr) {
 			FilesTree->apply(rows);
+			refresh_filter_notices();
 		}
 		FileRowsPresent       = !rows.empty();
 		ApplyingFileSelection = false;
@@ -4671,6 +4713,7 @@ namespace bpr::qt {
 				FilesTree->apply(rows);
 			}
 			FilesTree->apply_overview(aProjection.Files);
+			refresh_filter_notices();
 			OverviewFileFactsDirty = false;
 			ApplyingFileSelection  = false;
 		}
@@ -5947,6 +5990,37 @@ namespace bpr::qt {
 	auto workbench_window::files_filter() const noexcept -> QLineEdit*
 	{
 		return FilesFilter;
+	}
+
+	auto workbench_window::files_filter_notice() const noexcept -> filter_empty_notice*
+	{
+		return FilesFilterNotice;
+	}
+
+	auto workbench_window::repositories_filter() const noexcept -> QLineEdit*
+	{
+		return RepositoriesFilter;
+	}
+
+	auto workbench_window::repositories_filter_notice() const noexcept -> filter_empty_notice*
+	{
+		return RepositoriesFilterNotice;
+	}
+
+	void workbench_window::refresh_filter_notices()
+	{
+		// An empty state is a filter that found nothing among rows that exist;
+		// an empty drawer with no filter says nothing new.
+		if (FilesFilterNotice != nullptr && FilesTree != nullptr && FilesFilter != nullptr) {
+			const auto filter = FilesFilter->text().trimmed();
+			FilesFilterNotice->set_filter(filter);
+			FilesFilterNotice->setVisible(!filter.isEmpty() && FilesTree->tree_model()->file_count() == 0U);
+		}
+		if (RepositoriesFilterNotice != nullptr && RepositoriesTree != nullptr && RepositoriesFilter != nullptr) {
+			const auto filter = RepositoriesFilter->text().trimmed();
+			RepositoriesFilterNotice->set_filter(filter);
+			RepositoriesFilterNotice->setVisible(!filter.isEmpty() && RepositoriesTree->tree_model()->rowCount() == 0);
+		}
 	}
 
 	auto workbench_window::central_splitter() const noexcept -> workbench_central_splitter*
@@ -7431,9 +7505,20 @@ namespace bpr::qt {
 			append(PullRequestPanel->body_editor());
 		}
 		// A collapsed drawer's rail is its one stop; hidden while expanded.
+		// [[BPR-0981]]. Each drawer's filter, its Clear filter (shown only in
+		// the empty state) and, for files, the order selector precede its tree.
 		append(Drawers[2].Panel->rail());
+		append(RepositoriesFilter);
+		if (RepositoriesFilterNotice != nullptr) {
+			append(RepositoriesFilterNotice->clear_button());
+		}
 		append(Drawers[2].Panel->focus_stop());
 		append(Drawers[0].Panel->rail());
+		append(FilesOrderSelector);
+		append(FilesFilter);
+		if (FilesFilterNotice != nullptr) {
+			append(FilesFilterNotice->clear_button());
+		}
 		append(Drawers[0].Panel->focus_stop());
 		// The line and its comparing menu first, then the two selectors on
 		// one grid row above their two exact OIDs, the row order the composed

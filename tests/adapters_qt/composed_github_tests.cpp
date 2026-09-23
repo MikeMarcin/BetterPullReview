@@ -3873,6 +3873,128 @@ namespace {
 		window.hide();
 	}
 
+	// [[BPR-0981]]. RFC-BPR-0025 AC-02 through the composed window: both
+	// drawer filters are resident, keep parent context, say so when nothing
+	// matches and clear from that notice, send nothing to a provider, and
+	// leave the open pull request and the selected file exactly where they were.
+	auto test_drawer_filters_are_resident_and_keep_the_open_views() -> void
+	{
+		std::vector<application::github_intent>          intents;
+		std::vector<core::workbench_interaction_intent>  workbench;
+		qt::workbench_window                             window{
+			[&workbench](core::workbench_interaction_intent aIntent) { workbench.push_back(aIntent); },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[&intents](application::github_intent aIntent) { intents.push_back(aIntent); },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		publish_pull_request(window);
+		window.publish(application::queue_landing_projection{
+			.Status = application::queue_landing_status::ready,
+			.Items  = {
+				core::queue_item{
+					.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 73 },
+					.Membership = { .Role = core::github_role::requested_reviewer },
+					.Bucket     = core::attention_bucket::initial_review_requested,
+					.Facts      = { .Title = "Resident drawer filters" },
+				},
+				core::queue_item{
+					.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 74 },
+					.Membership = { .Role = core::github_role::participant },
+					.Bucket     = core::attention_bucket::quiet,
+					.Facts      = { .Title = "Epoch line dates" },
+				},
+			},
+		});
+		auto overview = application::pull_request_overview_projection{ };
+		overview.Files.push_back(application::overview_file_row{
+			.Path = "src/host/ConptyConnection.cpp", .Name = "ConptyConnection.cpp",
+			.Operation = application::overview_file_operation::modified, .Additions = 12U, .Deletions = 3U });
+		overview.Files.push_back(application::overview_file_row{
+			.Path = "src/terminal/adapter/adaptDispatch.cpp", .Name = "adaptDispatch.cpp",
+			.Operation = application::overview_file_operation::modified, .Additions = 4U, .Deletions = 0U });
+		window.publish(overview);
+		window.choose_modality(qt::review_modality::review);
+		QApplication::processEvents();
+
+		auto* const files        = window.files_tree();
+		auto* const filesFilter  = window.files_filter();
+		auto* const filesNotice  = window.files_filter_notice();
+		auto* const repositories = window.repositories_tree();
+		auto* const reposFilter  = window.repositories_filter();
+		auto* const reposNotice  = window.repositories_filter_notice();
+		expect(files != nullptr && filesFilter != nullptr && filesNotice != nullptr && repositories != nullptr
+				   && reposFilter != nullptr && reposNotice != nullptr
+				   && window.repositories_drawer()->isAncestorOf(reposFilter)
+				   && window.repositories_drawer()->isAncestorOf(reposNotice)
+				   && window.files_drawer()->isAncestorOf(filesNotice)
+				   && reposFilter->accessibleName() == QStringLiteral("Filter pull requests")
+				   && filesFilter->accessibleName() == QStringLiteral("Filter files")
+				   && !reposFilter->accessibleDescription().isEmpty()
+				   && filesNotice->isHidden() && reposNotice->isHidden(),
+			   "each drawer carries its own named filter and a hidden empty-state notice");
+		const auto adapt = core::file_identity_of("src/terminal/adapter/adaptDispatch.cpp");
+		files->setCurrentIndex(files->tree_model()->index_for_file(adapt));
+		QApplication::processEvents();
+		const auto selected = files->tree_model()->file_at(files->currentIndex());
+		expect(selected == std::optional{ adapt } && !window.showing_home(),
+			   "a file is selected and the pull request is open before filtering");
+		const auto workbenchBefore = workbench.size();
+		const auto githubBefore    = intents.size();
+
+		filesFilter->setText(QStringLiteral("cncon"));
+		QApplication::processEvents();
+		expect(files->tree_model()->file_count() == 1U
+				   && files->tree_model()->index_for_file(core::file_identity_of("src/host/ConptyConnection.cpp")).isValid()
+				   && files->tree_model()->rowCount() == 1
+				   && files->tree_model()->index(0, 0).data().toString() == QStringLiteral("src/host")
+				   && filesNotice->isHidden(),
+			   "letters in order find the file and keep its folders above it");
+		filesFilter->setText(QStringLiteral("nothing like this"));
+		QApplication::processEvents();
+		expect(files->tree_model()->file_count() == 0U && !filesNotice->isHidden()
+				   && filesNotice->message().contains(QStringLiteral("No files match"))
+				   && filesNotice->message().contains(QStringLiteral("nothing like this"))
+				   && !files->currentIndex().isValid(),
+			   "a files filter nothing matches says so, names the filter, and offers Clear filter");
+		filesNotice->clear_button()->click();
+		QApplication::processEvents();
+		expect(filesFilter->text().isEmpty() && files->tree_model()->file_count() == 2U && filesNotice->isHidden()
+				   && files->tree_model()->file_at(files->currentIndex()) == std::optional{ adapt },
+			   "Clear filter empties the field, lists every file again and the selected file is current again");
+
+		reposFilter->setText(QStringLiteral("epoch"));
+		QApplication::processEvents();
+		auto* const model = repositories->tree_model();
+		expect(model->rowCount() == 1 && model->item_count() == 1U
+				   && model->index(0, 0, model->index(0, 0)).data(qt::repositories_tree_model::number_role).toLongLong() == 74
+				   && reposNotice->isHidden(),
+			   "a title match keeps its repository row and shows that pull request alone");
+		reposFilter->setText(QStringLiteral("#73"));
+		QApplication::processEvents();
+		expect(model->rowCount() == 1 && model->item_count() == 1U
+				   && model->index(0, 0, model->index(0, 0)).data(qt::repositories_tree_model::number_role).toLongLong() == 73,
+			   "a number match finds the pull request by its digits");
+		reposFilter->setText(QStringLiteral("zzz"));
+		QApplication::processEvents();
+		expect(model->rowCount() == 0 && !reposNotice->isHidden()
+				   && reposNotice->message().contains(QStringLiteral("No pull requests match")),
+			   "a repositories filter nothing matches says so and offers Clear filter");
+		reposNotice->clear_button()->click();
+		QApplication::processEvents();
+		expect(reposFilter->text().isEmpty() && model->rowCount() == 1 && model->item_count() == 2U && reposNotice->isHidden(),
+			   "Clear filter lists every repository and pull request again");
+
+		expect(intents.size() == githubBefore && workbench.size() == workbenchBefore && !window.showing_home()
+				   && files->tree_model()->file_at(files->currentIndex()) == std::optional{ adapt },
+			   "filtering and clearing sent nothing to a provider or the core and left the open pull request and selected file in place");
+		window.hide();
+	}
+
 	auto test_agent_surfaces_are_placed_in_the_conversations_drawer() -> void
 	{
 		qt::workbench_window window{
@@ -6872,6 +6994,7 @@ auto main(int argc, char** argv) -> int
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
 	test_settings_pages_carry_the_server_cards_and_the_rule_editor();
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
+	test_drawer_filters_are_resident_and_keep_the_open_views();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
 	test_home_signed_out_is_one_paste_field();
 	test_home_leads_with_the_bar_signed_in();

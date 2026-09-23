@@ -196,6 +196,81 @@ namespace {
 			   "a pull request row offers neither");
 		view.hide();
 	}
+	// [[BPR-0981]]. RFC-BPR-0025's resident filter: repository, host, title
+	// or number, letters in order; a matching pull request keeps its
+	// repository row, a matching repository keeps every row beneath, and
+	// the chosen pull request is current again after every rebuild without
+	// a second open.
+	auto test_the_filter_is_resident_keeps_context_and_the_chosen_row() -> void
+	{
+		qt::repositories_tree_view view;
+		view.resize(300, 400);
+		view.show();
+		QApplication::processEvents();
+		const auto items = std::vector<core::queue_item>{
+			item("EpicGames/UnrealEngine", 15157, core::attention_bucket::initial_review_requested),
+			item("EpicGames/UnrealEngine", 14366, core::attention_bucket::changed_since_my_review,
+				 core::github_role::requested_reviewer, "Preserve the DRCS font", 3U),
+			item("MikeMarcin/BetterPullReview", 1773, core::attention_bucket::quiet, core::github_role::participant,
+				 "Drawer filters"),
+		};
+		const auto saved = std::vector<application::saved_repository>{
+			{ .Host = "github.com", .Account = "mike", .Repository = "MikeMarcin/Quiet" },
+		};
+		auto opened = std::vector<core::queue_item>{ };
+		view.set_open_dispatch([&opened](const core::queue_item& aItem) { opened.push_back(aItem); });
+		view.apply(items, saved);
+		QApplication::processEvents();
+		auto* const model = view.tree_model();
+		expect(model->rowCount() == 3 && model->item_count() == 3U && model->needs_me_count() == 2U,
+			   "without a filter every repository and pull request is listed");
+
+		const auto chosen = model->index(1, qt::repositories_tree_model::name_column, model->index(0, 0));
+		view.setCurrentIndex(chosen);
+		QApplication::processEvents();
+		expect(opened.size() == 1U && opened.back().Ref.Number == 14366
+				   && view.current_pull_request().has_value() && view.current_pull_request()->Number == 14366,
+			   "choosing a pull request opens it once and the tree remembers it");
+
+		view.set_filter(QStringLiteral("drcs"));
+		QApplication::processEvents();
+		expect(model->rowCount() == 1 && model->item_count() == 1U
+				   && model->index(0, 0).data().toString() == QStringLiteral("EpicGames/UnrealEngine")
+				   && model->index(0, qt::repositories_tree_model::reason_column).data().toString() == QStringLiteral("1 of 1")
+				   && model->index(0, 0, model->index(0, 0)).data(qt::repositories_tree_model::number_role).toLongLong() == 14366
+				   && model->needs_me_count() == 2U,
+			   "a title match keeps its repository row above it, counts what is shown, and the rail's count is the queue's");
+		expect(model->item_at(view.currentIndex()).has_value() && model->item_at(view.currentIndex())->Ref.Number == 14366
+				   && opened.size() == 1U,
+			   "the chosen pull request is current again after the filter rebuilds, without a second open");
+		view.set_filter(QStringLiteral("1773"));
+		expect(model->rowCount() == 1 && model->item_count() == 1U
+				   && model->index(0, 0).data().toString() == QStringLiteral("MikeMarcin/BetterPullReview")
+				   && !view.currentIndex().isValid() && opened.size() == 1U,
+			   "a number match is found by its digits; a hidden chosen row is simply not current");
+		view.set_filter(QStringLiteral("epic"));
+		expect(model->rowCount() == 1 && model->item_count() == 2U
+				   && model->item_at(view.currentIndex())->Ref.Number == 14366,
+			   "a repository match keeps every pull request beneath it and the chosen one current");
+		view.set_filter(QStringLiteral("quiet"));
+		expect(model->rowCount() == 1 && model->item_count() == 0U
+				   && model->index(0, 0).data(qt::repositories_tree_model::saved_role).toBool(),
+			   "a saved repository with nothing beneath is found by its own name");
+		view.set_filter(QStringLiteral("github.com"));
+		expect(model->rowCount() == 3, "a host match keeps every repository on that host");
+		view.set_filter(QStringLiteral("nothing here"));
+		expect(model->rowCount() == 0 && model->item_count() == 0U && model->needs_me_count() == 2U,
+			   "a filter nothing matches leaves the tree honestly empty");
+		view.set_filter(QString{ });
+		QApplication::processEvents();
+		expect(model->rowCount() == 3 && model->item_at(view.currentIndex())->Ref.Number == 14366 && opened.size() == 1U,
+			   "clearing the filter restores every row and the chosen pull request, without a second open");
+		view.apply(items, saved);
+		QApplication::processEvents();
+		expect(model->item_at(view.currentIndex())->Ref.Number == 14366 && opened.size() == 1U,
+			   "a re-published queue keeps the chosen pull request current without opening it again");
+		view.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -203,6 +278,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	test_tree_groups_the_queue_by_repository_with_reasons();
 	test_saved_repositories_are_rows_with_save_and_forget();
+	test_the_filter_is_resident_keeps_context_and_the_chosen_row();
 	std::cout << "repositories-drawer-tests:pass\n";
 	return EXIT_SUCCESS;
 }

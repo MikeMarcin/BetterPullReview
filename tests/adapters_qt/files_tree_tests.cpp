@@ -1,5 +1,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/resident_filter.hpp"
 
 #include <QApplication>
 #include <QImage>
@@ -176,6 +177,29 @@ namespace {
 				   && labels(*model, model->index(0, 0)) == std::vector<QString>{ QStringLiteral("a.cpp") }
 				   && model->file_count() == 1U,
 			   "the filter keeps the matching file's folder and drops the rest, case-insensitively");
+		// [[BPR-0981]]. RFC-BPR-0025's resident fuzzy match: letters in order,
+		// not a substring; each space-separated term must match; the folders
+		// of a shown file stay in every order.
+		view.set_filter(QStringLiteral("acp"));
+		expect(labels(*model) == std::vector<QString>{ QStringLiteral("src") }
+				   && labels(*model, model->index(0, 0)) == std::vector<QString>{ QStringLiteral("a.cpp") }
+				   && model->file_count() == 1U,
+			   "letters in order find a file whose path spells them apart");
+		view.set_filter(QStringLiteral("src b"));
+		expect(model->file_count() == 1U
+				   && labels(*model, model->index(0, 0)) == std::vector<QString>{ QStringLiteral("b.cpp") },
+			   "every term of the filter must match, so 'src b' is src/b.cpp alone");
+		view.set_order(qt::files_order::flat);
+		expect(labels(*model) == std::vector<QString>{ QStringLiteral("src/b.cpp") },
+			   "the fuzzy filter narrows the flat order the same way");
+		view.set_order(qt::files_order::tree);
+		view.set_filter(QStringLiteral("zzz"));
+		expect(model->file_count() == 0U && model->rowCount() == 0,
+			   "a filter nothing matches leaves the tree honestly empty");
+		expect(qt::resident_filter_matches(QStringLiteral("adaptDispatch.cpp"), QStringLiteral("ADISP"))
+				   && !qt::resident_filter_matches(QStringLiteral("adaptDispatch.cpp"), QStringLiteral("dispa x"))
+				   && qt::resident_filter_matches(QStringLiteral("anything"), QStringLiteral("  ")),
+			   "the matcher folds case, needs every term, and an empty needle matches everything");
 		view.set_filter(QString{ });
 		expect(model->file_count() == 3U, "clearing the filter restores every file");
 		view.hide();

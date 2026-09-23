@@ -47,7 +47,9 @@ namespace bpr::qt {
 	/// number and a one-word reason at the right, amber when the bucket is
 	/// one that needs me. Titles and unread dots wait on the projection that
 	/// carries them (BPR-0659); the tree decides nothing and holds only what
-	/// the projection said.
+	/// the projection said. [[BPR-0981]]: a resident filter narrows the rows
+	/// by repository, host, title or number; a matching pull request keeps
+	/// its repository row and a matching repository keeps every row beneath.
 	class repositories_tree_model final : public QAbstractItemModel
 	{
 	public:
@@ -79,6 +81,9 @@ namespace bpr::qt {
 			std::span<const core::queue_item>              aItems,
 			std::span<const application::saved_repository> aSaved = { });
 		void clear();
+		/// \brief [[BPR-0981]]. Narrows the rows shown; empty shows every row.
+		void               set_filter(const QString& aFilter);
+		[[nodiscard]] auto filter() const noexcept -> const QString&;
 
 		[[nodiscard]] auto index(int aRow, int aColumn, const QModelIndex& aParent = { }) const
 			-> QModelIndex override;
@@ -91,11 +96,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto item_at(const QModelIndex& aIndex) const
 			-> std::optional<core::queue_item>;
 		[[nodiscard]] auto index_for(const core::pull_request_ref& aRef) const -> QModelIndex;
+		/// \brief The rail's count: the queue's pull requests that need me, filtered or not.
 		[[nodiscard]] auto needs_me_count() const noexcept -> std::size_t;
+		/// \brief The pull requests the tree shows under the current filter.
 		[[nodiscard]] auto item_count() const noexcept -> std::size_t;
 
 	private:
-		std::vector<repository_node> Repositories;
+		void rebuild();
+
+		std::vector<core::queue_item>              Items;
+		std::vector<application::saved_repository> Saved;
+		QString                                    Filter;
+		std::vector<repository_node>               Repositories;
 	};
 
 	/// \brief Paints the reason word in amber when it needs me.
@@ -124,7 +136,9 @@ namespace bpr::qt {
 	///
 	/// \details Selecting a pull request row reports the item; the window
 	/// opens it on Overview. Repository rows expand and collapse and report
-	/// nothing.
+	/// nothing. [[BPR-0981]]: the last pull request the reviewer chose is
+	/// made current again, without a second report, after every rebuild the
+	/// filter or a re-published queue causes.
 	class repositories_tree_view final : public QTreeView
 	{
 	public:
@@ -140,6 +154,10 @@ namespace bpr::qt {
 		/// \brief Save the current repository row; Forget the current saved one.
 		[[nodiscard]] auto save_repository_action() const noexcept -> QAction*;
 		[[nodiscard]] auto forget_repository_action() const noexcept -> QAction*;
+		/// \brief [[BPR-0981]]. Narrows the tree and keeps the chosen pull request current.
+		void set_filter(const QString& aFilter);
+		/// \brief The pull request the reviewer last chose here, if any.
+		[[nodiscard]] auto current_pull_request() const noexcept -> const std::optional<core::pull_request_ref>&;
 
 	protected:
 		void currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious) override;
@@ -147,13 +165,16 @@ namespace bpr::qt {
 	private:
 		void update_saved_actions();
 		void dispatch_saved(application::saved_repository_action aAction);
+		void restore_current();
 
-		repositories_tree_model*    Model    = nullptr;
-		repositories_tree_delegate* Delegate = nullptr;
-		repository_open_dispatch    OpenDispatch;
-		saved_repository_dispatch   SavedDispatch;
-		QAction*                    SaveAction   = nullptr;
-		QAction*                    ForgetAction = nullptr;
+		repositories_tree_model*               Model    = nullptr;
+		repositories_tree_delegate*            Delegate = nullptr;
+		repository_open_dispatch               OpenDispatch;
+		saved_repository_dispatch              SavedDispatch;
+		QAction*                               SaveAction   = nullptr;
+		QAction*                               ForgetAction = nullptr;
+		std::optional<core::pull_request_ref>  Current;
+		bool                                   Applying = false;
 	};
 } // namespace bpr::qt
 

@@ -1,5 +1,6 @@
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/resident_filter.hpp"
 
 #include <QFont>
 #include <QFontMetrics>
@@ -155,10 +156,12 @@ namespace bpr::qt {
 		beginResetModel();
 		Nodes.clear();
 		Nodes.push_back(files_tree_node{ .Folder = true });
-		// The files this order shows, in the order it shows them.
+		// The files this order shows, in the order it shows them. [[BPR-0981]]:
+		// the filter is RFC-BPR-0025's resident fuzzy match over the path,
+		// which carries the file name; a shown file keeps its folders below.
 		auto shown = std::vector<std::size_t>{ };
 		for (std::size_t index = 0U; index < Entries.size(); ++index) {
-			if (Filter.isEmpty() || Entries[index].Path.contains(Filter, Qt::CaseInsensitive)) {
+			if (resident_filter_matches(Entries[index].Path, Filter)) {
 				shown.push_back(index);
 			}
 		}
