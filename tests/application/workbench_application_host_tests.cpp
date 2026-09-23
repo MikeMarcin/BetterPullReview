@@ -857,6 +857,41 @@ namespace {
 			"a comparison replacement still rejects the in-flight selected-file terminal as stale");
 	}
 
+	// RFC-BPR-0025 AC-03, the one view RFC-BPR-0028 kept: a file chosen and
+	// the next and previous file each look their diff up under the one
+	// comparison the epoch host accepted. Navigation carries no comparison, so
+	// it changes the file and never retargets the pair.
+	void test_file_navigation_keeps_the_accepted_comparison()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U), file(3U) };
+		value.Host.observe(authority());
+		value.settle();
+
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.settle();
+		value.Host.apply(core::navigate_workbench_file_intent{
+			.Direction = core::change_navigation_direction::next });
+		value.settle();
+		value.Host.apply(core::navigate_workbench_file_intent{
+			.Direction = core::change_navigation_direction::previous });
+		value.settle();
+
+		const auto& requests = value.SelectedDiffs.Requests;
+		expect(requests.size() == 3U && requests[0].File.File == file(1U)
+				   && requests[1].File.File == file(2U) && requests[2].File.File == file(1U),
+			   "a file click, next file and previous file each look up the file they reached");
+		expect(std::ranges::all_of(requests,
+								   [](const application::workbench_selected_diff_request& aRequest) {
+									   return aRequest.Diff == selected_diff_context();
+								   }),
+			   "every lookup carries the exact accepted comparison: navigation never retargets the pair");
+		expect(value.SelectedProjections.Published.size() == 3U
+				   && value.SelectedProjections.Published.back().Key.File == file(1U)
+				   && value.SelectedProjections.Failed.empty(),
+			   "each navigation publishes its file's diff in the one view");
+	}
+
 	void test_selected_diff_replays_after_context_arrives_and_changes()
 	{
 		auto value               = selected_harness{ };
@@ -1847,6 +1882,7 @@ auto main() -> int
 	test_navigation_resolves_through_the_host_order();
 	test_selected_diff_lifecycle_is_exactly_once_and_typed();
 	test_selected_diff_replays_after_context_arrives_and_changes();
+	test_file_navigation_keeps_the_accepted_comparison();
 	test_actionability_refresh_preserves_selected_diff_identity();
 	test_failed_authority_refresh_clears_rows_and_old_selection();
 	test_exact_invalidation_clears_authority_bound_selection();
