@@ -135,3 +135,35 @@ in through an include and is not part of this change.
 Neither platform was run from this station. The macOS negative control is
 the product state both platforms have: the selection unavailable and
 everything else the same.
+
+## Post-close: Linux at `e54d203e` (bpr-main-linux, 2026-09-23)
+
+This is the Linux half of AC2 ("Linux runs it and it passes"). Ubuntu 26.04
+on WSL2, `build/dev` (GCC 15.2, Debug, Qt 6.11.2), offscreen as registered
+(`QT_QPA_PLATFORM=offscreen`, `QT_STYLE_OVERRIDE=Windows`, inside the
+network sandbox). It ran in the station's verification clone at `e54d203e`,
+which contains `1eac23ad`. Load average at the run was 1.14/1.35/1.82.
+
+`application_personal_discovery_public_path` passes once, in 6.04 s. Linux
+has the unavailable selection, and both sibling steps ran rather than being
+skipped:
+
+```text
+signed-out sibling: status=0 landing=0 queue shown=0 account=Sign in
+public-preview sibling: status=0 landing=0 queue shown=0 account=Sign in
+personal-discovery-public-path:pass
+```
+
+The log is the station's `/tmp/bpr-1042-ctest.log` and is not committed.
+
+The run also printed
+`AGENT_WORKSPACE_RECOVERY_REFUSED:/tmp/personal_discovery_public_path-nhNWtt/agent-workspace-ownership-v1:repair-required`.
+It does not affect this course, which passes, and it is the line the Windows
+evidence above already set aside. It happens on Linux as well as Windows. The
+course's data root is its own owner-private `QTemporaryDir`, directly under
+the shared `/tmp`. The application creates its agent workspace neighbourhood
+beside the data root, so that folder's parent is `/tmp`, which this user does
+not own. [[BPR-0817]]'s startup recovery therefore refuses it with
+`repair-required`. That is now [[BPR-1044]].
+
+Windows N of N (N ≥ 3) at `1eac23ad` or later is still owed by `bpr-main-win`.
