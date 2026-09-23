@@ -77,3 +77,40 @@ application_workbench_snapshot_observation, qt_files_tree,
 qt_repositories_drawer, qt_workbench_window_scale_100/125/200 and
 qt_composed_github_scale_100. No new test or product implementation ran for this
 reconnaissance; entry and terminal dependencies remain in force.
+
+## Planning inventory, 2026-09-22
+
+Re-audited at `9097723a` under the owner's mandate ("Planning stage can
+revise/update the rfc if it's gone stale") and recorded in the
+[planning reconciliation](../../rfcs/plans/ux-redesign-pack-0028/rfc-0025-planning-reconciliation.md).
+The owner-locked RFC-BPR-0028 direction shipped the drawers, strip,
+modalities and epoch line and names browser-style file tabs a non-goal that
+stays registered but unscheduled; the adopted pack plan bounds this RFC to
+resident filtering and selection restoration.
+
+Ownership facts: the files filter is a literal substring in
+`files_tree_model::rebuild` and the files tree already restores its selected
+file identity across rebuilds; the repositories tree has no filter, does not
+retain its current row across `apply`, and dispatches an open from
+`currentChanged`; neither filter is a declared focus stop; no test types into
+`filesFilter`. `refresh_epochs_intent` is dispatched only by the explicit
+Refresh gesture, so no host path re-resolves a named comparison silently, and
+`core_epoch_policy` retains exact explicit pairs through rebase, prune and
+unavailability. Per-window restoration, close-to-Home and private-record
+retention are RFC-0024's BPR-0709/0710/0703/0704.
+
+Matcher ownership: the filter is presentation over projections the trees
+already hold, decides nothing and performs no effect, so one Qt-owned
+resident matcher shared by both trees is the bounded choice, consistent with
+BPR-0658's placement; no core or host change is needed.
+
+Every criterion is mapped in the RFC's reconciliation section and on
+[[BPR-0597]]: AC-02 and the filter half of AC-09 are allocated to
+[[BPR-0981]] (reserved `942fbf66`, incorporated `44a733b3`) with selectors
+`qt_files_tree`, `qt_repositories_drawer`, `qt_composed_github_scale_100`
+(the composed public gesture path) and `qt_workbench_window_scale_100/125/200`;
+AC-01/03/05/06/07/08 cite existing direct evidence the closeout re-runs and
+name their superseded parts; AC-04 is wholly superseded/unscheduled. The
+plan regrouping passed (`b8a5a46f…` to `3d629290…`, `close-rfc-0025` only).
+No product code changed, no test ran as evidence, and nothing is accepted
+by this inventory.

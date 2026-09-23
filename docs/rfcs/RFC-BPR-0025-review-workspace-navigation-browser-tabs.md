@@ -13,14 +13,43 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Design accepted; registration only; implementation requires a later request.**
+**Design accepted; implementation activated for the reconciled scope; acceptance remains pending.**
 The product owner approved the navigation and browser-tab behavior on
-2026-09-04. This deferred post-pack RFC follows RFC-BPR-0024 and precedes
+2026-09-04. This post-pack RFC follows RFC-BPR-0024 and precedes
 RFC-BPR-0026 in the requested workstream beginning with RFC-BPR-0018. Registration
 waives no eligibility, dependency order, existing authority, or evidence gate.
 
 Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
-Entry: [[BPR-0596]]. Closeout: [[BPR-0597]]. These cards remain in backlog.
+Entry: [[BPR-0596]] records the 2026-09-22 planning reconciliation below.
+Closeout: [[BPR-0597]] remains in backlog until the one allocated slice,
+[[BPR-0981]], is Done. The owner's ordered-pack implementation mandate and
+planning amendment are recorded in the
+[2026-09-22 reconciliation](plans/ux-redesign-pack-0028/rfc-0025-planning-reconciliation.md);
+the prior registration-only restriction is superseded by that mandate, not by
+an inferred waiver. The immutable baseline and all nine criteria are unchanged.
+
+## Planning reconciliation — 2026-09-22
+
+[RFC-BPR-0028](RFC-BPR-0028-review-workbench-direction.md), owner-locked on
+2026-09-06 and shipped, supersedes this RFC's layout and chrome sections where
+they conflict and names browser-style file tabs a non-goal that stays
+registered but unscheduled. The adopted pack plan bounds this RFC to resident
+filtering and selection restoration. Planning removes, weakens or accepts no
+criterion: the closeout records, per row, either direct evidence at the
+closeout head or the superseding decision, and a superseded row is never
+recorded as passed.
+
+| Criterion | Reconciled disposition |
+|---|---|
+| AC-01 | Layout and focus mode superseded by RFC-0028: the Reviews drawer is the repositories drawer, the compact centre is the strip, overview and epoch line, and focus mode is the per-window modality set. Independently collapsible drawers with window-specific restoration are re-verified at closeout. |
+| AC-02 | Allocated whole to [[BPR-0981]]: one Qt-owned resident fuzzy matcher, a repositories filter beside the files filter, parent retention, honest empty state with Clear filter, semantic selection restoration, zero provider effect. |
+| AC-03 | Cmd/Ctrl-click, Open in New Tab and background views superseded/unscheduled; file click and next/previous file changing the one view and keeping its comparison are verified at closeout. |
+| AC-04 | Wholly tab-specific; superseded/unscheduled, not implemented. |
+| AC-05 | Tab order and active tab superseded; per-window pull request, comparison, file and reading-position restoration, close-to-Home and private-record retention cite RFC-0024's BPR-0709/0710/0703/0704 and are re-run at closeout. |
+| AC-06 | Tab-scoped update indication superseded; exact explicit pairs are retained through rebase, prune and unavailability, and a named comparison re-resolves only on the explicit Refresh gesture, both verified at closeout. |
+| AC-07 | Tab identity and bounded inactive tabs superseded; profile, window, pull request and comparison exactness cites RFC-0024's BPR-0976/0977/0978 and the workbench host courses re-run at closeout. |
+| AC-08 | "Tabbed workbench" reads as the shipped RFC-0028 composition; the diff, appearance, draft and focused-space courses are re-run at closeout. |
+| AC-09 | Tab strip superseded; [[BPR-0981]] declares both filters and the files order selector as focus stops, and the 100–200% window and composed courses are re-run at closeout. |
 
 ## Problem and outcome
 

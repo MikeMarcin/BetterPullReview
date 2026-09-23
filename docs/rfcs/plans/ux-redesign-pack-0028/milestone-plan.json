@@ -117,8 +117,11 @@
     },
     {
       "id": "close-rfc-0025",
-      "outcome": "RFC-BPR-0025's allocated slices are implemented and the RFC is verified and closed against its immutable baseline.",
+      "outcome": "RFC-BPR-0025's one allocated slice, resident fuzzy filters with retained selection in the repositories and files drawers (BPR-0981), is implemented and directly verified, and the RFC is verified and closed against its immutable baseline with every criterion row carrying direct evidence or its recorded RFC-BPR-0028 superseding decision.",
       "work": [
+        {
+          "issue": "BPR-0981"
+        },
         {
           "issue": "BPR-0597"
         }
@@ -130,7 +133,7 @@
         "Every allocated RFC-BPR-0025 slice is Done and every criterion row records direct evidence or its superseding decision",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0025 and the index are reconciled to the closed status"
       ],
-      "boundary": "The RFC-BPR-0025 closeout and the slices BPR-0596 allocates"
+      "boundary": "The RFC-BPR-0025 closeout and the one slice BPR-0596 allocated under the 2026-09-22 planning reconciliation (rfc-0025-planning-reconciliation.md): BPR-0981 resident fuzzy filters, parent retention, explicit empty/clear state and semantic selection restoration in both drawers with zero provider effect. Browser-style file tabs and the RFC-0025 layout/focus-mode chrome stay superseded or unscheduled under the owner-locked RFC-BPR-0028 direction and are recorded per criterion as such, never as passed; no other criterion is weakened or waived, and no live GitHub/GHES mutation is authorized. Stop at this milestone boundary."
     },
     {
       "id": "plan-rfc-0026",
