@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1019"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-0024 AC-07 owner amendment r4 follow-up: re-bind or fix the window review restoration course",
+  "created": "2026-09-23T15:05:05.418931+00:00",
+  "base": "0ddf929b2ea38691b16446b1f9e17bc3f53abd2c"
+}
