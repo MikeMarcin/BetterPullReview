@@ -266,6 +266,29 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # checkout, and needs a Git child behind that.
     "documentation_structure": "repository-content-outside-checkout",
     "documentation_issue_graph_contract": "repository-content-outside-checkout",
+    # [[BPR-1020]]. Measured on JaegAW 2026-09-23, each registered contained by
+    # a reverted trial hook; the first contained failure is named. The release
+    # scripts and the modified-endpoint fixture stop at the DOS form: Git starts
+    # but cannot read its working directory ("unable to get current working
+    # directory: Permission denied", probed directly), or CPython's realpath of
+    # the package build directory raises [WinError 5].
+    "package_runtime_contract": "dos-volume-name",
+    "release_source_assets_contract": "dos-volume-name",
+    "modified_endpoint_fixture_contract": "dos-volume-name",
+    # Contained, the scratch root's std::filesystem::canonical throws
+    # "canonical: Access is denied." (a reverted terminate hook printed it), the
+    # refusal sqlite_profile_runtime_lease measured.
+    "sqlite_release_maintenance_files": "dos-volume-name",
+    # Contained, each composed course stops at its first step, narrowing its
+    # temporary root owner-private, as the BPR-0833 application rows do
+    # ("native private root before composed startup", "private folder course
+    # root", "wire fixture root is owner-private", "private application root",
+    # "private fixture state root").
+    "application_logging": "dos-volume-name",
+    "application_selected_file_safety_public_path": "dos-volume-name",
+    "application_attended_recent_replay": "dos-volume-name",
+    "application_release_maintenance_public_path": "dos-volume-name",
+    "application_release_update_public_path": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
     # BPR-0846: the same real host, cache and catalog composition as
     # epoch_maintenance_integration, not yet measured contained on Windows.

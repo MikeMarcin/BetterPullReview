@@ -315,15 +315,16 @@ bpr_add_network_isolated_test(
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/release_source_assets_tests.py"
 )
 
+# [[BPR-1020]]. Both audit contracts pass inside the Windows AppContainer (6 and
+# 9 tests, measured on the Windows station 2026-09-23), so they run contained on
+# every platform.
 bpr_add_network_isolated_test(
     NAME release_package_audit_contract
-    WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/verify_release_package_tests.py"
 )
 
 bpr_add_network_isolated_test(
     NAME release_security_audit_contract
-    WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/verify_release_security_tests.py"
 )
 
