@@ -367,3 +367,26 @@ On a private Xvfb display, with the same `14a18b45` image:
 
 This validates the course. It is not the WSLg observation. What remains is
 the 0775 rerun on WSLg under a new desktop hold.
+
+## Native WSLg rerun: criterion 2 passes (2026-09-23)
+
+The 0775 course ran once, at 18:23:27Z–18:23:29Z UTC, under bpr-main-win's
+desktop hold. It used the course at `7964d868` on the tests-disabled image of
+`14a18b45` (`08f6d04d…`), on WSLg `:0` with `Weston WM`, under umask 0002.
+
+- **Status line at Home.** The frame announced "Not signed in. Public pull
+  requests open read-only. Disposable agent workspaces are unavailable: their
+  folder needs repair or has reached its limit."
+- **Exit.** The caption close exited **0**, 66 ms after the close.
+- **Folders.** The parent stayed **0775**. The data root was created 0700.
+  No neighbourhood was created.
+- **Standard error.** It names the `repair-required` refusal.
+- **Guard.** The guard reported `passed`, with the live files unchanged.
+
+The full record is in
+[the evidence file](../../verification/BPR-0817-linux-owner-private-data-root.md#native-wslg-rerun-of-the-0775-course-pass).
+
+**Carried to the RFC-BPR-0033 closeout.** This card extended two courses: the
+0775 section of `application_profile_management_public_path`, and the
+status-bar sentence in `application_agent_crash_recovery`'s `startup-repair`.
+Neither extension has run on macOS or Windows yet.

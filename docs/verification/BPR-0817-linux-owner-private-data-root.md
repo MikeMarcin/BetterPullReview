@@ -1,6 +1,6 @@
 # BPR-0817 Linux owner-private data root evidence
 
-## Current frontier (bpr-main-linux, 2026-09-23)
+## Current frontier (bpr-main-linux, 2026-09-23): Done
 
 - **Binding.** Station `bpr-main-linux` (`stn-5c7459ed`), checkout
   `/home/mmarcin/BetterPullReview`, branch `main`, authority `lane-commit`.
@@ -12,30 +12,18 @@
   and in RFC-BPR-0033:
   - A refused agent workspace recovery leaves an orderly quit at exit 0.
   - The refusal is stated at Home in every window's status bar.
-- **State.** The claim was committed at `0b57fe2e`, and the implementation at
-  `14a18b45`. The automated evidence is recorded below, under "Owner-delegated
-  decisions implemented". The native Linux course is ready but has not run. It
-  needs a visible window on the shared WSLg desktop, so the coordinator must
-  clear it first.
-- **Candidate image.** A clean clone of `14a18b45` is at
-  `/home/mmarcin/bpr0817-native/source`. Its `app-release` build is Release
-  with `BUILD_TESTING=OFF` and `BPR_DISTRIBUTION_BUILD=OFF`, uses GCC 15.2
-  with no first-party `-Wno-error`, and has no first-party warnings. The
-  executable's SHA-256 is
-  `08f6d04d4d2d73af6701f040598bd5230cf2973625bbb66aca43ee118e22cc73`.
-- **Native run, 2026-09-23 18:11:42Z–18:12:15Z.** The control passed with
-  exit 0. The 0775 course failed in its observer: Qt's status label does not
-  expose its text through AT-SPI Text. The details are under "Native
-  evidence" below.
-- **Course fixed (schema v2), not yet rerun on WSLg.** The course now reads
-  the status line from the workbench frame's AT-SPI announcements, and it
-  sends the caption close even after an observation failure. The control's
-  "no refusal" check now requires at least one announced line. The course was
-  validated headlessly on a private Xvfb display, and both of its negative
-  controls fail. Details are under "Course fix" below.
-- **Next.** Under a new desktop hold, rerun only the 0775 course on WSLg,
-  using the committed course at its fix commit. Then record criterion 2,
-  including the card's front-matter entry, and finish the card.
+- **State.** All three criteria pass, and the card is Done.
+  - Claim: `0b57fe2e`.
+  - Implementation: `14a18b45`.
+  - Course fix: `7964d868`.
+  - Criterion 2's native observation: the WSLg rerun below, at
+    18:23:27Z–18:23:29Z UTC.
+- **Carried to the RFC-BPR-0033 closeout.** This card extended
+  `application_profile_management_public_path` with its 0775 section and
+  `application_agent_crash_recovery`'s `startup-repair` with the status-bar
+  sentence. Neither extension has run on macOS or Windows. The Mac
+  integrator's closeout integration pass covers macOS. bpr-main-win covers
+  Windows.
 
 ## Frontier at `1c6eaf21` (bpr-linux, 2026-09-17; superseded)
 
@@ -500,3 +488,35 @@ Xvfb is not the WSLg desktop and has no window manager. These runs validate
 the course; they do not replace the WSLg observation that criterion 2 needs.
 The captures are `runs/xvfb-*.json` in `/home/mmarcin/bpr0817-native/`, and
 they are not committed.
+
+### Native WSLg rerun of the 0775 course: pass
+
+- **Run.** The desktop hold was acknowledged by bpr-main-win. The course
+  started at 18:23:27Z and ended at 18:23:29Z UTC, and it ran once.
+- **Setup.**
+  - Course: `/home/mmarcin/bpr0817-native/run-0775-rerun.sh`, using the course
+    committed at `7964d868` (course SHA-256 `1ad79979…8687`).
+  - Image: the tests-disabled `app-release` of `14a18b45`, SHA-256
+    `08f6d04d4d2d73af6701f040598bd5230cf2973625bbb66aca43ee118e22cc73`.
+  - Display: WSLg 1.0.73.2 `:0`, window manager `Weston WM`.
+  - Umask 0002. The guard reported `passed`, with all eight live files
+    unchanged.
+
+| Observation | Value |
+|---|---|
+| Status line announced by the frame "BetterPullReview — Default profile" | "Not signed in. Public pull requests open read-only. Disposable agent workspaces are unavailable: their folder needs repair or has reached its limit." |
+| Home showing | yes |
+| Caption close (`WM_DELETE_WINDOW` to the one owned window, XID `6291474`) | exit **0**, 66 ms after the close; the course never stopped the application |
+| Folder modes before, then after | `$XDG_DATA_HOME` 0775 → 0775; parent 0775 → **0775**, not repaired; data root absent → **0700**; neighbourhood absent → **absent** |
+| Standard error | `AGENT_WORKSPACE_RECOVERY_REFUSED:…/data/BetterPullReview/BetterPullReview/agent-workspace-ownership-v1:repair-required` |
+
+All six checks pass. The record is `runs/rerun-0775.json` in
+`/home/mmarcin/bpr0817-native/`, and it is not committed.
+
+## Final acceptance (2026-09-23)
+
+| Criterion | Outcome | Evidence |
+|---|---|---|
+| On the Linux station under umask 0002, a fresh data root is created owner-only, and closing the last window exits 0 with the neighbourhood created | **pass**, `1c6eaf21`; the control still passes at `14a18b45` | The native WSLg course at `1c6eaf21` is unchanged; see "Native evidence on WSLg" above. At `14a18b45` the control runs, fresh parent on WSLg and headless on Xvfb, create the parent, the root and the neighbourhood at 0700 and exit 0. `application_profile_startup_public_path` passes. |
+| With a pre-existing 775 parent, the refusal is visible to the person, and the exit code follows the recorded decision | **pass**, `14a18b45` | This follows the owner-delegated amendment. The WSLg rerun above shows the status line stating the refusal at Home, a caption close exiting 0, the parent still 0775, and no neighbourhood. `application_profile_management_public_path` asserts the same in-process over two windows, and `application_agent_crash_recovery` asserts the status sentence with no shutdown cleanup failure. Negative controls fail. |
+| `application_profile_management_public_path` passes under the stock `/tmp` on Linux, and still passes on macOS | **pass**: Linux at `14a18b45`; macOS at `99712ec3` and `143509c3` | Linux: it passes under root-owned 1777 tmpfs `/tmp` with `TMPDIR` unset, including this card's new 0775 section. macOS passed at the recorded revisions, before that section was added. The extended course's macOS run is carried to the RFC-BPR-0033 closeout. |
