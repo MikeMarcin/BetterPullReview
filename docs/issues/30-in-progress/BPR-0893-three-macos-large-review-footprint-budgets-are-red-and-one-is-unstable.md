@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0893"
 title: "macOS: three large-review footprint budgets are red, two long-standing and one unstable"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
