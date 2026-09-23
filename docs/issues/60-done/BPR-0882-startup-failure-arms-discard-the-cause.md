@@ -264,3 +264,19 @@ platform covers the rest:
   a startup on purpose, so the first Windows reading will be the next real
   refusal in a sweep. That refusal will now name its arm without a temporary
   print, which is what [[BPR-0874]] needed.
+
+## Post-close: the macOS half (bpr-main-mac, Mac batch 5, 2026-09-23)
+
+Run on `4a1f222d`, which contains `8e080bbc` and its finish `2b810d78`.
+Apple Silicon, Qt 6.11.2 Debug. `cmake --build --preset dev` rebuilt 69
+steps, among them `profile_desktop.cpp` and `app_better_pull_review`, with
+exit 0 and no `warning:` line. The macOS-only `__APPLE__` blocks therefore
+compiled here for the first time. The object file carries all four arm
+names: `update-transaction-argument`, `update-lifetime-join`,
+`update-healthy-start-timeout` and `update-healthy-start-receipt`.
+
+`ctest --preset dev -V -R '^application_startup_failure_source$'` passed in
+0.95 s, 1/1, exit 0, and printed
+`STARTUP_FAILURE_SOURCE_OK:profile-runtime-construction`. The one-minute load
+was 35.55 at the start and at the end. Nothing in the acceptance changes. The
+Windows note above still stands.
