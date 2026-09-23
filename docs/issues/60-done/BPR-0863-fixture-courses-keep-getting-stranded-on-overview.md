@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0863"
 title: "Fixture courses keep getting stranded on Overview, and each one is rediscovered the hard way"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-005, on the third recurrence","found_at":"7d548233","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"A course states the modality it needs, and a course in the wrong modality fails with a term naming the modality rather than stalling or losing a label","outcome":"pass","revision":"7c6ba1a5","evidence":{"kind":"command","detail":"bpr-main-linux negative controls on the candidate: A (workbench course states Read) -> COURSE_MODALITY_WITHHOLDS naming wanted=Read, missing=files_drawer and withheld=files_drawer,repositories_drawer, at 12.4 s of a 40 s budget; B (strip presses Overview) -> COURSE_MODALITY_STALLED wanted=Review, modality=Overview, at 5.9 s; C (diff probe skips the step) -> DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED with modality=Overview and withheld=comparison,... at 0.86 s","path":"docs/issues/60-done/BPR-0863-fixture-courses-keep-getting-stranded-on-overview.md#negative-controls-each-a-temporary-edit-reverted-then-rebuilt"}},{"criterion":"The three courses above use the shared path, and still pass on macOS and Linux (macOS)","outcome":"pass","revision":"1dfe0600","evidence":{"kind":"command","detail":"bpr-main-mac, Apple Silicon, Qt 6.11.2 Debug, offscreen, at 1dfe0600, which contains 7c6ba1a5 and 3a290c71 and has no diff from 7c6ba1a5 outside docs/issues (checked here with git merge-base and git diff). One serial ctest -j1 -V of the card's eight rows: 8/8 pass, ctest exit 0, no COURSE_MODALITY_* line; load { 13.92 5.69 4.15 } at start and { 5.91 5.22 4.17 } at end. Taken from the Mac's record on the card; this station has not read the Mac log.","path":"docs/issues/60-done/BPR-0863-fixture-courses-keep-getting-stranded-on-overview.md#the-macos-run-bpr-main-mac-mac-batch-3-2026-09-23"}},{"criterion":"The three courses above use the shared path, and still pass on macOS and Linux (Linux)","outcome":"pass","revision":"e648db24","evidence":{"kind":"command","detail":"bpr-main-linux, GCC 15.2, Qt 6.11.2: cmake --build --preset dev at e648db24 (exit 0, no warnings), then ctest --test-dir build/dev -j1 -V on the same eight rows: 8/8 pass (large_review_benchmark 7.18 s, unavailable_diff 4.17, approximate_diff 3.88, diff_workbench 2.75, workbench_composition 3.04, review_round_trip 1.63, appearance_theme 5.59, appearance_store_fallback 3.39); no COURSE_MODALITY_*, _STALLED or RUN_BUDGET_EXPIRED line; load 4.24 -> 2.93. enter_course_modality is called by main.cpp's diff probe, the large-review benchmark and the workbench and UIforETW probes. Earlier Linux passes at the candidate on dec43dda and b93adf45. Log build/r2-logs/closeout-0863-0864-rows-e648db24.log on the station.","path":"docs/issues/60-done/BPR-0863-fixture-courses-keep-getting-stranded-on-overview.md#finished-on-linux-bpr-main-linux-2026-09-23"}},{"criterion":"The modality-to-drawer-state rule is written down once","outcome":"pass","revision":"7c6ba1a5","evidence":{"kind":"artifact","detail":"docs/verification/fixture-catalog.md, section 'The modality a course states': the modality-to-centre-and-drawer table with each rule's owner; tests/AGENTS.md points course authors to it; both still present at e648db24","path":"docs/verification/fixture-catalog.md"}}]
 ---
 
 # BPR-0863: Fixture courses keep getting stranded on Overview, and each one is rediscovered the hard way
@@ -298,3 +299,48 @@ measured 842/1000.
 
 So both macOS halves of the acceptance hold at this head. The Linux station
 finishes the card.
+
+## Finished on Linux (bpr-main-linux, 2026-09-23)
+
+**The macOS record meets the acceptance.** `1dfe0600` contains `7c6ba1a5`
+and `3a290c71` (`git merge-base --is-ancestor`). `git diff 7c6ba1a5 1dfe0600
+-- . ':!docs/issues'` is empty, so the Mac ran the candidate's source exactly.
+The record shows all eight rows passing and no `COURSE_MODALITY_*` line, and
+it gives the load at both ends of the run. This station relies on the Mac's
+record. It has not read the Mac log.
+
+**Linux at `e648db24`.** `cmake --build --preset dev` brought `build/dev` up
+to that head: 112 steps, exit 0, no warnings
+(`build/r2-logs/closeout-0863-0864-1026-build-e648db24.log`). Then the eight
+rows above ran serially with `-V`, so passing output could be searched too
+(`build/r2-logs/closeout-0863-0864-rows-e648db24.log`), 8/8, ctest exit 0:
+
+| Row | Result |
+|---|---|
+| `application_large_review_benchmark` | Pass, 7.18 s |
+| `application_unavailable_diff_public_path` | Pass, 4.17 s |
+| `application_approximate_diff_public_path` | Pass, 3.88 s |
+| `application_diff_workbench_public_path` | Pass, 2.75 s |
+| `application_workbench_composition_contract` | Pass, 3.04 s |
+| `application_review_round_trip_composition_contract` | Pass, 1.63 s |
+| `application_appearance_theme_customization_contract` | Pass, 5.59 s |
+| `application_appearance_store_fallback_contract` | Pass, 3.39 s |
+
+The log has no `COURSE_MODALITY_*`, `_STALLED` or `RUN_BUDGET_EXPIRED` line.
+Load was `4.24 1.64 1.12` at the start and `2.93 1.60 1.13` at the end. At
+this head, `enter_course_modality` is still called by the diff probe
+(`main.cpp`), the large-review benchmark and the workbench and UIforETW
+probes (`github_application.cpp`). The rule is still written once, in the
+fixture catalogue, and `tests/AGENTS.md` still points to it.
+
+**Acceptance:**
+
+- **A course states its modality, and a wrong one fails by name:** pass,
+  from Linux controls A, B and C.
+- **The three courses use the shared path and still pass on macOS and
+  Linux:** pass. macOS passed at `1dfe0600`, and Linux at `7c6ba1a5`'s
+  candidate and again at `e648db24`.
+- **The rule is written down once:** pass.
+
+The follow-ups belong to their own cards: [[BPR-1036]] (the red UIforETW row)
+and [[BPR-1037]] (four probes that still wait without a bound).
