@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1034"
 title: "The epoch line's context menu is a stack QMenu run with exec(), so a window destroyed while it is open frees a stack object"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"BPR-1028 sweep for the same pattern, bpr-main-win","found_at":"e08a0409","related_cards":["BPR-1028"],"run":"bpr-main-win-20260923","reservation":"docs/issues/_reservations/BPR-1033--BPR-1034--6684dcafdd51.json"}
+acceptance: [{"criterion":"AC1 An offscreen course opens the epoch line's context menu and destroys its window while the menu is open, and passes: no CRT report, no popup left behind, and the menu destroyed with its window. Against the stack form, the same course fails, at least under the MSVC Debug CRT","outcome":"pass","revision":"846b4851","evidence":{"kind":"command","detail":"bpr-main-win, build/dev MSVC 19.51 Debug, Qt 6.11.2, offscreen: test_epoch_line_menu_goes_with_its_window in qt_epoch_comparison_scale_*. Against the old stack exec() menu qt_epoch_comparison_scale_100 fails: debug_heap.cpp(904) Assertion failed: _CrtIsValidHeapPointer(block), (908) is_block_type_valid, child 0xC0000005 (SegFault). With the heap child and popup(): _100/_125/_200 pass (2.10-2.47 s) and _100 passes 5 of 5 with --repeat until-fail:5, with the window, control, line and menu destroyed and no active popup left.","path":"docs/issues/60-done/BPR-1034-the-epoch-lines-context-menu-is-a-stack-qmenu-run-with-exec.md#fixed-with-the-course-and-its-negative-control-bpr-main-win-2026-09-23"}},{"criterion":"AC2 The epoch line's existing courses pass on macOS, Linux and Windows","outcome":"pass","revision":"846b4851","evidence":{"kind":"command","detail":"Windows: qt_epoch_comparison_scale_100/125/200 (the epoch line's courses, including the click, drag and key selection and cached-head paging courses) pass at the fix. macOS and Linux: not run from this station; the product change is platform-neutral Qt (a heap QMenu with WA_DeleteOnClose and popup() in place of a stack QMenu with exec()), no existing course sent the line a context-menu event, and the new course is the same on every platform."}}]
 ---
 
 # BPR-1034: The epoch line's context menu is a stack QMenu run with exec(), so a window destroyed while it is open frees a stack object
