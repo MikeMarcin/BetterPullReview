@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1036"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "bpr-main-linux: application_uiforetw_selected_diff_contract is red at HEAD: its exact strip row predates BPR-0990's refreshQueueAction, and the comparison is 842/1000 of the window height against an 850 floor",
+  "created": "2026-09-23T19:53:01.144325+00:00",
+  "base": "3a290c71c634cad2e4993efbd341cb53f393879d"
+}
