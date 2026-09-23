@@ -149,3 +149,11 @@ Every product change is inside `#if defined(_WIN32)` code or a Windows-only
 header, and the course change is a `_WIN32` branch that leaves the POSIX
 append as it was. `clang-format --dry-run --Werror` is clean on the touched
 files.
+
+## Frontier: waiting for the purge card's ID
+
+Both named failures are fixed and committed (`304f27e3`), and AC1, AC2 and
+AC4 have their evidence above. AC3 asks that the purge refusal have its own
+record. Its ID was requested from the coordinator, because this station does
+not allocate. When the card exists, link it here and finish with the
+prepared acceptance: AC1–AC4 at `3d7093f7`, the tree measured above.
