@@ -514,3 +514,27 @@ course directory is left behind,
 `...\AC\Temp\bpr-0644-relaunch-612768de307ca452`, from the row that died at
 `os.chmod`, and nothing reported it. No leftovers remain for the other four
 prefixes.
+
+## Reclaimed by the Mac main station, 2026-09-23 (Mac batch 3)
+
+The dsp-005 claim is stale: nothing has touched this card since 2026-09-17,
+and no writer or command from that run remains. `bpr-main-mac` adopts it.
+
+**The premise holds again at HEAD.** A macOS recheck at `7fc4f6ab`
+(`build/mac3-stale-cards.log`) finds two of the four rows red once more, on
+sites added after this card's fixes landed, plus a fifth gate row red the
+same way:
+
+- `msvc_secure_crt_contract`: four `std::getenv` reads in `__APPLE__`-only
+  release-update tests (`release_update_public_path_tests.cpp:301`, `:372`;
+  `release_update_transaction_tests.cpp:262`, `:303`; `b7e2df46`,
+  `d1e0f46c`, 2026-09-20).
+- `conditional_branch_identifiers`: `FAILED:7`, in `_WIN32`-only test code
+  from `e08a0409` and `c4130c3a` (2026-09-23).
+- `test_network_isolation_manifest`: `release_update_native_https has
+  loopback count 1, expected 0` (`5ed24a8c`, 2026-09-20).
+
+`contained_temporary_usage_contract` and `dependency_modernization_contract`
+pass (85.64 s), and so do all six changed courses. This station takes the
+three recurrences under this card, because its acceptance is that the rows
+pass.
