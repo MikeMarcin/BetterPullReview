@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1031"
 title: "Windows: the release-update courses name their data root in Qt's '/' spelling, so their own reopen of the recovery store is refused (application_release_update_public_path, release_update_recovery)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
