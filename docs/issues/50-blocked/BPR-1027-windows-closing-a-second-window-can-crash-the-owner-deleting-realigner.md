@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"found_by":"BPR-0980 native activation course, bpr-main-win close-probe","found_at":"196296d0","reproduced_at":["c52f5907","196296d0"],"related_cards":["BPR-0980","BPR-1028"],"run":"bpr-main-win-20260923","reservation":"docs/issues/_reservations/BPR-1027--BPR-1028--763d93af262e.json"}
-blocked_by: "concurrent-desktop-reproduction"
+blocked_by: "not-reproducible"
 ---
 
 # BPR-1027: Windows: closing a second window can crash the owner in ~implementation deleting Realigner (0xC0000409 CFG fast fail)
@@ -187,3 +187,102 @@ named is now covered by `application_profile_second_window_close_public_path`
 on every platform.
 
 Parked on that arrangement: Blocked, `blocked_by: concurrent-desktop-reproduction`.
+
+## The overlap run, and where the card stands (bpr-main-win, 2026-09-23)
+
+### The whole record
+
+**(a) The crash as it was found.** Between 16:29Z and 16:41Z on JaegAW, the
+[[BPR-0980]] close probe crashed the owner in 5 of 5 runs, active or not, 3 s
+or 30 s after the new window opened. It ran on builds `b434be9d…`
+(`196296d0` plus the foreground change) and `47164b2a…` (`c52f5907` product
+source). The failure was `0xC0000409` (`-1073740791`), a Control Flow Guard
+fast fail with subcode `0xA`, deleting `Realigner` in
+`github_application::implementation::~implementation`
+(`github_application.cpp:7179`), reached from the `OnClosed` erase in
+`open_window` (`:13686`). Both lines are at `196296d0`; the full stack is
+under Defect above. The full [[BPR-0980]] course crashed in 1 of 5
+(`observation-fix-1.json`). A [[BPR-0975]] WSLg course was starting and
+running on the same desktop during that window.
+
+**(b) Clean since then.** No crash in 27 runs without overlap between 18:37Z
+and 18:51Z, and none of the 10 overlap closes that completed:
+
+| Run | Clean |
+| --- | --- |
+| Close probe at `2a5580d6` | 3 of 3 |
+| The same with [[BPR-1028]]'s menu change reverted | 3 of 3 |
+| The same with `14a18b45` reverted | 3 of 3 |
+| **`c52f5907` product source**, which crashed 5 of 5 that morning | **3 of 3** |
+| Second-window course on the `windows` platform, three shapes | 15 of 15 closes (3 runs) |
+| [[BPR-0980]] activation course at `2a5580d6` | 2 of 2, exit 0 |
+| Overlap, 19:04:29Z to 19:05:17Z, worktree at `7bf7de5b` plus local diagnostics (exe `a28a3e8d…`), a WSLg BetterPullReview window up, `wsl_course_processes_at_start=4`: diagnostic course, shipped composition, strip menu, accessible walk | 5 of 5 closes, `--crt-diagnostics` |
+| Overlap, the same: diagnostic course, fixture composition | 5 of 5 closes, `--crt-diagnostics` |
+
+**The three overlap close probes never reached a close.** Their exit codes
+read 0 because that copy of the observer does not turn its recorded errors
+into an exit code. The WSLg window,
+"BetterPullReview — Default profile — BetterPullReview (Ubuntu)", held the
+foreground throughout (`foreground_left_with`):
+
+- Probe 1 launched the owner, but the posted click opened no Application
+  menu ("menu Profiles did not appear"). The observer killed the owner as a
+  leftover.
+- Probes 2 and 3 stopped before launching: "launcher lost the foreground".
+
+So the UI Automation close probe, the exact shape that crashed, has **not**
+been run under overlap. Under overlap only the in-process course ran, closing
+through `QWidget::close()` on the real `windows` platform.
+
+**(c) Realigner single-free diagnostics.** The overlap courses ran with the
+Debug CRT's delayed free. With delayed free, a second delete reads a
+dead-land vtable and faults instead of reusing the block. Each session and
+its Realigner was registered, the first free of each was recorded, and every
+session destructor reported on entry whether its Realigner had already been
+freed. In both logs (`overlap-course-*-diag.log`, station logs):
+
+- 6 sessions registered, 6 session destructors, and `freed=0` for the
+  Realigner at every one;
+- no access violation, no CRT report, no `_CrtCheckMemory` failure before or
+  after any close;
+- the Realigner reported at the course's end shows exactly one free, from its
+  own `~implementation` (`std::default_delete` → `~unique_ptr` →
+  `~implementation`).
+
+There is no double free on the path the crash named, in any run that
+reached it.
+
+**(d) Reopen trigger.** Any `0xC0000409`, or any other crash, of the owner
+when a window other than the first is closed. That covers a person's close,
+UI Automation, a course or a full activation course. Open a new card that
+links here, with the crash catcher's stack and the conditions at the time.
+
+### Disposition: not reproducible, held Blocked rather than Done
+
+The board has no terminal lane for "not reproducible". Done needs passing
+records against this card's acceptance, and AC1 (cause named) and AC2 (a
+course that fails without the fix) cannot pass. Reaching Done would mean
+rewriting the acceptance to "not reproducible, guarded". The board rules
+allow that only as a recorded amendment by the owner, not to satisfy a
+validator.
+
+The instruction to finish as Done rested on the overlap run being "5 of 5
+clean". That holds for the two courses but not for the three probes, which
+never reached a close. So the card stays **Blocked** with
+`blocked_by: not-reproducible`. The amendment is prepared, and applying it is
+one step:
+
+> *Amendment (to be confirmed by the owner or integrator):* AC1 and AC2 are
+> replaced by: the crash is shown not reproducible on the Windows station
+> across the recorded conditions, including the exact crashing source and a
+> concurrent WSLg desktop, with the original evidence kept (a to c above).
+> `application_profile_second_window_close_public_path` is the regression
+> guard for the destructor path on every platform (Windows: passes,
+> uncontained, pinned). AC3 is replaced by the reopen trigger (d). AC4 (macOS
+> and Linux run the course) stays, for those stations' next sweeps.
+
+Once confirmed, the card finishes as Done with the guard as its deliverable.
+Nothing else is left to run unless the trigger fires. The one experiment not
+done is the UI Automation close probe while a WSLg window is up but not in
+front. It would need the stations to arrange a window that does not take the
+foreground.
