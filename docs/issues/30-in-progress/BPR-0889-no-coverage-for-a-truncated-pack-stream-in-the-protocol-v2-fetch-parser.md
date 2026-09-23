@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0889"
 title: "The protocol v2 fetch parser's truncated-stream refusal has no visible coverage"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
