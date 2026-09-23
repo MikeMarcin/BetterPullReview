@@ -197,13 +197,27 @@ auto main(int aArgc, char** aArgv) -> int
 		   "the account session is adopted and nothing is searched");
 	expect(windowA->queue_refresh_action()->isVisible() && windowA->queue_refresh_action()->isEnabled(), "Home's refresh glyph can run for the account");
 
+	// Discovery needs no pull request: a repository saved from Settings before
+	// anything is opened is searched at once. This one holds nothing for the
+	// viewer, so it costs the two searches and no detail read.
+	wait_for([&] { return windowA->saved_repository_name() != nullptr; }, "Settings' saved repositories editor exists");
+	windowA->saved_repository_name()->setText(QStringLiteral("octo-org/empty-repository"));
+	wait_for([&] { return windowA->add_saved_repository_action()->isEnabled(); }, "an account session can save a repository before any pull request is opened");
+	const auto signedIn = evidence().AccountReadOperations.size();
+	windowA->add_saved_repository_action()->trigger();
+	wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; }, "a saved repository is searched with no pull request opened", diagnose);
+	expect(evidence().DiscoverySearches == 2U && evidence().DiscoveryDetailReads == 0U
+			   && reads_since(evidence(), signedIn) == std::vector<std::string>{ "SearchPersonalPullRequests", "SearchPersonalPullRequests" },
+		   "with no pull request opened, saving a repository reads exactly its two personal searches");
+	expect(windowA->home_discovery_status()->text().endsWith(QStringLiteral(" in 1 saved repository.")), "Home says it searched the one saved repository");
+
 	// A pull request opened by link is recently viewed, and nothing else.
 	submit(*windowA, 17);
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "the pull request opens by link", diagnose);
 	wait_for([&] { return windowA->home_recent_list()->count() >= 1; }, "the opened pull request is under Recently viewed");
 	auto* const follow = windowA->follow_pull_request_action();
 	auto* const save   = windowA->save_pull_request_repository_action();
-	expect(!queue_numbers(*windowA).contains(17) && save->isEnabled() && evidence().DiscoverySearches == 0U,
+	expect(!queue_numbers(*windowA).contains(17) && save->isEnabled() && evidence().DiscoverySearches == 2U,
 		   "opening a pull request by link enrolls nothing, saves nothing (Save Repository is still offered) and searches nothing");
 	expect(follow->isEnabled() && !follow->isChecked() && windowA->pull_request_menu()->actions().contains(follow) && windowA->pull_request_menu()->actions().contains(save),
 		   "the Pull Request menu offers Follow and Save Repository for it");
@@ -212,23 +226,25 @@ auto main(int aArgc, char** aArgv) -> int
 	// personal reads, and Home lists what they found under its reasons.
 	const auto before = evidence().AccountReadOperations.size();
 	save->trigger();
-	wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; }, "saving the repository runs one discovery refresh", diagnose);
+	wait_for([&] { return discovery().Statistics.Refreshes == 2U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
+			 "saving the repository runs one discovery refresh", diagnose);
 	const auto served = evidence();
 	const auto reads  = reads_since(served, before);
-	if (served.DiscoverySearches != 2U || reads.size() != 6U) {
+	if (served.DiscoverySearches != 6U || reads.size() != 8U) {
 		std::cerr << "searches=" << served.DiscoverySearches << " details=" << served.DiscoveryDetailReads << " reads:";
 		for (const auto& read : reads) {
 			std::cerr << ' ' << read;
 		}
 		std::cerr << '\n';
 	}
-	expect(served.DiscoverySearches == 2U && served.DiscoveryDetailReads == 4U && reads.size() == 6U && only_discovery(reads),
-		   "one refresh is two personal searches and one requested-reviewers read per row they returned; no snapshot, file, diff or list read");
+	expect(served.DiscoverySearches == 6U && served.DiscoveryDetailReads == 4U && reads.size() == 8U && only_discovery(reads),
+		   "one refresh is two personal searches per saved repository and one requested-reviewers read per row they returned; no snapshot, file, diff or list read");
 	auto terms = served.DiscoverySearchTerms;
 	std::ranges::sort(terms);
+	terms.erase(std::ranges::unique(terms).begin(), terms.end());
 	expect(terms == std::vector<std::string>{ "author:octo-reviewer", "review-requested:octo-reviewer" }, "the searches name the viewer and nothing broader");
-	expect(discovery().Statistics.MaximumInFlight <= application::maximum_personal_discovery_in_flight && discovery().Statistics.Refreshes == 1U,
-		   "never more than two reads at once, in one refresh");
+	expect(discovery().Statistics.MaximumInFlight <= application::maximum_personal_discovery_in_flight && discovery().Statistics.Refreshes == 2U,
+		   "never more than two reads at once, one refresh per saved-repository change");
 	wait_for([&] { return contains(state_rows(*windowA, qt::home_group::needs_you), "octo-org/review-repository#4003"); }, "the pull request that asks the viewer is in Needs me");
 	const auto needs   = state_rows(*windowA, qt::home_group::needs_you);
 	const auto waiting = state_rows(*windowA, qt::home_group::waiting_on_others);
@@ -244,7 +260,7 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto numbers = queue_numbers(*windowA);
 	expect(!numbers.contains(4004) && !numbers.contains(1'000) && !numbers.contains(3'399) && !numbers.contains(17),
 		   "a team-only request, the unrelated pull requests and the opened one are not in the queue");
-	expect(windowA->home_discovery_status()->text().startsWith(QStringLiteral("Found at ")) && windowA->home_discovery_status()->text().endsWith(QStringLiteral(" in 1 saved repository.")),
+	expect(windowA->home_discovery_status()->text().startsWith(QStringLiteral("Found at ")) && windowA->home_discovery_status()->text().endsWith(QStringLiteral(" in 2 saved repositories.")),
 		   "Home says when the list was found and from how many repositories");
 	expect(!save->isEnabled() && !follow->isChecked(), "the repository is saved; the opened pull request is still not followed");
 
@@ -273,16 +289,16 @@ auto main(int aArgc, char** aArgv) -> int
 																											  << " A rows=" << queue_numbers(*windowA).size() << " B rows=" << queue_numbers(*windowB).size() << " A text=" << windowA->home_discovery_status()->text().toStdString()
 																											  << " B text=" << windowB->home_discovery_status()->text().toStdString() << '\n'; });
 	QApplication::processEvents();
-	expect(evidence().DiscoverySearches == 2U && discovery().Statistics.Refreshes == 1U, "a second window adds no discovery request");
+	expect(evidence().DiscoverySearches == 6U && discovery().Statistics.Refreshes == 2U, "a second window adds no discovery request");
 
 	// The explicit Refresh, from the second window: one more refresh, which
 	// both windows see.
 	expect(windowB->queue_refresh_action()->isVisible() && windowB->queue_refresh_action()->isEnabled(), "the second window's glyph can refresh");
 	const auto beforeRefresh = evidence().AccountReadOperations.size();
 	windowB->queue_refresh_action()->trigger();
-	wait_for([&] { return discovery().Statistics.Refreshes == 2U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
+	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "Refresh runs one more refresh", diagnose);
-	expect(evidence().DiscoverySearches == 4U && evidence().DiscoveryDetailReads == 8U && reads_since(evidence(), beforeRefresh).size() == 6U
+	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads == 8U && reads_since(evidence(), beforeRefresh).size() == 8U
 			   && only_discovery(reads_since(evidence(), beforeRefresh)),
 		   "the refresh is the same bounded personal reads, and nothing else");
 	expect(queue_numbers(*windowA).contains(4003) && queue_numbers(*windowB).contains(4003) && queue_numbers(*windowB).contains(17), "both windows keep the list");
