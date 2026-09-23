@@ -291,9 +291,11 @@ and its closeout rows are complete. It stays `Proposed` only because closure
 is strictly ordered and RFC-BPR-0028 is not `Auto-Verified`. RFC-BPR-0033 also
 stays `Proposed`. Its recorded gate, RFC-BPR-0024, is now `Auto-Verified`, but
 two things remain. Its closeout rows have not been rechecked at the current
-head. And [BPR-0817](../issues/40-parked/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md),
-which is associated with it, is Parked on an owner decision about a
-pre-existing group-writable Linux data folder. B5's attended clause is answered. The defect behind the
+head. And [BPR-0817](../issues/20-ready/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md),
+which is associated with it, is no longer waiting on the owner. On 2026-09-23
+the owner delegated its two questions to its implementer, and the decisions are
+recorded as an owner-delegated amendment on the card and in RFC-BPR-0033. The
+implementation is open on that card. B5's attended clause is answered. The defect behind the
 first rejection is fixed — the windowless menu bar now carries the same menus a
 window's bar carries — and B1's macOS half and B2's native half are met on the
 fixed build. The first console in this pack that was unlocked closed most of what

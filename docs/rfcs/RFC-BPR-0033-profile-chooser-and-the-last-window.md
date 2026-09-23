@@ -125,6 +125,28 @@ any per-platform behaviour that is not a named policy in the composition.
 Profile deletion, export, cloud sync, profile pictures, a profile switcher in
 the strip, and window restoration changes beyond routing the empty desktop.
 
+## Owner-delegated amendment — 2026-09-23
+
+On 2026-09-23 the product owner delegated
+[[BPR-0817]]'s two parked questions to that card's implementer. The
+integrator session relayed the delegation verbatim: "for BPR-0817 let the
+implementor decide". This RFC records the implementer's two decisions. The
+reasons and the evidence are on the card.
+
+- **B1: the orderly exit.** On Windows and Linux, closing the last window
+  exits 0 when the quit itself completes. A refusal that agent workspace
+  recovery decides at startup does not make the quit exit 1. One example is a
+  pre-existing folder around the data root that other users can write. Exit 1
+  is kept for failures of the quit's own work.
+- **B3: where that refusal is reported.** Every window of the profile reports
+  the refusal in its status bar, as it reports a failed profile operation. The
+  sentence shows on Home and on every other surface, for as long as the profile
+  runs. No chooser or other window is presented for the refusal, and nothing
+  is repaired.
+
+No other criterion, rule or non-goal changes. The agent workspace refusal
+itself, and the private-folder rule behind it, are unchanged.
+
 ## Acceptance criteria
 
 - **B1 — A close is a close.** Closing the last window of the last open profile

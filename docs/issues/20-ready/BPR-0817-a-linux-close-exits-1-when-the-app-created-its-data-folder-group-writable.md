@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0817"
 title: "A Linux close exits 1 when the app created its data folder group-writable"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0033"]
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
 metadata: {"found_by":"bpr-linux during BPR-0799","found_at":"17f495fea40f6985c0d2f6b0430c7a71062f8085","run":"run-20260916-stations","dispatch":"dsp-001-r2","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
-parked_on: "human-review"
 acceptance: [{"criterion":"On the Linux station under umask 0002, a fresh data root is created owner-only, and closing the last window exits 0 with the neighbourhood created","outcome":"pass","revision":"1c6eaf21","evidence":{"kind":"observation","detail":"Native WSLg course on the tests-disabled image sha256 9b9ef069…f4a with umask 0002 and a fresh XDG root: the data root's parent and the root are 0700, and the neighbourhood is created 0700. Caption close, caption close, File > Quit and caption close all exit 0, with no chooser seen. Umask 0022 also exits 0 twice. On the pre-fix image the same course exits 1 and leaves the parent 0775. application_profile_startup_public_path asserts the same for a fresh nested install under umask 0002. Logs: task-20260917-lnx-build/native/course-candidate2-*.json and focused-0817.ctest.log."}},{"criterion":"With a pre-existing 775 parent, the refusal is visible to the person, and the exit code follows the recorded decision","outcome":"pending","revision":"1c6eaf21","evidence":{"kind":"freeform","detail":"Owner decision needed; RFC-BPR-0013, -0033 and -0024 do not decide it. With a pre-existing 0775 parent the refusal holds and nothing is repaired (agent_workspace_ownership, native), and the close still exits 1 because exit semantics were not changed. The refusal appears only in the agent panel, which an AT-SPI walk shows is not showing at Home, and the diagnostics log records no failure. Q1: should a refused agent workspace recovery still turn an otherwise orderly quit into exit 1, or should the quit exit 0 with the refusal reported only in the application? Q2: is the agent panel message enough, or must the refusal also be visible at Home, for example in the window status bar, as RFC-BPR-0033 reports failed profile operations?"}},{"criterion":"application_profile_management_public_path passes under the stock /tmp on Linux, and still passes on macOS","outcome":"pass","revision":"1c6eaf21 (Linux); 99712ec3 and 143509c3 (macOS)","evidence":{"kind":"command","detail":"Reconciled the existing macOS evidence already recorded in this card body (99712ec3, 3.59s) with the unchanged-source 2026-09-20 closeout rerun: application_profile_management_public_path passes 3.77s in build/rfc0013-resume-20260919/r24-closeout-focused.log. Linux stock-/tmp course remains passing at 1c6eaf21. Only the existing-writable-parent visibility/exit-policy decision remains pending; no owner answer is inferred."}}]
 ---
 
@@ -25,6 +24,96 @@ retain its origin and continuation.
 
 Pending: Linux pre-existing-parent visibility and orderly-exit policy; fresh-root and native acceptance already recorded remain intact.
 No owner decision, native observation or repair is supplied by this transfer.
+
+## Owner-delegated amendment — 2026-09-23
+
+**Delegation.** On 2026-09-23 the product owner delegated this card's two
+parked questions to its implementer. The Mac integrator session relayed the
+delegation verbatim: "for BPR-0817 let the implementor decide". The two
+decisions below were made by the implementer (station `bpr-main-linux`) under
+that delegation. They are not the owner's words, and they are not
+observations. The observations stay in the sections that record them.
+[RFC-BPR-0033](../../rfcs/RFC-BPR-0033-profile-chooser-and-the-last-window.md#owner-delegated-amendment--2026-09-23)
+records the same two decisions.
+
+### Q1: exit code. Decision: an orderly quit exits 0
+
+A refused agent workspace recovery does not turn an otherwise orderly quit
+into exit 1. This covers the pre-existing 0775 parent and every other refusal
+that recovery returns: repair required, capacity or unavailable. Exit 1 is
+kept for failures of the quit's own work:
+
+- state that could not be flushed or delivered;
+- the host's shutdown cleanup;
+- removal of the workspace parent that this run created;
+- a recovery whose result never reached the decision lane.
+
+Reasons:
+
+1. **The refusal is decided at startup. It is not a failure of the quit.**
+   The refusal is correct, and it repeats on every launch until someone
+   repairs the folder. Exit 1 would therefore mark every close of that install
+   as failed while saying nothing about the close. It would also hide the
+   failures the code exists for: a flush that lost state would look the same
+   as a folder mode.
+2. **Nothing is lost or left behind.** RFC-BPR-0033 B1 makes the Windows and
+   Linux close "the existing drain and Quit path", and [[BPR-0798]] and
+   [[BPR-0799]] observe that path exiting 0. With this refusal no workspace is
+   created, no entry is removed, and the profile's state is saved as on any
+   quit.
+3. **The exit code was never a signal the person could see.** This card's
+   AT-SPI walk found the exit code was the only signal at Home. A person who
+   starts a desktop application from a launcher is never shown its exit code,
+   so they had no signal at all. Making the refusal visible is Q2's job.
+4. **The security rule is the refusal itself, and it does not change.** No
+   agent workspace is created or reclaimed under a folder that another account
+   can write. No folder the application did not create is repaired. The exit
+   code enforces neither rule.
+5. **No product decision made the refusal exit 1.** `0427dc76` reused the
+   cleanup flag for the recovery result, and nothing records a decision to do
+   so. [[BPR-0875]]'s note at that line already warns that the fold makes a
+   reader look "for a shutdown fault that never happened".
+
+### Q2: visibility. Decision: shown at Home, in the window's status bar
+
+Every window of the profile states the refusal in its status bar, the way
+RFC-BPR-0033 B3 reports a failed profile operation:
+
+- on Home and on every other surface;
+- for as long as the profile runs;
+- in a window opened later as well.
+
+The agent panel keeps its "Not started" refusal. No chooser, dialog or other
+window is presented, and nothing is repaired automatically.
+
+Reasons:
+
+1. **The agent boundary already requires it.** It says "Missing, ambiguous or
+   substituted ownership causes visible repair/refusal"
+   ([agent boundary](../../architecture/ai-agent-boundary.md)). A refusal
+   shown only in a panel that is not showing at Home is not visible to the
+   person.
+2. **Only the person can repair it.** The private-store policy refuses a
+   group- or world-writable parent so that another local account cannot plant,
+   swap or race an entry where agent workspaces are created and later removed.
+   Those workspaces hold exact checkouts of what may be private code. For the
+   same reason the application never changes a folder it did not create. If the
+   person is not told, the folder is never repaired, and disposable agent
+   workspaces stay unavailable without a word.
+3. **B3's rule fits this case exactly.** A failure that happens while a window
+   exists is reported in that window, and no other window is presented for it.
+   Home is what a window shows at startup. Its status bar is already where Home
+   reports what is wrong: the retained layout sentence ([[BPR-0742]]) and the
+   profile refusal ([[BPR-0777]]).
+4. **With Q1 at exit 0, the status bar is the only signal.** It therefore
+   has to be where the person looks.
+
+### Effect on acceptance
+
+Criterion 2 is decided by this amendment, as follows. With a pre-existing 0775
+parent, the refusal holds and nothing is repaired. The window's status bar at
+Home states the refusal. Closing the last window exits 0. Criteria 1 and 3 are
+unchanged.
 
 ## Defect
 
