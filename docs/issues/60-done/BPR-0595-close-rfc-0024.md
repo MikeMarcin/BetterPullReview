@@ -652,9 +652,17 @@ records are intact and its two owner accepts remain bound to bundle
 RFC-BPR-0024 is set to Auto-Verified for the r3 scope with the amendment
 recorded in the RFC, index row 158 reconciled, the authority inventory's
 stale "not yet run" Windows note corrected and the plan's `close-rfc-0024`
-text carrying the transfer. The gates, board validation, checkpoint
-bind/check, exact commits and command quiescence are recorded in the
-Done acceptance records and the sealed checkpoint. Next eligible milestone
-after this card is Done: `plan-rfc-0025` (BPR-0596), which the coordinator
-starts. No push, merge to `main`, live provider mutation or credential was
-used.
+text carrying the transfer (`04dc8f97`; ready `6d6b50e1`; claim
+`a64c20a9`). **Disposition: milestone complete for the owner-amended r3
+scope.** This card is finished through the shared helper at
+`eb73df8bb3b7131f9184712ca64c2e8045f476f6`; at that commit the
+documentation gate is `DOCUMENTATION_OK` (`build/rfc0024-r3-docs.log`),
+`issue_board validate --rfc RFC-BPR-0024` is valid over 972 cards and
+`git diff --check` is clean. The r3 bind/observation/check use
+`build/rfc0024-claude-milestone-{checkpoint-r3,observation-r4,check-r4}.json`
+(definition `a5fed3e1…`, obligations `c39b56ff…`, action `stop`); the
+checker is a consistency guard, not the source of engineering acceptance.
+Next eligible milestone: `plan-rfc-0025` (BPR-0596), which the coordinator
+starts. All task-owned commands are quiescent; no push, merge to `main`,
+live provider mutation or credential was used. This is not whole-pack,
+native Windows desktop or release acceptance.
