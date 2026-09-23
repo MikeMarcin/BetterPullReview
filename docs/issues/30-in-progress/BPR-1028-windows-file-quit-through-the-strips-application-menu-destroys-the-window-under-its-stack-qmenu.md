@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1028"
 title: "Windows: File > Quit through the strip's Application menu destroys the window under its stack QMenu (accessible invoke)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
