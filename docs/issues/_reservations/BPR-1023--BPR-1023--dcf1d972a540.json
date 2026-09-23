@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1023"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-0940 finding: the anonymous-preview Accounts course predates shared sign-in's device-capable Connect, and a hidden Connect under a refused activation still begins device sign-in",
+  "created": "2026-09-23T16:39:08.833611+00:00",
+  "base": "f839e26a586b0dfd87f066da345a1fabca66f79d"
+}
