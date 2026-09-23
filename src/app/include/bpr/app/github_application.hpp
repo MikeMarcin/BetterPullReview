@@ -103,6 +103,16 @@ namespace bpr::app {
 	/// caller keeps reading the mapped failure it already reads.
 	[[nodiscard]] auto profile_startup_refusal_name() -> std::string;
 
+	/// \brief Whether this process runs inside the automated test boundary.
+	///
+	/// \details [[BPR-0802]], [[BPR-0983]]. The composition's one reader of
+	/// the marker `bpr_add_network_isolated_test` injects into every
+	/// registered row. A profile's composition, the updater and the update
+	/// lifetime all ask it here rather than reading the environment
+	/// themselves. A tests-disabled graph answers false and carries no name
+	/// to read, so a stray variable changes nothing in a shipped build.
+	[[nodiscard]] auto inside_automated_test_boundary() -> bool;
+
 	/// \brief Names the device-authorization browser capability a run bound.
 	///
 	/// \details `DeviceAuthorizationBrowserComposed` answers whether anything

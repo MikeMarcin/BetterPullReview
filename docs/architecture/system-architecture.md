@@ -1184,6 +1184,11 @@ at all is the construction cut, and only then does the action answer
 `application_device_authorization_browser_absent`,
 `application_composition_capabilities_inside_boundary`,
 `application_composition_capabilities_product_run`, `composed_application_hosts`).
+The marker has one reader, `bpr::app::inside_automated_test_boundary` in the
+composition, compiled only into tests-enabled graphs: a profile's composition,
+the release updater (which installs nothing and opens no browser inside the
+boundary) and the update lifetime all ask it, and a tests-disabled binary
+neither carries the name nor answers to it ([[BPR-0802]], [[BPR-0983]]).
 
 **Composition selects the identity and the platform.** The device path is
 composed on every platform, registered or not, because the visible choice and

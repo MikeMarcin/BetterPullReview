@@ -489,7 +489,9 @@ namespace bpr::app {
 			const auto flag      = QStringLiteral("--bpr-update-transaction");
 			const auto index     = arguments.indexOf(flag);
 			const auto installed = std::filesystem::path{ QCoreApplication::applicationDirPath().toStdString() }.parent_path().parent_path();
-			if (index < 0 && (installed.filename() != "BetterPullReview.app" || qEnvironmentVariableIsSet("BPR_AUTOMATED_TEST_BOUNDARY"))) {
+			// [[BPR-0983]]. A suite takes no update lifetime; the composition's
+			// one reader says whether this is one.
+			if (index < 0 && (installed.filename() != "BetterPullReview.app" || inside_automated_test_boundary())) {
 				return false;
 			}
 			if ((index >= 0 && (arguments.count(flag) != 1 || index + 1 >= arguments.size())) || installed.filename() != "BetterPullReview.app") {

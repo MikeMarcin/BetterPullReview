@@ -198,6 +198,30 @@
 #endif
 
 namespace bpr::app {
+	// [[BPR-0802]]. From the environment rather than a flag because a flag is
+	// something a course can forget, and the thing it would forget is the one
+	// that keeps an unattended suite from opening a browser on the reviewer's
+	// machine. `bpr_add_network_isolated_test` injects it into every
+	// registered row on all three platforms, and a child the course starts
+	// inherits it.
+	//
+	// Any non-empty value means inside. The failure mode has to be the safe
+	// one: an unrecognised value that meant "outside" would be a suite allowed
+	// to start a program, while one that means "inside" is at worst a person's
+	// own run composing a recorder, which they would see immediately.
+	//
+	// [[BPR-0983]]. Read only in the tests-enabled graph. The name is in no
+	// tests-disabled binary, and the tests-off Release scan in
+	// `tests/end_to_end/composition_contract_tests.py` looks for it.
+	auto inside_automated_test_boundary() -> bool
+	{
+#if defined(BPR_BUILD_TESTING)
+		return !qEnvironmentVariableIsEmpty("BPR_AUTOMATED_TEST_BOUNDARY");
+#else
+		return false;
+#endif
+	}
+
 	namespace {
 		// [[BPR-0877]]. The profile refusal a startup actually saw, as its enum
 		// value, or -1 when none did. A value rather than a string because it is
@@ -4451,34 +4475,18 @@ namespace bpr::app {
 			// the marker, would otherwise hand a recorded verification
 			// address to the real opener.
 			//
-			// [[BPR-0802]]. Read from the environment here, where the browser
-			// and the GitHub CLI factory are chosen, and nowhere else. It used
-			// to be read in `src/app/main.cpp` and passed in, so the seam
+			// [[BPR-0802]]. Decided here, where the browser and the GitHub
+			// CLI factory are chosen, from the composition's one reader. It
+			// used to be read in `src/app/main.cpp` and passed in, so the seam
 			// covered the application binary and nothing that composes this
 			// class without going through `main`: an in-process composition
 			// root with no fixture was outside the boundary whatever its
 			// CTest row said, and bound the real opener. Every composition
-			// root now gets the same answer, because there is only one reader.
-			//
-			// From the environment rather than a flag because a flag is
-			// something a course can forget, and the thing it would forget is
-			// the one that keeps an unattended suite from opening a browser on
-			// the reviewer's machine. `bpr_add_network_isolated_test` injects
-			// it into every registered row on all three platforms, and a
-			// child the course starts inherits it.
-			//
-			// Any non-empty value means inside. The failure mode has to be the
-			// safe one: an unrecognised value that meant "outside" would be a
-			// suite allowed to start a program, while one that means "inside"
-			// is at worst a person's own run composing a recorder, which they
-			// would see immediately.
-			//
-			// Read only in this graph. The name is in no tests-disabled
-			// binary, and the tests-off Release scan in
-			// `tests/end_to_end/composition_contract_tests.py` looks for it.
-			InsideAutomatedTestBoundary
-				= !qEnvironmentVariableIsEmpty("BPR_AUTOMATED_TEST_BOUNDARY")
-				|| aFixture.has_value();
+			// root now gets the same answer, because there is only one reader
+			// (`inside_automated_test_boundary`, which the updater and the
+			// update lifetime ask too, [[BPR-0983]]).
+			InsideAutomatedTestBoundary = inside_automated_test_boundary() || aFixture.has_value();
+
 			GithubCliDiscoveryAccounts = aFixture.has_value()
 				? aFixtureOptions.GithubCliDiscoveryAccounts
 				: std::nullopt;

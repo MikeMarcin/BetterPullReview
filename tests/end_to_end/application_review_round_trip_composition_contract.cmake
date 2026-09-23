@@ -77,6 +77,17 @@ endfunction()
 # cli_read_offered [[nodiscard, maybe_unused]] with a comment instead. Every
 # graph's answer is unchanged. No credential, provider, vault or mutation path
 # changes; the mutation-branch pin is unchanged. Review recorded on BPR-0975.
+# BPR-0983 reseal: the automated-test boundary marker gets one reader,
+# inside_automated_test_boundary() in github_application.cpp, which reads it
+# only in a tests-enabled graph and answers false otherwise. A profile's
+# composition, release_update_desktop.cpp and profile_desktop.cpp ask it
+# instead of reading the environment themselves; github_application.hpp
+# declares it. In a tests-enabled graph every answer is unchanged; in a
+# tests-disabled graph the variable no longer stops install, the View Release
+# browser or the update lifetime. No credential, provider, vault, transport or
+# mutation path changes; the mutation-branch pin is unchanged. Covers
+# 9903869f..the BPR-0983 commit; nothing else touched the pinned scope. Review
+# recorded on BPR-0983.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -95,7 +106,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"dfd9605e84e9ccf83abc2db375ec75d407028962bec44a81e2bbddfa035f5723"
+		"895f514fde2816f71b97c613d3215e02ec3566327b79255914b07368025974b4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -230,7 +241,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "9fff94699a1dfe815afaeda9d6f25db19ffc4f404d13750956b6837381e08559"
+        "eb4cae53d01929e213ebf1d0cc7e6932f3ca497a914cfeaf11cc61edc254f9bd"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

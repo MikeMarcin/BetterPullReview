@@ -315,12 +315,26 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
 # binary and no other composition root: a test composing `github_application`
 # in process, with no fixture, was outside the boundary whatever its CTest row
 # said. A second reader would bring that back for whichever root it missed.
+#
+# [[BPR-0983]]. The updater and the update lifetime had become second readers,
+# in every graph: a stray variable in a person's shipped build stopped installs
+# and the update lifetime, and the tests-disabled binary carried the name the
+# Release scan forbids. The one reader is now a function the composition
+# defines, `inside_automated_test_boundary`, which reads the marker only in the
+# tests-enabled graph and answers false in a tests-disabled one; a profile's
+# composition, the updater and the update lifetime all ask it.
 AUTOMATED_TEST_BOUNDARY_LITERAL = '"BPR_AUTOMATED_TEST_BOUNDARY"'
 AUTOMATED_TEST_BOUNDARY_READER_PATH = "src/app/src/github_application.cpp"
 AUTOMATED_TEST_BOUNDARY_READER = re.compile(
-    r"InsideAutomatedTestBoundary\s*=\s*!qEnvironmentVariableIsEmpty\(\s*"
+    r"auto\s+inside_automated_test_boundary\(\s*\)\s*->\s*bool\s*\{\s*"
+    r"#if\s+defined\(\s*BPR_BUILD_TESTING\s*\)\s*"
+    r"return\s+!qEnvironmentVariableIsEmpty\(\s*"
     + re.escape(AUTOMATED_TEST_BOUNDARY_LITERAL)
-    + r"\s*\)\s*\|\|\s*aFixture\.has_value\(\s*\)\s*;"
+    + r"\s*\)\s*;\s*#else\s*return\s+false\s*;\s*#endif\s*\}"
+)
+AUTOMATED_TEST_BOUNDARY_PROFILE_ANSWER = re.compile(
+    r"InsideAutomatedTestBoundary\s*=\s*inside_automated_test_boundary\(\s*\)"
+    r"\s*\|\|\s*aFixture\.has_value\(\s*\)\s*;"
 )
 
 
@@ -349,8 +363,13 @@ def automated_test_boundary_reader_findings(sources: dict[str, str]) -> list[str
         or len(AUTOMATED_TEST_BOUNDARY_READER.findall(composition)) != 1
     ):
         findings.append(
-            "the composition must read the marker exactly once, where it "
-            "decides InsideAutomatedTestBoundary together with the fixture"
+            "the composition must read the marker exactly once, in "
+            "inside_automated_test_boundary, and only in the tests-enabled graph"
+        )
+    if len(AUTOMATED_TEST_BOUNDARY_PROFILE_ANSWER.findall(composition)) != 1:
+        findings.append(
+            "a profile's composition must take InsideAutomatedTestBoundary "
+            "from the one reader together with the fixture"
         )
     return findings
 
@@ -718,13 +737,37 @@ class CompositionContractTests(unittest.TestCase):
             "make_github_provider(",
             "native_github_wire_transport_factory",
             "make_live_review_mutation_provider(",
-            "make_macos_keychain_vault(",
-            "make_windows_credential_manager_vault(",
-            "make_linux_secret_service_vault(",
+            "make_platform_vault(",
         )
         for selection in required_selection:
             with self.subTest(selection=selection):
                 self.assertIn(selection, composition_source)
+        # [[BPR-0983]]. 65dd7dd4 moved the platform vault selection into its
+        # own file in the composition root. The composition asks it for the
+        # vault above, it names every platform's vault, and nothing outside
+        # it and the adapter that defines them names one.
+        vault_path = "src/app/src/platform_credential_vault.cpp"
+        vault_source = strip_cxx_comments(read(vault_path))
+        platform_vaults = (
+            "make_macos_keychain_vault(",
+            "make_windows_credential_manager_vault(",
+            "make_linux_secret_service_vault(",
+        )
+        for selection in platform_vaults:
+            with self.subTest(platform_vault=selection):
+                self.assertIn(selection, vault_source)
+        naming = sorted(
+            path.relative_to(REPOSITORY_ROOT).as_posix()
+            for path in source_files("src")
+            if not path.relative_to(REPOSITORY_ROOT)
+            .as_posix()
+            .startswith("src/adapters/github/")
+            and any(
+                selection in strip_cxx_comments(path.read_text(encoding="utf-8"))
+                for selection in platform_vaults
+            )
+        )
+        self.assertEqual(naming, [vault_path])
         self.assertRegex(composition_source, r"worker_executor\s+ProviderEffects;")
         self.assertRegex(composition_source, r"worker_executor\s+VaultEffects;")
         self.assertIn("make_github_cli_process_runner", composition_source)
@@ -796,6 +839,28 @@ class CompositionContractTests(unittest.TestCase):
         reader = AUTOMATED_TEST_BOUNDARY_READER.search(composition)
         self.assertIsNotNone(reader)
         reader_text = reader.group(0) if reader is not None else ""
+        profile_answer = AUTOMATED_TEST_BOUNDARY_PROFILE_ANSWER.search(composition)
+        self.assertIsNotNone(profile_answer)
+        profile_answer_text = (
+            profile_answer.group(0) if profile_answer is not None else ""
+        )
+        # [[BPR-0983]]. The updater and the update lifetime ask the reader.
+        for asker in (
+            "src/app/src/release_update_desktop.cpp",
+            "src/app/src/profile_desktop.cpp",
+        ):
+            with self.subTest(asks_the_one_reader=asker):
+                self.assertIn(
+                    "inside_automated_test_boundary()",
+                    strip_cxx_comments(sources[asker]),
+                )
+        read_everywhere = reader_text.replace(
+            "return false;",
+            "return !qEnvironmentVariableIsEmpty("
+            + AUTOMATED_TEST_BOUNDARY_LITERAL
+            + ");",
+            1,
+        )
         hostile_sources = {
             # The pre-BPR-0802 shape: main reads it and passes it in, so an
             # in-process composition root never hears the answer.
@@ -806,11 +871,24 @@ class CompositionContractTests(unittest.TestCase):
                 + AUTOMATED_TEST_BOUNDARY_LITERAL
                 + ");\n",
             },
+            # The pre-BPR-0983 shape: the updater reads it for itself.
+            "updater-reads-it-for-itself": {
+                **sources,
+                "src/app/src/release_update_desktop.cpp": sources[
+                    "src/app/src/release_update_desktop.cpp"
+                ].replace(
+                    "inside_automated_test_boundary()",
+                    "qEnvironmentVariableIsSet("
+                    + AUTOMATED_TEST_BOUNDARY_LITERAL
+                    + ")",
+                    1,
+                ),
+            },
             "reader-removed": {
                 **sources,
                 AUTOMATED_TEST_BOUNDARY_READER_PATH: composition.replace(
                     reader_text,
-                    "InsideAutomatedTestBoundary = aFixture.has_value();",
+                    "auto inside_automated_test_boundary() -> bool { return false; }",
                     1,
                 ),
             },
@@ -818,8 +896,24 @@ class CompositionContractTests(unittest.TestCase):
                 **sources,
                 AUTOMATED_TEST_BOUNDARY_READER_PATH: composition.replace(
                     reader_text,
-                    "InsideAutomatedTestBoundary = aFixture.has_value(); // "
-                    + reader_text,
+                    "auto inside_automated_test_boundary() -> bool { return false; } /* "
+                    + reader_text
+                    + " */",
+                    1,
+                ),
+            },
+            # A shipped build would carry the name and answer to it.
+            "reader-in-every-graph": {
+                **sources,
+                AUTOMATED_TEST_BOUNDARY_READER_PATH: composition.replace(
+                    reader_text, read_everywhere, 1
+                ),
+            },
+            "profile-ignores-the-reader": {
+                **sources,
+                AUTOMATED_TEST_BOUNDARY_READER_PATH: composition.replace(
+                    profile_answer_text,
+                    "InsideAutomatedTestBoundary = aFixture.has_value();",
                     1,
                 ),
             },

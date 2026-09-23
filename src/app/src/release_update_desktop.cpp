@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/release_update_store.hpp"
 #include "bpr/adapters/update/release_update_installation.hpp"
 #include "bpr/adapters/update/release_update_staging.hpp"
+#include "bpr/app/github_application.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/release_update_panel.hpp"
@@ -95,9 +96,12 @@ namespace bpr::app {
 			Initializing         = true;
 			const auto installed = std::filesystem::path{ QCoreApplication::applicationDirPath().toStdString() }.parent_path().parent_path();
 			const auto version   = QCoreApplication::applicationVersion().toStdString();
-			const bool boundary  = qEnvironmentVariableIsSet("BPR_AUTOMATED_TEST_BOUNDARY");
-			auto       staging   = adapters::update::make_release_update_staging(aRoot, installed, Cleanup);
-			auto       store     = adapters::sqlite::make_release_update_store(aRoot);
+			// Inside the automated test boundary nothing is installed and no
+			// browser opens; the composition's one reader answers, so a
+			// shipped build has no boundary to be inside ([[BPR-0983]]).
+			const bool boundary = inside_automated_test_boundary();
+			auto       staging  = adapters::update::make_release_update_staging(aRoot, installed, Cleanup);
+			auto       store    = adapters::sqlite::make_release_update_store(aRoot);
 			Effects.post([self = shared_from_this(), installed, version, staging, store, boundary, root = std::move(aRoot)] {
 				const auto                                                capability = boundary ? core::release_update_capability::untrusted_installation : adapters::update::release_update_installation_capability(installed, { });
 				std::shared_ptr<application::release_update_install_port> installer;
