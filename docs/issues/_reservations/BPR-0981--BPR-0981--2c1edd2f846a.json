@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0981"
+  ],
+  "reserve_for": "rfc0025-planning-reconciliation",
+  "purpose": "Planning-stage RFC-0025 reconciliation: resident fuzzy filters with retained selection in the repositories and files drawers, the one remaining slice after RFC-0028 superseded the layout and left browser-style tabs unscheduled",
+  "created": "2026-09-23T00:18:22.316531+00:00",
+  "base": "dabcdaec2f10288328aa2403c4d08f2a59e6cbf7"
+}
