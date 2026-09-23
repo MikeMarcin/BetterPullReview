@@ -76,3 +76,28 @@ untouched:
 
 Unsampled peaks, responsiveness budgets, and Windows and Linux budgets on
 eligible hardware remain this card's.
+
+## The Mac memory budgets after BPR-1032 — 2026-09-23
+
+[[BPR-1032]] (`27c35729`) removes the per-line HarfBuzz retention that
+[[BPR-0893]]'s 224 MiB bound accepted. On the same M4 Pro, Debug build,
+`large_file_ready` live growth falls from 164.2 to 101.1 MiB. The Mac bounds
+in `tests/end_to_end/large_review_benchmark.cpp` are re-derived from the new
+measurement:
+
+- **Footprint, resources / loaded-close / cache-entry courses:** 160 MiB.
+  The highest observed peak is 138.7 MiB.
+- **Footprint, cache-byte course:** 184 MiB. Its peak is 166.7 MiB, because
+  the course fills the diff cache to its byte budget.
+- **Live heap after cleanup:** 84 MiB with the application open (observed
+  67.6) and 32 MiB once it is destroyed (observed 13.8).
+
+That is AC1/AC2 evidence for macOS only. AC3 is untouched: launch,
+metadata, first render, navigation, drawers, theme and cancellation budgets,
+and every Windows and Linux measurement, remain this card's.
+
+While measuring, the Mac station found `application_large_review_history`
+red. Every epoch refresh holds the GUI thread for about 167 ms against the
+100 ms input budget, with or without BPR-1032. That is filed as
+[[BPR-1043]]. The ordinary benchmark's initial load still shows the 290–310 ms
+gap this card already records.
