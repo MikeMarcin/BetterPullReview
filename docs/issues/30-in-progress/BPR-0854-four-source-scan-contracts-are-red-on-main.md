@@ -651,10 +651,12 @@ line.
 
 ### What this card still needs
 
-- **Linux (`bpr-main-linux`)**: the four title rows at this fix's commit.
+The fix is `bac4c745`.
+
+- **Linux (`bpr-main-linux`)**: the four title rows at `bac4c745` or later.
   Expect `CONDITIONAL_BRANCH_IDENTIFIERS_OK` where the unpatched gate would
   report 9.
 - **Windows (`bpr-main-win`)**: `msvc_secure_crt_contract` and
-  `contained_temporary_usage_contract` at this fix's commit.
+  `contained_temporary_usage_contract` at `bac4c745` or later.
 
 The macOS half of both acceptance lines is met at the fix.
