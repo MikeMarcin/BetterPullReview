@@ -1,0 +1,50 @@
+[
+  {
+    "id": 101,
+    "node_id": "EXAMPLE_OPAQUE_COMMENT_NODE_1",
+    "pull_request_review_id": 900,
+    "body": "### Author's tour · 1 — The lifetime assumption that breaks\n\nThe old lookup contract allowed a reader to retain a pointer after releasing the lookup lock. In this illustrative change, deletion can then retire that entry before the read finishes.\n\nPlease check the other callers of this lookup: changing only this path would leave the same lifetime assumption elsewhere.",
+    "path": "src/cache/read.cpp",
+    "line": 42,
+    "side": "RIGHT",
+    "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "original_commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "user": {
+      "id": 7,
+      "login": "example-author"
+    },
+    "html_url": "https://github.example.invalid/acme/demo/pull/42#discussion_r101"
+  },
+  {
+    "id": 102,
+    "node_id": "EXAMPLE_OPAQUE_COMMENT_NODE_2",
+    "pull_request_review_id": 900,
+    "body": "### Author's tour · 2 — Retain lifetime before releasing the lock\n\nThe reader now acquires a lifetime handle while the entry is still protected by the lookup lock. The handle, rather than continued membership in the cache, keeps the entry alive during the read.\n\nThis does not make mutable entry contents generally thread-safe. Please scrutinize whether every path releases the lookup lock only after acquiring the handle.",
+    "path": "src/cache/entry.cpp",
+    "line": 71,
+    "side": "RIGHT",
+    "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "original_commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "user": {
+      "id": 7,
+      "login": "example-author"
+    },
+    "html_url": "https://github.example.invalid/acme/demo/pull/42#discussion_r102"
+  },
+  {
+    "id": 103,
+    "node_id": "EXAMPLE_OPAQUE_COMMENT_NODE_3",
+    "pull_request_review_id": 900,
+    "body": "### Author's tour · 3 — Exercise deletion during an active read\n\nThe added regression scenario holds an active read while another operation removes the entry, then allows the read to finish. It is intended to exercise the ordering behind the reported failure.\n\nThis fixture example includes no test execution result. The test's existence is not a claim that it has passed on the current PR revision.",
+    "path": "tests/cache_lifetime_tests.cpp",
+    "line": 110,
+    "side": "RIGHT",
+    "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "original_commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "user": {
+      "id": 7,
+      "login": "example-author"
+    },
+    "html_url": "https://github.example.invalid/acme/demo/pull/42#discussion_r103"
+  }
+]

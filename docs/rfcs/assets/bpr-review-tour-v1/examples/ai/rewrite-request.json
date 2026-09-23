@@ -1,0 +1,17 @@
+{
+  "schema": "bpr.review-preparation.request.v1",
+  "operation": "problem",
+  "scope": "selection",
+  "text_before": "A failed read is possible. ",
+  "selected_text": "Crash when reading data that's been concurrently deleted.",
+  "text_after": "\n\nThe observed frequency is not yet established.",
+  "context": [
+    {
+      "ref": "pr-body:observed-1",
+      "kind": "author_statement",
+      "text": "Crash when reading data that's been concurrently deleted."
+    }
+  ],
+  "output_contract": "bpr.review-preparation.result.v1",
+  "note": "Editor IDs, raw byte range, scope generation and actor binding remain in the host-owned request envelope."
+}

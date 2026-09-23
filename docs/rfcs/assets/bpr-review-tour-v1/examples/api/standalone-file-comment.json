@@ -1,0 +1,6 @@
+{
+  "body": "https://github.example.invalid/acme/demo/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/docs/lifetime.md?plain=1#L12\n\n### Author's tour · 4 — The unchanged lifetime contract\n\nThis contract explains why retaining a pointer is not enough. The comment is a file-level compatibility subject; the exact source destination is the permalink above.\n\n[Tour overview](https://github.example.invalid/acme/demo/pull/42#pullrequestreview-900)\n",
+  "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "path": "docs/lifetime.md",
+  "subject_type": "file"
+}

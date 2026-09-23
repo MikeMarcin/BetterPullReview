@@ -1,0 +1,50 @@
+{
+  "schema": "bpr.review-tour.rfc-pack.v1",
+  "id": "bpr-review-tour-v1",
+  "version": 1,
+  "authored_date": "2026-09-23",
+  "status": "proposed_design_and_implementation_plan",
+  "rfcs": [
+    {
+      "id": "RFC-BPR-0039",
+      "title": "Manual-First Review Tour Authoring",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md"
+    },
+    {
+      "id": "RFC-BPR-0040",
+      "title": "GitHub-Native Tour Format, Import, and Navigation",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md"
+    },
+    {
+      "id": "RFC-BPR-0041",
+      "title": "Staged Tour Publication and Recovery",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md"
+    },
+    {
+      "id": "RFC-BPR-0042",
+      "title": "Published Tour Maintenance and Reconciliation",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md"
+    },
+    {
+      "id": "RFC-BPR-0043",
+      "title": "Scoped Review Preparation AI Assistance",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md"
+    }
+  ],
+  "card_index": "cards/CARD-INDEX.json",
+  "milestone_plan": "milestone-plan.json",
+  "milestones_document": "MILESTONES.md",
+  "implementation_prompt": "IMPLEMENTATION-PROMPT.md",
+  "source_baseline": "references/SOURCE-BASELINE.json",
+  "acceptance_matrix": "verification/acceptance-matrix.json",
+  "default_hooks": [
+    "skill-defaults/problem-statement.md",
+    "skill-defaults/solution-summary.md",
+    "skill-defaults/tour-outline.md",
+    "skill-defaults/tour-stop-comment.md"
+  ],
+  "checksums": "SHA256SUMS",
+  "product_implementation_performed": false,
+  "live_service_verification_performed": false,
+  "new_files_only_overlay": true
+}

@@ -1,0 +1,4 @@
+{
+  "event": "COMMENT",
+  "body": "## Review tour — Start here\n\nFollow the lifetime decision first, then its callers and evidence. This route is guidance, not a substitute for inspecting the remaining diff.\n\n1. [The lifetime assumption that breaks](https://github.example.invalid/acme/demo/pull/42#discussion_r101)\n2. [Retain lifetime before releasing the lock](https://github.example.invalid/acme/demo/pull/42#discussion_r102)\n3. [Exercise deletion during an active read](https://github.example.invalid/acme/demo/pull/42#discussion_r103)\n"
+}

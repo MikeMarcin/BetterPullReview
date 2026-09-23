@@ -1,0 +1,223 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-review-tour-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0039",
+      "RFC-BPR-0040",
+      "RFC-BPR-0041",
+      "RFC-BPR-0042",
+      "RFC-BPR-0043"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake",
+      "outcome": "The pack has collision-free live identities and an imported authored plan, with current implementation seams recorded.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-01"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "All proposed RFC and issue aliases are collision-checked/remapped with committed allocator receipts and source lineage.",
+        "The installed skill validates/imports the authored grouping; one live baseline note names existing composition and any prerequisite gaps."
+      ],
+      "boundary": "One focused integration boundary; preserve explicit source/runtime/host/human evidence limits and no automatic remote effects."
+    },
+    {
+      "id": "manual-authoring",
+      "outcome": "An author can prepare a problem-first brief and ordered source tour, persist it and navigate it without AI.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-02"
+        },
+        {
+          "issue": "PACK-TOUR-03"
+        },
+        {
+          "issue": "PACK-TOUR-04"
+        },
+        {
+          "issue": "PACK-TOUR-05"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "No-AI application course covers both Markdown fields, manual stops, free order, preview and persistent restart.",
+        "Core identities/ranges, native editor semantics, multiwindow conflicts and bounds are tested without any remote mutation or agent launch."
+      ],
+      "boundary": "One focused integration boundary; preserve explicit source/runtime/host/human evidence limits and no automatic remote effects."
+    },
+    {
+      "id": "github-round-trip",
+      "outcome": "Ordinary Markdown comments/indexes and exact source subjects round-trip from GitHub without private metadata or AI.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-06"
+        },
+        {
+          "issue": "PACK-TOUR-07"
+        },
+        {
+          "issue": "PACK-TOUR-08"
+        }
+      ],
+      "depends_on": [
+        "manual-authoring"
+      ],
+      "exit_criteria": [
+        "Golden Markdown and cold-import courses reconstruct the route from raw GitHub objects while preserving untouched text.",
+        "Exact source subject/compatibility and incomplete/foreign/malformed data paths are explicit and tested."
+      ],
+      "boundary": "One focused integration boundary; preserve explicit source/runtime/host/human evidence limits and no automatic remote effects."
+    },
+    {
+      "id": "staged-publication",
+      "outcome": "The real app publishes a verified pending comment batch through the existing qualified API transports with explicit compatibility and recovery states.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-09"
+        },
+        {
+          "issue": "PACK-TOUR-10"
+        },
+        {
+          "issue": "PACK-TOUR-11"
+        },
+        {
+          "issue": "PACK-TOUR-12"
+        }
+      ],
+      "depends_on": [
+        "github-round-trip"
+      ],
+      "exit_criteria": [
+        "Production ports create/observe/wire/verify a pending review and submit the exact COMMENT batch, with normal source-line/summary regressions retained.",
+        "Journal/kill/ambiguous response tests prove read-first reconciliation; CLI/native fixed operations preserve authority and unavailable-platform rules.",
+        "The real application preview shows non-atomic fallbacks and optional description edits separately; no write occurs before Publish."
+      ],
+      "boundary": "One focused integration boundary; preserve explicit source/runtime/host/human evidence limits and no automatic remote effects."
+    },
+    {
+      "id": "manual-maintenance",
+      "outcome": "Reopen, website conflicts, published insertion/reorder and revision awareness work through production ports; the complete manual fixture course is proven before AI engineering.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-13"
+        },
+        {
+          "issue": "PACK-TOUR-14"
+        },
+        {
+          "issue": "PACK-TOUR-15"
+        },
+        {
+          "issue": "PACK-TOUR-16"
+        }
+      ],
+      "depends_on": [
+        "staged-publication"
+      ],
+      "exit_criteria": [
+        "Production-port manual lifecycle covers website edits, later insertion/reorder, interruptions and cold reimport without AI.",
+        "Source/revision mapping and mixed-client conflicts preserve history; website/native courses are prepared with missing real-service evidence explicitly left for qualification."
+      ],
+      "boundary": "Manual path first. Actual server/native qualification remains explicit; no early feature-status claim."
+    },
+    {
+      "id": "scoped-ai",
+      "outcome": "Four profile-owned writing hooks feed explicit in-place local edits with exact scope, ordinary undo/redo and stale-result protection.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-17"
+        },
+        {
+          "issue": "PACK-TOUR-18"
+        },
+        {
+          "issue": "PACK-TOUR-19"
+        },
+        {
+          "issue": "PACK-TOUR-20"
+        }
+      ],
+      "depends_on": [
+        "manual-maintenance"
+      ],
+      "exit_criteria": [
+        "Four hooks use the existing explicit agent/settings path; no import/navigation/manual action invokes AI.",
+        "Selection/whole/empty modes replace only captured raw bytes and produce one native undo entry; redo performs no inference.",
+        "Stale, duplicate, malformed, insufficient-context and malicious results cannot overwrite newer text, broaden authority or publish."
+      ],
+      "boundary": "One focused integration boundary; preserve explicit source/runtime/host/human evidence limits and no automatic remote effects."
+    },
+    {
+      "id": "outline-and-adversaries",
+      "outcome": "Outline-only suggestions require per-stop author attention; security/crash/conflict cases are exercised without bulk tour generation.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-21"
+        },
+        {
+          "issue": "PACK-TOUR-22"
+        }
+      ],
+      "depends_on": [
+        "scoped-ai"
+      ],
+      "exit_criteria": [
+        "Outline results contain no publishable bodies; every retained generated stop requires current visible author completion and no bulk bypass exists.",
+        "Crash, parser, source/link, account, prompt-injection and multiwriter adversaries use real production boundaries and independent effect counters."
+      ],
+      "boundary": "One focused integration boundary; preserve explicit source/runtime/host/human evidence limits and no automatic remote effects."
+    },
+    {
+      "id": "qualification-closeout",
+      "outcome": "Claimed native and server behaviors have real evidence, documentation matches and each RFC has truthful dependency-ordered status.",
+      "work": [
+        {
+          "issue": "PACK-TOUR-23"
+        },
+        {
+          "issue": "PACK-TOUR-24"
+        },
+        {
+          "issue": "PACK-TOUR-25"
+        },
+        {
+          "issue": "PACK-TOUR-26"
+        },
+        {
+          "rfc": "RFC-BPR-0039"
+        },
+        {
+          "rfc": "RFC-BPR-0040"
+        },
+        {
+          "rfc": "RFC-BPR-0041"
+        },
+        {
+          "rfc": "RFC-BPR-0042"
+        },
+        {
+          "rfc": "RFC-BPR-0043"
+        }
+      ],
+      "depends_on": [
+        "outline-and-adversaries"
+      ],
+      "exit_criteria": [
+        "Each claimed native, GitHub.com/GHES and transport capability has candidate-bound evidence; not-run/failed capabilities remain unavailable/open.",
+        "Operator/product/security/storage documentation, focused integration and simplification are complete without duplicating subsystems.",
+        "Every RFC acceptance row is reconciled and formal status follows the current canonical predecessor order with no fabricated closure."
+      ],
+      "boundary": "One focused integration boundary; preserve explicit source/runtime/host/human evidence limits and no automatic remote effects."
+    }
+  ],
+  "unplanned_work": []
+}

@@ -1,0 +1,68 @@
+{
+  "schema": "bpr.review-tour.splice-fixtures.v1",
+  "cases": [
+    {
+      "name": "sentence",
+      "before": "Context. Crash when reading data that's been concurrently deleted.\nKeep this.",
+      "start_utf8": 9,
+      "end_utf8": 66,
+      "replacement": "Reading data can crash when that data is deleted concurrently.",
+      "expected": "Context. Reading data can crash when that data is deleted concurrently.\nKeep this.",
+      "creates_undo_entry": true
+    },
+    {
+      "name": "emoji-crlf",
+      "before": "Before 🐼\r\n**awkward text**\r\nAfter",
+      "start_utf8": 15,
+      "end_utf8": 27,
+      "replacement": "clear wording",
+      "expected": "Before 🐼\r\n**clear wording**\r\nAfter",
+      "creates_undo_entry": true
+    },
+    {
+      "name": "combining",
+      "before": "A café has vague prose.",
+      "start_utf8": 13,
+      "end_utf8": 24,
+      "replacement": "precise prose",
+      "expected": "A café has precise prose.",
+      "creates_undo_entry": true
+    },
+    {
+      "name": "markdown-boundary",
+      "before": "This is **very unclear** but deliberate.",
+      "start_utf8": 10,
+      "end_utf8": 22,
+      "replacement": "ambiguous",
+      "expected": "This is **ambiguous** but deliberate.",
+      "creates_undo_entry": true
+    },
+    {
+      "name": "whitespace-selection",
+      "before": "Keep\t  this.",
+      "start_utf8": 4,
+      "end_utf8": 7,
+      "replacement": " ",
+      "expected": "Keep this.",
+      "creates_undo_entry": true
+    },
+    {
+      "name": "multiline-crlf",
+      "before": "Keep\r\nold line one\r\nold line two\r\nSuffix",
+      "start_utf8": 6,
+      "end_utf8": 32,
+      "replacement": "new line one\r\nnew line two",
+      "expected": "Keep\r\nnew line one\r\nnew line two\r\nSuffix",
+      "creates_undo_entry": true
+    },
+    {
+      "name": "equal-noop",
+      "before": "Already concise.",
+      "start_utf8": 0,
+      "end_utf8": 16,
+      "replacement": "Already concise.",
+      "expected": "Already concise.",
+      "creates_undo_entry": false
+    }
+  ]
+}

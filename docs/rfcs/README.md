@@ -170,6 +170,11 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed, while canonical predecessor eligibility remains pending |
 | [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Technical implementation and BPR-0927 closeout accepted at `e4096e05`; RFC-BPR-0008 and RFC-BPR-0013 are now closed, while RFC-BPR-0015, RFC-BPR-0028 and RFC-BPR-0029 must still become Auto-Verified; Markdown remains separate under RFC-BPR-0036 |
 | [RFC-BPR-0038](RFC-BPR-0038-native-package-release-security-qualification.md) | Native Package and Release Security Qualification | Proposed | Owner r4 successor to RFC0014: unchanged Blocked BPR0958–0962 retain all native/trust/license/privacy/security gaps; BPR0973 owns closeout after actual qualification and canonical predecessors |
+| [RFC-BPR-0039](RFC-BPR-0039-manual-first-review-tour-authoring.md) | Manual-First Review Tour Authoring | Proposed | Imported 2026-09-23 from the review-tour pack for later implementation; author prepares Problem, Solution and ordered tour stops without AI; RFC-BPR-0003, 0008, 0024, 0036 and 0037 |
+| [RFC-BPR-0040](RFC-BPR-0040-github-native-tour-format-import-and-navigation.md) | GitHub-Native Tour Format, Import, and Navigation | Proposed | Imported 2026-09-23; the published tour is ordinary GitHub comments with a Start here index and Previous/Next/overview links, re-importable without hidden metadata |
+| [RFC-BPR-0041](RFC-BPR-0041-staged-tour-publication-and-recovery.md) | Staged Tour Publication and Recovery | Proposed | Imported 2026-09-23; one native pending review staged, wired and submitted as COMMENT, with unknown outcomes reconciled rather than retried |
+| [RFC-BPR-0042](RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md) | Published Tour Maintenance and Reconciliation | Proposed | Imported 2026-09-23; later updates preserve comment identity and discussion, website edits are remote truth with preserved local conflicts |
+| [RFC-BPR-0043](RFC-BPR-0043-scoped-review-preparation-ai-assistance.md) | Scoped Review Preparation AI Assistance | Proposed | Imported 2026-09-23; optional in-place undoable writing commands and skeleton-only outlines after the manual lifecycle; no bulk Ready or autonomous publication |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -236,6 +241,15 @@ plan](plans/bpr-dif-integration-v1/milestone-plan.json) retain the source and
 execution order. At import all eighteen cards were Backlog and both RFCs were
 Proposed. BPR-0769 now records their dependency-ordered `Auto-Verified`
 closeout without rewriting the immutable imported packet.
+
+RFC-BPR-0039 through RFC-BPR-0043 are the imported review-tour pack: an
+author-prepared guided review whose published form is ordinary GitHub comments,
+usable by reviewers who never open BPR. The manual lifecycle (RFC-BPR-0039 to
+0042) precedes the optional AI assistance of RFC-BPR-0043. Their [source pack and
+live ID mapping](assets/bpr-review-tour-v1.LIVE_IMPORT.md) and [adopted
+eight-milestone plan](plans/bpr-review-tour-v1/milestone-plan.json) retain the
+source and execution order. Import leaves all twenty-six cards in Backlog and all
+five RFCs Proposed; BPR-1016 owns the single ordered closeout.
 
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile

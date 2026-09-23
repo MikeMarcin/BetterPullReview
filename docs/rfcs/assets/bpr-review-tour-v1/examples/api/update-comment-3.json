@@ -1,0 +1,3 @@
+{
+  "body": "### Author's tour · 3 — Exercise deletion during an active read\n\nThe added regression scenario holds an active read while another operation removes the entry, then allows the read to finish. It is intended to exercise the ordering behind the reported failure.\n\nThis fixture example includes no test execution result. The test's existence is not a claim that it has passed on the current PR revision.\n\n[Previous: Retain lifetime before releasing the lock](https://github.example.invalid/acme/demo/pull/42#discussion_r102) · [Tour overview](https://github.example.invalid/acme/demo/pull/42#pullrequestreview-900)\n"
+}

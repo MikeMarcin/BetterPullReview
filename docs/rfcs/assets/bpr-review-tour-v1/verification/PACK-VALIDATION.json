@@ -1,0 +1,41 @@
+{
+  "schema": "bpr.review-tour.pack-validation.v1",
+  "status": "passed",
+  "checked_date": "2026-09-23",
+  "scope": "Offline artifact checks only. Not application, Qt, agent runtime, installed skill or live GitHub evidence.",
+  "checks": {
+    "status": "passed",
+    "scope": "offline_pack_only",
+    "payload_files": 82,
+    "rfcs": 5,
+    "cards": 26,
+    "milestones": 8,
+    "acceptance_requirements": 43,
+    "local_markdown_links": 25,
+    "synthetic_splice_cases": 7,
+    "product_runtime_tested": false,
+    "live_github_tested": false
+  },
+  "unittest": {
+    "command": "python3 -B -m unittest discover -s tests -p 'test_*.py' -v",
+    "passed": 28,
+    "failed": 0,
+    "errors": 0,
+    "description": "Pack integrity, dependency/ownership checks and synthetic wire, protocol and UTF-8 splice examples; negative fixtures are resealed to exercise semantic validation."
+  },
+  "validation_command": "python3 -B scripts/verify_pack.py",
+  "checksums": "SHA256SUMS seals all payload files including this report; the checksum file itself is excluded.",
+  "not_performed": [
+    "BPR application implementation or build",
+    "Qt/native editor or rendered UI verification",
+    "Live GitHub.com or GHES calls, publication or website acceptance",
+    "Model inference or writing-quality evaluation",
+    "Installed implement-rfc schema validation/import",
+    "Live repository RFC/issue allocation or HEAD verification"
+  ],
+  "product_acceptance": {
+    "requirements": 43,
+    "status": "not_run",
+    "evidence": []
+  }
+}

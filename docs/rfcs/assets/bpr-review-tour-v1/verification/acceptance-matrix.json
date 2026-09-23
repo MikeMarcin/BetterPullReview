@@ -1,0 +1,832 @@
+{
+  "schema": "bpr.review-tour.acceptance-matrix.v1",
+  "note": "Proposed courses are not existing registered selectors. All product implementation/qualification rows are not_run in this design pack. Pack validation is separate.",
+  "requirements": [
+    {
+      "id": "AC39-01",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "An author completes and locally saves Problem → Solution → manually ordered stops → preview with no AI profile, child agent process, or inference request.",
+      "owner_cards": [
+        "PACK-TOUR-04",
+        "PACK-TOUR-16"
+      ],
+      "proposed_course": "tour_ac39_01",
+      "scenarios": [
+        "Complete the entire manual fixture with no agent profile or agent process; inference count is zero."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC39-02",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "The source editor preserves Markdown; previews are non-mutating and use the existing safe native rendering policy.",
+      "owner_cards": [
+        "PACK-TOUR-04"
+      ],
+      "proposed_course": "tour_ac39_02",
+      "scenarios": [
+        "Round-trip raw Markdown through editing/preview; preview issues no writes or resource fetches."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC39-03",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "Add/insert/reorder/split/merge/remove operations preserve stable identity, text, related links and ordinary undo where applicable.",
+      "owner_cards": [
+        "PACK-TOUR-02",
+        "PACK-TOUR-05"
+      ],
+      "proposed_course": "tour_ac39_03",
+      "scenarios": [
+        "Reorder duplicate titles, split/merge prose and related links, undo local structure operations; identities remain stable."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC39-04",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "A stop can represent an actual source line/range and related unchanged code without inventing native write support.",
+      "owner_cards": [
+        "PACK-TOUR-02",
+        "PACK-TOUR-08"
+      ],
+      "proposed_course": "tour_ac39_04",
+      "scenarios": [
+        "Select real contiguous lines and an unchanged related contract; never derive an anchor from a visual row."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC39-05",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "Draft autosave, restart, account/profile isolation and same-draft multiwindow conflicts are exercised with real admitted private storage.",
+      "owner_cards": [
+        "PACK-TOUR-03"
+      ],
+      "proposed_course": "tour_ac39_05",
+      "scenarios": [
+        "Autosave/restart against real SQLite; race two windows; deny another profile; retain text on failed save."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC39-06",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "Current workbench composition is keyboard-accessible and usable at supported sizes/scales; navigation and readiness change no remote review state.",
+      "owner_cards": [
+        "PACK-TOUR-04",
+        "PACK-TOUR-05",
+        "PACK-TOUR-23"
+      ],
+      "proposed_course": "tour_ac39_06",
+      "scenarios": [
+        "Native keyboard/IME/screen-reader/scaled layout and navigation with zero remote status effects."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "native_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC39-07",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "Manual drafts remain usable when rendering, source acquisition, authentication or later AI assistance is unavailable; missing state is not silently dropped.",
+      "owner_cards": [
+        "PACK-TOUR-04"
+      ],
+      "proposed_course": "tour_ac39_07",
+      "scenarios": [
+        "Disable rendering, source reads, auth and AI separately; retain readable/editable manual draft state."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC39-08",
+      "rfc": "RFC-BPR-0039",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0039-manual-first-review-tour-authoring.md",
+      "requirement": "Bounds and their refusal paths are tested with short, ordinary, long and maximum-admitted tours.",
+      "owner_cards": [
+        "PACK-TOUR-02",
+        "PACK-TOUR-23"
+      ],
+      "proposed_course": "tour_ac39_08",
+      "scenarios": [
+        "Exercise 1/12/100/256 stops, per-field and aggregate limits, lazy source loads and explicit refusal above bounds."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "native_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-01",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "Every shared stop and index is ordinary readable Markdown in normal GitHub comments, with real links and no required BPR-specific metadata.",
+      "owner_cards": [
+        "PACK-TOUR-06"
+      ],
+      "proposed_course": "tour_ac40_01",
+      "scenarios": [
+        "Render every published object in the website; all explanations/order are normal comments and visible Markdown."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "designated_service_or_website_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-02",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "Index order, comment identity and visible stop numbering remain distinct; duplicate titles and reordered server collections do not scramble the route.",
+      "owner_cards": [
+        "PACK-TOUR-06",
+        "PACK-TOUR-07"
+      ],
+      "proposed_course": "tour_ac40_02",
+      "scenarios": [
+        "Shuffle server responses and use repeated list numbering/duplicate titles; follow root textual order by comment identity."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-03",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "A fresh local database reconstructs a published tour and its brief from paged GitHub data without AI or original private IDs.",
+      "owner_cards": [
+        "PACK-TOUR-07",
+        "PACK-TOUR-16"
+      ],
+      "proposed_course": "tour_ac40_03",
+      "scenarios": [
+        "Delete local fixture state and reopen from fully paged GitHub objects with zero inference requests."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-04",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "Markdown round trips preserve all untouched source bytes, including unrelated description/template content and CRLF/LF boundaries.",
+      "owner_cards": [
+        "PACK-TOUR-06"
+      ],
+      "proposed_course": "tour_ac40_04",
+      "scenarios": [
+        "Edit mapped Problem only in a CRLF template containing fences, quoted headings and disclosures; untouched bytes match exactly."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-05",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "Ambiguous mapping, duplicate/missing/foreign links, partial pages and third-party comments remain visible and do not grant mutation authority.",
+      "owner_cards": [
+        "PACK-TOUR-06",
+        "PACK-TOUR-07",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac40_05",
+      "scenarios": [
+        "Duplicate IDs, foreign PR/account links, malformed URLs, incomplete pages, ambiguous roots and nonowned comments never enable writes."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-06",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "Line/range/source-version identity and native/file/conversation fallback subjects remain explicit and exact.",
+      "owner_cards": [
+        "PACK-TOUR-08"
+      ],
+      "proposed_course": "tour_ac40_06",
+      "scenarios": [
+        "Native multiline, off-hunk file fallback, original/base range, wholly untouched file and unavailable source retain honest subject kinds."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-07",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "Website-only reviewers can follow Start here → comments → Next/Previous → overview and reply normally; no invented heading fragment is needed.",
+      "owner_cards": [
+        "PACK-TOUR-16",
+        "PACK-TOUR-23"
+      ],
+      "proposed_course": "tour_ac40_07",
+      "scenarios": [
+        "Website-only reviewer follows actual index, next/previous/overview links and replies under the normal comment."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "designated_service_or_website_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC40-08",
+      "rfc": "RFC-BPR-0040",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0040-github-native-tour-format-import-and-navigation.md",
+      "requirement": "BPR excursions/return, resolved/outdated threads and source-unavailable states retain the tour without altering review state.",
+      "owner_cards": [
+        "PACK-TOUR-05",
+        "PACK-TOUR-15"
+      ],
+      "proposed_course": "tour_ac40_08",
+      "scenarios": [
+        "Leave route, inspect a caller, return; resolved/outdated/unavailable source remains visible; no viewed/resolve/approve effects."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-01",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Exact native line/range batches remain pending until one explicit COMMENT submission; no per-stop visible publish loop substitutes for this path.",
+      "owner_cards": [
+        "PACK-TOUR-09",
+        "PACK-TOUR-12"
+      ],
+      "proposed_course": "tour_ac41_01",
+      "scenarios": [
+        "Create with event omitted, verify unsubmitted state, then submit the exact review once with COMMENT."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "designated_service_or_website_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-02",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Returned comment IDs/URLs drive every link, and complete staged membership/bodies/anchors are verified before submission.",
+      "owner_cards": [
+        "PACK-TOUR-09",
+        "PACK-TOUR-10"
+      ],
+      "proposed_course": "tour_ac41_02",
+      "scenarios": [
+        "Reorder/create response records and inspect all pending members; no guessed URLs, positional pairing or missing/extra stop succeeds."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "designated_service_or_website_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-03",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Existing/contaminated pending reviews, head/actor changes and external early submission are handled without unauthorized inclusion, deletion or duplication.",
+      "owner_cards": [
+        "PACK-TOUR-10",
+        "PACK-TOUR-12",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac41_03",
+      "scenarios": [
+        "Existing pending review, extra website comment, external early submit/delete, actor switch and head movement stop unauthorized effects."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-04",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Native HTTPS and admitted `gh api` operations share normalized semantics and preserve their existing credential/authority boundaries.",
+      "owner_cards": [
+        "PACK-TOUR-11",
+        "PACK-TOUR-23"
+      ],
+      "proposed_course": "tour_ac41_04",
+      "scenarios": [
+        "Native and admitted CLI produce equivalent normalized operations; unavailable CLI platforms stay refused; body never enters argv/token logs."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "designated_service_or_website_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-05",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Kill/timeout tests at every durable step prevent blind reposts and recover exact known pending/submitted identities; unresolved outcomes stay unresolved.",
+      "owner_cards": [
+        "PACK-TOUR-10",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac41_05",
+      "scenarios": [
+        "Kill before and after every creation/edit/submission witness/receipt; reconcile without a second visible creation or submission."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-06",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "File-subject staging is qualified per exact operation; unbatchable destinations require an explicit compatibility plan and never an atomicity claim.",
+      "owner_cards": [
+        "PACK-TOUR-08",
+        "PACK-TOUR-09",
+        "PACK-TOUR-12",
+        "PACK-TOUR-23"
+      ],
+      "proposed_course": "tour_ac41_06",
+      "scenarios": [
+        "Qualify file-subject staging; unsupported batch and historical/untouched fallback require explicit non-atomic choice."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "designated_service_or_website_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-07",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Description/backlink failure is separate from tour success; retries do not recreate published comments.",
+      "owner_cards": [
+        "PACK-TOUR-12"
+      ],
+      "proposed_course": "tour_ac41_07",
+      "scenarios": [
+        "Fail description update after review success; retry only the known body-update step and preserve published tour IDs."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-08",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Pagination, rate limits, denied/unsupported operations, wire budgets, redirects, ambiguous responses and cancellation are exercised on real production ports with fixtures.",
+      "owner_cards": [
+        "PACK-TOUR-09",
+        "PACK-TOUR-10",
+        "PACK-TOUR-11",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac41_08",
+      "scenarios": [
+        "403/404/422/429, partial pagination, GraphQL errors, oversized/invalid payloads, redirect changes and cancellation remain explicit."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC41-09",
+      "rfc": "RFC-BPR-0041",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0041-staged-tour-publication-and-recovery.md",
+      "requirement": "Final Preview/Publish and Resume flows are composed in the running application and remote writes occur only after their explicit author commands.",
+      "owner_cards": [
+        "PACK-TOUR-12",
+        "PACK-TOUR-16"
+      ],
+      "proposed_course": "tour_ac41_09",
+      "scenarios": [
+        "Run Prepare → Preview → Publish and reopened Resume through the shipped application controls; no bypass effect path."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-01",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "Existing GitHub tour content repopulates all editors without AI; website changes are reflected without replacing conflicting local drafts.",
+      "owner_cards": [
+        "PACK-TOUR-14",
+        "PACK-TOUR-16"
+      ],
+      "proposed_course": "tour_ac42_01",
+      "scenarios": [
+        "Website edits then refresh repopulate fields; local divergence is preserved as conflict without AI."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-02",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "Pure reorder preserves remote IDs/replies and only updates affected index/navigation text; a published tour can span several batches.",
+      "owner_cards": [
+        "PACK-TOUR-13"
+      ],
+      "proposed_course": "tour_ac42_02",
+      "scenarios": [
+        "Move one stop and insert a later-batch stop; unchanged comments receive no edits and all original IDs/replies survive."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-03",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "Insert/remove/retarget/split/merge preserve prior shared discussion and correctly distinguish remote subject immutability from local order.",
+      "owner_cards": [
+        "PACK-TOUR-13"
+      ],
+      "proposed_course": "tour_ac42_03",
+      "scenarios": [
+        "Retire a replied-to stop, split/merge or retarget it; shared history is preserved and replacements link to originals."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-04",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "B/L/R reconciliation preserves non-tour text, handles source-span drift, and reports concurrent update races honestly.",
+      "owner_cards": [
+        "PACK-TOUR-14",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac42_04",
+      "scenarios": [
+        "Three-way raw-body merge and heading-offset drift; simulate a write racing website changes and report limits without automatic rollback."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-05",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "Partial update/restart/ambiguous-write tests reuse confirmed destinations and never silently duplicate or roll back shared comments.",
+      "owner_cards": [
+        "PACK-TOUR-13",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac42_05",
+      "scenarios": [
+        "Interrupt after new destinations, navigation patches and root update; partial results remain visible and resume without duplicates."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-06",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "Head changes, historical sources, renamed files and ambiguous mappings produce visible author-attention states without invented reanchoring.",
+      "owner_cards": [
+        "PACK-TOUR-15"
+      ],
+      "proposed_course": "tour_ac42_06",
+      "scenarios": [
+        "Force push/rename/move/changed caller with identical snippet; retain original identity and require attention rather than silent reanchoring."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-07",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "Cold reimport and local-purge courses preserve shared tour usability; unknown provenance/history remains unknown.",
+      "owner_cards": [
+        "PACK-TOUR-03",
+        "PACK-TOUR-14"
+      ],
+      "proposed_course": "tour_ac42_07",
+      "scenarios": [
+        "Cold import and profile purge preserve shared tour; deleted root/lost private provenance stays unknown and no server delete is issued."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC42-08",
+      "rfc": "RFC-BPR-0042",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md",
+      "requirement": "A website-only user can continue and reply throughout completed updates; BPR reader deltas never mutate review status.",
+      "owner_cards": [
+        "PACK-TOUR-15",
+        "PACK-TOUR-16",
+        "PACK-TOUR-23"
+      ],
+      "proposed_course": "tour_ac42_08",
+      "scenarios": [
+        "Website-only reader navigates updated tour and replies; BPR local change highlights do not imply reading on another machine."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "designated_service_or_website_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-01",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "No action outside the explicit assistance controls launches AI; all manual features continue without an AI provider.",
+      "owner_cards": [
+        "PACK-TOUR-17",
+        "PACK-TOUR-20"
+      ],
+      "proposed_course": "tour_ac43_01",
+      "scenarios": [
+        "Manual entry, edit, settings reload, selection, preview, import and publish each produce zero implicit AI invocations."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-02",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "Four separately configurable hooks are versioned, previewable/testable explicitly, resettable and correctly scoped to app profiles.",
+      "owner_cards": [
+        "PACK-TOUR-17"
+      ],
+      "proposed_course": "tour_ac43_02",
+      "scenarios": [
+        "Override/reset all four hooks, reopen settings, change profile and explicitly test a sample without publishing."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-03",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "Selection/whole-field/empty-field precedence is exact, including whitespace selection and toolbar focus preservation.",
+      "owner_cards": [
+        "PACK-TOUR-18",
+        "PACK-TOUR-19"
+      ],
+      "proposed_course": "tour_ac43_03",
+      "scenarios": [
+        "Selection beats whole-field even for whitespace; toolbar keeps selection; caret-only and empty-field paths choose correct modes."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-04",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "Only the captured raw-text interval changes; surrounding Markdown, Unicode and newline bytes are preserved.",
+      "owner_cards": [
+        "PACK-TOUR-18",
+        "PACK-TOUR-19"
+      ],
+      "proposed_course": "tour_ac43_04",
+      "scenarios": [
+        "Multiline CRLF, emoji/surrogate, combining and Markdown-boundary splice preserves exact prefix/suffix bytes; reject invalid boundaries."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-05",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "One successful invocation is one distinct undoable edit; undo restores original text/selection, redo replays bytes without inference, and equal/failed results create no entry.",
+      "owner_cards": [
+        "PACK-TOUR-18",
+        "PACK-TOUR-19"
+      ],
+      "proposed_course": "tour_ac43_05",
+      "scenarios": [
+        "Adjacent typing + Enhance + Undo/Redo uses one distinct edit; exact selections restore, equal/error output adds none, redo makes zero calls."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "native_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-06",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "Editing, undo-back-to-identical-text, supersession, IME, PR/account/window changes and stale responses cannot overwrite newer work or target a different field.",
+      "owner_cards": [
+        "PACK-TOUR-18",
+        "PACK-TOUR-19",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac43_06",
+      "scenarios": [
+        "Edit then undo back to same text before result; IME, changed cursor, superseded request, hidden editor and account/PR change never misapply output."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-07",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "Empty fields recover existing PR explanations before inference; unsupported claims are not invented, and no Jira/issue lookup occurs.",
+      "owner_cards": [
+        "PACK-TOUR-20"
+      ],
+      "proposed_course": "tour_ac43_07",
+      "scenarios": [
+        "Empty field recovers explicit PR text first; inference is distinguished; missing rationale does not invent facts or trigger Jira/issue lookup."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-08",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "Outline output has no bodies; each generated stop requires a visible visit and current-content completion, and per-stop generation cannot run in bulk.",
+      "owner_cards": [
+        "PACK-TOUR-21"
+      ],
+      "proposed_course": "tour_ac43_08",
+      "scenarios": [
+        "Reject body/Ready output in skeleton; open placeholder then leave before result; require current visible stop completion and no bulk bypass."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-09",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "Skill overrides and prompt-injected source/model output cannot widen writes, invoke tools, auto-publish, acknowledge stops or leak credentials.",
+      "owner_cards": [
+        "PACK-TOUR-20",
+        "PACK-TOUR-21",
+        "PACK-TOUR-22"
+      ],
+      "proposed_course": "tour_ac43_09",
+      "scenarios": [
+        "Injected instructions in source/prose/settings/model result cannot broaden span, call tools, publish, mark Ready or leak credentials."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    },
+    {
+      "id": "AC43-10",
+      "rfc": "RFC-BPR-0043",
+      "rfc_path": "repository-overlay/docs/rfcs/RFC-BPR-0043-scoped-review-preparation-ai-assistance.md",
+      "requirement": "End-to-end native editor tests exercise the real undo path, profile settings and agent delivery seam; canned response tests are not represented as quality evidence for an untested model.",
+      "owner_cards": [
+        "PACK-TOUR-19",
+        "PACK-TOUR-20",
+        "PACK-TOUR-23"
+      ],
+      "proposed_course": "tour_ac43_10",
+      "scenarios": [
+        "Native editor uses actual undo history and real agent delivery seam; model quality is evaluated separately from canned protocol tests."
+      ],
+      "required_evidence_kinds": [
+        "automated_production_path",
+        "native_observation"
+      ],
+      "implementation_status": "not_run",
+      "evidence": []
+    }
+  ]
+}

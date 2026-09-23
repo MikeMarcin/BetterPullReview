@@ -1,0 +1,503 @@
+{
+  "schema": "bpr.review-tour.card-index.v1",
+  "cards": [
+    {
+      "alias": "PACK-TOUR-01",
+      "title": "Import the authored pack and reconcile the live baseline",
+      "path": "cards/PACK-TOUR-01.md",
+      "milestone": "intake",
+      "depends_on": [],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041",
+        "RFC-BPR-0042",
+        "RFC-BPR-0043"
+      ],
+      "requirements": []
+    },
+    {
+      "alias": "PACK-TOUR-02",
+      "title": "Model tours, stops, source ranges and readiness in the core",
+      "path": "cards/PACK-TOUR-02.md",
+      "milestone": "manual-authoring",
+      "depends_on": [
+        "PACK-TOUR-01"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039"
+      ],
+      "requirements": [
+        "AC39-03",
+        "AC39-04",
+        "AC39-08"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-03",
+      "title": "Persist revisioned tour drafts and scoped remote baselines",
+      "path": "cards/PACK-TOUR-03.md",
+      "milestone": "manual-authoring",
+      "depends_on": [
+        "PACK-TOUR-02"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0042"
+      ],
+      "requirements": [
+        "AC39-05",
+        "AC42-07"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-04",
+      "title": "Build the Problem and Solution authoring surface",
+      "path": "cards/PACK-TOUR-04.md",
+      "milestone": "manual-authoring",
+      "depends_on": [
+        "PACK-TOUR-02",
+        "PACK-TOUR-03"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039"
+      ],
+      "requirements": [
+        "AC39-01",
+        "AC39-02",
+        "AC39-06",
+        "AC39-07"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-05",
+      "title": "Compose manual stop editing and reviewer route navigation",
+      "path": "cards/PACK-TOUR-05.md",
+      "milestone": "manual-authoring",
+      "depends_on": [
+        "PACK-TOUR-04"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040"
+      ],
+      "requirements": [
+        "AC39-03",
+        "AC39-06",
+        "AC40-08"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-06",
+      "title": "Implement the ordinary Markdown tour codec and safe source mapping",
+      "path": "cards/PACK-TOUR-06.md",
+      "milestone": "github-round-trip",
+      "depends_on": [
+        "PACK-TOUR-02",
+        "PACK-TOUR-05"
+      ],
+      "rfcs": [
+        "RFC-BPR-0040"
+      ],
+      "requirements": [
+        "AC40-01",
+        "AC40-02",
+        "AC40-04",
+        "AC40-05"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-07",
+      "title": "Read and reconstruct tours from paged GitHub objects",
+      "path": "cards/PACK-TOUR-07.md",
+      "milestone": "github-round-trip",
+      "depends_on": [
+        "PACK-TOUR-06"
+      ],
+      "rfcs": [
+        "RFC-BPR-0040"
+      ],
+      "requirements": [
+        "AC40-02",
+        "AC40-03",
+        "AC40-05"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-08",
+      "title": "Bind tour code destinations and exact compatibility subjects",
+      "path": "cards/PACK-TOUR-08.md",
+      "milestone": "github-round-trip",
+      "depends_on": [
+        "PACK-TOUR-06",
+        "PACK-TOUR-07"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041"
+      ],
+      "requirements": [
+        "AC39-04",
+        "AC40-06",
+        "AC41-06"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-09",
+      "title": "Extend native GitHub ports for staged review batches",
+      "path": "cards/PACK-TOUR-09.md",
+      "milestone": "staged-publication",
+      "depends_on": [
+        "PACK-TOUR-07",
+        "PACK-TOUR-08"
+      ],
+      "rfcs": [
+        "RFC-BPR-0041"
+      ],
+      "requirements": [
+        "AC41-01",
+        "AC41-02",
+        "AC41-06",
+        "AC41-08"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-10",
+      "title": "Journal staged publication and unknown outcomes durably",
+      "path": "cards/PACK-TOUR-10.md",
+      "milestone": "staged-publication",
+      "depends_on": [
+        "PACK-TOUR-09",
+        "PACK-TOUR-03"
+      ],
+      "rfcs": [
+        "RFC-BPR-0041"
+      ],
+      "requirements": [
+        "AC41-02",
+        "AC41-03",
+        "AC41-05",
+        "AC41-08"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-11",
+      "title": "Support the admitted gh api transport for tour operations",
+      "path": "cards/PACK-TOUR-11.md",
+      "milestone": "staged-publication",
+      "depends_on": [
+        "PACK-TOUR-09",
+        "PACK-TOUR-10"
+      ],
+      "rfcs": [
+        "RFC-BPR-0041"
+      ],
+      "requirements": [
+        "AC41-04",
+        "AC41-08"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-12",
+      "title": "Wire preview, staging, submission and compatibility outcomes",
+      "path": "cards/PACK-TOUR-12.md",
+      "milestone": "staged-publication",
+      "depends_on": [
+        "PACK-TOUR-10",
+        "PACK-TOUR-11",
+        "PACK-TOUR-05"
+      ],
+      "rfcs": [
+        "RFC-BPR-0041"
+      ],
+      "requirements": [
+        "AC41-01",
+        "AC41-03",
+        "AC41-06",
+        "AC41-07",
+        "AC41-09"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-13",
+      "title": "Implement minimal published-tour edit plans",
+      "path": "cards/PACK-TOUR-13.md",
+      "milestone": "manual-maintenance",
+      "depends_on": [
+        "PACK-TOUR-12"
+      ],
+      "rfcs": [
+        "RFC-BPR-0042"
+      ],
+      "requirements": [
+        "AC42-02",
+        "AC42-03",
+        "AC42-05"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-14",
+      "title": "Merge website edits with local draft changes",
+      "path": "cards/PACK-TOUR-14.md",
+      "milestone": "manual-maintenance",
+      "depends_on": [
+        "PACK-TOUR-13",
+        "PACK-TOUR-07"
+      ],
+      "rfcs": [
+        "RFC-BPR-0042"
+      ],
+      "requirements": [
+        "AC42-01",
+        "AC42-04",
+        "AC42-07"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-15",
+      "title": "Track changed source and tour revisions without false reanchoring",
+      "path": "cards/PACK-TOUR-15.md",
+      "milestone": "manual-maintenance",
+      "depends_on": [
+        "PACK-TOUR-14",
+        "PACK-TOUR-08"
+      ],
+      "rfcs": [
+        "RFC-BPR-0042",
+        "RFC-BPR-0040"
+      ],
+      "requirements": [
+        "AC42-06",
+        "AC42-08",
+        "AC40-08"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-16",
+      "title": "Prove the complete manual workflow and prepare website acceptance",
+      "path": "cards/PACK-TOUR-16.md",
+      "milestone": "manual-maintenance",
+      "depends_on": [
+        "PACK-TOUR-13",
+        "PACK-TOUR-14",
+        "PACK-TOUR-15"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041",
+        "RFC-BPR-0042"
+      ],
+      "requirements": [
+        "AC39-01",
+        "AC40-03",
+        "AC40-07",
+        "AC41-09",
+        "AC42-01",
+        "AC42-08"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-17",
+      "title": "Add four versioned writing hooks to profile settings",
+      "path": "cards/PACK-TOUR-17.md",
+      "milestone": "scoped-ai",
+      "depends_on": [
+        "PACK-TOUR-16"
+      ],
+      "rfcs": [
+        "RFC-BPR-0043"
+      ],
+      "requirements": [
+        "AC43-01",
+        "AC43-02"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-18",
+      "title": "Implement exact scoped replacement requests and edit transactions",
+      "path": "cards/PACK-TOUR-18.md",
+      "milestone": "scoped-ai",
+      "depends_on": [
+        "PACK-TOUR-17",
+        "PACK-TOUR-02"
+      ],
+      "rfcs": [
+        "RFC-BPR-0043"
+      ],
+      "requirements": [
+        "AC43-03",
+        "AC43-04",
+        "AC43-05",
+        "AC43-06"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-19",
+      "title": "Apply magic-button edits through native undo and selection",
+      "path": "cards/PACK-TOUR-19.md",
+      "milestone": "scoped-ai",
+      "depends_on": [
+        "PACK-TOUR-18",
+        "PACK-TOUR-04"
+      ],
+      "rfcs": [
+        "RFC-BPR-0043"
+      ],
+      "requirements": [
+        "AC43-03",
+        "AC43-04",
+        "AC43-05",
+        "AC43-06",
+        "AC43-10"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-20",
+      "title": "Build bounded context and explicit per-field agent delivery",
+      "path": "cards/PACK-TOUR-20.md",
+      "milestone": "scoped-ai",
+      "depends_on": [
+        "PACK-TOUR-17",
+        "PACK-TOUR-18",
+        "PACK-TOUR-19"
+      ],
+      "rfcs": [
+        "RFC-BPR-0043"
+      ],
+      "requirements": [
+        "AC43-01",
+        "AC43-07",
+        "AC43-09",
+        "AC43-10"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-21",
+      "title": "Add skeleton suggestions and per-stop author attention",
+      "path": "cards/PACK-TOUR-21.md",
+      "milestone": "outline-and-adversaries",
+      "depends_on": [
+        "PACK-TOUR-20",
+        "PACK-TOUR-05"
+      ],
+      "rfcs": [
+        "RFC-BPR-0043"
+      ],
+      "requirements": [
+        "AC43-08",
+        "AC43-09"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-22",
+      "title": "Exercise security, crash, conflict and parser adversaries",
+      "path": "cards/PACK-TOUR-22.md",
+      "milestone": "outline-and-adversaries",
+      "depends_on": [
+        "PACK-TOUR-21",
+        "PACK-TOUR-10",
+        "PACK-TOUR-14"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041",
+        "RFC-BPR-0042",
+        "RFC-BPR-0043"
+      ],
+      "requirements": [
+        "AC40-05",
+        "AC41-03",
+        "AC41-05",
+        "AC41-08",
+        "AC42-04",
+        "AC42-05",
+        "AC43-06",
+        "AC43-09"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-23",
+      "title": "Qualify native authoring and website-only review paths",
+      "path": "cards/PACK-TOUR-23.md",
+      "milestone": "qualification-closeout",
+      "depends_on": [
+        "PACK-TOUR-16",
+        "PACK-TOUR-22"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041",
+        "RFC-BPR-0042",
+        "RFC-BPR-0043"
+      ],
+      "requirements": [
+        "AC39-06",
+        "AC39-08",
+        "AC40-07",
+        "AC41-04",
+        "AC41-06",
+        "AC42-08",
+        "AC43-10"
+      ]
+    },
+    {
+      "alias": "PACK-TOUR-24",
+      "title": "Document the author workflow and narrow contract amendments",
+      "path": "cards/PACK-TOUR-24.md",
+      "milestone": "qualification-closeout",
+      "depends_on": [
+        "PACK-TOUR-16",
+        "PACK-TOUR-20",
+        "PACK-TOUR-21"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041",
+        "RFC-BPR-0042",
+        "RFC-BPR-0043"
+      ],
+      "requirements": []
+    },
+    {
+      "alias": "PACK-TOUR-25",
+      "title": "Simplify and run the focused final integration pass",
+      "path": "cards/PACK-TOUR-25.md",
+      "milestone": "qualification-closeout",
+      "depends_on": [
+        "PACK-TOUR-22",
+        "PACK-TOUR-24"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041",
+        "RFC-BPR-0042",
+        "RFC-BPR-0043"
+      ],
+      "requirements": []
+    },
+    {
+      "alias": "PACK-TOUR-26",
+      "title": "Reconcile all five RFC acceptance matrices and close in order",
+      "path": "cards/PACK-TOUR-26.md",
+      "milestone": "qualification-closeout",
+      "depends_on": [
+        "PACK-TOUR-23",
+        "PACK-TOUR-25"
+      ],
+      "rfcs": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0040",
+        "RFC-BPR-0041",
+        "RFC-BPR-0042",
+        "RFC-BPR-0043"
+      ],
+      "requirements": []
+    }
+  ]
+}

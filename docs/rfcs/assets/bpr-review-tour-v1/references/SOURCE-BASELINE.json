@@ -1,0 +1,290 @@
+{
+  "schema": "bpr.review-tour.source-baseline.v1",
+  "snapshot_name": "better_pull_review_project_source.md",
+  "generated_at": "2026-09-22T23:21:38-07:00",
+  "snapshot_sha256": "d7aee1486d171456540bfd26c2b02bc8ee5bec47dbffb0d5429141fbef69ea2d",
+  "included_file_sections": 6849,
+  "non_worktree_sections": 3706,
+  "method": "Read exact top-level repository sections. Exclude .claude/worktrees and archived overlays as current implementation authority.",
+  "highest_top_level_rfc_observed": "RFC-BPR-0038",
+  "proposed_rfc_ids": [
+    "RFC-BPR-0039",
+    "RFC-BPR-0040",
+    "RFC-BPR-0041",
+    "RFC-BPR-0042",
+    "RFC-BPR-0043"
+  ],
+  "live_head_verified": false,
+  "application_built_or_run": false,
+  "remote_writes_performed": false,
+  "notes": [
+    "Hashes identify text as represented by this dump, not independently fetched live repository bytes.",
+    "No original source content is copied into the implementation pack."
+  ],
+  "inspected_sections": [
+    {
+      "path": "AGENTS.md",
+      "dump_heading_line": 7310,
+      "dump_content_first_line": 7316,
+      "dumped_content_line_count": 81,
+      "dumped_content_sha256": "0168bda20d47eb7a5074399e46da54d61880b6fb2771d59746298ec9213a49f2",
+      "content_bytes": 4299
+    },
+    {
+      "path": "docs/architecture/product-contract.md",
+      "dump_heading_line": 7463,
+      "dump_content_first_line": 7469,
+      "dumped_content_line_count": 200,
+      "dumped_content_sha256": "e8578554512a826795ccfe767659dafe647ee72cf8dfe2254fb708b54a66b4b3",
+      "content_bytes": 13410
+    },
+    {
+      "path": "docs/architecture/system-architecture.md",
+      "dump_heading_line": 7671,
+      "dump_content_first_line": 7677,
+      "dumped_content_line_count": 1322,
+      "dumped_content_sha256": "c8da65743a01e5f52a18d49467615f7b8a0033339842684065bdbce1472192c1",
+      "content_bytes": 85945
+    },
+    {
+      "path": "docs/architecture/review-round-trip.md",
+      "dump_heading_line": 986518,
+      "dump_content_first_line": 986524,
+      "dumped_content_line_count": 708,
+      "dumped_content_sha256": "d5307691794442c9f29947cb736a09f852629066fea934812d8f1d13db679abc",
+      "content_bytes": 43124
+    },
+    {
+      "path": "docs/architecture/native-markdown.md",
+      "dump_heading_line": 984556,
+      "dump_content_first_line": 984562,
+      "dumped_content_line_count": 172,
+      "dumped_content_sha256": "35cc9ae1b1743fd2b32412947c0839dd04b6f81a7cc9a36d68b7f47629b0fe79",
+      "content_bytes": 12710
+    },
+    {
+      "path": "docs/rfcs/README.md",
+      "dump_heading_line": 9001,
+      "dump_content_first_line": 9007,
+      "dumped_content_line_count": 322,
+      "dumped_content_sha256": "0c038b98cf2863eab60641e73148d17832d69abb67361196261f744b1d34ba03",
+      "content_bytes": 31421
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md",
+      "dump_heading_line": 1136811,
+      "dump_content_first_line": 1136817,
+      "dumped_content_line_count": 307,
+      "dumped_content_sha256": "e234263503d08f6d9cd95a0283ad5059cf5903fc8f6758e9539e091e783b21b5",
+      "content_bytes": 19259
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0012-ai-review-chat-findings-mcp.md",
+      "dump_heading_line": 1136196,
+      "dump_content_first_line": 1136202,
+      "dumped_content_line_count": 103,
+      "dumped_content_sha256": "1902b77f178533731c5bb1f0b2e365f1f8b532f7e4e00ae6928176c35d32fba8",
+      "content_bytes": 6502
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md",
+      "dump_heading_line": 1139522,
+      "dump_content_first_line": 1139528,
+      "dumped_content_line_count": 745,
+      "dumped_content_sha256": "96692488ff02a80b832da4f6d45e5fd06f3666d0229056b036dfbd426cc40417",
+      "content_bytes": 36994
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0023-private-review-threads-provenance-comment-composition.md",
+      "dump_heading_line": 1140275,
+      "dump_content_first_line": 1140281,
+      "dumped_content_line_count": 923,
+      "dumped_content_sha256": "4ea993d7a16a7cee8542418b06fc62e89ad72826d340506b1afaa01a1d697468",
+      "content_bytes": 44571
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0036-native-markdown-rendering.md",
+      "dump_heading_line": 1145394,
+      "dump_content_first_line": 1145400,
+      "dumped_content_line_count": 146,
+      "dumped_content_sha256": "2c0a01abbcd9f0fab28fc541458b2cf02ccf58eebd38f7f8eec3e3bdae5b52b4",
+      "content_bytes": 9103
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0037-first-pr-review-workflow.md",
+      "dump_heading_line": 1145548,
+      "dump_content_first_line": 1145554,
+      "dumped_content_line_count": 224,
+      "dumped_content_sha256": "68bc531d40e9dea1e9b60375cc211b4c27a2c6074c3e6ef983ebcbd93a63c562",
+      "content_bytes": 14687
+    },
+    {
+      "path": "docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json",
+      "dump_heading_line": 1163515,
+      "dump_content_first_line": 1163521,
+      "dumped_content_line_count": 151,
+      "dumped_content_sha256": "fa4c70cd9ed375e3f63299b2a2c8911853832b26073cf1cc9c895f41db04f1d3",
+      "content_bytes": 5152
+    },
+    {
+      "path": "src/core/include/bpr/core/review_submission.hpp",
+      "dump_heading_line": 1655819,
+      "dump_content_first_line": 1655825,
+      "dumped_content_line_count": 138,
+      "dumped_content_sha256": "9e53d6a0ccc31f3091952e1dcecc2fbc266dacd3326d5e189ab21afde3999b06",
+      "content_bytes": 5705
+    },
+    {
+      "path": "src/core/include/bpr/core/review_round_trip.hpp",
+      "dump_heading_line": 1655551,
+      "dump_content_first_line": 1655557,
+      "dumped_content_line_count": 260,
+      "dumped_content_sha256": "08327211d149c241e207ca9e2c7e234f14b9786d423c3d2696acb3845c0583ab",
+      "content_bytes": 9342
+    },
+    {
+      "path": "src/core/include/bpr/core/revisioned_review_draft.hpp",
+      "dump_heading_line": 1655965,
+      "dump_content_first_line": 1655971,
+      "dumped_content_line_count": 40,
+      "dumped_content_sha256": "01fcd1081f58e6d6a29ad879526dd5b24a9e190cba6f2dfcc2c2fa1c74e8c87c",
+      "content_bytes": 1745
+    },
+    {
+      "path": "src/application/include/bpr/application/review_submission_port.hpp",
+      "dump_heading_line": 1604088,
+      "dump_content_first_line": 1604094,
+      "dumped_content_line_count": 46,
+      "dumped_content_sha256": "ca5040f0d1afa865db528a6c8c393d1d19294a405c8fe6a8a0dc46a8ca372823",
+      "content_bytes": 2259
+    },
+    {
+      "path": "src/application/include/bpr/application/review_submission_application_host.hpp",
+      "dump_heading_line": 1603937,
+      "dump_content_first_line": 1603943,
+      "dumped_content_line_count": 73,
+      "dumped_content_sha256": "0213db3a7f24c81ef5a1a62cc5398e1c74ffa230275a24c157c4ec7188fe9074",
+      "content_bytes": 3732
+    },
+    {
+      "path": "src/application/include/bpr/application/review_submission_recovery_port.hpp",
+      "dump_heading_line": 1604142,
+      "dump_content_first_line": 1604148,
+      "dumped_content_line_count": 65,
+      "dumped_content_sha256": "2fd2ddcddeb2f737fa42f48cb5a5cfe49d455aef425232a142d9354ebc6d877c",
+      "content_bytes": 3997
+    },
+    {
+      "path": "src/application/include/bpr/application/agent_comment_workshop_host.hpp",
+      "dump_heading_line": 1585814,
+      "dump_content_first_line": 1585820,
+      "dumped_content_line_count": 172,
+      "dumped_content_sha256": "3b692d223f7601cab79bbaa607f49e029fcffbfab8d705ff06c02586d5e9a1b4",
+      "content_bytes": 7400
+    },
+    {
+      "path": "src/application/include/bpr/application/agent_invocation_host.hpp",
+      "dump_heading_line": 1586412,
+      "dump_content_first_line": 1586418,
+      "dumped_content_line_count": 189,
+      "dumped_content_sha256": "e8f80af4ac79a0426647bb5dda26dd8b3980cc3b5a0a641489ce9ed174747958",
+      "content_bytes": 7850
+    },
+    {
+      "path": "src/adapters/github/src/review_submission_session.cpp",
+      "dump_heading_line": 1449440,
+      "dump_content_first_line": 1449446,
+      "dumped_content_line_count": 258,
+      "dumped_content_sha256": "1c71d7687fe0865953912f05eb127c1ab7ca2202d896d70fdfd0a0af6fa3ce0c",
+      "content_bytes": 14412
+    },
+    {
+      "path": "src/adapters/github/src/github_mutation_contract.cpp",
+      "dump_heading_line": 1425458,
+      "dump_content_first_line": 1425464,
+      "dumped_content_line_count": 2211,
+      "dumped_content_sha256": "d1e6b254bf7e37fd507c91e3f45752a47c476beac7dacb010e7235c615cb9507",
+      "content_bytes": 83638
+    },
+    {
+      "path": "src/adapters/github/src/gh_cli_transport.cpp",
+      "dump_heading_line": 1416628,
+      "dump_content_first_line": 1416634,
+      "dumped_content_line_count": 1757,
+      "dumped_content_sha256": "9d90db8989466600b693fa15ec8d0116cfe67e22f46f095c36a1d48b9d3f96ab",
+      "content_bytes": 66168
+    },
+    {
+      "path": "src/adapters/github/src/github_graphql_operation_policy.hpp",
+      "dump_heading_line": 1424505,
+      "dump_content_first_line": 1424511,
+      "dumped_content_line_count": 374,
+      "dumped_content_sha256": "d28af41b2a55dac1419b405025289edef8edc75b84f459df88bf76bb9941f008",
+      "content_bytes": 9603
+    },
+    {
+      "path": "src/adapters/qt/include/bpr/qt/review_draft_editor.hpp",
+      "dump_heading_line": 1463345,
+      "dump_content_first_line": 1463351,
+      "dumped_content_line_count": 367,
+      "dumped_content_sha256": "fb666fe2fa123671dd1a0b0c896ff4d7d1faac43dfc83b71c26ee7884ca4dd71",
+      "content_bytes": 17827
+    },
+    {
+      "path": "src/adapters/qt/src/markdown_body_view.cpp",
+      "dump_heading_line": 1491621,
+      "dump_content_first_line": 1491627,
+      "dumped_content_line_count": 598,
+      "dumped_content_sha256": "172800e6099da1c5c736dc3de15bf197ba2de135c49ea33e71d771cb9ba80410",
+      "content_bytes": 21955
+    },
+    {
+      "path": "src/adapters/qt/src/settings_window.cpp",
+      "dump_heading_line": 1499609,
+      "dump_content_first_line": 1499615,
+      "dumped_content_line_count": 268,
+      "dumped_content_sha256": "470eac3b4ef70290cdd1c969053a6e9f0feb3b674b648560ca365286348cde62",
+      "content_bytes": 8872
+    },
+    {
+      "path": "src/adapters/sqlite/include/bpr/adapters/sqlite/review_submission_recovery_store.hpp",
+      "dump_heading_line": 1513813,
+      "dump_content_first_line": 1513819,
+      "dumped_content_line_count": 9,
+      "dumped_content_sha256": "00a1771c0f9a5e82003c791aaad4ede15db9e100f77d65721eec10106f6de3a9",
+      "content_bytes": 701
+    },
+    {
+      "path": "src/adapters/sqlite/src/review_mutation_recovery_store.cpp",
+      "dump_heading_line": 1534774,
+      "dump_content_first_line": 1534780,
+      "dumped_content_line_count": 1314,
+      "dumped_content_sha256": "64290ac06319650538de6bac856e8da6831766e8dc41846bb8c04278364bffff",
+      "content_bytes": 56141
+    },
+    {
+      "path": "src/app/src/review_submission_workflow.cpp",
+      "dump_heading_line": 1584052,
+      "dump_content_first_line": 1584058,
+      "dumped_content_line_count": 312,
+      "dumped_content_sha256": "0f8b8815d28ac86597f8c38c848796ea24df7591cc5f2924d83d488231fa48d3",
+      "content_bytes": 12465
+    },
+    {
+      "path": "src/app/src/profile_desktop.cpp",
+      "dump_heading_line": 1581911,
+      "dump_content_first_line": 1581917,
+      "dumped_content_line_count": 1384,
+      "dumped_content_sha256": "b3bd3fea16dfe1a6d0e8b4a3453056fe7c3378d5fbfa1c587399c7b45700f3fc",
+      "content_bytes": 59614
+    },
+    {
+      "path": "scripts/allocate_issue_id.py",
+      "dump_heading_line": 1371395,
+      "dump_content_first_line": 1371401,
+      "dumped_content_line_count": 19,
+      "dumped_content_sha256": "76b8ef655f7d43301834b4eb46ac9b16f180067b93ab128fdc4558838a089197",
+      "content_bytes": 865
+    }
+  ]
+}

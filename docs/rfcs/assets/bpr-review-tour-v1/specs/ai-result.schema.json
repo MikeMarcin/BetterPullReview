@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bpr:review-preparation:result:v1",
+  "title": "Review preparation model result",
+  "description": "Host envelope owns authority/identity/generation/range. Byte ceilings, source-ref membership, and dynamic target rules require additional host validation.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "kind",
+        "status",
+        "replacement_text",
+        "notes"
+      ],
+      "properties": {
+        "schema": {
+          "const": "bpr.review-preparation.result.v1"
+        },
+        "kind": {
+          "const": "rewrite"
+        },
+        "status": {
+          "const": "ok"
+        },
+        "replacement_text": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "notes": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "text",
+              "source_refs"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "recovered",
+                  "inferred",
+                  "uncertain"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "source_refs": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "kind",
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "schema": {
+          "const": "bpr.review-preparation.result.v1"
+        },
+        "kind": {
+          "const": "rewrite"
+        },
+        "status": {
+          "const": "insufficient_context"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "kind",
+        "stops"
+      ],
+      "properties": {
+        "schema": {
+          "const": "bpr.review-preparation.result.v1"
+        },
+        "kind": {
+          "const": "outline"
+        },
+        "stops": {
+          "type": "array",
+          "maxItems": 24,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "anchor_ref",
+              "related_refs",
+              "reason",
+              "author_question"
+            ],
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 180
+              },
+              "anchor_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "related_refs": {
+                "type": "array",
+                "maxItems": 8,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "author_question": {
+                "type": "string",
+                "maxLength": 240
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

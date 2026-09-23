@@ -1,0 +1,29 @@
+{
+  "schema": "bpr.review-tour.website-fixture.v1",
+  "synthetic": true,
+  "host": "https://github.example.invalid",
+  "pull_request": "https://github.example.invalid/acme/demo/pull/42",
+  "index_url": "https://github.example.invalid/acme/demo/pull/42#pullrequestreview-900",
+  "index_body_path": "examples/manual-tour/index.md",
+  "description_body_path": "examples/manual-tour/pr-description.md",
+  "stops": [
+    {
+      "comment_id": 101,
+      "url": "https://github.example.invalid/acme/demo/pull/42#discussion_r101",
+      "body_path": "examples/manual-tour/stop-1.md",
+      "source_url": "https://github.example.invalid/acme/demo/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/src/cache/read.cpp#L42"
+    },
+    {
+      "comment_id": 102,
+      "url": "https://github.example.invalid/acme/demo/pull/42#discussion_r102",
+      "body_path": "examples/manual-tour/stop-2.md",
+      "source_url": "https://github.example.invalid/acme/demo/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/src/cache/entry.cpp#L71"
+    },
+    {
+      "comment_id": 103,
+      "url": "https://github.example.invalid/acme/demo/pull/42#discussion_r103",
+      "body_path": "examples/manual-tour/stop-3.md",
+      "source_url": "https://github.example.invalid/acme/demo/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/tests/cache_lifetime_tests.cpp#L110"
+    }
+  ]
+}

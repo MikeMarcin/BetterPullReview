@@ -1,0 +1,8 @@
+{
+  "schema": "bpr.review-preparation.outline-context-fixture.v1",
+  "supplied_source_refs": [
+    "source:read-path",
+    "source:lifetime-contract",
+    "source:handle-acquisition"
+  ]
+}

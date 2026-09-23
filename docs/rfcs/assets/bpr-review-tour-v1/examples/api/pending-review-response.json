@@ -1,0 +1,13 @@
+{
+  "id": 900,
+  "node_id": "EXAMPLE_OPAQUE_REVIEW_NODE",
+  "state": "PENDING",
+  "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "body": "Review tour preparation is in progress. Please do not submit this pending review from another client.",
+  "html_url": "https://github.example.invalid/acme/demo/pull/42#pullrequestreview-900",
+  "user": {
+    "id": 7,
+    "login": "example-author"
+  },
+  "pull_request_url": "https://github.example.invalid/api/v3/repos/acme/demo/pulls/42"
+}
