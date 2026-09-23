@@ -129,3 +129,19 @@ stack `QMenu` parented to the epoch line and run with `exec()`, on every
 platform. None of its own actions destroys the window. A window destroyed
 while that menu is open, for example by an accessible Quit in the window's
 File menu, would free the stack object the same way. That needs its own card.
+
+### Waiting on the desktop
+
+AC1 is met offscreen. AC2 and AC3 need the real `windows` platform. The
+station runs no foreground course without the coordinator's clearance, so
+these are queued as one session of about 6 minutes, on a fresh private root
+each:
+
+1. `application_windows_title_row` in its new form.
+2. The [[BPR-0980]] quit probe three times: the Application menu with a
+   posted click, then File and Quit through UI Automation, then the exit code
+   and any CRT box.
+3. The same probe once with posted mouse clicks on File and Quit.
+
+The harness is the station's [[BPR-0980]] observer with a mouse mode added.
+It is task-owned and not committed.

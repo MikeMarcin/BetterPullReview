@@ -808,3 +808,20 @@ These are red on main, and none of them is this card's:
 
 The card stays parked on human-review with candidate `53d229d7`. All three
 owner asks are open.
+
+### The strip menu's opening path changed under [[BPR-1028]] (bpr-main-win, 2026-09-23)
+
+The Application menu used to be a stack `QMenu` run with `exec()`. An
+accessible File > Quit destroyed the window inside that menu's loop, and the
+Debug CRT asserted. Since `e08a0409` the menu is a heap child of the window
+that deletes itself on close, opened with `popup()`
+(`workbench_window::open_strip_menu`). It has the same contents, the same
+object name, the same position under the control and the same accessible
+names. A person sees no difference.
+
+`application_windows_title_row` no longer relies on `exec()` blocking. It
+presses the control, waits for the popup, reads it and closes it, and it also
+checks that the closed menu deletes itself. So this card's real-platform
+evidence has to be re-run in the new form, which is queued with BPR-1028's
+foreground runs. The candidate the owner will capture should be at or after
+`e08a0409`.
