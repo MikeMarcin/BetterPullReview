@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0873"
 title: "Windows: the documentation rows need out-of-repository skill content and a git child, neither reachable from the container"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-merged-head-runs","found_at":"2b2e5549","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"Both rows pass on Windows, with their registration and its reason recorded here","outcome":"pass","revision":"470920d5","evidence":{"kind":"command","detail":"bpr-main-win (MSVC 19.51 Debug), build/dev at 470920d5, uncontained as registered: documentation_structure passes 1.79 s (DOCUMENTATION_OK), documentation_issue_graph_contract passes 4.46 s (64 tests OK); both again at 60006836 (1.61 s, 4.03 s). Pinned repository-content-outside-checkout in d3b5a3ef after bpr-win's uncontained measurement (4030bb6b), which also fixed the issue-graph fixture's missing encodings; the reason is recorded on this card. test_network_isolation_manifest passes.","path":"docs/issues/60-done/BPR-0873-the-documentation-rows-need-content-outside-the-repository.md#landed-written-down-and-measured-at-470920d5-bpr-main-win-2026-09-23"}},{"criterion":"The documentation gate's dependency on out-of-repository content is written down, or removed","outcome":"pass","revision":"60006836","evidence":{"kind":"artifact","detail":"docs/development/build-and-test.md, automated-test network boundary section: the gate imports board_model and project_config from .agents/skills/implement-rfc/scripts, which the repository does not track and which is a symlink out of the checkout where skills come from the MASK store, and project_config asks Git for the repository root; a checkout without that installation, or a sandbox that cannot read the store, cannot run it. python scripts/verify_documentation.py --root . prints DOCUMENTATION_OK.","path":"docs/development/build-and-test.md"}},{"criterion":"macOS and Linux keep passing both rows","outcome":"pass","revision":"60006836","evidence":{"kind":"observation","detail":"The keyword acts only on the windows-appcontainer backend and the dictionary is checked only there; neither row's registration changed elsewhere, and this change is documentation only. No macOS or Linux run was made from this station.","path":"docs/issues/60-done/BPR-0873-the-documentation-rows-need-content-outside-the-repository.md#landed-written-down-and-measured-at-470920d5-bpr-main-win-2026-09-23"}}]
 ---
 
 # BPR-0873: Windows: the documentation rows need out-of-repository skill content and a git child, neither reachable from the container
