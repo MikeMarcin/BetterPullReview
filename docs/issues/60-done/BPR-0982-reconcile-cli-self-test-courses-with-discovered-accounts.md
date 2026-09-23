@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0982"
 title: "Reconcile the CLI self-test courses and composition contract with discovered GitHub CLI accounts"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"found_by":"RFC-BPR-0015 r3 closeout focused checks, 2026-09-22","found_at":"2218ef1f211e689ed41444a1832326e0c458c421","regressed_by":"1210eecc (BPR-0909)","milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/plans/rfc-bpr-0015-cli-profile/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"841999ad","evidence":{"kind":"command","detail":"Seven non-fixture public path rows pass with CLI_ENTRY_ABSENT_OK and card counts 1/2; the self-test presses nothing. Negative control (discovery dispatch composed unconditionally) makes application_public_path report CLI_ENTRY_ABSENT_FAILED. build/rfc0015-r3/bpr0982-rows-final.log"}},{"criterion":"AC2","outcome":"pass","revision":"841999ad","evidence":{"kind":"command","detail":"application_composition_capabilities_inside_boundary prints COMPOSITION_CLI_ENTRY:absent and product_run prints offered on macOS; both pass. The same negative control makes the inside row print offered and fail."}},{"criterion":"AC3","outcome":"pass","revision":"841999ad","evidence":{"kind":"command","detail":"application_composition_contract: consent-gate findings empty for the as-built source, five hostile controls refused, tests-disabled Release --self-test reports CLI_ENTRY_OFFERED_OK with 1 and 2 cards. Remaining failures are BPR-0983's unchanged baseline findings. build/rfc0015-r3/bpr0982-composition-contract.log"}},{"criterion":"AC4","outcome":"pass","revision":"841999ad","evidence":{"kind":"command","detail":"Nine rows and application_review_round_trip_composition_contract pass (10/10) after resealing the manifest pin with the review recorded on the card; mutation-branch and full-file pins unchanged."}}]
 ---
 
 # BPR-0982: Reconcile the CLI self-test courses and composition contract with discovered GitHub CLI accounts
