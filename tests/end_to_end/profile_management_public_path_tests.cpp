@@ -421,6 +421,66 @@ auto main(int aArgc, char** aArgv) -> int
 	desktop->quit(0);
 	wait_for([&] { return desktop->is_quiescent(); }, "the relaunched desktop quits");
 	desktop.reset();
+#if !defined(_WIN32)
+	// [[BPR-0817]] RFC-BPR-0033's owner-delegated amendment. The data root sits in a
+	// folder that existed before the install and is group-writable. An earlier
+	// install under umask 0002 leaves `~/.local/share/BetterPullReview` like that.
+	// Recovery still refuses to put agent workspaces beside the root and repairs
+	// nothing. The window says so in its status bar at Home, and closing the last
+	// window under the quit policy is still an orderly exit.
+	{
+		settle(300);
+		const auto sharedParent  = root.parent_path() / "shared-parent";
+		const auto sharedRoot    = sharedParent / "BetterPullReview";
+		const auto neighbourhood = sharedParent / "BetterPullReview-agent-workspaces-v1";
+		const auto groupWritable = static_cast<std::filesystem::perms>(0775);
+		expect(std::filesystem::create_directory(sharedParent), "a data folder's parent that existed before the install");
+		std::filesystem::permissions(sharedParent, groupWritable, std::filesystem::perm_options::replace);
+		expect(std::filesystem::status(sharedParent).permissions() == groupWritable, "that parent is group-writable");
+		expect(adapters::sqlite::create_storage_root_owner_private(sharedRoot), "the data root itself is created private");
+		initial                           = nullptr;
+		terminal                          = false;
+		auto sharedOptions                = quitOptions;
+		sharedOptions.ApplicationDataRoot = sharedRoot;
+		desktop                           = app::detail::github_application_fixture_access::start_desktop(
+			app::detail::github_public_path_fixture::github_com, sharedOptions, [&](auto aResult) {
+				terminal = true;
+				if (aResult) {
+					initial = *aResult;
+				}
+			});
+		wait_for([&] { return terminal; }, "a desktop on the group-writable parent starts");
+		expect(initial != nullptr, "and admits Default, because only the agent workspaces are refused");
+		initial->show();
+		wait_for([&] { return initial->window().showing_home()
+						   && initial->window().status_text().contains(QStringLiteral("Disposable agent workspaces are unavailable")); },
+				 "the window's status bar says at Home that agent workspaces are unavailable");
+		expect(!std::filesystem::exists(neighbourhood), "no workspace neighbourhood is created under the shared parent");
+		// A window opened after the refusal says it too, and closing it leaves the
+		// first window, so the course still ends on a last-window close.
+		const auto first     = desktop->windows(core::default_bpr_profile_id).front();
+		auto*      newWindow = initial->window().findChild<QAction*>(QStringLiteral("newBprWindowAction"));
+		expect(newWindow != nullptr, "New Window is composed");
+		wait_for([&] { return newWindow->isEnabled(); }, "New Window becomes available");
+		newWindow->trigger();
+		wait_for([&] { return desktop->windows(core::default_bpr_profile_id).size() == 2U; }, "New Window opens a second window of the profile");
+		const auto contexts = desktop->windows(core::default_bpr_profile_id);
+		auto*      later    = desktop->window(contexts.front() == first ? contexts.back() : contexts.front());
+		expect(later != nullptr && later != &initial->window(), "the second window is a distinct window");
+		wait_for([&] { return later->showing_home()
+						   && later->status_text().contains(QStringLiteral("Disposable agent workspaces are unavailable")); },
+				 "a window opened after the refusal says it at Home too");
+		later->close();
+		wait_for([&] { return desktop->windows(core::default_bpr_profile_id).size() == 1U; }, "closing the second window leaves the first");
+		initial->window().close();
+		wait_for([&] { return desktop->is_quiescent(); }, "closing its last window quits the application");
+		expect(desktop->last_empty_desktop_outcome() == app::empty_desktop_outcome::quit, "through the quit policy");
+		expect(desktop->exit_code() == 0, "and the refused recovery does not make the orderly quit exit 1");
+		expect(std::filesystem::status(sharedParent).permissions() == groupWritable, "nothing repairs a folder the application did not create");
+		expect(!std::filesystem::exists(neighbourhood), "and still no workspace neighbourhood exists under it");
+		desktop.reset();
+	}
+#endif
 	std::cout << "profile-management-public-path:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -389,6 +389,14 @@ namespace bpr::qt {
 		/// for as long as it is set; unlike a host failure, a later workbench
 		/// projection does not clear it.
 		void set_saved_layout_unavailable(bool aUnavailable);
+		/// \brief [[BPR-0817]]. Adopts whether this profile's disposable agent
+		/// workspaces are unavailable because startup recovery refused them.
+		///
+		/// \details Retained like the saved-layout sentence. The refusal is decided
+		/// once, at startup, and holds while the profile runs, so the status line
+		/// says it on Home and on every other surface. RFC-BPR-0033's
+		/// owner-delegated amendment routes it here, as B3 routes a profile failure.
+		void set_agent_workspaces_unavailable(bool aUnavailable);
 
 		void add_setup_profile(application::github_profile_option aProfile);
 		void set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch);
@@ -1485,12 +1493,13 @@ namespace bpr::qt {
 		std::optional<application::workbench_host_failure>         Failure;
 		std::optional<application::file_receipt_action_projection> Receipt;
 		std::optional<application::receipt_failure_publication>    ReceiptFailure;
-		bool                                                       LedgerUnavailable      = false;
-		bool                                                       SavedLayoutUnavailable = false;
-		bool                                                       HasCommands            = false;
-		bool                                                       ApplyingLayout         = false;
-		bool                                                       ApplyingFileSelection  = false;
-		bool                                                       QueueReady             = false;
+		bool                                                       LedgerUnavailable          = false;
+		bool                                                       SavedLayoutUnavailable     = false;
+		bool                                                       AgentWorkspacesUnavailable = false;
+		bool                                                       HasCommands                = false;
+		bool                                                       ApplyingLayout             = false;
+		bool                                                       ApplyingFileSelection      = false;
+		bool                                                       QueueReady                 = false;
 		/// [[BPR-0776]]. Whether the window has an account to list a queue for.
 		/// Until the session decides, the queue is shown, as its surface always was.
 		bool HomeAccount = true;

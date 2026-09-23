@@ -118,6 +118,14 @@ a window exists is reported in that window's Profiles menu status item; the
 chooser is presented for a failure only when no window exists to carry it,
 which is the startup case RFC-BPR-0024 already describes.
 
+RFC-BPR-0033's owner-delegated amendment ([[BPR-0817]]) adds two rules. When
+startup agent workspace recovery refuses, every window of that profile says so
+in its status bar, including a window opened later. The refusal is not a
+cleanup failure of the quit, so a quitting desktop that otherwise drains in
+order still exits 0. Exit 1 remains for the quit's own failures: flushing or
+delivering state, the host's shutdown cleanup, and removing the workspace
+parent that the run itself created.
+
 The admission foundation's public process course checks the existing owner's
 durable window rows after contention. BPR-0712 adds the lease-bound POSIX local
 activation transport, carrying only stable profile identity and activate/new-window.

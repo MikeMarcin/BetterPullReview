@@ -147,7 +147,8 @@ namespace {
 		fresh.Runtime->begin_shutdown();
 		wait_for([&] { return fresh.Runtime->status().ShutdownComplete; }, "fresh install profile shutdown");
 		const auto closed = fresh.Runtime->status();
-		expect(!closed.AgentWorkspaceCleanupFailed, "agent workspace recovery succeeds for a fresh install");
+		expect(!closed.AgentWorkspaceRecoveryRefused, "agent workspace recovery succeeds for a fresh install");
+		expect(!closed.AgentWorkspaceCleanupFailed, "and its workspace cleanup succeeds at the close");
 		expect(!closed.ShutdownCleanupFailed, "a fresh install closes with no shutdown cleanup failure");
 		fresh.Runtime.reset();
 		fresh.Startup.reset();

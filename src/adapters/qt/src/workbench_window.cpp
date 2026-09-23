@@ -4243,6 +4243,16 @@ namespace bpr::qt {
 		announce_update();
 	}
 
+	void workbench_window::set_agent_workspaces_unavailable(const bool aUnavailable)
+	{
+		if (AgentWorkspacesUnavailable == aUnavailable) {
+			return;
+		}
+		AgentWorkspacesUnavailable = aUnavailable;
+		update_status_text();
+		announce_update();
+	}
+
 	void workbench_window::set_dispatch(workbench_intent_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
@@ -9280,6 +9290,11 @@ namespace bpr::qt {
 		// showing, because RFC-BPR-0033 routes it here instead of presenting the chooser.
 		if (ProfileFailure) {
 			status.append(QStringLiteral(" %1").arg(profile_management_failure_text(*ProfileFailure)));
+		}
+		// [[BPR-0817]]. Said on whatever the window shows, Home included, because
+		// the agent panel, which also says it, is not showing at Home.
+		if (AgentWorkspacesUnavailable) {
+			status.append(QStringLiteral(" Disposable agent workspaces are unavailable: their folder needs repair or has reached its limit."));
 		}
 		if (home) {
 			return status;

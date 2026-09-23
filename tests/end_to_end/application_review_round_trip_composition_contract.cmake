@@ -88,6 +88,12 @@ endfunction()
 # mutation path changes; the mutation-branch pin is unchanged. Covers
 # 9903869f..the BPR-0983 commit; nothing else touched the pinned scope. Review
 # recorded on BPR-0983.
+# BPR-0817 reseal: a refused startup agent workspace recovery no longer sets
+# the cleanup flag that a real quit turns into exit 1. It is recorded as a
+# refusal, reported in the status record, and stated in every window's status
+# bar. Only the quit's own workspace cleanup still folds into the profile's
+# flag. No credential, provider, vault, transport or mutation path changes; the
+# mutation-branch pin is unchanged. Review recorded on BPR-0817.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -106,7 +112,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"895f514fde2816f71b97c613d3215e02ec3566327b79255914b07368025974b4"
+		"3310863dc52f182c47b8bac10706fd91436230714d6b183135fb32e8b1c6eebe"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -241,7 +247,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "eb4cae53d01929e213ebf1d0cc7e6932f3ca497a914cfeaf11cc61edc254f9bd"
+        "e7fa2809312c1aa38f9b5c6196b67fe83d7251ab2e460f2beb3c5bd210b5a016"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

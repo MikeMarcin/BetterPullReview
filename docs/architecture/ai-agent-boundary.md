@@ -208,7 +208,9 @@ Git adapter validates bounded journal, scope and original native identities
 before reclaiming an abandoned workspace. Live owners are preserved. Missing,
 ambiguous or substituted ownership causes visible repair/refusal; neither a
 directory name nor an exclusive lock alone authorizes removal. Historical roots
-without durable authority remain outside this recovery path.
+without durable authority remain outside this recovery path. A startup refusal
+is stated in every window's status bar as well as in the agent panel. It is not
+a cleanup failure of the quit, so an orderly quit still exits 0 ([[BPR-0817]]).
 
 The `application_agent_crash_recovery` and materialization-recovery courses
 force-kill the real composition, check child termination, Git/SQLite identity

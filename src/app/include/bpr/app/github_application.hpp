@@ -136,10 +136,15 @@ namespace bpr::app {
 	/// \brief Describes the github application status record.
 	struct github_application_status
 	{
-		bool Closing                       = false;
-		bool ShutdownComplete              = false;
-		bool ShutdownCleanupFailed         = false;
-		bool AgentWorkspaceCleanupFailed   = false;
+		bool Closing                     = false;
+		bool ShutdownComplete            = false;
+		bool ShutdownCleanupFailed       = false;
+		bool AgentWorkspaceCleanupFailed = false;
+		// [[BPR-0817]]. Whether startup recovery refused the profile's disposable
+		// agent workspaces. It is reported separately from the cleanup flag above
+		// because it is not a failure of the quit: every window states it, and an
+		// orderly quit still exits 0.
+		bool AgentWorkspaceRecoveryRefused = false;
 		bool NativePlatformVaultSelected   = false;
 		bool EpochProjectionDeliveryFailed = false;
 		bool EpochHandoffDeliveryFailed    = false;

@@ -1,6 +1,29 @@
 # BPR-0817 Linux owner-private data root evidence
 
-## Current frontier
+## Current frontier (bpr-main-linux, 2026-09-23)
+
+- **Binding.** Station `bpr-main-linux` (`stn-5c7459ed`), checkout
+  `/home/mmarcin/BetterPullReview`, branch `main`, authority `lane-commit`.
+  Owner mandate: "implement available unattended work, focus on closing out
+  rfcs". The owner delegated this card's two questions on 2026-09-23 ("for
+  BPR-0817 let the implementor decide"). The Mac integrator relayed that
+  delegation.
+- **Decisions.** These are recorded as the card's owner-delegated amendment
+  and in RFC-BPR-0033:
+  - A refused agent workspace recovery leaves an orderly quit at exit 0.
+  - The refusal is stated at Home in every window's status bar.
+- **State.** The claim was committed at `0b57fe2e`. The implementation and its
+  automated evidence are recorded below, under "Owner-delegated decisions
+  implemented". The native Linux course on the tests-disabled image is still
+  to run. It needs a visible window on the shared WSLg desktop, so the
+  coordinator must clear it first.
+- **Next.** Build the tests-disabled image from a clean clone of the
+  implementation commit. Then run `tests/scripts/linux_agent_workspace_refusal_course.py`
+  twice under the station lease: once with a pre-existing 0775 parent, and once
+  with no parent as the control. Record both results against criterion 2 and
+  finish the card.
+
+## Frontier at `1c6eaf21` (bpr-linux, 2026-09-17; superseded)
 
 - **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2` (station
   `bpr-linux/int-2`), mandate r2, task `task-20260917-lnx-build`. Station
@@ -257,3 +280,126 @@ answered, and nothing repairs that folder's mode.
   `native/`, `native.summary` and `tools/`. None is committed.
 - **Boundaries.** No GitHub or GHES request, credential read or live agent was
   used.
+
+## Owner-delegated decisions implemented (bpr-main-linux, 2026-09-23)
+
+The two decisions are recorded on the card as its owner-delegated amendment and
+in RFC-BPR-0033. This section records the change that implements them and the
+evidence for it. Everything was run on station `bpr-main-linux`: the JaegAW
+WSL2 host, Ubuntu with GCC 15.2, and the `dev` preset (Debug, tests enabled).
+The build was warning-clean under `-Werror`.
+
+### Change
+
+- **`src/app/src/github_application.cpp`**
+  - **Recording a refusal.** When startup recovery completes with a refusal,
+    the composition records it as `AgentWorkspaceRecoveryRefused`, together
+    with its kind. It prints
+    `AGENT_WORKSPACE_RECOVERY_REFUSED:<ownership registry>:<reason>` to
+    standard error once. It no longer sets `AgentWorkspaceCleanupFailed`. That
+    is the flag the shutdown folds into the profile's `CleanupFailed`, which
+    the desktop turns into exit 1.
+  - **The fold.** The fold now takes only the quit's own workspace failures:
+    - removal of the workspace parent that this run created;
+    - a recovery that could not be posted.
+
+    Each failure names itself where it is raised.
+  - **Presentation.** `present_agent_workspace_repair` now also sets the
+    window's status-bar sentence, including when no agent panel is composed.
+    [[BPR-0808]]'s existing path presents it in every window that is open at
+    the refusal, and `open_window` replays it for any window opened later.
+  - **Status record.** The status record reports `AgentWorkspaceRecoveryRefused`
+    separately from `AgentWorkspaceCleanupFailed`.
+- **`src/app/include/bpr/app/github_application.hpp`**: adds that status
+  field.
+- **`src/adapters/qt/include/bpr/qt/workbench_window.hpp` and
+  `src/adapters/qt/src/workbench_window.cpp`**
+  - `set_agent_workspaces_unavailable` is retained like [[BPR-0742]]'s layout
+    sentence.
+  - `status_line()` appends "Disposable agent workspaces are unavailable:
+    their folder needs repair or has reached its limit." before its Home
+    return, so Home says it as well.
+  - A change makes the same polite accessible announcement that the other
+    retained sentences make.
+- **Unchanged.** None of the following changed:
+  - `prepare_workspace_neighbourhood` and its refusal rule;
+  - `1c6eaf21`'s owner-private data-root creation;
+  - the agent panel's text;
+  - `profile_desktop`'s exit accounting.
+
+  Nothing repairs a folder the application did not create.
+- **Tests.**
+  - `tests/end_to_end/profile_management_public_path_tests.cpp`
+  - `tests/end_to_end/agent_invocation_composition_public_path.cpp`
+  - `tests/end_to_end/profile_startup_public_path_tests.cpp`
+  - The pinned digests in
+    `tests/end_to_end/application_review_round_trip_composition_contract.cmake`,
+    which the card records as a reseal review.
+- **Native course.** `tests/scripts/linux_agent_workspace_refusal_course.py`.
+
+### Automated evidence
+
+| Test | Result | What it proves |
+|---|---|---|
+| `application_profile_management_public_path` | **Pass**, 3.58 s | This course ran under the stock `/tmp`: a root-owned 1777 tmpfs, with `TMPDIR` unset. It adds a new POSIX section that starts a quit-policy desktop on a data root inside a pre-existing 0775 folder. It requires the following. The window's status bar says the refusal while Home is showing. A second window opened later says it at Home too. No neighbourhood is created. Closing the last window quits through the policy with `exit_code() == 0`. The parent is still 0775 afterwards. Standard error carries `AGENT_WORKSPACE_RECOVERY_REFUSED:…/shared-parent/BetterPullReview/agent-workspace-ownership-v1:repair-required`. |
+| `application_agent_crash_recovery` | **Pass**, 18.67 s | `startup-repair` is the substituted-workspace refusal. It now also requires the window's status bar to state the refusal. After shutdown it requires `AgentWorkspaceRecoveryRefused`, with neither `AgentWorkspaceCleanupFailed` nor `ShutdownCleanupFailed`. `startup-recover` requires none of the three. |
+| `application_profile_startup_public_path` | **Pass**, 1.73 s | A fresh nested install under umask 0002 reports no recovery refusal and no workspace cleanup failure. |
+| 41-test integration selection | **41/41 pass**, 764.93 s | The selection runs serially over the candidate tree (base `0b57fe2e`) and covers: <ul><li>the five composition contracts, including `application_composition_contract` (442.18 s, all seven subtests);</li><li>every `application_profile_*` course;</li><li>`qt_profile_management_window` and `profile_window_restoration_fixture_contract`;</li><li>both agent crash-recovery courses, and all eight `application_agent_invocation_*` contracts;</li><li>`agent_workspace_ownership`;</li><li>`qt_workbench_window_scale_{100,125,200}`, `qt_workbench_home_discovery_scale_{100,125,200}`, `qt_workbench_overview` and `qt_agent_launch_panel`;</li><li>`architecture_boundaries`.</li></ul> |
+| `architecture_boundary_contract` | Pass, 155.77 s | |
+| `contained_temporary_usage_contract` | Pass | Covers the new course script. |
+
+**Final candidate.** The integration selection above ran on the pre-tidy
+candidate. After the one-line `'\n'` fix, six courses were rerun on the final
+tree, with pins `3310863d…` and `e7fa2809…`. All six pass:
+
+- `application_composition_contract`, 484.45 s;
+- `application_agent_crash_recovery`, 18.70 s;
+- `application_agent_materialization_crash_recovery`, 7.40 s;
+- `application_review_round_trip_composition_contract`, 1.67 s;
+- `application_profile_startup_public_path`, 1.79 s;
+- `application_profile_management_public_path`, 3.62 s.
+
+The `clang++-22` proxy of the final `github_application.cpp` exits 0.
+
+**Negative controls.** Each control was built, run, and then restored by hash
+against the pre-tidy candidate `github_application.cpp` (SHA-256
+`42de8ec6…`). The final file differs from it in one place: `'\n'` replaces
+`std::endl` on the refusal line, as clang-tidy's `performance-avoid-endl`
+required.
+
+- **The old fold put back.** `AgentWorkspaceCleanupFailed = !result.has_value()`
+  was restored in the recovery completion. The management course then fails
+  with `FAILED: and the refused recovery does not make the orderly quit exit
+  1`. `application_agent_crash_recovery` fails with
+  `startup-recovery-terminal … refused=1 workspace-cleanup-failed=1
+  shutdown-cleanup-failed=1`.
+- **The status-bar call removed.** The management course then fails with
+  `FAILED: the window's status bar says at Home that agent workspaces are
+  unavailable`. `application_agent_crash_recovery` fails with
+  `startup-repair-visible failed=status-says-it`.
+
+**Other gates.**
+
+- `/usr/bin/clang-format` 22.1.8 reports all seven touched C++ files clean.
+- A `clang++-22` syntax-only proxy of the five touched translation units, with
+  the project's clang warning additions and `-Werror`, exits 0 for each.
+- `_coding-standard/scripts/tidy.py --changed --warnings-as-errors` ran
+  clang-tidy 21.1.8 over the five changed translation units. It found one
+  finding on a changed line: `performance-avoid-endl` on the refusal line,
+  which is fixed. Every other finding is on an unchanged line:
+  - `dif_runtime.hpp:1`, `portability-avoid-pragma-once`;
+  - `github_application.cpp` lines 8166, 15667 and 15669;
+  - `profile_management_public_path_tests.cpp` lines 287, 295, 313 and 357.
+- `verify_documentation.py` reports `DOCUMENTATION_OK`, and `git diff --check`
+  is clean.
+
+**Pins.** `application_review_round_trip_composition_contract` failed on the
+full-file digest before the reseal. It passes after it, and so does
+`application_composition_contract`, whose baseline subtest runs that
+contract. The review is recorded on the card.
+
+### Native evidence
+
+Not run yet. The course opens a visible window on the WSLg desktop, which it
+shares with bpr-main-win's foreground courses. The coordinator has to clear
+that run first.

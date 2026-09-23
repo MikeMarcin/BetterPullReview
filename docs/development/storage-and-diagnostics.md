@@ -29,6 +29,34 @@ writers from owning the same profile. Same-user/admin access, backups and disk
 encryption are separate OS controls. Do not copy or edit live databases, remove
 locks, or treat a root directory as a recursive deletion target.
 
+### When the status bar says agent workspaces are unavailable
+
+Disposable agent workspaces live beside the profile root, in
+`<profile-root-leaf>-agent-workspaces-v1`. Suppose startup recovery refuses
+that area. Then every window of the profile adds "Disposable agent workspaces
+are unavailable: their folder needs repair or has reached its limit." to its
+status bar ([[BPR-0817]]). A launch from a terminal also prints
+`AGENT_WORKSPACE_RECOVERY_REFUSED:<ownership registry>:<reason>` to standard
+error. The refusal does not change the exit code: an orderly quit still exits 0.
+
+The usual reason is `repair-required`. It means one of two things:
+
+- The folder that holds the area can be written by another user or group.
+- An entry in the area is not the one BetterPullReview recorded.
+
+BetterPullReview never changes the mode, owner or contents of a folder it did
+not create.
+
+On Linux and macOS, the common case is an earlier install that ran under umask
+`0002` and left the folder that holds the Default profile group-writable. On
+Linux that folder is normally `~/.local/share/BetterPullReview`. Current
+versions create missing folders owner-only, but they do not repair one that
+already exists. If `ls -ld` shows group or other write on that folder, remove
+it with `chmod go-w`, then start BetterPullReview again. On Windows, remove
+any write permission that another principal holds on that folder. Do not
+repair an entry inside the area by hand. Instead, keep it for diagnosis:
+recovery refuses anything whose recorded identity it cannot prove.
+
 ## Inventory and retention
 
 | Data | Location relative to the admitted profile root | Removal behavior |

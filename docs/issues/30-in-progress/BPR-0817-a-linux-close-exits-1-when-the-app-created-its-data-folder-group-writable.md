@@ -252,3 +252,65 @@ holds only this change:
 `application_profile_startup_public_path` and `agent_workspace_ownership`.
 Criterion 3 is therefore met on both platforms. The card stays Parked on the
 owner's answers to criterion 2's two questions.
+
+## Owner-delegated decisions implemented (bpr-main-linux, 2026-09-23)
+
+The full record is in
+[the evidence file](../../verification/BPR-0817-linux-owner-private-data-root.md#owner-delegated-decisions-implemented-bpr-main-linux-2026-09-23).
+
+- **Exit code (Q1).** Startup recovery now records a refusal as a refusal:
+  `AgentWorkspaceRecoveryRefused` in the status record, plus one
+  `AGENT_WORKSPACE_RECOVERY_REFUSED:<registry>:<reason>` line on standard
+  error. It no longer sets the cleanup flag that a real quit turns into exit 1.
+  Two failures still fold into that flag, both the quit's own: removal of the
+  workspace parent this run created, and a recovery that could not be posted.
+- **Visibility (Q2).** Every window of the profile says "Disposable agent
+  workspaces are unavailable: their folder needs repair or has reached its
+  limit." in its status bar, on Home and on every other surface. A window
+  opened later says it too. The agent panel keeps its "Not started" refusal.
+- **Unchanged.** The neighbourhood's refusal rule is unchanged, and so is
+  `1c6eaf21`'s owner-private creation. Nothing repairs a folder the
+  application did not create.
+- **Evidence.** `application_profile_management_public_path` now drives a
+  quit-policy desktop over a pre-existing 0775 parent under the stock `/tmp`.
+  It requires three things:
+  - the status bar says the refusal at Home, in both windows;
+  - `exit_code() == 0` after the last window closes;
+  - the parent is still 0775 and no neighbourhood exists.
+
+  `application_agent_crash_recovery`'s `startup-repair` now also requires the
+  status-bar sentence and no shutdown cleanup failure. Two negative controls
+  (the old fold put back, and the status-bar call removed) fail those
+  assertions. The 41-test integration selection passes 41/41.
+- **Native Linux course.** Pending. It needs a visible window on the shared
+  WSLg desktop, and the coordinator must clear that run first.
+
+### Pinned-code review for the reseal
+
+The review covers `application_review_round_trip_composition_contract`,
+recorded there as the `BPR-0817 reseal` note.
+
+- **Scope.** The pins matched at `0b57fe2e`. This was checked by printing the
+  digests of a `git archive` export of that commit: full `895f514f…`,
+  manifest `eb4cae53…`. Since then, the only change inside the pinned scope is
+  this card's.
+- **What changed.** In `github_application.cpp` and `github_application.hpp`:
+  - the recovery completion records a refusal as a refusal instead of setting
+    `AgentWorkspaceCleanupFailed`;
+  - the shutdown fold drops the recovery refusal's name;
+  - `present_agent_workspace_repair` also sets the window's status-bar
+    sentence;
+  - the status record gains `AgentWorkspaceRecoveryRefused`;
+  - `<iostream>` is included for the one standard-error line.
+- **Paths not touched.** No credential, vault, provider, transport, GitHub
+  request or mutation path changed. The refusal rule and every filesystem
+  effect are unchanged.
+- **New pins.** Full application
+  `3310863dc52f182c47b8bac10706fd91436230714d6b183135fb32e8b1c6eebe`.
+  Production manifest
+  `e7fa2809312c1aa38f9b5c6196b67fe83d7251ab2e460f2beb3c5bd210b5a016`. The
+  mutation branch is unchanged at
+  `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
+- **Result.** The contract failed on the full-file digest before the reseal
+  and passes after it. `application_composition_contract` passes all seven
+  subtests.

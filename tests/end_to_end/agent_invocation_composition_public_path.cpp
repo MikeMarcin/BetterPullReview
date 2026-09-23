@@ -699,15 +699,30 @@ auto main(int argc, char** argv) -> int
 		if (course == "startup-repair") {
 			auto repair = wait_terms{ };
 			if (!wait_until_reporting(repair, [&window](wait_terms& aTerms) {
-					return aTerms.require("repair-visible", window.agent_panel()->status_text().contains("Disposable workspace recovery needs repair"));
+					// [[BPR-0817]]. Also said in the window's status bar, whatever the
+					// window shows. application_profile_management_public_path proves it
+					// at Home, where the agent panel is not showing.
+					return aTerms.require("repair-visible", window.agent_panel()->status_text().contains("Disposable workspace recovery needs repair"))
+						&& aTerms.require("status-says-it", window.status_text().contains("Disposable agent workspaces are unavailable"));
 				})) {
 				return fail(*application, "startup-repair-visible", repair.render());
 			}
 		}
 		const auto stopped  = shutdown(*application);
 		const auto evidence = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+		const auto closed   = application->status();
+		// [[BPR-0817]]. The refusal is reported as a refusal, and it is not a cleanup
+		// failure of the quit: RFC-BPR-0033's owner-delegated amendment keeps an
+		// otherwise orderly quit at exit 0.
 		if (!stopped || evidence.AgentProcessLauncherInvocations != 0U
-			|| application->status().AgentWorkspaceCleanupFailed != (course == "startup-repair")) {
+			|| closed.AgentWorkspaceRecoveryRefused != (course == "startup-repair")
+			|| closed.AgentWorkspaceCleanupFailed || closed.ShutdownCleanupFailed) {
+			report("startup-recovery-terminal",
+				   std::string{ "stopped=" } + (stopped ? "1" : "0")
+					   + " launches=" + std::to_string(evidence.AgentProcessLauncherInvocations)
+					   + " refused=" + (closed.AgentWorkspaceRecoveryRefused ? "1" : "0")
+					   + " workspace-cleanup-failed=" + (closed.AgentWorkspaceCleanupFailed ? "1" : "0")
+					   + " shutdown-cleanup-failed=" + (closed.ShutdownCleanupFailed ? "1" : "0"));
 			return EXIT_FAILURE;
 		}
 		std::cout << "agent-invocation-" << course << ":pass\n";

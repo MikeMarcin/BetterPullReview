@@ -726,6 +726,17 @@ in that window — the Profiles menu grows a status item under a separator,
 shown only after a refusal — rather than by presenting the chooser, which is
 presented for a failure only when no window exists to carry it.
 
+A refused agent workspace recovery is reported the same way ([[BPR-0817]],
+RFC-BPR-0033's owner-delegated amendment). One cause is a folder around the
+data root that other users can write; BetterPullReview neither uses nor
+repairs such a folder. Whatever the cause, every window of the profile adds
+"Disposable agent workspaces are unavailable: their folder needs repair or has
+reached its limit." to its status bar. The sentence stays on Home and on every
+other surface for as long as the profile runs, and a window opened later
+carries it too. The agent panel still says "Not started". The refusal is not a
+failure of the quit, so closing the last window on Windows or Linux still
+exits 0.
+
 ### The Profiles sheet
 
 **Profiles** opens from Profiles › Manage Profiles…, or at startup when no

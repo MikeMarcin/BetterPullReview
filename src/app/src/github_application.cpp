@@ -167,6 +167,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -4342,13 +4343,14 @@ namespace bpr::app {
 				note_profile_cleanup_failure("update-state-flush");
 				CleanupFailed = true;
 			}
+			// [[BPR-0817]]. Only the quit's own workspace cleanup reaches this fold:
+			// the removal above, or a recovery that could not even be posted. Each
+			// was named where it was raised. A recovery refusal does not reach it.
+			// The refusal is decided at startup and stated in every window, and
+			// under RFC-BPR-0033's owner-delegated amendment an orderly quit still
+			// exits 0.
 			if (AgentWorkspaceCleanupFailed) {
-				note_profile_cleanup_failure(
-					AgentWorkspaceRecoveryFailure < 0
-						? std::string{ "agent-workspace-cleanup:unnamed-origin" }
-						: std::string{ "agent-workspace-recovery:" }
-							+ (ApplicationDataRoot / "agent-workspace-ownership-v1").string() + ":"
-							+ named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure));
+				note_profile_cleanup_failure("agent-workspace-cleanup:unnamed-origin");
 				CleanupFailed = true;
 			}
 			if (AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire)) {
@@ -5037,21 +5039,23 @@ namespace bpr::app {
 				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
 					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood);
 					try {
-						DecisionLane.post([this, result = std::move(recovered)] {
-							AgentWorkspaceCleanupFailed = !result.has_value();
-							// [[BPR-0875]]. Recorded where it happens, as a plain
-							// value: this is startup work, and its refusal is what
-							// the profile's shutdown flag reports much later, so
-							// without it a reader looks for a shutdown fault that
-							// never happened. The name is composed at the fold.
+						DecisionLane.post([this, registry, result = std::move(recovered)] {
+							// [[BPR-0817]]. A refusal is decided here, at startup, and it
+							// is not a failure of the quit. So it no longer sets the
+							// cleanup flag that a real quit turns into exit 1. Every
+							// window states it in its status bar instead, under
+							// RFC-BPR-0033's owner-delegated amendment. [[BPR-0875]]'s
+							// name for it is printed once, here, where it happens.
 							if (!result) {
 								AgentWorkspaceRecoveryFailure = static_cast<int>(result.error());
+								AgentWorkspaceRecoveryRefused = true;
+								std::cerr << "AGENT_WORKSPACE_RECOVERY_REFUSED:" << registry.string() << ':'
+										  << named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure) << '\n';
 							}
 							// [[BPR-0808]]. Recovery is profile work, but its refusal is
 							// presented by every window: those open now, and any opened
 							// later, which replay the recorded refusal in `open_window`.
 							if (!result && !Closing) {
-								AgentWorkspaceRecoveryRefused = true;
 								for_each_window([](const window_observer& aObserver) { if (aObserver.AgentWorkspaceRepair) { aObserver.AgentWorkspaceRepair(); } });
 							}
 							AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
@@ -5804,7 +5808,8 @@ namespace bpr::app {
 		bool AgentWorkspaceCleanupFailed    = false;
 		// [[BPR-0875]]. The workspace recovery's refusal, as its enum value, or
 		// -1 when it did not refuse. A value, not a string, because it is set on
-		// a posted lane and read at the quit.
+		// a posted lane. [[BPR-0817]]: a refusal is presented in every window and
+		// reported in the status, and it is not a cleanup failure of the quit.
 		int  AgentWorkspaceRecoveryFailure = -1;
 		bool AgentWorkspaceRecoveryRefused = false;
 		// Dependents are destroyed before their retained ports and execution lanes.
@@ -6164,10 +6169,15 @@ namespace bpr::app {
 		}
 		void present_agent_workspace_repair()
 		{
-			if (Closing || !Window || Window->agent_panel() == nullptr) {
+			if (Closing || !Window) {
 				return;
 			}
-			Window->agent_panel()->refuse("Disposable workspace recovery needs repair or has reached its limit.");
+			// [[BPR-0817]]. The status bar says it on Home, which does not show the
+			// agent panel. The panel still says why nothing started.
+			Window->set_agent_workspaces_unavailable(true);
+			if (Window->agent_panel() != nullptr) {
+				Window->agent_panel()->refuse("Disposable workspace recovery needs repair or has reached its limit.");
+			}
 		}
 		void cancel_restoration(bool aStartup, bool aReadingGesture = false)
 		{
@@ -13886,6 +13896,7 @@ namespace bpr::app {
 			.ShutdownComplete               = this->ShutdownComplete,
 			.ShutdownCleanupFailed          = this->ShutdownCleanupFailed,
 			.AgentWorkspaceCleanupFailed    = this->AgentWorkspaceCleanupFailed,
+			.AgentWorkspaceRecoveryRefused  = this->Profile->AgentWorkspaceRecoveryRefused,
 			.NativePlatformVaultSelected    = this->NativePlatformVaultSelected,
 			.EpochProjectionDeliveryFailed  = this->EpochProjectionDeliveryFailed,
 			.EpochHandoffDeliveryFailed     = this->WindowRead && this->WindowRead->epoch_handoff_delivery_failed(),
