@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0889"
 title: "The protocol v2 fetch parser's truncated-stream refusal has no visible coverage"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable github+git partition; the reviewer flagged this one as uncertain","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"Each truncation shape either has a test or a recorded reason why it cannot occur","outcome":"pass","revision":"cc771b5d","evidence":{"kind":"command","detail":"bpr-main-mac: application_git_protocol_v2 passes test_truncated_fetch_streams. It has eight cuts (empty, mid section header, mid packet header, a whole header with no channel byte, a channel byte with no payload, a channel byte with part of the payload, no flush, half a flush), each fed in one chunk and one byte at a time. It also covers the destructor, a transport that ends cleanly mid-pack, and one that fails mid-pack. The sparse path shares the parser, which is recorded. Negative controls: no abort in finish(), and no abort in the destructor, each fail a new row.","path":"docs/issues/60-done/BPR-0889-no-coverage-for-a-truncated-pack-stream-in-the-protocol-v2-fetch-parser.md#the-rows"}},{"criterion":"A truncated stream leaves no partially written pack behind, and that is asserted rather than assumed","outcome":"pass","revision":"cc771b5d","evidence":{"kind":"command","detail":"git_cache_contract drives the parser into a real pack sink with a stream cut 40 pack bytes in. It asserts the receiving spool holds exactly 40 bytes, and that after finish() refuses neither the receiving spool nor the .pack.part exists while the sink object is still alive, and again after it is destroyed. It passes (268.81 s), and fails with FAIL: the refusal removes the partial pack while the sink still exists when finish() does not abort. Linux and Windows confirmation runs are named on the card.","path":"docs/issues/60-done/BPR-0889-no-coverage-for-a-truncated-pack-stream-in-the-protocol-v2-fetch-parser.md#confirmation-runs-owed-linux-windows"}}]
 ---
 
 # BPR-0889: The protocol v2 fetch parser's truncated-stream refusal has no visible coverage
