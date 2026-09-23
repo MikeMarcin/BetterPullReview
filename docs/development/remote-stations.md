@@ -41,6 +41,8 @@ station; never reuse a name for a different checkout.
 | `bpr-main-mac` | MacBook Pro | macos | main (integrator) | `main` | provisioned 2026-08-29 under the v1 station file; relaunch through the v2 launcher before dispatching through Codex |
 | `bpr-win` | JaegAW | windows-native | win | `windows-lane` | launched 2026-09-02 through the corrected launcher (`py -3 scripts/launch_remote_station.py`, [[BPR-0491]], [[BPR-0508]], [[BPR-0509]]) with `lane-commit` and the writer lease; the interactive session is the station. Succeeds `bpr-win-jaegaw`, whose server-form launch never created a session |
 | `bpr-linux` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | launched 2026-09-02 through the corrected launcher with `lane-commit` and the writer lease; the interactive session is the station. Succeeds `bpr-linux-jaegaw`, same history |
+| `bpr-main-win` | JaegAW | windows-native | main | `main` | `stn-a3502cc1`, checkout `C:/code/git/BetterPullReview`, `lane-commit`; identity confirmed 2026-09-23 at `2218ef1f` holding the project-integrator lease on its checkout. Dispatched by the Mac integrator for Windows-only cards; pulls/rebases before each push and asks the integrator for issue IDs |
+| `bpr-main-linux` | JaegAW (WSL2) | wsl2 | main | `main` | `stn-5c7459ed`, checkout `/home/mmarcin/BetterPullReview`, `lane-commit`; identity confirmed 2026-09-23 at `2218ef1f`. Dispatched by the Mac integrator for Linux and cross-platform cards under the same rules |
 
 The station file format changed to `implement-rfc.remote-station.v2` on
 2026-09-01 (workstream instead of role, plus the Codex task and Claude session
