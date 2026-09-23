@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0029"
 title: "Machine-Independent Epoch Identity and Pull Request Update History"
-status: "Accepted"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0017"]
@@ -12,6 +12,16 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0029-closeout","path":"docs/rfcs/plan
 # RFC-BPR-0029: Machine-Independent Epoch Identity and Pull Request Update History
 
 ## Status and scope
+
+**Closed on 2026-09-23 (`Auto-Verified`).** [[BPR-0750]] records direct
+evidence for all nine acceptance criteria. Its closing integration pass at
+`58a2d885` ran 24 of 24 core, host, provider, SQLite, migration, Qt and
+composed-application rows green, and a negative control showed the
+ordinary-update course still fails on a wrong expected head. The ninth
+criterion is the owner's v011 accept recorded on [[BPR-0646]]. Every listed
+dependency was `Auto-Verified` first. The limits recorded on the card stand:
+the GHES-origin legacy catalogue is synthetic, and the agent-process course
+is macOS-local and uses one old epoch for both endpoints.
 
 Accepted on 2026-09-12 under mandate r17. The owner asked for this RFC on 2026-09-12. Asked
 whether the epoch work should be an RFC of its own or an amendment recorded

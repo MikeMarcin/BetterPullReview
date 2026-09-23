@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0750"
 title: "Verify and close RFC-BPR-0029"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: ["BPR-0743"]
 priority: "P1"
 closeout_for: ["RFC-BPR-0029"]
 metadata: {"accepted_base":"5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d","owner_acceptance":"2026-09-12 mandate r17","milestone_plan":{"id":"rfc-bpr-0029-closeout","path":"docs/rfcs/plans/rfc-bpr-0029-closeout/milestone-plan.json"}}
+acceptance: [{"criterion":"C1 Two independent catalogues assign equal identities and deterministic order to the same evidenced occurrences; A->B->A yields two identities; a missing event is a declared gap","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"application_epoch_portable_occurrence_two_catalogues passed at 58a2d885 (229.98 s, twelve launches) with core_epoch_policy and application_epoch_host; original producing commit d1bcd1cf.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C2 An ordinary live transition is one occurrence per observed transition, with portable identity equal across signed-in, signed-out and recreated catalogues; ambiguity stays unresolved","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"application_epoch_ordinary_update_recreated passed at 58a2d885 (68.04 s); negative control with a wrong expected head failed with child exit 1 and reported the same portable ID 3091B0E8...5B30 that cf4fdbed recorded. Signed-in leg is host evidence (application_epoch_host).","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C3 A new live head appends author_upload; an imported epoch advances neither latest live ordinal nor previous distinct head ordinal","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"application_epoch_host and the two-catalogue composed course passed at 58a2d885; producing commits 2df4d110, d1bcd1cf, ce6f1836.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C4 An observed update survives a later force push on the observing install; the epoch line says when history may be partial (failed, refused, capped, unseen force push)","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"application_epoch_portable_occurrence_two_catalogues asserts Incomplete history and the no-push-order qualification from the real line in every course; passed at 58a2d885.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C5 Live epochs keep their observed base; imported occurrences without evidence show unknown; derived comparison base is labeled separately and can be unavailable","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"Base-force-push course (9de50d46) within the composed selector, qt_epoch_comparison_scale_100/125/200, sqlite_epoch_catalog_behavior_contract and application_epoch_host passed at 58a2d885.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C6 Event dates labeled GitHub event time, other dates commit date, first-seen local; equal timestamps have a deterministic tie-break without a false push-order claim","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"application_epoch_host and qt_epoch_comparison_scale_* (tooltip and history text) passed at 58a2d885.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C7 A current-version catalogue migrates without changing any old epoch row's key, incarnation or ordinal; unresolved provenance stays unresolved; ledger, restoration, retained-ref, MCP and agent-launch references still resolve","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"sqlite_epoch_catalog_behavior_contract (42.69 s), epoch_maintenance_integration (43.66 s) and application_agent_invocation_host passed at 58a2d885; producing commits fc6e4e2f, 90d4ba28. Limits: synthetic GHES-origin legacy input; agent-process course macOS-local with one old epoch at both endpoints.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C8 The history read is anonymous REST within a stated page cap, and an open that cannot make the read still produces today's live epoch","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"github_anonymous_read_contract, github_paged_read, application_anonymous_read_host and the composed failed/refused/capped courses passed at 58a2d885.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"C9 BPR-0646's attended handle criterion is asked again, unchanged, on a signed bundle carrying this work","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"observation","detail":"Owner v011 human accept on BPR-0646: candidate BPR-0646-workbench-chrome, sequence 373, decision 4feeaa9e-5705-4c53-a516-6fc311de305d; hand-back 374. Unchanged; not re-asked.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"One integration-focused pass, documentation gate and git diff --check against the current candidate","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"command","detail":"24/24 RFC-0029 rows passed at 58a2d885 in 230.00 s (build/rfc0029-mac3-integration.log), ninja -n no work before the run. Documentation gate and git diff --check recorded on the card at finish.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}},{"criterion":"Status obeys canonical order","outcome":"pass","revision":"58a2d885de152287e2bd235b0aeb3d42b0bdd5f5","evidence":{"kind":"observation","detail":"RFC-BPR-0029 depends on RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017, all Auto-Verified; the recorded RFC-BPR-0008 hold cleared on 2026-09-21. RFC-BPR-0029 set Auto-Verified in its front matter and the index.","path":"docs/issues/60-done/BPR-0750-close-rfc-0029.md#closeout-at-58a2d885-2026-09-23"}}]
 ---
 
 # Verify and close RFC-BPR-0029
@@ -39,6 +40,65 @@ listed dependencies RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017 are all
 candidate `90d4ba28`, so the d3 evidence is not reused as-is: one
 integration pass over this RFC's selectors runs at the current head before
 any status moves.
+
+## Closeout at `58a2d885`, 2026-09-23
+
+**The integration pass is 24/24 at `58a2d885`** in 230.00 s
+(`build/rfc0029-mac3-integration.log`, ctest exit 0), on the `dev` preset
+with `ninja -n` reporting no work before the run. `58a2d885` differs from
+`b93adf45` only in this card, so the source is `b93adf45`'s. The selection
+is this RFC's own surface, chosen by composition as well as by subsystem:
+
+| Layer | Rows |
+|---|---|
+| Core and host | `core_epoch_policy`, `application_epoch_contract`, `application_epoch_catalog_contract`, `application_epoch_host`, `application_anonymous_read_host`, `application_agent_invocation_host` |
+| Provider read | `github_anonymous_read_contract`, `github_paged_read` |
+| SQLite and migration | `sqlite_epoch_catalog_storage_contract`, `sqlite_epoch_catalog_behavior_contract` (42.69 s), `sqlite_anonymous_epoch_authority`, `epoch_history_fixture_contract`, `epoch_maintenance_integration` (43.66 s), `epoch_kill_recovery`, `epoch_transaction_kill_recovery` |
+| Qt | `qt_epoch_comparison_scale_100`, `_125`, `_200` |
+| Composed application | `application_epoch_portable_occurrence_two_catalogues` (229.98 s, twelve launches), `application_epoch_ordinary_update_recreated` (68.04 s), `application_epoch_persistence_github-com`, `application_epoch_persistence_ghes-3_18`, `application_epoch_maintenance_public_path` |
+| Architecture | `architecture_boundaries` |
+
+Every row that passes on a marker also carries the inherited
+`TEST_RUNNER_CHILD_EXIT_FAILED` expression ([[BPR-0890]]), so a green
+composed row here also exited 0.
+
+**Negative control.** The ordinary-update course was run through the same
+network-isolated launcher with its expected post-update head replaced by
+forty zeros, the script otherwise unchanged
+(`build/rfc0029-mac3-negative-control.log`). It fails at
+`require(updated[0][0][1:] == (1, UPDATED, 2))` with child exit 1 and
+`TEST_RUNNER_CHILD_EXIT_FAILED:1`. The failure also records the portable ID
+at this head: `3091B0E888E3321843734F3822628C4C6B6DA848190B07ABD7DD3AD54E755B30`,
+the same ID `cf4fdbed` recorded on 2026-09-12. Portable identity has not
+drifted across the eleven days of epoch source changes since then.
+
+**Rows 1 to 8** keep the direct evidence recorded in the checklist, now
+rechecked at this head by the pass above. **Row 9** is the owner's v011
+accept recorded on [[BPR-0646]], unchanged. The limits recorded in the rows
+stand: the GHES-origin legacy catalogue is synthetic rather than a captured
+installation; the agent-process course uses one old epoch for both endpoints
+and is macOS-local; row 2's signed-in leg is host evidence; no live pull
+request, credential or commercial agent was used. None of these limits is a
+criterion the RFC states.
+
+**Canonical order.** RFC-BPR-0029 depends on RFC-BPR-0002, RFC-BPR-0003 and
+RFC-BPR-0017, all `Auto-Verified`. The hold this card recorded was
+RFC-BPR-0008, now `Auto-Verified` since 2026-09-21 along with the rest of the
+original fourteen-RFC pack. RFC-BPR-0028, which precedes this RFC in the
+additional table, is not one of its dependencies. So RFC-BPR-0029 closes
+`Auto-Verified` and this card is Done. RFC-BPR-0037's dependency on it is now
+met; RFC-BPR-0037 still waits on RFC-BPR-0028.
+
+**Documentation impact.** The five documents the RFC names already describe
+portable occurrences: the git and epoch model, the product contract, the
+domain and state model, the threat model, and the RFC-BPR-0003 verification
+plan. The index, RFC-BPR-0037's dependency note and RFC-BPR-0003's
+supersession note are updated with this closeout.
+
+**Gates.** The documentation gate reports `DOCUMENTATION_OK`
+(`build/bpr0750-mac3-documentation.log`), its 64 tests pass
+(`build/bpr0750-mac3-documentation-tests.log`), and `git diff --check` is
+clean.
 
 ## Prior frontier (rfc0029-r1/d3, mandate r1)
 

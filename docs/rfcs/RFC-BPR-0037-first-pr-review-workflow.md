@@ -21,8 +21,8 @@ Closeout is [[BPR-0927]].
 The implementation, design follow-ups and target-native macOS review are now
 technically accepted through BPR-0918 through BPR-0929. BPR-0927 records the
 combined closeout candidate `e4096e05`. This RFC remains `Proposed`.
-RFC-BPR-0008, RFC-BPR-0013 and RFC-BPR-0015 are now `Auto-Verified`, but
-RFC-BPR-0028 (`Proposed`) and RFC-BPR-0029 (`Accepted`) are not; technical
+RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015 and, since 2026-09-23, RFC-BPR-0029
+are now `Auto-Verified`, but RFC-BPR-0028 (`Proposed`) is not; technical
 completion does not waive dependency-ordered status.
 
 Owner follow-up [[BPR-0934]], recorded on 2026-09-20 in attended decision

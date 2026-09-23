@@ -2044,7 +2044,7 @@ separately below. This does not close any RFC.
    Earlier rejects remain attached to their historical revisions. No bound
    owner ask remains.
 
-The [BPR-0750](../30-in-progress/BPR-0750-close-rfc-0029.md)
+The [BPR-0750](BPR-0750-close-rfc-0029.md)
 direct-check gaps in rows 2, 4, 5 and 7 remain separate from this milestone;
 RFC-BPR-0029 stays Accepted behind Proposed RFC-BPR-0008. RFC-BPR-0018 and
 RFC-BPR-0028 remain Proposed/open pending their own closeout and Windows/Linux

@@ -186,7 +186,8 @@ and [[BPR-0743]] is bound to it.
 
 RFC-BPR-0029 is Proposed and not accepted, so as of this note nothing here is
 superseded. If it is accepted, it supersedes this RFC in part, and only in two
-respects. The first is what the product claims identifies an epoch:
+respects. (It was accepted on 2026-09-12 and closed `Auto-Verified` on
+2026-09-23 by [[BPR-0750]], so these two respects are now superseded.) The first is what the product claims identifies an epoch:
 `review_epoch_id` becomes the catalogue's local key, and a derived identity is
 what is the same on every machine. The second is what base OID and observed time
 mean for an epoch imported from a pull request's history.
