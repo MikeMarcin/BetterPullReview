@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0882"
 title: "The startup exception boundaries collapse every cause into one word, even in test builds"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
