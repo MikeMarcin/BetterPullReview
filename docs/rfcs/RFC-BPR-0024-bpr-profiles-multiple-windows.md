@@ -18,7 +18,13 @@ scope on 2026-09-22.** The [owner amendment r3](#owner-amendment-r3--2026-09-22)
 below records the one deferred native observation. The
 [owner amendment r4](#owner-amendment-r4--2026-09-23) of 2026-09-23 keeps
 AC-07 closed over a recorded evidence gap; the course passes again and needs
-no follow-up.
+no follow-up. On 2026-09-23 standalone [[BPR-0980]] took the native Windows
+desktop observation r3 deferred. Before the correction in `f73aa135` a
+repeated launch left the owner's most recently used window behind the
+launching shell; at `2c9dc0c7` that window comes to the front with keyboard
+focus, and `--new-window` opens another window in the one running process.
+That is an observation on the standalone card; neither amendment's text or
+this RFC's accepted scope changes.
 The product owner approved this daily-workbench design and its Chrome-like
 profile amendment on 2026-09-04. Registration grants no implementation,
 credential, remote-mutation, platform-evidence, or closeout exception. This RFC
