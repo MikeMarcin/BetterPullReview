@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0653"
 title: "Windows: the strip as the title row"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1 RFC-BPR-0028 AC-01 on Windows at 1280x852 and 1920x1080: the chrome above the comparison is the strip and the epoch line, and the strip is the row the caption buttons sit in","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"The Windows form passes: ctest --preset dev -R application_windows_title_row on the real windows platform (Qt 6.11.2, 150% scale) passes at f62b745d and at 53d229d7 and prints title-row:1280x852:ok and title-row:1920x1080:ok: no title bar, the strip first and as wide as the window with the caption buttons in it (46 px, row height, close ending the row) and their hit codes, the client area directly beneath the strip with no menu bar row, the epoch line across the window above the panes. The portable half, 'the strip and the epoch line only', fails on main on every platform: RFC-BPR-0037's composition entry row (cc038748, BPR-0929) sits between them, measured composeReviewActionButton@30+20 and composeInlineDraftActionButton@30+20 at both sizes, and qt_workbench_window_scale_{100,125,200} stop at 'the epoch row is the first row of the client area' (BPR-0940). Pending the owner's choice: amend AC-01 to admit the row, or move the entries."}},{"criterion":"AC2 Snap layouts appear on hovering the maximise button; dragging empty strip space moves the window; double-click maximises and restores","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"application_windows_title_row passes: a posted WM_NCLBUTTONDBLCLK on bare strip surface maximises with the strip at the work area's top and restores the same rectangle; bare strip surface answers HTCAPTION and maximise HTMAXBUTTON, restored and maximised, at 1280x852 and 1920x1080; minimised while maximised and restored from the taskbar it returns maximised and then restores the original rectangle. The snap layout flyout and the dragged window are the platform's responses to those codes; observing them needs a real pointer on the owner's desktop, which this unattended dispatch did not move, so they ride criterion 4's attended capture (steps 3 and 4)."}},{"criterion":"AC3 The Windows station's focused Qt selectors and the manifest gate pass; the new uncontained registration, if any, is pinned by name in the same commit","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"At f62b745d, 14 of 19 focused selectors pass, including application_windows_title_row, the new contained qt_workbench_title_row_scale_{100,125,200} (the strip order, the width sweep to the 902 floor with the three-character labels, the bare-surface gestures; 14.1, 18.2, 18.8 s) and qt_workbench_focus_order_scale_{100,125,200}; the title-row, focus-order and structure rows pass again at 53d229d7. No uncontained registration is added. Red on main for reasons that are not this card's: qt_workbench_window_scale_{100,125,200} at BPR-0940's epoch-row assertion (after their strip courses pass); qt_composed_github_scale_100 at BPR-0940's CLI-card assertion; test_network_isolation_manifest on eleven unpinned uncontained rows from other work (a new card is requested); and at 53d229d7 application_review_round_trip_composition_contract since f863ce1b (BPR-0975) changed github_application.cpp without a reseal. Logs: build/logs/bpr-0653-main-win/candidate-1.log and rebased-1.log on the Windows station."}},{"criterion":"AC4 Attended capture on the Windows station showing the strip with the caption buttons and the snap layout flyout","outcome":"pending","revision":"53d229d7","evidence":{"kind":"observation","detail":"Not taken; it needs the owner. Steps 1 to 6 of the card's 'Attended capture (criterion 4)' on JaegAW at 100% and 150% from a tests-disabled app-release bundle built at the candidate; step 7 (minimise from maximised) is now covered by application_windows_title_row. No attended or wizard session was started by this dispatch."}}]
 ---
 
 # Windows: the strip as the title row
@@ -563,3 +565,162 @@ here would stand.
 with a seventh step: maximise, minimise from the taskbar, restore from the
 taskbar, confirm the window returns maximised with the strip at the work
 area's top, then restore and confirm the original rectangle.
+
+## Windows station on main, 2026-09-23 (bpr-main-win): re-verified, parked on the owner
+
+Run `bpr-main-win-20260923`, milestone `windows-strip-title-row` of plan
+`ux-redesign-pack-0028` (coordinator-implementer; checkpoint bound at
+`4380f310`, definition `sha256:c2ae5fcd…`). Windows 11 Home 10.0.26200, VS 18
+MSVC, Qt 6.11.2 `msvc2022_64`, `build/dev`, display scale 150%. **The
+candidate is `53d229d7`**: its change was made and measured at `f62b745d` on
+base `4380f310` and rebased onto `dbaf7040` without conflict. Logs are under
+`build/logs/bpr-0653-main-win/` on this station and are not committed. No
+attended or wizard session was started and no pointer was moved on the
+owner's desktop.
+
+### What the candidate adds
+
+- **`application_windows_title_row`** now opens a review (two files, every
+  command offered) and checks the Windows half of RFC-BPR-0028 AC-01 at
+  **1280x852 and 1920x1080** (a restored window placed inside the work area;
+  the run prints `title-row:1920x1080:ok`, so it did not fall back for want of
+  room). At each size: no title bar; the strip is the first row, as wide as
+  the window and 30 pixels; the client area begins directly beneath it with no
+  menu bar row; the epoch line spans the window above the panes; the caption
+  buttons sit in the strip, 46 pixels, the row's height, close ending it; bare
+  surface answers `HTCAPTION` and the buttons `HTMINBUTTON`, `HTMAXBUTTON` and
+  `HTCLOSE`. It **reports without judging** what stands between the strip and
+  the epoch line (see "Found at main" below).
+- The integrator's review finding and former attended step 7, now automated: a
+  window **minimised while maximised** and restored as the taskbar does
+  (`WM_SYSCOMMAND` `SC_RESTORE`) comes back maximised, the strip at the work
+  area's top, the whole client inside it, the button named Restore; Restore
+  from the keyboard then returns the original rectangle. A minimised restored
+  window also returns to its rectangle.
+- The menu control: it opens exactly the menu bar's visible menus in the bar's
+  order (File, Profiles, Pull Request, View); its accessible description names
+  each of them; and every menu action that carries a shortcut is also the
+  window's, so its shortcut stays live while the bar is hidden.
+- `workbench_window.cpp`, Windows branch: the menu control's description had
+  gone stale ("The File, Profiles and View menus") when [[BPR-0990]] added the
+  Pull Request menu. It is now built from the bar's menus.
+- **`qt_workbench_title_row_scale_{100,125,200}`**, contained: the window
+  suite's strip courses (`--title-row`: the exact order with the menu control
+  first and the caption buttons last, the pixel-by-pixel width sweep to the
+  902 floor with the three-character labels, the bare-surface gestures) run
+  directly, past the epoch-row assertion [[BPR-0940]] owns, as BPR-0981,
+  BPR-0985 and BPR-0990 did for their courses. No uncontained registration is
+  added, so nothing needs pinning.
+
+### The Qt 6.11.2 recheck of the private API
+
+`92c4e159` upgraded Qt to 6.11.2 from the Mac and moved the host's pin comment,
+which obliges a recheck on Windows. `application_windows_title_row` on the
+6.11.2 build passed unchanged at `4380f310` before anything here was touched
+(1.67 s), and passes at the candidate. The recheck is done; the owner's
+decision on shipping private Qt API (below) is not.
+
+### Verification
+
+At `f62b745d`, `ctest --preset dev` over nineteen selectors, 14 pass:
+`application_windows_title_row` (1.91 s), `qt_workbench_title_row_scale_100`,
+`_125`, `_200` (14.1, 18.2, 18.8 s), `qt_workbench_focus_order_scale_100`,
+`_125`, `_200` (the caption buttons are the strip's last three stops),
+`test_network_isolation_structure_contract`, `architecture_boundaries`,
+`core_dependency_boundary`, `application_review_round_trip_composition_contract`,
+`application_diff_workbench_public_path`, `qt_home_list_scale_100`,
+`qt_review_queue`. Five fail, none on anything this card changed:
+
+- `qt_workbench_window_scale_100`, `_125`, `_200` stop at "the epoch row is the
+  first row of the client area and as wide as it" ([[BPR-0940]]), after their
+  strip courses have passed.
+- `qt_composed_github_scale_100` stops at [[BPR-0940]]'s "with GitHub CLI
+  chosen the card speaks for it…".
+- `test_network_isolation_manifest` names eleven uncontained rows that are not
+  in the pinned Windows set: `package_runtime_contract`,
+  `release_source_assets_contract`, `release_package_audit_contract`,
+  `release_security_audit_contract`, `sqlite_release_maintenance_files`,
+  `modified_endpoint_fixture_contract`, `application_logging`,
+  `application_selected_file_safety_public_path`,
+  `application_attended_recent_replay`,
+  `application_release_maintenance_public_path` and
+  `application_release_update_public_path`. None is this card's; the same kind
+  of drift [[BPR-0812]] cleared. A card for it is requested from the
+  coordinator.
+
+At the rebased candidate `53d229d7`, the title-row course, the three title-row
+and three focus-order rows, the structure contract and `architecture_boundaries`
+pass again. The manifest names the same eleven rows.
+`application_review_round_trip_composition_contract` is now red on main
+because `f863ce1b` ([[BPR-0975]]) changed `github_application.cpp` without a
+reseal. That is not this card's either, and it is reported to the coordinator.
+
+clang-format 22.1.8 is clean on the course and on the changed regions of the
+other two sources; `tidy.py --warnings-as-errors` is clean on
+`windows_title_row_host_tests.cpp` (after two helper renames and one handle
+helper) and on `workbench_window.cpp`; `git diff --check` is clean.
+
+### Found at main, not this card's: a row between the strip and the epoch line
+
+RFC-BPR-0037's `cc038748` ([[BPR-0929]]) inserted a composition entry row,
+Compose review and Draft comment or reply, into the review surface **above**
+the epoch line (`review->insertLayout(1, …)` in `build_central_surface`). The
+course measures it at both sizes: `composeReviewActionButton@30+20` and
+`composeInlineDraftActionButton@30+20`, 20 logical pixels between the strip's
+bottom (30) and the epoch line (50). It is on every platform; it is the
+failure [[BPR-0940]] records.
+
+It conflicts with two owner-accepted statements: RFC-BPR-0028 AC-01, "the
+chrome above the comparison is the strip and the epoch line only", and the
+owner's [[BPR-0737]] direction that the epoch line is the row directly under
+the strip. The RFC-BPR-0037 layout study itself put the Compose review entry
+"in toolbar" (`conversation-surface-layout-study.md`, its Read row), not in a
+row of its own. The strip cannot simply take two more controls: on Windows it
+fits at its 902 floor with nothing to spare, which is how the owner chose
+that floor. So this is the owner's call, between:
+
+1. amend RFC-BPR-0028 AC-01 and the chrome paragraph to admit the composition
+   entry row, and have [[BPR-0940]] assert its place; or
+2. keep AC-01 and move the two entries out of that row, for example into the
+   strip's existing review controls menu, which costs the strip no width.
+
+Criterion 1's portable half cannot pass as written until that is decided.
+
+### Where each criterion stands
+
+- **Criterion 1**: the Windows form passes at both sizes (no title bar, the
+  strip first with the caption buttons in it, the client directly beneath it,
+  the epoch line across the window). The portable "strip and epoch line only"
+  fails on main because of the composition entry row above. Pending the
+  owner's AC-01 decision.
+- **Criterion 2**: double-click maximises and restores the same rectangle,
+  passes on the real platform. Snap layouts on hover and dragging by empty
+  strip space are the platform's own responses to the codes the course proves
+  (`HTMAXBUTTON`, `HTCAPTION`, restored and maximised, at both sizes). Seeing
+  them happen needs a real pointer on the owner's desktop, so they ride the
+  attended capture. Pending.
+- **Criterion 3**: the title-row course and the title-row and focus-order rows
+  pass at every scale, and no uncontained registration is added. The full
+  `qt_workbench_window_scale_*` rows and the manifest gate are red on main for
+  the reasons above, none of them this card's. Pending.
+- **Criterion 4**: the attended capture has not been taken. Pending.
+
+### What the owner must do
+
+1. **The attended capture (criterion 4)** on JaegAW, signed in, at 100% and at
+   150% display scale, from a tests-disabled `app-release` bundle built at the
+   candidate when the session is prepared: steps 1 to 6 of "Attended capture
+   (criterion 4)" above. Step 7 is now covered by the course and may be
+   skipped. What to look at: no system title bar; the strip is the top row
+   with the menu control at its left and minimise, maximise and close at its
+   right, drawn in the strip's ink; hovering maximise for about a second shows
+   the Windows 11 snap layout flyout under it; dragging empty strip space moves
+   the window and releasing it against the left screen edge snaps it;
+   double-click maximises and restores; maximised at 1920x1080 the strip's top
+   row is not cut off.
+2. **Private Qt API in a shipped target**, the integrator's open ask above:
+   accept `QNativeInterface::Private::QWindowsWindow::setCustomMargins`
+   (recommended; rechecked on Qt 6.11.2 here), or refuse it.
+3. **The composition entry row**, above: amend AC-01, or move the entries.
+
+The card parks on human-review with the candidate `53d229d7`.
