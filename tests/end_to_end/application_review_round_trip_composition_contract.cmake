@@ -42,6 +42,8 @@ endfunction()
 # them, and both the checks and step 3 use those same functions.
 # BPR-0242 reseal: d6dfca2b..2a64e901 is reviewed in
 # docs/rfcs/plans/rfc-bpr-0008-owner-closeout/composition-reseal-review.md.
+# BPR-0933 reseal: 4b1988dc..its finish commit changes only the read opt-in's
+# presentation; the review is on docs/issues/60-done/BPR-0933-*.md.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -60,7 +62,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b6139008a8dd0873eded8bf5c362e7f2c72220cbafb6636c3779a937d71a5855"
+		"827fad211026353d116a6c7912d85c93724de0216f6b7fb7d948ae6ec2cc111a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -195,7 +197,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "33f9ce4b69561afc4a2eec398b6d9ab207723936255ce2f409a6910fe1522404"
+        "0ed1f246fae49e1b05b3d79eb420978484afca5ce0374fc04fbaab1a3b6c0a67"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

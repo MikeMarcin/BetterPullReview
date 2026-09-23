@@ -248,9 +248,12 @@ CLI_READ_OFFERED_HERE_DEFINITION = re.compile(
     r"return\s+cli_read_offered\(\s*InsideAutomatedTestBoundary\s*\)\s*;\s*"
     r"#\s*else\s*return\s+cli_read_offered\(\s*false\s*\)\s*;\s*#\s*endif\s*\}"
 )
-CLI_CONSENT_TITLES = (
-    "Confirm GitHub CLI publication",
-    "Use configured GitHub CLI",
+# Each consent's title and the call that asks it. [[BPR-0933]] moved the read
+# opt-in's layout into the Qt adapter, so it is asked through that adapter's
+# question rather than a static warning box; the gate around it is unchanged.
+CLI_CONSENT_QUESTIONS = (
+    ("Confirm GitHub CLI publication", r"QMessageBox::warning"),
+    ("Use configured GitHub CLI", r"qt::ask_github_cli_read_consent"),
 )
 
 
@@ -268,11 +271,11 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
             "cli_read_offered_here must pass the run's boundary answer in the "
             "tests-enabled graph and false in the shipped graph"
         )
-    for title in CLI_CONSENT_TITLES:
+    for title, question in CLI_CONSENT_QUESTIONS:
         gate = re.compile(
             r"#\s*if\s+defined\(__APPLE__\)\s*"
             r"if\s*\(\s*Profile->cli_read_offered_here\(\s*\)\s*\)\s*\{\s*"
-            r"const\s+auto\s+consent\s*=\s*QMessageBox::warning\(\s*"
+            r"const\s+auto\s+consent\s*=\s*" + question + r"\(\s*"
             r"Window\.get\(\)\s*,\s*QStringLiteral\(\s*\"" + re.escape(title) + r"\"\s*\)"
         )
         if code.count(f'"{title}"') != 1 or len(gate.findall(code)) != 1:
@@ -729,6 +732,12 @@ class CompositionContractTests(unittest.TestCase):
             ),
             "read-warning-removed": composition_source.replace(
                 '"Use configured GitHub CLI"', '"Use GitHub CLI"', 1
+            ),
+            # [[BPR-0933]]. The shorter question must still be the answer.
+            "read-question-answered-for-the-reviewer": composition_source.replace(
+                "const auto consent = qt::ask_github_cli_read_consent(",
+                "const auto consent = true || qt::ask_github_cli_read_consent(",
+                1,
             ),
         }
         for name, hostile_source in hostile_consent_sources.items():

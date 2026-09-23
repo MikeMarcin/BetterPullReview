@@ -102,6 +102,7 @@
 #include "bpr/qt/event_loop_device_timer.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
@@ -10043,20 +10044,12 @@ namespace bpr::app {
 						// can serve a CLI read, so it never reaches here.
 #if defined(__APPLE__)
 							if (Profile->cli_read_offered_here()) {
-								const auto consent = QMessageBox::warning(
+								// [[BPR-0933]]. A short decision; the full
+								// residual-risk list is behind Show Details.
+								const auto consent = qt::ask_github_cli_read_consent(
 									Window.get(), QStringLiteral("Use configured GitHub CLI"),
-									QStringLiteral(
-										"BetterPullReview will use your installed gh for reads on %1. "
-										"The active gh account can change outside this app. "
-										"gh may follow redirects and use your CLI configuration, "
-										"certificates and executable. For Git objects, gh may launch Git and its own shell credential helper. "
-										"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
-										"File writes are restricted, but executable identity and external account-change races remain. "
-										"Git-object reads require the qualified gh/Git versions and fit a 32 MiB pack limit. Each publication requires a separate write confirmation. "
-										"Connecting for reads does not authorize publishing.")
-										.arg(QString::fromStdString(std::string{ profile->hostname() })),
-									QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-								if (consent != QMessageBox::Yes) {
+									QString::fromStdString(std::string{ profile->hostname() }));
+								if (!consent) {
 									return;
 								}
 							}

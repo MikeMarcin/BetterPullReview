@@ -9,6 +9,7 @@
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -25,6 +26,7 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCursor>
+#include <QDeadlineTimer>
 #include <QDialog>
 #include <QEvent>
 #include <QFileInfo>
@@ -38,11 +40,13 @@
 #include <QListView>
 #include <QListWidget>
 #include <QLocale>
+#include <QMessageBox>
 #include <QPalette>
 #include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
@@ -50,6 +54,7 @@
 #include <QStatusBar>
 #include <QStringList>
 #include <QStyleOptionViewItem>
+#include <QTextEdit>
 #include <QToolButton>
 #include <QTreeView>
 #include <QWidget>
@@ -179,7 +184,7 @@ namespace {
 			   "only the server with a GitHub CLI profile has the GitHub CLI offer, and it is not offered while GitHub CLI is already the card's way in");
 		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
 			   "the CLI card shows a wrapped literal warning before Connect");
-		for (const auto* phrase : { "this server", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.100.0", "32 MiB", "does not authorize publishing" }) {
+		for (const auto* phrase : { "this server", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.100.0 or 2.101.0", "32 MiB", "does not authorize publishing" }) {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
 		}
 		const auto host = QString::fromStdString(cliCard->hostname());
@@ -205,6 +210,95 @@ namespace {
 		expect(!warning->isHidden() && nativeCard->cli_trust_warning() == nullptr
 				   && cliCard->connect_button()->isVisibleTo(cliCard),
 			   "a projected native identity leaves the warning beside the CLI card's Connect, before it replaces that session");
+	}
+
+	// [[BPR-0933]]. The owner found the read opt-in "too long and visually
+	// unwieldy": one bold paragraph of every residual risk. The decision is now
+	// a headline and its consequences, and the risk list sits behind the box's
+	// own Show Details disclosure. None of the trust it asks for is dropped,
+	// Connect is the only way to accept, and Return and Escape both decline.
+	void test_cli_read_consent_is_a_short_decision()
+	{
+		QWidget parent;
+		parent.resize(1100, 760);
+		const auto host     = QStringLiteral("ghe.example.invalid");
+		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host);
+		const auto decision = question->text() + QLatin1Char(' ') + question->informativeText();
+		const auto words    = decision.split(QRegularExpression{ QStringLiteral("\\s+") }, Qt::SkipEmptyParts).size();
+		expect(question->icon() == QMessageBox::Warning && question->textFormat() == Qt::PlainText
+				   && question->text().contains(host) && question->text().contains(QStringLiteral("installed gh"))
+				   && question->text().endsWith(QLatin1Char('?')),
+			   "the read opt-in's headline is a plain-text question naming the exact host and the installed gh");
+		for (const auto* phrase : { "account gh is signed in to", "can change outside this app", "executable", "configuration", "certificates", "does not authorize publishing", "asks separately" }) {
+			expect(decision.contains(QString::fromLatin1(phrase)),
+				   std::string{ "the short decision still states the trust it asks for and the read boundary: " } + phrase);
+		}
+		expect(words <= 70, "the decision before the disclosure reads in one breath, at most 70 words, not the former paragraph of every risk");
+		const auto details = question->detailedText();
+		for (const auto* phrase : { "no per-request account selector", "no exact account guarantee", "redirects", "socket routing", "CA certificates", "child-process", "environment overrides", "needs migration", "temporary object store", "shell credential helper", "gh 2.100.0 or 2.101.0", "Apple Git 2.50.1", "32 MiB", "supervised temporary-store limit", "never reads, stores or passes your gh token", "own confirmation" }) {
+			expect(details.contains(QString::fromLatin1(phrase)),
+				   std::string{ "every residual risk the long warning named is behind the disclosure: " } + phrase);
+		}
+
+		auto* const connect = question->button(QMessageBox::Yes);
+		auto* const cancel  = question->button(QMessageBox::Cancel);
+		expect(connect != nullptr && cancel != nullptr && connect->text() == QStringLiteral("Connect")
+				   && question->defaultButton() == cancel && question->escapeButton() == cancel,
+			   "Connect is the only accepting button, and Cancel is both the default and the escape button");
+		const auto pushButtons = question->findChildren<QPushButton*>();
+		const auto disclosure  = std::ranges::find_if(pushButtons, [connect, cancel](const QPushButton* aButton) {
+			return aButton != connect && aButton != cancel && aButton->text().contains(QStringLiteral("Details"));
+		});
+		expect(disclosure != pushButtons.end() && ((*disclosure)->focusPolicy() & Qt::TabFocus) != 0
+				   && pushButtons.size() == 3,
+			   "the risk list has one keyboard-reachable Show Details disclosure beside Connect and Cancel");
+		auto* const accessibleDisclosure = QAccessible::queryAccessibleInterface(*disclosure);
+		expect(accessibleDisclosure != nullptr && accessibleDisclosure->role() == QAccessible::Button
+				   && accessibleDisclosure->text(QAccessible::Name).contains(QStringLiteral("Details")),
+			   "the disclosure is announced as a button that names what it shows");
+
+		parent.show();
+		question->show();
+		QApplication::processEvents();
+		const auto detailText = [&question] {
+			const auto edits = question->findChildren<QTextEdit*>();
+			return edits.size() == 1 ? edits.front() : nullptr;
+		};
+		expect(detailText() == nullptr || !detailText()->isVisible(), "the residual-risk list is closed until it is asked for");
+		const auto closedHeight = question->height();
+		const auto closed       = question->grab();
+		(*disclosure)->click();
+		QApplication::processEvents();
+		expect(detailText() != nullptr && detailText()->isVisible() && detailText()->isReadOnly()
+				   && detailText()->toPlainText() == details && question->height() > closedHeight,
+			   "Show Details opens the complete read-only risk list inside the same question");
+		expect(!closed.isNull() && closed.width() > 0 && closed.height() > 0, "the closed question renders");
+		if (const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !renderPath.isEmpty()) {
+			const QFileInfo configured{ renderPath };
+			const auto      prefix = QStringLiteral("%1/%2-cli-read-consent").arg(configured.path(), configured.completeBaseName());
+			expect(closed.save(prefix + QStringLiteral("-closed.png"), "PNG") && question->grab().save(prefix + QStringLiteral("-details.png"), "PNG"),
+				   "the closed and disclosed CLI read question renders are saved in the ignored build tree");
+		}
+
+		// On macOS the box animates its escape button's click, which lands
+		// on a later timer rather than inside this event.
+		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(question.get(), &escape);
+		QDeadlineTimer settled{ 2000 };
+		while (question->clickedButton() == nullptr && !settled.hasExpired()) {
+			QApplication::processEvents(QEventLoop::AllEvents, 20);
+		}
+		expect(question->clickedButton() == cancel && question->isHidden(), "Escape declines the read");
+
+		const auto again = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host);
+		again->show();
+		QApplication::processEvents();
+		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(again.get(), &enter);
+		QApplication::processEvents();
+		expect(again->clickedButton() == again->button(QMessageBox::Cancel) && again->isHidden(),
+			   "Return presses the default, so it declines too; only Connect accepts");
+		parent.hide();
 	}
 
 	[[nodiscard]] auto conversation(
@@ -6856,6 +6950,7 @@ auto main(int argc, char** argv) -> int
 	}
 
 	test_cli_warning_lives_on_its_servers_card();
+	test_cli_read_consent_is_a_short_decision();
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_held_read_paints_loading();

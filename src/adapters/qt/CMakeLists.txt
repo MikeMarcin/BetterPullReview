@@ -7,6 +7,7 @@ add_library(
         src/agent_launch_panel.cpp
         src/appearance_profile.cpp
         src/appearance_settings_panel.cpp
+        src/github_cli_consent.cpp
         src/github_session_panel.cpp
         src/system_tray_notification_sink.cpp
         src/review_queue_model.cpp
