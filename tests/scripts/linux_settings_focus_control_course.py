@@ -29,12 +29,13 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
-import tempfile
 import time
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import linux_settings_inventory as observer  # noqa: E402
+from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 QT_SOURCE = HERE / "linux_settings_focus_control.cpp"
@@ -183,7 +184,7 @@ def window_manager():
 
 def run(qt_root, work_root, output, focus_surface):
     observer.require(not output.exists(), "Capture output already exists")
-    root = Path(tempfile.mkdtemp(prefix="focus-control-", dir=work_root))
+    root = make_contained_temporary_directory(prefix="focus-control-", parent=work_root)
     qt_image, xlib_image = root / "qt-focus-control", root / "xlib-focus-control"
     subprocess.run(["g++", "-std=c++20", "-fPIC", str(QT_SOURCE), f"-I{qt_root}/include", f"-I{qt_root}/include/QtCore",
                     f"-I{qt_root}/include/QtGui", f"-I{qt_root}/include/QtWidgets", f"-L{qt_root}/lib",

@@ -182,3 +182,10 @@ mutation branch unchanged at
   `setup_destination_public_path_tests.cpp`'s Apple-only
   `check_denied_read_retains_session`; the same two are reported on an
   export of `f863ce1b^`, so they predate this card.
+- The `core-only` preset configures and builds 676/676 under GCC 15.2. 151 of
+  its 154 tests pass. Two failures predate this card:
+  `conditional_branch_identifiers`, above, and `msvc_secure_crt_contract`,
+  which flags `std::getenv` in the 2026-09-20 `release_update_*` end-to-end
+  tests. The third, `contained_temporary_usage_contract`, was this card's: the
+  two new course scripts used `tempfile.mkdtemp`. They now use
+  `scripts/contained_temporary_support`, and the contract passes.

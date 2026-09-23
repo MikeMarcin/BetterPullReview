@@ -25,7 +25,10 @@ import platform
 import shlex
 import subprocess
 import sys
-import tempfile
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 OBSERVER = HERE / "linux_settings_inventory.py"
@@ -68,7 +71,7 @@ def course(build_dir, revision, work_root, output, inventory_only, focus_surface
     require(not output.exists(), "capture output already exists")
     executable = build_dir / "src" / "app" / "better_pull_review"
     build = build_binding(build_dir, revision)
-    root = Path(tempfile.mkdtemp(prefix="course-", dir=work_root))
+    root = make_contained_temporary_directory(prefix="course-", parent=work_root)
     environment = os.environ.copy()
     roots = {}
     for field in ("DATA", "CONFIG", "CACHE", "STATE"):

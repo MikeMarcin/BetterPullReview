@@ -173,3 +173,10 @@ lease and the guard with the live roots and files above. The observers are
 [`linux_xlib_focus_control.cpp`](../../tests/scripts/linux_xlib_focus_control.cpp)
 and [`wslg_rail_activate.ps1`](../../tests/scripts/wslg_rail_activate.ps1).
 Ignored logs and guard receipts are in `build/bpr0975/`.
+
+The committed captures were produced with the tools at `b651554f`, the
+candidate's own revision. The next commit changes only how the two course
+scripts create their owned roots: they use `scripts/contained_temporary_support`,
+as `contained_temporary_usage_contract` requires, which on Linux is the same
+mode-0700 `mkdtemp`. A guarded rerun with the changed scripts gave the same
+control results and the same full-course failure.
