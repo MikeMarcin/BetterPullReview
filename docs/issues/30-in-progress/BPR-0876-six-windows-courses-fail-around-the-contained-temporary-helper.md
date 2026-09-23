@@ -160,3 +160,12 @@ Two of six courses pass. Four remain, each with a named cause:
 
 The POSIX owner-only contract is untouched: no POSIX path changed. The card
 stays In Progress until each remaining row passes or has its own record.
+
+## The teardown race has its own card (bpr-main-win, 2026-09-23)
+
+The teardown race behind `relaunch` and `layout`, recorded above, is now
+[[BPR-1039]]. When the helper removes the root, it hits WinError 32 on
+`device-bindings.sqlite3` and on `profile-registry.sqlite3`. This card still
+needs those two rows to pass contained, and that waits on [[BPR-1039]] and on
+their contained seeds. `review_restoration`'s seed and `owner_admission`
+([[BPR-0907]]) are unchanged.
