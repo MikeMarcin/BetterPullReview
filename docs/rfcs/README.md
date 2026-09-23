@@ -291,7 +291,7 @@ and its closeout rows are complete. It stays `Proposed` only because closure
 is strictly ordered and RFC-BPR-0028 is not `Auto-Verified`. RFC-BPR-0033 also
 stays `Proposed`. Its recorded gate, RFC-BPR-0024, is now `Auto-Verified`, but
 two things remain. Its closeout rows have not been rechecked at the current
-head. And [BPR-0817](../issues/30-in-progress/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md),
+head. And [BPR-0817](../issues/60-done/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md),
 which is associated with it, is Done. On 2026-09-23 the owner delegated its
 two questions to its implementer, and the decisions are recorded as an
 owner-delegated amendment on the card and in RFC-BPR-0033. A refused agent
