@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0987",
+    "BPR-0988",
+    "BPR-0989",
+    "BPR-0990"
+  ],
+  "reserve_for": "rfc0026-planning-reconciliation",
+  "purpose": "RFC-BPR-0026 slices: exact link locations, personal discovery read, discovery scheduler and membership, Home discovery controls",
+  "created": "2026-09-23T05:39:53.397163+00:00",
+  "base": "1b8d7dec434bf70070446b3f52883a7646da4562"
+}
