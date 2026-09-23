@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704", "BPR-0705", "BPR-0706", "BPR-0707", "BPR-0708", "BPR-0709", "BPR-0710", "BPR-0711", "BPR-0712", "BPR-0713", "BPR-0714", "BPR-0715", "BPR-0976", "BPR-0977", "BPR-0978", "BPR-0979"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0024"]
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"mandate_revision":"r3","deferred_followups":["BPR-0980"]}
 ---
 
 # Verify and close RFC-BPR-0024
@@ -38,10 +38,12 @@ Planning reconciliation on 2026-09-21 adds required slices BPR-0976,
 BPR-0977, BPR-0978 and BPR-0979 to the planned cards and dependencies.
 The [authorized reconciliation](../../rfcs/plans/ux-redesign-pack-0028/rfc-0024-planning-reconciliation.md)
 expands the stale closeout-only milestone to the full retained RFC behavior.
-RFC-0018 and BPR-0242 are Done. BPR-0715's native decision remains under
-candidate-specific evidence review. Baseline `444d215c` passes the signed-out
+RFC-0018 and BPR-0242 are Done. Baseline `444d215c` passes the signed-out
 public course and all 18 focused profile/window selectors (132.246 seconds);
-the four missing behaviors are not accepted by those baseline passes.
+the four missing behaviors are not accepted by those baseline passes. The
+[owner amendment r3](../../rfcs/plans/ux-redesign-pack-0028/owner-closeout-r3.md)
+of 2026-09-22 transfers only AC-06's native Windows desktop observation,
+unaccepted, to standalone [[BPR-0980]]; every other row keeps its scope.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|
@@ -50,17 +52,18 @@ the four missing behaviors are not accepted by those baseline passes.
 | AC-03: Windows in one profile share accepted review data and preferences while retaining independent open PRs, navigation, layout, and restoration records. | Two-window shared data and independent navigation/restore course | Multi-window course passes 77.82 s at `6f8e44e4`: shared appearance, receipt/note/defect and server-conversation fanout with independent selection, scroll, comparison and geometry (BPR-0713/0714/0976/0977). | `8d072d14` (BPR-0976), `9210330a` (BPR-0977) |
 | AC-04: Shared draft/note edit conflicts retain the rejected candidate text and never silently overwrite accepted work; publishing still uses the existing exact-authority mutation path. | Concurrent expected-revision draft/note edits and existing publication-boundary checks | BPR-0703/0704 evidence retained (schema-6 note CAS, protected editor candidates, publication boundary course 13.12 s); not re-run in this segment, no relevant source change since. | BPR-0703/0704 commits |
 | AC-05: Default migration preserves existing appearance, sign-in bindings, private data, and retained history through interruption and restart without duplicate adoption or cross-profile fallback. | Seeded legacy Default migration with interrupted/repeated adoption and fake vault | BPR-0691/0693/0706 evidence retained (bounded preflight, interrupted/CAS adoption, schema-2 bindings, six transactional interruption points); `application_profile_startup_public_path` 2.35 s reruns Default adoption at `6f8e44e4`. | BPR-0691/0693/0706 commits |
-| AC-06: Repeated launches admit one runtime owner per profile; explicit new windows and concurrent different profiles work, and closing one window leaves other consumers usable. | Repeated launches, explicit New Window, owner contention and consumer-aware close | POSIX: `application_profile_activation_public_path` 5.61 s and `application_profile_owner_admission_public_path` 2.66 s pass at `d5a2426c`; two-account course proves independent owners and close-leaves-sibling. Windows station `bpr-win` at `1cd7f2f1`: `sqlite_profile_activation` 5.83 s and `application_profile_activation_public_path` 12.98 s pass (`build/bpr0979-windows/ctest-final.log`), real processes over the named pipe under the offscreen platform. **The native Windows desktop observation of repeated launch/`--new-window` remains BPR-0979's human-pending record, attended candidate `BPR-0979-windows-activation-v001`.** | `a654669c` (BPR-0712), `d5a2426c` and `1cd7f2f1` (BPR-0979) |
+| AC-06: Repeated launches admit one runtime owner per profile; explicit new windows and concurrent different profiles work, and closing one window leaves other consumers usable. | Repeated launches, explicit New Window, owner contention and consumer-aware close | POSIX: `application_profile_activation_public_path` 5.61 s and `application_profile_owner_admission_public_path` 2.66 s pass at `d5a2426c`; two-account course proves independent owners and close-leaves-sibling. Windows station `bpr-win` at `1cd7f2f1`: `sqlite_profile_activation` 5.83 s and `application_profile_activation_public_path` 12.98 s pass (`build/bpr0979-windows/ctest-final.log`), real processes over the named pipe under the offscreen platform. macOS rerun at closeout head `4e58ab78`: activation contract 4.23 s, activation course 4.64 s (`build/rfc0024-r3-macos-regression.log`). **Owner amendment r3: the native Windows desktop observation of repeated launch/`--new-window` is transferred, unaccepted, to standalone [[BPR-0980]] with the unjudged candidate `BPR-0979-windows-activation-v001`; it is not passed here.** BPR-0979 Done at `e6728e3f`. | `a654669c` (BPR-0712), `d5a2426c`, `1cd7f2f1` and `e6728e3f` (BPR-0979) |
 | AC-07: Window restoration preserves independent sessions, distinguishes explicit window close from application quit, and exposes the retained Resume destination without fabricating unavailable content. | Quit/close/reopen multi-window sessions, retained Resume and unavailable-content cases | BPR-0707/0709/0710 evidence retained; `application_profile_window_layout_public_path` (BPR-0977) adds native geometry across Close/Quit/restart offscreen. Native macOS focus/geometry/lifecycle: owner accept on `BPR-0977-native-geometry-v001` (bundle `6c830b41…`, decision `ec0c5993`), BPR-0977 Done at `3cf05584`. | `9210330a`, `3cf05584` (BPR-0977) |
 | AC-08: Settings and sign-out are scoped to the invoking profile, with one Settings window per profile and no effects or late completions reaching another profile. | Same-profile Settings singleton and sign-out with stale cross-profile completion attempts | Multi-window course: one Settings shell per profile; two-account course: Work sign-out with a held read terminal retires only Work, Default's vault/read lane/review/preferences unchanged, Default refreshes afterwards. | `6f8e44e4` (BPR-0978) |
 | AC-09: Typed core/host/Qt boundaries, bounded persistence, stale-result rejection, and failure isolation hold through the composed multi-window application path. | Core replay, manual-executor host and composed multi-window failure/identity tests | `check_boundaries` passes at `d5a2426c`; host/core tests from BPR-0976/0977; composed courses above. Pre-existing `test_network_isolation_manifest` red is [[BPR-0962]]'s, not this RFC's. | `d5a2426c` |
 
-The RFC does not close yet: [[BPR-0715]] (owner accept on
+The RFC closes for the r3 accepted scope: [[BPR-0715]] (owner accept on
 `BPR-0715-signed-out-open-v004`, decision `b1eb8efb`, Done at `6622d1d6`)
 and [[BPR-0977]] (Done at `3cf05584`) are finished on their exact candidates;
-[[BPR-0979]] remains human-pending for the one native Windows desktop
-observation named in its first record, with its Windows contract and public
-course now passing on the station. No row is weakened or waived.
+[[BPR-0979]] is Done at `e6728e3f` on its Windows contract, public course
+and macOS regressions, with the one native Windows desktop observation
+preserved unjudged on [[BPR-0980]]. No row other than AC-06's deferred
+native Windows half changes, and that half is not called passed.
 
 ## Completion rules
 
@@ -620,3 +623,37 @@ station were stopped; the task clone and logs remain in place, inert, for
 the pending observation. No task-owned command remains except the
 handed-off attended review server; no push, live provider mutation or
 credential was used.
+
+## Current continuation — 2026-09-22, owner amendment r3 round
+
+After about eight hours with no verdict on `BPR-0979-windows-activation-v001`
+(session `8d2c2e32…`, event 13), the owner directed, verbatim: "Wtf I dont
+care about the windows stuff, defer that. Get to work". Recorded as
+[owner amendment r3](../../rfcs/plans/ux-redesign-pack-0028/owner-closeout-r3.md),
+an acceptance change and not a verdict. The main integrator allocated
+BPR-0980 (`dabcdaec`, incorporated as `4e58ab78`); [[BPR-0980]] is the
+standalone (`rfcs: []`) Blocked follow-up holding the exact candidate id,
+fingerprint `bc3d75f6…`, revision `windows-dev-674c68dc-1cd7f2f1-2026-09-22`,
+the station build `C:/Users/mikem/bpr0979-044e8779/…/Debug/better_pull_review.exe`
+(`674c68dc…`) and the passing `ctest-final.log` rows. It is not a dependency
+of this card, matching BPR-0974/0975 under RFC-0018's r2.
+
+[[BPR-0979]] finished Done at `e6728e3f` on its accepted rows. At closeout
+head `4e58ab78` the macOS `sqlite_profile_activation` (4.23 s),
+`application_profile_activation_public_path` (4.64 s) and
+`application_profile_window_layout_public_path` (23.69 s) pass 3/3
+(`build/rfc0024-r3-macos-regression.log`); no product source changed after
+`1cd7f2f1`. The candidate's protection was released (event 14) and the
+attended server (pid 49234, port 55108) stopped; the session's durable
+records are intact and its two owner accepts remain bound to bundle
+`6c830b41…`.
+
+RFC-BPR-0024 is set to Auto-Verified for the r3 scope with the amendment
+recorded in the RFC, index row 158 reconciled, the authority inventory's
+stale "not yet run" Windows note corrected and the plan's `close-rfc-0024`
+text carrying the transfer. The gates, board validation, checkpoint
+bind/check, exact commits and command quiescence are recorded in the
+Done acceptance records and the sealed checkpoint. Next eligible milestone
+after this card is Done: `plan-rfc-0025` (BPR-0596), which the coordinator
+starts. No push, merge to `main`, live provider mutation or credential was
+used.

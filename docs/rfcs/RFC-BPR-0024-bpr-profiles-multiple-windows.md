@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0024"
 title: "BPR Profiles and Multiple Windows"
-status: "Deferred"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0007","RFC-BPR-0008","RFC-BPR-0018"]
@@ -13,7 +13,9 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 ## Status and scope
 
-**Design accepted; implementation activated; acceptance remains pending.**
+**Design accepted; implementation complete; closed for the owner-amended r3
+scope on 2026-09-22.** The [owner amendment r3](#owner-amendment-r3--2026-09-22)
+below records the one deferred native observation.
 The product owner approved this daily-workbench design and its Chrome-like
 profile amendment on 2026-09-04. Registration grants no implementation,
 credential, remote-mutation, platform-evidence, or closeout exception. This RFC
@@ -22,15 +24,51 @@ The requested workstream is RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025,
 RFC-BPR-0026, in that order. The canonical index remains the order authority.
 
 Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
-Entry: [[BPR-0594]] is Done. Closeout: [[BPR-0595]] remains in backlog while
-required implementation and native/human evidence are incomplete.
+Entry: [[BPR-0594]] is Done. Closeout: [[BPR-0595]] is Done under owner
+amendment r3 with every criterion row carrying its direct check, result and
+producing commit.
 The owner's ordered-pack implementation mandate and planning amendment are
 recorded in the [2026-09-21 reconciliation](plans/ux-redesign-pack-0028/rfc-0024-planning-reconciliation.md).
 The prior registration-only restriction is superseded by that mandate, not by
 an inferred waiver. The immutable baseline, all nine criteria, remote-mutation
 limits and native/human acceptance requirements are unchanged. Required
-remaining slices are [[BPR-0976]], [[BPR-0977]], [[BPR-0978]] and [[BPR-0979]];
-[[BPR-0715]] retains its exact native signed-out acceptance obligation.
+slices [[BPR-0976]], [[BPR-0977]], [[BPR-0978]] and [[BPR-0979]] are Done;
+[[BPR-0715]] is Done on its exact native signed-out acceptance.
+
+## Owner amendment r3 — 2026-09-22
+
+After about eight hours with no verdict on the served Windows candidate, the
+owner explicitly directed that observation deferred and this RFC closed
+against the amended accepted scope. The
+[bounded mandate](plans/ux-redesign-pack-0028/owner-closeout-r3.md) and
+[[BPR-0595]] record the distinction between this acceptance change and
+actual observations. It is not a native Windows verdict, a Windows release
+approval or a waiver of any other criterion.
+
+[[BPR-0980]] remains Blocked for the native Windows desktop observation of
+AC-06's repeated ordinary launch activating the owner's MRU window and
+explicit `--new-window` opening another window without a second owner. It
+preserves the exact unjudged attended candidate
+`BPR-0979-windows-activation-v001`, the station build at `1cd7f2f1` and the
+passing automated Windows rows; it is standalone (`rfcs: []`) and not a
+dependency of this closeout. RFC-0018's [[BPR-0974]]/[[BPR-0975]] are
+unchanged.
+
+Only AC-06's native Windows desktop terminal scope changes. All other
+acceptance keeps its scope and evidence: the owner accepts on
+`BPR-0715-signed-out-open-v004` (decision `b1eb8efb`) and
+`BPR-0977-native-geometry-v001` (decision `ec0c5993`) bind to bundle
+`6c830b41…` from `d5a2426c`; the two-account, multi-window, startup,
+activation and window-layout courses, the Windows station rows at
+`1cd7f2f1` and the retained BPR-0691–0714 evidence keep their producing
+commits on BPR-0595.
+
+**Status: Auto-Verified for the r3 accepted scope.** The closeout ledger on
+BPR-0595 records all nine criterion/check/result/commit rows. At the closeout
+head the macOS activation, owner-admission and window-layout courses pass
+3/3, the documentation gate, board validation and `git diff --check` pass.
+This status does not close BPR-0980 or imply native Windows desktop
+acceptance or RFC-0038 release qualification.
 
 ## Problem and outcome
 

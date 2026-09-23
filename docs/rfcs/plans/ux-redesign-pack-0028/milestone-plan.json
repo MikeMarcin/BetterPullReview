@@ -72,7 +72,7 @@
     },
     {
       "id": "close-rfc-0024",
-      "outcome": "RFC-BPR-0024's remaining profile/window behavior is implemented, directly verified, and closed against its immutable baseline once RFC-BPR-0018 and canonical predecessor BPR-0242 are Done; human and target-native evidence remain required.",
+      "outcome": "RFC-BPR-0024's remaining profile/window behavior is implemented, directly verified, and closed against its immutable baseline and explicit owner amendment r3 once RFC-BPR-0018 and canonical predecessor BPR-0242 are Done; human and target-native evidence remain required except the one native Windows desktop observation transferred, unaccepted, to standalone BPR-0980.",
       "work": [
         {
           "issue": "BPR-0976"
@@ -94,10 +94,10 @@
         "close-rfc-0018"
       ],
       "exit_criteria": [
-        "Every RFC-BPR-0024 criterion row records a direct check, result and producing commit, and the excluded canonical prerequisite BPR-0242 is Done or its absence is reported as the blocker",
+        "Every owner-amended r3 RFC-BPR-0024 criterion row records a direct check, result and producing commit; accepted native/attended evidence retains its exact candidate, BPR-0980 preserves the transferred unaccepted native Windows desktop observation without calling it passed, and the excluded canonical prerequisite BPR-0242 is Done or its absence is reported as the blocker",
         "verify_documentation.py and git diff --check pass and RFC-BPR-0024 and the index are reconciled to the closed status"
       ],
-      "boundary": "The complete RFC-BPR-0024 milestone, including exact-authority server-conversation fanout (BPR-0976), per-window native geometry and focus/lifecycle (BPR-0977), concurrent same-server two-account profile isolation (BPR-0978), bounded Windows activate/New Window handoff (BPR-0979), and retained BPR-0715 signed-out native acceptance. The owner authorized updating the stale closeout-only plan during implementation planning on 2026-09-21. No criterion is weakened or waived; BPR-0242 is not this pack's work, RFC-BPR-0018 follow-ups BPR-0974/0975 remain independent, live station checkouts are protected, and no live GitHub/GHES mutation is authorized. Stop at this milestone boundary."
+      "boundary": "The complete RFC-BPR-0024 milestone, including exact-authority server-conversation fanout (BPR-0976), per-window native geometry and focus/lifecycle (BPR-0977), concurrent same-server two-account profile isolation (BPR-0978), bounded Windows activate/New Window handoff (BPR-0979), and retained BPR-0715 signed-out native acceptance. The owner authorized updating the stale closeout-only plan during implementation planning on 2026-09-21. Owner amendment r3 in owner-closeout-r3.md explicitly transfers only the native Windows desktop activation/--new-window observation to standalone BPR-0980; no failed or unjudged observation becomes a pass and no other criterion is weakened or waived. BPR-0242 is not this pack's work, RFC-BPR-0018 follow-ups BPR-0974/0975 remain independent, live station checkouts are protected, and no live GitHub/GHES mutation is authorized. Stop at this milestone boundary."
     },
     {
       "id": "plan-rfc-0025",
