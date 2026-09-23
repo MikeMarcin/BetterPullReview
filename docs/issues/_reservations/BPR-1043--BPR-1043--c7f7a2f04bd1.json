@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1043"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "bpr-main-mac: application_large_review_history is red on macOS: every epoch refresh holds the GUI thread about 167 ms against the course's 100 ms input budget",
+  "created": "2026-09-23T21:30:03.696792+00:00",
+  "base": "414cf5b2dbe9e5518afa7e73e292e869c1c70b9e"
+}
