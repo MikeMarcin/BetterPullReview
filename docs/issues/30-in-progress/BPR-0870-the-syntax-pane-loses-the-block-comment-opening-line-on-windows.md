@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0870"
 title: "Windows: the syntax pane course fails because the line that opened the block comment has scrolled off the top"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
