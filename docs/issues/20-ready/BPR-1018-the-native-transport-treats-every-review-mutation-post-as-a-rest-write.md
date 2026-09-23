@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1018"
 title: "The native transport treats every review-mutation POST as a REST write, so no GraphQL review operation can complete over it"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P1"
