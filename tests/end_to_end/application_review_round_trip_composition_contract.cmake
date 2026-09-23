@@ -70,6 +70,13 @@ endfunction()
 # discovery intents; a fixture-only accessor reports its evidence. No
 # credential, vault, transport or mutation path changes; the mutation-branch
 # pin is unchanged. Review recorded on BPR-0990.
+# BPR-0975 reseal: f863ce1b restructured cli_read_offered_here so GCC 15
+# would not reject cli_read_offered as unused in a non-Apple tests-enabled
+# graph; that broke this pin and the composition contract's CLI gate shape.
+# The correction restores cli_read_offered_here byte for byte and marks
+# cli_read_offered [[nodiscard, maybe_unused]] with a comment instead. Every
+# graph's answer is unchanged. No credential, provider, vault or mutation path
+# changes; the mutation-branch pin is unchanged. Review recorded on BPR-0975.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -88,7 +95,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8a20d05502285fd69c4c8084efc1d58c757718349b23f1c09d7a42e54c6072dc"
+		"dfd9605e84e9ccf83abc2db375ec75d407028962bec44a81e2bbddfa035f5723"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -223,7 +230,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f1bb7571353eb501112652a22eca2068d88e5aa25792f631aa9f8b39bca0d9ef"
+        "9fff94699a1dfe815afaeda9d6f25db19ffc4f404d13750956b6837381e08559"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

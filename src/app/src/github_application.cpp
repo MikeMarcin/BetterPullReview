@@ -2267,8 +2267,9 @@ namespace bpr::app {
 		// Nothing this decides starts `gh`. `opted_in_cli_transport_factory`
 		// holds a native factory and answers `supports_cli()`; the process is
 		// reached only through `make_cli`, which the host calls after the
-		// account row's explicit opt-in.
-		[[nodiscard]] auto cli_read_offered(
+		// account row's explicit opt-in. A non-Apple tests-enabled graph never
+		// asks it (cli_read_offered_here answers false there), hence maybe_unused.
+		[[nodiscard, maybe_unused]] auto cli_read_offered(
 			[[maybe_unused]] const bool aInsideAutomatedTestBoundary) noexcept
 			-> bool
 		{
@@ -5666,11 +5667,13 @@ namespace bpr::app {
 		// gates used to put to the preprocessor.
 		[[nodiscard]] auto cli_read_offered_here() const noexcept -> bool
 		{
-#if defined(BPR_BUILD_TESTING) && defined(__APPLE__)
+#if defined(BPR_BUILD_TESTING)
+	#if defined(__APPLE__)
 			return GithubCliDiscoveryAccounts.has_value()
 				|| cli_read_offered(InsideAutomatedTestBoundary);
-#elif defined(BPR_BUILD_TESTING)
-			return cli_read_offered(InsideAutomatedTestBoundary);
+	#else
+			return false;
+	#endif
 #else
 			return cli_read_offered(false);
 #endif

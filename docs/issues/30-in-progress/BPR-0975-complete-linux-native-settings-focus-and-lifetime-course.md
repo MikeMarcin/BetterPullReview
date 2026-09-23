@@ -118,3 +118,43 @@ Mac's documented CLI button. The candidate retains one GCC
 `-Wno-error=ignored-attributes` demotion, so no clean compiler-policy pass is
 claimed. Full DEB/RPM qualification remains RFC-0038/BPR-0961. No native course
 is newly run or accepted by this card's creation.
+
+## GCC 15 prerequisite and composition pin review, 2026-09-23
+
+The dev preset did not build at `4380f310` under GCC 15.2 `-Werror`, and the
+tests-disabled `app-release` graph did not either. Both now build with no
+demoted diagnostic: `f863ce1b` (stateless `closedir` deleter and three test
+warnings) and `233e1ebd` (three [[BPR-0822]]-shape aggregate members named;
+the aggregate survey over `build/dev` and the `app-release` database reports no
+gated `src/` site).
+
+`f863ce1b` also restructured `cli_read_offered_here` in
+`src/app/src/github_application.cpp` so GCC would not reject
+`cli_read_offered` as unused in a non-Apple tests-enabled graph. That was
+wrong twice over: it changed pinned code without resealing
+`application_review_round_trip_composition_contract` (red on main, reported by
+bpr-main-win), and it broke the CLI consent gate shape that
+`application_composition_contract` pins ([[BPR-0797]], [[BPR-0982]]).
+
+Pin review for the reseal: the only change to the pinned scope since the
+BPR-0990 reseal (`0d56cee5`, whose pins matched at `f863ce1b^`) is this
+card's. The correction restores `cli_read_offered_here` byte for byte and
+instead marks `cli_read_offered` `[[nodiscard, maybe_unused]]` with a comment
+saying why. Net change against `f863ce1b^`: one attribute and two comment
+lines. Every graph's answer is unchanged — true on shipped macOS,
+`!inside-boundary` in tests-enabled macOS (widened only by fixture-discovered
+accounts), false elsewhere. No credential, vault, provider, transport or
+mutation path changes. Full application
+`dfd9605e84e9ccf83abc2db375ec75d407028962bec44a81e2bbddfa035f5723`; production
+manifest `9fff94699a1dfe815afaeda9d6f25db19ffc4f404d13750956b6837381e08559`;
+mutation branch unchanged at
+`a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
+
+- `application_review_round_trip_composition_contract` fails before the
+  reseal (full digest drift) and passes after it.
+- `cli_consent_gate_findings` over the corrected file returns no finding;
+  with `f863ce1b`'s shape it reported the `cli_read_offered_here` finding.
+- `conditional_branch_identifiers` reports two findings in
+  `setup_destination_public_path_tests.cpp`'s Apple-only
+  `check_denied_read_retains_session`; the same two are reported on an
+  export of `f863ce1b^`, so they predate this card.
