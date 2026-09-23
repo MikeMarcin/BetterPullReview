@@ -58,6 +58,11 @@ endfunction()
 # places the location after acceptance; a Recently viewed row of the shown pull
 # request lands on Overview without a read. No credential, provider, vault or
 # mutation path changes. Review recorded on BPR-0987.
+# BPR-0987 correction: the pins above were taken before BPR-0987's last edit
+# (a null accepted-host guard in the setup open, a review location that is not
+# read explained as not read, and a file location placed only once the epoch
+# holds the shown pull request's authority), so they never matched 17e40dc8.
+# Resealed to the committed file; no other change. Review recorded on BPR-0987.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -76,7 +81,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"2585f4eafa5740799dc15d9d3b9ea6539480a6a778b120219c8df232046c4826"
+		"07c49397d8225016655447cf2d48f7a997272087147ca961859bb995664e0955"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -211,7 +216,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7f6458ae9209746c0ae2f026101dbefc928ea950c7bbd37bc65e21a87259f238"
+        "9ad3bbe313fc77b9fae7aa87f9a9b9cd05cc5d29b1af111504359b646d55f615"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

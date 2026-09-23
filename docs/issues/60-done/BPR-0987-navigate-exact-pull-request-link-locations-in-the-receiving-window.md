@@ -182,6 +182,19 @@ snapshot to be that pull request. No credential, vault, provider, transport
 or mutation path changed; the mutation-branch pin is unchanged. The
 production manifest digest moves because `github_application.cpp` is in it.
 
+Correction, 2026-09-23 (found while verifying [[BPR-0989]]): the pins above
+were taken before this card's last `github_application.cpp` edit, so the
+committed file never matched them and `application_review_round_trip_composition_contract`
+failed from `17e40dc8` onward; the "passes after the reviewed reseal" evidence
+was run before that edit. The edit adds a null guard on the accepted host in
+`open`, explains a review link whose review was not read as `review_not_read`
+rather than `comment_not_identified`, and places a file location only once the
+epoch host holds the shown pull request's authority. Reviewed as the same link
+location code: no credential, vault, provider, transport or mutation path. The
+`BPR-0987 correction` note reseals both pins to the committed file
+(`07c49397…`, manifest `9ad3bbe3…`); the mutation-branch pin is unchanged and
+the contract passes again.
+
 Limitations: comment links resolve only when the read carries the comment's
 REST identity, which today is the signed-out read; an authenticated read's
 `#discussion_r` links are explained, not revealed. `#issuecomment-` links are
