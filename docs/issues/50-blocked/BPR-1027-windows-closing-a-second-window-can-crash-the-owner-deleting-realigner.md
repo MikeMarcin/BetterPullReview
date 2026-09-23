@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1027"
 title: "Windows: closing a second window can crash the owner in ~implementation deleting Realigner (0xC0000409 CFG fast fail)"
-status: "In Progress"
+status: "Blocked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"found_by":"BPR-0980 native activation course, bpr-main-win close-probe","found_at":"196296d0","reproduced_at":["c52f5907","196296d0"],"related_cards":["BPR-0980","BPR-1028"],"run":"bpr-main-win-20260923","reservation":"docs/issues/_reservations/BPR-1027--BPR-1028--763d93af262e.json"}
+blocked_by: "concurrent-desktop-reproduction"
 ---
 
 # BPR-1027: Windows: closing a second window can crash the owner in ~implementation deleting Realigner (0xC0000409 CFG fast fail)
