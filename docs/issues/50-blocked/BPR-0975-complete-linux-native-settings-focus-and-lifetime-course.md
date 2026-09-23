@@ -7,7 +7,7 @@ rfcs: []
 depends_on: ["BPR-0731"]
 priority: "P2"
 platforms: ["linux"]
-metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961"],"station":"bpr-main-linux","candidate":"b651554ff50bdde1c5a41fd9a77f6c0e075b16c8","evidence":"docs/verification/BPR-0975-linux-native-settings.md"}
+metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961","BPR-1024"],"station":"bpr-main-linux","candidate":"b651554ff50bdde1c5a41fd9a77f6c0e075b16c8","evidence":"docs/verification/BPR-0975-linux-native-settings.md"}
 blocked_by: "window-manager-activation"
 ---
 
@@ -27,7 +27,8 @@ The Mac integrator reported that `bpr-main-win` took the Windows foreground
 during the committed runs. Repeats with nothing else taking it gave the same
 control results, the same Ctrl-comma failure and the same diagnosis pass
 ([clear-window reproduction](../../verification/BPR-0975-linux-native-settings.md#clear-window-reproduction)).
-The table below is unchanged.
+The table below is unchanged. [[BPR-1024]] carries the key-routing consequence
+of a refused activation as its own defect.
 
 | Criterion | Outcome at `b651554f` |
 |---|---|
