@@ -157,8 +157,13 @@ auto main(int aArgc, char** aArgv) -> int
 	options.RegisteredDeviceCourse = true;
 	options.IndependentWindowReads = true;
 	options.RepeatReadSessions     = true;
-	options.PersonalDiscovery      = repository_with_unrelated_pull_requests();
-	const auto unrelated           = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
+	// [[BPR-1042]]. The [[BPR-1017]] sibling steps enter public preview. Only
+	// macOS ships it, so the course forces it against the fixture, as the
+	// other composed public-preview courses do; otherwise Linux and Windows
+	// refuse the activation and never reach those steps.
+	options.PublicPreviewEnabledCourse = true;
+	options.PersonalDiscovery          = repository_with_unrelated_pull_requests();
+	const auto unrelated               = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
 	expect(unrelated >= 2'000U, "the saved repository holds at least 2,000 unrelated open pull requests");
 
 	app::github_application* owner    = nullptr;
