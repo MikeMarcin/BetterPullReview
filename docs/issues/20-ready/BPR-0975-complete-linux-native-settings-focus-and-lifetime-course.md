@@ -2,16 +2,25 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0975"
 title: "Complete Linux native Settings focus and window-lifetime course"
-status: "Blocked"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-0731"]
 priority: "P2"
 platforms: ["linux"]
-blocked_by: "native-focus-surface"
 metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961"]}
 ---
 
 # Complete Linux native Settings focus and window-lifetime course
+
+## Resumption, 2026-09-23
+
+The owner's mandate relayed by the Mac integrator ("implement available
+unattended work, focus on closing out rfcs") resumes this card on a different
+station: `bpr-main-linux` (`stn-5c7459ed`), checkout
+`/home/mmarcin/BetterPullReview`, branch `main`, running directly on the same
+JaegAW WSL2/WSLg host instead of through the Mac remote wrapper. AC1's bare
+two-window control is re-run first; the card returns to Blocked with the new
+evidence if native two-window focus still fails.
 
 ## Owner transfer, distinct from observations
 

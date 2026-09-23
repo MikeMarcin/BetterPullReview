@@ -12,7 +12,7 @@ record this acceptance change. It does not supply any missing observation.
 | Transferred obligation | Live disposition | Preserved result |
 |---|---|---|
 | Windows security disposition, full native AC-01 course and current AC-11 inventory | [BPR-0974](../issues/50-blocked/BPR-0974-dispose-windows-defender-finding-and-complete-native-settings.md), Blocked, `security-owner-disposition` | Defender quarantined the exact candidate. Native prefix only; no complete course/current inventory and no false-positive verdict. |
-| Linux full native focus/shortcut/window-lifetime AC-01 course | [BPR-0975](../issues/50-blocked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md), Blocked, `native-focus-surface` | Failure reproduced in a separate bare-Qt control. Current native inventory-only pass remains narrower evidence, not a lifetime pass. |
+| Linux full native focus/shortcut/window-lifetime AC-01 course | [BPR-0975](../issues/20-ready/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md), Blocked, `native-focus-surface` | Failure reproduced in a separate bare-Qt control. Current native inventory-only pass remains narrower evidence, not a lifetime pass. |
 
 These standalone cards (`rfcs: []`, explicit origin and r2 metadata) are not
 dependencies of the amended closeout. The original RFC native requirements,
