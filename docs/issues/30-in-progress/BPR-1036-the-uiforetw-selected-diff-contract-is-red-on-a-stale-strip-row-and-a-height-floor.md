@@ -765,3 +765,35 @@ passes in 15.16 s at 842/1000 in all four profiles, and
    build compiles the `_WIN32` branch, whose value is the 850 it replaces. The
    expected result of the row is unchanged: it passes, as [[BPR-1033]]
    recorded.
+
+## macOS: both rows pass at `b18888aa` (bpr-main-mac, Mac batch 7, 2026-09-24)
+
+The owed item 1, run on macOS 26.6.2 arm64, `build/dev`, at `b18888aa`
+(which contains `d3b583d0`), with a clean working tree:
+
+```sh
+cmake --build --preset dev --target app_better_pull_review
+ctest --preset dev -V -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure
+```
+
+| Row | Result |
+|---|---|
+| `application_uiforetw_selected_diff_contract` | **Passed**, 69.88 s; printed `UIFORETW_SELECTED_DIFF_CONTRACT_OK` |
+| `application_review_round_trip_composition_contract` | **Passed**, 11.51 s; printed `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK` |
+
+Neither `UIFORETW_NAVIGATION_ROW_UNEXPECTED` nor
+`UIFORETW_CAPTURE_LAYOUT_FAILED` appears in the log. Each profile's
+`capture-facts.json`, written by this run (13:15 local):
+
+| Profile | `comparison_height_ratio_permille` | `comparison_width_ratio_permille` | `navigation_row_exact_order` | `window_controls_rect_in_row` |
+|---|---|---|---|---|
+| light | 835 | 985 | true | 0,0,0,0 |
+| dark | 835 | 985 | true | 0,0,0,0 |
+| high-contrast-light | 835 | 985 | true | 0,0,0,0 |
+| high-contrast-dark | 835 | 985 | true | 0,0,0,0 |
+
+The macOS comparison measures exactly the 835 floor, with the strip row
+asserted exactly and in order. **AC1 passes on Linux and macOS**, and the
+macOS round-trip run completes **AC4**. With AC2 and AC3 already passing,
+every criterion is met and the card finishes. The log is a station record,
+not committed.

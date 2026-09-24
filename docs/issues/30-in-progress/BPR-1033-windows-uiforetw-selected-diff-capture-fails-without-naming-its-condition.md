@@ -229,3 +229,23 @@ that is not committed.
 **AC3 on Linux is met.** macOS is still owed: the same command on
 bpr-main-mac at `d3b583d0` or later, which is also BPR-1036's owed item 1.
 This note does not claim, move or finish this card; bpr-main-win owns it.
+
+## macOS: AC3's rows pass at `b18888aa` (bpr-main-mac, 2026-09-24)
+
+The macOS half of AC3, run on macOS 26.6.2 arm64, `build/dev`, at
+`b18888aa` (which contains `d3b583d0`): first
+`cmake --build --preset dev --target app_better_pull_review`, then
+`ctest --preset dev -V -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure`.
+
+| Row | Result |
+|---|---|
+| `application_uiforetw_selected_diff_contract` | **Passed**, 69.88 s, `UIFORETW_SELECTED_DIFF_CONTRACT_OK` |
+| `application_review_round_trip_composition_contract` | **Passed**, 11.51 s, `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK` |
+
+In all four profiles `capture-facts.json` has the comparison at 985/1000 of
+the width and 835/1000 of the height, meeting [[BPR-1036]]'s macOS floor;
+`navigation_row_exact_order` is true; and `window_controls_rect_in_row` is
+`{x:0, y:0, width:0, height:0}`, so the new fact subtracts nothing. Neither
+`UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, `UIFORETW_NAVIGATION_ROW_UNEXPECTED`
+nor `UIFORETW_CAPTURE_LAYOUT_FAILED` printed. **AC3 on macOS is met.** This
+note does not claim, move or finish this card; bpr-main-win owns it.
