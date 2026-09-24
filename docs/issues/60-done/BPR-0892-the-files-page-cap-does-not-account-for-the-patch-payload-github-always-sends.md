@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0892"
 title: "The files page cap does not account for the patch payload GitHub always sends, and no fixture carries one"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable github+git partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"The card records measured page sizes from a real large pull request","outcome":"pass","revision":"bdeb917e","evidence":{"kind":"observation","detail":"Read-only anonymous files-page reads, sizes only: facebook/react#9101 largest page 747,548 B; microsoft/TypeScript#51387 (656 files, +282,700 -284,842) largest page 1,176,273 B with 1,048,253 B of patch and 61 files sent without patch; NixOS/nixpkgs#322537 (21,294 files) 30 pages then [], 12,665,213 B in all, largest page 723,104 B. The largest patch seen was 100,612 B.","path":"docs/issues/60-done/BPR-0892-the-files-page-cap-does-not-account-for-the-patch-payload-github-always-sends.md#measurement-ac1"}},{"criterion":"A pull request of that shape loads, or is refused with a message that says the page was too large rather than a bare response_limit","outcome":"pass","revision":"bdeb917e","evidence":{"kind":"command","detail":"github_paged_read test_measured_files_page_shapes, with production limits: a 1,243,605 B first page shaped like TypeScript page 6 loads 101 files, and 3,000 files in 30 pages of about 781 KB (23,443,590 B in all) load. The served sizes are asserted too. With the page limit lowered to 1 MiB, or the aggregate to 16 MiB, the row fails.","path":"docs/issues/60-done/BPR-0892-the-files-page-cap-does-not-account-for-the-patch-payload-github-always-sends.md#a-pull-request-of-that-shape-loads-ac2"}},{"criterion":"A fixture with realistic patch payloads is in the recorded contracts and is used by at least one course","outcome":"pass","revision":"bdeb917e","evidence":{"kind":"command","detail":"contracts/v1/uiforetw-74/responses/files.json now carries the real patch, sha and changes GitHub served (7,723 B of patches, CRLF, tabs, two links), generated from recording.json. The validator admits and checks these keys; the security test treats links inside a patch as reviewed content. application_github_public_path_uiforetw_74 passes with it, where it failed before the validator change. application_uiforetw_selected_diff_contract reads it with every fixture marker OK, and stays red only on BPR-1036's two lines. Linux and Windows confirmation runs are named on the card.","path":"docs/issues/60-done/BPR-0892-the-files-page-cap-does-not-account-for-the-patch-payload-github-always-sends.md#a-recorded-contract-with-real-patches-served-by-a-course-ac3"}}]
 ---
 
 # BPR-0892: The files page cap does not account for the patch payload GitHub always sends, and no fixture carries one
