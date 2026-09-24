@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1117"
 title: "The Linux Secret Service rows use whatever session bus the shell names, including the user's real keyring, and nothing refuses a non-designated bus"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
