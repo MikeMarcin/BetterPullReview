@@ -81,14 +81,12 @@ namespace {
 				 .Wire        = *wire };
 	}
 
-	void strict_replay_contract(bool aRepeat)
+	void strict_replay_course(const QTemporaryDir& aTemporary, bool aRepeat)
 	{
-		QTemporaryDir temporary;
-		expect(temporary.isValid(), "isolated wire fixture store exists");
 		unused_effect_executor                          effects;
 		const auto                                      selectedProfile = profile();
 		app::detail::github_public_path_fixture_options options;
-		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		options.ApplicationDataRoot = e2e::private_data_root(aTemporary);
 		expect(options.ApplicationDataRoot.has_value(), "wire fixture root is owner-private");
 		options.RepeatReadSessions = aRepeat;
 		app::detail::github_public_path_fixture_components fixture{ app::detail::github_public_path_fixture::uiforetw_74, selectedProfile, effects, options };
@@ -138,6 +136,14 @@ namespace {
 		expect(std::holds_alternative<github_wire_success>((*bootstrap)->perform(viewer, { })), "bootstrap serves its viewer once");
 		expect(std::holds_alternative<github_wire_error>((*bootstrap)->perform(repository, { })), "read rewind never admits repository on bootstrap");
 		expect(std::holds_alternative<github_wire_error>((*bootstrap)->perform(viewer, { })), "read rewind never restarts bootstrap identity");
+	}
+
+	void strict_replay_contract(bool aRepeat)
+	{
+		QTemporaryDir temporary;
+		expect(temporary.isValid(), "isolated wire fixture store exists");
+		strict_replay_course(temporary, aRepeat);
+		expect(e2e::remove_course_root(temporary), "the wire fixture's temporary root is removed");
 	}
 
 	void recent_resume_course(bool aAnonymous)
@@ -232,6 +238,10 @@ namespace {
 		}
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "attended work drains before teardown");
+		// [[BPR-1103]]. The stores close only once the desktop's runtimes are
+		// deleted from the event loop; on Windows the directory cannot go before.
+		desktop.reset();
+		expect(e2e::remove_course_root(temporary), "the attended store's temporary root is removed");
 	}
 }
 

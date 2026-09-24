@@ -26,11 +26,19 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 
+#include <QCoreApplication>
+#include <QDir>
+#include <QDirIterator>
+#include <QElapsedTimer>
+#include <QEvent>
 #include <QFileInfo>
 #include <QString>
 #include <QTemporaryDir>
+#include <QThread>
 
+#include <chrono>
 #include <filesystem>
+#include <iostream>
 #include <optional>
 
 namespace bpr::e2e {
@@ -39,7 +47,8 @@ namespace bpr::e2e {
 	/// \returns The root, `<aTemporary>/data`, canonical and in the host's
 	/// native spelling. Nothing when `aTemporary` is invalid or either step is
 	/// refused. The root, and the agent workspace neighbourhood the
-	/// application creates beside it, are removed with `aTemporary`.
+	/// application creates beside it, are removed with `aTemporary`; a course
+	/// that composes a desktop removes it with `remove_course_root`.
 	[[nodiscard]] inline auto private_data_root(const QTemporaryDir& aTemporary) -> std::optional<std::filesystem::path>
 	{
 		const auto canonical = aTemporary.isValid() ? QFileInfo{ aTemporary.path() }.canonicalFilePath() : QString{ };
@@ -52,6 +61,48 @@ namespace bpr::e2e {
 			return std::nullopt;
 		}
 		return root;
+	}
+
+	/// \brief Removes a course's temporary directory once the application has
+	/// let go of it, or says what is left.
+	/// \details [[BPR-1103]]. Destroying a profile desktop does not close the
+	/// profile's stores at once. Its runtimes are deleted from the event loop,
+	/// and until then the profile's runtime lock and every SQLite store stay
+	/// open. POSIX unlinks an open file, so a `QTemporaryDir` removed straight
+	/// after the desktop leaves nothing. Windows refuses to delete an open file,
+	/// and the destructor's failure is silent, so every run left its root in
+	/// the system temporary directory. This delivers the deferred deletions
+	/// and posted events and retries the removal until it succeeds, bounded.
+	/// Call it after the desktop is destroyed and before the application is.
+	/// \returns Whether the directory is gone. When it is not, every entry left
+	/// is printed on standard error after `COURSE_ROOT_NOT_REMOVED`, so the
+	/// course can fail on it instead of leaking it.
+	[[nodiscard]] inline auto remove_course_root(QTemporaryDir& aTemporary, const std::chrono::milliseconds aBound = std::chrono::seconds{ 10 }) -> bool
+	{
+		const auto path = aTemporary.path();
+		if (!aTemporary.isValid()) {
+			std::cerr << "COURSE_ROOT_NOT_REMOVED: the temporary directory was never created\n";
+			return false;
+		}
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (true) {
+			QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+			QCoreApplication::processEvents();
+			if (aTemporary.remove() || !QFileInfo::exists(path)) {
+				return true;
+			}
+			if (elapsed.elapsed() >= aBound.count()) {
+				break;
+			}
+			QThread::msleep(5);
+		}
+		std::cerr << "COURSE_ROOT_NOT_REMOVED:" << QDir::toNativeSeparators(path).toStdString() << " after " << elapsed.elapsed() << " ms\n";
+		auto left = QDirIterator{ path, QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot, QDirIterator::Subdirectories };
+		while (left.hasNext()) {
+			std::cerr << "COURSE_ROOT_LEFT:" << QDir::toNativeSeparators(left.next()).toStdString() << '\n';
+		}
+		return false;
 	}
 } // namespace bpr::e2e
 

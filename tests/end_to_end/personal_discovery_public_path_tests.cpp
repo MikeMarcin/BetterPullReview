@@ -353,6 +353,15 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(queue_numbers(*windowA).contains(4003) && queue_numbers(*windowB).contains(4003) && queue_numbers(*windowB).contains(17), "both windows keep the list");
 
 	expect(app::detail::github_application_fixture_access::review_mutation_evidence(*owner).Submissions == 0U, "nothing here asked GitHub to change anything");
+
+	// [[BPR-1103]]. The profile's work drains, the desktop goes, and the
+	// course's root goes with it before the pass line: the row passes on that
+	// line alone, so a root that stays must fail it. On Windows the stores close
+	// only once the desktop's runtimes are deleted from the event loop.
+	owner->begin_shutdown();
+	wait_for([&] { return owner->status().ShutdownComplete; }, "the profile's work drains before teardown");
+	desktop.reset();
+	expect(e2e::remove_course_root(temporary), "the course's temporary root is removed");
 	std::cout << "personal-discovery-public-path:pass\n";
 	return EXIT_SUCCESS;
 }
