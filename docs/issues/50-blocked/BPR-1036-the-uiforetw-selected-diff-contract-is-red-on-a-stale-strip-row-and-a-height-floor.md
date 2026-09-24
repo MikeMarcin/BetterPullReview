@@ -557,6 +557,6 @@ BPR-0863 measured it.
 The same row also failed in this station's full sweep at `239f3861`, which
 is before `3d941d47`, with the old `UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions=28`
 and `985:835` ([sweep record](../../verification/sweep-2026-09-23-mac.md)).
-The log is `bpr1036-mac-rows.log` in this station's scratch directory, and
-it is not committed. This note does not move the card, which stays Blocked
+The log is `build/logs/mac-batch6/bpr1036-mac-rows.log`, a station record
+that is not committed. This note does not move the card, which stays Blocked
 on the owner's entry-row answer.
