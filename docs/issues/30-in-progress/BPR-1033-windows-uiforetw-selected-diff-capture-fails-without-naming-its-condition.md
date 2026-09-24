@@ -187,3 +187,45 @@ measured stacks rather than moving the entries. AC3 here is judged by the
 macOS and Linux run named under "Still open" once BPR-1036's floor change is
 on main. Recorded by the main integrator consuming the hand-back; this card's
 claim and its Windows work are unchanged.
+
+## Linux: AC3's rows pass after BPR-1036's floor (bpr-main-linux, 2026-09-24)
+
+This is AC3's Linux half, the run named under "Still open". The source is
+`d3b583d0` on `main`, which contains this card's `9d3fb998` and
+[[BPR-1036]]'s floor change. The station is bpr-main-linux: WSL2 Ubuntu,
+GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen with the basic Windows
+style (`QT_STYLE_OVERRIDE=Windows`, the row's own environment). The run used a
+fresh `HOME` and fresh XDG roots under `/tmp`, with `DISPLAY` and
+`WAYLAND_DISPLAY` unset. The application was rebuilt first
+(`cmake --build --preset dev --target app_better_pull_review`, exit 0, no
+`warning:` or `error:` line). The command was the one named above:
+`ctest --preset dev -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure`.
+
+| Row | Result |
+|---|---|
+| `application_uiforetw_selected_diff_contract` | **Passed**, 15.16 s |
+| `application_review_round_trip_composition_contract` | **Passed**, 1.59 s |
+
+Against what "Still open" expected on Linux:
+
+- **The row passes.** Met, in all four profiles (light, dark and both high
+  contrasts). In each profile's `capture-facts.json` the comparison takes
+  987/1000 of the window's width and 842/1000 of its height, and
+  `navigation_row_exact_order` is true. The height meets
+  BPR-1036's Linux floor of 842, the measured stack under RFC-BPR-0028 AC-01
+  as the owner amended it.
+- **The first target holds.** Met. The capture wrote its evidence, so the
+  first-target condition held and neither
+  `UIFORETW_CAPTURE_FIRST_TARGET_FAILED` nor its facts line printed.
+- **The new fact subtracts 0.** Met. Every profile's
+  `window_controls_rect_in_row` is `{x:0, y:0, width:0, height:0}`, so the
+  right-edge gap the contract bounds is the one it bounded before.
+
+The capture facts are in
+`build/dev/tests/end_to_end/uiforetw-selected-diff-contract/data/evidence/<profile>/capture-facts.json`.
+The log is `build/r2-logs/bpr1033-ac3-linux-d3b583d0.log`, a station record
+that is not committed.
+
+**AC3 on Linux is met.** macOS is still owed: the same command on
+bpr-main-mac at `d3b583d0` or later, which is also BPR-1036's owed item 1.
+This note does not claim, move or finish this card; bpr-main-win owns it.
