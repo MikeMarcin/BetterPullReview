@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1114"
 title: "Windows: the gh CLI process runner launches gh and git with every inheritable handle"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
