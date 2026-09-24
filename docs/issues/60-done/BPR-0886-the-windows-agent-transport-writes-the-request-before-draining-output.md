@@ -154,3 +154,36 @@ Windows-only. The case launches only the test canary; no installed agent was
 run. The console log is a station record under
 `build/logs/bpr-1038-1022-0886-mac/` and is not committed. Linux has not
 been run from this station. The acceptance record above is unchanged.
+
+## Post-close: Linux at `b5cb3b43` (bpr-main-linux, 2026-09-23)
+
+The run is at `b5cb3b43`, in a separate verification clone with a clean
+tree. That revision contains `0ba63b0a`. Nothing under `src/adapters/agent`,
+in `agent_launch_canary_tests.cpp` or under `tests/fixtures/agent` has
+changed between `0ba63b0a` and main's `b60e04b0`. JaegAW: WSL2 Ubuntu 26.04,
+GCC 15.2, Qt 6.11.2, `build/dev` (Debug) from the `dev` preset, which
+compiles with `-Werror`. The build log has no `warning:` line. The row ran
+serially and offscreen: `ctest --preset dev -j1 -V`, with
+`QT_QPA_PLATFORM=offscreen` and with `DISPLAY` and `WAYLAND_DISPLAY` unset.
+When the batch of runs began, the station was loaded by a parallel build
+(load average 9.7). At the batch's end the load average was 2.5.
+
+`qt_agent_launch_canary` passed 1 of 1 in 65.56 s, exit 0, contained as
+registered. The output ends with `agent-launch-canary-tests:pass` and
+contains no `FAILED:` line. The new case ran on the POSIX `QProcess`
+transport:
+
+```text
+BPR-0886 protocol 1: request 13048 bytes, outcome 0, 218 ms
+BPR-0886 protocol 2: request 13159 bytes, outcome 0, 270 ms
+BPR-0886 protocol 3: request 13055 bytes, outcome 0, 46 ms
+```
+
+The case asserts the rest for each protocol, as on macOS. The run succeeded
+well inside its 10 s bound and 20 s timeout. The 64 KiB of stderr was kept
+whole. The request arrived byte for byte, by its length and FNV-1a digest.
+So on Linux the third criterion now also rests on a run. The case launches
+only the test canary; no installed agent was run. The console log is a
+station record under
+`build/logs/bpr-main-linux-20260923/bpr-1038-1022-0886-linux/bpr-0886-agent-launch-canary.log`
+and is not committed. The acceptance record above is unchanged.
