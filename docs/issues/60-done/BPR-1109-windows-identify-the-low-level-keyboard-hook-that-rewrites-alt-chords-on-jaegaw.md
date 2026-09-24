@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1109"
 title: "Windows: identify, read-only, the low-level keyboard hook that rewrites the Alt of every Alt chord on JaegAW"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
 metadata: {"origin":"owner verdict on attended candidate BPR-1022-alt-chord-hook-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 7876410c-e657-44f8-be30-846db8115778, 2026-09-24","related_cards":["BPR-1022","BPR-1074"],"first_seen":"after 2026-09-23T22:47Z; seen at 9f144f1e (05:13Z-05:24Z) and 21332605 (06:46Z), 2026-09-24","reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json"}
+acceptance: [{"criterion":"AC1 The hook's owner is named; if it cannot be named read-only, the card names the remaining candidates and the evidence that rules out the rest","outcome":"pass","revision":"38507ec5","evidence":{"kind":"observation","detail":"Second branch. The hook rewrote back-to-back Alt chords at 05:13Z-06:46Z (BPR-1022 r4-r7) and 21:52Z-21:56Z (r8, r9). A WH_KEYBOARD_LL hook lives only with its installing thread on its desktop, so the owner is an interactive-session process running at both times. No still-running process started between the last clean observation (2026-09-23T22:47Z) and 05:13Z. Of those running, only code in msrdc 37336 (rdclientax.dll), ChatGPT 17592 and codex-computer-use-swift 21016, NVIDIA Overlay 10740, Everything 28156, Slack/Discord/Chrome, Visual Studio 20452 and OneDrive 18292, and the Windows shell imports SetWindowsHookExW (PE import scan of every loaded non-system module). Ruled out: station automation, exited processes, processes without the import, and the Claude desktop restarted at 19:55Z (started after 05:13Z; its predecessor only if the successor re-installed the same hook). r9 shows the hook keys on timing (same key 0x97, same application: back to back rewritten, 47-57 ms gap intact), not on the chord key.","path":"docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md#who-owns-it-ac1-not-nameable-read-only-candidates-narrowed"}},{"criterion":"AC2 Nothing is stopped, unloaded, reconfigured or uninstalled, and no setting is changed; the symptom is observed unchanged at the start and at the end","outcome":"pass","revision":"38507ec5","evidence":{"kind":"command","detail":"Read-only survey (process/module lists, PE import scan, event logs, signers); cleared foreground runs sent synthetic keys only: 21:48Z/21:49Z probes into the foreground Terminal (unassigned VK 0x97, 30 ms gaps), 21:52Z r8 BPR-1022 rows and 21:56Z r9 Alt+0x97 into pid-guarded test instances on fresh private data roots, closed with WM_CLOSE exit 0. A back-to-back Alt chord's Alt reaches raw input as vk=0x00 identically at the start baseline (BPR-1022 r7, 06:46Z) and at the end (r8 Alt+Space/F/Up/F4, r9 Alt+0x97). The 21:48Z gapped chords are explained by r9's timing contrast. Nothing stopped or changed.","path":"docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md#where-the-criteria-stand-2"}},{"criterion":"AC3 The finding is reported to the owner; only the owner decides what to do about the hook","outcome":"pass","revision":"38507ec5","evidence":{"kind":"observation","detail":"'For the owner (AC3)' states what the hook does, whom it affects (scripted and very fast chords; human-paced chords mostly pass), which applications' global-shortcut settings to check, and how the owner can identify it (quit one candidate at a time, then the station reruns the 1-minute check). The card changes nothing; the owner decides.","path":"docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md#for-the-owner-ac3"}}]
 ---
 
 # BPR-1109: Windows: identify, read-only, the low-level keyboard hook that rewrites the Alt of every Alt chord on JaegAW
@@ -405,3 +406,124 @@ application in front:
 
 After that, the owner can check those applications' shortcut settings. Only
 the owner should change them.
+
+## Alt+0x97 with the application in front, 2026-09-24T21:56Z (cleared, the last run): the hook keys on timing
+
+The coordinator announced and cleared this run, the last one of this
+segment.
+
+- **The harness:** `fg-1109-alt97.ps1`, BPR-1022's harness with its gestures
+  replaced by Alt+`0x97` only. Tag `r9-alt97`.
+- **The instance:** a test instance of `build/dev` at `38507ec5` (pid 16936),
+  on a fresh private data root that was removed afterwards.
+- **Guards:**
+  - Before the run, Windows Terminal was in front, and no `msrdc` window
+    was showing.
+  - Before every gesture, the harness confirmed by pid that the application's
+    window was in front. It was, every time.
+  - No key went to the Terminal.
+- **Afterwards:** the window was closed with `WM_CLOSE`, exit code 0, and
+  no `better_pull_review` process was left. The foreground went back to the
+  Terminal.
+- **Logs:** `build/logs/bpr-1109-main-win/alt97-r9-*`.
+
+| Gesture, same key, same application in front | Raw input |
+|---|---|
+| Alt+`0x97`, back to back (as r8's chords), 3 of 3 | `vk=0x00` down, `0x97` `WM_KEYDOWN`, `0x97` up, `vk=0x00` up: **rewritten** |
+| Alt, 30 ms, `0x97`, 30 ms, Alt up, 3 of 3 | `VK_MENU` `WM_SYSKEYDOWN`, then `0x97` `WM_SYSKEYDOWN` 47–57 ms later: **intact** |
+
+### What the hook keys on (facts, then inference)
+
+- **Not on the chord key.** An unassigned key is rewritten like Space, F, Up
+  and F4 when it follows the Alt at once.
+- **Timing matters.** The same key, into the same application, is rewritten
+  back to back and passes when it follows the Alt by about 47–57 ms. That
+  explains the 21:48Z probe, whose chords had the same gaps.
+- **The foreground application is not shown to matter.** Chords sent into
+  the Terminal all had gaps, so they cannot test it.
+- **Not timing alone, at least earlier in the day.** BPR-1022's paced run r3
+  (05:18Z, 50 ms between events, no raw sink) also delivered Up and F4
+  without Alt. The Qt log shows `Key_Up` and `Key_F4` with no modifier. So
+  either the rule includes more than the gap, or it changed between 05:18Z
+  and 21:56Z. That stays open.
+
+**Inference:** a low-level hook that holds each Alt press briefly. If another
+key follows within its window, it swallows the Alt and puts a
+virtual-key-0 key in its place. Otherwise it lets the Alt through. Launcher
+and overlay tools do this to tell an Alt tap or a shortcut of their own from
+a chord. The owner's own typing, which rarely puts less than about 30 ms
+between Alt and the next key, would mostly not notice it. Scripted input and
+fast chords do.
+
+### Who owns it (AC1): not nameable read-only, candidates narrowed
+
+A `WH_KEYBOARD_LL` hook lives only as long as the thread that installed it,
+and only on its own desktop. It rewrote chords at 05:13Z–06:46Z, and again at
+21:52Z–21:56Z. So the owner is an interactive-session process that was
+running at both times. No such process started between the last clean
+observation (2026-09-23T22:47Z) and 05:13Z. So the owner was already running
+at 22:47Z and began rewriting after that.
+
+Among those processes, only these load code that imports `SetWindowsHookExW`
+(from the import scan above):
+
+- `msrdc.exe` 37336, WSLg's Remote Desktop client (`rdclientax.dll`), since
+  2026-09-18;
+- `ChatGPT.exe` (OpenAI Codex app) 17592 and its `codex-computer-use-swift.exe`
+  21016, since 2026-09-21;
+- `NVIDIA Overlay.exe` 10740, since 2026-09-17;
+- `Everything.exe` 28156, since 2026-09-17;
+- Slack 28624 (`slackdesktoputils.node`), Discord and Chrome, since
+  2026-09-17;
+- Visual Studio 20452 (`msenv.dll`, Visual Assist `VA_X64.dll`) and OneDrive
+  18292;
+- the Windows shell: `explorer.exe`, the taskbar and the text input host.
+
+Ruled out:
+
+- The station's own automation. The launchers load no `ctypes`, and the
+  harnesses only inject.
+- Every process that has exited.
+- Every process without the hook import.
+- The Claude desktop app restarted at 19:55Z. It started after the 05:13Z
+  observation. Its earlier instance could have owned the morning's hook only
+  if the restarted one installed the same hook again, and nothing records
+  that.
+
+Which of the candidates holds the hook cannot be told without stopping one.
+Nothing was stopped, by the card's rule.
+
+### For the owner (AC3)
+
+**What it is.** Something on JaegAW intercepts an Alt press that is followed
+at once by another key. It replaces the Alt with a key code of 0, so the
+application sees the letter without Alt. It does not change Alt pressed
+alone, AltGr, or chords typed with a normal human gap, as far as measured
+today.
+
+**What to check.** Only the owner changes any of these:
+
+- the global shortcuts of the ChatGPT or Codex desktop app (its launcher is
+  commonly Alt+Space) and of its computer-use feature;
+- the NVIDIA overlay's hotkeys (Alt+Z and others);
+- Everything's global hotkeys;
+- Slack's and Discord's global shortcuts;
+- WSLg's Remote Desktop client, which exists only while WSL runs.
+
+**How to find the owner.** Quit one candidate at a time, then run the
+1-minute check again (BPR-1022's harness with a back-to-back Alt+Space). The
+check is the station's; stopping the applications is the owner's.
+
+### Where the criteria stand
+
+- **AC1: met by its second branch.** The owner cannot be named read-only.
+  The remaining candidates are listed above, with the evidence that rules out
+  the rest.
+- **AC2: met.** Nothing was stopped, unloaded, reconfigured or uninstalled,
+  and no setting was changed. A back-to-back Alt chord was rewritten, in the
+  same way, at the start (BPR-1022 r7, 06:46Z, the baseline this card cites)
+  and at the end (r8 21:52Z and r9 21:56Z). The gapped chords of 21:48Z are
+  explained by the timing rule above, so they are not a change.
+- **AC3: reported here.** What to do about the hook is the owner's decision.
+- **Open, not a criterion:** why r3's 50 ms paced chords were rewritten at
+  05:18Z while 47–57 ms gaps pass at 21:56Z.
