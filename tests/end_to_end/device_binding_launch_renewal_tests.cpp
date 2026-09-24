@@ -7,6 +7,11 @@
 // lifetime below is a complete composition over the same application data
 // root; the runtime fixture vault object is the only thing that survives, and
 // no token is serialized anywhere.
+//
+// [[BPR-1116]]. The same rule while the application runs: a grant signed in
+// during a lifetime whose own renewal gives up, offline or refused, keeps its
+// grant the same way, and the next launch restores it. Those lifetimes use a
+// data root and a vault of their own.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -149,6 +154,86 @@ namespace {
 		static auto captures = 0;
 		const auto  path     = QStringLiteral("%1/kept-grant-%2.png").arg(directory).arg(++captures);
 		expect(github->grab().save(path, "PNG"), "the kept-grant capture is written");
+	}
+	// [[BPR-1116]]. One lifetime that signs in and whose own renewal then
+	// gives up. The renewal course's clock makes the renewal of a grant bound
+	// in this lifetime due at once, and `aOptions` says how the token endpoint
+	// answers it. Returns the application, still running, once the session has
+	// ended and the metadata work is done.
+	auto sign_in_until_the_renewal_gives_up(app::detail::github_public_path_fixture_options aOptions, app::detail::github_public_path_fixture_evidence& aBefore) -> std::unique_ptr<app::github_application>
+	{
+		aOptions.DeviceRefreshCourse     = true;
+		aOptions.DeviceWallOffsetSeconds = 0;
+		auto running                     = launch(aOptions);
+		aBefore                          = github_application_fixture_access::evidence(*running);
+		running->select_device_authorization();
+		wait_for([&running] { return running->status().DeviceAuthorizationStage == core::device_authorization_stage::authorized; }, "the device sign-in in this lifetime is authorized");
+		// The device host retries a network failure three times, five seconds
+		// apart, before it gives up; a refusal ends it at once.
+		wait_for([&running] { return running->window().session_panel()->status() == core::github_status::session_failed; }, "the renewal gives up and the session ends visibly", 45000);
+		wait_for([&running] { return github_application_fixture_access::device_binding_store_idle(*running); }, "the ended session completes its metadata work");
+		settle(500);
+		expect(running->status().DeviceAuthorizationRefreshRotations == 0U, "the renewal that gave up rotated nothing");
+		return running;
+	}
+	void in_process_renewals(app::detail::github_public_path_fixture_options aOptions)
+	{
+		aOptions.RejectDeviceRefresh     = false;
+		aOptions.DeviceWallOffsetSeconds = 0;
+		// An in-process renewal that gives up offline keeps the grant, and the
+		// next launch restores it.
+		{
+			QTemporaryDir root;
+			expect(root.isValid(), "private temporary application root for the offline in-process renewal");
+			aOptions.ApplicationDataRoot = e2e::private_data_root(root);
+			expect(aOptions.ApplicationDataRoot.has_value(), "private desktop test root under the canonical storage policy");
+			aOptions.SharedDeviceVault   = app::detail::make_shared_github_fixture_vault();
+			auto offline                 = aOptions;
+			offline.OfflineDeviceRefresh = true;
+			auto before                  = app::detail::github_public_path_fixture_evidence{ };
+			{
+				auto running = sign_in_until_the_renewal_gives_up(offline, before);
+				expect_grant_kept(*running, before, qt::kept_grant::retried_next_launch, "an in-process renewal that gives up offline keeps the grant and says the next launch tries again");
+				shutdown(*running);
+				const auto closed = github_application_fixture_access::evidence(*running);
+				expect(closed.SecretRetained && closed.RefreshRetained && closed.VaultDeleteAttempts == before.VaultDeleteAttempts && closed.RefreshDeleteAttempts == before.RefreshDeleteAttempts,
+					   "an orderly quit after the in-process renewal gave up keeps the grant");
+			}
+			auto next = launch(aOptions);
+			wait_for([&next] { return next->window().session_panel()->status() == core::github_status::session_ready; }, "the next launch restores the kept grant");
+			wait_for([&next] { return next->status().DeviceAuthorizationRefreshResumes == 1U; }, "and arms its renewal from the kept refresh slot");
+			const auto evidence = github_application_fixture_access::evidence(*next);
+			expect(evidence.DeviceTransportSubmissions == 0U && evidence.LastEnrollmentDigest.empty() && next->status().DeviceAuthorizationStage == core::device_authorization_stage::idle,
+				   "the restore took no code, no pasted token and nothing from the token endpoint");
+			shutdown(*next);
+		}
+		// A refused in-process renewal keeps the grant, says it needs signing
+		// in again, and offers Begin and Sign out; Sign out removes it.
+		{
+			QTemporaryDir root;
+			expect(root.isValid(), "private temporary application root for the refused in-process renewal");
+			aOptions.ApplicationDataRoot = e2e::private_data_root(root);
+			expect(aOptions.ApplicationDataRoot.has_value(), "private desktop test root under the canonical storage policy");
+			aOptions.SharedDeviceVault  = app::detail::make_shared_github_fixture_vault();
+			auto refused                = aOptions;
+			refused.RejectDeviceRefresh = true;
+			auto before                 = app::detail::github_public_path_fixture_evidence{ };
+			{
+				auto running = sign_in_until_the_renewal_gives_up(refused, before);
+				expect_grant_kept(*running, before, qt::kept_grant::needs_sign_in, "a refused in-process renewal keeps the grant, asks for signing in again, and offers Begin and Sign out");
+				github_card(*running)->sign_out_button()->click();
+				wait_for([&running] { const auto evidence = github_application_fixture_access::evidence(*running); return !evidence.SecretRetained && !evidence.RefreshRetained; },
+						 "Sign out on the card erases both slots of the kept grant");
+				wait_for([&running] { return github_application_fixture_access::device_binding_store_idle(*running); }, "the sign-out completes its metadata work");
+				shutdown(*running);
+			}
+			auto removed = launch(aOptions);
+			wait_for([&removed] { return github_application_fixture_access::device_binding_store_idle(*removed); }, "the launch after Sign out completes its metadata work");
+			settle(500);
+			expect(removed->window().session_panel()->status() == core::github_status::no_profile, "after Sign out the grant is gone and the launch is signed out");
+			expect_device_sign_in_offered(*removed, "and offers the device sign-in with Begin enabled");
+			shutdown(*removed);
+		}
 	}
 }
 
@@ -301,5 +386,8 @@ int main(int aArgc, char** aArgv)
 		expect(github_application_fixture_access::evidence(*after).LastEnrollmentDigest.empty(), "Begin took no pasted credential");
 		shutdown(*after);
 	}
+
+	options.RejectDeviceRefresh = false;
+	in_process_renewals(options);
 	std::cout << "device-binding-launch-renewal-tests:pass\n";
 }

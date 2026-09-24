@@ -2551,9 +2551,10 @@ bpr_add_network_isolated_test(NAME application_device_binding_restart WINDOWS_UN
 set_tests_properties(application_device_binding_restart PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60 PASS_REGULAR_EXPRESSION "device-binding-restart-tests:pass")
 
 # BPR-0644. A launch after the access token expired renews the stored grant
-# with its refresh material instead of forgetting it, and only a
-# refresh-expired or server-refused grant is tombstoned, with the device
-# sign-in offered in its place.
+# with its refresh material instead of forgetting it. A launch that cannot
+# renew it (offline, refresh-expired or refused) keeps the grant and offers the
+# device sign-in beside Sign out. [[BPR-1116]]: so does a renewal that gives up
+# while the application runs.
 bpr_add_executable(test_device_binding_launch_renewal device_binding_launch_renewal_tests.cpp)
 target_link_libraries(test_device_binding_launch_renewal PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_device_binding_launch_renewal PRIVATE BPR_BUILD_TESTING=1)
@@ -2562,7 +2563,9 @@ bpr_enable_warnings(test_device_binding_launch_renewal)
 # [[BPR-0876]]. Uncontained on Windows: contained it stops at its first step,
 # narrowing its private desktop test root (dos-volume-name, as BPR-0833).
 bpr_add_network_isolated_test(NAME application_device_binding_launch_renewal WINDOWS_UNCONTAINED COMMAND test_device_binding_launch_renewal)
-set_tests_properties(application_device_binding_launch_renewal PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "device-binding-launch-renewal-tests:pass")
+# [[BPR-1116]]. The in-process courses add about 30 s on macOS, most of it
+# the device host's three offline retries, five seconds apart.
+set_tests_properties(application_device_binding_launch_renewal PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "device-binding-launch-renewal-tests:pass")
 
 # BPR-0644. A restored grant with hours of access left survives an orderly
 # quit and a termination signal, each followed by a real relaunch; the

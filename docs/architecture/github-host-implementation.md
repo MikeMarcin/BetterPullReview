@@ -1408,24 +1408,27 @@ request before it.
 The GitHub host counts each binding request, and some set a pending flag,
 before it calls the lane. So it treats a withdrawal as the lane's
 `unavailable` terminal, never as a success, and does not pass the throw on
-([[BPR-1048]]). This holds for the settled-binding store, the tombstone behind
-Sign out, replacement and cleanup, and an accepted session's rotation barrier.
-Inside a host turn the failure runs
+([[BPR-1048]]). This holds for the settled-binding store and the tombstone
+behind Sign out, replacement and cleanup. The rotation barrier calls no lane
+since [[BPR-1116]]. Inside a host turn the failure runs
 when the turn ends, where the lane's own terminal would have found it. That
 matters for a replacement: its session is recorded after the invalidation
 that asked for the tombstone, so a withdrawn tombstone fails the replacement
 and leaves both vault slots alone, as a refused one does. Outside a turn the
-failure runs at once. A withdrawn rotation barrier answers `false` exactly
-once. The count and the flag are undone, so later restores are admitted and
-the host can become quiescent. The startup load already failed its restore
+failure runs at once. The count and the flag are undone, so later restores are
+admitted and the host can become quiescent. The startup load already failed its restore
 as `unavailable` at the call.
 
 Startup loads only the compiled native GitHub.com device profile after both
 hosts exist. `resume_profile` validates its current profile contract, retrieves
 the exact vault item and checks authenticated `/user` identity before accepting
-the session. The refresh-slot probe must also succeed. Missing or mismatched
-material cannot restore a device session, and issuance/expiry facts that are
-backward or expired cannot extend validity. `resume_refresh` schedules from
+the session. Missing or mismatched access material cannot restore a device
+session, and issuance/expiry facts that are backward or expired cannot extend
+validity. The refresh-slot probe then decides whether the session renews
+itself. A restored session whose refresh slot is missing stays signed in on
+its access token, is not renewed, and its card says it does not renew itself
+([[BPR-1116]]). Once that token's lifetime has gone, the next launch's renewal
+meets the missing material as a refusal and keeps the grant. `resume_refresh` schedules from
 the remaining lifetime instead of exchanging a token immediately.
 
 A launch that cannot restore the remembered grant keeps it ([[BPR-0644]]).
@@ -1442,14 +1445,30 @@ spending anything. The failure's diagnostic carries `GrantKept`, and the
 server card offers Sign out beside Begin with a sentence saying how the grant
 ends. The one ending that still erases on its own is material that signs in
 as an account the binding never named: a rotated grant whose `/user` differs,
-or a restored access slot that answers for another account. The in-process
-renewal of an accepted session still erases on failure ([[BPR-1116]]).
+or a restored access slot that answers for another account.
 
-Vault slots and SQLite do not form one transaction. Before replacement, or an
-accepted session's rotation, the existing binding is durably tombstoned. A
-launch renewal is the exception: its row stays live until the rotated grant's
-binding replaces it, so a crash after the spend leaves the next launch to spend
-whatever the refresh slot holds. A new resumable record is
+The same rule holds while the application runs ([[BPR-1116]]). An accepted
+session's renewal that gives up, whether out of network attempts, unable to
+reach the credential store, or refused, keeps the grant. The host resumes the
+profile from its own remembered binding: the invalidation that goes with a
+resume deletes nothing. The resumed session then fails at once with the
+renewal's failure, so it carries `GrantKept` and the card offers Sign out
+beside Sign in. The device host's renewal chain is released, as a launch
+renewal's is. A grant whose binding was never stored is not claimed as kept,
+and the orderly quit still removes it, as it removes any grant kept for one
+session only.
+
+Vault slots and SQLite do not form one transaction. Before replacement the
+existing binding is durably tombstoned. A renewal's barrier is the exception,
+at launch ([[BPR-0644]]) and in process ([[BPR-1116]]). It writes nothing, and
+the row stays live until the rotated grant's binding replaces it, so a crash
+after the spend leaves the next launch to spend whatever the refresh slot
+holds. An in-process rotation that succeeds enrolls its rotated access token,
+and that enrollment is a replacement: it tombstones the row and deletes the
+old access slot, keeping the refresh slot it just filled. A process that ends
+between that tombstone and the rotated grant's accepted binding leaves the row
+tombstoned. The window runs from that tombstone through the rotated session's
+vault store, `/user` and capability checks to its binding store. A new resumable record is
 written only after both vault slots and the accepted session settle. A newly
 issued refresh token cannot inherit a missing expiry from its predecessor;
 only an explicitly retained refresh slot preserves its existing expiry. Stale

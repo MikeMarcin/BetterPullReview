@@ -579,8 +579,34 @@ namespace bpr::application {
 			if (!Closing && AcceptedSession && CredentialAuthority == aAuthority && CredentialSessionContext
 				&& CredentialSessionContext->IdentityGeneration == aGeneration
 				&& CredentialProvenance == github_credential_provenance::device_grant) {
-				dispatch_now(core::deactivate_github_identity_intent{ });
+				end_accepted_renewal(aFailure);
 			}
+		}
+
+		// [[BPR-1116]]. An accepted session's renewal that gives up -- out of
+		// attempts on the network, unable to reach the credential store, or
+		// refused -- keeps its grant, as a launch renewal does ([[BPR-0644]]).
+		// The owner's rule of 2026-09-24: a remembered grant is removed only
+		// when the person removes it or a new sign-in replaces it. The session
+		// ends visibly instead. It is resumed from its own remembered binding,
+		// which the invalidation that goes with a resume leaves in place, and
+		// the resumed session fails at once with the renewal's failure. So the
+		// row and both slots stay, the credential stays selected for Sign out,
+		// and the card says how the grant ends. The device host's chain has
+		// ended, and is released as a launch renewal's is: left to report
+		// `reenrollment_required`, its sign-in row would stand where the card
+		// offers Sign out beside Sign in.
+		void end_accepted_renewal(const core::github_failure aFailure)
+		{
+			release_launch_renewal();
+			NextKeptEnding = kept_session_ending{ .Failure = aFailure, .Durable = DeviceBindingDurable };
+			try {
+				resume_profile_now(CredentialAuthority->Profile);
+			} catch (...) {
+				NextKeptEnding.reset();
+				throw;
+			}
+			NextKeptEnding.reset();
 		}
 
 		void dispatch_now(const core::github_event& aEvent)
@@ -1484,6 +1510,7 @@ namespace bpr::application {
 						NextEnrollmentProvenance = github_credential_provenance::manual;
 						NextEnrollmentProfile.reset();
 						SessionResumeProfile = NextResumeProfile;
+						SessionKeptEnding    = std::exchange(NextKeptEnding, std::nullopt);
 						auto beginsRenewal   = false;
 						auto endsRenewal     = false;
 						if (PendingDeviceRestore && SessionResumeProfile == PendingDeviceRestore->Authority.Profile) {
@@ -1652,6 +1679,7 @@ namespace bpr::application {
 			SessionEnrollment.reset();
 			SessionEnrollmentProvenance = github_credential_provenance::manual;
 			SessionResumeProfile.reset();
+			SessionKeptEnding.reset();
 			SessionPublicPreview = false;
 			PublicPreviewRefusal.reset();
 			EpochHandoffUnavailable = false;
@@ -1723,6 +1751,20 @@ namespace bpr::application {
 				// Refuse replacement for this lifetime instead of overwriting it.
 				binding_failure();
 				fail_session(context, core::github_failure::vault);
+				return;
+			}
+			if (SessionKeptEnding.has_value()) {
+				// [[BPR-1116]]. The session an accepted renewal gave up on,
+				// resumed only to fail: its binding is selected again, as a
+				// restored one whose row is live when it was durable, so the
+				// failure keeps it and the card offers Sign out beside Sign in.
+				const auto  ending = *std::exchange(SessionKeptEnding, std::nullopt);
+				const auto* kept   = CredentialBindings.find(context.Profile);
+				if (kept != nullptr && select_persistent_credential(*kept, context)) {
+					RestoredDeviceBinding = ending.Durable;
+					DeviceBindingDurable  = ending.Durable;
+				}
+				fail_session(context, ending.Failure);
 				return;
 			}
 			if (SessionResumeProfile.has_value()) {
@@ -2608,9 +2650,17 @@ namespace bpr::application {
 				return;
 			}
 			if (!aPresent) {
+				// [[BPR-1116]]. A restored grant whose refresh slot is missing
+				// is not signed out and erased: its access token still works,
+				// and the owner's rule of 2026-09-24 is that a remembered grant
+				// is removed only when the person removes it. The session stays
+				// and nothing is armed to renew it, so the card now says it
+				// does not renew itself. Once its access lifetime has gone, the
+				// next launch's renewal meets the missing material as a refusal
+				// and keeps the grant, saying it needs signing in again.
 				if (RestoredDeviceBinding) {
-					binding_failure();
-					dispatch(core::deactivate_github_identity_intent{ });
+					RefreshSlotMissing = true;
+					republish_accepted_session();
 				}
 				return;
 			}
@@ -2641,7 +2691,7 @@ namespace bpr::application {
 				.SignedInAt = DeviceLifetime.has_value() && DeviceLifetime->IssuedAt > 0
 					? std::optional<std::int64_t>{ DeviceLifetime->IssuedAt }
 					: std::nullopt,
-				.Renews     = DeviceLifetime.has_value() && DeviceLifetime->RefreshExpiresAt > 0,
+				.Renews     = DeviceLifetime.has_value() && DeviceLifetime->RefreshExpiresAt > 0 && !RefreshSlotMissing,
 				.Remembered = DeviceBindingDurable,
 			};
 		}
@@ -3792,6 +3842,7 @@ namespace bpr::application {
 			SessionEnrollment.reset();
 			SessionEnrollmentProvenance = github_credential_provenance::manual;
 			SessionResumeProfile.reset();
+			SessionKeptEnding.reset();
 			SessionPublicPreview = false;
 			ViewerMode           = viewer_mode::none;
 		}
@@ -3858,6 +3909,7 @@ namespace bpr::application {
 			++RefreshProbeToken;
 			RefreshProbeContext.reset();
 			AcceptedCredentialRenewable = false;
+			RefreshSlotMissing          = false;
 		}
 
 		void shutdown()
@@ -3907,6 +3959,7 @@ namespace bpr::application {
 			SessionEnrollmentProvenance = github_credential_provenance::manual;
 			NextResumeProfile.reset();
 			SessionResumeProfile.reset();
+			SessionKeptEnding.reset();
 
 			// Never call an external port while holding the completion gate.
 			// A cancellation implementation may wait for a worker callback that
@@ -3948,6 +4001,14 @@ namespace bpr::application {
 			AcceptedProfileAuthority.reset();
 			AcceptedCapabilityEvidence.reset();
 		}
+
+		// [[BPR-1116]]. How an accepted renewal that gave up ends its session:
+		// the renewal's failure, and whether the binding's row was durable.
+		struct kept_session_ending
+		{
+			core::github_failure Failure = core::github_failure::authentication;
+			bool                 Durable = false;
+		};
 
 		struct restore_completion
 		{
@@ -4140,6 +4201,8 @@ namespace bpr::application {
 			CredentialBindingRemembered = false;
 		}
 
+		// Releases whatever renewal chain the device host holds: a launch
+		// renewal's, or an accepted session's that gave up ([[BPR-1116]]).
 		void release_launch_renewal() noexcept
 		{
 			try {
@@ -4327,6 +4390,8 @@ namespace bpr::application {
 		github_credential_provenance                        SessionEnrollmentProvenance = github_credential_provenance::manual;
 		std::optional<core::host_profile_id>                NextResumeProfile;
 		std::optional<core::host_profile_id>                SessionResumeProfile;
+		std::optional<kept_session_ending>                  NextKeptEnding;
+		std::optional<kept_session_ending>                  SessionKeptEnding;
 		bool                                                NextPublicPreview    = false;
 		bool                                                SessionPublicPreview = false;
 		std::optional<github_public_preview_refusal>        PublicPreviewRefusal;
@@ -4358,6 +4423,7 @@ namespace bpr::application {
 		// establishes that this host is still alive.
 		std::atomic<std::uint32_t>                     OutstandingRefreshDeletes   = 0U;
 		bool                                           AcceptedCredentialRenewable = false;
+		bool                                           RefreshSlotMissing          = false;
 		std::optional<github_credential_authority_key> CredentialAuthority;
 		std::optional<core::github_session_request_context>
 												 CredentialSessionContext;
@@ -4637,41 +4703,21 @@ namespace bpr::application {
 
 	void github_application_host::prepare_device_rotation(github_credential_authority_key aAuthority, const core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion)
 	{
-		auto& host = *Implementation;
-		// [[BPR-0644]]. A launch renewal has no accepted session yet and writes
-		// no tombstone. A tombstone written before its first attempt meant that
-		// a launch that could not reach the server, or was quit while it tried,
-		// lost the grant: the next launch found the row tombstoned. Under the
-		// owner's rule of 2026-09-24 the grant stays until the person removes
-		// it, so the row stays live until the rotated grant's binding replaces
-		// it. A crash after the spend leaves a live row: the next launch spends
-		// whatever the refresh slot holds, and material the server refuses
-		// asks for signing in again.
-		const auto launch = host.owns_launch_renewal(aAuthority, aGeneration);
-		if (launch) {
-			aCompletion(true);
-			return;
-		}
-		const auto matches = !host.Closing && host.AcceptedSession && host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration && host.CredentialProvenance == github_credential_provenance::device_grant;
-		if (!matches || host.Persistence == nullptr) {
-			aCompletion(matches);
-			return;
-		}
-		host.DeviceBindingDurable = false;
-		const auto generation     = ++host.BindingGeneration;
-		// A withdrawn tombstone answers `false`, once, like a refused one, so no
-		// refresh material is spent without a written tombstone ([[BPR-1048]]).
-		auto finish = std::function<void(device_binding_result)>{ [&host, aAuthority, aGeneration, generation, completion = std::move(aCompletion)](device_binding_result aResult) {
-			--host.OutstandingBindings;
-			const auto current = !host.Closing && host.BindingGeneration == generation
-				&& host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration;
-			if (!aResult && current) {
-				host.binding_failure();
-			}
-			completion(aResult.has_value() && current);
-		} };
-		++host.OutstandingBindings;
-		host.call_binding_lane([&host, &aAuthority](auto aCallback) { host.Persistence->erase(aAuthority, std::move(aCallback)); }, std::move(finish));
+		const auto& host = *Implementation;
+		// [[BPR-0644]], [[BPR-1116]]. The barrier writes no tombstone, for a
+		// launch renewal or for an accepted session's. A tombstone written
+		// before the spend meant that a renewal that then failed, or a process
+		// that ended before the rotated grant's binding was stored, left a row
+		// the next launch read as a removal. Under the owner's rule of
+		// 2026-09-24 the grant stays until the person removes it, so the row
+		// stays live until the rotated grant's binding replaces it. A crash
+		// after the spend leaves a live row: the next launch spends whatever
+		// the refresh slot holds, and material the server refuses asks for
+		// signing in again. So the barrier only answers whether this exact
+		// grant may be renewed: it changes nothing, counts nothing, and
+		// answers once.
+		const auto accepted = !host.Closing && host.AcceptedSession && host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration && host.CredentialProvenance == github_credential_provenance::device_grant;
+		aCompletion(accepted || host.owns_launch_renewal(aAuthority, aGeneration));
 	}
 
 	auto github_application_host::accepted_device_lifetime() const noexcept -> std::optional<device_binding_lifetime>

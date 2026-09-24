@@ -77,7 +77,10 @@ visibly. Nothing resumes from the kept material until the next launch
 validates it again through the same checks. Only Sign out or a replacing
 sign-in removes it. Material that signs in as an account the binding never
 named is still erased at once, because keeping it would keep another person's
-credential; that exception is put to the owner on BPR-0644.
+credential; that exception is put to the owner on BPR-0644. The same holds
+while the application runs ([[BPR-1116]]). An accepted session whose renewal
+gives up ends visibly and keeps its grant. A restored session whose refresh
+slot is missing stays signed in on its access token without renewing.
 
 Before replacement or erasure, the stored binding is durably tombstoned. Only
 a settled replacement pair can become resumable. Sign out and manual-token

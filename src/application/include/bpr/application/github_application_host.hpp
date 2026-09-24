@@ -46,7 +46,9 @@ namespace bpr::application {
 		device_binding_lifetime          Lifetime;
 		auto                             operator<=>(const device_launch_renewal&) const = default;
 	};
-	/// \brief Begins a launch renewal, or with no value abandons the one begun.
+	/// \brief Begins a launch renewal, or with no value releases the device
+	/// host's renewal chain: the launch renewal begun, or an accepted
+	/// session's that gave up ([[BPR-1116]]).
 	using device_launch_renewal_sink = std::function<void(const std::optional<device_launch_renewal>&)>;
 
 	enum class github_credential_shutdown_policy {
@@ -249,17 +251,21 @@ namespace bpr::application {
 		auto restore_device_profile(github_profile_authority                           aCompiledProfile,
 									std::function<void(device_profile_restore_status)> aCompletion = { },
 									std::function<bool()>                              aCurrent    = { }) -> bool;
-		/// \brief Ends the device grant that owns a renewal failure.
-		/// \details An accepted session is deactivated. A launch renewal fails its
-		/// held session with `aFailure` and keeps the grant ([[BPR-0644]]).
+		/// \brief Ends the session whose device grant's renewal gave up, keeping the grant.
+		/// \details A launch renewal fails its held session with `aFailure`
+		/// ([[BPR-0644]]). An accepted session is resumed from its own binding
+		/// and that session fails at once with `aFailure` ([[BPR-1116]]). Either
+		/// way the grant is kept: the row stays live, both slots stay, the
+		/// failure says so, and Sign out or a new sign-in removes it.
 		void invalidate_device_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, core::github_failure aFailure);
 		/// \brief Records the exact refresh slot's successful store after access acceptance.
 		void settle_device_binding(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, device_binding_lifetime aLifetime);
-		/// \brief Tombstones the exact accepted grant before either rotated slot can change.
-		/// \details A launch renewal owns no accepted session and writes no
-		/// tombstone: its row stays live until the rotated grant's binding is
-		/// stored, so a renewal that cannot finish leaves the grant for the next
-		/// launch ([[BPR-0644]]).
+		/// \brief Answers once whether the exact accepted or launch-renewing grant may rotate.
+		/// \details Writes no tombstone and changes no state, for a launch
+		/// renewal ([[BPR-0644]]) or an accepted session ([[BPR-1116]]): the row
+		/// stays live until the rotated grant's binding is stored, so a renewal
+		/// that cannot finish, or a process that ends before that store, leaves
+		/// the grant for the next launch.
 		void               prepare_device_rotation(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion);
 		[[nodiscard]] auto accepted_device_lifetime() const noexcept -> std::optional<device_binding_lifetime>;
 		[[nodiscard]] auto accepted_device_binding_durable() const noexcept -> bool;
