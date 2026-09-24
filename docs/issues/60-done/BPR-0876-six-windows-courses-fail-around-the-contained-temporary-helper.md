@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0876"
 title: "Windows: six contained courses fail around the temporary helper, at a denied chmod and an exit-3 seed"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-merged-head-runs, verifying BPR-0854 item 1","found_at":"2b2e5549","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"The six courses pass on Windows, or each carries a recorded, reasoned registration change","outcome":"pass","revision":"8595684c","evidence":{"kind":"command","detail":"bpr-main-win, build/dev MSVC 19.51 Debug, serial, offscreen. Five rows are registered WINDOWS_UNCONTAINED with the measured dos-volume-name reason in scripts/verify_test_network_isolation.py and pass as registered: application_device_binding_launch_renewal (31.88 s) and application_profile_window_restart_public_path (16.50 s) at 470920d5; application_device_binding_relaunch (15.67 s), application_profile_window_layout_public_path (37.45 s) and application_profile_window_review_restoration_public_path (392.82 s) at 56f7a836's sources with BPR-1040's retry, which landed in 8595684c. test_network_isolation_manifest reports configured=417 registrations=393 and its structure contract passes. The sixth, application_profile_owner_admission_public_path, is carried by its own card BPR-0907 with its measured second obstacle, as this card's frontier rule allows.","path":"docs/issues/60-done/BPR-0876-six-windows-courses-fail-around-the-contained-temporary-helper.md#three-more-rows-pinned-each-passing-uncontained-bpr-main-win-2026-09-23"}},{"criterion":"The POSIX owner-only parent contract still holds on macOS and Linux, with its negative controls still failing by name","outcome":"pass","revision":"56f7a836","evidence":{"kind":"freeform","detail":"No POSIX path changed: scripts/contained_temporary_support.py is untouched since d3b5a3ef; in bpr_narrow_owner_private.py the POSIX branches of make_root_private and the new copy_private_root are the calls the course made before (mkdir(mode=0o700), shutil.copytree). The contained-temporary contracts and their negative controls are unchanged; bpr-main-mac and bpr-main-linux run them in their sweeps."}},{"criterion":"This card records that BPR-0854 item 1 did not cause these failures, so the helper is not blamed for them later","outcome":"pass","revision":"56f7a836","evidence":{"kind":"freeform","detail":"Recorded in the Defect section (git log -L over the range) and restated in the 470920d5 measurement section: the os.chmod predates item 1, and the remaining failures were the contained canonical abort, the courses' own held store connections (BPR-1039) and the courses' own inherited copies."}}]
 ---
 
 # BPR-0876: Windows: six contained courses fail around the temporary helper, at a denied chmod and an exit-3 seed
