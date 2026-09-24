@@ -258,3 +258,37 @@ acceptance names, differs from `3727a762` only by another station's GitHub
 read-contract and fixture work (`github_read_contract.cpp`, the
 `uiforetw-74` recording and their tests). None of that is on the
 device-authorization path.
+
+## Post-close: the change broke the round-trip contract's pins (bpr-main-win, 2026-09-23)
+
+`3727a762` changed `src/app/main.cpp`, and that file is inside
+`application_review_round_trip_composition_contract`'s pinned scope. The
+contract pins an LF-normalized digest of every production `src/app`
+source. The change was pushed without the review and reseal the contract's
+header asks for, so the row went red on every platform:
+`production application source content digest drifted`. It stayed red until
+the macOS station resealed the pins in `a782886d` for [[BPR-1037]]. That
+commit's reseal covers `8e080bbc`..`a782886d`, so it includes this card's
+line. The pushed line itself was reviewed on this card: it adds one
+diagnostic line after the refresh course's verdict and nothing on a product
+path. What was missing was the reseal in the same commit.
+
+**What changed so it cannot recur from this station.** The station's push
+gate (`gate-push.sh`, a station helper, not in the repository) now checks
+what is about to be pushed. If the outgoing commits touch anything under
+`src/app/`, or the contract itself, it runs the contract's source-only pin
+check on the rebased tree before it pushes:
+`cmake -DBPR_PROVIDER_INVENTORY_SOURCE_FILE=… -DBPR_APP_SOURCE_ROOT=… -P
+tests/end_to_end/application_review_round_trip_composition_contract.cmake`.
+It refuses the push unless the check prints
+`ASYNC_MUTATION_HOST_INVENTORY_OK`. The check needs no build. It was tested
+on the exact case, trees exported with `git archive`:
+
+| Tree | Pin check |
+| --- | --- |
+| `23edb6f4`, the parent of `3727a762` | passes |
+| `3727a762` | fails: `production application source content digest drifted` |
+| `a782886d`, the reseal | passes |
+
+The outgoing range `23edb6f4..3727a762` touches `src/app/main.cpp`. The
+gate would therefore have run the check and refused that push.
