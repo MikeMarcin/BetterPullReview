@@ -11,41 +11,30 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # RFC-BPR-0028: Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation
 
-## Current state, 2026-09-23
+## Current state, 2026-09-24
 
 This RFC is not ready to close. It is the next RFC in canonical order.
-[[BPR-1021]] is its closeout, in Backlog under the new milestone
-`close-rfc-0028` of plan `ux-redesign-pack-0028` (see the
+[[BPR-1021]] is its closeout, in Backlog under the milestone `close-rfc-0028`
+of plan `ux-redesign-pack-0028` (see the
 [closeout planning record](plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md)).
-Besides BPR-1021, 63 cards are linked to this RFC and 61 of them are Done. The
-two that are not, and one conflict, hold the RFC open:
+The owner's verdicts of 2026-09-24 (recorded below) settled two of the three
+things that held it open:
 
-- [[BPR-0653]], the Windows title row, is parked on human-review. Its Windows
-  form is verified on the real platform at 1280x852 and 1920x1080 (candidate
-  `53d229d7`, re-run on main at `38cc26d7`). Three owner asks remain:
-  - its attended capture on the Windows station (snap layouts, a drag, the look
-    of the caption buttons);
-  - the decision on shipping Qt's private Windows native interface;
-  - the AC-01 decision below.
-- [[BPR-0746]] is Blocked on the cursor probe the owner declined. It can close
-  only through a recorded owner amendment of its unobtainable criteria, never
-  as passed. `close-rfc-0028` binds it beside the closeout.
-- **AC-01 does not hold on main as written.** RFC-BPR-0037's composition entry
-  row (Compose review, Draft comment or reply; `cc038748`, [[BPR-0929]]) sits
-  between the strip and the epoch line on every platform, 20 logical pixels at
-  y 30. While a pull request loads, [[BPR-0795]]'s readiness line sits there
-  too. The chrome above the comparison is therefore three rows rather than "the
-  strip and the epoch line only", and the epoch line is no longer the row
-  directly under the strip where [[BPR-0737]] put it.
-
-  [[BPR-0940]] (`f839e26a`) has since made `qt_workbench_window_scale_*`
-  assert that arrangement, so no test is red over it. The conflict is between
-  this text and main, and the owner chooses between two ways out:
-  - amend AC-01 and the chrome paragraph to admit the entry rows;
-  - move the two entries (for example into the strip's review controls menu,
-    which costs the strip no width) and return the course to "first row".
-
-  The ask is stated on BPR-0653.
+- **AC-01 is amended.** It now admits the review surface's entry rows between
+  the strip and the epoch line: RFC-BPR-0037's composition entry row (Compose
+  review, Draft comment or reply; `cc038748`, [[BPR-0929]]) and, while a pull
+  request loads, [[BPR-0795]]'s readiness line. The chrome paragraph says the
+  same. [[BPR-0940]]'s window course already asserts that arrangement. Where
+  the entries should finally sit is a UX design follow-up, [[BPR-1106]], which
+  does not hold this RFC; if it moves them, it amends AC-01 again.
+- **[[BPR-0746]] is Done** by an owner amendment that withdraws its
+  unobtainable AC1 and AC2. The amendment is recorded as an amendment, not as
+  a pass.
+- **[[BPR-0653]]**, the Windows title row, is still parked on human-review, now
+  for one ask only: its attended capture on the Windows station (snap layouts,
+  a drag, the look of the caption buttons), from a tests-disabled build at or
+  after `e08a0409`. The owner accepted Qt's private Windows native interface,
+  and its criterion 1 passes under the amended AC-01.
 
 ## Current attended pointer, 2026-09-12 (d30)
 
@@ -104,9 +93,13 @@ account, settings. Below it the 22-pixel epoch line: one row as wide as the
 window's client area, "Updates" at its left, the line, and the "Comparing …"
 menu at its right, above the drawers and their headings and never inside the
 centre pane, so its labels hold their place whatever the drawers' states and
-widths and the modality ([[BPR-0737]], owner direction 2026-09-11). No
-toolbar with labels, no menu bar rows. Nothing in the strip may read as
-disabled.
+widths and the modality ([[BPR-0737]], owner direction 2026-09-11). Between
+the strip and the epoch line sit the review surface's entry rows and nothing
+else: the composition entry row (Compose review, Draft comment or reply,
+RFC-BPR-0037) and, while a pull request loads, the readiness line
+([[BPR-0795]]) (owner amendment, 2026-09-24; where the entries finally sit is
+[[BPR-1106]]'s design round). No toolbar with labels, no menu bar rows.
+Nothing in the strip may read as disabled.
 
 The strip is the title row. The owner's references (Fork and Visual Studio
 Code on both platforms, Windows Terminal, Ghostty, the Claude app) share one
@@ -257,9 +250,13 @@ design rounds.
 
 ## Acceptance criteria
 
-- AC-01 The chrome above the comparison is the strip and the epoch line only,
-  with no scroll area and no separate title bar, at every window size the
-  workbench supports; the strip is the row the window controls sit in.
+- AC-01 The chrome above the comparison is the strip, the review surface's
+  entry rows and the epoch line, in that order, with no scroll area and no
+  separate title bar, at every window size the workbench supports; the strip is
+  the row the window controls sit in. The entry rows are the composition entry
+  row (Compose review, Draft comment or reply) and, while a pull request loads,
+  the readiness line; nothing else sits between the strip and the epoch line
+  (owner amendment, 2026-09-24).
 - AC-02 The epoch line selects any two uploads by drag, click, ⌘-click, menu and
   keyboard stepping, shows my last review, and drives the comparison the
   existing epoch host already resolves.
@@ -699,3 +696,35 @@ candidate `BPR-0729-one-pane-layout` is ready and protected at sequence 366,
 with no human verdict. Review in one pane and the empty-side ribbons are
 shown in the packet's same-source renders; acceptance is not inferred from
 those renders.
+
+## Owner decisions, 2026-09-24 (attended session cbd48b91)
+
+Session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+handed back at sequence 589. Each decision is `actor: human` and carries a
+fingerprint equal to its prepared candidate's in the packet's
+[session-identity.json](../verification/reviews/owner-decisions-20260924-v001/session-identity.json).
+Three of them bear on this RFC.
+
+- `BPR-0653-entry-row-v001` (revision `38cc26d7`, ask restated at `919e2154`),
+  decision `007a6eb5`, 18:54:09Z: **select** "Amend RFC-BPR-0028 AC-01 and the
+  chrome paragraph to admit the entry rows between the strip and the epoch
+  line". Note, verbatim: "We should do a UX design iteration with the
+  /frontend-design skill to figure out where best to put these. For now you can
+  ammend the card but open a follow-up for the ux design." AC-01 and the chrome
+  paragraph above are amended accordingly, and [[BPR-1106]] is the follow-up.
+  This supersedes, for those rows only, the reading of [[BPR-0737]]'s direction
+  that the epoch line is the first row under the strip.
+- `BPR-0653-private-qt-api-v001` (revision `53d229d7`, Qt 6.11.2 recheck at
+  `4380f310`), decision `8dde5e4d`, 18:54:24Z: **accept**, note empty.
+  `QNativeInterface::Private::QWindowsWindow::setCustomMargins` may ship in the
+  Windows target.
+- `BPR-0746-disposition-v001` (board at `86cd8227`), decision `14327a18`,
+  18:54:49Z: **select** "Amend: withdraw BPR-0746 AC1 and AC2 as unobtainable
+  (recorded as an amendment, not a pass) so it can be Done and RFC-0028 can
+  close", note empty. [[BPR-0746]] is Done on that amendment.
+
+`BPR-0653-windows-capture-v001` was not asked: it waits on a tests-disabled
+Windows build at or after `e08a0409`. The owner also answered
+`RFC-0039-0051-start-v001` with "Not yet: finish RFC-0028 to RFC-0038 first",
+recorded in the [RFC index](README.md).

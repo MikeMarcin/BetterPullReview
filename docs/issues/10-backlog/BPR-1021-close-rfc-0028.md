@@ -6,7 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0028"]
 depends_on: ["BPR-0653","BPR-0746"]
 closeout_for: ["RFC-BPR-0028"]
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md","reservation":"docs/issues/_reservations/BPR-1020--BPR-1022--f3b33a48cfc4.json","unmet_dependencies":{"BPR-0653":"Parked on human-review: the Windows attended capture, the private Qt API decision and the AC-01 decision","BPR-0746":"Blocked on owner-declined-probe"}}
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md","reservation":"docs/issues/_reservations/BPR-1020--BPR-1022--f3b33a48cfc4.json","unmet_dependencies":{"BPR-0653":"Parked on human-review for its Windows attended capture only (snap layouts, a drag, the caption buttons), from a tests-disabled build at or after e08a0409; asks 2 and 3 were answered 2026-09-24"},"owner_decisions":"2026-09-24, attended session cbd48b91 (hand-back 589): AC-01 amended to admit the entry rows (decision 007a6eb5); BPR-0746 AC1/AC2 withdrawn by amendment (decision 14327a18); private Qt API accepted (decision 8dde5e4d)"}
 ---
 
 # Verify and close RFC-BPR-0028
@@ -30,50 +30,37 @@ It follows `windows-strip-title-row`.
 
 ## Why this card is in Backlog
 
-Besides this card, 63 cards are linked to the RFC and 61 of them are Done. The
-other two are this card's dependencies, and neither is Done:
+Besides this card, 63 cards are linked to the RFC, and once BPR-0746 is
+finished 62 of them are Done. Of this card's two dependencies, one is now Done
+and one is not:
 
-- [[BPR-0653]], the Windows title row, is **Parked on human-review**. Three
-  owner asks are open:
-  - its attended capture on the Windows station (snap layouts, a drag, the
-    caption buttons' look);
-  - accepting or refusing Qt's private Windows native interface in a shipped
-    target;
-  - the AC-01 decision below.
-- [[BPR-0746]], the resize cursor over the seam, is **Blocked on
-  owner-declined-probe**. The owner declined its cursor probe on 2026-09-12,
-  so its AC1 and AC2 cannot be obtained. The owner reported the cursor working,
-  which satisfied AC4 on [[BPR-0739]]. The closeout has to say how the card is
-  disposed. It can be finished as Done only with an owner amendment that
-  withdraws or waives the unobtainable criteria, recorded as an amendment and
-  not as a pass. Otherwise it stays Blocked and holds this closeout.
+- [[BPR-0746]], the resize cursor over the seam, is **Done** by the owner's
+  amendment of 2026-09-24 (attended session `cbd48b91`, decision `14327a18`),
+  which withdrew its unobtainable AC1 and AC2. It is recorded as an amendment,
+  not as a pass; the owner's report that the cursor works stays the evidence on
+  [[BPR-0739]].
+- [[BPR-0653]], the Windows title row, is **Parked on human-review** for one
+  ask: its attended capture on the Windows station (snap layouts, a drag, the
+  caption buttons' look), from a tests-disabled build at or after `e08a0409`.
+  The owner accepted Qt's private Windows native interface (decision
+  `8dde5e4d`), and its criterion 1 passes under the amended AC-01.
 
-This card becomes Ready when both are Done. It does not reach past them.
+This card becomes Ready when BPR-0653 is Done. It does not reach past it.
 
-## The AC-01 conflict, as it stands on main
+## AC-01, amended by the owner (2026-09-24)
 
-On main, the chrome above the comparison is three rows, not two. Between the
-strip and the epoch line is the review surface's composition entry row:
-Compose review and Draft comment or reply, from RFC-BPR-0037's `cc038748`
-([[BPR-0929]]). It is 20 logical pixels at y 30, measured on the real Windows
-platform at `38cc26d7`. While a pull request loads, [[BPR-0795]]'s readiness
-line sits there too.
-
-[[BPR-0940]] (`f839e26a`, Done) made `qt_workbench_window_scale_*` assert that
-arrangement: the epoch row sits directly beneath those entry rows, and nothing
-else comes between the strip and it. It read the old "first row" wording as
-superseded by the owner's accept of the native candidate
-`rfc0037-compose-pages`. That accept judged the composition pages. It did not
-amend AC-01 or the chrome paragraph, which still say two rows.
-
-So no test is red over this any more. The conflict is between the RFC's text
-and main, and it is the owner's call. The ask is recorded on [[BPR-0653]]:
-
-1. amend AC-01 and the chrome paragraph to admit the review surface's entry
-   rows between the strip and the epoch line; or
-2. keep AC-01 and move the two entries out of that row (for example into the
-   strip's review controls menu), and return the window course's epoch-row
-   assertion to "first row".
+The conflict this section used to describe is settled. On main the chrome above
+the comparison is the strip, the review surface's composition entry row
+(Compose review and Draft comment or reply, RFC-BPR-0037's `cc038748`,
+[[BPR-0929]]) and the epoch line; while a pull request loads, [[BPR-0795]]'s
+readiness line sits there too. The owner chose to amend AC-01 and the chrome
+paragraph to admit those rows (candidate `BPR-0653-entry-row-v001`, decision
+`007a6eb5`, 2026-09-24T18:54:09Z), and asked for a UX design follow-up on where
+the entries should finally sit. That follow-up is [[BPR-1106]]. It is
+standalone and is not linked to this RFC, so it does not hold this closeout;
+if it moves the entries, it amends AC-01 again. [[BPR-0940]]'s window course
+already asserts the amended arrangement. [[BPR-1036]]'s height floor follows
+from the same answer.
 
 ## Closeout checklist
 
@@ -82,7 +69,7 @@ evidence today. Nothing has been run for this closeout.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|
-| AC-01 The chrome above the comparison is the strip and the epoch line only, with no scroll area and no separate title bar, at every window size the workbench supports; the strip is the row the window controls sit in. | `qt_workbench_window_scale_{100,125,200}` (strip order, width sweep to the floor, epoch row); `qt_workbench_title_row_scale_{100,125,200}`; `application_windows_title_row` on the real Windows platform at 1280x852 and 1920x1080; the macOS title row from [[BPR-0646]]; the owner's AC-01 decision above | Not run; the owner's AC-01 decision and BPR-0653 are open | None |
+| AC-01 The chrome above the comparison is the strip, the review surface's entry rows and the epoch line, in that order, with no scroll area and no separate title bar, at every window size the workbench supports; the strip is the row the window controls sit in. The entry rows are the composition entry row (Compose review, Draft comment or reply) and, while a pull request loads, the readiness line; nothing else sits between the strip and the epoch line (owner amendment, 2026-09-24). | `qt_workbench_window_scale_{100,125,200}` (strip order, width sweep to the floor, the epoch row directly beneath the entry rows); `qt_workbench_title_row_scale_{100,125,200}`; `application_windows_title_row` on the real Windows platform at 1280x852 and 1920x1080; the macOS title row from [[BPR-0646]]; the owner's amendment above | Not run; BPR-0653's attended capture is open | None |
 | AC-02 The epoch line selects any two uploads by drag, click, ⌘-click, menu and keyboard stepping, shows my last review, and drives the comparison the existing epoch host already resolves. | Epoch control and window courses from [[BPR-0646]], [[BPR-0676]], [[BPR-0725]], [[BPR-0737]] and [[BPR-0743]] (the pull request's own updates, RFC-BPR-0029), and the composed epoch public paths | Not run | None |
 | AC-03 The four modalities set the drawers as described, persist per window, never change on their own unless a configured transition fires; in Overview a drawer gesture is refused with a stated reason and every drawer stays collapsed until another modality is chosen ([[BPR-0727]]); a collapsed drawer is its rail while the drawer controls are shown and no column while they are hidden ([[BPR-0721]]). | `qt_workbench_window_scale_*` modality, rail and drawer courses; `qt_workbench_overview` (the Overview refusal); [[BPR-0662]], [[BPR-0674]], [[BPR-0724]], [[BPR-0920]] evidence | Not run | None |
 | AC-04 The overview shows every file with the listed columns from projections the host already publishes, plus participants and the since-my-last-review summary, and Continue review lands on the first unseen change. | `qt_workbench_overview`; the overview courses of [[BPR-0647]], [[BPR-0654]] and [[BPR-0921]] | Not run | None |

@@ -176,3 +176,14 @@ and an ID has been requested.
   where [[BPR-1036]] records, but only a run can show that. Wanted on
   bpr-main-mac and bpr-main-linux, after BPR-1036's answer:
   `ctest --preset dev -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure`.
+
+### The owner's answer that AC3 waited for (main, 2026-09-24)
+
+The owner answered [[BPR-0653]]'s ask 3 in attended session
+`cbd48b91000b00f1e72e1ad62c7c384c` (decision `007a6eb5`, 2026-09-24T18:54:09Z):
+**amend RFC-BPR-0028 AC-01 to admit the entry rows**, with a design follow-up
+in [[BPR-1106]]. So [[BPR-1036]] is Ready and takes its height floor from the
+measured stacks rather than moving the entries. AC3 here is judged by the
+macOS and Linux run named under "Still open" once BPR-1036's floor change is
+on main. Recorded by the main integrator consuming the hand-back; this card's
+claim and its Windows work are unchanged.

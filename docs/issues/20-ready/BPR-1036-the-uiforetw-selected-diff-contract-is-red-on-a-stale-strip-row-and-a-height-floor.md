@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1036"
 title: "application_uiforetw_selected_diff_contract is red at HEAD: its exact strip row predates BPR-0990's refreshQueueAction, and the comparison is 842/1000 of the window height against an 850 floor"
-status: "Blocked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-metadata: {"found_by":"bpr-main-linux, BPR-0863's baseline run","found_at":"dec43dda","reproduced_at":["b93adf45","3dca2d7a","1dfe0600 (macOS)","4a4c1e40","c127cb38"],"last_green_linux":"271bb452 (BPR-0875's twelve-course run)","folded_from":["BPR-0864"],"related_cards":["BPR-0859","BPR-0863","BPR-0864","BPR-0990","BPR-1033","BPR-1037","BPR-0246","BPR-0653","BPR-0929","BPR-1021"],"reservation":"docs/issues/_reservations/BPR-1036--BPR-1036--0e7760d6ea6e.json","candidate":"3d941d47","height_cause":"RFC-BPR-0037 composition entry row (cc038748, BPR-0929), 20 px between the strip and the epoch line; hidden, the comparison is 862/1000","blocked_detail":"The height floor waits on the owner answer to BPR-0653 ask 3 (RFC-BPR-0028 AC-01: admit the entry row, or move the entries); the 850 floor is the owner BPR-0246 budget"}
+metadata: {"found_by":"bpr-main-linux, BPR-0863's baseline run","found_at":"dec43dda","reproduced_at":["b93adf45","3dca2d7a","1dfe0600 (macOS)","4a4c1e40","c127cb38"],"last_green_linux":"271bb452 (BPR-0875's twelve-course run)","folded_from":["BPR-0864"],"related_cards":["BPR-0859","BPR-0863","BPR-0864","BPR-0990","BPR-1033","BPR-1037","BPR-0246","BPR-0653","BPR-0929","BPR-1021","BPR-1106"],"reservation":"docs/issues/_reservations/BPR-1036--BPR-1036--0e7760d6ea6e.json","candidate":"3d941d47","height_cause":"RFC-BPR-0037 composition entry row (cc038748, BPR-0929), 20 px between the strip and the epoch line; hidden, the comparison is 862/1000","owner_answer":"2026-09-24, attended session cbd48b91, BPR-0653-entry-row-v001 decision 007a6eb5: RFC-BPR-0028 AC-01 amended to admit the entry rows; the floor is taken from the measured stacks (Linux 842, macOS 835)"}
 acceptance: [{"criterion":"AC1 application_uiforetw_selected_diff_contract passes on Linux and macOS, with the strip row still asserted exactly, in order","outcome":"pending","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: the exact row holds refreshQueueAction at 23 and prints no UIFORETW_NAVIGATION_ROW_UNEXPECTED; the row still fails at UIFORETW_CAPTURE_LAYOUT_FAILED:987:842 on RFC-BPR-0037's composition entry row, which waits on the owner's answer to BPR-0653 ask 3. With only that row hidden (diagnostic build) the whole row passes, 862/1000 in all four profiles. macOS not run."}},{"criterion":"AC2 A too-short comparison fails with a line that names the widgets taking the height; the card records what took it and whether the floor or the product changed","outcome":"pending","revision":"3d941d47","evidence":{"kind":"observation","detail":"Linux: the candidate's own failure names composeReviewActionButton/composeInlineDraftActionButton@49+20 with the full stack, and break 101 names reviewReadiness@49+26. What took the height is recorded (cc038748's entry row, the only new row in 271bb452..dec43dda). Floor or product: pending the owner's AC-01 answer; the floor is unchanged at 850."}},{"criterion":"AC3 None of the probe's waits can reach RUN_BUDGET_EXPIRED before naming why; each new term fires with its own facts","outcome":"pass","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: thirteen diagnostic breaks, one per term, each failed by its own term (eleven at 5.0 s through the shared keep_waiting, the two walk terms at once), none with RUN_BUDGET_EXPIRED. HEAD's probe with the same gesture break expired the 40 s budget with only stage=2. Logs build/r2-logs/bpr1036-diag-break{1..13}.log, bpr1036-headcontrol-break2.log."}},{"criterion":"AC4 The round-trip contract passes with the resealed pins, and application_composition_contract passes","outcome":"pass","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: application_review_round_trip_composition_contract passes (1.68 s) with the pins resealed over 669a5a58..3d941d47 and failed on the drifted digest before; application_composition_contract passes (537.55 s). macOS round-trip run owed."}}]
-blocked_by: "owner-entry-row-placement"
 ---
 
 # BPR-1036: application_uiforetw_selected_diff_contract is red at HEAD: its exact strip row predates BPR-0990's refreshQueueAction, and the comparison is 842/1000 of the window height against an 850 floor
@@ -560,3 +559,38 @@ and `985:835` ([sweep record](../../verification/sweep-2026-09-23-mac.md)).
 The log is `build/logs/mac-batch6/bpr1036-mac-rows.log`, a station record
 that is not committed. This note does not move the card, which stays Blocked
 on the owner's entry-row answer.
+
+## Owner answer, 2026-09-24: AC-01 is amended, so the floor moves (attended session cbd48b91)
+
+The owner answered [[BPR-0653]]'s ask 3 in attended session
+`cbd48b91000b00f1e72e1ad62c7c384c` (packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589). Candidate `BPR-0653-entry-row-v001`, fingerprint
+`308902012d73…`, decision `007a6eb5-adf3-427c-8473-547f9d0c4d9e`,
+2026-09-24T18:54:09Z, `actor: human`: **select**, verbatim:
+
+> Amend RFC-BPR-0028 AC-01 and the chrome paragraph to admit the entry rows
+> between the strip and the epoch line
+
+Note, verbatim:
+
+> We should do a UX design iteration with the /frontend-design skill to figure
+> out where best to put these. For now you can ammend the card but open a
+> follow-up for the ux design.
+
+This is the second of the two answers this card set out under "Product or
+floor", so the card leaves `owner-entry-row-placement` and is **Ready**:
+
+- RFC-BPR-0028 AC-01 and its chrome paragraph now admit the composition entry
+  row and, while a pull request loads, the readiness line. The owner's
+  [[BPR-0246]] budget admits the row with them.
+- The work is the one this card named for that answer: take the floor from the
+  measured stacks (842/1000 on Linux, 835/1000 on macOS, both with the entry
+  row at 20 and 22 px), change it in both the capture and the course script
+  (`comparison_height LESS 850`), record the amendment here, and add the entry
+  row to `docs/ux/workbench-specification.md`'s primary layout.
+- Then re-run the row on Linux and macOS (owed item 4), expecting a pass, and
+  the round-trip contract if `github_application.cpp` changes again. That run
+  is also what [[BPR-1033]]'s AC3 waits for.
+- [[BPR-1106]] is the design round the note asks for. If it moves the entries
+  out of the row, the floor returns toward 850, and that card says so.
