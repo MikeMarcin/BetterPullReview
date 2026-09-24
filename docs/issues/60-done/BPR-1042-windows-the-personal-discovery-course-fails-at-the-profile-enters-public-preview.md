@@ -167,3 +167,32 @@ not own. [[BPR-0817]]'s startup recovery therefore refuses it with
 `repair-required`. That is now [[BPR-1044]].
 
 Windows N of N (N ≥ 3) at `1eac23ad` or later is still owed by `bpr-main-win`.
+
+## Post-close: Windows, 6 of 6 after `1eac23ad` (bpr-main-win, 2026-09-23)
+
+This is the Windows half of AC2. Windows 11 Home 10.0.26200, `build/dev`
+(MSVC 19.51 Debug, Qt 6.11.2), offscreen as registered, rebuilt before each
+set, runs one at a time. Both trees contain `1eac23ad`. Each is main plus
+[[BPR-1022]]'s Windows-only key handling in `workbench_window`, which this
+course does not reach.
+
+| Tree | Runs | Result |
+| --- | --- | --- |
+| `fd2c21d7` (main at `b9991925` plus BPR-1022's change) | 3 | 3 of 3 pass, 10.55–10.67 s |
+| `02905c77` (main at `24104b05` plus the same change, which landed as `785a6828`) | 3 | 3 of 3 pass, 10.30–10.44 s |
+
+The first set was run verbose. In it both sibling steps ran rather than
+being skipped, as on Linux:
+
+```text
+signed-out sibling: status=0 landing=0 queue shown=0 account=Sign in
+public-preview sibling: status=0 landing=0 queue shown=0 account=Sign in
+personal-discovery-public-path:pass
+```
+
+Before `1eac23ad`, the same course failed 3 of 3 at `364c4f37` with
+`PublicPreviewUnavailable=1`. The runs also print
+`AGENT_WORKSPACE_RECOVERY_REFUSED:…\AppData\Local\Temp\personal_discovery_public_path-…\agent-workspace-ownership-v1:repair-required`,
+which is [[BPR-1044]]'s and does not affect this course. The logs are
+station records under `build/logs/bpr-1042-main-win/` and are not committed.
+No Windows half remains open.
