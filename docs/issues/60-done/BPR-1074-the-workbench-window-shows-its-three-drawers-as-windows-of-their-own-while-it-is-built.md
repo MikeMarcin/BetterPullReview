@@ -204,3 +204,27 @@ run here. On macOS, a panel shown without a parent would have been a window
 of its own too, so the flash may have been visible there. Wanted on
 bpr-main-mac and bpr-main-linux as a post-close confirmation:
 `ctest --preset dev -R '^(qt_native_window_geometry|qt_workbench_window_scale_100)$' --output-on-failure`.
+
+## Post-close: macOS at `bcd57840` (bpr-main-mac, 2026-09-24)
+
+The run is at `bcd57840`, which contains `9f144f1e`.
+`workbench_drawer.cpp` and `workbench_window_tests.cpp` have not changed since
+`0bc65b0c` and [[BPR-1073]]'s `d87e70f0`. macOS 26.6.2 on Apple Silicon,
+Apple clang 21.0.0, Qt 6.11.2, `build/dev` Debug. The rebuild exited 0 with no
+`warning:` line.
+
+The wanted command, with `-j1 -V` added, passed 2 of 2, contained as
+registered and offscreen:
+`ctest --preset dev -j1 -V -R '^(qt_native_window_geometry|qt_workbench_window_scale_100)$' --output-on-failure`.
+
+- `qt_native_window_geometry` passed in 0.87 s and printed
+  `native-window-geometry:pass`. That mode runs
+  `test_building_the_window_shows_no_window_of_its_own`
+  (`workbench_window_tests.cpp:9308`), so the guard holds on macOS.
+- `qt_workbench_window_scale_100` passed in 18.70 s.
+
+This confirms the guard offscreen only. The real Cocoa desktop was not
+probed, so whether the drawers flashed as windows on macOS before the fix
+remains unmeasured. The log is a station record under
+`build/logs/bpr-1050-1051-1073-1074-mac/` and is not committed. Linux has not
+been run from this station. The acceptance record above is unchanged.
