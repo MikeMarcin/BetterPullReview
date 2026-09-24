@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0897"
 title: "A non-attended release build composes a live mutation provider for whatever pull request is open"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
