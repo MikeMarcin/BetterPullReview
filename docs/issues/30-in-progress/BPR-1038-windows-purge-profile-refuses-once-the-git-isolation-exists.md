@@ -199,3 +199,62 @@ changed line. The only findings are the naming style of
 `windows_private_storage.hpp`, which is snake_case throughout. They appear
 because the SQLite test includes that header by relative path. They are older
 than this card, and the two locals it touches keep the file's own style.
+
+## macOS: the selector passes, and the shared change moves no POSIX path (bpr-main-mac, 2026-09-23)
+
+macOS 26.6.2 on Apple Silicon, Apple clang 21.0.0, Qt 6.11.2, `build/dev`
+(Debug). The build was made at `b5cb3b43`: 243 steps, exit 0, no `warning:`
+line. No file under `src`, `tests`, `cmake` or `scripts`, and no CMake file,
+differs between `b5cb3b43` and main's `7b376657`, which contains `fe7dad99`.
+
+The selector above passed 5 of 5, exit 0, serial and contained as registered:
+`ctest --preset dev -R '^(core_release_maintenance|application_release_maintenance|qt_release_maintenance_scale_100|sqlite_release_maintenance_files|application_release_maintenance_public_path)$' --output-on-failure`.
+
+| Row | Time |
+| --- | --- |
+| `core_release_maintenance` | 0.34 s |
+| `application_release_maintenance` | 0.27 s |
+| `sqlite_release_maintenance_files` | 0.32 s |
+| `qt_release_maintenance_scale_100` | 1.12 s |
+| `application_release_maintenance_public_path` | 17.42 s |
+
+So the three shared cases pass on macOS: the core's operational failure, the
+host's pass-through and the panel's text. The purge course passes the
+inventory, the purge and the startup recovery refusal after it. The new
+SQLite case is Windows-only and does not run here. The console logs are
+station records under `build/logs/bpr-1038-1022-0886-mac/` and are not
+committed.
+
+**Review of the shared purge code for macOS and POSIX: no behaviour
+changes.**
+
+- Every change in `release_maintenance_files.cpp` is in its Windows half:
+  `held_identity`, the new `empty_directory` and `remove_exact`. That half is
+  the `#else` of the `#if !defined(_WIN32)` at line 408, from line 756 to
+  1232. The POSIX half, lines 408 to 755, is not in the diff. So the POSIX
+  inventory, its removal, and its acceptance of "not empty" for `state` and
+  `state/v1` are as they were.
+- `windows_private_storage.hpp` compiles only under `_WIN32`. POSIX
+  `private_directory` is in `installed_git_process.cpp`, which the change
+  does not touch.
+- `storage_not_private` is appended after `invalid_command`, so no existing
+  enumerator's value moves. The core, the host and the files adapter do not
+  store the reason by value. Its only producer is `held_identity`'s Windows
+  branch (`release_maintenance_files.cpp:882`). On macOS and Linux, the core's
+  new operational case, the host's pass-through and the panel's text are
+  reached only from test doubles.
+- The purge course's inventory wait now also stops on "not private". The
+  next line still requires Purge to be enabled, so the course is no weaker.
+  The added report prints only when the purge step fails.
+
+One Windows-side note from the same review, which is not a POSIX change:
+`held_identity` now maps every failure of `validate_private_security` to
+`storage_not_private`. That includes `GetSecurityInfo` failing to read the
+descriptor, which before was `invalid_authority`. Such a refusal still
+deletes nothing. Only its text may name the wrong cause.
+
+**What remains: the Linux run.** On Linux, AC4's first half holds by the
+review above, because Linux compiles the same POSIX code. The card's own plan
+also asks bpr-main-linux to run the selector, and that run has not been
+made. The card stays In Progress for it. With that run, every criterion has
+its evidence, and the card can be finished.
