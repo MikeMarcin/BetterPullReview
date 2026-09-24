@@ -169,3 +169,75 @@ The teardown race behind `relaunch` and `layout`, recorded above, is now
 needs those two rows to pass contained, and that waits on [[BPR-1039]] and on
 their contained seeds. `review_restoration`'s seed and `owner_admission`
 ([[BPR-0907]]) are unchanged.
+
+## Three more rows pinned, each passing uncontained (bpr-main-win, 2026-09-23)
+
+Run `bpr-main-win-20260923`, `build/dev` (MSVC 19.51 Debug, Qt 6.11.2),
+serial and offscreen. The logs are station records under
+`build/logs/bpr-0876-main-win/` and `build/logs/bpr-1040-main-win/` and are
+not committed.
+
+**`relaunch` and `layout`.** [[BPR-1039]] removed the teardown race: the
+courses were holding their own store connections open. Both rows now pass
+uncontained, 3 of 3 each at `f416d2bb` (recorded there). They are now
+registered `WINDOWS_UNCONTAINED` and pinned `dos-volume-name`, and they pass as
+registered: `application_device_binding_relaunch` 15.67 s,
+`application_profile_window_layout_public_path` 37.45 s. Neither leaves a
+`bpr-0644-relaunch-*` or `bpr-0708-layout-*` root behind. Contained, they
+still stop where the table above says, at the registry refusal and at the
+exit-3 seed.
+
+**`review_restoration`'s seed, diagnosed.** Uncontained, the seed stopped at
+"desktop admitted" because of the course's own copies, not the product. The
+course builds eleven more roots from its seeded one with `shutil.copytree`. On
+Windows each copied directory and file inherits its parent's entries, and the
+stores refuse an inherited descriptor, so no copied root's desktop was ever
+admitted. Its fresh roots came from `mkdir(mode=0o700)`. On Windows, CPython
+turns that mode into its own protected descriptor, which is not the one the
+stores check for. The helper's Windows narrowing takes out exactly the extra
+entries that descriptor carries.
+
+The course now does two things, both through `bpr_narrow_owner_private.py`,
+the helper that already narrows a root:
+
+- `make_root_private` makes each fresh root;
+- `copy_private_root` makes each copy.
+
+On Windows, `copy_private_root` copies and then narrows every copied directory
+and file to the explicit, protected descriptor the product writes, as
+`make_root_private` narrows a root. On POSIX both are exactly what the course
+did before: `mkdir(mode=0o700)` and `shutil.copytree`, which keeps each
+store's 0600 and each directory's 0700.
+
+With that, the course passes uncontained. Of eight runs at the
+[[BPR-1040]] candidate, six passed. One stopped at that card's epoch failure
+(`EPOCH_CACHE_FAILURE:7`, `revision-prepare:0`). One stopped at "durable
+record equals actual accepted public reading", with no epoch line, while this
+station was running other heavy rows alongside it. That one is recorded on
+BPR-1040 for measurement and is not this card's. Before the
+candidate, the course failed at the epoch in about 18 of 19 runs, so this card
+could not be judged until BPR-1040's retry. The row is now registered
+`WINDOWS_UNCONTAINED` and pinned `dos-volume-name`, and it passes as
+registered: `application_profile_window_review_restoration_public_path`,
+392.82 s. Contained, its authorization seed exits 3, the contained canonical
+abort.
+
+**The pins.** Three keywords in `tests/end_to_end/CMakeLists.txt` and three
+entries in `scripts/verify_test_network_isolation.py`, with the measurement.
+`test_network_isolation_manifest` reports
+`TEST_NETWORK_ISOLATION_OK:configured=417:registrations=393:backend=windows-appcontainer`,
+and `test_network_isolation_structure_contract` passes.
+
+### Where the six rows stand
+
+| Course | Now |
+| --- | --- |
+| `application_device_binding_launch_renewal` | Pinned; passes |
+| `application_profile_window_restart_public_path` | Pinned; passes |
+| `application_device_binding_relaunch` | Pinned; passes (15.67 s) |
+| `application_profile_window_layout_public_path` | Pinned; passes (37.45 s) |
+| `application_profile_window_review_restoration_public_path` | Pinned; passes (392.82 s), when [[BPR-1040]]'s epoch holds |
+| `application_profile_owner_admission_public_path` | [[BPR-0907]] carries it: a Windows-only branch waits for a refusal presentation that never arrives, behind the same containment |
+
+The POSIX owner-only contract is untouched. On POSIX the course helper's
+branches are the calls the courses made before, and no product path changed.

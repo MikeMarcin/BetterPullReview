@@ -2572,7 +2572,10 @@ target_link_libraries(test_device_binding_relaunch PRIVATE BetterPullReview::Com
 target_compile_definitions(test_device_binding_relaunch PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_device_binding_relaunch)
 bpr_enable_warnings(test_device_binding_relaunch)
-bpr_add_network_isolated_test(NAME application_device_binding_relaunch
+# [[BPR-0876]]. Uncontained on Windows: contained its seed stops at
+# SEED_STARTUP_PROFILE_REFUSAL:registry_unavailable, the data root's ancestor
+# walk the container cannot make (dos-volume-name).
+bpr_add_network_isolated_test(NAME application_device_binding_relaunch WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/device_binding_relaunch_contract.py"
     --application $<TARGET_FILE:test_device_binding_relaunch>)
 set_tests_properties(application_device_binding_relaunch PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "DEVICE_BINDING_RELAUNCH_OK")
@@ -2885,7 +2888,9 @@ target_compile_definitions(test_profile_window_layout_public_path PRIVATE BPR_BU
 target_compile_features(test_profile_window_layout_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_window_layout_public_path)
 bpr_enable_warnings(test_profile_window_layout_public_path)
-bpr_add_network_isolated_test(NAME application_profile_window_layout_public_path
+# [[BPR-0876]]. Uncontained on Windows: contained its seeding executable exits
+# 3, the contained std::filesystem::canonical abort (dos-volume-name).
+bpr_add_network_isolated_test(NAME application_profile_window_layout_public_path WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_window_layout_contract.py"
     --application $<TARGET_FILE:test_profile_window_layout_public_path>)
 set_tests_properties(application_profile_window_layout_public_path PROPERTIES
@@ -2897,7 +2902,9 @@ target_compile_definitions(test_profile_window_review_restoration_public_path PR
 target_compile_features(test_profile_window_review_restoration_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_window_review_restoration_public_path)
 bpr_enable_warnings(test_profile_window_review_restoration_public_path)
-bpr_add_network_isolated_test(NAME application_profile_window_review_restoration_public_path
+# [[BPR-0876]]. Uncontained on Windows: contained its authorization seed exits
+# 3, the contained std::filesystem::canonical abort (dos-volume-name).
+bpr_add_network_isolated_test(NAME application_profile_window_review_restoration_public_path WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_window_review_restoration_contract.py"
     --application $<TARGET_FILE:test_profile_window_review_restoration_public_path>)
 set_tests_properties(application_profile_window_review_restoration_public_path PROPERTIES

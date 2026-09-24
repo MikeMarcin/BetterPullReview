@@ -2,11 +2,11 @@
 import argparse
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from bpr_narrow_owner_private import copy_private_root, make_root_private  # noqa: E402
 from bpr_store_connection import store_connection  # noqa: E402
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
@@ -64,7 +64,7 @@ def main():
         root = Path(temporary).resolve()
         os.chmod(root, 0o700)
         auth = root / "auth"
-        auth.mkdir(mode=0o700)
+        make_root_private(auth)
         vault = seed_auth(arguments.application, auth)
         initial = records(auth)
         assert [row[-1] for row in initial] == ["17", "18"], initial
@@ -73,36 +73,36 @@ def main():
         assert len(initial_positions) == 2 and all(row[1] for row in initial_positions)
         assert initial_positions[0][1] != initial_positions[1][1], "independent readings collapsed"
         home = root / "home"
-        shutil.copytree(auth, home)
+        copy_private_root(auth, home)
         run(arguments.application, "auth-home", home, vault)
         assert records(home) == initial, "Home cancellation lost retained destination"
         assert positions(home) == initial_positions, "Home cancellation lost accepted reading"
         for phase in ("auth-reading-gesture", "auth-reading-unchanged", "auth-reading-home"):
             course = root / phase
-            course.mkdir(mode=0o700)
+            make_root_private(course)
             course_vault = seed_auth(arguments.application, course)
             run(arguments.application, phase, course, course_vault)
         for phase in ("unavailable-anchor", "unavailable-file", "unavailable-semantic"):
             course = root / phase
-            course.mkdir(mode=0o700)
+            make_root_private(course)
             course_vault = seed_auth(arguments.application, course)
             course_positions = positions(course)
             run(arguments.application, phase, course, course_vault)
             assert records(course) == initial, "unavailable reading lost destination"
             assert positions(course)[1] == course_positions[1], "failure changed sibling reading"
         thin = root / "thin"
-        shutil.copytree(auth, thin)
+        copy_private_root(auth, thin)
         # Cache manifests bind the original directory identity. A copied cache
         # is deliberately unavailable, and is not positive restoration evidence.
         run(arguments.application, "unavailable-content", thin, vault)
         assert positions(thin) == initial_positions, "unavailable cache changed reading"
         stale = root / "stale"
-        shutil.copytree(auth, stale)
+        copy_private_root(auth, stale)
         run(arguments.application, "auth-stale", stale, vault)
         assert [row[-1] for row in records(stale)] == ["18", "18"], "late restored read replaced user navigation"
         for phase in ("missing-grant", "missing-server", "corrupt", "future", "failed-read"):
             course = root / phase
-            shutil.copytree(auth, course)
+            copy_private_root(auth, course)
             if phase == "corrupt":
                 database(course).write_bytes(b"not a sqlite database")
             elif phase != "missing-grant":
@@ -133,10 +133,10 @@ def main():
         run(arguments.application, "auth-verify", auth, vault)
         assert [(row[0], row[-1]) for row in records(auth)] == [("2", "18")], "fresh window invented destination"
         anonymous = root / "anonymous"
-        anonymous.mkdir(mode=0o700)
+        make_root_private(anonymous)
         run(arguments.application, "anonymous-seed", anonymous)
         capability = root / "capability"
-        shutil.copytree(anonymous, capability)
+        copy_private_root(anonymous, capability)
         with store_connection(database(capability)) as connection:
             connection.execute("UPDATE restoration_records SET hostname='ghe.example.invalid'")
         unavailable = records(capability)

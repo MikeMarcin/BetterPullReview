@@ -15,6 +15,7 @@ and a third spelling of one descriptor is the outcome worth avoiding.
 """
 
 import os
+import shutil
 import subprocess
 
 
@@ -33,15 +34,42 @@ def make_root_private(root):
         root.mkdir(mode=0o700, exist_ok=True)
         return
     root.mkdir(exist_ok=True)
+    narrow_windows_entry(root, directory=True)
+
+
+def copy_private_root(source, destination):
+    """[[BPR-0876]]. A copy of a data root that the stores accept as their own.
+
+    POSIX: `shutil.copytree` keeps each store's 0600 and each directory's 0700.
+    Windows: every directory and file a copy creates inherits its parent's
+    entries, and the stores refuse an inherited descriptor, so a copied root's
+    desktop is never admitted. Each copied directory and file is narrowed to
+    the explicit, protected descriptor the product writes, as
+    `make_root_private` narrows a root.
+    """
+    if os.name == "posix":
+        shutil.copytree(source, destination)
+        return
+    make_root_private(destination)
+    shutil.copytree(source, destination, dirs_exist_ok=True)
+    for entry in sorted(destination.rglob("*")):
+        narrow_windows_entry(entry, directory=entry.is_dir())
+
+
+def narrow_windows_entry(path, directory):
+    """Windows: one explicit full-access grant for the current user, and for the
+    process's AppContainer when contained, with inheritance removed. A
+    directory's grant is inheritable; a file's is not."""
     # [[BPR-0979]]. The grant names the token user's SID, not
     # USERDOMAIN\\USERNAME: an OpenSSH session on a workgroup host reports
     # USERDOMAIN=WORKGROUP, a principal icacls cannot map (error 1332), while
     # the SID is what the product's descriptor carries in every session.
-    grants = ["/grant:r", f"*{user_sid()}:(OI)(CI)F"]
+    rights = "(OI)(CI)F" if directory else "F"
+    grants = ["/grant:r", f"*{user_sid()}:{rights}"]
     container = appcontainer_sid()
     if container is not None:
-        grants += ["/grant:r", f"*{container}:(OI)(CI)F"]
-    subprocess.run(["icacls", str(root), "/inheritance:r", *grants,
+        grants += ["/grant:r", f"*{container}:{rights}"]
+    subprocess.run(["icacls", str(path), "/inheritance:r", *grants,
                     "/remove:g", "*S-1-5-18", "*S-1-5-32-544", "*S-1-3-4"],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
