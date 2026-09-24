@@ -460,3 +460,40 @@ is the tree every check above ran against. The card is Blocked on
 4. **After the answer, on Linux and macOS:** re-run
    `application_uiforetw_selected_diff_contract`, expecting a pass, plus the
    round-trip contract if the pinned file changes again.
+
+## Windows: the `_WIN32` branch compiles; the row stops where BPR-1033 records, with nothing new (bpr-main-win, 2026-09-23)
+
+The run used `7c1dbb9c`, which contains `3d941d47`. It was
+`build/windows-dev` (Visual Studio generator, MSVC 19.51, Debug, Qt 6.11.2),
+rebuilt first. The build exited 0 with no `error` and no `warning` line, so
+the `_WIN32` strip-row branch compiles: 30 actions on Windows, with the
+caption buttons last at `named(28)`. Then
+`ctest --preset windows-dev -j1 --output-on-failure -V -R
+'^application_uiforetw_selected_diff_contract$'` ran. The row fails in
+9.51 s, and the contract reports `UIforETW light capture failed (1)`
+(`application_uiforetw_selected_diff_contract.cmake:93`). The fixture's
+output is:
+
+```text
+PUBLIC_PATH_FAILED
+PUBLIC_PATH_STAGE:2
+PUBLIC_PATH_VERDICT:presentation=0 shutdown_complete=1 cleanup_failed=0
+UIFORETW_EXACT_COMMIT_PAIR_OK … UIFORETW_SELECTED_DIFF_TRACE_OK   (all twelve, as before)
+UIFORETW_SELECTED_DIFF_EVIDENCE_FAILED
+stderr: UIFORETW_CAPTURE_FIRST_TARGET_FAILED
+```
+
+**The stopping line** is `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, the same as
+[[BPR-1033]] recorded at `c4130c3a`.
+
+**Nothing is new.** There is no `UIFORETW_NAVIGATION_ROW_UNEXPECTED`, no
+`UIFORETW_CAPTURE_LAYOUT_FAILED`, no stall term from [[BPR-1037]]'s bounded
+waits, and no `RUN_BUDGET_EXPIRED`. The capture stops at the first target,
+before it reaches the strip row or the height floor, so on Windows this
+card's two causes cannot yet be observed.
+
+**Relation to BPR-1033.** No work on BPR-1033 itself has been done from this
+station yet. Its AC1, naming which of the nine clauses fails, is still open,
+and this run adds nothing there beyond confirming the stop at this head. The
+logs are station records under `build/logs/bpr-1036-main-win/` and are not
+committed.
