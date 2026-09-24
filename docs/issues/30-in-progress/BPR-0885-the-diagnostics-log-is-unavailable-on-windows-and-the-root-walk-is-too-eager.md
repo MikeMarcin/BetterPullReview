@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0885"
 title: "The diagnostics log is unconditionally unavailable on Windows, and its root walk creates shared ancestors"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
