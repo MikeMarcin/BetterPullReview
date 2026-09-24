@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0906"
 title: "The relocated activation endpoint leaves stale sockets in the shared per-user runtime directory"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
@@ -174,3 +174,12 @@ then killed. It did not come from sweeps.
   It has to be built and measured on Linux.
 
 The card narrows to `platforms: ["linux"]` and stays in Backlog.
+
+## Promoted to Ready for the Linux half — bpr-main-linux, 2026-09-23
+
+Nothing defers this card any more. [[BPR-0895]] is Done, the macOS half is
+recorded above, and the card has no dependencies. The station's
+`/run/user/1000` held 56 `bpr-activate-*.sock` files at `7b173389`, dated
+2026-09-21 to 2026-09-23, so the Linux residual is current. The direction
+recorded above is taken: honour `$XDG_RUNTIME_DIR` on Linux, and have the
+Linux launcher give each row its own runtime directory.
