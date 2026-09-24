@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0886"
 title: "Windows: the agent transport writes the whole request before draining any child output, so a chatty child stalls to timeout"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
