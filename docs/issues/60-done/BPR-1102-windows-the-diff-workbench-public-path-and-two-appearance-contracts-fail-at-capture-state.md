@@ -160,3 +160,50 @@ row passes (6.66 s).
 completed, and the facts line prints only on failure, so macOS and Linux keep
 their path. No run has been made there from this station; the integrator's
 5660cf3b runs are the baseline.
+
+## Post-close: Linux at `e2dc8f82` (bpr-main-linux, 2026-09-24)
+
+**AC4 now holds on Linux by a run.** The three rows and the round-trip
+composition contract pass 4 of 4 with this card's capture wait in the tree.
+On macOS AC4 still rests on the reasoning above and the integrator's
+`5660cf3b` baseline: this station did not run macOS.
+
+The integrator asked for this rerun. It was made in the station's main
+checkout, with a clean tree, at `e2dc8f82` ("Finish BPR-1104"). That revision
+contains `4248720b`. The station is WSL2 Ubuntu 26.04 with GCC 15.2 and Qt
+6.11.2. The tree is `build/dev` (Debug) from the `dev` preset, which compiles
+with `-Werror`. The build of `e2dc8f82` recompiled `src/app/main.cpp` and has
+no compiler `warning:` line. The rows ran once each, serially (`-j1`), with
+`QT_QPA_PLATFORM=offscreen` and with `DISPLAY` and `WAYLAND_DISPLAY` unset.
+They started right after the build, at a load average of 7.97/2.09/0.70.
+
+`ctest --test-dir build/dev -j1 --output-on-failure -R "^(application_diff_workbench_public_path|application_appearance_theme_customization_contract|application_appearance_store_fallback_contract|application_review_round_trip_composition_contract)$"`
+passed 4 of 4:
+
+| Row | Before the fix, `5660cf3b` | At `e2dc8f82` |
+| --- | --- | --- |
+| `application_diff_workbench_public_path` | pass, 2.78 s | pass, 3.10 s |
+| `application_appearance_theme_customization_contract` | pass, 5.56 s | pass, 5.48 s |
+| `application_appearance_store_fallback_contract` | pass, 3.29 s | pass, 3.32 s |
+| `application_review_round_trip_composition_contract` | not run | pass, 1.66 s |
+
+The "before" column is this station's Linux row in the Measured table above,
+at `5660cf3b` and before `4248720b` landed. It also passed 3 of 3.
+
+The round-trip contract's pass shows that the production application
+manifest digest resealed in `4248720b` matches the Linux checkout after
+`main.cpp`'s test-only capture change. The contract hashes the pinned files
+with line endings normalized to LF, so a digest sealed on Windows can match
+here.
+
+Each row takes within 0.32 s of its time before the fix. That fits AC4's
+reasoning, that the wait returns at once where the measurement has already
+completed, but this run does not observe the wait directly. With
+`--output-on-failure` a passing row prints nothing more. So the log has no
+`DIFF_INTERACTION_FAILURE`, no `DIFF_INTERACTION_CAPTURE_STATE_FACTS` and no
+other stopping line.
+
+The logs are station records under
+`build/logs/bpr-main-linux-20260924/bpr-1102-1104-post-close/` and are not
+committed. They are `bpr-1102-post.log`, `bpr-1102-ctest-5660cf3b.log` for
+the earlier run, and `build-dev-e2dc8f82.log` for the build.

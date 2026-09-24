@@ -172,3 +172,49 @@ left as it is. [[BPR-1040]]'s account of its holder, a real-time scanner, is
 not rewritten. Some of its holds may have been this inheritance. With the list
 alone, 2 of 80 seeds still stopped at the delete; they were not traced, and
 the delete's retry covers them.
+
+## Post-close: Linux at `e2dc8f82` (bpr-main-linux, 2026-09-24)
+
+**The Git rows pass on Linux, 4 of 4, with both parts of the fix in the
+tree.** This adds a Linux run to AC4's reasoning above. The Windows-only
+handle list and the Windows-only delete retry changed nothing these rows
+observe off Windows. This station did not run macOS.
+
+The integrator asked for this rerun. It was made in the station's main
+checkout, with a clean tree, at `e2dc8f82` ("Finish BPR-1104"). That revision
+contains `51784082`. The station is WSL2 Ubuntu 26.04 with GCC 15.2 and Qt
+6.11.2. The tree is `build/dev` (Debug) from the `dev` preset, which compiles
+with `-Werror`. The build of `e2dc8f82` recompiled `installed_git_process.cpp`
+and `installed_git_cache.cpp` and has no compiler `warning:` line. So the
+change's code outside `Q_OS_WIN`, which is `remove_file_name`'s plain
+`std::filesystem::remove` branch, compiles here with warnings as errors. The
+rows ran once each, serially (`-j1`), with `QT_QPA_PLATFORM=offscreen` and
+with `DISPLAY` and `WAYLAND_DISPLAY` unset. They followed [[BPR-1102]]'s
+Linux rows in the same session, which started at a load average of
+7.97/2.09/0.70.
+
+`ctest --test-dir build/dev -j1 --output-on-failure -R "git_(process|protocol|cache)|installed_git"`
+passed 4 of 4:
+
+| Row | Time |
+| --- | --- |
+| `git_protocol_boundary` | 0.51 s |
+| `application_git_protocol_v2` | 0.01 s |
+| `git_process_contract` | 5.73 s |
+| `git_cache_contract` | 4.67 s |
+
+`git_process_contract` compiles `installed_git_process.cpp` into its own
+executable. `git_cache_contract` compiles that file and
+`installed_git_cache.cpp`.
+
+No row matched `installed_git` by that name. No row registered in `build/dev`
+has that string in its name, because it is the prefix of the two changed
+source files. The selector therefore ran exactly the four rows above. The
+card's other Windows checks were not run here: `git_sparse_cache_contract`,
+`native_git_smart_transport_contract`, the architecture rows, BPR-1040's
+three courses and the review-restoration course.
+
+The logs are station records under
+`build/logs/bpr-main-linux-20260924/bpr-1102-1104-post-close/`
+(`bpr-1104-post.log`, and `build-dev-e2dc8f82.log` for the build). They are
+not committed.
