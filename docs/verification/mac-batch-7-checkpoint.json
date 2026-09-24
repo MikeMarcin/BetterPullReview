@@ -7,18 +7,128 @@
  "date": "2026-09-24",
  "mandate": "implement available unattended work, focus on closing out rfcs; revise stale cards and rfcs; push and pull as needed; continue any mac work that becomes available",
  "source": "owner-decisions-20260924-v001 consumption (docs/verification/owner-decisions-20260924-v001-consumption.json)",
+ "state": "complete",
  "cards": [
-  {"card": "BPR-0897", "state": "Done", "commits": ["d393bb5c", "c3a55f25", "589ee191"], "result": "intent comment at select_observed_review_mutation; pins resealed"},
-  {"card": "BPR-0986", "state": "Parked (human-review)", "commits": ["8f0ec40b", "bdfc0489"], "result": "Colours card offers 45 roles; owner ask prepared: the current-line band alone, rendered after BPR-1107 with white space off"},
-  {"card": "BPR-1036", "state": "Done", "commits": ["557792d5", "69d11f8b"], "result": "coordinator aside: macOS rows pass at b18888aa (835/1000); BPR-1033 AC3 macOS half recorded, card not moved"},
-  {"card": "BPR-0644", "state": "Parked (human-review)", "commits": ["1347f776", "cfff152c"], "result": "keep-grant policy built for launches; owner ask prepared: keep erasing material that signs in as another account, or keep it until Sign out"},
-  {"card": "BPR-1116", "state": "Ready (new)", "commits": ["d93433b4", "1347f776"], "result": "follow-up: in-process renewal and missing refresh slot still erase"},
-  {"card": "BPR-1023", "state": "Done", "commits": ["b9d6bb26", "60069e4b"], "result": "option 1: every card Connect obeys host activation; course reconciled; control fails without the gate"},
-  {"card": "BPR-0803", "state": "pending", "next": "claim; keep the device code visible beside the CLI choice; courses for each ending; park for one rendered question"},
-  {"card": "BPR-1107", "state": "pending", "next": "white-space drawing plus setting; captures; owner acceptance later"},
-  {"card": "BPR-1106", "state": "pending", "next": "frontend-design round; mockups on the card; park for one question"}
+  {
+   "card": "BPR-0897",
+   "state": "Done",
+   "commits": [
+    "d393bb5c",
+    "c3a55f25",
+    "589ee191"
+   ],
+   "result": "intent comment at select_observed_review_mutation; pins resealed"
+  },
+  {
+   "card": "BPR-0986",
+   "state": "Parked (human-review)",
+   "commits": [
+    "8f0ec40b",
+    "bdfc0489"
+   ],
+   "result": "Colours card offers 45 roles; owner ask prepared: the current-line band alone, to be captured with white space None now that BPR-1107 has landed; no session prepared"
+  },
+  {
+   "card": "BPR-0644",
+   "state": "Parked (human-review)",
+   "commits": [
+    "1347f776",
+    "cfff152c"
+   ],
+   "result": "a launch keeps the remembered grant through every failure; owner ask prepared: keep erasing material that signs in as another account, or keep it until Sign out"
+  },
+  {
+   "card": "BPR-1116",
+   "state": "Ready (new)",
+   "commits": [
+    "d93433b4",
+    "1347f776"
+   ],
+   "result": "follow-up: an in-process renewal that gives up, the in-process rotation tombstone, and a missing refresh slot still erase"
+  },
+  {
+   "card": "BPR-1023",
+   "state": "Done",
+   "commits": [
+    "b9d6bb26",
+    "60069e4b"
+   ],
+   "result": "option 1: every card's Connect obeys host activation; course reconciled; control fails without the gate"
+  },
+  {
+   "card": "BPR-0803",
+   "state": "Parked (human-review)",
+   "commits": [
+    "9577a516",
+    "4c57565f"
+   ],
+   "result": "the device code stays beside the GitHub CLI choice until one ends; three composed endings; one rendered question prepared, no session"
+  },
+  {
+   "card": "BPR-1107",
+   "state": "Parked (human-review)",
+   "commits": [
+    "eb9a94a9",
+    "f6d38c58",
+    "9e36f157"
+   ],
+   "result": "Sublime-style white space with a six-choice setting (store v8); two owner questions prepared (drawing; choices and default); application_large_review_history rerun alone: one 143 ms outlier then a pass (median 68.2 ms)"
+  },
+  {
+   "card": "BPR-1106",
+   "state": "Parked (human-review)",
+   "commits": [
+    "4e9037e6",
+    "a7dd1cd2"
+   ],
+   "result": "design round v1: five placements (A baseline row, B review menu, C Updates line end, D drawer foot, E strip control), 50 frames and 8 close-ups; proposed C; one question prepared as BPR-1106-placement-v001, no session"
+  }
  ],
- "ids_allocated": ["BPR-1116"],
+ "coordinator_asides": [
+  {
+   "card": "BPR-1036",
+   "state": "Done",
+   "commits": [
+    "557792d5",
+    "69d11f8b"
+   ],
+   "result": "macOS rows pass at b18888aa (835/1000); BPR-1033 AC3 macOS half recorded, card not moved"
+  },
+  {
+   "card": "BPR-0825",
+   "state": "In Progress (bpr-main-win)",
+   "commits": [
+    "920f85bc"
+   ],
+   "result": "owed macOS runs pass at f6d38c58: dev reconfigured and built, 8/8 card rows, 18/18 sqlite_ rows, better_pull_review_platform configures and its header compiles alone under -Werror"
+  },
+  {
+   "card": "BPR-1118",
+   "state": "In Progress (bpr-main-linux)",
+   "commits": [
+    "64f5442c"
+   ],
+   "result": "owed macOS run passes at 9e36f157 (AC5 macOS half); Windows owed"
+  }
+ ],
+ "ids_allocated": {
+  "bpr-main-mac": [
+   "BPR-1116"
+  ],
+  "bpr-main-linux": [
+   "BPR-1117",
+   "BPR-1118"
+  ],
+  "bpr-main-win": [
+   "BPR-1119",
+   "BPR-1120"
+  ]
+ },
+ "owed_elsewhere": [
+  "not yet run on Linux or Windows: the portable product changes of BPR-0644, BPR-1023, BPR-0803 and BPR-1107 (the cards do not record them as owed; the next integration pass on those stations covers them)",
+  "BPR-1118 AC5 Windows run",
+  "attended session: BPR-0986 band, BPR-0644 account-mismatch erasure, BPR-0803 rendered question, BPR-1107 two questions, BPR-1106 placement"
+ ],
  "commands_running": [],
- "next_action": "BPR-0803"
+ "next_action": "coordinator: prepare one scoped attended session for the five prepared asks; BPR-1116 is Ready for the next Mac batch"
 }
