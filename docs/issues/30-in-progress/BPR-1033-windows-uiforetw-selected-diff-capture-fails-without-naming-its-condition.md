@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1033"
 title: "Windows: application_uiforetw_selected_diff_contract fails at UIFORETW_CAPTURE_FIRST_TARGET_FAILED without naming which of its nine conditions is false"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
