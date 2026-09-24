@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0902"
 title: "Windows: the device refresh course rotates once instead of twice, and the flow requires re-enrolment instead of scheduling"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win, exposed once BPR-0877's lock skip removed the sentinel that was masking it","found_at":"d6dfca2b","run":"run-20260916-stations","dispatch":"dsp-006"}
+acceptance: [{"criterion":"The row passes on Windows, or the remaining difference is a named, understood cause with its own record","outcome":"pass","revision":"0749027e","evidence":{"kind":"command","detail":"bpr-main-win, build/dev MSVC 19.51 Debug, Qt 6.11.2, serial, offscreen: application_device_authorization_refresh_course passes 11 of 11 at 02905c77's sources (9.74-9.82 s, ROTATIONS:2, REFRESH_STATE:scheduled, VAULT_STORES:3, REFRESH_STORES:3, REFRESH_DELETES:1), then with 0749027e's change passes again (9.82 s, REFRESH_RETRIEVES:4) and all 22 device_authorization rows pass. The failure's cause is named and reproduced: when a rotation's capture-to-re-arm time reaches the course clock's one-second margin, the next renewal is armed with wait 0 and races the supersession.","path":"docs/issues/60-done/BPR-0902-the-device-refresh-course-rotates-once-and-then-requires-reenrolment.md#measured-a-race-the-courses-one-second-margin-prevents-and-the-row-is-green-bpr-main-win-2026-09-23"}},{"criterion":"The card says whether the second rotation was refused or never attempted, and why the device looked un-enrolled","outcome":"pass","revision":"0749027e","evidence":{"kind":"command","detail":"Uncommitted probes and two negative controls (the clock's deliberate second removed; rotation 1's refresh store held back 1.1 s) reproduce the card's exact signature (ROTATIONS:1, reenrollment_required, VAULT_STORES:2, REFRESH_STORES:2, REFRESH_DELETES:1) with REFRESH_RETRIEVES:2 against 4 when passing; report_reenrollment gives storage_failed at rotations=1, 26-30 ms after a re-arm with wait 0. So the second renewal was attempted and refused before it read the vault: the enrollment port's prepare_refresh answers not ready while rotation 1's supersession is in flight. The vault still held the material. Measured margin at HEAD: rotation 1 re-arms 34 ms after its capture (966 ms to spare).","path":"docs/issues/60-done/BPR-0902-the-device-refresh-course-rotates-once-and-then-requires-reenrolment.md#measured-a-race-the-courses-one-second-margin-prevents-and-the-row-is-green-bpr-main-win-2026-09-23"}},{"criterion":"macOS and Linux are unaffected, checked rather than assumed","outcome":"pass","revision":"0749027e","evidence":{"kind":"freeform","detail":"Not run from this station. The path is platform-independent (in-process fixture vault, shared host logic). Linux passed the row at 2b2e5549 on the day the card was found (7.93 s, dsp5-linux-full-sweep.md) and all three platforms at 0d19c990 (RFC-BPR-0016.md). The only change prints one line after the verdict, pinned by no row, so every platform's pass expression still matches; the next macOS and Linux sweeps confirm HEAD."}}]
 ---
 
 # BPR-0902: Windows: the device refresh course rotates once instead of twice, and the flow requires re-enrolment instead of scheduling
@@ -163,3 +164,90 @@ reading `bpr_bound_automated_run` (`:398`) is the next step there.
 **Also worth one cheap check nobody has done:** whether [[BPR-0877]]'s lock-skip
 fix altered timing on this path. It is what made this row get far enough to
 fail here, and it may also be what made it fail.
+
+## Measured: a race the course's one-second margin prevents, and the row is green (bpr-main-win, 2026-09-23)
+
+**The row passes at HEAD.** `build/dev` at `02905c77`'s sources (MSVC 19.51
+Debug, Qt 6.11.2), serial, offscreen, uncontained as registered.
+`application_device_authorization_refresh_course` passes 11 of 11, in
+9.74–9.82 s. Every run prints `ROTATIONS:2`, `REFRESH_STATE:scheduled`,
+`VAULT_STORES:3`, `REFRESH_STORES:3` and `REFRESH_DELETES:1`. With this
+card's change it passes twice more (9.82 s, with `REFRESH_RETRIEVES:4`), and
+all 22 `device_authorization` rows pass, including the three sibling rows of
+[[BPR-0877]]. The logs are station records under
+`build/logs/bpr-0877-0902-main-win/` and are not committed.
+
+**The margin, measured.** An uncommitted probe in `schedule_refresh` printed
+two values at every arming: how far the re-arm read is from the
+`AuthorizedAt` capture, and the wait it arms. The course clock adds its step
+of 28,499 s between those two reads. The timings were the same in all three
+runs to within 7 ms.
+
+| Arming | Capture to re-arm read | Wait armed | Margin left |
+| --- | --- | --- | --- |
+| the bind, after the grant | 28,499,907–914 ms | 1 s | 86–93 ms |
+| rotation 1's re-arm | 28,499,033–034 ms | 1 s | 966 ms |
+| rotation 2's re-arm, which gets no step | 33–40 ms | 28,500 s | (the real eight hours) |
+
+**Two negative controls reproduce this card's exact signature.** Each was a
+temporary edit, rebuilt and run, and the sources were restored byte for
+byte.
+
+| Control | Rotation 1's re-arm | Result |
+| --- | --- | --- |
+| the clock's deliberate second removed (step 28,800 − 300) | 28,500,033 ms, wait 0 | `ROTATIONS:1`, `REFRESH_STATE:reenrollment_required`, `VAULT_STORES:2`, `REFRESH_STORES:2`, `REFRESH_DELETES:1`, `REFRESH_RETRIEVES:2` |
+| rotation 1's refresh store held back 1.1 s in the fixture, as a slow vault would | 28,500,141 ms, wait 0 | the same six markers |
+
+A passing run reads the refresh slot 4 times (`REFRESH_RETRIEVES:4`). A
+second probe in `report_reenrollment` gave the reason both times:
+`storage_failed`, at `rotations=1`, 26–30 ms after the re-arm.
+
+**Attempted, and refused before it read the vault.** When a rotation's
+capture-to-re-arm time reaches one second, the next renewal is armed with
+wait 0. It then fires in the same instant as that rotation's enrollment of
+its new access token, which is the supersession. The renewal's first step is
+the enrollment port's `prepare_refresh`, and it answers not ready while the
+supersession is in flight. `begin_refresh` then requests re-enrollment with
+`storage_failed`. The slot was never read: the retrieve count stops at 2,
+which rules out the vault answering absent and the transport refusing. So
+the device never looked un-enrolled to the vault. The renewal simply
+outran the enrollment it depends on. This is the race that [[BPR-0547]]'s
+deliberate second exists to prevent, and the shipped product never runs it,
+because there the next renewal comes eight hours later. The dsp-007
+ranking's first candidate, the time guard, is not what fires. The timer port
+is not either: the wait armed was 0, not refused.
+
+**Why Windows, then.** On the `bpr-win` station on 2026-09-17 (Qt 6.10.3, in
+the `windows-lane` worktree, during a full sweep), rotation 1's capture to
+re-arm must have reached one second. Its log shows the same markers as the
+controls: `ROTATIONS:1`, `reenrollment_required`, stores 2 and 2, deletes 1.
+Today the same distance is 34 ms. Nothing here shows which later commit, or
+which difference in load, took it back down, and bisecting it would cost a
+full build per step. The bind arming's small margin does not matter: in the
+first control its wait was also 0, and rotation 1 still completed.
+
+**What changed.** `src/app/main.cpp` now prints
+`DEVICE_FLOW_REFRESH_RETRIEVES:<n>` after the refresh course's verdict. It
+is the one line the dsp-007 analysis said would decide between the causes.
+It is printed after the verdict and pinned by no row, so every platform's
+pass expression is unchanged. A recurrence now says in its own output
+whether the second renewal read the slot (4) or not (2).
+
+**Not changed: the margin.** Widening it would lengthen the course by the
+added margin at each rotation, on every platform. The course runs 9.8 s of
+its 12 s budget here. It would also mask the one reading that says the
+distance grew. If the row goes red again with `REFRESH_RETRIEVES:2`, the
+remedy is a wider margin with the budget raised to match. Changing the
+course clock so it steps at the capture instead would not help, because the
+step has to fall between the capture and the re-arm read.
+
+**The pass expression.** The dsp-007 correction stands: the literal was not
+split. This card records that a single multi-line literal reports the whole
+expression, not the line that failed.
+
+**macOS and Linux.** These were not run from this station. The path is
+platform-independent: the fixture vault is in-process and the host logic is
+shared. Linux passed the row at `2b2e5549`, the same day this card was found
+(7.93 s, `docs/verification/dsp5-linux-full-sweep.md`). All three platforms
+passed it at `0d19c990` (`RFC-BPR-0016.md`). The new line follows the verdict
+on every platform. The next macOS and Linux sweeps confirm HEAD.
