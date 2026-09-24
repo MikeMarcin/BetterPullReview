@@ -1,0 +1,208 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "betterpullreview-conventional-comments-rfc-pack-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0047",
+      "RFC-BPR-0048",
+      "RFC-BPR-0049",
+      "RFC-BPR-0050",
+      "RFC-BPR-0051"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake",
+      "outcome": "The pack is safely registered after both tour packs with live aliases and ownership reconciled.",
+      "work": [
+        {
+          "issue": "PACK-CC-01"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "All new IDs and external predecessor references are mapped.",
+        "The eight authored milestones are adopted without recreating their grouping."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "semantics",
+      "outcome": "One pure convention and conversation-accounting policy is tested independently of Qt/GitHub.",
+      "work": [
+        {
+          "issue": "PACK-CC-02"
+        },
+        {
+          "issue": "PACK-CC-03"
+        },
+        {
+          "issue": "PACK-CC-04"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "All twelve labels and documented syntax pass real core tests.",
+        "Lossless edits, root identity, coverage and disjoint subsets are verified."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "design",
+      "outcome": "The actual compact UX and twelve-icon treatment are selected and recorded, not assumed.",
+      "work": [
+        {
+          "issue": "PACK-CC-05"
+        },
+        {
+          "issue": "PACK-CC-06"
+        },
+        {
+          "issue": "PACK-CC-07"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "Concrete candidates and selected decisions exist with explicit authority.",
+        "The selected set specifies accessibility, native integration and uncertain-count behavior."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "authoring",
+      "outcome": "The chosen native feedback authoring works through shared drafts, publication and private tracking.",
+      "work": [
+        {
+          "issue": "PACK-CC-08"
+        },
+        {
+          "issue": "PACK-CC-09"
+        },
+        {
+          "issue": "PACK-CC-10"
+        },
+        {
+          "issue": "PACK-CC-11"
+        },
+        {
+          "issue": "PACK-CC-12"
+        }
+      ],
+      "depends_on": [
+        "semantics",
+        "design"
+      ],
+      "exit_criteria": [
+        "Plain/conventional human workflows and native suggestion/review decisions are composed.",
+        "Private tracking and ordinary tour comments remain separate from automatic mutations."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "overview",
+      "outcome": "The real Overview and Settings expose disjoint resolution-aware label counters.",
+      "work": [
+        {
+          "issue": "PACK-CC-13"
+        },
+        {
+          "issue": "PACK-CC-14"
+        },
+        {
+          "issue": "PACK-CC-15"
+        }
+      ],
+      "depends_on": [
+        "authoring"
+      ],
+      "exit_criteria": [
+        "Counter populations and exact drill-down agree across column/state choices.",
+        "Unknown coverage, settings ownership and bounded refresh are visible and tested."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "hooks-cli",
+      "outcome": "Optional hooks and headless operations use the same conventions and shared authority.",
+      "work": [
+        {
+          "issue": "PACK-CC-16"
+        },
+        {
+          "issue": "PACK-CC-17"
+        },
+        {
+          "issue": "PACK-CC-18"
+        }
+      ],
+      "depends_on": [
+        "overview"
+      ],
+      "exit_criteria": [
+        "Overrides and distinct tour tasks survive default guidance updates.",
+        "No-agent operation, native decisions and shared desktop/CLI behavior remain intact."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "verification",
+      "outcome": "Actual implementation, native presentation and authorized service behavior have scoped evidence.",
+      "work": [
+        {
+          "issue": "PACK-CC-19"
+        },
+        {
+          "issue": "PACK-CC-20"
+        },
+        {
+          "issue": "PACK-CC-21"
+        },
+        {
+          "issue": "PACK-CC-22"
+        }
+      ],
+      "depends_on": [
+        "hooks-cli"
+      ],
+      "exit_criteria": [
+        "Real product tests and measured/rendered evidence cover the requirements.",
+        "Required live/human/target gaps are explicit; a parked service card is not a pass."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "closeout",
+      "outcome": "Each of the five RFCs closes in live canonical order only on earned per-criterion evidence.",
+      "work": [
+        {
+          "issue": "PACK-CC-23"
+        },
+        {
+          "issue": "PACK-CC-24"
+        },
+        {
+          "issue": "PACK-CC-25"
+        },
+        {
+          "issue": "PACK-CC-26"
+        },
+        {
+          "issue": "PACK-CC-27"
+        }
+      ],
+      "depends_on": [
+        "verification"
+      ],
+      "exit_criteria": [
+        "Each RFC ledger owns its exact evidence and limitations.",
+        "No historical predecessor or unobserved result is rewritten to clear a gate."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    }
+  ]
+}

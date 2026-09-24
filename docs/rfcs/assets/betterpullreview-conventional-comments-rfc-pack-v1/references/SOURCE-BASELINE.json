@@ -1,0 +1,192 @@
+{
+  "schema": "bpr.cc.source-baseline.v1",
+  "dump": "better_pull_review_project_source.md",
+  "dump_generated": "2026-09-22T23:21:38-07:00",
+  "dump_sha256": "d7aee1486d171456540bfd26c2b02bc8ee5bec47dbffb0d5429141fbef69ea2d",
+  "repository_head": null,
+  "head_note": "The supplied dump is not a live checkout; intake records the actual Git HEAD.",
+  "highest_root_rfc": 38,
+  "audit_scope": "Root paths only. Embedded .claude/worktrees copies are not current-root authority.",
+  "selected_files": [
+    {
+      "path": "AGENTS.md",
+      "lines": 81,
+      "bytes": 4299,
+      "sha256": "0168bda20d47eb7a5074399e46da54d61880b6fb2771d59746298ec9213a49f2"
+    },
+    {
+      "path": ".mask/skill-config/implement-rfc/project.md",
+      "lines": 54,
+      "bytes": 3224,
+      "sha256": "502cdb142aa89e85fdcd34bec0c8e86910898e99ceeda7a0634f9064ab499a3f"
+    },
+    {
+      "path": "docs/issues/README.md",
+      "lines": 52,
+      "bytes": 4589,
+      "sha256": "fcf9ca3248861d73bffa778141cfba86ff8aa1643ad1578b486ad37c86659f77"
+    },
+    {
+      "path": "docs/rfcs/README.md",
+      "lines": 322,
+      "bytes": 31421,
+      "sha256": "0c038b98cf2863eab60641e73148d17832d69abb67361196261f744b1d34ba03"
+    },
+    {
+      "path": "docs/architecture/defect-workflow.md",
+      "lines": 240,
+      "bytes": 12086,
+      "sha256": "ab502ceb1a90b6058418c991fe1c8058dbb9c4bb49b67886ba4ba279bec5e265"
+    },
+    {
+      "path": "docs/architecture/native-markdown.md",
+      "lines": 172,
+      "bytes": 12710,
+      "sha256": "35cc9ae1b1743fd2b32412947c0839dd04b6f81a7cc9a36d68b7f47629b0fe79"
+    },
+    {
+      "path": "docs/architecture/ai-agent-boundary.md",
+      "lines": 999,
+      "bytes": 65676,
+      "sha256": "d8ef027ac7ac32e1e8df7bcde4fd2dc1df27a94d82b5b00a676fcf04cf1b372f"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md",
+      "lines": 745,
+      "bytes": 36994,
+      "sha256": "96692488ff02a80b832da4f6d45e5fd06f3666d0229056b036dfbd426cc40417"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0023-private-review-threads-provenance-comment-composition.md",
+      "lines": 923,
+      "bytes": 44571,
+      "sha256": "4ea993d7a16a7cee8542418b06fc62e89ad72826d340506b1afaa01a1d697468"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0036-native-markdown-rendering.md",
+      "lines": 146,
+      "bytes": 9103,
+      "sha256": "2c0a01abbcd9f0fab28fc541458b2cf02ccf58eebd38f7f8eec3e3bdae5b52b4"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0037-first-pr-review-workflow.md",
+      "lines": 224,
+      "bytes": 14687,
+      "sha256": "68bc531d40e9dea1e9b60375cc211b4c27a2c6074c3e6ef983ebcbd93a63c562"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0038-native-package-release-security-qualification.md",
+      "lines": 108,
+      "bytes": 7394,
+      "sha256": "70e41255808476e9cd5780919d0a7706813039a5275567dae9056016322b4101"
+    },
+    {
+      "path": "src/application/include/bpr/application/github_read_model.hpp",
+      "lines": 2064,
+      "bytes": 71507,
+      "sha256": "80ee15d8526433fafca6329423c91b104f17c91f1470d12e75546725818ee5a2"
+    },
+    {
+      "path": "src/application/include/bpr/application/pull_request_overview.hpp",
+      "lines": 228,
+      "bytes": 8075,
+      "sha256": "959619012b789bd4e2413f2b7e2488ff3252a24d93a9260814529a74308bea65"
+    },
+    {
+      "path": "src/application/src/pull_request_overview.cpp",
+      "lines": 437,
+      "bytes": 16361,
+      "sha256": "5f14387c5333abf6e01f00f29343b18c4258befe10475739df721b1b1fbf7e06"
+    },
+    {
+      "path": "src/application/include/bpr/application/workbench_runtime_ports.hpp",
+      "lines": 812,
+      "bytes": 33010,
+      "sha256": "58bfa3cdb9a4ce5e50629a8493d5cf2c45872cb7f13bc63194149fba54ad5b42"
+    },
+    {
+      "path": "src/core/include/bpr/core/review_round_trip.hpp",
+      "lines": 260,
+      "bytes": 9342,
+      "sha256": "08327211d149c241e207ca9e2c7e234f14b9786d423c3d2696acb3845c0583ab"
+    },
+    {
+      "path": "src/core/include/bpr/core/review_submission.hpp",
+      "lines": 138,
+      "bytes": 5705,
+      "sha256": "9e53d6a0ccc31f3091952e1dcecc2fbc266dacd3326d5e189ab21afde3999b06"
+    },
+    {
+      "path": "src/application/include/bpr/application/review_mutation_coordinator.hpp",
+      "lines": 125,
+      "bytes": 5614,
+      "sha256": "db523db8cd82e6a0c8f813346698f9d02ec6e6b6af6f9854461ca2e06b3db63b"
+    },
+    {
+      "path": "src/application/include/bpr/application/review_submission_application_host.hpp",
+      "lines": 73,
+      "bytes": 3732,
+      "sha256": "0213db3a7f24c81ef5a1a62cc5398e1c74ffa230275a24c157c4ec7188fe9074"
+    },
+    {
+      "path": "src/application/src/agent_comment_workshop_host.cpp",
+      "lines": 71,
+      "bytes": 2423,
+      "sha256": "d95557b58a9a84813fa5c59178197bfcdaaa18bf05d2a56a54150b0517103af9"
+    },
+    {
+      "path": "src/adapters/qt/include/bpr/qt/markdown_body_view.hpp",
+      "lines": 76,
+      "bytes": 3246,
+      "sha256": "4ecaca24504c3173d000ea665f36da5a5cc1d98455d8679f5541019d2ea93d99"
+    },
+    {
+      "path": "src/adapters/qt/src/pull_request_overview_page.cpp",
+      "lines": 1515,
+      "bytes": 56805,
+      "sha256": "21a3c5e7ed25ebdffb541815c30bd981b352ffa53306935ed47f8815c23a8631"
+    },
+    {
+      "path": "src/adapters/qt/src/review_draft_editor.cpp",
+      "lines": 857,
+      "bytes": 31791,
+      "sha256": "d8f313da37e4645830cc87008c73bf382f844f283c273a6a52cb6487a16d02bb"
+    },
+    {
+      "path": "src/adapters/qt/src/review_submission_editor.cpp",
+      "lines": 152,
+      "bytes": 7663,
+      "sha256": "5664478aa5d7d3c38743e88ade36acb05fa43013afe0fb2f3560029a402f7084"
+    },
+    {
+      "path": "src/adapters/qt/src/github_conversation_panel.cpp",
+      "lines": 1038,
+      "bytes": 38001,
+      "sha256": "3436a1cfe9d2ae1b557e9dde6ea0bd38da2b3be101aeeeedfe471afa55626ad2"
+    },
+    {
+      "path": "src/adapters/qt/src/conversation_cards_view.cpp",
+      "lines": 1170,
+      "bytes": 39900,
+      "sha256": "98fac82607ac2f327b2eb6e21621f128ddd3daebc02aa9e9bb94fbd255b348c3"
+    },
+    {
+      "path": "src/adapters/qt/src/settings_window.cpp",
+      "lines": 268,
+      "bytes": 8872,
+      "sha256": "470eac3b4ef70290cdd1c969053a6e9f0feb3b674b648560ca365286348cde62"
+    },
+    {
+      "path": "src/adapters/sqlite/src/workbench_settings_store.cpp",
+      "lines": 176,
+      "bytes": 7022,
+      "sha256": "aefc92213c6831a4f9c123a887448e797c4a0212561621c7ddc2c739c916dc29"
+    },
+    {
+      "path": "docs/rfcs/assets/bpr-shell-surfaces-v1/milestone-plan.json",
+      "lines": 150,
+      "bytes": 5213,
+      "sha256": "5306f2d5d2c3096148851e43c309c7a9244f0ed520b82d9f34178d74a822315b"
+    }
+  ]
+}

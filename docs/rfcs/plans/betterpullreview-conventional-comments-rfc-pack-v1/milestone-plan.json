@@ -1,0 +1,209 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "betterpullreview-conventional-comments-rfc-pack-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0047",
+      "RFC-BPR-0048",
+      "RFC-BPR-0049",
+      "RFC-BPR-0050",
+      "RFC-BPR-0051"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake",
+      "outcome": "The pack is safely registered after both tour packs with live aliases and ownership reconciled.",
+      "work": [
+        {
+          "issue": "BPR-1075"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "All new IDs and external predecessor references are mapped.",
+        "The eight authored milestones are adopted without recreating their grouping."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "semantics",
+      "outcome": "One pure convention and conversation-accounting policy is tested independently of Qt/GitHub.",
+      "work": [
+        {
+          "issue": "BPR-1076"
+        },
+        {
+          "issue": "BPR-1077"
+        },
+        {
+          "issue": "BPR-1078"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "All twelve labels and documented syntax pass real core tests.",
+        "Lossless edits, root identity, coverage and disjoint subsets are verified."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "design",
+      "outcome": "The actual compact UX and twelve-icon treatment are selected and recorded, not assumed.",
+      "work": [
+        {
+          "issue": "BPR-1079"
+        },
+        {
+          "issue": "BPR-1080"
+        },
+        {
+          "issue": "BPR-1081"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "Concrete candidates and selected decisions exist with explicit authority.",
+        "The selected set specifies accessibility, native integration and uncertain-count behavior."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "authoring",
+      "outcome": "The chosen native feedback authoring works through shared drafts, publication and private tracking.",
+      "work": [
+        {
+          "issue": "BPR-1082"
+        },
+        {
+          "issue": "BPR-1083"
+        },
+        {
+          "issue": "BPR-1084"
+        },
+        {
+          "issue": "BPR-1085"
+        },
+        {
+          "issue": "BPR-1086"
+        }
+      ],
+      "depends_on": [
+        "semantics",
+        "design"
+      ],
+      "exit_criteria": [
+        "Plain/conventional human workflows and native suggestion/review decisions are composed.",
+        "Private tracking and ordinary tour comments remain separate from automatic mutations."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "overview",
+      "outcome": "The real Overview and Settings expose disjoint resolution-aware label counters.",
+      "work": [
+        {
+          "issue": "BPR-1087"
+        },
+        {
+          "issue": "BPR-1088"
+        },
+        {
+          "issue": "BPR-1089"
+        }
+      ],
+      "depends_on": [
+        "authoring"
+      ],
+      "exit_criteria": [
+        "Counter populations and exact drill-down agree across column/state choices.",
+        "Unknown coverage, settings ownership and bounded refresh are visible and tested."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "hooks-cli",
+      "outcome": "Optional hooks and headless operations use the same conventions and shared authority.",
+      "work": [
+        {
+          "issue": "BPR-1090"
+        },
+        {
+          "issue": "BPR-1091"
+        },
+        {
+          "issue": "BPR-1092"
+        }
+      ],
+      "depends_on": [
+        "overview"
+      ],
+      "exit_criteria": [
+        "Overrides and distinct tour tasks survive default guidance updates.",
+        "No-agent operation, native decisions and shared desktop/CLI behavior remain intact."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "verification",
+      "outcome": "Actual implementation, native presentation and authorized service behavior have scoped evidence.",
+      "work": [
+        {
+          "issue": "BPR-1093"
+        },
+        {
+          "issue": "BPR-1094"
+        },
+        {
+          "issue": "BPR-1095"
+        },
+        {
+          "issue": "BPR-1096"
+        }
+      ],
+      "depends_on": [
+        "hooks-cli"
+      ],
+      "exit_criteria": [
+        "Real product tests and measured/rendered evidence cover the requirements.",
+        "Required live/human/target gaps are explicit; a parked service card is not a pass."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    },
+    {
+      "id": "closeout",
+      "outcome": "Each of the five RFCs closes in live canonical order only on earned per-criterion evidence.",
+      "work": [
+        {
+          "issue": "BPR-1097"
+        },
+        {
+          "issue": "BPR-1098"
+        },
+        {
+          "issue": "BPR-1099"
+        },
+        {
+          "issue": "BPR-1100"
+        },
+        {
+          "issue": "BPR-1101"
+        }
+      ],
+      "depends_on": [
+        "verification"
+      ],
+      "exit_criteria": [
+        "Each RFC ledger owns its exact evidence and limitations.",
+        "No historical predecessor or unobserved result is rewritten to clear a gate."
+      ],
+      "boundary": "Focused card evidence and one relevant integration boundary; no automatic whole-application exhaustive matrix."
+    }
+  ],
+  "unplanned_work": []
+}

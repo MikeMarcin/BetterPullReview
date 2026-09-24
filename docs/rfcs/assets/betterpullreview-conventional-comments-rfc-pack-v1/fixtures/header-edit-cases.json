@@ -1,0 +1,46 @@
+{
+  "schema": "bpr.cc.header-edit-cases.v1",
+  "cases": [
+    {
+      "id": "change-label-with-native-patch",
+      "before": "issue (blocking): Bound the copy.\r\n\r\n```suggestion:-1+0\r\n\tcopy_n(src, checked_count, dst);\r\n```\r\n\r\nKeep this explanation.\r\n",
+      "operation": {
+        "label": "suggestion"
+      },
+      "after": "suggestion (blocking): Bound the copy.\r\n\r\n```suggestion:-1+0\r\n\tcopy_n(src, checked_count, dst);\r\n```\r\n\r\nKeep this explanation.\r\n"
+    },
+    {
+      "id": "remove-prefix-with-native-patch",
+      "before": "issue (blocking): Bound the copy.\r\n\r\n```suggestion:-1+0\r\n\tcopy_n(src, checked_count, dst);\r\n```\r\n\r\nKeep this explanation.\r\n",
+      "operation": {
+        "label": null
+      },
+      "after": "Bound the copy.\r\n\r\n```suggestion:-1+0\r\n\tcopy_n(src, checked_count, dst);\r\n```\r\n\r\nKeep this explanation.\r\n"
+    },
+    {
+      "id": "change-decoration-empty-native-patch",
+      "before": "issue (blocking): Remove the duplicate.\n\n```suggestion\n```\n",
+      "operation": {
+        "expectation": "non_blocking"
+      },
+      "after": "issue (non-blocking): Remove the duplicate.\n\n```suggestion\n```\n"
+    },
+    {
+      "id": "unicode-prefix-edit",
+      "before": "question: Is café_東京 still alive?\n\nKeep the subject.",
+      "operation": {
+        "label": "thought"
+      },
+      "after": "thought: Is café_東京 still alive?\n\nKeep the subject."
+    },
+    {
+      "id": "plain-noop",
+      "before": "Leave this body exactly as written.\r\n",
+      "operation": {
+        "kind": "parse_preview_copy_only"
+      },
+      "after": "Leave this body exactly as written.\r\n"
+    }
+  ],
+  "rule": "Expected after bodies apply only on explicit edits at the expected old revision; parse-only remains byte-identical."
+}

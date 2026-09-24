@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bpr:feedback-annotation:v1",
+  "title": "Proposed shared annotation export; internal C++ types remain implementation-owned",
+  "type": "object",
+  "required": [
+    "schema",
+    "body_revision",
+    "status",
+    "label",
+    "declared_expectation",
+    "decorations",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema": {
+      "const": "bpr.feedback-annotation.v1"
+    },
+    "body_revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "recognized",
+        "plain",
+        "unknown_label",
+        "malformed",
+        "limited"
+      ]
+    },
+    "label": {
+      "enum": [
+        "praise",
+        "nitpick",
+        "suggestion",
+        "issue",
+        "todo",
+        "question",
+        "thought",
+        "chore",
+        "note",
+        "typo",
+        "polish",
+        "quibble",
+        null
+      ]
+    },
+    "raw_label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decorations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "declared_expectation": {
+      "enum": [
+        "unspecified",
+        "blocking",
+        "non_blocking",
+        "if_minor",
+        "conflicting"
+      ]
+    },
+    "label_guidance": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "header_utf8_span": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "begin": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "begin",
+        "end"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

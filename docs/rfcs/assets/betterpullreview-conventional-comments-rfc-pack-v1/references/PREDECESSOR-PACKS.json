@@ -1,0 +1,33 @@
+{
+  "schema": "bpr.cc.predecessors.v1",
+  "import_order": [
+    {
+      "archive": "betterpullreview-review-tour-rfc-pack-v1.zip",
+      "expected_sha256": "b4f45e7e63465b0dc4d0308699d1bcb6308ec6e1d0720eef42c05be1bf0478d6",
+      "proposed_rfc_range": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0043"
+      ],
+      "numbering_evidence": "Prior conversation pack handoff, not an archive manifest inspected in this run.",
+      "archive_bytes_verified_here": false,
+      "source_sidecar": "betterpullreview-review-tour-rfc-pack-v1.zip.sha256"
+    },
+    {
+      "archive": "betterpullreview-pr-tour-cli-extension-rfc-pack-v1.zip",
+      "expected_sha256": "3cdc6a070deafcf3301a13ad0739bf9fe798884771276fa76751cea554516782",
+      "proposed_rfc_range": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0046"
+      ],
+      "numbering_evidence": "Prior conversation pack handoff, not an archive manifest inspected in this run.",
+      "archive_bytes_verified_here": false,
+      "source_sidecar": "betterpullreview-pr-tour-cli-extension-rfc-pack-v1.zip.sha256"
+    }
+  ],
+  "new_proposed_range": [
+    "RFC-BPR-0047",
+    "RFC-BPR-0051"
+  ],
+  "retrieval_limit": "Both named archives were located in the personal Library, but raw-byte materialization was refused and their Files read had no readable content. Attached checksum sidecars are retained verbatim. No predecessor archive was unpacked or modified.",
+  "required_intake_check": "Read the actual predecessor manifests and committed import maps in the destination repository; verify archive digests when bytes are available, then allocate this pack after all predecessor/live reservations. Checksums alone do not reveal RFC numbers."
+}

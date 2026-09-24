@@ -1,0 +1,534 @@
+{
+  "schema": "bpr.cc.requirements.v1",
+  "requirements": [
+    {
+      "id": "R01",
+      "requirement": "All twelve labels are first-class across authoring, recognition, filtering, counters and guidance.",
+      "cards": [
+        "PACK-CC-02",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R02",
+      "requirement": "Plain, unknown and unsupported bodies remain readable; current original Markdown is public authority.",
+      "cards": [
+        "PACK-CC-02",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R03",
+      "requirement": "Recognize only the documented header subset, excluding quoted/code/HTML/later-paragraph false positives.",
+      "cards": [
+        "PACK-CC-02",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R04",
+      "requirement": "Preserve custom decorations and distinguish unspecified, conditional and contradictory expectations.",
+      "cards": [
+        "PACK-CC-02",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R05",
+      "requirement": "Parsing/copy/preview are lossless; explicit prefix edits preserve every unrelated source span.",
+      "cards": [
+        "PACK-CC-03",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R06",
+      "requirement": "Separate label intent, guidance, explicit expectation, shared resolution, private lifecycle and native verdict.",
+      "cards": [
+        "PACK-CC-02",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R07",
+      "requirement": "Count and classify conversations from exact roots; differently labelled replies never hijack roots.",
+      "cards": [
+        "PACK-CC-03",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R08",
+      "requirement": "Accepted website edits invalidate only matching derived state without remote mutation.",
+      "cards": [
+        "PACK-CC-03",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R09",
+      "requirement": "Optional conventional and plain authoring work fully without AI or mandatory labelling.",
+      "cards": [
+        "PACK-CC-08",
+        "PACK-CC-09",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R10",
+      "requirement": "Controls and Markdown share one durable revisioned draft with non-destructive undo/conflict behavior.",
+      "cards": [
+        "PACK-CC-08",
+        "PACK-CC-09",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R11",
+      "requirement": "Preview, save and classification publish nothing; existing explicit publication authority remains required.",
+      "cards": [
+        "PACK-CC-08",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R12",
+      "requirement": "Native suggested-change bytes and range/fence syntax survive unrelated prose transformations.",
+      "cards": [
+        "PACK-CC-10",
+        "PACK-CC-21",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R13",
+      "requirement": "Suggestion applicability follows exact native placement/capability; fallback never pretends to apply.",
+      "cards": [
+        "PACK-CC-10",
+        "PACK-CC-21",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R14",
+      "requirement": "Comment, Approve and Request changes remain explicit native review events using existing services.",
+      "cards": [
+        "PACK-CC-11",
+        "PACK-CC-21",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R15",
+      "requirement": "Review preflight is useful, reviewer-scoped, draft-aware and honest about uncertain coverage.",
+      "cards": [
+        "PACK-CC-11",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R16",
+      "requirement": "Defect tracking/verification stay explicit; labels, resolutions and applied suggestions cannot verify.",
+      "cards": [
+        "PACK-CC-12",
+        "PACK-CC-21",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R17",
+      "requirement": "Private severity, category and provenance are never automatically exposed in public text or counts.",
+      "cards": [
+        "PACK-CC-12",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R18",
+      "requirement": "Available note/finding promotion uses the shared draft and preserves private lineage; absent paths are explicit.",
+      "cards": [
+        "PACK-CC-12",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R19",
+      "requirement": "Tours keep normal comments, ordering, links, independent hooks and optional plain prose.",
+      "cards": [
+        "PACK-CC-01",
+        "PACK-CC-12",
+        "PACK-CC-17",
+        "PACK-CC-21",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R20",
+      "requirement": "Settings allow any ordered subset of the twelve dedicated Overview label columns.",
+      "cards": [
+        "PACK-CC-14",
+        "PACK-CC-15",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R21",
+      "requirement": "Dedicated buckets and catchall partition the same included population without overlap or loss.",
+      "cards": [
+        "PACK-CC-04",
+        "PACK-CC-15",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R22",
+      "requirement": "One normalized conversation counts once regardless of replies, pages or references.",
+      "cards": [
+        "PACK-CC-04",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R23",
+      "requirement": "Unresolved-only is the initial primary mode; including resolved retains a visible state distinction.",
+      "cards": [
+        "PACK-CC-04",
+        "PACK-CC-15",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R24",
+      "requirement": "Unknown/non-applicable resolution and incomplete classification/collection coverage never imply a clean zero.",
+      "cards": [
+        "PACK-CC-04",
+        "PACK-CC-15",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R25",
+      "requirement": "File/folder/PR attribution is exact with a visible unanchored remainder and no duplicate ancestor counts.",
+      "cards": [
+        "PACK-CC-04",
+        "PACK-CC-13",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R26",
+      "requirement": "Edits, deletes, reopens, partial paging and stale responses update only accepted current populations.",
+      "cards": [
+        "PACK-CC-04",
+        "PACK-CC-13",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R27",
+      "requirement": "Counter drill-down and sorting match the displayed numeric population, root-label rules and revision.",
+      "cards": [
+        "PACK-CC-13",
+        "PACK-CC-15",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R28",
+      "requirement": "Typed existing settings own persistence, reset, failed writes, cross-window propagation and profile isolation.",
+      "cards": [
+        "PACK-CC-14",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R29",
+      "requirement": "Cached classification and incremental counters avoid per-paint parsing, per-label fetching and broad resets.",
+      "cards": [
+        "PACK-CC-13",
+        "PACK-CC-20",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R30",
+      "requirement": "Actual UX/art decisions are a dedicated deliverable; no pack sketch or placeholder is pre-approved.",
+      "cards": [
+        "PACK-CC-05",
+        "PACK-CC-06",
+        "PACK-CC-07",
+        "PACK-CC-26"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R31",
+      "requirement": "All twelve reusable compact icon roles have accessible textual identity and theme/scale support.",
+      "cards": [
+        "PACK-CC-06",
+        "PACK-CC-07",
+        "PACK-CC-09",
+        "PACK-CC-15",
+        "PACK-CC-20",
+        "PACK-CC-26"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R32",
+      "requirement": "Compact views preserve original public Markdown, native suggestion meaning and public/private distinctions.",
+      "cards": [
+        "PACK-CC-07",
+        "PACK-CC-09",
+        "PACK-CC-10",
+        "PACK-CC-20",
+        "PACK-CC-26"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R33",
+      "requirement": "Real chosen UI works at representative sizes/scales/themes and input modes without prior layout regressions.",
+      "cards": [
+        "PACK-CC-05",
+        "PACK-CC-07",
+        "PACK-CC-09",
+        "PACK-CC-15",
+        "PACK-CC-20",
+        "PACK-CC-26"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R34",
+      "requirement": "Relevant defaults teach the complete convention; no agent is required to use the feature.",
+      "cards": [
+        "PACK-CC-16",
+        "PACK-CC-17",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R35",
+      "requirement": "Task-specific default hooks and user/project overrides survive upgrades and remain inspectable.",
+      "cards": [
+        "PACK-CC-16",
+        "PACK-CC-17",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R36",
+      "requirement": "No background inference, extra model launch, automatic publication or new AI/network authority.",
+      "cards": [
+        "PACK-CC-16",
+        "PACK-CC-17",
+        "PACK-CC-18",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R37",
+      "requirement": "AI output stays a reviewable candidate preserving uncertainty, patch intent and actual private provenance.",
+      "cards": [
+        "PACK-CC-16",
+        "PACK-CC-17",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R38",
+      "requirement": "CLI/desktop share semantics with additive schemas, human-readable default and explicit JSON output.",
+      "cards": [
+        "PACK-CC-18",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R39",
+      "requirement": "Headless paths reuse inherited shared drafts/owner/recovery with no GUI launch or duplicate publisher.",
+      "cards": [
+        "PACK-CC-01",
+        "PACK-CC-18",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R40",
+      "requirement": "Untrusted parsing and rendering are bounded and cause no resource loading, execution or hidden truncation.",
+      "cards": [
+        "PACK-CC-02",
+        "PACK-CC-19",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R41",
+      "requirement": "Migrations and cross-interface/window races preserve user settings, draft data and exact ownership.",
+      "cards": [
+        "PACK-CC-03",
+        "PACK-CC-08",
+        "PACK-CC-14",
+        "PACK-CC-18",
+        "PACK-CC-19",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R42",
+      "requirement": "Crash/retry and concurrent label edits cannot duplicate publication or reuse stale payload authority.",
+      "cards": [
+        "PACK-CC-08",
+        "PACK-CC-11",
+        "PACK-CC-19",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R43",
+      "requirement": "Fixture coverage includes all labels, syntax negatives, identity/coverage cases and real C++/composition tests.",
+      "cards": [
+        "PACK-CC-04",
+        "PACK-CC-19",
+        "PACK-CC-22",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R44",
+      "requirement": "Measured performance uses representative existing and larger bounded synthetic workloads without invented guarantees.",
+      "cards": [
+        "PACK-CC-20",
+        "PACK-CC-25"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R45",
+      "requirement": "Native website interoperability is verified only on an explicitly authorized safe target; absent evidence remains open.",
+      "cards": [
+        "PACK-CC-21",
+        "PACK-CC-24"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R46",
+      "requirement": "Current architecture/user/skill documentation is reconciled and duplicate paths removed without rewriting settled history.",
+      "cards": [
+        "PACK-CC-22",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R47",
+      "requirement": "Import follows both tour packs with collision-aware RFC/issue mapping and adopted authored milestones.",
+      "cards": [
+        "PACK-CC-01",
+        "PACK-CC-23"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    },
+    {
+      "id": "R48",
+      "requirement": "Each formal closeout has truthful per-criterion evidence and follows the live canonical order.",
+      "cards": [
+        "PACK-CC-22",
+        "PACK-CC-23",
+        "PACK-CC-24",
+        "PACK-CC-25",
+        "PACK-CC-26",
+        "PACK-CC-27"
+      ],
+      "status": "not_run_product",
+      "evidence_record": "live per-criterion ledger after import"
+    }
+  ]
+}

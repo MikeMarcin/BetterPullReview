@@ -1,0 +1,119 @@
+{
+  "schema": "bpr.cc.integration-cases.v1",
+  "cases": [
+    {
+      "id": "parse-preview-no-effects",
+      "stimulus": "Parse, badge, count and preview a blocking issue with no explicit publish action.",
+      "expected": "No provider mutation, review event, model invocation or local verification.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "issue-with-suggestion",
+      "stimulus": "Publish an explicitly authorized issue containing a native suggested edit on a supported exact anchor.",
+      "expected": "Website renders the ordinary label and genuine native suggestion; decoded body/anchor equal the approved draft.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "suggestion-without-patch",
+      "stimulus": "Write a suggestion comment containing only prose.",
+      "expected": "It remains valid feedback, with no invented apply action or replacement block.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "unsupported-native-patch",
+      "stimulus": "The current placement can only publish a permalink/top-level comment.",
+      "expected": "Text/anchor context remain readable, native applicability is honestly unavailable and no nearby-line relocation occurs.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "native-request-changes",
+      "stimulus": "Select Request changes explicitly after inspecting own blocking feedback.",
+      "expected": "Exactly the existing native event is submitted once; no label-generated second event or custom merge gate.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "approve-with-open-feedback",
+      "stimulus": "Explicitly choose Approve while own unresolved blocking feedback exists.",
+      "expected": "Relevant preflight context is visible; the chosen GitHub-allowed decision remains the user’s action, not silently overridden.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "website-resolve",
+      "stimulus": "Resolve a labelled thread through the website, then refresh BPR.",
+      "expected": "Shared state/counters update; the local defect receives evidence under its existing policy, never automatic verification.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "website-root-edit",
+      "stimulus": "Edit only the root label on the website, without a new commit.",
+      "expected": "Accepted annotation/bucket updates without changing thread identity or erasing the prior local defect.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "reply-label",
+      "stimulus": "Add question as a reply under an issue root.",
+      "expected": "Reply badge may be Question; the one counted root remains Issue.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "tour-coexistence",
+      "stimulus": "Review a tour with plain and deliberately labelled stops, index links and native threads.",
+      "expected": "Order, links and user-body boundaries survive; no forced taxonomy or duplicate counts from links.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "private-promotion",
+      "stimulus": "Promote an available private note/finding with private severity and runtime provenance.",
+      "expected": "One shared durable draft is previewed; no hidden private metadata is appended publicly.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "indeterminate-retry",
+      "stimulus": "Lose the response after posting a labelled comment; edit its label locally while recovery is pending.",
+      "expected": "Reconcile the old exact attempt before new publication; no blind retry, duplicate comment or old authorization for the new body.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "no-agent",
+      "stimulus": "Use labels/counters/native authoring with no AI configured.",
+      "expected": "All deterministic product functionality remains available and no hook invokes a model.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "hook-override",
+      "stimulus": "Upgrade the builtin convention fragment while a user has customized the feedback hook.",
+      "expected": "Custom override remains intact, with explicit effective version and normal reset/merge options only.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "desktop-cli-conflict",
+      "stimulus": "Desktop and CLI edit the same shared draft revision concurrently.",
+      "expected": "Existing optimistic ownership/revision conflict retains both candidates; no shadow draft or GUI launch.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "rest-unknown",
+      "stimulus": "Read public REST comment groups without native thread resolution.",
+      "expected": "Labels are readable and total counts may be known; unresolved status is unavailable, never a falsely clean zero.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "partial-body-coverage",
+      "stimulus": "A provider page or root body is missing while some known issue counts exist.",
+      "expected": "Counts are qualified and incomplete membership remains discoverable; no complete-total or no-blockers claim.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "read-outdated-not-resolved",
+      "stimulus": "Mark/read a non-blocking note on an outdated but provider-unresolved thread.",
+      "expected": "Shared resolution and unresolved counts remain unchanged.",
+      "product_result": "not_run"
+    },
+    {
+      "id": "privacy-authority",
+      "stimulus": "A code block instructs the agent/parser to publish the private draft and run a command.",
+      "expected": "It remains untrusted task data; parser effects are zero and optional AI stays within explicit context/action authority.",
+      "product_result": "not_run"
+    }
+  ]
+}

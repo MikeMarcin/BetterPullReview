@@ -1,0 +1,380 @@
+{
+  "schema": "bpr.cc.counter-cases.v1",
+  "units": [
+    {
+      "id": "issue-open",
+      "root_label": "issue",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true,
+      "replies_labels": [
+        "question",
+        "praise"
+      ]
+    },
+    {
+      "id": "issue-resolved",
+      "root_label": "issue",
+      "resolution": "resolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "question-open",
+      "root_label": "question",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "suggestion-open",
+      "root_label": "suggestion",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "plain-open",
+      "root_label": null,
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "custom-open",
+      "root_label": null,
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true,
+      "raw_label": "observation"
+    },
+    {
+      "id": "note-resolved",
+      "root_label": "note",
+      "resolution": "resolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "rest-issue",
+      "root_label": "issue",
+      "resolution": "unknown",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "root-missing",
+      "root_label": null,
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": false
+    },
+    {
+      "id": "outdated-issue",
+      "root_label": "issue",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true,
+      "outdated": true
+    },
+    {
+      "id": "praise-open",
+      "root_label": "praise",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "nitpick-open",
+      "root_label": "nitpick",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "todo-open",
+      "root_label": "todo",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "thought-open",
+      "root_label": "thought",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "chore-open",
+      "root_label": "chore",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "note-open",
+      "root_label": "note",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "typo-open",
+      "root_label": "typo",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "polish-open",
+      "root_label": "polish",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "quibble-open",
+      "root_label": "quibble",
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "unanchored-issue",
+      "root_label": "issue",
+      "resolution": "unresolved",
+      "file": null,
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "top-level-note",
+      "root_label": "note",
+      "resolution": "not_applicable",
+      "file": null,
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true,
+      "kind": "top_level_comment"
+    },
+    {
+      "id": "review-summary-question",
+      "root_label": "question",
+      "resolution": "not_applicable",
+      "file": null,
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true,
+      "kind": "review_summary"
+    },
+    {
+      "id": "private-issue",
+      "root_label": "issue",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "private",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "draft-issue",
+      "root_label": "issue",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "draft",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "deleted-issue",
+      "root_label": "issue",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": true,
+      "classification_known": true
+    },
+    {
+      "id": "suggestion-resolved",
+      "root_label": "suggestion",
+      "resolution": "resolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true
+    },
+    {
+      "id": "limited-header",
+      "root_label": null,
+      "resolution": "unresolved",
+      "file": "src/render.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": false,
+      "parse_status": "limited"
+    },
+    {
+      "id": "issue-open",
+      "root_label": "issue",
+      "resolution": "unresolved",
+      "file": "src/cache.cpp",
+      "visibility": "public",
+      "publication": "published",
+      "deleted": false,
+      "classification_known": true,
+      "replies_labels": [
+        "question",
+        "praise"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "cache-unresolved-issue-question",
+      "scope": {
+        "kind": "file",
+        "path": "src/cache.cpp"
+      },
+      "columns": [
+        "issue",
+        "question"
+      ],
+      "mode": "unresolved",
+      "expected": {
+        "included_total": 7,
+        "counts": {
+          "issue": 2,
+          "question": 1
+        },
+        "catchall": 4,
+        "scope_total": 10,
+        "scope_states": {
+          "unresolved": 7,
+          "resolved": 2,
+          "unknown": 1,
+          "not_applicable": 0
+        },
+        "classification_complete": false,
+        "resolution_complete": false
+      }
+    },
+    {
+      "id": "cache-all-issue-question",
+      "scope": {
+        "kind": "file",
+        "path": "src/cache.cpp"
+      },
+      "columns": [
+        "issue",
+        "question"
+      ],
+      "mode": "all",
+      "expected": {
+        "included_total": 10,
+        "counts": {
+          "issue": 4,
+          "question": 1
+        },
+        "catchall": 5,
+        "scope_total": 10,
+        "scope_states": {
+          "unresolved": 7,
+          "resolved": 2,
+          "unknown": 1,
+          "not_applicable": 0
+        },
+        "classification_complete": false,
+        "resolution_complete": false
+      }
+    }
+  ],
+  "exhaustive_scopes": [
+    {
+      "kind": "pr"
+    },
+    {
+      "kind": "file",
+      "path": "src/cache.cpp"
+    },
+    {
+      "kind": "file",
+      "path": "src/render.cpp"
+    },
+    {
+      "kind": "folder",
+      "path": "src"
+    }
+  ],
+  "exhaustive_modes": [
+    "unresolved",
+    "all"
+  ],
+  "note": "The oracle operates on already normalized unit facts, not raw GitHub pages or product code. Adapt separately to real application normalization and core tests."
+}

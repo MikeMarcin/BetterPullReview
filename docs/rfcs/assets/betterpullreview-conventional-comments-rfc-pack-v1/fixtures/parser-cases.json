@@ -1,0 +1,359 @@
+{
+  "schema": "bpr.cc.parser-cases.v1",
+  "cases": [
+    {
+      "id": "label-praise",
+      "body": "praise: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "praise",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-nitpick",
+      "body": "nitpick: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "nitpick",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-suggestion",
+      "body": "suggestion: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "suggestion",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-issue",
+      "body": "issue: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-todo",
+      "body": "todo: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "todo",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-question",
+      "body": "question: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "question",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-thought",
+      "body": "thought: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "thought",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-chore",
+      "body": "chore: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "chore",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-note",
+      "body": "note: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "note",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-typo",
+      "body": "typo: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "typo",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-polish",
+      "body": "polish: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "polish",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "label-quibble",
+      "body": "quibble: Check this example.",
+      "expected_status": "recognized",
+      "expected_label": "quibble",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "blocking",
+      "body": "issue (blocking): Guard the callback.",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "blocking"
+    },
+    {
+      "id": "non-blocking",
+      "body": "suggestion (non-blocking): Share the helper.",
+      "expected_status": "recognized",
+      "expected_label": "suggestion",
+      "expected_expectation": "non_blocking"
+    },
+    {
+      "id": "conditional",
+      "body": "polish (if-minor): Simplify this local expression.",
+      "expected_status": "recognized",
+      "expected_label": "polish",
+      "expected_expectation": "if_minor"
+    },
+    {
+      "id": "custom",
+      "body": "issue (security,test, non-blocking): Check the decoded length.",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "non_blocking"
+    },
+    {
+      "id": "strong-header",
+      "body": "**issue (blocking):** Keep the exact revision.",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "blocking"
+    },
+    {
+      "id": "strong-label",
+      "body": "**question** (non-blocking): Is this retained?",
+      "expected_status": "recognized",
+      "expected_label": "question",
+      "expected_expectation": "non_blocking"
+    },
+    {
+      "id": "strong-simple",
+      "body": "**note:** The snapshot is immutable.",
+      "expected_status": "recognized",
+      "expected_label": "note",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "ascii-case",
+      "body": "ISSUE (BLOCKING): Retain the old snapshot.",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "blocking"
+    },
+    {
+      "id": "crlf",
+      "body": "issue: Preserve the bytes.\r\n\r\nDiscussion.\r\n",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "bom-blank",
+      "body": "﻿\n\n  question: Is this a valid boundary?",
+      "expected_status": "recognized",
+      "expected_label": "question",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "unicode-subject",
+      "body": "question: Does café_東京 retain its source identity?",
+      "expected_status": "recognized",
+      "expected_label": "question",
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "conflict",
+      "body": "issue (blocking, non-blocking): Resolve the expectation.",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "conflicting",
+      "required_diagnostics": [
+        "conflicting_decorations"
+      ]
+    },
+    {
+      "id": "conditional-conflict",
+      "body": "suggestion (blocking, if-minor): Clarify the scope.",
+      "expected_status": "recognized",
+      "expected_label": "suggestion",
+      "expected_expectation": "conflicting",
+      "required_diagnostics": [
+        "conflicting_decorations"
+      ]
+    },
+    {
+      "id": "duplicate",
+      "body": "issue (blocking,blocking): Keep both source tokens.",
+      "expected_status": "recognized",
+      "expected_label": "issue",
+      "expected_expectation": "blocking",
+      "required_diagnostics": [
+        "duplicate_decoration"
+      ]
+    },
+    {
+      "id": "note-guidance-conflict",
+      "body": "note (blocking): Clarify the contradictory intent.",
+      "expected_status": "recognized",
+      "expected_label": "note",
+      "expected_expectation": "blocking",
+      "required_diagnostics": [
+        "label_expectation_conflict"
+      ]
+    },
+    {
+      "id": "unknown-label",
+      "body": "observation: Keep this ordinary text.",
+      "expected_status": "unknown_label",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "empty-subject",
+      "body": "issue (blocking):  ",
+      "expected_status": "malformed",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "empty-decoration",
+      "body": "issue (): Explain this.",
+      "expected_status": "malformed",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "empty-token",
+      "body": "issue (blocking,): Explain this.",
+      "expected_status": "malformed",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "nested-decoration",
+      "body": "issue (security(test)): Explain this.",
+      "expected_status": "malformed",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "unclosed-decoration",
+      "body": "issue (blocking: Explain this.",
+      "expected_status": "malformed",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "quoted",
+      "body": "> issue (blocking): This is quoted.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "fenced",
+      "body": "```text\nissue (blocking): Example only.\n```",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "suggestion-fence",
+      "body": "```suggestion\nissue: literal replacement text\n```",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "indented",
+      "body": "    issue: Indented code.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "tabbed",
+      "body": "\tissue: Tab-indented code.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "list",
+      "body": "- issue: A list example.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "heading",
+      "body": "# issue: A heading.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "html",
+      "body": "<!-- issue: metadata -->\nissue: Do not skip the HTML.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "later",
+      "body": "Some context first.\n\nissue (blocking): Not a root prefix.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "inline-code",
+      "body": "`issue:` is a word in this paragraph.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "link",
+      "body": "[issue: Example](https://example.invalid/)",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "confusable",
+      "body": "іssue: The first character is Cyrillic.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "unsupported-strong",
+      "body": "__issue:__ Unsupported style stays readable.",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "untagged",
+      "body": "Could this response arrive after the view closes?",
+      "expected_status": "plain",
+      "expected_label": null,
+      "expected_expectation": "unspecified"
+    },
+    {
+      "id": "root-with-different-body-line",
+      "body": "question: Is the ordering intentional?\n\nissue: This later line is only discussion.",
+      "expected_status": "recognized",
+      "expected_label": "question",
+      "expected_expectation": "unspecified"
+    }
+  ],
+  "additional_generated_cases": [
+    "Classifier prefix budget at limit and limit+1; no hidden body truncation.",
+    "Large decoration count and pathological delimiters with bounded work.",
+    "Validated inherited tour/off-hunk user-body spans and missing/ambiguous spans.",
+    "UTF-8 multibyte source-span conversion and stale draft revision refusal."
+  ]
+}

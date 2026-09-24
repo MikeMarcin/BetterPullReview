@@ -1,0 +1,93 @@
+{
+  "schema": "bpr.feedback-label-catalog.v1",
+  "catalog_revision": 1,
+  "source": "https://conventionalcomments.org/",
+  "source_checked_on": "2026-09-23",
+  "definitions": "Concise adaptations; BPR guidance values are proposed product policy, not upstream machine fields.",
+  "labels": [
+    {
+      "id": "praise",
+      "description": "Recognize something genuinely valuable.",
+      "guidance": "positive",
+      "icon_role": "feedback.label.praise",
+      "first_class": true
+    },
+    {
+      "id": "nitpick",
+      "description": "Request a trivial preference change.",
+      "guidance": "non_blocking_by_nature",
+      "icon_role": "feedback.label.nitpick",
+      "first_class": true
+    },
+    {
+      "id": "suggestion",
+      "description": "Propose an improvement and explain its benefit.",
+      "guidance": "unspecified",
+      "icon_role": "feedback.label.suggestion",
+      "first_class": true
+    },
+    {
+      "id": "issue",
+      "description": "Identify a concrete problem.",
+      "guidance": "unspecified",
+      "icon_role": "feedback.label.issue",
+      "first_class": true
+    },
+    {
+      "id": "todo",
+      "description": "Request a small necessary change.",
+      "guidance": "necessary_change",
+      "icon_role": "feedback.label.todo",
+      "first_class": true
+    },
+    {
+      "id": "question",
+      "description": "Seek clarification or investigation.",
+      "guidance": "unspecified",
+      "icon_role": "feedback.label.question",
+      "first_class": true
+    },
+    {
+      "id": "thought",
+      "description": "Offer an exploratory idea.",
+      "guidance": "non_blocking_by_nature",
+      "icon_role": "feedback.label.thought",
+      "first_class": true
+    },
+    {
+      "id": "chore",
+      "description": "Request required process work before acceptance.",
+      "guidance": "required_before_acceptance",
+      "icon_role": "feedback.label.chore",
+      "first_class": true
+    },
+    {
+      "id": "note",
+      "description": "Highlight information without requiring action.",
+      "guidance": "always_non_blocking",
+      "icon_role": "feedback.label.note",
+      "first_class": true
+    },
+    {
+      "id": "typo",
+      "description": "Identify a spelling correction.",
+      "guidance": "necessary_change",
+      "icon_role": "feedback.label.typo",
+      "first_class": true
+    },
+    {
+      "id": "polish",
+      "description": "Suggest an immediate quality improvement.",
+      "guidance": "unspecified",
+      "icon_role": "feedback.label.polish",
+      "first_class": true
+    },
+    {
+      "id": "quibble",
+      "description": "Request a minor preference change.",
+      "guidance": "non_blocking_by_nature",
+      "icon_role": "feedback.label.quibble",
+      "first_class": true
+    }
+  ]
+}

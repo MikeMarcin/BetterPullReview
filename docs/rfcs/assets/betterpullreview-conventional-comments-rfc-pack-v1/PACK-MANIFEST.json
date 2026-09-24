@@ -1,0 +1,197 @@
+{
+  "schema": "bpr.rfc-pack.v1",
+  "id": "betterpullreview-conventional-comments-rfc-pack-v1",
+  "version": 1,
+  "authored_on": "2026-09-23",
+  "kind": "specification-and-offline-implementation-plan",
+  "proposed_rfcs": [
+    {
+      "id": "RFC-BPR-0047",
+      "title": "Conventional Comment Semantics and Lossless Recognition",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0047-conventional-comment-semantics.md"
+    },
+    {
+      "id": "RFC-BPR-0048",
+      "title": "Feedback Authoring and Native GitHub Review Integration",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0048-feedback-authoring-native-github-integration.md"
+    },
+    {
+      "id": "RFC-BPR-0049",
+      "title": "Label Counters, Resolution-Aware Overview and Settings",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0049-label-counters-overview-settings.md"
+    },
+    {
+      "id": "RFC-BPR-0050",
+      "title": "Feedback UX and Label Icon Design and Delivery",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0050-feedback-ux-label-icon-design.md"
+    },
+    {
+      "id": "RFC-BPR-0051",
+      "title": "Convention-Aware Skill Hooks and Shared CLI Behavior",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0051-convention-aware-hooks-cli-parity.md"
+    }
+  ],
+  "external_rfc_dependencies": [
+    "RFC-BPR-0006",
+    "RFC-BPR-0008",
+    "RFC-BPR-0009",
+    "RFC-BPR-0011",
+    "RFC-BPR-0012",
+    "RFC-BPR-0018",
+    "RFC-BPR-0021",
+    "RFC-BPR-0024",
+    "RFC-BPR-0036",
+    "RFC-BPR-0037",
+    "RFC-BPR-0044",
+    "RFC-BPR-0045",
+    "RFC-BPR-0046"
+  ],
+  "predecessors": [
+    {
+      "archive": "betterpullreview-review-tour-rfc-pack-v1.zip",
+      "expected_sha256": "b4f45e7e63465b0dc4d0308699d1bcb6308ec6e1d0720eef42c05be1bf0478d6",
+      "proposed_rfc_range": [
+        "RFC-BPR-0039",
+        "RFC-BPR-0043"
+      ],
+      "numbering_evidence": "Prior conversation pack handoff, not an archive manifest inspected in this run.",
+      "archive_bytes_verified_here": false,
+      "source_sidecar": "betterpullreview-review-tour-rfc-pack-v1.zip.sha256"
+    },
+    {
+      "archive": "betterpullreview-pr-tour-cli-extension-rfc-pack-v1.zip",
+      "expected_sha256": "3cdc6a070deafcf3301a13ad0739bf9fe798884771276fa76751cea554516782",
+      "proposed_rfc_range": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0046"
+      ],
+      "numbering_evidence": "Prior conversation pack handoff, not an archive manifest inspected in this run.",
+      "archive_bytes_verified_here": false,
+      "source_sidecar": "betterpullreview-pr-tour-cli-extension-rfc-pack-v1.zip.sha256"
+    }
+  ],
+  "cards": [
+    {
+      "id": "PACK-CC-01",
+      "path": "cards/PACK-CC-01.md"
+    },
+    {
+      "id": "PACK-CC-02",
+      "path": "cards/PACK-CC-02.md"
+    },
+    {
+      "id": "PACK-CC-03",
+      "path": "cards/PACK-CC-03.md"
+    },
+    {
+      "id": "PACK-CC-04",
+      "path": "cards/PACK-CC-04.md"
+    },
+    {
+      "id": "PACK-CC-05",
+      "path": "cards/PACK-CC-05.md"
+    },
+    {
+      "id": "PACK-CC-06",
+      "path": "cards/PACK-CC-06.md"
+    },
+    {
+      "id": "PACK-CC-07",
+      "path": "cards/PACK-CC-07.md"
+    },
+    {
+      "id": "PACK-CC-08",
+      "path": "cards/PACK-CC-08.md"
+    },
+    {
+      "id": "PACK-CC-09",
+      "path": "cards/PACK-CC-09.md"
+    },
+    {
+      "id": "PACK-CC-10",
+      "path": "cards/PACK-CC-10.md"
+    },
+    {
+      "id": "PACK-CC-11",
+      "path": "cards/PACK-CC-11.md"
+    },
+    {
+      "id": "PACK-CC-12",
+      "path": "cards/PACK-CC-12.md"
+    },
+    {
+      "id": "PACK-CC-13",
+      "path": "cards/PACK-CC-13.md"
+    },
+    {
+      "id": "PACK-CC-14",
+      "path": "cards/PACK-CC-14.md"
+    },
+    {
+      "id": "PACK-CC-15",
+      "path": "cards/PACK-CC-15.md"
+    },
+    {
+      "id": "PACK-CC-16",
+      "path": "cards/PACK-CC-16.md"
+    },
+    {
+      "id": "PACK-CC-17",
+      "path": "cards/PACK-CC-17.md"
+    },
+    {
+      "id": "PACK-CC-18",
+      "path": "cards/PACK-CC-18.md"
+    },
+    {
+      "id": "PACK-CC-19",
+      "path": "cards/PACK-CC-19.md"
+    },
+    {
+      "id": "PACK-CC-20",
+      "path": "cards/PACK-CC-20.md"
+    },
+    {
+      "id": "PACK-CC-21",
+      "path": "cards/PACK-CC-21.md"
+    },
+    {
+      "id": "PACK-CC-22",
+      "path": "cards/PACK-CC-22.md"
+    },
+    {
+      "id": "PACK-CC-23",
+      "path": "cards/PACK-CC-23.md"
+    },
+    {
+      "id": "PACK-CC-24",
+      "path": "cards/PACK-CC-24.md"
+    },
+    {
+      "id": "PACK-CC-25",
+      "path": "cards/PACK-CC-25.md"
+    },
+    {
+      "id": "PACK-CC-26",
+      "path": "cards/PACK-CC-26.md"
+    },
+    {
+      "id": "PACK-CC-27",
+      "path": "cards/PACK-CC-27.md"
+    }
+  ],
+  "milestone_plan": "milestone-plan.json",
+  "requirements": "verification/REQUIREMENTS.json",
+  "expected_counts": {
+    "rfcs": 5,
+    "cards": 27,
+    "milestones": 8,
+    "requirements": 48,
+    "labels": 12
+  },
+  "integrity": "SHA256SUMS",
+  "import_status": "not_imported",
+  "product_validation_status": "not_run",
+  "visual_design_status": "unselected; dedicated RFC0050 workstream",
+  "runtime_code_included": false
+}

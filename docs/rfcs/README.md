@@ -178,6 +178,11 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0044](RFC-BPR-0044-headless-tour-runtime-and-terminal-cli.md) | Headless Tour Runtime and Terminal CLI | Proposed | Imported 2026-09-23 from the pr-tour CLI extension pack; an AI-free `bpr tour` terminal frontend over the RFC-BPR-0039 to 0042 tour services, with no GUI or display requirement |
 | [RFC-BPR-0045](RFC-BPR-0045-shared-local-tour-drafts-and-cross-interface-recovery.md) | Shared Local Tour Drafts and Cross-Interface Recovery | Proposed | Imported 2026-09-23; one same-machine WIP draft shared by desktop, CLI and skill through a single profile owner; published tours recover from GitHub alone |
 | [RFC-BPR-0046](RFC-BPR-0046-thin-pr-tour-agent-skill.md) | Thin pr-tour Agent Skill | Proposed | Imported 2026-09-23; a thin `pr-tour` skill over `bpr tour` that uses the active agent and the RFC-BPR-0043 hooks, distributed through the shared skill workflow |
+| [RFC-BPR-0047](RFC-BPR-0047-conventional-comment-semantics.md) | Conventional Comment Semantics and Lossless Recognition | Proposed | Imported 2026-09-23 from the Conventional Comments pack; all twelve labels as optional public intent, recognized losslessly from raw Markdown and kept separate from resolution, defects and review verdicts |
+| [RFC-BPR-0048](RFC-BPR-0048-feedback-authoring-native-github-integration.md) | Feedback Authoring and Native GitHub Review Integration | Proposed | Imported 2026-09-23; optional label authoring through the shared draft, with native suggested changes, all three review decisions, private tracking and tour comments preserved |
+| [RFC-BPR-0049](RFC-BPR-0049-label-counters-overview-settings.md) | Label Counters, Resolution-Aware Overview and Settings | Proposed | Imported 2026-09-23; configurable per-label Overview columns over a disjoint root-conversation partition with catchall, unresolved-first and honest coverage |
+| [RFC-BPR-0050](RFC-BPR-0050-feedback-ux-label-icon-design.md) | Feedback UX and Label Icon Design and Delivery | Proposed | Imported 2026-09-23; a dedicated design workstream selects and delivers the compact controls and twelve label icons; no art is preselected |
+| [RFC-BPR-0051](RFC-BPR-0051-convention-aware-hooks-cli-parity.md) | Convention-Aware Skill Hooks and Shared CLI Behavior | Proposed | Imported 2026-09-23; default hooks teach the convention only when optional AI is invoked, and headless operations share the desktop's semantics |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -266,6 +271,20 @@ mapping](assets/bpr-pr-tour-cli-extension-v1.LIVE_IMPORT.md) and [adopted
 six-milestone plan](plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json)
 retain the source and execution order. Import leaves all twenty cards in Backlog
 and all three RFCs Proposed; BPR-1071 owns the single ordered closeout.
+
+RFC-BPR-0047 through RFC-BPR-0051 are the imported Conventional Comments pack,
+ordered after the review-tour pack and its pr-tour CLI extension: all twelve
+Conventional Comments labels as optional, lossless review intent; authoring that
+keeps native suggested changes and review decisions first-class; resolution-aware
+per-label Overview counters; a dedicated compact UX and label-icon design
+workstream; and convention-aware default hooks with shared CLI behavior. Their
+[source pack and live ID
+mapping](assets/betterpullreview-conventional-comments-rfc-pack-v1.LIVE_IMPORT.md)
+and [adopted eight-milestone
+plan](plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json)
+retain the source and execution order. Import leaves all twenty-seven cards in
+Backlog and all five RFCs Proposed; BPR-1097 to BPR-1101 close them one per RFC
+in canonical order.
 
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile
