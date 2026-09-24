@@ -154,3 +154,39 @@ card's evidence does not prove which run made each one.
 - The Quill mechanism was read from the staged
   `build/dev/_bpr/quill/quill-13.0.0/include/quill/backend/BackendWorkerLock.h`
   and `BackendWorker.h` (`run`, `stop`).
+
+## One sweep's litter, observed (bpr-main-linux, 2026-09-24)
+
+While verifying [[BPR-1048]], this station listed the top level of `/tmp`
+before and after its own runs. No other test process ran on the station in
+that time. These are observations, not AC1's measurement. The listings are
+station records under `build/logs/bpr-main-linux-20260924/bpr-1048/`
+(`tmp-*.txt`) and are not committed.
+
+- **A serial sweep of the 156 `application_` rows** (`TMPDIR` unset,
+  21:59-22:19) left seven `QuillBackendLock<pid>` files, one
+  `bpr-public-path-*` and one `bpr-mcp-canary-*`. The lock files fall in
+  the time windows of the agent crash-recovery courses, the attended launch
+  contract, the device-binding relaunch course and the profile
+  activation, admission and window-restart courses. The windows are
+  estimated from row durations, so each is approximate. The
+  `bpr-public-path-*` directory was created in the same second as the
+  attended launch contract's lock file.
+- **Eight rows in isolation** (`application_github_host`, three device
+  authorization rows, `sqlite_device_binding_storage` and the three
+  device-binding courses) left exactly one lock file, dated during
+  `application_device_binding_relaunch`, the last row. That row ends its
+  application with `terminate` on purpose.
+- **A fourth kind, outside this card's title.** `_coding-standard/scripts/tidy.py`
+  writes a filtered `compile_commands.json` into
+  `tempfile.mkdtemp(prefix="bpr-tidy-db-")` (`tidy.py:122`) whenever it
+  strips flags the analyser cannot take, which GCC's module flags always
+  trigger here. Nothing removes the directory. `/tmp` held six, one per run.
+  The owner of this card may take it here or card it apart. The coordinator
+  has been told.
+
+Each entry these runs left was removed by exact name: one lock file from an
+earlier 17-row run that also included the relaunch course, nine entries from
+the sweep, one lock file from the eight-row run, and the one
+`bpr-tidy-db-*` directory made by this station's own tidy run. The entries
+from before these runs are left alone.
