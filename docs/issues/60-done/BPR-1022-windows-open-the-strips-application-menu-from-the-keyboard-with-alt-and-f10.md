@@ -249,3 +249,17 @@ and `785a6828` differ only by the other station's Git protocol v2 parser
 work and its tests (`git_protocol_v2_tests.cpp`,
 `git_cache_contract_tests.cpp`). Nothing in the Qt adapter, the app or these
 rows differs between them. Neither `fd2c21d7` nor `02905c77` is on main.
+
+**A foreground incident, checked against these runs.** The integrator
+reported an unannounced WSLg window on this desktop from 23:14:59Z to about
+23:17Z, when the Linux station launched the full application by accident.
+The measurement this card rests on ended at 22:47:29Z
+(`measure-head.json`), before that window, so it stands. The first of the
+four real-key verify runs ended at 23:17:12Z, inside the window or at its
+edge, and the second at 23:17:52Z. Both could not bring the application to
+the front. The foreground then was a Windows Terminal window, not the
+application. So the statement above that the harness failed four times
+rests on the third and fourth runs, at 23:45Z. It also rests on the
+application's startup behaviour, which was measured between 23:23Z and
+00:06Z, after the window. Nothing recorded as passing evidence on this card
+came from inside the window.
