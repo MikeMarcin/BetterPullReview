@@ -82,3 +82,97 @@ the first-target clause: a strip row that predates [[BPR-0990]]'s
 are carded as [[BPR-1036]]. AC3 can only be judged once BPR-1036 is done. Until
 then, a Linux or macOS failure at `UIFORETW_NAVIGATION_ROW_UNEXPECTED` or
 `UIFORETW_CAPTURE_LAYOUT_FAILED` is BPR-1036's, not a regression from this card.
+
+## Named, fixed, and the row passes on Windows (bpr-main-win, 2026-09-23)
+
+Run `bpr-main-win-20260923`, `build/dev` (MSVC 19.51 Debug, Qt 6.11.2,
+offscreen, `QFusionStyle`), at `585d8846` plus this change. The logs are station
+records under `build/logs/bpr-1033-main-win/` and are not committed.
+
+**The clause is named (AC1).** After `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`
+the capture now prints one line, `UIFORETW_CAPTURE_FIRST_TARGET_FACTS:`, with
+one term per clause in the condition's order and the values each clause reads:
+both targets' rectangles and role pixels, the selection split into the
+workbench's and the link map's, the link map's own state, and each connector's
+endpoints, overlaps, colours, pixel counts and median contrast. It prints on
+failure only and after the marker, so every earlier line keeps its place. The
+first Windows run printed:
+
+```text
+UIFORETW_CAPTURE_FIRST_TARGET_FACTS: first_observed=1
+first_left_rect=429,350,8,14 first_right_rect=429,350,8,14
+first_left_role_pixels=41 first_right_role_pixels=59 first_selected=0
+workbench_selection=1 link_map_selection=0 second_observed=1
+second_left_rect=134,378,15,14 second_right_rect=134,378,15,14
+second_left_role_pixels=115 second_right_role_pixels=99 geometry_pending=1
+link_map=visible:1,size:56x857,links:0,first_segment_links:0,second_segment_links:0,selected:0
+first_connector_observed=0 second_connector_observed=0 selected_readable=0
+unselected_readable=0
+```
+
+So clause 2 is false only on its link-map half, and clauses 6 to 9 are false
+because neither target has a connector. The glyph targets, their role pixels
+and the workbench's selection are all right. None of the three suspects above
+is the cause.
+
+**The cause.** The link map was visible and had no links at all, and the
+workbench still had its geometry pending. The panes measure their lines in
+batches of about 4 ms. The link map gets its geometry, and with it its links
+and its selection, only when that measurement completes. The capture waited a
+fixed four event passes after moving to the first target, and on this station
+the measurement of `UIforETW.rc` needs more batches than that. Four passes
+were enough on macOS and Linux, which is why the row passed there.
+
+**The fix, in the fixture probe.** The capture's `drain` now waits for the
+measurement itself, bounded at 5 s, and then drains as before. It is the same
+wait `diff_workbench_tests`' `settle_geometry` uses. It waits only while the
+workbench reports its geometry pending, so a platform that finishes within
+four passes does exactly what it did before. No product path changes.
+
+The row then got further and failed later, in the contract, at
+`UIforETW light compact navigation order/edges/spacer drifted`. The capture
+facts showed why. On Windows the strip is the title row, so the caption
+buttons end the row after settings ([[BPR-0653]]). The right-edge gap was 227
+against a bound of 110, and the bound was measured for refresh, the divider,
+account and settings alone. The capture facts now carry
+`window_controls_rect_in_row`, the caption buttons' rectangle on Windows and an
+empty one elsewhere. The contract takes its width off the right-edge gap
+before applying the unchanged bound. On macOS and Linux it subtracts 0.
+
+**The row passes (AC2).** `application_uiforetw_selected_diff_contract` passes
+on Windows in 60.25 s: light, dark and both high-contrast profiles. It passes
+again in 58.40 s on the committed candidate, formatted and resealed, and
+`application_review_round_trip_composition_contract` passes beside it
+(7.09 s).
+
+| Run | Change | Result |
+| --- | --- | --- |
+| Before | Facts only | `FIRST_TARGET_FAILED`, facts as above |
+| Negative control | Facts, with the wait disabled | `FIRST_TARGET_FAILED`, `geometry_pending=1`, `links:0` |
+| Wait only | Facts and the bounded wait | Capture passes; contract fails at `compact navigation order/edges/spacer drifted` (right-edge gap 227) |
+| Fix | All of it | Passes, 60.25 s; again 58.40 s as committed |
+
+**The pins.** `github_application.cpp` is pinned by
+`application_review_round_trip_composition_contract`. The change is inside the
+`BPR_BUILD_TESTING` fixture-access region: the UIforETW capture's wait, its
+failure line and one capture fact. The full-file and manifest digests are
+resealed in the same commit, covering `3d941d47..` this card's commit. The
+mutation-branch pin is unchanged. This is the review that reseal records.
+
+**Related, not fixed here.** `qt_workbench_window_scale_{100,125,200}` fail on
+this station at "the composed link map paints ribbons to begin with". It is the
+same class of failure, measured with a reverted probe: after the window test's
+fixed four passes the link map had `entries=0 rebuilds=0`, and a few passes
+later it had its geometry and 5 links. Waiting for the measurement there got
+past that line but not past the next one, a shared scrollbar that was not yet
+visible, so that test needs more than this wait. It is left for its own card,
+and an ID has been requested.
+
+### Still open
+
+- **AC3, macOS and Linux.** No run has been made from this station. On those
+  platforms the wait returns at once if the geometry is ready, as it evidently
+  was, and the new fact subtracts 0. So the row there should still stop only
+  where [[BPR-1036]] records, but only a run can show that. Wanted on
+  bpr-main-mac and bpr-main-linux, after BPR-1036's answer:
+  `ctest --preset dev -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure`.

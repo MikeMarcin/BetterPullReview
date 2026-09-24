@@ -18895,7 +18895,16 @@ namespace bpr::app {
 				uiforetw_rc_head_blob)) {
 			return false;
 		}
-		const auto drain = [] {
+		// [[BPR-1033]]. The panes measure their lines in batches of about 4 ms,
+		// and the link map shows no link until that measurement completes, so
+		// four passes alone depend on the machine. Wait for the measurement
+		// itself, bounded, then drain as before.
+		const auto drain = [workbench] {
+			const auto started = std::chrono::steady_clock::now();
+			while (workbench->geometry_pending()
+				   && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 5 }) {
+				QApplication::processEvents();
+			}
 			for (auto tick = 0; tick < 4; ++tick) {
 				QApplication::processEvents();
 			}
@@ -18972,6 +18981,70 @@ namespace bpr::app {
 			|| !selectedReadable(*firstSelectedConnector)
 			|| !unselectedReadable(*secondUnselectedConnector)) {
 			QTextStream{ stderr } << "UIFORETW_CAPTURE_FIRST_TARGET_FAILED\n";
+			// [[BPR-1033]]. One term per clause of the condition above, in its
+			// order, with the values each clause reads, so a failure names the
+			// clause instead of the capture. After the marker, so every
+			// earlier line keeps its place.
+			auto       facts     = QTextStream{ stderr };
+			const auto rectangle = [&facts](const QRect& aRect) {
+				facts << aRect.x() << ',' << aRect.y() << ',' << aRect.width() << ',' << aRect.height();
+			};
+			const auto target = [&facts, &rectangle](const char* const aName, const std::optional<intraline_render_observation>& aValue) {
+				facts << ' ' << aName << "_observed=" << aValue.has_value();
+				if (aValue.has_value()) {
+					facts << ' ' << aName << "_left_rect=";
+					rectangle(aValue->LeftRect);
+					facts << ' ' << aName << "_right_rect=";
+					rectangle(aValue->RightRect);
+					facts << ' ' << aName << "_left_role_pixels=" << aValue->LeftRolePixels << ' ' << aName
+						  << "_right_role_pixels=" << aValue->RightRolePixels;
+				}
+			};
+			const auto color = [](const QColor& aColor) {
+				return aColor.isValid() ? aColor.name(QColor::HexArgb) : QStringLiteral("invalid");
+			};
+			const auto connector = [&facts, &color](const char* const aName, const std::optional<connector_render_observation>& aValue) {
+				facts << ' ' << aName << "_connector_observed=" << aValue.has_value();
+				if (aValue.has_value()) {
+					facts << ' ' << aName << "_connector=selected:" << aValue->Selected << ",endpoints:" << aValue->LeftEndpoint
+						  << aValue->RightEndpoint << ",overlaps:" << aValue->LeftOverlap << aValue->RightOverlap
+						  << ",background:" << color(aValue->Pixels.Background) << ",dominant:" << color(aValue->Pixels.Dominant)
+						  << ",sampled:" << aValue->Pixels.SampledPixels << ",contrast:" << aValue->Pixels.ContrastPixels
+						  << ",dominant_pixels:" << aValue->Pixels.DominantPixels
+						  << ",median_contrast_hundredths:" << aValue->Pixels.MedianContrastHundredths;
+				}
+			};
+			const auto workbenchSelection = workbench->selection().has_value()
+				&& workbench->selection()->Segment == firstPair->Segment
+				&& workbench->selection()->Group == firstPair->Group;
+			facts << "UIFORETW_CAPTURE_FIRST_TARGET_FACTS:";
+			target("first", firstSelected);
+			facts << " first_selected=" << selected(*firstPair) << " workbench_selection=" << workbenchSelection
+				  << " link_map_selection="
+				  << (workbench->link_map()->selected()
+					  == qt::diff_link_map_identity{
+						  .Segment = firstPair->Segment,
+						  .Group   = firstPair->Group,
+					  });
+			target("second", secondUnselected);
+			// The connector clauses read the link map's visible links; a target
+			// with no connector means the map shows no link for its segment.
+			const auto* const map      = workbench->link_map();
+			const auto        segments = [map](const intraline_pair_location& aPair) {
+				return std::ranges::count_if(map->visible_links(), [&aPair](const qt::visible_diff_link& aLink) {
+					return aLink.Identity.Segment == aPair.Segment;
+				});
+			};
+			facts << " geometry_pending=" << workbench->geometry_pending() << " link_map=visible:" << map->isVisible()
+				  << ",size:" << map->width() << 'x' << map->height()
+				  << ",links:" << map->visible_links().size() << ",first_segment_links:" << segments(*firstPair)
+				  << ",second_segment_links:" << segments(*secondPair) << ",selected:" << map->selected().has_value();
+			connector("first", firstSelectedConnector);
+			connector("second", secondUnselectedConnector);
+			facts << " selected_readable="
+				  << (firstSelectedConnector.has_value() && selectedReadable(*firstSelectedConnector))
+				  << " unselected_readable="
+				  << (secondUnselectedConnector.has_value() && unselectedReadable(*secondUnselectedConnector)) << '\n';
 			return false;
 		}
 
@@ -19207,6 +19280,18 @@ namespace bpr::app {
 					   << '\n';
 			}
 		}
+		// [[BPR-1033]]. On Windows the caption buttons end the row, after
+		// settings, so the row's right edge holds them too. The contract takes
+		// their width off its right-edge gap, which keeps one bound for what
+		// every platform puts there. Empty where the row has no window controls
+		// at its right.
+	#if defined(_WIN32)
+		const auto windowControlsInRow = exactRowOrder
+			? toolbar->actionGeometry(toolbarActions[at(28)])
+			: QRect{ };
+	#else
+		const auto windowControlsInRow = QRect{ };
+	#endif
 		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
 		auto nativeIcons = true;
 		auto accessible  = true;
@@ -19506,6 +19591,8 @@ namespace bpr::app {
 			rectangle_json(reviewControls->geometry()),
 			"conversations_toggle_rect_in_row",
 			rectangle_json(requiredPresenters[5]->geometry()),
+			"window_controls_rect_in_row",
+			rectangle_json(windowControlsInRow),
 			"comparison_rect_in_window",
 			rectangle_json(comparisonRect),
 			"left_pane_rect_in_window",

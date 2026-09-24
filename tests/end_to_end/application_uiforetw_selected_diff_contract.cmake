@@ -351,9 +351,15 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 	# flexible spacers flank the modality control between the file pair and
 	# the review details, and refresh, the divider, account and settings
 	# follow the comments toggle at the right.
+	# [[BPR-1033]]. On Windows the caption buttons end the row after settings;
+	# their width comes off the right edge first, so the bound below stays the
+	# one for refresh, the divider, account and settings on every platform.
+	# The rectangle is empty where the row has no window controls at its right.
+	string(JSON window_controls_width GET
+		"${capture_facts}" window_controls_rect_in_row width)
 	math(EXPR left_edge_gap "${files_toggle_rect_in_row_x}")
 	math(EXPR right_edge_gap
-		"${navigation_row_rect_in_window_width} - ${conversations_toggle_right}")
+		"${navigation_row_rect_in_window_width} - ${conversations_toggle_right} - ${window_controls_width}")
 	math(EXPR centre_region_width
 		"${review_details_rect_in_row_x} - ${next_file_right}")
 	if(left_edge_gap GREATER 160

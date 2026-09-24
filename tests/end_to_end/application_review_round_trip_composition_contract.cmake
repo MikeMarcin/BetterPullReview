@@ -161,6 +161,16 @@ endfunction()
 # provider, vault, transport or mutation path changes; the mutation-branch pin
 # is unchanged. Covers 669a5a58..the BPR-1036 commit. Review recorded on
 # BPR-1036.
+# BPR-1033 reseal: the BPR_BUILD_TESTING UIforETW capture waits, bounded at
+# 5 s, for the workbench's pane measurement before each observation instead of
+# a fixed four event passes, prints one facts line after
+# UIFORETW_CAPTURE_FIRST_TARGET_FAILED naming each clause's values, and adds
+# one capture fact, window_controls_rect_in_row (the Windows caption buttons'
+# rectangle, empty elsewhere). The probe reads window and workbench state and
+# writes only to standard streams and its evidence directory; every product
+# action it takes is unchanged. No credential, provider, vault, transport or
+# mutation path changes; the mutation-branch pin is unchanged. Covers
+# 3d941d47..the BPR-1033 commit. Review recorded on BPR-1033.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -179,7 +189,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"53da7b64776c4452b834b016e8e41adbfc0053410fe594445e6e15c91b399d2a"
+		"6e76dd7cc8a87e45e59541648a1fe99e9e3c45eaf73d8e1af8d5a678d847fb10"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -314,7 +324,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a9239f72bca76c6823a0d90a3423072bfc2a1616670f968def39acc53fe8e82a"
+        "4c2036140da5e5b4524d5c4a48bf369df4996a5ee1333ed0e8453420bfc327a0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
