@@ -168,12 +168,21 @@ and the Linux runs above were made on its content before the commit.
 - **AC1** (Linux: the row passes, leaves no `bpr-ledger-preflight-*` entry,
   and still asserts the refusal and the surviving sentinel): **pass.**
 - **AC2** (a negative control leaves the two directories again): **pass.**
-- **AC3** (macOS and Windows: the row passes and leaves no entry): **owed by
-  bpr-main-mac and bpr-main-win.** The code is portable. The directory
-  check builds the path the way the product does, so a trailing separator
-  on the temporary directory cannot defeat it. Neither platform has run it.
+- **AC3** (macOS and Windows: the row passes and leaves no entry):
+  **macOS: pass** at `8e49aae7`, measured by a direct sandboxed run of the
+  row's executable, because the ctest route cannot fail on macOS (see
+  [macOS run](#macos-run-bpr-main-mac-2026-09-23)). **Windows: pass** at
+  `b6a31cff` (see
+  [Windows](#windows-the-row-passes-and-leaves-nothing-bpr-main-win-2026-09-23)).
+  The code is portable. The directory check builds the path the way the
+  product does, so a trailing separator on the temporary directory cannot
+  defeat it.
 
-### Still owed: the macOS run (bpr-main-mac)
+### The macOS run as first proposed (bpr-main-mac)
+
+This command was run on 2026-09-23 and passed, but on macOS it cannot
+fail. The [macOS run](#macos-run-bpr-main-mac-2026-09-23) below records why,
+and the check used instead.
 
 On a head that contains this card's change, rebuilt:
 
@@ -237,3 +246,81 @@ not committed.
   litter from runs before the fix, not this run's.
 
 **AC3 on Windows: pass.** The macOS run is the one still owed.
+
+## macOS run (bpr-main-mac, 2026-09-23)
+
+This is the run the Windows section above names as still owed. macOS 26.6.2
+on Apple Silicon, Apple clang 21.0.0, `build/dev` (Debug,
+Ninja). The product, test and CMake sources were those of `8e49aae7`, which
+contains `84538d65`. `cmake --build --preset dev --target
+test_better_pull_review_sqlite_review_ledger_tests` exited 0 with no
+`warning` or `error:` line, and it recompiled `review_ledger_storage_tests.cpp`.
+Logs are under `build/logs/bpr-1047-mac/` on this station and are not
+committed.
+
+### On macOS the ctest route cannot fail
+
+On macOS every row that `bpr_add_network_isolated_test` registers runs
+through `scripts/run_network_isolated_test.py`. The runner makes
+`/tmp/bpr-net-<random>/fixture`, sets the child's `TMPDIR` to it, and removes
+the whole `bpr-net-*` tree through `tempfile.TemporaryDirectory` when the row
+ends. So the `TMPDIR` handed to ctest never reaches the test, and whatever
+the test leaves is deleted with the runner's root. The negative control
+below shows it: with the removal taken out, the card's command still passed
+and `$t` stayed empty.
+
+This does not affect the other two platforms. On Linux the before-change run
+left the two directories in the `TMPDIR` it was given, so the runs above
+measure what they claim. On Windows the row is `WINDOWS_UNCONTAINED` and runs
+with no runner, so it reads `TMP` from the shell, as the Windows command
+expects.
+
+### The check used instead
+
+The row's executable ran directly under the same sandbox profile, from the
+row's working directory, with the row's `BPR_AUTOMATED_TEST_BOUNDARY=1` and
+with `TMPDIR` set to a fresh directory. The shell set none of the variables
+the row unsets. The runner's derived profile only adds allowances to the
+template, for its fixture directory and its loopback ports (none for this
+row), so the template alone confines the test at least as tightly.
+
+```sh
+repo=/Users/jaeger/Documents/GitHub/BetterPullReview
+t=$(mktemp -d /tmp/bpr1047-direct-XXXXXX)
+cd "$repo/build/dev/tests/sqlite_contract"
+BPR_AUTOMATED_TEST_BOUNDARY=1 TMPDIR="$t/" /usr/bin/sandbox-exec \
+    -f "$repo/cmake/sandbox/macos-network-deny.sb" \
+    "$repo/build/dev/tests/sqlite_contract/better_pull_review_sqlite_review_ledger_tests"
+find "$t" -mindepth 1
+rmdir "$t"
+```
+
+| Check | Result |
+| --- | --- |
+| The card's command, at `8e49aae7` | passed in 0.94 s; `find` printed nothing; `rmdir` succeeded |
+| The direct run, at `8e49aae7` | `review-ledger-storage-tests:pass`, exit 0, 0.58 s; `$t` empty afterwards |
+| Negative control, the card's command | passed in 0.95 s; `find` printed nothing, so this route cannot fail |
+| Negative control, the direct run | `review-ledger-storage-tests:pass`, exit 0; `$t` held the two directories (below) |
+| Restored and rebuilt, the card's command | passed in 0.87 s; `find` printed nothing |
+| Restored and rebuilt, the direct run, `TMPDIR` with and without a trailing `/` | both `review-ledger-storage-tests:pass`, exit 0, no `FAILED` line; `$t` empty afterwards |
+
+The negative control was the Linux one: the call replaced by
+`static_cast<void>(&remove_retained_preflight_root);`, and only the test
+target rebuilt (exit 0). The direct run then left two directories in `$t`,
+both mode `0700`, of the same shapes as on Linux:
+
+- `bpr-ledger-preflight-71b1…` (`substitute`): `clone/substitute-sentinel`,
+  holding `must-survive`, and `clone.held/` with `.identity`, `ledger.db`
+  (0 bytes), `ledger.db-wal` (0 bytes) and `ledger.db-shm` (32 KiB);
+- `bpr-ledger-preflight-7198…` (`nonempty`): `clone/foreign-child`.
+
+No file in either held the canary `BPR_PREFLIGHT_PRIVATE_CLONE_0250`. That
+`$t` was removed by exact path. The test source was then restored with
+`git checkout`, so its blob is again `65662606`, and the target was rebuilt
+before the last two rows of the table.
+
+Before these runs, the top level of `/tmp` and of the per-user temporary
+directory (`getconf DARWIN_USER_TEMP_DIR`) held no `bpr-ledger-preflight-*`
+entry. Neither did the eight stale `/tmp/bpr-net-*` runner roots from
+earlier days, which this card leaves alone. This station has no leftovers
+to remove.
