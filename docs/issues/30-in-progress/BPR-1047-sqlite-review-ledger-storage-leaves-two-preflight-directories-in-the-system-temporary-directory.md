@@ -324,3 +324,44 @@ directory (`getconf DARWIN_USER_TEMP_DIR`) held no `bpr-ledger-preflight-*`
 entry. Neither did the eight stale `/tmp/bpr-net-*` runner roots from
 earlier days, which this card leaves alone. This station has no leftovers
 to remove.
+
+## Closed: AC3 is met on macOS and Windows (bpr-main-linux, 2026-09-24)
+
+Both runs were checked against AC3 before this card finished. AC3 asks that
+the row passes and leaves no `bpr-ledger-preflight-*` entry in the temporary
+directory.
+
+- **macOS: pass, and the check could fail.** A macOS ctest run cannot show a
+  leftover: the runner hands the test its own `/tmp/bpr-net-*/fixture` and
+  deletes it when the row ends. The pass therefore rests on the direct
+  sandboxed run of the row's executable at `8e49aae7`, which contains
+  `84538d65`. It used the same sandbox profile and a `TMPDIR` that was kept
+  and read afterwards. The row passed and `TMPDIR` was empty, with and
+  without a trailing `/`. The same direct run with the removal taken out
+  left both directories, in the Linux shapes. So this route sees a leftover
+  when there is one. The ctest result is not counted.
+- **Windows: pass.** At `b6a31cff`, which contains `84538d65`,
+  `sqlite_review_ledger_storage` passed with `TMP` and `TEMP` pointed at a
+  fresh empty directory. The directory was empty afterwards.
+  - The row is in `WINDOWS_UNCONTAINED_TESTS`
+    (`scripts/verify_test_network_isolation.py`, `dos-volume-name`), so it
+    runs with no runner and reads `TMP` from the shell.
+  - The test's removal accepts only
+    `temp_directory_path() / bpr-ledger-preflight-…`, the path the product
+    builds in the same process, and it fails the row if anything of that
+    root remains. So a pass means the root was removed from the directory
+    the product used.
+  - There was no Windows negative control. The Linux and macOS controls show
+    that the check fails when the removal is taken out, and the change has
+    no platform branch.
+
+Neither the test nor `review_ledger_database.cpp` has changed since
+`84538d65`.
+
+| Criterion | Result |
+| --- | --- |
+| AC1 Linux: passes, leaves no entry, still asserts the refusal and the sentinel | **Pass** on `84538d65`'s content |
+| AC2 A negative control leaves the two directories again | **Pass** on Linux, and repeated on macOS through the direct run |
+| AC3 macOS and Windows: passes and leaves no entry | **Pass**: macOS at `8e49aae7` by the direct run, Windows at `b6a31cff` |
+
+The card finishes.
