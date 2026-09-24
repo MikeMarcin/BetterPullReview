@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1046"
 title: "application_threaded_reply_contract fails at HEAD: since cc038748 a card's Reply selects the thread's line before it names the thread, so the draft is not a reply"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
