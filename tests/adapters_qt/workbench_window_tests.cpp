@@ -84,6 +84,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <span>
 #include <string>
 #include <string_view>
@@ -3604,10 +3605,36 @@ namespace {
 		return observation;
 	}
 
+	/// \brief Waits, bounded, until the composed panes have measured their lines.
+	///
+	/// \details [[BPR-1073]]. The panes measure their lines in batches of about
+	/// 4 ms, and the link map's links, the scroll controller's axis and the
+	/// shared scrollbar's enabled state all come from the geometry that
+	/// measurement completes. How many event passes that takes depends on the
+	/// machine: four were enough on macOS and Linux, and on the Windows station
+	/// a Debug build needed five. So a read of any of them waits for
+	/// `geometry_pending()` to clear, as [[BPR-1033]]'s capture and
+	/// `diff_workbench_tests`' `settle_geometry` do, and then drains as before.
+	/// Where the measurement is already done it returns at once. The bound is a
+	/// deadline, not a budget: the largest sized publication, 60,000 lines,
+	/// measured for 12.6 s at 2.0 in a Windows Debug build.
+	void settle_geometry(const qt::diff_workbench& aSurface, const std::string_view aStage)
+	{
+		auto measuring = QElapsedTimer{ };
+		measuring.start();
+		while (aSurface.geometry_pending() && measuring.elapsed() < 30'000) {
+			QApplication::processEvents();
+		}
+		expect(!aSurface.geometry_pending(),
+			   message_for("the composed panes finish measuring within the local test deadline", aStage));
+		process_events();
+	}
+
 	/// \brief Publishes the fixture comparison into the composed workbench centre.
 	[[nodiscard]] auto publish_fixture(
 		qt::workbench_window&           aWindow,
-		const core::computed_file_diff& aDiff) -> qt::diff_workbench*
+		const core::computed_file_diff& aDiff,
+		const std::source_location      aCaller = std::source_location::current()) -> qt::diff_workbench*
 	{
 		auto* const surface = aWindow.comparison_surface();
 		surface->set_loading(request_context(aDiff));
@@ -3618,6 +3645,7 @@ namespace {
 		process_events();
 		expect(surface->current_result() != nullptr,
 			   "the composed surface accepts its exact publication");
+		settle_geometry(*surface, "published at line " + std::to_string(aCaller.line()));
 		return surface;
 	}
 
@@ -3754,6 +3782,8 @@ namespace {
 		};
 		window.publish(hidden);
 		process_events();
+		// Hiding the gutter changes the panes' viewports, so they measure again.
+		settle_geometry(*surface, "numbers hidden");
 
 		for (auto        index = std::size_t{ 0U };
 			 auto* const source : { surface->left_pane(), surface->right_pane() }) {
@@ -3787,6 +3817,7 @@ namespace {
 		};
 		window.publish(shown);
 		process_events();
+		settle_geometry(*surface, "numbers shown");
 		for (auto        index = std::size_t{ 0U };
 			 auto* const source : { surface->left_pane(), surface->right_pane() }) {
 			expect(gutterOf(source)->width() == shownWidth[index]
@@ -4576,6 +4607,8 @@ namespace {
 
 		window.resize(window.width() - 200, 700 + 220);
 		process_events();
+		// A resize changes the panes' viewports, so they measure again.
+		settle_geometry(*surface, "resized");
 		const auto resized = observe_composed_comparison(
 			window, diff, left, right, "resized");
 
@@ -4943,12 +4976,11 @@ namespace {
 		auto* const   surface = aWindow.comparison_surface();
 		QElapsedTimer publishTimer;
 		publishTimer.start();
+		// [[BPR-1073]]. publish_fixture returns once the native measurement is
+		// complete, so the interval includes it. It used to be bounded here at
+		// 10 s from the publication; the 60,000-line Debug publication took
+		// 12.6 s at 2.0 on the Windows station, so the bound is the helper's.
 		static_cast<void>(publish_fixture(aWindow, diff));
-		while (surface->geometry_pending() && publishTimer.elapsed() < 10'000) {
-			QApplication::processEvents();
-		}
-		expect(!surface->geometry_pending(), "sized publication completes its native measurement before scroll evidence");
-		process_events();
 		const auto published = publishTimer.elapsed();
 
 		auto* const left  = surface->left_pane();

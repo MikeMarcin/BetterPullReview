@@ -71,4 +71,82 @@ measurement.
 
 ## Evidence
 
-Pending.
+### Measured, then fixed in the test (bpr-main-win, 2026-09-24)
+
+`build/dev`, MSVC 19.51 Debug, Qt 6.11.2, offscreen. Logs are station
+records under `build/logs/bpr-1073-main-win/` and are not committed.
+
+**Before.** At `9f3b09f9`, `qt_workbench_window_scale_100` failed in 9.10 s at
+`the composed link map paints ribbons to begin with`. A temporary trace, not
+committed, read the surface after `publish_fixture`'s four passes and then on
+every pass for 3 s:
+
+```text
+t+0   pending=1 batches=4 links=0 shared_enabled=0 qmax=0
+t+37  pending=0 batches=5 links=5 shared_enabled=1 qmax=1610
+```
+
+The link map's links, the scroll controller's axis, and so the shared
+scrollbar's enabled state, all arrive together, when the measurement
+completes. The controller disables the scrollbar while its axis is
+suspended for the measurement (`suspend_axis`), so the shared-scrollbar read
+depends on the same completion. One condition covers all three:
+`geometry_pending()` clears. This run did not reproduce why BPR-1033's trial
+stopped at the shared-scrollbar read. That trial waited only in two courses;
+here every publication waits.
+
+**The change** is in `tests/adapters_qt/workbench_window_tests.cpp` only.
+
+- `settle_geometry(surface, stage)` waits until `geometry_pending()` clears,
+  bounded at 30 s, then drains as before. Its failure names the stage.
+- `publish_fixture` calls it. Every caller then reads a measured surface, and
+  a failure names the line of the publication that did not finish.
+- The view menu course calls it again after hiding and after showing the line
+  numbers, and the ribbons course after its resize. Each of those changes the
+  panes' viewports, so they measure again.
+
+**A second limit behind the first.** With a 5 s bound, the row got past both
+reads and then failed at `published at line 4977`, the sized publications.
+The 60,000-line Debug publication measures for longer than that. Its own wait
+was bounded at 10 s from the publication, and on this station it takes, with
+publication and measurement together:
+
+| Scale | 60 / 6,000 / 60,000 lines (`publish-ms`) |
+| --- | --- |
+| 1.0 | 74 / 937 / 9,186 |
+| 1.25 | 82 / 957 / 9,246 |
+| 2.0 | 143 / 1,364 / 12,566 |
+
+So at 2.0 that course would also have failed on Windows, once the rows
+reached it. The bound now lives in `settle_geometry`, at 30 s. The sized course
+no longer keeps its own wait, and its `publish-ms` still includes the
+measurement, as before.
+
+**Negative controls (AC3).** Each was a temporary edit to `settle_geometry`,
+rebuilt and run as `qt_workbench_window_scale_100`, then restored.
+
+| `settle_geometry` | Result |
+| --- | --- |
+| No wait, so only each caller's fixed four passes remain | fails in 8.79 s at `the composed link map paints ribbons to begin with` |
+| The wait replaced by four more passes | passes, 111.81 s |
+
+The second control shows why a pass count is the wrong condition. Eight
+passes are enough on this station today, as four were on macOS and Linux, and
+that was so for the four before it too.
+
+**Rows (AC2).** `qt_workbench_window_scale_100`, `_125` and `_200` pass,
+115.59, 95.07 and 100.70 s, on the committed content. They passed before it
+as well: 108.28, 112.59 and 122.00 s, with a 30 s bound but before the
+sized course's wait moved. Every row of the same executable passes, 17 of 17:
+`qt_shared_snapshot_navigation`, `qt_workbench_focus_order_scale_*`,
+`qt_workbench_title_row_scale_*`, `qt_workbench_strip_menu`,
+`qt_workbench_home_discovery_scale_*`, `qt_workbench_conversation_reveal`,
+`qt_workbench_overview`, `qt_native_window_geometry` and the three window
+rows. The full window row now reaches [[BPR-1074]]'s drawer courses on
+Windows, and they pass there too. `clang-format` reports the file clean.
+`clang-tidy` reports only the older `wait_for_frame` finding (`4bbecb48`).
+
+**macOS and Linux.** The waits return at once where the measurement has
+already finished, and there the rows already passed. Wanted as a post-close
+confirmation on bpr-main-mac and bpr-main-linux:
+`ctest --preset dev -R '^qt_workbench_window_scale_(100|125|200)$' --output-on-failure`.
