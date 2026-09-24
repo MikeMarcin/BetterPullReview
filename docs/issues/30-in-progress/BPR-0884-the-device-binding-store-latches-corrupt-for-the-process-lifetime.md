@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0884"
 title: "The device binding store latches corrupt for the process lifetime, including on cancellation"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
