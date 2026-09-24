@@ -30,6 +30,21 @@ Three limitations remain, and this status does not close them:
   the current-line band and tab markers are painted only by this page's
   preview. That drift is now [[BPR-0986]].
 
+**Owner amendment, 2026-09-24 (attended session cbd48b91).** Asked about the
+two hunk-header roles on [[BPR-0986]] (candidate
+`BPR-0986-hunk-header-roles-v001`, decision `e16dfcbf`, 19:03:27Z), the owner
+selected, verbatim, "(a) Stop offering them: amend RFC-BPR-0034 C5 from 47
+roles to 45; the theme documents keep both roles". C5, the Colours paragraph
+and C5's verification row below now say 45. `diff_hunk_header_background` and
+`diff_hunk_header_text` stay in RFC-BPR-0006's theme documents, import and
+export. The review window has no hunk header, so the card stops offering the
+two roles as though they did something. The amended C5 is not yet built; the
+card lists 47 until BPR-0986 lands it. In the same session the owner rejected
+the review panes' tab markers in favour of Sublime Text's white-space model
+with a setting, which is [[BPR-1107]] and bears on C4's "two tab depths with
+markers". This status is unchanged: C1 to C6 were accepted as written for the
+candidate built from `ed2b3f14`.
+
 ## Summary and scope
 
 The Appearance page of Settings is rebuilt in the language RFC-BPR-0032 gives
@@ -118,8 +133,9 @@ second renderer.
 
 The card is titled for the theme on screen, "Colours for Dark", with the
 subtitle "Edits change Dark only. Each theme keeps its own colours." Its header
-holds Import, Export and Reset all. Under a filter field, a list of all 47
-roles in four groups with sticky group headers and counts, Surfaces and text,
+holds Import, Export and Reset all. Under a filter field, a list of the 45
+roles the review window shows (all 47 but the two hunk-header roles, owner
+amendment 2026-09-24) in four groups with sticky group headers and counts, Surfaces and text,
 Diff, Review states, Syntax, each row a swatch, the role's name in words and
 its value in the code font. The list scrolls inside the card. A swatch opens
 the platform colour picker and the change previews in the review window as
@@ -159,8 +175,8 @@ The core decides. The host performs. Qt presents.
   projection. The settings panel becomes the three cards: an `info_glyph`
   widget (**new**) with popover and accessible description, shared with the
   Accounts page; a `type_preview` widget (**new**) painted by the existing
-  code painter; a `colour_role_list` (**new**) over the 47 roles with a
-  filter, sticky group headers and the picker; the preview bar. Spin boxes
+  code painter; a `colour_role_list` (**new**) over the offered roles (45
+  since the 2026-09-24 amendment) with a filter, sticky group headers and the picker; the preview bar. Spin boxes
   show points.
 - **Composition root.** Supplies the resolved variant to scoped intents and
   the theme on screen to the Colours card title.
@@ -202,7 +218,9 @@ variant, which it already does.
   repainting on every accepted change.
 - **C5 — The colours card.** Titled for the theme on screen with its
   subtitle; Import, Export and Reset all in the header; a filtered, grouped,
-  scrolling list of all 47 roles with sticky headers, swatch, name and value;
+  scrolling list of 45 roles (the 47 less the two hunk-header roles the review
+  window has no surface for; owner amendment, 2026-09-24) with sticky
+  headers, swatch, name and value;
   a swatch opens the picker and previews live; edited rows show new and old;
   one bar with Cancel and Keep changes appears only while previewing; the
   role combo box, hex field and separate preview buttons are absent.
@@ -219,7 +237,7 @@ variant, which it already does.
 | C1 | Appearance host, store and profile with prior-schema fixtures | Migrate a stored light and a stored dark palette; commit on each variant and reopen; assert both survive, counts, and that the other variants render built-ins; export and import name the variant |
 | C2 | Composed Settings with the preview strip | Tile inventory and order; scroll and keyboard selection; pixel assertions on both halves of the System tiles against the built-in palettes; captions per resolution and customisation |
 | C3, C4 | Composed Settings and the shared painter | Row inventory and one-line geometry; popover on hover, focus and its accessible description; preview repaint after each accepted change with the expected glyph runs |
-| C5 | Composed Settings with the recording picker port | Title follows the variant on screen; list inventory equals 47; filter; picker preview and Keep changes through the existing commit; bar presence only while previewing |
+| C5 | Composed Settings with the recording picker port | Title follows the variant on screen; list inventory equals 45 (47 before the 2026-09-24 amendment); filter; picker preview and Keep changes through the existing commit; bar presence only while previewing |
 | C6 | Deterministic captures then attended review | Four appearances, four scales, three states; keyboard walk; VoiceOver; one attended candidate |
 
 ## Documentation impact
