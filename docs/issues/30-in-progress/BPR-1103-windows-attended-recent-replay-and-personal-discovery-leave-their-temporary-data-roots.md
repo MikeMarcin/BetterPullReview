@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1103"
 title: "Windows: application_attended_recent_replay and application_personal_discovery_public_path leave their QTemporaryDir data roots in %TEMP% on every run"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
