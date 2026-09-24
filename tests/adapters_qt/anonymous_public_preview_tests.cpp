@@ -10,6 +10,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QPushButton>
@@ -173,8 +174,15 @@ namespace {
 	// [[BPR-0771]], [[BPR-0772]]. RFC-BPR-0032 took "Read without signing in"
 	// off Accounts & hosts: reading without an account is the Home bar's. What
 	// the page still owes is that nothing on it enters the mode, and that each
-	// card's ways in activate exactly the host profile they name, as the core
+	// card's ways in reach exactly the host profile they name, as the core
 	// admits. GitHub.com's native HTTPS and GitHub CLI profiles are one card.
+	//
+	// [[BPR-1023]]. Since [[BPR-0915]] GitHub.com's Connect chooses its native
+	// profile and begins device sign-in in the shared sign-in dialog instead of
+	// dispatching an activation. The course follows that entry path, keeps the
+	// GitHub CLI offer's exact activation wherever it is admitted, and ends on
+	// the decision recorded on BPR-1023: every way in on a card, device sign-in
+	// included, obeys the host-activation command it is shown by.
 	void test_accounts_offer_no_public_preview_activation()
 	{
 		auto options = profiles();
@@ -251,13 +259,30 @@ namespace {
 			   "the enterprise card's Connect activates exactly its host");
 		intents.clear();
 
+		// The shared sign-in dialog each way in opens holds the cards in their
+		// setup presentation; closing it returns them to Settings.
+		const auto closeSharedSignIn = [&window] {
+			if (window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()) {
+				window.sign_in_dialog()->reject();
+			}
+			QApplication::processEvents();
+		};
+		closeSharedSignIn();
+
 		expect(!github->presentation().Current && github->profile() == core::host_profile_id{ 1U }
 				   && github->connect_button()->isVisibleTo(github),
 			   "GitHub.com, no longer chosen, offers Connect for its native HTTPS profile");
 		github->connect_button()->click();
-		expect(activated(core::host_profile_id{ 1U }),
-			   "GitHub.com's Connect, while it is not chosen, activates exactly its native HTTPS profile");
-		intents.clear();
+		QApplication::processEvents();
+		expect(intents.empty() && device.Begins == 1U
+				   && window.session_panel()->selected_profile() == std::optional{ core::host_profile_id{ 1U } }
+				   && github->presentation().Current && github->profile() == core::host_profile_id{ 1U },
+			   "GitHub.com's Connect, while it is not chosen, chooses exactly its native HTTPS profile and begins device sign-in, activating nothing");
+		expect(window.sign_in_dialog() != nullptr && window.sign_in_dialog()->isVisible()
+				   && window.sign_in_dialog()->isAncestorOf(github) && github->isVisibleTo(window.sign_in_dialog())
+				   && !enterprise->isVisibleTo(window.sign_in_dialog()),
+			   "and it does so in the shared sign-in dialog, for GitHub.com alone");
+		closeSharedSignIn();
 
 		expect(github->presentation().Current && github->profile() == core::host_profile_id{ 1U }
 				   && !github->connect_button()->isVisibleTo(github)
@@ -268,13 +293,14 @@ namespace {
 		expect(activated(core::host_profile_id{ 9U }),
 			   "the GitHub CLI offer activates exactly the GitHub CLI profile");
 		intents.clear();
+		closeSharedSignIn();
 		expect(github->presentation().Current && github->profile() == core::host_profile_id{ 9U }
 				   && !github->cli_offer_button()->isVisibleTo(github)
 				   && github->connect_button()->isVisibleTo(github)
 				   && github->sign_in_button()->isVisibleTo(github)
 				   && !github->sign_in_button()->isDefault(),
 			   "with GitHub CLI presented the offer gives way to Connect as its retry, and Sign in stays without being filled");
-		expect(device.Begins == 0U, "neither Connect nor the GitHub CLI offer emits device sign-in");
+		expect(device.Begins == 1U, "the GitHub CLI offer and the enterprise Connect emit no device sign-in; GitHub.com's Connect began the one");
 
 		// Choosing the enterprise host again leaves GitHub.com offering both
 		// Connect and GitHub CLI, so the refusal below has both to take away.
@@ -282,6 +308,7 @@ namespace {
 		expect(activated(core::host_profile_id{ 7U }),
 			   "choosing the enterprise host again activates exactly it");
 		intents.clear();
+		closeSharedSignIn();
 		expect(!github->presentation().Current && github->connect_button()->isVisibleTo(github)
 				   && github->cli_offer_button()->isVisibleTo(github),
 			   "GitHub.com, no longer chosen, offers Connect and GitHub CLI before the refusal");
@@ -303,11 +330,16 @@ namespace {
 				   && !github->cli_offer_button()->isVisibleTo(github)
 				   && !enterprise->connect_button()->isVisibleTo(enterprise),
 			   "the refused activation command hides every card's Connect and the GitHub CLI offer");
+		// Reached anyway, each is refused before it chooses, opens or begins
+		// anything: GitHub.com's Connect begins no device sign-in either.
 		github->connect_button()->click();
 		github->cli_offer_button()->click();
 		enterprise->connect_button()->click();
-		expect(intents.empty() && device.Begins == 0U,
-			   "a card's Connect and its GitHub CLI offer obey the host activation command state");
+		QApplication::processEvents();
+		expect(intents.empty() && device.Begins == 1U
+				   && (window.sign_in_dialog() == nullptr || !window.sign_in_dialog()->isVisible())
+				   && enterprise->presentation().Current,
+			   "every way in on a card, device sign-in included, obeys the host activation command state");
 	}
 
 	void test_the_ring_reports_the_budget_and_the_way_out(const double aScale)

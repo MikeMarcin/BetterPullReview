@@ -6913,6 +6913,17 @@ namespace bpr::qt {
 			server_card_gestures{
 				.Connect =
 					[this](const core::host_profile_id aProfile) {
+						// [[BPR-1023]]. Every Connect on a card, and its GitHub CLI
+						// offer, answers to the one admission the card shows it by:
+						// the core's host-activation command. A device-capable
+						// card's Connect begins device sign-in rather than
+						// dispatching the activation, so it asks here first
+						// instead of leaving the device command to decide. A
+						// Connect that is not shown does nothing, as the
+						// enterprise card's and the GitHub CLI offer's already did.
+						if (SessionPanel == nullptr || !SessionPanel->connect_enabled()) {
+							return;
+						}
 						const auto* chosen = server_card_for(aProfile);
 						const auto  cli    = chosen->cli_option() && chosen->cli_option()->Profile == aProfile;
 						if (cli) {
