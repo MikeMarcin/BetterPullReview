@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1050",
+    "BPR-1051"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "bpr-main-linux: BPR-1050 Move the eight courses that hand-write the owner-private data-root arrangement onto bpr::e2e::private_data_root, and fail the gate when a course roots data in a bare temporary directory; BPR-1051 The test sweep leaves QuillBackendLock*, bpr-public-path-* and bpr-mcp-canary-* litter in the system temporary directory",
+  "created": "2026-09-24T03:44:47.201392+00:00",
+  "base": "8957cf6b88e3ebaa7cd339a3fe26b9b560862b6e"
+}

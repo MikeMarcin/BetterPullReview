@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1049"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "bpr-main-win: Windows: sqlite_epoch_catalog_behavior_contract stops at a copied-root store refusal (BPR-0878 item 2), so its later checks never run on Windows",
+  "created": "2026-09-24T03:44:42.924932+00:00",
+  "base": "8957cf6b88e3ebaa7cd339a3fe26b9b560862b6e"
+}
