@@ -125,3 +125,32 @@ That still needs a run on bpr-main-mac and bpr-main-linux:
 `windows_agent_process.cpp:119` and `:308` (the handle list and `make_pipe`),
 and three in the canary's handle probe. They are pre-existing Windows-only code
 that this station's tidy runs had not reached.
+
+## Post-close: macOS at `7b376657` (bpr-main-mac, 2026-09-23)
+
+The run is at `7b376657`, which contains `0ba63b0a`. Nothing under
+`src/adapters/agent`, in `agent_launch_canary_tests.cpp` or under
+`tests/fixtures/agent` has changed since. macOS 26.6.2 on Apple Silicon,
+Apple clang 21.0.0, Qt 6.11.2, `build/dev` (Debug). The build was made at
+`b5cb3b43`, whose build inputs are those of `7b376657`. It exited 0 with no
+`warning:` line.
+
+The macOS command above, with `-V` added, passed 1 of 1 in 78.39 s, exit 0,
+contained as registered: `ctest --preset dev -R '^qt_agent_launch_canary$' --output-on-failure -V`.
+The output ends with `agent-launch-canary-tests:pass` and contains no
+`FAILED:` line. The new case ran on the POSIX `QProcess` transport:
+
+```text
+BPR-0886 protocol 1: request 13048 bytes, outcome 0, 323 ms
+BPR-0886 protocol 2: request 13159 bytes, outcome 0, 359 ms
+BPR-0886 protocol 3: request 13055 bytes, outcome 0, 134 ms
+```
+
+The case asserts the rest for each protocol. The run succeeded well inside
+its 10 s bound and 20 s timeout. The 64 KiB of stderr was kept whole. The
+request arrived byte for byte, by its length and FNV-1a digest. So on macOS
+the third criterion now rests on a run, and not only on the transport being
+Windows-only. The case launches only the test canary; no installed agent was
+run. The console log is a station record under
+`build/logs/bpr-1038-1022-0886-mac/` and is not committed. Linux has not
+been run from this station. The acceptance record above is unchanged.
