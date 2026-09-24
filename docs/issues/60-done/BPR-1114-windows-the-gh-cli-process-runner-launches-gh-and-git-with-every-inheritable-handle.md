@@ -259,3 +259,33 @@ no `bpr-` name to `/run/user/1000`.
 The acceptance record above is unchanged. The logs are station records under
 `build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
 `bpr-1114-1115-rows.log` and `build-dev-3c3c34d8.log`.
+
+## macOS at `d01f506c` (bpr-main-mac, Mac batch 8, 2026-09-24)
+
+The owed macOS runs pass, and the runner's macOS launch did not change. The
+head was `d01f506c`, which contains `c636eef2` and `3c3c34d8`. Apple Silicon,
+macOS 26.6.2, AppleClang, Qt 6.11.2, `build/dev` Debug, rebuilt at that head
+with no `warning:` or `error:` line. The command was
+`ctest --test-dir build/dev -j1 --output-on-failure -V -R "^(github_cli_process_runner|gh_cli_transport|gh_cli_git_smart_transport|architecture_boundaries|architecture_boundary_contract|...)$"`,
+run once together with BPR-1115's rows.
+
+| Row | Result |
+| --- | --- |
+| `github_cli_process_runner` | Passed, 3.87 s (`GitHub CLI process runner tests passed`) |
+| `gh_cli_transport` | Passed, 0.58 s |
+| `gh_cli_git_smart_transport` | Passed, 11.89 s |
+| `architecture_boundaries` | Passed, 20.17 s |
+| `architecture_boundary_contract` | Passed, 107.36 s |
+
+**Nothing changed in the macOS launch.** `github_cli_process_runner.cpp` was
+preprocessed with its macOS compile command, at `c636eef2^` and at
+`d01f506c`. The outputs differ only in the portable seam the card describes:
+
+- the new virtual `fail_standard_handle_list()`, which answers `false`;
+- `execute_process`'s extra `[[maybe_unused]] bool` parameter;
+- the one call that passes the seam's answer to it.
+
+The Unix launch (`setUnixProcessParameters`, the `RLIMIT_FSIZE` modifier) is
+unchanged.
+
+With the Linux section above, the reruns AC3 recorded as owed are all run.

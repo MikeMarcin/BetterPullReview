@@ -239,3 +239,28 @@ nothing to `/tmp` and no `bpr-` name to `/run/user/1000`.
 The acceptance record above is unchanged. The logs are station records under
 `build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
 `bpr-1114-1115-rows.log` and `build-dev-3c3c34d8.log`.
+
+## macOS at `d01f506c` (bpr-main-mac, Mac batch 8, 2026-09-24)
+
+The owed macOS runs pass, and the Git runner did not change on macOS. The head
+was `d01f506c`, which contains `0987dede` and `3c3c34d8`. Apple Silicon,
+macOS 26.6.2, AppleClang, Qt 6.11.2, `build/dev` Debug, rebuilt at that head
+with no `warning:` or `error:` line. The command was
+`ctest --test-dir build/dev -j1 --output-on-failure -V -R "^(git_process_contract|git_cache_contract|architecture_boundaries|architecture_boundary_contract|...)$"`,
+run once together with BPR-1114's rows.
+
+| Row | Result |
+| --- | --- |
+| `git_process_contract` | Passed, 105.92 s |
+| `git_cache_contract` | Passed, 298.51 s |
+| `architecture_boundaries` | Passed, 20.17 s |
+| `architecture_boundary_contract` | Passed, 107.36 s |
+
+**Nothing changed on macOS.** `installed_git_process.cpp` was preprocessed
+with its macOS compile command from `build/dev/compile_commands.json`, at
+`0987dede^` and at `d01f506c`. The two outputs are byte-identical: 9,165,090
+bytes each. So every product change is inside `Q_OS_WIN`/`_WIN32`. The
+platform header is `_WIN32` only. The portable changes are in the contract's
+fake Git and the boundary gate, and the rows above run them.
+
+With the Linux section above, the reruns AC3 recorded as owed are all run.
