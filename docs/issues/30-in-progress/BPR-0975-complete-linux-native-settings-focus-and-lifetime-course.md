@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0975"
 title: "Complete Linux native Settings focus and window-lifetime course"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-0731"]
 priority: "P2"
