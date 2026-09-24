@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1106",
+    "BPR-1107",
+    "BPR-1108",
+    "BPR-1109",
+    "BPR-1110"
+  ],
+  "reserve_for": "owner-decisions-20260924",
+  "purpose": "Follow-ups from attended session cbd48b91 hand-back 589: entry-row UX design, white-space drawing, BPR-1020 pin revert, Alt-chord hook identification, Defender detection explanation",
+  "created": "2026-09-24T19:26:27.121700+00:00",
+  "base": "1e47f788e75e0c4273bda10b816f850ab8db5c06"
+}
