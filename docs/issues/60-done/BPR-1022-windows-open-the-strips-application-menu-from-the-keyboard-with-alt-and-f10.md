@@ -242,3 +242,10 @@ rebuilt and run again there.
   lines are in the Windows-only `--strip-menu` path, and the CMake include
   path is inside `if(WIN32)`. The macOS and Linux window and focus-order
   rows are theirs to confirm in their next sweeps.
+
+**Where it landed.** The push gate rebased once more, so the change is on
+main as `785a6828` and the finish as `c584a4d5`. The verified `02905c77`
+and `785a6828` differ only by the other station's Git protocol v2 parser
+work and its tests (`git_protocol_v2_tests.cpp`,
+`git_cache_contract_tests.cpp`). Nothing in the Qt adapter, the app or these
+rows differs between them. Neither `fd2c21d7` nor `02905c77` is on main.
