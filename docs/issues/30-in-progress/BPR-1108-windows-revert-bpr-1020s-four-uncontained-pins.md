@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1108"
 title: "Windows: revert BPR-1020's four pins for rows that also failed uncontained, and leave them unpinned as BPR-0812 did"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
