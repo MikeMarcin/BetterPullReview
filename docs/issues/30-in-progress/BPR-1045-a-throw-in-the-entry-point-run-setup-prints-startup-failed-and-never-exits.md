@@ -101,3 +101,151 @@ and that timeout shows up as the row's result instead of the failure.
   The existing profile quit and restart courses still pass.
 - AC3 The `AUTOMATED_PROFILE_PRIVATE_FAILED` arm is either shown to exit
   promptly or recorded with the reason it cannot hang.
+
+## Measured at `8957cf6b` (bpr-main-linux, 2026-09-23)
+
+WSL2 Ubuntu, GCC 15.2, Qt 6.11.2, `build/dev` (Debug, tests enabled). A
+temporary probe was built as a test course and reverted byte-for-byte
+afterwards; none of it is committed. It had three parts:
+
+- in `main.cpp`, an environment variable made the run setup throw
+  `probe: entry` right after `application->show()`, or made the
+  automated-profile check report `AUTOMATED_PROFILE_PRIVATE_FAILED`;
+- `profile_management_host::request_quit` printed the four conditions its
+  admission reads, and `profile_desktop`'s quit printed whether it was
+  admitted;
+- a temporary row per arm ran the shipped `--self-test` through the network
+  sandbox and checked the exit code, the verdict, the source line and the
+  elapsed time.
+
+The rows ran through `ctest -j1`, offscreen, with fresh `HOME`, XDG roots
+and `TMPDIR`. Both arms fail the same way:
+
+| Arm | stdout | Quit request | Result |
+| --- | --- | --- | --- |
+| run setup throws | `AUTOMATED_PROFILE_PRIVATE_OK`, `STARTUP_FAILED` | `closing=0 ready=1 registry_quiescent=1 delivering=1`, refused | killed by the course's 25 s timeout |
+| automated profile root missing | `AUTOMATED_PROFILE_PRIVATE_FAILED` | the same, refused | killed by the course's 25 s timeout |
+
+So the refusal is the host's `Delivering`, not the registry. The completion
+runs inside the management host's delivery of the open command: `deliver`
+calls `perform`, which calls `open_window`, which calls `finish_initial`.
+`request_quit` refuses a Quit made there. The host's own test already says
+so ("reentrant Quit cannot interrupt a start command batch" and "Quit may
+retry after command delivery"), but nothing in the desktop retried. The
+stderr line `STARTUP_FAILURE_SOURCE:entry-point-run-setup: probe: entry`
+was printed as expected.
+
+## The fix
+
+`profile_desktop::implementation::quit` now tells a person's Quit from a
+failure quit by its exit code:
+
+- **Exit code 0.** A refused Quit leaves the windows usable, as before.
+- **Nonzero.** A refused failure quit sets `FailureQuit`. Each poll retries
+  it, and after 200 refused polls (2 s) the shutdown is forced. This is the
+  empty desktop's retry. Both now use one helper, `quit_within_bound`, and
+  the empty desktop's own behaviour is unchanged.
+
+Why retry first rather than force at once: the refusal is transient.
+Delivery ends before the next poll, and an admitted Quit saves the profile
+records as an explicit Quit does. Forcing is only the bound. Why the exit
+code rather than the completion: every caller that passes a nonzero code
+has already reported a failure. Those callers are the five arms of
+`main.cpp`'s startup completion and an automated run's failed verdict. None
+is a person's Quit. `main.cpp` itself is unchanged.
+
+After the fix, with the same temporary probe:
+
+| Arm | Exit | Elapsed | stdout / stderr | Path taken |
+| --- | --- | --- | --- | --- |
+| run setup throws | 1 | 338 ms | `STARTUP_FAILED`; `STARTUP_FAILURE_SOURCE:entry-point-run-setup: probe: entry` | first retry admitted (`delivering=0`), orderly Quit |
+| automated profile root missing | 1 | 299 ms | `AUTOMATED_PROFILE_PRIVATE_FAILED` | first retry admitted, orderly Quit |
+| run setup throws, every Quit refused | 1 | 2 290 ms | `STARTUP_FAILED` and the source line | forced after 200 refused polls |
+
+The third arm made the desktop treat every request as refused, to exercise
+the bound. After the orderly exits the private `TMPDIR` was empty, so the
+automated profile directory had been removed on the way out. Before the
+fix, the killed runs left it behind.
+
+**AC3.** The `AUTOMATED_PROFILE_PRIVATE_FAILED` arm had the same defect and
+is fixed by the same change. The run above shows it exits 1 promptly.
+
+## The regression row
+
+`application_profile_management_public_path` gains a section built on the
+existing fixture desktop, with no new seam. It starts a desktop under the
+resident policy, which would otherwise keep it alive. From inside the
+startup completion, after an accepted start, it calls
+`desktop->quit(EXIT_FAILURE)`, exactly as `main.cpp`'s arms do. It then
+requires the desktop to reach quiescence with exit code 1.
+
+**Negative control.** With `profile_desktop.cpp` restored to `8957cf6b`,
+the row failed after 18.6 s with `FAILED: a failure quit made in the
+startup completion ends the desktop`. With the fix it passes in 4.3 s. The
+row cannot throw from `main.cpp` itself: that would need the test-only seam
+the scope rules out. The temporary probe above covers the entry point.
+
+## Pinned-code review (BPR-1045 reseal)
+
+`profile_desktop.cpp` and `profile_desktop.hpp` are in the production
+manifest pin. `main.cpp` and `github_application.cpp` are unchanged. The
+change was written at `8957cf6b` and rebased onto `8595684c`. On the way,
+[[BPR-1033]]'s `9d3fb998` resealed the full-application and manifest pins
+for its own `github_application.cpp` change, and nothing else touched the
+pinned scope. At `8595684c` all three pins matched: `6e76dd7c…`,
+`4c203614…` and `a7e2081e…`, printed from a `git archive` of that commit.
+
+- `quit`: the request is made exactly as before. The only new effect is
+  `FailureQuit = true` when a nonzero-code request is refused.
+  `UpdatePreparing` and `Quitting` still return first, and `!Host` still
+  forces.
+- `quit_within_bound`: `quit_empty_desktop`'s three branches, moved into one
+  helper. It ends when `Quitting` is set or the request is admitted, and
+  forces with `ExitCode` once the attempts reach the bound or no host
+  exists. `quit_empty_desktop` calls it with its own counter, so its
+  behaviour is unchanged.
+- `poll`: retries a pending failure quit after the empty-desktop retry. It
+  clears the flag as soon as `Quitting` is set, so a later orderly or forced
+  shutdown never meets a stale retry.
+- The constant is renamed `refused_quit_attempts` (200, unchanged), and its
+  comment covers both uses.
+- No credential, provider, vault, transport or mutation path changes. The
+  mutation-branch and full-application pins are unchanged. Only the
+  production manifest pin moved, to `8e5bc591…` on the rebased tree.
+
+## Verification (bpr-main-linux)
+
+Every row ran through `ctest -j1`, offscreen, with fresh `HOME`, XDG roots
+and `TMPDIR`. Logs are under `build/logs/bpr-1045/` on this station and are
+not committed.
+
+| Check | Result |
+| --- | --- |
+| Probe, both arms, before the fix | killed at 25 s; one refused Quit each, `delivering=1` |
+| Probe, both arms and the forced bound, after the fix | exit 1 in 338 ms, 299 ms and 2 290 ms |
+| `application_profile_management_public_path` with the fix / without it | passed 4.27 s / failed as above |
+| AC2: profile startup, management, multi-window, second-window close, two-account isolation, activation, owner admission, window restart, window layout and review restoration courses | 10/10 passed |
+| `application_public_path`, `application_startup_failure_source` | passed |
+| `core_profile_window`, `application_profile_management_host`, `application_profile_startup_admission` | passed |
+| `application_review_round_trip_composition_contract` with the resealed pin | passed |
+| `application_composition_contract` (builds the tests-disabled graph) | passed, 466 s |
+| `clang-format` 22 on the four C++ files; `git diff --check` | clean |
+| clang-tidy (LLVM 21, the only one on this station) on the two changed units | no finding on a changed line; the findings it reports are in untouched lines |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+## macOS and Windows
+
+No acceptance criterion names a platform, and the change has no platform
+branch. `profile_desktop.cpp`'s `__APPLE__` blocks are untouched. The new
+section runs wherever `application_profile_management_public_path` does,
+which includes Windows (`WINDOWS_UNCONTAINED`). Neither platform has run
+it. This is a confirmation for the next routine run there, not something
+owed before Done:
+
+```sh
+ctest --preset dev -R '^application_profile_management_public_path$' --output-on-failure          # macOS
+ctest --preset windows-dev -R '^application_profile_management_public_path$' --output-on-failure  # Windows
+```
+
+Expected: `profile-management-public-path:pass`, with no
+`FAILED: a failure quit made in the startup completion ends the desktop`.

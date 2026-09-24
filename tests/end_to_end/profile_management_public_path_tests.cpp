@@ -421,6 +421,28 @@ auto main(int aArgc, char** aArgv) -> int
 	desktop->quit(0);
 	wait_for([&] { return desktop->is_quiescent(); }, "the relaunched desktop quits");
 	desktop.reset();
+
+	// [[BPR-1045]]. The entry point refuses a start the desktop already accepted when
+	// its own run setup throws. It does that from inside the startup completion, with
+	// the window open, and the management host refuses a Quit made while it delivers,
+	// which is where that completion runs. The failure quit still ends the desktop,
+	// with its exit code, under the resident policy that would otherwise keep it.
+	settle(300);
+	initial  = nullptr;
+	terminal = false;
+	desktop  = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::github_com, residentOptions, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				initial = *aResult;
+				desktop->quit(EXIT_FAILURE);
+			}
+		});
+	wait_for([&] { return terminal; }, "a start the composition goes on to refuse");
+	expect(initial != nullptr, "the desktop accepted it first");
+	wait_for([&] { return desktop->is_quiescent(); }, "a failure quit made in the startup completion ends the desktop");
+	expect(desktop->exit_code() == EXIT_FAILURE, "with the failure's exit code");
+	desktop.reset();
 #if !defined(_WIN32)
 	// [[BPR-0817]] RFC-BPR-0033's owner-delegated amendment. The data root sits in a
 	// folder that existed before the install and is group-writable. An earlier

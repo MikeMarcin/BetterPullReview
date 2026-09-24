@@ -171,6 +171,15 @@ endfunction()
 # action it takes is unchanged. No credential, provider, vault, transport or
 # mutation path changes; the mutation-branch pin is unchanged. Covers
 # 3d941d47..the BPR-1033 commit. Review recorded on BPR-1033.
+# BPR-1045 reseal: profile_desktop's quit keeps a refused Quit with exit code 0
+# as it was, leaving the windows usable. A refused failure quit (nonzero) is
+# retried on the desktop poll and forced after the empty desktop's 200-poll
+# bound, through one helper the empty desktop now shares (quit_within_bound);
+# the empty desktop's retry is unchanged. profile_desktop.hpp documents it.
+# main.cpp is unchanged. No credential, provider, vault, transport or mutation
+# path changes; the mutation-branch and full-application pins are unchanged.
+# Covers 9d3fb998..the BPR-1045 commit; nothing else touched the pinned scope.
+# Review recorded on BPR-1045.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -324,7 +333,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4c2036140da5e5b4524d5c4a48bf369df4996a5ee1333ed0e8453420bfc327a0"
+        "8e5bc591ed293c615ca17897b8fe293e8ee0c92805a5b682823067e77e3deb05"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

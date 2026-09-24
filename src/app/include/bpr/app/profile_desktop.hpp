@@ -48,7 +48,12 @@ namespace bpr::app {
 		/// \details Empty until the last runtime retires, so what the composition
 		/// decided is readable rather than inferred from the process staying alive.
 		[[nodiscard]] auto last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome>;
-		/// Requests durable orderly Quit; failed admission leaves windows usable.
+		/// \brief Requests durable orderly Quit.
+		///
+		/// \details A refused Quit with exit code 0 leaves the windows usable. A
+		/// nonzero exit code is a failure verdict already reported, so while that
+		/// Quit is refused the desktop retries it on its poll, and forces the
+		/// shutdown after a bound.
 		void quit(int aExitCode = 0);
 		/// \brief Saves all private draft text before requesting the existing orderly Quit barrier.
 		/// \details Failure leaves the windows live. Success is observed only through

@@ -170,7 +170,13 @@ namespace bpr::app {
 				force_shutdown(aExitCode);
 				return;
 			}
-			static_cast<void>(Host->request_quit());
+			// [[BPR-1045]]. A failure quit reports a verdict, so leaving the windows
+			// usable after a refusal would keep a process running that has already
+			// said it failed. The host refuses a Quit made while it delivers, which
+			// is where the startup completion runs, so the poll retries it.
+			if (!Host->request_quit() && aExitCode != 0) {
+				FailureQuit = true;
+			}
 		}
 		void quit_for_update(std::function<void(bool)> aPrepared)
 		{
@@ -707,18 +713,27 @@ namespace bpr::app {
 		/// preserving by then.
 		void quit_empty_desktop()
 		{
-			if (Quitting) {
+			if (quit_within_bound(EmptyDesktopQuitAttempts)) {
 				EmptyDesktopQuit = false;
-				return;
 			}
-			if (Host && Host->request_quit()) {
-				EmptyDesktopQuit = false;
-				return;
+		}
+		/// \brief Requests the durable Quit, and forces the shutdown once it has been
+		/// refused for the whole bound.
+		///
+		/// \details Used where nothing is left for a person to keep: the empty desktop,
+		/// and a failure quit whose verdict is already reported ([[BPR-1045]]). An
+		/// admitted request saves the profile records as an explicit Quit does.
+		/// \returns True once no retry is owed.
+		[[nodiscard]] auto quit_within_bound(unsigned& aAttempts) -> bool
+		{
+			if (Quitting || (Host && Host->request_quit())) {
+				return true;
 			}
-			if (!Host || ++EmptyDesktopQuitAttempts >= empty_desktop_quit_attempts) {
-				EmptyDesktopQuit = false;
+			if (!Host || ++aAttempts >= refused_quit_attempts) {
 				force_shutdown(ExitCode);
+				return true;
 			}
+			return false;
 		}
 		/// \brief Keeps Profiles, New Window and Quit reachable while no window exists.
 		void present_desktop_menu()
@@ -1316,6 +1331,9 @@ namespace bpr::app {
 			if (EmptyDesktopQuit && !Quitting && Runtimes.empty() && Maintenance.empty()) {
 				quit_empty_desktop();
 			}
+			if (FailureQuit && quit_within_bound(FailureQuitAttempts)) {
+				FailureQuit = false;
+			}
 			if (is_quiescent()) {
 				Poll.stop();
 				Lifetime.reset();
@@ -1345,11 +1363,14 @@ namespace bpr::app {
 		QTimer                                                                      Poll;
 		std::shared_ptr<implementation>                                             Lifetime;
 		/// Two seconds of 10 ms polls: long enough for the close that emptied the
-		/// desktop to finish saving, short enough not to leave an invisible process.
-		static constexpr unsigned empty_desktop_quit_attempts = 200U;
-		unsigned                  EmptyDesktopQuitAttempts    = 0U;
-		bool                      EmptyDesktopQuit            = false;
-		std::uint64_t             NextStartup                 = 0;
+		/// desktop to finish saving, or for the delivery a failure quit was made in
+		/// to end, and short enough not to leave a process with nothing left to do.
+		static constexpr unsigned refused_quit_attempts    = 200U;
+		unsigned                  EmptyDesktopQuitAttempts = 0U;
+		bool                      EmptyDesktopQuit         = false;
+		unsigned                  FailureQuitAttempts      = 0U;
+		bool                      FailureQuit              = false;
+		std::uint64_t             NextStartup              = 0;
 		bool                      InitialRegistered = false, Quitting = false, Focusing = false;
 		bool                      UpdatePreparing = false;
 		std::function<void(bool)> UpdatePrepared;

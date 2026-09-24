@@ -109,6 +109,13 @@ are saved exactly as an explicit Quit saves them; it retries while the registry
 is still saving the close that emptied the desktop and forces shutdown only if
 that request is persistently refused. The registry and scratch lease are
 unchanged from [[BPR-0696]], whose last-window presentation this supersedes.
+A failure quit, one with a nonzero exit code, takes the same bounded path
+([[BPR-1045]]). The entry point makes one from inside the startup completion,
+with the window open, when its own run setup throws or the automated profile
+root is missing. The management host refuses a Quit made while it delivers,
+which is where that completion runs, so the desktop retries it on its poll and
+forces shutdown after the same bound. A refused Quit with exit code 0 still
+leaves the windows usable.
 
 The restoration paths are distinct in the core rather than by convention:
 `profile_window_catalog::close` permanently retires exactly that window from
