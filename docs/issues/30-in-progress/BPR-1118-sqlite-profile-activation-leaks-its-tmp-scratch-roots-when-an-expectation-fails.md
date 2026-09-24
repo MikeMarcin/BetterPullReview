@@ -239,3 +239,29 @@ clang 16, arm64, macOS 26.6.2.
 
 **AC5, macOS half: pass.** The Windows run is still owed. This station leaves
 the card where it is, In Progress on the Linux station's claim.
+
+## Windows station, 2026-09-24 (bpr-main-win): the owed Windows run passes
+
+Run at `9ee4ee50`, which contains `bb1e93f7`, and whose
+`profile_activation_tests.cpp` is `bb1e93f7`'s. The tree was clean. The
+station is Windows 11 10.0.26200, with Visual Studio 18 (MSVC 19.51) and Qt
+6.11.2. The tree is `build/windows-dev` (the Visual Studio generator, Debug).
+This station ran it at the coordinator's request.
+
+- `cmake --build --preset windows-dev --target test_profile_activation`
+  exits 0. It compiles `profile_activation_tests.cpp` and links
+  `profile_activation.exe` with no compiler warning. The build re-ran
+  configure first, and the only warnings in its log are CMake's
+  uninitialized-variable notes from Qt's own package scripts.
+- `ctest --preset windows-dev --output-on-failure -R
+  "^(sqlite_profile_activation|msvc_secure_crt_contract)$"`: 2 of 2 pass.
+  `msvc_secure_crt_contract` takes 0.73 s and `sqlite_profile_activation`
+  5.86 s.
+- `%TEMP%` held no `bpr-act-*` directory before the run, and holds none
+  after it.
+
+The logs are station records under `build/logs/bpr-1118-main-win/` and are
+not committed.
+
+**AC5, Windows half: pass.** With the macOS run above, AC5 has its runs
+from both stations, and every criterion is met.
