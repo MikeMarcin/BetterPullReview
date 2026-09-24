@@ -287,15 +287,17 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "package_runtime_contract": "dos-volume-name",
     "release_source_assets_contract": "dos-volume-name",
     "modified_endpoint_fixture_contract": "dos-volume-name",
-    # Contained, the scratch root's std::filesystem::canonical throws
-    # "canonical: Access is denied." (a reverted terminate hook printed it), the
-    # refusal sqlite_profile_runtime_lease measured.
-    "sqlite_release_maintenance_files": "dos-volume-name",
+    # [[BPR-1108]]. The owner reverted BPR-1020's pins for
+    # sqlite_release_maintenance_files, application_attended_recent_replay,
+    # application_release_maintenance_public_path and
+    # application_release_update_public_path on 2026-09-24. Those rows stay
+    # unpinned, as BPR-0812 left its epoch rows, and this gate reports them on
+    # Windows until each runs contained.
+    #
     # Contained, each composed course stops at its first step, narrowing its
     # temporary root owner-private, as the BPR-0833 application rows do
     # ("native private root before composed startup", "private folder course
-    # root", "wire fixture root is owner-private", "private application root",
-    # "private fixture state root").
+    # root").
     "application_logging": "dos-volume-name",
     # [[BPR-0885]]. Measured on JaegAW 2026-09-23 at 664d6e36: contained, the row
     # stops at its own setup, "test owner creates private root before logger
@@ -306,9 +308,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # log's properties among them.
     "quill_logging": "dos-volume-name",
     "application_selected_file_safety_public_path": "dos-volume-name",
-    "application_attended_recent_replay": "dos-volume-name",
-    "application_release_maintenance_public_path": "dos-volume-name",
-    "application_release_update_public_path": "dos-volume-name",
     # [[BPR-1031]]. Measured on JaegAW 2026-09-23: contained, the course stops
     # at its first step, "disposable private state". A reverted probe showed the
     # WRITE_DAC open of its QTemporaryDir under AC\Temp refused with error 5,
