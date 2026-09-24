@@ -66,3 +66,42 @@ requires reconciliation with the approved RFC0031/RFC0037 presentation contracts
 
 The r4 owner closeout leaves this as an independent follow-up. BPR-0507 does
 not claim these two cues passed and does not modify their assertion or source.
+
+## Windows also misses the consider cue (bpr-main-win, 2026-09-24)
+
+Folded in by the coordinator as the reserved `dif-saw-consider` finding; this
+card is not moved or claimed by it. Measured on the bpr-main-win station
+(`build/windows-dev`, MSVC 19.51 Debug, Qt 6.11.2, offscreen, serial), and
+recorded first on [[BPR-1050]]. The logs are station records under
+`build/logs/bpr-1050-main-win/` (`difctx-*.log`, `rows32.log`, `sweep.log`)
+and are not committed.
+
+On Windows the course fails one assertion more than the macOS observation
+above. As well as this card's two, it misses the consider cue:
+
+```text
+agent-finding-composition-failure:dif-context-evidence failed=dif-saw-consider dif-comment-ready-after-conversion dif-acknowledge-after-acceptance
+agent-finding-dif-context-evidence:1:0:1:0:0:1:0
+```
+
+The second field is `dif-saw-consider`; macOS printed `1:1:1:0:0:1:0`.
+
+| Candidate | Runs | Missed consider |
+| --- | --- | --- |
+| `bcd57840` | 9: 7 alone, 1 in the 32-row table, 1 in the 154-row `^application_` sweep | 9 of 9 |
+| `bcd57840` with only `tests/end_to_end/agent_finding_composition_public_path.cpp` put back to `3db65162`, the version before [[BPR-1050]]'s `ff9bc9e2`, and its target rebuilt | 6 alone | 4 of 6; the other 2 printed the macOS shape, `1:1:1:0:0:1:0` |
+
+So the miss predates BPR-1050's data-root change. Nine of nine after it
+against four of six before is too few runs to say whether the change made it
+more frequent. The course does not wait for the consider cue.
+It samples Dif's current clip on each pass of `wait_until_reporting` while
+the agent turn runs, and `difSawConsider` becomes true only if a pass happens
+to land while the consider clip is showing. A miss means no pass saw it: the
+clip was shown between passes, or not shown at all. These runs do not tell
+the two apart. The attention cue after delivery (the third field) was seen
+in every run, and no run printed a refusal line.
+
+For AC2 and AC3: when this card reconciles the workshop cues, the consider
+assertion should either record the clip when Dif shows it, rather than sample
+it, or be named as a timing-dependent observation. Its Windows outcome is
+wanted in AC3's run at the exact candidate.
