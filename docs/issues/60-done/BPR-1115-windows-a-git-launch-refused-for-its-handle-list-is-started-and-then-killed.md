@@ -209,3 +209,33 @@ code anywhere else is refused, and that the platform target must own the
 header. `AGENTS.md`, `docs/architecture/system-architecture.md`,
 `docs/architecture/git-and-epoch-model.md` and the platform target's
 `CMakeLists.txt` describe the new definition.
+
+## Post-close: Linux at `3c3c34d8` (bpr-main-linux, 2026-09-24)
+
+**The four reruns owed from Linux pass, 4 of 4.** macOS is still owed.
+
+The run was in the station's main checkout, with a clean tree, at
+`3c3c34d8`, which contains `0987dede`. WSL2 Ubuntu 26.04, GCC 15.2, Qt
+6.11.2, `build/dev` (Debug, `-Werror`), rebuilt at `3c3c34d8` with no
+`warning:` line. `ctest --test-dir build/dev -j1 --output-on-failure`,
+offscreen, with `DISPLAY`, `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS`
+unset and fresh absolute `HOME` and XDG roots.
+
+| Row | Result |
+| --- | --- |
+| `git_process_contract` | pass, 5.76 s |
+| `git_cache_contract` | pass, 4.71 s |
+| `architecture_boundaries` | pass, 12.48 s |
+| `architecture_boundary_contract` | pass, 172.42 s |
+
+`run_windows_inherited_handle_contract` and
+`run_windows_refused_launch_contract` are compiled only under `_WIN32`. So
+on Linux the two Git rows cover the portable paths: the fake Git's blocked
+index-pack, which now also writes its unread `block-started` marker, and
+everything else these contracts ran before. The boundary rows read the
+source text, so they check the Windows pins on this host too. The runs added
+nothing to `/tmp` and no `bpr-` name to `/run/user/1000`.
+
+The acceptance record above is unchanged. The logs are station records under
+`build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
+`bpr-1114-1115-rows.log` and `build-dev-3c3c34d8.log`.
