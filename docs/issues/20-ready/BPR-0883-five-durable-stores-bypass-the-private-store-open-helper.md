@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
-metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"874dc0ae","remaining":"Windows AC2 run and macOS confirmation of sqlite_private_store_open","related_cards":["BPR-0806","BPR-0813","BPR-0841","BPR-1044"]}
+metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"874dc0ae","remaining":"Windows AC2 run","mac_confirmed_at":"0ca739b2","related_cards":["BPR-0806","BPR-0813","BPR-0841","BPR-1044"]}
 ---
 
 # BPR-0883: Five durable stores bypass the private-store open helper and drop their validated directory handles
@@ -236,3 +236,28 @@ are not committed.
   `874dc0ae` or later. Expected: `non-ansi-root:pass`, then `owner-only`
   lines for 11 files and 22 sidecars, all `600`, then `owner-only:pass`.
   Also run the same storage contracts.
+
+## The macOS half (bpr-main-mac, Mac batch 5, 2026-09-23)
+
+Run on `0ca739b2`, which contains `874dc0ae`. Apple Silicon, AppleClang,
+Qt 6.11.2, `build/dev` Debug, reconfigured and rebuilt first (exit 0, no
+`warning:` line).
+
+`ctest --preset dev -R '^sqlite_private_store_open$' -V` passed in 0.48 s,
+exit 0:
+
+- `private-store-open:non-ansi-root:<store>:opened=1` for all twelve stores,
+  then `private-store-open:non-ansi-root:pass`. As on Linux, a byte-string
+  name cannot fail here, so this says nothing about AC2.
+- `private-store-open:owner-only:<store>:opened=1` for all twelve, then 33
+  `owner-only` file lines, every one `600`: the 11 databases and their 22
+  `-shm` and `-wal` sidecars. Then `private-store-open:owner-only:pass` and
+  `private-store-open-tests:pass`.
+
+The six storage contracts
+(`sqlite_(appearance_settings|workbench_settings|queue_enrollment|review_ledger|review_mutation_recovery|review_submission_recovery)_storage`)
+and `test_network_isolation_manifest` passed in one serial run, 7/7. The
+one-minute load was 23.6 at the start.
+
+**AC3 on macOS: confirmed.** The contract pins `0600` for every file here,
+as it does on Linux. Only the Windows run for AC2 remains.
