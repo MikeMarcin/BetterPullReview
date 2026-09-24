@@ -296,3 +296,57 @@ On macOS all three pass. `application_windows_title_row` and
 the owner's Aqua session, and this sweep was unattended. The console log is
 a station record under `build/logs/bpr-1038-1022-0886-mac/` and is not
 committed. The acceptance record above is unchanged.
+
+## Post-close: real keys on the Windows desktop at `9f144f1e` (bpr-main-win, 2026-09-24)
+
+**Alt alone, F10, Esc and AltGr hold with real keys. The Alt chords could
+not be measured here, because something on this desktop takes the Alt out of
+every injected chord before any application sees it.** Nothing measured
+contradicts the offscreen course, so the card stays Done and its acceptance
+record is unchanged.
+
+[[BPR-1074]] found the reason the earlier harness could not bring the
+application to the front: it held a drawer's short-lived window. With that
+fixed, the candidate was `9f144f1e` (`build/dev`, MSVC 19.51 Debug, Qt
+6.11.2, executable sha256 `82eae9cb2e24d56a…`), launched directly on the real
+`windows` platform with a fresh private data root. The keyboard layout is US
+(`0x04090409`). The harness injected keys with `keybd_event` and never
+touched the pointer. Before each gesture it re-found the application's window,
+checked that the handle was still a window, and checked that the application
+held the foreground. It read the open popups, the thread's menu mode, the UI
+Automation focus, and the UI Automation items of each popup. Six runs,
+05:13:29Z–05:24:40Z, each ending with the Windows Terminal back in the
+foreground and no process left. Logs are station records under
+`build/logs/bpr-1022-main-win/` (`realkeys-*.json`, `rawsink-*.txt`), not
+committed.
+
+| Keys | Result, in every run |
+| --- | --- |
+| Alt pressed and released alone (left or right Alt) | One application popup, the strip menu. The keyboard stays in Home's Open bar. |
+| then Right | A second popup opens, File's menu, with `Quit` highlighted. So File was the highlighted item and was not open. |
+| then Esc, Esc | File's menu closes, then the strip menu closes. The keyboard is in the Open bar, where it was before. |
+| F10, then Right, Esc, Esc | The same as Alt alone. |
+| Alt alone, then Alt alone again | Opens the menu, then closes it. |
+| AltGr as an AltGr layout delivers it (left Ctrl with right Alt), alone and with Q | Nothing opens: no popup and no menu mode. |
+
+UI Automation did not list the highlighted File item and did not move its
+focus into the menu, so the highlight was read from what Right does.
+
+**The Alt chords did not reach the application as chords.** Alt+Space opened
+no system menu, and Alt+F4 did not close the window. In the Qt log,
+`Key_F4` and `Key_Up` arrived with `NoModifier`. A synthetic-only raw input
+sink (a hidden window that records only input with no device handle, so none
+of the owner's typing) showed why. For every Alt chord, with the left or the
+right Alt and paced or not, the Alt key-down reached raw input as a key with
+virtual-key code 0 (`vk=0x00`, `WM_KEYDOWN`). The Space, F, Up or F4 then came
+as a plain `WM_KEYDOWN`. Raw input runs after the low-level keyboard hooks, so
+one of those hooks rewrites the Alt. Alt alone passes through as `VK_MENU`,
+`WM_SYSKEYDOWN`, and so does Alt held with Ctrl. On 2026-09-23 at 22:47Z, the
+same injection on this desktop opened the system menu on Alt+Space, before
+this card's change. The rewriting started later. That is the owner's desktop
+environment and not the product, because the application never received the
+Alt. Nothing was done to find or stop the hook.
+
+Wanted when the chords reach applications again (for example, when a
+`keybd_event` Alt+Space opens the system menu of any application): the
+Alt+Space, Alt+F, Alt+Up and Alt+F4 rows of this drive.
