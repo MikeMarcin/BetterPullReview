@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1073"
 title: "Windows: qt_workbench_window_scale_100/125/200 read the composed link map and the shared scrollbar a fixed four event passes after publishing, before the panes' time-sliced measurement completes"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
