@@ -284,8 +284,13 @@ namespace bpr::adapters::logging {
 			if (::lstat(aRoot.c_str(), &named) != 0 || !S_ISDIR(named.st_mode)) {
 				return std::unexpected(diagnostic_file_failure::invalid_root);
 			}
-			const auto  canonical = std::filesystem::canonical(aRoot);
-			owned_fd    root{ ::open(canonical.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) };
+			// [[BPR-0885]]. The root is opened by the name it was given: its
+			// ancestors resolve the way the stores' do, so a root under a
+			// symlinked `/var` or `/tmp` opens, and O_NOFOLLOW refuses a root
+			// that is itself a link. Nothing here can throw, so a root that
+			// changes after the lstat is refused by its identity below and is
+			// named, never an unnamed exception.
+			owned_fd    root{ ::open(aRoot.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) };
 			struct stat admitted{ };
 			if (root.Value < 0 || ::fstat(root.Value, &admitted) != 0 || admitted.st_dev != named.st_dev || admitted.st_ino != named.st_ino) {
 				return std::unexpected(diagnostic_file_failure::invalid_root);
@@ -470,6 +475,12 @@ namespace bpr::adapters::logging {
 				}
 				Logger = frontend::create_or_get_logger(Backend->Name, Sink, quill::PatternFormatterOptions{ "%(time) %(message)", "%Y-%m-%dT%H:%M:%S.%QnsZ", quill::Timezone::GmtTime });
 			} catch (...) {
+				// [[BPR-0885]]. A throw while admitting the file still names a
+				// cause. Once the sink exists the file was admitted, and a later
+				// backend failure is reported through status() alone.
+				if (!Sink && State->OpenFailure.load() == diagnostic_file_failure::none) {
+					State->OpenFailure.store(diagnostic_file_failure::io_failure);
+				}
 				State->fail(status_type::unavailable);
 			}
 		}

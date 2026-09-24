@@ -191,12 +191,24 @@ int main(int aArgc, char** aArgv)
 		expect(log.status() == status::full, "existing full file refused");
 	}
 	expect(std::filesystem::file_size(file) == before, "cap never appends beyond ceiling");
+	using failure = adapters::logging::diagnostic_file_failure;
+	// [[BPR-0885]]. Every refusal names its cause. POSIX pins the exact cause.
+	// Windows admits a root through its own chain of checks, which can name
+	// the same refusal differently, so there the cause only has to be named.
+	const auto refusedNaming = [](const adapters::logging::quill_log& aLog, const failure aPosixCause) {
+#if defined(_WIN32)
+		static_cast<void>(aPosixCause);
+		return aLog.status() == status::unavailable && aLog.open_failure() != failure::none;
+#else
+		return aLog.status() == status::unavailable && aLog.open_failure() == aPosixCause;
+#endif
+	};
 #if !defined(_WIN32)
 	const auto unsafe = private_root(root / "unsafe");
 	std::filesystem::create_directory_symlink(root / "logs", unsafe / "logs");
 	{
 		adapters::logging::quill_log log{ unsafe };
-		expect(log.status() == status::unavailable, "symlink directory refused");
+		expect(refusedNaming(log, failure::invalid_permissions), "symlink directory refused, and named");
 	}
 	std::filesystem::remove(unsafe / "logs");
 	std::filesystem::create_directory(unsafe / "logs");
@@ -204,24 +216,36 @@ int main(int aArgc, char** aArgv)
 	std::filesystem::create_symlink(file, unsafe / "logs/diagnostics.log");
 	{
 		adapters::logging::quill_log log{ unsafe };
-		expect(log.status() == status::unavailable, "symlink file refused");
+		expect(refusedNaming(log, failure::invalid_permissions), "symlink file refused, and named");
+	}
+	{
+		const auto target = private_root(root / "link-target");
+		std::filesystem::create_directory_symlink(target, root / "link-root");
+		adapters::logging::quill_log log{ root / "link-root" };
+		expect(refusedNaming(log, failure::invalid_root) && !std::filesystem::exists(target / "logs"), "a root that is itself a link is refused, named, and left untouched");
+	}
+	{
+		const auto shared = root / "shared-root";
+		std::filesystem::create_directory(shared);
+		std::filesystem::permissions(shared, std::filesystem::perms::owner_all | std::filesystem::perms::group_all, std::filesystem::perm_options::replace);
+		adapters::logging::quill_log log{ shared };
+		expect(refusedNaming(log, failure::invalid_permissions) && !std::filesystem::exists(shared / "logs"), "a root its group can write is refused, named, and left untouched");
 	}
 #endif
 	{
 		adapters::logging::quill_log log{ file };
-		expect(log.status() == status::unavailable, "non-directory root refused");
+		expect(refusedNaming(log, failure::invalid_root), "non-directory root refused, and named");
 	}
 	{
 		adapters::logging::quill_log log{ "relative" };
-		expect(log.status() == status::unavailable, "relative root refused");
-		expect(log.open_failure() != adapters::logging::diagnostic_file_failure::none, "admission refusal names a fixed cause");
+		expect(refusedNaming(log, failure::invalid_root), "relative root refused, and named");
 	}
 	{
 		adapters::logging::quill_log missing{ root / "missing-parent/missing-root" };
-		expect(missing.status() == status::unavailable && !std::filesystem::exists(root / "missing-parent"), "logger never creates unowned ancestors or root");
+		expect(refusedNaming(missing, failure::invalid_root) && !std::filesystem::exists(root / "missing-parent"), "logger never creates unowned ancestors or root");
 		adapters::logging::quill_log firstWriter{ root };
 		adapters::logging::quill_log secondWriter{ root };
-		expect(firstWriter.status() == status::available && secondWriter.open_failure() == adapters::logging::diagnostic_file_failure::busy, "native sink has exactly one writer");
+		expect(firstWriter.status() == status::available && secondWriter.open_failure() == failure::busy, "native sink has exactly one writer");
 	}
 #if !defined(_WIN32)
 	{
@@ -229,7 +253,7 @@ int main(int aArgc, char** aArgv)
 		private_root(realParent / "profile");
 		std::filesystem::create_directory_symlink(realParent, root / "alias-parent");
 		adapters::logging::quill_log aliased{ root / "alias-parent/profile" };
-		expect(aliased.status() == status::available, "existing symlinked ancestor resolves without creating shared directories");
+		expect(aliased.status() == status::available && aliased.open_failure() == failure::none, "existing symlinked ancestor resolves without creating shared directories");
 	}
 #endif
 	std::cout << "quill-logging-tests:pass\n";
