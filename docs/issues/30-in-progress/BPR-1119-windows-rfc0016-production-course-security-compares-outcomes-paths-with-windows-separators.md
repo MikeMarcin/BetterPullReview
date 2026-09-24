@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1119"
 title: "Windows: rfc0016_production_course_security compares outcomes/ paths with Windows separators"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
