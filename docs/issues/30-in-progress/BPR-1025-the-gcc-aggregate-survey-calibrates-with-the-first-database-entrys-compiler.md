@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1025"
 title: "survey_gcc_aggregate_cleanups.py calibrates with the first database entry's compiler, so an app-release database alone fails"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
