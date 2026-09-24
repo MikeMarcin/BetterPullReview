@@ -151,3 +151,28 @@ Windows, and they pass there too. `clang-format` reports the file clean.
 already finished, and there the rows already passed. Wanted as a post-close
 confirmation on bpr-main-mac and bpr-main-linux:
 `ctest --preset dev -R '^qt_workbench_window_scale_(100|125|200)$' --output-on-failure`.
+
+## Post-close: macOS at `bcd57840` (bpr-main-mac, 2026-09-24)
+
+The run is at `bcd57840`, which contains `21332605` and `d87e70f0`.
+`workbench_window_tests.cpp` has not changed since `d87e70f0`. macOS 26.6.2 on
+Apple Silicon, Apple clang 21.0.0, Qt 6.11.2, `build/dev` Debug. The rebuild
+exited 0 with no `warning:` line.
+
+The wanted command, with `-j1 -V` added, passed 3 of 3, contained as
+registered and offscreen:
+`ctest --preset dev -j1 -V -R '^qt_workbench_window_scale_(100|125|200)$' --output-on-failure`.
+
+| Row | At `bcd57840` | At `7b376657`, before `d87e70f0` |
+| --- | --- | --- |
+| `qt_workbench_window_scale_100` | 18.61 s | 19.09 s |
+| `qt_workbench_window_scale_125` | 19.00 s | 19.50 s |
+| `qt_workbench_window_scale_200` | 19.12 s | 20.21 s |
+
+The same station timed the earlier column for [[BPR-1022]]'s post-close run.
+The waits added no time here, which fits the card's expectation that they
+return at once where the measurement already finishes within four passes.
+`qt_workbench_window_scale_100` also passed in 18.70 s in [[BPR-1074]]'s
+confirmation. The log is a station record under
+`build/logs/bpr-1050-1051-1073-1074-mac/` and is not committed. Linux has not
+been run from this station. The acceptance record above is unchanged.
