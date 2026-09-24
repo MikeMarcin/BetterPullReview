@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0868"
 title: "The contained temporary helper swallows a removal error that tempfile would have raised"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-0876"]
 priority: "P3"
