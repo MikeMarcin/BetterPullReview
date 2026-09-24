@@ -258,3 +258,60 @@ review above, because Linux compiles the same POSIX code. The card's own plan
 also asks bpr-main-linux to run the selector, and that run has not been
 made. The card stays In Progress for it. With that run, every criterion has
 its evidence, and the card can be finished.
+
+## Linux: the selector passes 5/5, and every criterion now has its evidence (bpr-main-linux, 2026-09-23)
+
+The run is at `b5cb3b43`, in a separate verification clone with a clean
+tree. That revision contains `fe7dad99`. Nothing in the purge code, the core,
+the host, the panel or their tests has changed between `fe7dad99` and main's
+`b60e04b0`. Main has since changed `github_application_host.cpp`
+([[BPR-1048]]) and the workbench drawer ([[BPR-1074]]), and neither is on the
+purge path. JaegAW: WSL2 Ubuntu 26.04, GCC 15.2, Qt 6.11.2, `build/dev`
+(Debug) from the `dev` preset, which compiles with `-Werror`. The build log
+has no `warning:` line. The rows ran serially and offscreen:
+`ctest --preset dev -j1 -V`, with `QT_QPA_PLATFORM=offscreen` and with
+`DISPLAY` and `WAYLAND_DISPLAY` unset. At the start of the run the station
+was loaded by a parallel build (load average 9.7). At the end the load
+average was 2.5.
+
+The card's selector passed 5 of 5, exit 0, contained as registered. Each row
+ran under `better_pull_review_network_sandbox`.
+
+| Row | Time |
+| --- | --- |
+| `core_release_maintenance` | 0.00 s |
+| `application_release_maintenance` | 0.02 s |
+| `sqlite_release_maintenance_files` | 0.02 s |
+| `qt_release_maintenance_scale_100` | 0.39 s |
+| `application_release_maintenance_public_path` | 6.44 s |
+
+The course's pass line lists every step it took, ending
+`clear purge retained-lease startup-recovery-refusal`. So Linux gives the
+same result as macOS. The three shared cases pass: the core's operational
+failure, the host's pass-through and the panel's text. The purge course
+passes the inventory, the purge and the startup recovery refusal after it.
+The new SQLite case is Windows-only and does not run here. The console and
+build logs are station records under
+`build/logs/bpr-main-linux-20260923/bpr-1038-1022-0886-linux/`
+(`bpr-1038-selector.log`, `dev-build-b5cb3b43.log`) and are not committed.
+
+**AC4 on Linux: pass.** It holds by this run, and by the review above. Linux
+compiles the same POSIX half of `release_maintenance_files.cpp` that the
+review found untouched.
+
+**Acceptance.**
+
+- **AC1: pass on Windows at `fe7dad99`.** The course passes "native
+  full-profile inventory returns" and the purge steps after it (19.11 s, and
+  14.33 s without any trace).
+- **AC2: pass.** `sqlite_release_maintenance_files`'s Windows case admits
+  the isolation directories and refuses the one with an extra `Everyone`
+  entry. With directories kept strict in the validator it fails by name. The
+  read-only pack step fails by name with the plain delete flag.
+- **AC3: pass.** The host keeps `storage_not_private`, and the panel says
+  "not private" and not "changed". Each check fails by name when its change
+  is removed.
+- **AC4: pass on macOS and Linux.** Both run the selector 5/5, and a review
+  finds no POSIX path moved.
+
+The card is finished with these records.
