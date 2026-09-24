@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1113"
 title: "Linux activation: fall through an over-long XDG_RUNTIME_DIR, and pin the symlink-cleanup and other-owner cases"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
