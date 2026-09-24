@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1121"
 title: "Fifty test sources end a failed expectation with std::exit and leave their scratch roots, as sqlite_profile_activation did"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
