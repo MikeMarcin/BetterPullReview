@@ -4,6 +4,7 @@
 
 #include <QAbstractItemView>
 #include <QByteArray>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QHash>
 #include <QLabel>
@@ -559,12 +560,31 @@ namespace bpr::qt {
 		} else {
 			setFixedWidth(workbench_drawer_rail::width_pixels);
 		}
-		// Only an explicitly hidden panel is shown again: a fresh panel has no
-		// parent yet, and showing it would make it a window of its own.
-		if (!(expanded || ControlsShown)) {
+		apply_visibility();
+	}
+
+	void workbench_drawer_panel::apply_visibility()
+	{
+		if (!(State == core::workbench_drawer_state::expanded || ControlsShown)) {
 			hide();
-		} else if (isHidden()) {
+			return;
+		}
+		// [[BPR-1074]]. A panel with no parent is in no window yet, and showing
+		// it would make it a window of its own. `isHidden()` is true of a
+		// fresh widget as well as of an explicitly hidden one, so asking it
+		// alone put all three drawers on the desktop, one window each, while
+		// the workbench window was being built. A panel without a parent is
+		// shown by its placement instead (changeEvent).
+		if (isHidden() && parentWidget() != nullptr) {
 			show();
+		}
+	}
+
+	void workbench_drawer_panel::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::ParentChange) {
+			apply_visibility();
 		}
 	}
 }

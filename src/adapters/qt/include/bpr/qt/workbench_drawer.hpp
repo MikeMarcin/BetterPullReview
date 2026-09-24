@@ -224,6 +224,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-0675]]. Gives this drawer's room back, from the drawer.
 		[[nodiscard]] auto collapse_button() const noexcept -> QToolButton*;
 
+	protected:
+		/// \brief [[BPR-1074]]. Applies the decided visibility once the panel
+		/// is placed, which a panel without a parent cannot do itself.
+		void changeEvent(QEvent* aEvent) override;
+
 	private:
 		core::workbench_drawer       Drawer;
 		QLabel*                      Heading       = nullptr;
@@ -238,6 +243,7 @@ namespace bpr::qt {
 		core::workbench_drawer_state State         = core::workbench_drawer_state::expanded;
 
 		void present();
+		void apply_visibility();
 	};
 } // namespace bpr::qt
 

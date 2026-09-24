@@ -71,6 +71,7 @@
 #endif
 
 #include <QTreeView>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
@@ -9111,6 +9112,127 @@ namespace {
 			   "leaving the AI area removes its decoration without changing AI content");
 		window.hide();
 	}
+
+	/// \brief [[BPR-1074]]. Names every widget shown as a window while it lives.
+	class shown_window_recorder final : public QObject
+	{
+	public:
+		shown_window_recorder()
+		{
+			QCoreApplication::instance()->installEventFilter(this);
+		}
+		shown_window_recorder(const shown_window_recorder&)                    = delete;
+		shown_window_recorder(shown_window_recorder&&)                         = delete;
+		auto operator=(const shown_window_recorder&) -> shown_window_recorder& = delete;
+		auto operator=(shown_window_recorder&&) -> shown_window_recorder&      = delete;
+		~shown_window_recorder() override
+		{
+			QCoreApplication::instance()->removeEventFilter(this);
+		}
+
+		[[nodiscard]] auto shown() const -> const QStringList&
+		{
+			return Shown;
+		}
+
+		[[nodiscard]] auto described() const -> std::string
+		{
+			return Shown.isEmpty() ? std::string{ "none" } : Shown.join(QStringLiteral(", ")).toStdString();
+		}
+
+	protected:
+		auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+		{
+			if (aEvent->type() == QEvent::Show) {
+				if (const auto* const widget = qobject_cast<const QWidget*>(aWatched);
+					widget != nullptr && widget->isWindow()) {
+					Shown.push_back(widget->objectName());
+				}
+			}
+			return QObject::eventFilter(aWatched, aEvent);
+		}
+
+	private:
+		QStringList Shown;
+	};
+
+	/// \brief [[BPR-1074]]. Building the window puts nothing on the desktop.
+	///
+	/// \details The three drawers are made without a parent and placed in the
+	/// splitter later. A drawer that showed itself in between became a window of
+	/// its own, so every launch put three windows titled with the application's
+	/// name on the desktop for about a second, and a probe that took the first
+	/// window for the application held a handle that was then destroyed.
+	void test_building_the_window_shows_no_window_of_its_own()
+	{
+		{
+			const auto           recorder = shown_window_recorder{ };
+			qt::workbench_window window;
+			process_events();
+			expect(recorder.shown().isEmpty(),
+				   "building the workbench window shows no window of its own; shown: " + recorder.described());
+			for (const auto* const drawer : { window.files_drawer(), window.conversations_drawer(), window.repositories_drawer() }) {
+				expect(drawer != nullptr && !drawer->isWindow() && drawer->parentWidget() != nullptr,
+					   "each drawer is placed in the window, not a window of its own");
+			}
+			window.show();
+			process_events();
+			expect(recorder.shown() == QStringList{ QStringLiteral("workbenchWindow") },
+				   "showing the workbench window shows that window and no other; shown: " + recorder.described());
+			// Home holds the window at first; the drawers belong to the review.
+			window.publish(both_files_enabled());
+			process_events();
+			expect(!window.showing_home() && window.files_drawer()->isVisible()
+					   && window.conversations_drawer()->isVisible() && window.repositories_drawer()->isVisible(),
+				   "the expanded drawers show with the review");
+			window.hide();
+		}
+
+		const auto placed = [](qt::workbench_drawer_panel* const aPanel) {
+			auto host = std::make_unique<QWidget>();
+			host->setObjectName(QStringLiteral("drawerHost"));
+			auto* const column = new QVBoxLayout{ host.get() };
+			column->addWidget(aPanel);
+			host->resize(400, 300);
+			host->show();
+			process_events();
+			return host;
+		};
+		const auto recorder = shown_window_recorder{ };
+		// A fresh panel adopts every state it can while it has no parent.
+		auto* const fresh = new qt::workbench_drawer_panel{ core::workbench_drawer::files };
+		fresh->adopt(core::workbench_drawer_state::collapsed);
+		fresh->set_controls_shown(true);
+		fresh->adopt(core::workbench_drawer_state::expanded);
+		fresh->set_controls_shown(false);
+		process_events();
+		expect(recorder.shown().isEmpty() && !fresh->isVisible() && !fresh->testAttribute(Qt::WA_WState_Created),
+			   "a drawer without a parent is never shown as a window; shown: " + recorder.described());
+		const auto freshHost = placed(fresh);
+		expect(fresh->isVisible(), "an expanded drawer shows once it is placed");
+
+		// Collapsed with the controls hidden is absence, before and after it is
+		// placed, and the drawer comes back when it expands.
+		auto* const absent = new qt::workbench_drawer_panel{ core::workbench_drawer::repositories };
+		absent->adopt(core::workbench_drawer_state::collapsed);
+		const auto absentHost = placed(absent);
+		expect(!absent->isVisible(), "a collapsed drawer without its controls stays absent once placed");
+		absent->adopt(core::workbench_drawer_state::expanded);
+		process_events();
+		expect(absent->isVisible(), "the absent drawer shows when it expands");
+
+		// Hidden while it had no parent, then expanded before it was placed:
+		// the placement shows it.
+		auto* const returning = new qt::workbench_drawer_panel{ core::workbench_drawer::conversations };
+		returning->adopt(core::workbench_drawer_state::collapsed);
+		returning->adopt(core::workbench_drawer_state::expanded);
+		process_events();
+		expect(!returning->isVisible(), "a drawer expanded without a parent is still not a window");
+		const auto returningHost = placed(returning);
+		expect(returning->isVisible(), "a drawer hidden and expanded before placement shows once placed");
+		expect(recorder.shown() == QStringList{ QStringLiteral("drawerHost"), QStringLiteral("drawerHost"), QStringLiteral("drawerHost") },
+			   "only the three hosts were shown as windows; shown: " + recorder.described());
+	}
 }
 
 void test_native_geometry_fits_current_displays_and_observes_only_after_restore()
@@ -9150,6 +9272,8 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	if (QCoreApplication::arguments().contains(QStringLiteral("--native-window-geometry"))) {
+		// [[BPR-1074]]. The one window a launch puts on the desktop.
+		test_building_the_window_shows_no_window_of_its_own();
 		test_native_geometry_fits_current_displays_and_observes_only_after_restore();
 		std::cout << "native-window-geometry:pass\n";
 		return EXIT_SUCCESS;
