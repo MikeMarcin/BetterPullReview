@@ -191,3 +191,225 @@ earlier 17-row run that also included the relaunch course, nine entries from
 the sweep, one lock file from the eight-row run, and the one
 `bpr-tidy-db-*` directory made by this station's own tidy run. The entries
 from before these runs are left alone.
+
+## Amendment: two more kinds of the same litter (bpr-main-linux, 2026-09-24)
+
+This card's owner folded two more kinds into its scope. The criteria above
+now apply to all five kinds:
+
+- **`bpr-tidy-db-*`**, left by `_coding-standard/scripts/tidy.py`. It is
+  recorded above under "A fourth kind", and the coordinator asked for it to be
+  taken here.
+- **`bpr` followed by 8 random characters, holding `template/`.** AC1's
+  measurement found it, left by `rfc0017_public_preview_decision_contract`.
+  It is the same defect, and the fix is a few lines in the test that leaves
+  it, so it is taken here and not carded separately.
+
+The criteria's wording is unchanged. AC1 to AC3 now cover five kinds, and AC4
+and AC5 cover the rows that leave them wherever those rows are registered.
+
+## Attribution, fixes and the Linux runs (bpr-main-linux, 2026-09-24)
+
+Station `bpr-main-linux` (WSL2 Ubuntu, GCC 15.2, Qt 6.11.2, `build/dev`
+Debug, `-Werror`). The card was claimed at `5b4d1dd7`, whose code is
+`ff9bc9e2`. AC1 was measured at that revision, and the change landed as
+**`09f3d48f`**. Every run was serial and offscreen: `QT_QPA_PLATFORM=offscreen`,
+`DISPLAY` and `WAYLAND_DISPLAY` unset, and a fresh `HOME` and fresh XDG data,
+config, cache, state and runtime directories, which were removed afterwards.
+The logs are station records under
+`build/logs/bpr-main-linux-20260924/bpr-1051/` and are not committed.
+
+### What `/tmp` held before this station's runs
+
+`/tmp` was counted at 06:50Z, before this station ran anything. It held:
+
+- 106 `QuillBackendLock*` files;
+- 10 `bpr-public-path-*` directories;
+- 2 `bpr-mcp-canary-*` directories;
+- 5 `bpr-tidy-db-*` directories;
+- 4 directories named `bpr` followed by 8 characters, dated 2026-09-23 from
+  09:50 to 18:57.
+
+This station touched none of them. The counts were the same after every run
+below, because each entry that this station's own runs made was removed by
+exact name (listed at the end).
+
+### AC1: which rows leave each kind
+
+**Method.** Each of the 423 configured rows ran alone with `ctest -j1 -V
+-R '^<row>$'`, from 07:42:52Z to 08:18:45Z. `TMPDIR` was a new, empty,
+mode-`0700` directory for each row, and the top level of `/tmp` was listed
+before and after each row. 418 rows passed. The five failures are the known
+red rows:
+
+- `qt_anonymous_public_preview_scale_100`, `_125` and `_200` ([[BPR-1023]]);
+- `application_agent_finding_dif_context_contract` ([[BPR-0966]]);
+- `application_uiforetw_selected_diff_contract` ([[BPR-1036]]).
+
+The only other new `/tmp` entries were root-owned `systemd-private-*`
+directories, which system services make.
+
+An earlier attempt at this sweep passed the fresh `HOME` and XDG roots as
+relative paths, which broke `documentation_structure` and two other rows. It
+was stopped after 146 rows and does not count. It had already seen the
+`rfc0017` and canary entries.
+
+| Kind | Where | Rows that left it | Why |
+| --- | --- | --- | --- |
+| `QuillBackendLock<pid>` | `/tmp`, whatever `TMPDIR` says | `application_agent_crash_recovery` (1), `application_agent_materialization_crash_recovery` (2), `application_attended_launch_contract` (1), `runtime_process_surface` (1), `application_device_binding_relaunch` (1), `application_profile_activation_public_path` (1), `application_profile_owner_admission_public_path` (1) | Each course ends an application process with a signal on purpose, so the logging backend never stops. That makes 8 per sweep, and [[BPR-1050]]'s 164-row sweep with `TMPDIR` unset left the same 8. The profile window restart and release security courses, which the card suspected, left none |
+| `bpr-public-path-XXXXXX`, mode `0700`, holding `data/` and `data-agent-workspaces-v1/` | `TMPDIR` | `application_attended_launch_contract` | Its outlive launch passes no data root, so the fixture makes its own scratch root, and the course ends the application with `terminate()`. The startup implementation that owns the scratch is never destroyed. The other courses that kill an application pass their own roots |
+| `bpr-mcp-canary-<seconds>`, mode `0755` | `TMPDIR` | `application_mcp_context_helper` | Nothing removes it |
+| `bpr` followed by 8 characters, holding `template/` | `TMPDIR` | `rfc0017_public_preview_decision_contract` | The module keeps one `ContainedTemporaryDirectory` for its shared template, and nothing cleans it up |
+| `bpr-tidy-db-*`, holding `compile_commands.json` | `TMPDIR` | `tidy.py`, which is not a ctest row | [[BPR-1050]]'s tidy run with `TMPDIR` pointed at a kept directory left `bpr-tidy-db-5aj08q8y` |
+
+### The Quill lock: the product turns the check off
+
+**Decision:** `src/adapters/logging/src/quill_log.cpp` sets
+`check_backend_singleton_instance = false`. No course removes lock files.
+
+- **The check cannot fire in this build.** Quill's `BackendWorkerLock` detects
+  one thing: Quill compiled into two binary modules of one process. Quill is
+  included by exactly one translation unit, `quill_log.cpp`, which is
+  compiled into the `STATIC` library `better_pull_review_adapter_logging`.
+  The project declares no `SHARED` or `MODULE` library. So no process can hold
+  two copies of Quill's backend.
+- **The check's only effect was the lock.** On Linux and macOS,
+  `BackendWorker::run` creates `/tmp/QuillBackendLock<pid>` synchronously
+  inside `Backend::start`, and only a clean stop removes it. On Windows it is
+  a named mutex, `Local\QuillBackendLock<pid>`, and the kernel releases it at
+  exit.
+- **Removing it course by course would miss cases.** It would take seven
+  drivers in Python and C++. The shipped application would still leave the
+  file after every crash or kill on Linux and macOS, and this change stops
+  that too.
+- **`quill_logging` now asserts the lock is gone.** On POSIX it checks that no
+  `/tmp/QuillBackendLock<getpid()>` exists while its backend runs.
+
+### The other fixes
+
+| File | Change |
+| --- | --- |
+| `tests/application/mcp_context_helper_tests.cpp` | The scratch directory is `bpr-mcp-canary-<random 64-bit>`, created with `create_directory`. A name that exists is passed over, never removed. It is narrowed to `0700` on POSIX. `main` removes it and asserts that it is gone before the pass marker, and the function-local static's destructor removes it when an `expect` leaves through `std::exit`. The old `remove_all` of a name the test had not created is gone (AC6). On Windows the directory keeps the per-user `%TEMP%` entries |
+| `tests/end_to_end/attended_launch_contract.py` | The outlive launch passes `--epoch-fixture-root <owned>/data --epoch-fixture-phase single`. The root is a `contained_temporary_directory`, narrowed with `make_root_private`, with the data root one owned level down ([[BPR-1050]]). The directory is removed after the process has ended. The product is unchanged, so no pin needed resealing |
+| `tests/scripts/validate_rfc0017_public_preview_decision_tests.py` | `tearDownModule` removes the shared template once, after the last test |
+| `_coding-standard/scripts/tidy.py` | A `finally` removes the rewritten compilation database |
+| `src/adapters/logging/src/quill_log.cpp`, `tests/logging/quill_logging_tests.cpp` | As described above |
+
+### AC2 and AC3 (Linux)
+
+| Check | Result |
+| --- | --- |
+| `cmake --build --preset dev` | Exit 0, no `warning:` line |
+| AC2 at the candidate: the 9 rows AC1 names, plus `quill_logging`, `quill_logging_backpressure` and `application_logging`, each alone with its own new `TMPDIR` | 12 of 12 passed. `rfc0017` ran its 44 tests, and the canary and attended launch printed their pass markers. **Every `TMPDIR` was empty afterwards, and `/tmp` gained no entry** |
+| AC3, the negative control. `quill_log.cpp`, the canary, the attended launch course, the `rfc0017` test and `tidy.py` were reverted to `5b4d1dd7` and rebuilt. `quill_logging`'s new assertion was kept | Every kind came back. `/tmp` gained 8 `QuillBackendLock<pid>` files, from the same seven rows. The `TMPDIR`s gained `bpr-mcp-canary-1790238149` (`0755`), `bpr-public-path-uwFusH` and `bprmzvaqbdc`. **`quill_logging` failed** with `a running backend creates no Quill lock file in /tmp`. As any failing `expect` in that test does, the failure left its `qt_temp-*` in its `TMPDIR` |
+| AC3 for `tidy.py`, reverted, on `quill_logging_tests.cpp` with a kept `TMPDIR` | It left `bpr-tidy-db-8fjbc08z/compile_commands.json` |
+| Restored | The SHA-256 of all six files matched the candidate again, and the tree was rebuilt |
+| `tidy.py` at the candidate, on the three changed translation units, with a kept `TMPDIR` | `clang-tidy passed.` with no warning, and the `TMPDIR` was empty afterwards |
+| AC6 | The canary's only removal is of the directory that `create_directory` reported it created. The negative control's source had the `remove_all` of a name derived from the start time |
+| Integration, both cards: all 423 rows at `09f3d48f`, serially, with `TMPDIR` unset, so everything went to `/tmp` (08:26:07Z to 09:01:41Z) | 418 of 423 passed, in 2,134.42 s. The five failures are the known red rows listed under AC1. **`/tmp` gained no entry owned by this user.** Its one new entry is a root-owned `systemd-private-*-wsl-pro.service-*` directory, which a system service made. The log has one `AGENT_WORKSPACE_RECOVERY_REFUSED` line, from profile management's `shared-parent` section ([[BPR-1050]]) |
+
+### Entries this station removed, each by exact name
+
+All of them were owned by this user. Each was created inside the window of one
+of this station's own runs, and each was listed before it was removed.
+
+- From [[BPR-1050]]'s 164-row sweep (07:00:36Z to 07:20:10Z): 8
+  `QuillBackendLock<pid>` files, `bpr-mcp-canary-1790233393` and
+  `bpr-public-path-SeMaKa`.
+- From AC1's measurement: 8 `QuillBackendLock<pid>` files, and the
+  measurement's own `/tmp/b1051-*` roots.
+- From AC3's negative control: 8 `QuillBackendLock<pid>` files, and its root.
+- The `tidy.py` runs' own `/tmp/b1051-tidy-*` roots.
+
+### Acceptance state
+
+- **AC1: pass.** Each of the five kinds is attributed above, from a per-row
+  measurement over all 423 rows.
+- **AC2: pass on Linux.** The named rows pass and leave nothing in `TMPDIR` or
+  `/tmp`. The whole 423-row sweep at `09f3d48f`, with `TMPDIR` unset, added nothing of this user's to `/tmp`.
+- **AC3: pass.** Undoing the fixes brought back every kind.
+- **AC4: owed by bpr-main-mac,** through the direct sandboxed run below.
+- **AC5: owed by bpr-main-win.**
+- **AC6: pass.**
+- The logging-adapter change must also pass `quill_logging` and the logging
+  rows on macOS and Windows. Those runs are included in the commands below.
+
+### Still owed: the macOS run (bpr-main-mac), AC4
+
+A ctest run on macOS cannot show a leftover. `scripts/run_network_isolated_test.py`
+hands each row `/tmp/bpr-net-*/fixture` and deletes it when the row ends. So
+each row's command runs directly, under the same sandbox template, with
+`TMPDIR` pointed at a directory that is kept. None of these rows declares a
+loopback fixture, so the template alone confines each one at least as tightly
+as the runner's derived profile.
+
+On a head that contains `09f3d48f`, rebuilt, for each of
+`rfc0017_public_preview_decision_contract`, `application_mcp_context_helper`,
+`application_agent_crash_recovery`,
+`application_agent_materialization_crash_recovery`,
+`application_attended_launch_contract`, `runtime_process_surface`,
+`application_device_binding_relaunch`,
+`application_profile_activation_public_path`,
+`application_profile_owner_admission_public_path`, `quill_logging`,
+`quill_logging_backpressure` and `application_logging` that is registered on
+macOS:
+
+```sh
+repo=/Users/jaeger/Documents/GitHub/BetterPullReview   # the checkout
+row=application_mcp_context_helper            # each row in turn
+ctest --preset dev -N -V -R "^${row}\$" | grep -E 'Test command|Working Directory|Environment'
+# The command is everything after the runner's `--`, and the working
+# directory and ENVIRONMENT entries are the row's own.
+t=$(mktemp -d /tmp/bpr1051-direct-XXXXXX)
+ls /tmp | grep -c '^QuillBackendLock' > "$t.before"
+cd "<working directory>"
+env <ENVIRONMENT entries> BPR_AUTOMATED_TEST_BOUNDARY=1 TMPDIR="$t/" \
+    /usr/bin/sandbox-exec -f "$repo/cmake/sandbox/macos-network-deny.sb" <command…>
+echo "exit=$?"
+find "$t" -mindepth 1 -maxdepth 2
+ls /tmp | grep -c '^QuillBackendLock'; cat "$t.before"
+rm -rf "$t" "$t.before"
+```
+
+Expect:
+
+- **Each row passes**, and `find` prints nothing.
+- **No new `QuillBackendLock*` appears in `/tmp`.** With the check off, Quill
+  never opens the file.
+- **Record whether the sandbox lets the process create that file.** One
+  course, `application_attended_launch_contract`, run once with
+  `options.check_backend_singleton_instance = false;` removed locally and the
+  tree rebuilt, answers it. Either a `/tmp/QuillBackendLock<pid>` appears, or
+  the open is denied and Quill skips the check. Record which, remove any file
+  that run made by its exact name, and restore the line.
+- **Record any row that is not registered on macOS.**
+
+### Still owed: the Windows run (bpr-main-win), AC5
+
+There is no Quill lock file on Windows. The measurement is the temporary
+directory. On a head that contains `09f3d48f`, rebuilt:
+
+```powershell
+cmake --build --preset windows-dev
+$rows = "rfc0017_public_preview_decision_contract","application_mcp_context_helper","application_agent_crash_recovery","application_agent_materialization_crash_recovery","application_attended_launch_contract","runtime_process_surface","application_device_binding_relaunch","application_profile_activation_public_path","application_profile_owner_admission_public_path","quill_logging","application_logging"
+$savedTemp = $env:TEMP; $savedTmp = $env:TMP
+foreach ($row in $rows) {
+    $t = Join-Path $savedTemp ("bpr1051-" + [guid]::NewGuid())
+    New-Item -ItemType Directory $t | Out-Null
+    $env:TEMP = $t; $env:TMP = $t
+    ctest --preset windows-dev -j1 -V -R "^$row$"
+    $env:TEMP = $savedTemp; $env:TMP = $savedTmp
+    "$row leaves:"; Get-ChildItem -Force $t | Select-Object Name, Mode
+    Remove-Item -Recurse -Force $t
+}
+```
+
+Expect:
+
+- Each row that is registered on Windows passes, and leaves nothing in its
+  directory.
+- Record any row that is not registered on Windows.
+- Record any row that is contained, whose launcher gives it another
+  temporary directory, because this measurement cannot see what that row
+  leaves.
+- `quill_logging` is the logging-adapter row the change must pass on Windows.

@@ -368,3 +368,24 @@ Expect:
   its `shared-parent` section, and passes on its label. No other row prints
   it. On macOS that does not show that the gate works, because the gate cannot
   fire there. It only confirms that no macOS row hit the refusal.
+
+## The whole suite under the gate (bpr-main-linux, 2026-09-24)
+
+This is the integration run for this card and [[BPR-1051]]. `09f3d48f`
+contains `ff9bc9e2`. All 423 configured rows ran serially and offscreen, with
+a fresh `HOME` and fresh XDG roots, and with `TMPDIR` unset. So every
+temporary directory was made in `/tmp`, the case the gate is for.
+
+- **418 of 423 rows passed**, in 2,134.42 s.
+- **The five failures are the known red rows.** They are
+  `qt_anonymous_public_preview_scale_100`, `_125` and `_200` ([[BPR-1023]]),
+  `application_agent_finding_dif_context_contract` ([[BPR-0966]]) and
+  `application_uiforetw_selected_diff_contract` ([[BPR-1036]]).
+- **No row failed on `AGENT_WORKSPACE_RECOVERY_REFUSED`.** The log holds one
+  such line, from profile management's `shared-parent` section:
+  `/tmp/profile_management_public_path-ZrGkMn/shared-parent/BetterPullReview/agent-workspace-ownership-v1:repair-required`.
+
+So on Linux no other row prints the refusal, and adding the entry to every row
+turned none of them red. The log is
+`build/logs/bpr-main-linux-20260924/bpr-1051/full-sweep-09f3d48f.log`, a
+station record that is not committed.
