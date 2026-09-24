@@ -1,0 +1,213 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "head": "45191097",
+  "session": "7083474240820608cdf9ff551ddd298f",
+  "sequence_after_preparation": 21,
+  "state": "/Users/jaeger/.mask/attended-review/owner-decisions-20260924-scoped-v001/session.json (external --state; not committed)",
+  "scope": "A fresh session holding only these candidates. The checkout session cbd48b91000b00f1e72e1ad62c7c384c (.mask/attended-review/session.json) and packet owner-decisions-20260924-v001 are left untouched; nothing from them is carried into this page.",
+  "owner_request": "if there are questions to answer or reviews to do then prepare an attended review session",
+  "owner_feedback_applied": [
+    "this attended review contained a bunch of stale questions that were already answered, the attended review should be scoped to what this session cares about",
+    "multiple-choice questions should always allow a write-in answer (from the BPR-1023 note in session cbd48b91)"
+  ],
+  "write_in": "Every multiple-choice candidate ends with the option 'Other: my answer is in the note'; every candidate has the free-text note field.",
+  "media_rule": "candidate-manifest.json names each medium by repository path and sha256. The manifest given to init replaced each 'path' (and dropped 'sha256') with url = 'data:image/png;base64,' + base64(file bytes); fingerprints bind those bytes.",
+  "page": {
+    "path": "offline-package/index.html",
+    "digest": "sha256:6396fcb5dac85e1165fd046a52c299c34fce853d8547cf4bbe44cd5097e65674",
+    "note": "The review.html asset with the status --full snapshot at sequence 21: exactly the 10 candidates below."
+  },
+  "candidates": [
+    {
+      "id": "BPR-0975-wslg-choice-v001",
+      "revision": "2e6e64d4 (WSLg diagnosis; probe d24223f2)",
+      "fingerprint": "a06ac5daf8eeedef2a5b622c23b5d54c261e28b6c4170d3dba355ba4e5493f7b",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md",
+      "commits": [
+        "2e6e64d4",
+        "d24223f2",
+        "b651554f"
+      ],
+      "question": "BPR-0975 AC2 cannot pass on WSLg as the product and WSLg stand. Which do you choose: A, a WSLg-only workaround in the product; B, no product change, with the card Blocked until WSLg ships the upstream fix; or both A and B?",
+      "answer": {
+        "options": [
+          "A. WSLg-only workaround: on X11 under WSLg, hide and re-show a reused inactive Settings window, and on close return focus to the workbench that last opened it",
+          "B. No product change: the card goes to Blocked until a WSLg release ships the upstream activation fix",
+          "Both: make the workaround (A) now, and also keep waiting on the upstream fix (B)",
+          "Other: my answer is in the note"
+        ]
+      }
+    },
+    {
+      "id": "BPR-0975-upstream-report-v001",
+      "revision": "2e6e64d4 (the upstream change text in the BPR-0975 evidence note)",
+      "fingerprint": "e381fc9c66aaaa7cc1240fc90c9d072c9094a6937a3cddb7fae8c85b3b1a636e",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md",
+      "commits": [
+        "2e6e64d4"
+      ],
+      "question": "Should an upstream report for microsoft/wslg#1022 be prepared from the change text already written in the BPR-0975 evidence note? Yes or no.",
+      "answer": {
+        "options": [
+          "Yes: prepare the report for microsoft/wslg#1022 from the prepared text",
+          "No: do not prepare it",
+          "Other: my answer is in the note"
+        ]
+      }
+    },
+    {
+      "id": "BPR-0974-defender-disposition-v002",
+      "revision": "BPR-1110 finding at 94a09016 (finished 657ca3bb); threat 2147731250 on source 2d3bdbdf",
+      "fingerprint": "debb579ed4f549727f640b9548c685f4e8b247bcbafaa0a2648ba844a7c7dd6a",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/50-blocked/BPR-0974-dispose-windows-defender-finding-and-complete-native-settings.md",
+      "commits": [
+        "94a09016",
+        "657ca3bb",
+        "2d3bdbdf"
+      ],
+      "question": "With BPR-1110's explanation (a first-run cloud machine-learning verdict on a new, unsigned, reputation-less image), which dispositions do you authorize for the Bearfoos.A!ml finding? Tick every one you want; anything else goes in the note.",
+      "answer": {
+        "options": [
+          "Authenticode-sign the Windows images (OV/EV certificate or a managed signing service; release work under RFC-0038/BPR-0960, needs your certificate)",
+          "Lower the static signals: add a VERSIONINFO resource, keep a PDB reference in Release (/PDBALTPATH:%_PDB%), and move the 3.6 MB of compressed resource blobs out of the executable",
+          "Submit the quarantined sample to Microsoft as a false positive (an external disclosure of an unreleased binary; clears that hash only)",
+          "Build a fresh tests-disabled image and scan it on demand; if Defender does not detect it, run that exact digest for AC2/AC3",
+          "Defer the disposition to RFC-0038's release-security qualification (BPR-0960/BPR-0962) and keep BPR-0974 Blocked",
+          "Other: my answer is in the note"
+        ]
+      }
+    },
+    {
+      "id": "BPR-1109-hook-owner-v001",
+      "revision": "38507ec5 (finished 877e3d60)",
+      "fingerprint": "d08bca992ddf3c733164627fdd142818a40686a6ad1afee67daf2bd94467d4d5",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md",
+      "commits": [
+        "38507ec5",
+        "877e3d60"
+      ],
+      "question": "Optional. Something on JaegAW rewrites the Alt of an Alt chord typed fast. Do you know which program owns the hook, do you want the quit-one-at-a-time procedure to find it, or should it be ignored?",
+      "answer": {
+        "options": [
+          "I know which program it is (named in the note)",
+          "Give me the quit-one-at-a-time procedure to find it",
+          "Ignore it",
+          "Other: my answer is in the note"
+        ]
+      }
+    },
+    {
+      "id": "BPR-0986-current-line-band-v001",
+      "revision": "9ee4ee50 (band from 55e9405f; white space None from eb9a94a9), scratch capture build e2f6e61b",
+      "fingerprint": "7cc1bd6ee1916c97aa3697b9d24be01f0078cd7aaab273e9afb3b31be79c3ac6",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-0986-paint-the-hunk-header-and-current-line-roles-in-the-review-panes.md",
+      "commits": [
+        "55e9405f",
+        "eb9a94a9",
+        "9ee4ee50"
+      ],
+      "question": "Do you accept the reader's line a shade apart under the selection wash as the review window's look?",
+      "answer": "accept or reject"
+    },
+    {
+      "id": "BPR-0644-account-mismatch-erasure-v001",
+      "revision": "1347f776 (parked cfff152c)",
+      "fingerprint": "564c3ca3992e0977171123d551e6385842bd40d13733d29b5e823aeb61a44207",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md",
+      "commits": [
+        "1347f776",
+        "cfff152c"
+      ],
+      "question": "When the material in a remembered sign-in turns out to sign in as a different GitHub account than the one remembered, should BetterPullReview (a) keep erasing it at once, as the one automatic removal, or (b) keep it until you sign out, like every other failure?",
+      "answer": {
+        "options": [
+          "(a) Keep erasing it at once: the one automatic removal",
+          "(b) Keep it until I sign out, like every other failure",
+          "Other: my answer is in the note"
+        ]
+      }
+    },
+    {
+      "id": "BPR-0803-code-beside-cli-choice-v001",
+      "revision": "9577a516 (parked 4c57565f)",
+      "fingerprint": "8879ad905189f8609c30ca8a9ca5e4ff7289a1b5552b3104ecfe3e0b3d0f6b78",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-0803-the-github-cli-way-in-is-unreachable-from-inside-the-device-sign-in.md",
+      "commits": [
+        "9577a516",
+        "4c57565f"
+      ],
+      "question": "Is this where you want to find the GitHub CLI choice while a device code is on screen?",
+      "answer": "accept or reject"
+    },
+    {
+      "id": "BPR-1107-white-space-drawing-v001",
+      "revision": "eb9a94a9",
+      "fingerprint": "141b09411933203f185dfb4abe4953ee86cc4a39e4e6cf5457ef5642cd054357",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md",
+      "commits": [
+        "eb9a94a9"
+      ],
+      "question": "Do you accept a dot per space and a line to the tab stop per tab, faint, in the line-number colour, as how the review window draws white space?",
+      "answer": "accept or reject"
+    },
+    {
+      "id": "BPR-1107-white-space-choices-v001",
+      "revision": "eb9a94a9",
+      "fingerprint": "d787c4e10d188e9943f9c92792f9faf7317dfcfec0ac872bd3cdfeab08ca69a9",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md",
+      "commits": [
+        "eb9a94a9"
+      ],
+      "question": "Do you accept the White space row's six choices (None, Under the selection, Leading, Trailing, Leading and trailing, All) with Under the selection as the default?",
+      "answer": {
+        "options": [
+          "Accept the six choices, default Under the selection (proposed; Sublime's own default)",
+          "Accept the six choices, default Trailing instead",
+          "Other: my answer is in the note"
+        ]
+      }
+    },
+    {
+      "id": "BPR-1106-placement-v001",
+      "revision": "4e9037e6 (parked a7dd1cd2)",
+      "fingerprint": "a115198ce3547c919e658da7e14ee3467f381f1b10ee78fa381c386ea3431e5d",
+      "phase": "ready",
+      "protected": true,
+      "card": "docs/issues/40-parked/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md",
+      "commits": [
+        "4e9037e6",
+        "a7dd1cd2"
+      ],
+      "question": "Where do Compose review and Draft comment or reply go? A, keep the row as it is; B, the strip's review menu; C, the right end of the Updates line (the loading line moves into it too); D, the foot of the conversation drawer; or E, a Compose control in the strip. Proposed: C.",
+      "answer": {
+        "options": [
+          "A. Keep the row as it is (baseline)",
+          "B. The strip's review menu",
+          "C. The right end of the Updates line; the loading line moves into it too (proposed)",
+          "D. The foot of the conversation drawer",
+          "E. A Compose control in the strip",
+          "Other: my answer is in the note"
+        ]
+      }
+    }
+  ]
+}

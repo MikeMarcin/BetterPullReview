@@ -1,0 +1,472 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0975-wslg-choice-v001",
+      "title": "BPR-0975: a WSLg-only workaround (A), wait for WSLg (B), or both?",
+      "revision": "2e6e64d4 (WSLg diagnosis; probe d24223f2)",
+      "criteria": [
+        "BPR-0975 AC2 cannot pass on WSLg as the product and WSLg stand. Which do you choose: A, a WSLg-only workaround in the product; B, no product change, with the card Blocked until WSLg ships the upstream fix; or both A and B?"
+      ],
+      "options": [
+        "A. WSLg-only workaround: on X11 under WSLg, hide and re-show a reused inactive Settings window, and on close return focus to the workbench that last opened it",
+        "B. No product change: the card goes to Blocked until a WSLg release ships the upstream activation fix",
+        "Both: make the workaround (A) now, and also keep waiting on the upstream fix (B)",
+        "Other: my answer is in the note"
+      ],
+      "content": "Why it fails. WSLg's compositor (weston-mirror 04d436c7, WSLg 1.0.73.2) never activates a window because an application asked. Its X11 window manager drops _NET_ACTIVE_WINDOW unread (xwayland/window-manager.c 2217-2247) whatever the source or timestamp, and puts X11 focus back when a client moves it (2606-2631). It offers no xdg_activation_v1 to Wayland clients. Its shell activates a window only on a click, when Windows activates the window's RAIL window, when a window maps, or when the focused window goes away. Qt's request is already the one EWMH asks for. No setting changes this, and switching the application to Wayland would not help. microsoft/wslg#1022 reports the same defect.\n\nThe probe (2026-09-24T20:43:58Z-20:44:34Z, desktop hold acknowledged by bpr-main-win, guard 8/8 live files unchanged, every control exit 0): every activation request was refused (Xlib with source 0, 1 or 2 and any timestamp; XSetInputFocus undone; Qt activateWindow() on xcb and Wayland). The only thing that moved focus, in every control, was unmapping the window and mapping it again. The Windows foreground followed each time.\n\nA. A WSLg-only workaround. It is not an activation request; it relies on WSLg activating a window when it maps. When Ctrl-comma or the menu reuses a visible Settings window that is not active, the product hides and shows it before raising it. Windows destroys and recreates its window, so the taskbar button blinks and the window flickers; the Qt window and its X11 identity stay the same. On close, Settings returns focus to the workbench that last opened or reused it (today it asks for the first opener, which WSLg refuses when a sibling was used later). Both changes apply to xcb under WSLg only. Expected, not yet shown: the full course then passes; that needs the implementation, the Settings suites and another desktop hold.\n\nB. No product change. The card goes to Blocked until a WSLg release ships the upstream change. AC2 stays failing on WSLg until then. The other desktop and the amendment were rejected on 2026-09-24, so B leaves the card waiting.\n\nBoth: make A now and keep the upstream fix as the lasting remedy. Whether to report the upstream change is the next, separate item.",
+      "launch": {
+        "label": "Open the evidence note (section \"Why WSLg refuses activation\")",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/verification/BPR-0975-linux-native-settings.md"
+      },
+      "copy": [
+        {
+          "label": "Probe capture",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/docs/verification/BPR-0975-linux-native-settings/wslg-activation-probe-d24223f2.json"
+        },
+        {
+          "label": "Card",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/docs/issues/40-parked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md"
+        }
+      ],
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001",
+        "docs/verification/BPR-0975-linux-native-settings.md",
+        "docs/verification/BPR-0975-linux-native-settings/wslg-activation-probe-d24223f2.json"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md",
+        "card_section": "Diagnosis, 2026-09-24: WSLg has no activation path to use; the owner decides between two options",
+        "commits": [
+          "2e6e64d4",
+          "d24223f2",
+          "b651554f"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-0975-upstream-report-v001",
+      "title": "BPR-0975: prepare an upstream report for microsoft/wslg#1022?",
+      "revision": "2e6e64d4 (the upstream change text in the BPR-0975 evidence note)",
+      "criteria": [
+        "Should an upstream report for microsoft/wslg#1022 be prepared from the change text already written in the BPR-0975 evidence note? Yes or no."
+      ],
+      "options": [
+        "Yes: prepare the report for microsoft/wslg#1022 from the prepared text",
+        "No: do not prepare it",
+        "Other: my answer is in the note"
+      ],
+      "content": "microsoft/wslg#1022 (Emacs other-frame cannot switch frames, open since 2023-03) reports the same defect. Nothing has been filed. The prepared text, section \"The upstream change that would fix it\" of the evidence note, proposes four changes to microsoft/weston-mirror (and upstream Weston, which shares the X11 window manager):\n1. xwayland/window-manager.c: handle _NET_ACTIVE_WINDOW in weston_wm_handle_client_message and hand the window, source and timestamp to the shell, which makes its _NET_SUPPORTED advertisement true.\n2. xwayland/xwayland-internal-interface.h: a request_activate entry, implemented by libweston-desktop through a new optional activation_requested callback.\n3. rdprail-shell/shell.c: register activation_requested and activate the surface behind a focus-stealing rule (grant a pager request; grant an application request when the client owns the focused surface or its timestamp is no older than that surface's last input).\n4. For Wayland clients: an xdg_activation_v1 global in the RAIL shell calling the same activate(); Qt 6.11.2 uses it with no application change.\n\nThis item asks only whether to prepare the report. Preparing it posts nothing: filing it on GitHub stays your call, as the card says. This question is independent of the A/B choice in the previous item.",
+      "launch": {
+        "label": "Open the evidence note (section \"The upstream change that would fix it\")",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/verification/BPR-0975-linux-native-settings.md"
+      },
+      "copy": [
+        {
+          "label": "Upstream issue",
+          "value": "https://github.com/microsoft/wslg/issues/1022"
+        }
+      ],
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001",
+        "docs/verification/BPR-0975-linux-native-settings.md"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md",
+        "card_section": "Decision for the owner (B: whether to file the change is the owner's call)",
+        "commits": [
+          "2e6e64d4"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-0974-defender-disposition-v002",
+      "title": "BPR-0974: the Defender disposition, now that BPR-1110 explains it",
+      "revision": "BPR-1110 finding at 94a09016 (finished 657ca3bb); threat 2147731250 on source 2d3bdbdf",
+      "criteria": [
+        "With BPR-1110's explanation (a first-run cloud machine-learning verdict on a new, unsigned, reputation-less image), which dispositions do you authorize for the Bearfoos.A!ml finding? Tick every one you want; anything else goes in the note."
+      ],
+      "options": [
+        "Authenticode-sign the Windows images (OV/EV certificate or a managed signing service; release work under RFC-0038/BPR-0960, needs your certificate)",
+        "Lower the static signals: add a VERSIONINFO resource, keep a PDB reference in Release (/PDBALTPATH:%_PDB%), and move the 3.6 MB of compressed resource blobs out of the executable",
+        "Submit the quarantined sample to Microsoft as a false positive (an external disclosure of an unreleased binary; clears that hash only)",
+        "Build a fresh tests-disabled image and scan it on demand; if Defender does not detect it, run that exact digest for AC2/AC3",
+        "Defer the disposition to RFC-0038's release-security qualification (BPR-0960/BPR-0962) and keep BPR-0974 Blocked",
+        "Other: my answer is in the note"
+      ],
+      "content": "Your note last time: \"Explain why this is being triggered.\" BPR-1110 did, read-only, on the Windows station:\n1. Defender recognised nothing in the program. The image sat on disk about three minutes undetected. Within about three seconds of its first launch, Microsoft's cloud sent a new signature made for this one file (event 2010, dynamic signature compiled that second) and Defender quarantined both copies. !ml marks a machine-learning verdict; FastPath marks a cloud-delivered dynamic signature. It is a model classifying a never-seen file, not a match against known malware.\n2. Nothing the program does changed. An unflagged tests-disabled Release sibling (M9 67f5e514, same host, compiler, Qt and preset, 4.5 hours earlier) has the same 2,889 imports from 22 DLLs and the same resources; section sizes differ by 16 and 8 bytes; src/ differs by a 6-line shortcut change.\n3. Why a model might call it a trojan (inference): unsigned, no version information, no debug path, no reputation; 3.6 MB of near-random data (the compressed Qt resources, about 28% of the file); and an import list combining Credential Manager, token and ACL editing, a child process started suspended, and a network client. The product needs each; together they look like a credential stealer.\n4. The verdict is per file and probabilistic. A new build is a new unknown file. Only an Authenticode signature, with the reputation it builds, changes that reliably. The static-signal changes lower the risk without removing it.\n\nUntil you choose, nothing is restored, excluded, rebuilt around, executed or disclosed. BPR-0653's Windows capture needs the same kind of tests-disabled image, so its capture build waits on this answer. BPR-1110 also lists linking as a GUI-subsystem program (WIN32_EXECUTABLE), a weak signal that changes console behaviour; name it in the note if you want it.",
+      "launch": {
+        "label": "Open BPR-1110 (sections \"For the owner, in short\" and \"Options for the owner\")",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/issues/60-done/BPR-1110-windows-explain-why-defender-classifies-the-tests-disabled-release-image-as-bearfoos.md"
+      },
+      "copy": [
+        {
+          "label": "BPR-0974 card",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/docs/issues/50-blocked/BPR-0974-dispose-windows-defender-finding-and-complete-native-settings.md"
+        }
+      ],
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001",
+        "docs/issues/60-done/BPR-1110-windows-explain-why-defender-classifies-the-tests-disabled-release-image-as-bearfoos.md"
+      ],
+      "metadata": {
+        "card": "docs/issues/50-blocked/BPR-0974-dispose-windows-defender-finding-and-complete-native-settings.md",
+        "explanation_card": "docs/issues/60-done/BPR-1110-windows-explain-why-defender-classifies-the-tests-disabled-release-image-as-bearfoos.md",
+        "previous_ask": "session cbd48b91, candidate BPR-0974-defender-disposition-v001, decision 3482f766 reject with note 'Explain why this is being triggered.'",
+        "waits_on_this": "BPR-0653 Windows capture build",
+        "commits": [
+          "94a09016",
+          "657ca3bb",
+          "2d3bdbdf"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-1109-hook-owner-v001",
+      "title": "BPR-1109 (optional): the Alt-chord keyboard hook on JaegAW: known owner, find it, or ignore?",
+      "revision": "38507ec5 (finished 877e3d60)",
+      "criteria": [
+        "Optional. Something on JaegAW rewrites the Alt of an Alt chord typed fast. Do you know which program owns the hook, do you want the quit-one-at-a-time procedure to find it, or should it be ignored?"
+      ],
+      "options": [
+        "I know which program it is (named in the note)",
+        "Give me the quit-one-at-a-time procedure to find it",
+        "Ignore it",
+        "Other: my answer is in the note"
+      ],
+      "content": "Informational; skipping it is fine and leaves nothing blocked.\n\nWhat it is: a low-level keyboard hook intercepts an Alt press that another key follows at once and replaces the Alt with key code 0, so the application sees the key without Alt. It keys on timing: back-to-back Alt chords are rewritten; the same key 47-57 ms after the Alt passes. Human typing mostly will not notice; scripted input and fast chords do.\n\nCandidates (interactive-session processes running at both observations whose loaded code imports SetWindowsHookExW): msrdc (WSLg's Remote Desktop client), ChatGPT/Codex and its codex-computer-use runtime, the NVIDIA overlay, Everything, Slack, Discord, Chrome, Visual Studio (with Visual Assist), OneDrive, and the Windows shell (explorer, taskbar, text input host). Station automation, exited processes and the restarted Claude desktop are ruled out.\n\nThe procedure: you quit one candidate at a time, and the station reruns BPR-1022's one-minute check (a back-to-back Alt+Space) after each. The check is the station's; stopping applications is yours.",
+      "launch": {
+        "label": "Open BPR-1109 (section \"For the owner (AC3)\")",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md"
+      },
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001"
+      ],
+      "metadata": {
+        "card": "docs/issues/60-done/BPR-1109-windows-identify-the-low-level-keyboard-hook-that-rewrites-alt-chords-on-jaegaw.md",
+        "optional": true,
+        "commits": [
+          "38507ec5",
+          "877e3d60"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-0986-current-line-band-v001",
+      "title": "BPR-0986: the reader's line a shade apart under the selection wash",
+      "revision": "9ee4ee50 (band from 55e9405f; white space None from eb9a94a9), scratch capture build e2f6e61b",
+      "criteria": [
+        "Do you accept the reader's line a shade apart under the selection wash as the review window's look?"
+      ],
+      "content": "Asked alone: last time one question carried both the tab markers and this band, and your answer was about white space (now BPR-1107). White space drawing is set to None in all four captures, so the band is the only difference between before and after.\n\nIn the review panes the reader's line is always also selected, so it sits under the selection wash. When that line is unchanged, it now wears the current-line colour beneath the wash. Here the reader is on right line 4, \"if (one) {\". Pixels at the middle of the row: light (219, 233, 249) before, (210, 227, 247) after; dark (20, 35, 57) before, (27, 43, 66) after. Its washed counterpart on the left, and every other line, are unchanged (the pixel difference is confined to right line 4). A changed reading line keeps its change band instead.\n\nCaptures: the diff workbench, offscreen, macOS 26.6.2 arm64, Qt 6.11.2, Debug, from source 9ee4ee50 plus a scratch capture harness. \"Before\" is the same binary with the band's paint calls switched off by a scratch switch; the harness and switch are in scratch-capture-9ee4ee50.diff beside the captures.",
+      "media": [
+        {
+          "kind": "image",
+          "path": "docs/verification/reviews/owner-decisions-20260924-scoped-v001/BPR-0986-current-line-band/panes-light-before.png",
+          "label": "Light, before: right line 4 washed exactly like left line 4",
+          "sha256": "dd9c2cd2be0c3f252eaf32cccd31ec8920a7cc4e04c09dfcfd85f6ae0afef775"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/reviews/owner-decisions-20260924-scoped-v001/BPR-0986-current-line-band/panes-light-after.png",
+          "label": "Light, after: right line 4 a shade apart under the wash",
+          "sha256": "ade8a31faf365b0481b65cddabf95d0fc8f8f09ba18a74ab8c62fb92b6e3a572"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/reviews/owner-decisions-20260924-scoped-v001/BPR-0986-current-line-band/panes-dark-before.png",
+          "label": "Dark, before",
+          "sha256": "f55915a23268accfd4cd9c718d6bbfc104db41d813327f73e061d8d7fa87e0fa"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/reviews/owner-decisions-20260924-scoped-v001/BPR-0986-current-line-band/panes-dark-after.png",
+          "label": "Dark, after",
+          "sha256": "ecba16685ed1d217348694259ab1ab75fa475a9e955ee8ee8004ba6900f0423a"
+        }
+      ],
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-0986-paint-the-hunk-header-and-current-line-roles-in-the-review-panes.md",
+        "card_section": "Owner ask — parked on human-review (one question, the current-line band)",
+        "previous_ask": "session cbd48b91, candidate BPR-0986-rendered-panes-v001, decision 6b7243c3 reject (answered the white-space half only)",
+        "source": "9ee4ee503438de56ef1f804136d98f4e90940872",
+        "capture_binary_sha256": "e2f6e61ba7fb0d2202bc05f3e5bc415fa2a322bd3c7f341ea355c14526ff3168",
+        "commits": [
+          "55e9405f",
+          "eb9a94a9",
+          "9ee4ee50"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-0644-account-mismatch-erasure-v001",
+      "title": "BPR-0644: remembered sign-in material that signs in as a different account",
+      "revision": "1347f776 (parked cfff152c)",
+      "criteria": [
+        "When the material in a remembered sign-in turns out to sign in as a different GitHub account than the one remembered, should BetterPullReview (a) keep erasing it at once, as the one automatic removal, or (b) keep it until you sign out, like every other failure?"
+      ],
+      "options": [
+        "(a) Keep erasing it at once: the one automatic removal",
+        "(b) Keep it until I sign out, like every other failure",
+        "Other: my answer is in the note"
+      ],
+      "content": "Your rule from last time: a remembered grant is removed only when you remove it in Settings. It is built (1347f776): a locked or denied Keychain, a network failure, an expired access token, and a refused, spent or expired refresh token all keep the grant; the card says it needs signing in again and offers Begin and Sign out. No security reason to erase dead refresh material was found.\n\nOne case still erases on its own: material that signs in as an account the binding never named. Two paths reach it: a launch renewal whose rotated grant's /user answers another account, and a restored access slot whose /user answers another account. The session is refused in both, as before, and both slots are erased. The reason: otherwise the slot keeps a live credential for someone else under a key that names your own account. Nothing would use it, but it would stay on the machine.",
+      "launch": {
+        "label": "Open the card (section \"The one automatic erasure left, and why\")",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md"
+      },
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md",
+        "previous_ask": "session cbd48b91, candidate BPR-0644-grant-policy-v001, decision 3c46d164 (keep the material)",
+        "commits": [
+          "1347f776",
+          "cfff152c"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-0803-code-beside-cli-choice-v001",
+      "title": "BPR-0803: the GitHub CLI choice beside the device code",
+      "revision": "9577a516 (parked 4c57565f)",
+      "criteria": [
+        "Is this where you want to find the GitHub CLI choice while a device code is on screen?"
+      ],
+      "content": "Built from your answer last time (keep the code on screen beside the CLI choice until you end one of them). While a device sign-in shows its code, pressing Use GitHub CLI keeps the code, the address and Open browser on GitHub.com's card. The account GitHub CLI found appears as a button on the same card, above the code (first capture, two accounts found). Whichever you finish first ends the other: the GitHub CLI sign-in cancels the waiting code, and finishing in the browser closes sign-in. With one account found, choosing GitHub CLI connects it at once and the read opt-in is the choice, with the code still behind it (second capture).\n\nCaptures: the composed application, offscreen, recorded GitHub.com fixture (BPR_DEVICE_CLI_CHOICE_CAPTURE_DIR), at 9577a516.",
+      "media": [
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0803-code-beside-cli-choice/code-beside-cli-choice.png",
+          "label": "Two accounts: the GitHub CLI offer beside the running code",
+          "sha256": "5a9b4bd562faf9dc85d23f438473910468032eea96535aff2e34bb172f90ad66"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-0803-code-beside-cli-choice/code-behind-read-opt-in-at-once.png",
+          "label": "One account: the read opt-in, with the code behind it",
+          "sha256": "e70e731c5bf363b014ffc84c47499d418952cd48ef491bad3ad117da3d237366"
+        }
+      ],
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001",
+        "docs/verification/BPR-0803-code-beside-cli-choice"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-0803-the-github-cli-way-in-is-unreachable-from-inside-the-device-sign-in.md",
+        "previous_ask": "session cbd48b91, candidate BPR-0803-cli-during-device-flow-v001, decision dbae079d (keep the code on screen)",
+        "commits": [
+          "9577a516",
+          "4c57565f"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-1107-white-space-drawing-v001",
+      "title": "BPR-1107 (1 of 2): how the review window draws white space",
+      "revision": "eb9a94a9",
+      "criteria": [
+        "Do you accept a dot per space and a line to the tab stop per tab, faint, in the line-number colour, as how the review window draws white space?"
+      ],
+      "content": "Built from your note last time (follow the Sublime Text model with dots and lines). A space is a small dot at the middle of its cell. A tab is a thin line from where it starts to its tab stop, so a tab that begins partway to a stop is shorter. Both use the line-number colour at the old markers' faint alpha; no new colour role. The review panes, the Appearance preview and the theme tiles all draw through one painter.\n\nThe captures show your Sublime Text reference, then the panes with the choice All (every white space drawn) in the four themes. Section 1 of the design page shows the same, larger. When white space is drawn is the next, separate item.",
+      "media": [
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/owner-sublime-reference-2026-09-24.png",
+          "label": "Your Sublime Text reference",
+          "sha256": "3bda7ff57c9780dcc1e6bfeed763c82523eb198ae8e03d09a19edfc0c5acf1ab"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/panes-light-all.png",
+          "label": "Light, All",
+          "sha256": "5fea509d4e673a5db58a53ee22337f22b77fb196278253fa3ef7bd5e3f425813"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/panes-dark-all.png",
+          "label": "Dark, All",
+          "sha256": "a3714523af98f846c5d15db3ffab19b83c02e8bdd5604910bd3c33c550c9ad02"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/panes-high_contrast_light-all.png",
+          "label": "High contrast light, All",
+          "sha256": "e594fe1c0691f0c71d542b355491d5ab049675228de227eeca81a88a431b1a04"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/panes-high_contrast_dark-all.png",
+          "label": "High contrast dark, All",
+          "sha256": "2261a3bf4b1be98bdfcfb91d52ab37f5b30477bee2f099fc38cbc905423cff4d"
+        }
+      ],
+      "launch": {
+        "label": "Open the design page",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1107-white-space-v1.html"
+      },
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001",
+        "docs/verification/BPR-1107-white-space-drawing",
+        "docs/design/BPR-1107-white-space-v1.html"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md",
+        "card_section": "Owner asks — parked on human-review (AC4, two questions), question 1",
+        "commits": [
+          "eb9a94a9"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-1107-white-space-choices-v001",
+      "title": "BPR-1107 (2 of 2): the White space setting's six choices and its default",
+      "revision": "eb9a94a9",
+      "criteria": [
+        "Do you accept the White space row's six choices (None, Under the selection, Leading, Trailing, Leading and trailing, All) with Under the selection as the default?"
+      ],
+      "options": [
+        "Accept the six choices, default Under the selection (proposed; Sublime's own default)",
+        "Accept the six choices, default Trailing instead",
+        "Other: my answer is in the note"
+      ],
+      "content": "One row on the Appearance page's Type card, White space, directly beneath Tab width. It chooses when white space is drawn:\nNone: nothing.\nUnder the selection (proposed default; Sublime's [\"selection\"]): every white space character on a selected line.\nLeading: indentation.\nTrailing: from the last other character to the end of the line.\nLeading and trailing: both, so also a line of white space alone (Sublime's \"isolated\").\nAll: everything, enclosed white space too.\n\nLeft out, and why: combining choices (one at a time keeps the row one line); enclosed and isolated alone (All and Leading and trailing cover them); the _tabs, _spaces and _none refinements (they would triple the list); the _mixed refinements (the review window has no indentation style); indentation guides (a separate setting, not white space). The setting persists per profile (appearance store version 8). Section 2 of the design page shows each choice in Light and Dark.",
+      "media": [
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/type-card-light.png",
+          "label": "The Type card, Light: White space beneath Tab width",
+          "sha256": "06f0639283fd7f8f19002e9dc8fe0729489eb4dec021d5df2fa17f8b5921b830"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/type-card-dark.png",
+          "label": "The Type card, Dark",
+          "sha256": "8ed6e2d87360e9c59964e3dae9017e184d17b8ac9ee8af9d1ec5d719af2b16c3"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/panes-light-selection.png",
+          "label": "Under the selection (the reader on the first line), Light",
+          "sha256": "429bd249573464878c02821c3d28ddd3213596843058b7c663d80ee5a6d5d745"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1107-white-space-drawing/panes-light-trailing.png",
+          "label": "Trailing, Light",
+          "sha256": "696b44ae27ac102cdc1e90ddfebd98ffe6e5dbcba84558cab64795e3fb036cad"
+        }
+      ],
+      "launch": {
+        "label": "Open the design page (section 2)",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1107-white-space-v1.html"
+      },
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001",
+        "docs/verification/BPR-1107-white-space-drawing",
+        "docs/design/BPR-1107-white-space-v1.html"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-1107-draw-white-space-the-sublime-text-way-with-a-setting-for-when.md",
+        "card_section": "Owner asks — parked on human-review (AC4, two questions), question 2",
+        "commits": [
+          "eb9a94a9"
+        ]
+      },
+      "resources": []
+    },
+    {
+      "id": "BPR-1106-placement-v001",
+      "title": "BPR-1106: where Compose review and Draft comment or reply go",
+      "revision": "4e9037e6 (parked a7dd1cd2)",
+      "criteria": [
+        "Where do Compose review and Draft comment or reply go? A, keep the row as it is; B, the strip's review menu; C, the right end of the Updates line (the loading line moves into it too); D, the foot of the conversation drawer; or E, a Compose control in the strip. Proposed: C."
+      ],
+      "options": [
+        "A. Keep the row as it is (baseline)",
+        "B. The strip's review menu",
+        "C. The right end of the Updates line; the loading line moves into it too (proposed)",
+        "D. The foot of the conversation drawer",
+        "E. A Compose control in the strip",
+        "Other: my answer is in the note"
+      ],
+      "content": "Your note last time asked for a UX design round on where these entries go. The design page holds the five placements at a glance and close up, their costs to scale, and 50 frames.\n\nWhat each costs:\nA: 22 px of comparison height on macOS, 20 on Windows and Linux, every mode; 1 click each.\nB: no height, no strip width; 2 clicks each; Alt+Shift+4 then C or D; both entries hidden in a menu.\nC: no height, no strip width; 1 click each; takes 303 px of the Updates line's track (1000 becomes 697 at 1280); the readiness wording and bar take the track's place while loading, so no row comes or goes.\nD: no height (the drawer's thread column gives 36); 1 click, or 2 with the drawer hidden.\nE: +59 px of Windows strip width at its 902 floor (floor to 961 or a new yield); 1 click to compose, 2 to draft.\n\nProposed: C (the comparison gets its pixels back, nothing is added to the Windows strip, each entry keeps one click and a visible label, and the readiness line gets a home that does not move the window when loading ends). Runner-up D. B is cheapest to build but hides both entries. E spends width the Windows strip does not have.\n\nIf you pick B, C, D or E, RFC-BPR-0028 AC-01 and its chrome paragraph are amended again and the implementation is carded (with BPR-1036's floor and BPR-0940's window assertion). The close-ups below are macOS dark at 1280; the page has every placement at both sizes, light and dark, macOS and Windows.",
+      "media": [
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1106-composition-entries/closeup-A-mac-dark.png",
+          "label": "A: the row as built (baseline)",
+          "sha256": "711728b66aab1dfab8743e2691d670df47085e78081993a89087146fbca89e1a"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1106-composition-entries/closeup-B-mac-dark.png",
+          "label": "B: the strip's review menu, open",
+          "sha256": "b2d0d4a98cb21012a1a2c0c2684e71267457b6541f92ad155440b6ff8e56d19c"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1106-composition-entries/closeup-C-mac-dark.png",
+          "label": "C: the Updates line's right end (proposed)",
+          "sha256": "25e2d492b0fe924814d466ebb7a216eface7be931f2a3bdc6f31e4e557176da7"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1106-composition-entries/closeup-C-mac-dark-loading.png",
+          "label": "C while a pull request loads: the readiness line in the track",
+          "sha256": "4b3a742712eefe44e1f9c560a7ff65e02613fbd73f3b038d22a5529a2ddb8dc0"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1106-composition-entries/closeup-D-mac-dark.png",
+          "label": "D: the conversation drawer's foot",
+          "sha256": "b0a3b196de662a044960d50d7ebb4e5093a113c82e0ebbe325baa7189186615a"
+        },
+        {
+          "kind": "image",
+          "path": "docs/verification/BPR-1106-composition-entries/closeup-E-mac-dark.png",
+          "label": "E: a Compose control in the strip",
+          "sha256": "d382daaf9cb3008d79bd300f876614be1961ca821a4631b8c7c98fd6612f64e7"
+        }
+      ],
+      "launch": {
+        "label": "Open the design page",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1106-composition-entries-v1.html"
+      },
+      "copy": [
+        {
+          "label": "Frames page",
+          "value": "/Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1106-composition-entries-frames-v1.html"
+        }
+      ],
+      "paths": [
+        "docs/verification/reviews/owner-decisions-20260924-scoped-v001",
+        "docs/verification/BPR-1106-composition-entries",
+        "docs/design/BPR-1106-composition-entries-v1.html",
+        "docs/design/BPR-1106-composition-entries-frames-v1.html"
+      ],
+      "metadata": {
+        "card": "docs/issues/40-parked/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md",
+        "card_section": "Proposal and the prepared ask",
+        "previous_ask": "session cbd48b91, candidate BPR-0653-entry-row-v001, decision 007a6eb5 (amend AC-01 for now; open a UX design follow-up)",
+        "commits": [
+          "4e9037e6",
+          "a7dd1cd2"
+        ]
+      },
+      "resources": []
+    }
+  ]
+}

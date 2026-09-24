@@ -1,0 +1,97 @@
+--- a/tests/adapters_qt/diff_workbench_tests.cpp
++++ b/tests/adapters_qt/diff_workbench_tests.cpp
+@@ -3356,10 +3356,81 @@
+ 	}
+ } // namespace
+ 
++namespace {
++	/// Scratch capture for BPR-0986's attended candidate (not committed). The
++	/// BPR-0986 rendering note's fixture: an eight-line C function indented with
++	/// tabs, one replaced line, the reader on right line 4 (`if (one) {`), which
++	/// is unchanged. White space drawing is None (BPR-1107), so the current-line
++	/// band is the only thing the before/after captures can differ by.
++	void bpr0986_current_line_capture(const QString& aDirectory, const QString& aVariant)
++	{
++		constexpr auto leftText  = "int main()\n{\n\tint one = 1;\n\tif (one) {\n\t\treturn one;\n\t}\n\treturn 0;\n}\n";
++		constexpr auto rightText = "int main()\n{\n\tint one = 1;\n\tif (one) {\n\t\treturn one + 1;\n\t}\n\treturn 0;\n}\n";
++		const auto     diff      = computed(leftText, rightText, { }, 86U);
++		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
++			auto workbench = qt::diff_workbench{ };
++			workbench.resize(1'000, 300);
++			workbench.show();
++			auto profile = qt::appearance_profile{ };
++			static_cast<void>(profile.select_mode(mode));
++			auto code       = profile.typography().Code;
++			code.WhiteSpace = core::white_space_drawing::none;
++			expect(profile.select_code_font(code).accepted(), "white space None is accepted");
++			const auto selected = context(diff, 986U, 986U);
++			workbench.set_loading(selected);
++			workbench.publish(qt::test::prepare_publication({
++				.Context = selected,
++				.Result  = std::make_shared<const core::computed_file_diff>(diff),
++			}));
++			settle_geometry(workbench);
++			profile.apply_to(workbench);
++			workbench.adopt_appearance(profile);
++			profile.apply_code_font_to(workbench);
++			expect(workbench.select_conversation_line(core::diff_side::right, 3U), "the reader goes to right line 4");
++			process_events();
++			const auto whiteBefore = workbench.statistics().WhiteSpacePainted;
++			const auto bandBefore  = workbench.statistics().CurrentLineBandsPainted;
++			workbench.left_pane()->viewport()->repaint();
++			workbench.right_pane()->viewport()->repaint();
++			process_events();
++			const auto whiteDrawn = workbench.statistics().WhiteSpacePainted - whiteBefore;
++			const auto bandsDrawn = workbench.statistics().CurrentLineBandsPainted - bandBefore;
++			expect(whiteDrawn == 0U, "white space None draws no white space");
++			const auto picture = workbench.grab();
++			const auto image   = picture.toImage();
++			const auto ratio   = image.devicePixelRatio();
++			const auto sample  = [&](QPlainTextEdit* aPane, const int aBlock) {
++				const auto rect  = aPane->cursorRect(QTextCursor{ aPane->document()->findBlockByNumber(aBlock) });
++				const auto point = aPane->viewport()->mapTo(&workbench, QPoint{ aPane->viewport()->width() - 40, rect.center().y() });
++				const auto color = image.pixelColor(qRound(point.x() * ratio), qRound(point.y() * ratio));
++				return QStringLiteral("(%1, %2, %3)").arg(color.red()).arg(color.green()).arg(color.blue());
++			};
++			const auto modeName = QString::fromUtf8(core::stable_name(mode).data(), static_cast<qsizetype>(core::stable_name(mode).size()));
++			std::cout << "bpr0986-capture variant=" << aVariant.toStdString() << " mode=" << modeName.toStdString()
++					  << " white_space_painted=" << whiteDrawn << " current_line_bands_painted=" << bandsDrawn
++					  << " right4=" << sample(workbench.right_pane(), 3).toStdString()
++					  << " left4=" << sample(workbench.left_pane(), 3).toStdString()
++					  << " right3=" << sample(workbench.right_pane(), 2).toStdString()
++					  << " size=" << image.width() << "x" << image.height() << " dpr=" << ratio << '\n';
++			const auto path = QStringLiteral("%1/panes-%2-%3.png").arg(aDirectory, modeName, aVariant);
++			expect(picture.save(path, "PNG"), "the capture is written");
++			workbench.hide();
++		}
++	}
++} // namespace
++
+ auto main(int argc, char** argv) -> int
+ {
+ 	QApplication application{ argc, argv };
+ 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
++	{
++		const auto directory = qEnvironmentVariable("BPR_CURRENT_LINE_CAPTURE_DIR");
++		if (!directory.isEmpty()) {
++			bpr0986_current_line_capture(directory, qEnvironmentVariable("BPR_CURRENT_LINE_CAPTURE_VARIANT"));
++			std::cout << "bpr0986-capture:done\n";
++			return 0;
++		}
++	}
+ 	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
+ 	test_one_pane_rows_anchors_and_link_map();
+ 	{
+--- a/src/adapters/qt/src/diff_workbench.cpp
++++ b/src/adapters/qt/src/diff_workbench.cpp
+@@ -2449,6 +2449,10 @@
+ 	auto diff_workbench::current_line(const core::diff_side aSide) const
+ 		-> std::optional<std::uint32_t>
+ 	{
++		// BPR-0986 scratch "before": the band's paint calls see no current line.
++		if (qEnvironmentVariableIsSet("BPR_SCRATCH_CURRENT_LINE_BAND_OFF")) {
++			return std::nullopt;
++		}
+ 		if (!CurrentResult || !Interaction.Selection.has_value()) {
+ 			return std::nullopt;
+ 		}
