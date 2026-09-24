@@ -253,3 +253,27 @@ reasons: `quill_logging` contained, for the containment pin, and release
 maintenance, for [[BPR-1038]]. The card stays in Ready for macOS. The logs
 are station records under `build/logs/bpr-0885-main-win/` and are not
 committed.
+
+## The macOS half (bpr-main-mac, Mac batch 5, 2026-09-23)
+
+Run on `073c7b09`, which contains `0e07334b`. Apple Silicon, AppleClang,
+Qt 6.11.2, `build/dev` Debug, reconfigured and rebuilt first (exit 0, no
+`error` or `warning:` line). The owed selector ran once, verbose:
+`ctest --preset dev --output-on-failure -V -R '^(quill_logging|application_logging|application_profile_management_public_path)$'`.
+
+| Row | Result |
+| --- | --- |
+| `application_logging` | Passed, 6.92 s |
+| `application_profile_management_public_path` | Passed, 3.85 s |
+| `quill_logging` | Passed, 0.33 s (`quill-logging-tests:pass`) |
+
+3/3, ctest exit 0. The one-minute load was 10.1 at the start.
+
+**The criterion held on macOS.** "existing symlinked ancestor resolves
+without creating shared directories" is an assertion in
+`tests/logging/quill_logging_tests.cpp`, inside the `#if !defined(_WIN32)`
+block just before the pass line. It prints only if it fails, so
+`quill-logging-tests:pass` means a logger rooted under a symlinked parent
+opened with `status::available` and `failure::none`. With the Windows
+record above, both platforms have run the owed selector. What remains on
+Windows is the containment pin, which is the card owner's decision.
