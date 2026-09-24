@@ -97,9 +97,10 @@ The comment above the case still describes the old order ("the thread is
 named to the composition first, so the draft that follows the selection
 answers it").
 
-**The probe.** A temporary, uncommitted edit at HEAD (`78c8ac85` plus
-`68787d73`, which does not touch this path) put the dispatch back before the
-selection and left everything else alone. The row passed in 2.70 s and
+**The probe.** A temporary, uncommitted edit at HEAD put the dispatch back
+before the selection and left everything else alone. HEAD here is
+`78c8ac85` plus [[BPR-0885]]'s logging change, which does not touch this
+path. The row passed in 2.70 s and
 printed `THREADED_REPLY_CONTRACT_OK`. With the file restored byte for byte,
 the same build failed again at 40.32 s with the phase-1 diagnostic.
 

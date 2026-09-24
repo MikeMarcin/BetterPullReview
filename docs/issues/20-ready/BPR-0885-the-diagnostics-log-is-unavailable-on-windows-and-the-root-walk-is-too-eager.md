@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
-metadata: {"found_by":"r5 whole-project critical review, Claude/fable logging partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","largely_fixed_by":"19a3dfd7","linux_done_at":"68787d73","remaining":"Windows and macOS runs of the logging selector at 68787d73 or later","related_cards":["BPR-0874","BPR-0891","BPR-1030"]}
+metadata: {"found_by":"r5 whole-project critical review, Claude/fable logging partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","largely_fixed_by":"19a3dfd7","linux_done_at":"0e07334b","remaining":"Windows and macOS runs of the logging selector at 0e07334b or later","related_cards":["BPR-0874","BPR-0891","BPR-1030"]}
 ---
 
 # BPR-0885: The diagnostics log is unconditionally unavailable on Windows, and its root walk creates shared ancestors
@@ -94,7 +94,7 @@ At `78c8ac85`, before any change here, `quill_logging` and
 `quill_logging_backpressure` pass on Linux. The strengthened test described
 below also passes against that unchanged adapter.
 
-**What was left, and the change (`68787d73`).**
+**What was left, and the change (`0e07334b`).**
 
 1. The POSIX `open_log` called the throwing `std::filesystem::canonical`
    between its `lstat` and its `open`. A root removed or renamed in that
@@ -146,7 +146,11 @@ The test's Windows branch was type-checked by copying the test with that
 of 'failure'". The adapter change outside the POSIX branch is the portable
 catch in `quill_log::implementation`.
 
-**Verification at `68787d73` (Linux).**
+**Verification (Linux).** The change was built and measured as the local
+commit `68787d73`, on `78c8ac85`. It reached main as `0e07334b`, rebased
+onto `dd4377bf`. The logging adapter, its test and the native storage header
+are byte-identical between the two. After the rebase, all six logging rows
+ran again, the last row in the table.
 
 | Check | Result |
 | --- | --- |
@@ -158,6 +162,7 @@ catch in `quill_log::implementation`.
 | `clang-format` 22 on both files; `git diff --check` | Clean |
 | `clang-tidy` 21 (`_coding-standard/scripts/tidy.py`) on both files | Passed |
 | `application_composition_contract` (builds the tests-disabled graph, which compiles `quill_log.cpp` in Release) | Passed, 460.40 s |
+| After the rebase, at `0e07334b`: the two `quill_logging` rows and the four composed rows | 6/6 passed |
 
 `src/adapters/logging` and `tests/logging` are not pinned composition code,
 so no pin moves.
@@ -182,7 +187,7 @@ so no pin moves.
 
 ## What Windows and macOS owe
 
-- **Windows (bpr-main-win).** Build `windows-dev` at `68787d73` or later,
+- **Windows (bpr-main-win).** Build `windows-dev` at `0e07334b` or later,
   then run:
 
       ctest --preset windows-dev --output-on-failure -R "^(quill_logging|quill_logging_backpressure|application_logging|application_profile_management_public_path|application_profile_multi_window_public_path|application_release_maintenance_public_path)$"
@@ -194,7 +199,7 @@ so no pin moves.
   before the logger runs, at "test owner creates private root before logger
   admission", that is a containment question like [[BPR-0874]]'s, not this
   card's. Measure it before pinning.
-- **macOS.** Build `dev` at `68787d73` or later, then run:
+- **macOS.** Build `dev` at `0e07334b` or later, then run:
 
       ctest --preset dev --output-on-failure -R '^(quill_logging|application_logging|application_profile_management_public_path)$'
 
