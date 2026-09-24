@@ -7,8 +7,8 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-metadata: {"found_by":"bpr-main-linux, BPR-0863's baseline run","found_at":"dec43dda","reproduced_at":["b93adf45","3dca2d7a","1dfe0600 (macOS)","4a4c1e40","c127cb38"],"last_green_linux":"271bb452 (BPR-0875's twelve-course run)","folded_from":["BPR-0864"],"related_cards":["BPR-0859","BPR-0863","BPR-0864","BPR-0990","BPR-1033","BPR-1037","BPR-0246","BPR-0653","BPR-0929","BPR-1021","BPR-1106"],"reservation":"docs/issues/_reservations/BPR-1036--BPR-1036--0e7760d6ea6e.json","candidate":"3d941d47","height_cause":"RFC-BPR-0037 composition entry row (cc038748, BPR-0929), 20 px between the strip and the epoch line; hidden, the comparison is 862/1000","owner_answer":"2026-09-24, attended session cbd48b91, BPR-0653-entry-row-v001 decision 007a6eb5: RFC-BPR-0028 AC-01 amended to admit the entry rows; the floor is taken from the measured stacks (Linux 842, macOS 835)"}
-acceptance: [{"criterion":"AC1 application_uiforetw_selected_diff_contract passes on Linux and macOS, with the strip row still asserted exactly, in order","outcome":"pending","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: the exact row holds refreshQueueAction at 23 and prints no UIFORETW_NAVIGATION_ROW_UNEXPECTED; the row still fails at UIFORETW_CAPTURE_LAYOUT_FAILED:987:842 on RFC-BPR-0037's composition entry row, which waits on the owner's answer to BPR-0653 ask 3. With only that row hidden (diagnostic build) the whole row passes, 862/1000 in all four profiles. macOS not run."}},{"criterion":"AC2 A too-short comparison fails with a line that names the widgets taking the height; the card records what took it and whether the floor or the product changed","outcome":"pending","revision":"3d941d47","evidence":{"kind":"observation","detail":"Linux: the candidate's own failure names composeReviewActionButton/composeInlineDraftActionButton@49+20 with the full stack, and break 101 names reviewReadiness@49+26. What took the height is recorded (cc038748's entry row, the only new row in 271bb452..dec43dda). Floor or product: pending the owner's AC-01 answer; the floor is unchanged at 850."}},{"criterion":"AC3 None of the probe's waits can reach RUN_BUDGET_EXPIRED before naming why; each new term fires with its own facts","outcome":"pass","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: thirteen diagnostic breaks, one per term, each failed by its own term (eleven at 5.0 s through the shared keep_waiting, the two walk terms at once), none with RUN_BUDGET_EXPIRED. HEAD's probe with the same gesture break expired the 40 s budget with only stage=2. Logs build/r2-logs/bpr1036-diag-break{1..13}.log, bpr1036-headcontrol-break2.log."}},{"criterion":"AC4 The round-trip contract passes with the resealed pins, and application_composition_contract passes","outcome":"pass","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: application_review_round_trip_composition_contract passes (1.68 s) with the pins resealed over 669a5a58..3d941d47 and failed on the drifted digest before; application_composition_contract passes (537.55 s). macOS round-trip run owed."}}]
+metadata: {"found_by":"bpr-main-linux, BPR-0863's baseline run","found_at":"dec43dda","reproduced_at":["b93adf45","3dca2d7a","1dfe0600 (macOS)","4a4c1e40","c127cb38"],"last_green_linux":"271bb452 (BPR-0875's twelve-course run)","folded_from":["BPR-0864"],"related_cards":["BPR-0859","BPR-0863","BPR-0864","BPR-0990","BPR-1033","BPR-1037","BPR-0246","BPR-0653","BPR-0929","BPR-1021","BPR-1106"],"reservation":"docs/issues/_reservations/BPR-1036--BPR-1036--0e7760d6ea6e.json","candidate":"d3b583d0","height_cause":"RFC-BPR-0037 composition entry row (cc038748, BPR-0929), 20 px between the strip and the epoch line; hidden, the comparison is 862/1000","owner_answer":"2026-09-24, attended session cbd48b91, BPR-0653-entry-row-v001 decision 007a6eb5: RFC-BPR-0028 AC-01 amended to admit the entry rows; the floor is taken from the measured stacks (Linux 842, macOS 835)","height_floor":{"linux":842,"mac":835,"win":850,"source":"measured stacks under RFC-BPR-0028 AC-01 as amended 2026-09-24; win unmeasured, unchanged"}}
+acceptance: [{"criterion":"AC1 application_uiforetw_selected_diff_contract passes on Linux and macOS, with the strip row still asserted exactly, in order","outcome":"pending","revision":"d3b583d0","evidence":{"kind":"command","detail":"Linux: ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' passes at d3b583d0 (15.16 s) and on this change before the rebases (15.05 s, 15.11 s) and after the first (15.27 s), all four profiles at 842/1000 with navigation_row_exact_order true and no UIFORETW_NAVIGATION_ROW_UNEXPECTED. macOS owed: bpr-main-mac runs the card's named command at d3b583d0 or later, expecting a pass at 835/1000."}},{"criterion":"AC2 A too-short comparison fails with a line that names the widgets taking the height; the card records what took it and whether the floor or the product changed","outcome":"pass","revision":"d3b583d0","evidence":{"kind":"observation","detail":"What took the height: RFC-BPR-0037's composition entry row (cc038748), the only new row in 271bb452..dec43dda. The floor changed, not the product, under the owner's RFC-BPR-0028 AC-01 amendment (decision 007a6eb5): 842 Linux, 835 macOS, 850 Windows unchanged and unmeasured. Deliberately broken runs on Linux: the capture's floor at 843 fails with UIFORETW_CAPTURE_LAYOUT_FAILED:987:842 naming the whole stack, composeReviewActionButton/composeInlineDraftActionButton@49+20 in it; the script's floor alone at 843 fails its own assertion; break 101 named reviewReadiness@49+26. Both 843 edits reverted byte for byte."}},{"criterion":"AC3 None of the probe's waits can reach RUN_BUDGET_EXPIRED before naming why; each new term fires with its own facts","outcome":"pass","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: thirteen diagnostic breaks, one per term, each failed by its own term (eleven at 5.0 s through the shared keep_waiting, the two walk terms at once), none with RUN_BUDGET_EXPIRED. HEAD's probe with the same gesture break expired the 40 s budget with only stage=2. Logs build/r2-logs/bpr1036-diag-break{1..13}.log, bpr1036-headcontrol-break2.log."}},{"criterion":"AC4 The round-trip contract passes with the resealed pins, and application_composition_contract passes","outcome":"pass","revision":"d3b583d0","evidence":{"kind":"command","detail":"Linux: application_review_round_trip_composition_contract failed on the drifted full digest before the reseal and passes resealed over e6134dbc..d3b583d0 (1.65 s rebased, 1.59 s at d3b583d0); application_composition_contract passes at d3b583d0 (442.53 s) and before the rebases (452.64 s). The macOS round-trip run is in AC1's owed command."}}]
 ---
 
 # BPR-1036: application_uiforetw_selected_diff_contract is red at HEAD: its exact strip row predates BPR-0990's refreshQueueAction, and the comparison is 842/1000 of the window height against an 850 floor
@@ -602,9 +602,12 @@ bpr-main-linux: WSL2 Ubuntu, GCC 15.2, Qt 6.11.2, `build/dev`, offscreen with
 the basic Windows style (`QT_STYLE_OVERRIDE=Windows`, the row's own
 environment). Every run used a fresh `HOME` and fresh XDG roots under `/tmp`,
 with `DISPLAY` and `WAYLAND_DISPLAY` unset. The work began on `a1c35078`,
-this card's claim. Before it was pushed it was rebased onto `e6134dbc`, which
-brought [[BPR-0897]]'s comment above `select_observed_review_mutation` into
-the same file and its own reseal of the same pins.
+this card's claim. Before it was pushed it was rebased twice. The first
+rebase, onto `ac1c37ad`, brought two changes. One is [[BPR-0897]]'s comment
+above `select_observed_review_mutation` (`d393bb5c`), in the same file, with
+its own reseal of the same pins. The other is [[BPR-0986]]'s Colours card
+change (`8f0ec40b`), which is in `src/adapters/qt`, outside the pinned scope.
+The second rebase, onto `7df4cb41`, brought only cards.
 
 ### The change
 
@@ -648,9 +651,9 @@ The only pinned file changed is `src/app/src/github_application.cpp`, which
 moves the full-application digest and the production manifest. The pins
 matched the tree at `e6134dbc`, after BPR-0897's reseal: that tree's file
 hashes to BPR-0897's full pin, `4cbedb68…`. So the reviewed range is
-`e6134dbc..` this commit, and this commit is the only change in it: `git diff
-e6134dbc -- src/app/` is the one hunk below. The two reseal notes sit side by
-side in the contract, BPR-0897's first.
+`e6134dbc..d3b583d0`, and `d3b583d0` is the only change to the pinned scope in
+it: `git diff e6134dbc d3b583d0 -- src/app/` is the one hunk below. The two
+reseal notes sit side by side in the contract, BPR-0897's first.
 
 There is one hunk, in the `BPR_BUILD_TESTING` fixture-access anonymous
 namespace. `uiforetw_capture_height_floor` goes from one constant to the
@@ -679,10 +682,12 @@ The build is `cmake --build --preset dev --target app_better_pull_review`
 (exit 0, no `warning:` or `error:` line). The logs are station records under
 `build/r2-logs/` on bpr-main-linux and are not committed.
 
-The first seven rows ran before the rebase, on `a1c35078` plus this change.
-The rebase added only BPR-0897's comment to the capture's file, outside the
-capture, so they stand. After the rebase the application was rebuilt and the
-four rows in the "rebased" line ran again.
+The first seven rows ran before the rebases, on `a1c35078` plus this change.
+The rebases added BPR-0897's comment to the capture's file, outside the
+capture, and BPR-0986's Colours card, which the capture does not reach, so
+those rows stand. After the first rebase the application was rebuilt, and the
+four rows in the "rebased" line ran again. `application_composition_contract`
+also ran again at `d3b583d0`.
 
 | Check | Result | Log |
 |---|---|---|
@@ -693,7 +698,8 @@ four rows in the "rebased" line ran again.
 | `application_review_round_trip_composition_contract` | Fails on the drifted full digest before the reseal (0.01 s); **passes** after it (1.63 s) | `bpr1036-floor-roundtrip-unsealed.log`, `bpr1036-floor-final-rows.log` |
 | `application_uiforetw_selected_diff_contract`, `application_workbench_composition_contract`, `application_github_public_path_uiforetw_74`, resealed | **Pass**: 15.11 s, 3.03 s, 1.21 s | `bpr1036-floor-final-rows.log` |
 | `application_composition_contract` (the tests-off Release graph and its forbidden bytes) | **Pass**, 452.64 s (its timeout is 600 s) | `bpr1036-floor-composition-contract.log` |
-| Rebased (`e6134dbc` plus this change), rebuilt and resealed: `application_uiforetw_selected_diff_contract`, `application_review_round_trip_composition_contract`, `application_workbench_composition_contract`, `application_github_public_path_uiforetw_74` | **Pass**: 15.27 s, 1.65 s, 3.05 s, 1.23 s. All four UIforETW profiles hold 842/1000 and the exact row. The capture file's SHA-256 is `fb638412…`, the new full pin | `bpr1036-floor-rebased-rows.log` |
+| Rebased (`ac1c37ad` plus this change, the same sources as `d3b583d0`), rebuilt and resealed: `application_uiforetw_selected_diff_contract`, `application_review_round_trip_composition_contract`, `application_workbench_composition_contract`, `application_github_public_path_uiforetw_74` | **Pass**: 15.27 s, 1.65 s, 3.05 s, 1.23 s. All four UIforETW profiles hold 842/1000 and the exact row. The capture file's SHA-256 is `fb638412…`, the new full pin | `bpr1036-floor-rebased-rows.log` |
+| `application_composition_contract` at `d3b583d0` | **Pass**, 442.53 s | `bpr1036-composition-contract-d3b583d0.log` |
 | `/usr/bin/clang-format` 22.1.8 `--dry-run --Werror` on the capture, `git diff --check` | Clean | — |
 | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | `bpr1036-floor-docgate-*.log` |
 
@@ -722,9 +728,19 @@ only a constant's value per platform. The last tidy of this file passed at
 The card stays **In Progress**. AC1 names macOS, so the Mac's run is part of
 acceptance, not a confirmation that can follow a finish.
 
+### On main
+
+The change, the reseal and this record are `d3b583d0` on `main`, pushed on
+top of `7df4cb41`. The capture file there hashes to the new full pin,
+`fb638412…`. At `d3b583d0` itself, `application_uiforetw_selected_diff_contract`
+passes in 15.16 s at 842/1000 in all four profiles, and
+`application_review_round_trip_composition_contract` passes in 1.59 s. This is
+[[BPR-1033]]'s AC3 Linux run, recorded there
+(`build/r2-logs/bpr1033-ac3-linux-d3b583d0.log`).
+
 ### Evidence still owed
 
-1. **macOS (bpr-main-mac), at this card's commit or later.** First
+1. **macOS (bpr-main-mac), at `d3b583d0` or later.** First
    `cmake --build --preset dev --target app_better_pull_review`, then:
 
    ```sh
