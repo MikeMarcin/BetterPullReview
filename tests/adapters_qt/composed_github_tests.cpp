@@ -6786,6 +6786,113 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-0803]]. Choosing GitHub CLI while a device flow awaits its
+	/// code keeps the code beside the CLI choice until the reviewer ends one.
+	///
+	/// \details The owner's decision of 2026-09-24 (`dbae079d`). Both endings
+	/// run: the CLI way in finishing first, which ends the device flow through
+	/// its own Cancel, and the device authorization finishing first, which
+	/// closes sign-in and so withdraws the CLI choice. Each says which account
+	/// the host ends signed in to, and neither leaves a flow running.
+	auto test_the_code_stays_beside_the_github_cli_choice() -> void
+	{
+		enum class ending { cli_first,
+							device_first };
+		for (const auto end : { ending::cli_first, ending::device_first }) {
+			auto                 intents = std::vector<application::github_intent>{ };
+			qt::workbench_window window{
+				qt::workbench_intent_dispatch{ },
+				qt::workbench_change_dispatch{ },
+				qt::workbench_drawer_width_dispatch{ },
+				device_profiles(),
+				[&intents](application::github_intent aIntent) {
+					intents.push_back(std::move(aIntent));
+				},
+			};
+			auto gestures = std::vector<application::device_authorization_gesture>{ };
+			window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
+				gestures.push_back(std::move(aGesture));
+			});
+			auto discoveries = std::size_t{ 0U };
+			window.set_github_cli_discovery_dispatch([&discoveries] { ++discoveries; });
+			auto cancels = std::size_t{ 0U };
+			window.set_sign_in_cancel_dispatch([&cancels] { ++cancels; });
+			window.resize(1'280, 820);
+			window.show();
+			window.open_settings(qt::settings_page::accounts_and_hosts);
+			QApplication::processEvents();
+			auto* const card  = window.server_card_for(core::host_profile_id{ 31U });
+			auto* const panel = window.device_authorization();
+			card->sign_in_button()->click();
+			QApplication::processEvents();
+			panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
+			QApplication::processEvents();
+			auto* const dialog = window.sign_in_dialog();
+			expect(dialog != nullptr && dialog->isVisible() && card->isVisibleTo(dialog) && panel->user_code_field()->isVisible()
+					   && gestures.size() == 1U && std::holds_alternative<core::begin_device_authorization_intent>(gestures.front()),
+				   "the card's Sign in begins one device flow, whose code is shown in the shared sign-in dialog");
+
+			window.use_github_cli_button()->click();
+			QApplication::processEvents();
+			const auto codeInView = [&] {
+				return card->isVisibleTo(dialog) && panel->isVisibleTo(dialog) && panel->user_code_field()->isVisible()
+					&& panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT") && panel->address_field()->isVisible();
+			};
+			expect(discoveries == 1U && dialog->isVisible() && codeInView(),
+				   "Use GitHub CLI during the flow runs one discovery and keeps the GitHub.com card, its code and its address in view");
+
+			// The discovery inventory finds a GitHub CLI account on github.com.
+			window.add_setup_profile({
+				.Profile   = core::host_profile_id{ 32U },
+				.Label     = "GitHub.com — GitHub CLI (octo-cli, active in gh)",
+				.Hostname  = "github.com",
+				.Product   = application::github_profile_product::github_com,
+				.Transport = application::github_profile_transport::github_cli,
+			});
+			window.present_cli_account_choices({ core::host_profile_id{ 32U } });
+			window.present_github_cli_discovery(qt::github_cli_discovery_state::ready, 1U);
+			QApplication::processEvents();
+			expect(codeInView() && card->cli_offer_button() != nullptr && card->cli_offer_button()->isVisibleTo(dialog)
+					   && card->cli_offer_button()->text().contains(QStringLiteral("octo-cli")),
+				   "the GitHub CLI choice stands beside the running code, on the same card");
+			expect(gestures.size() == 1U && intents.empty(), "choosing GitHub CLI ends nothing by itself");
+
+			if (end == ending::cli_first) {
+				card->cli_offer_button()->click();
+				QApplication::processEvents();
+				const auto* const activation = intents.size() == 1U ? std::get_if<core::activate_host_profile_intent>(&intents.front()) : nullptr;
+				expect(activation != nullptr && activation->Profile == core::host_profile_id{ 32U }
+						   && activation->Mode == core::github_access_mode::authenticated && gestures.size() == 1U && codeInView(),
+					   "the GitHub CLI choice activates exactly the discovered GitHub CLI profile, and the code stays until that way in finishes");
+				publish_session_ready(window, core::host_profile_id{ 32U });
+				QApplication::processEvents();
+				expect(gestures.size() == 2U && std::holds_alternative<core::cancel_device_authorization_intent>(gestures.back()),
+					   "once the GitHub CLI way in has signed in, the device flow is ended through its own Cancel, once");
+				panel->apply(device_presentation(core::device_authorization_stage::cancelled));
+				QApplication::processEvents();
+				expect(!dialog->isVisible() && cancels == 0U && !panel->signing_in(),
+					   "sign-in closes as finished, not cancelled, and no device flow is left running");
+				expect(card->signed_in() && card->profile() == core::host_profile_id{ 32U }
+						   && card->login_label()->text() == QStringLiteral("octo-reviewer"),
+					   "and GitHub.com ends signed in through its GitHub CLI profile, naming the account");
+			} else {
+				panel->apply(device_presentation(core::device_authorization_stage::authorized));
+				publish_session_ready(window, core::host_profile_id{ 31U });
+				QApplication::processEvents();
+				expect(gestures.size() == 1U && intents.empty() && cancels == 0U,
+					   "the device authorization finishing first cancels nothing and activates no GitHub CLI profile");
+				expect(!dialog->isVisible() && !panel->signing_in(),
+					   "sign-in closes, which withdraws the GitHub CLI choice, and no flow is left running");
+				expect(card->signed_in() && card->profile() == core::host_profile_id{ 31U }
+						   && card->login_label()->text() == QStringLiteral("octo-reviewer"),
+					   "and GitHub.com ends signed in through its native HTTPS profile, naming the account");
+			}
+			window.set_device_authorization_dispatch({ });
+			window.settings()->hide();
+			window.hide();
+		}
+	}
+
 	/// \brief [[BPR-0773]] acceptance 2, RFC-BPR-0032 A2. Cancelled, expired and
 	/// denied flows stay in the card's account row with their sentence and one
 	/// Sign in again. An unavailable device flow adds Sign in with a token,
@@ -7310,6 +7417,7 @@ auto main(int argc, char** argv) -> int
 	test_one_card_per_server_holds_its_ways_in();
 	test_accounts_page_says_each_fact_once();
 	test_one_sign_in_gesture_shows_the_code_in_the_card();
+	test_the_code_stays_beside_the_github_cli_choice();
 	test_terminal_and_token_rows_stay_in_the_card();
 	test_the_account_action_presses_the_chosen_cards_sign_in();
 	test_a_finished_sign_in_is_said_only_on_its_host();

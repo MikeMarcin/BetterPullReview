@@ -2580,6 +2580,17 @@ bpr_add_network_isolated_test(NAME application_device_binding_relaunch WINDOWS_U
     --application $<TARGET_FILE:test_device_binding_relaunch>)
 set_tests_properties(application_device_binding_relaunch PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "DEVICE_BINDING_RELAUNCH_OK")
 
+# [[BPR-0803]]. Choosing GitHub CLI while a device sign-in waits keeps the code
+# beside the GitHub CLI choice; each of the two endings runs to a session and
+# leaves no flow behind.
+bpr_add_executable(test_device_flow_cli_choice device_flow_cli_choice_tests.cpp)
+target_link_libraries(test_device_flow_cli_choice PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_device_flow_cli_choice PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_device_flow_cli_choice)
+bpr_enable_warnings(test_device_flow_cli_choice)
+bpr_add_network_isolated_test(NAME application_device_flow_cli_choice WINDOWS_UNCONTAINED COMMAND test_device_flow_cli_choice)
+set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
+
 # The same native sink and canary course now run on Windows; no platform privacy waiver.
 bpr_add_executable(test_application_logging application_logging_tests.cpp)
 target_link_libraries(test_application_logging PRIVATE BetterPullReview::Composition)

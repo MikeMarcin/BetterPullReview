@@ -15,6 +15,7 @@
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <compare>
 #include <cstddef>
@@ -186,6 +187,11 @@ namespace bpr::app::detail {
 		/// [[BPR-0644]]. The token endpoint cannot be reached: every renewal
 		/// attempt answers a network failure, as an offline launch does.
 		bool OfflineDeviceRefresh = false;
+		/// [[BPR-0803]]. While this holds true, the device flow's poll answers
+		/// `authorization_pending`, as GitHub does until the reviewer finishes
+		/// in the browser; the course sets it false to finish. Absent, the first
+		/// poll is authorized, as before.
+		std::shared_ptr<std::atomic_bool> DeviceAuthorizationPending;
 		/// [[BPR-0657]]. Lets a course refresh the pull request: the recorded
 		/// read script is replayed for each session the product establishes,
 		/// with the fixture's replies and resolutions overlaid.

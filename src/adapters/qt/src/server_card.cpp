@@ -772,7 +772,12 @@ namespace bpr::qt {
 		ConnectButton->setAccessibleDescription(shown.ConnectDescription);
 		ConnectButton->setToolTip(shown.ConnectDescription);
 		if (CliOfferButton != nullptr) {
-			const auto offered = (!SetupMode || CliSetupOnly) && !flowRow && !cliPresented && !waiting && shown.ConnectAdmitted;
+			// [[BPR-0803]]. Where sign-in asked for GitHub CLI and this host has
+			// a discovered account, the offer stands beside a running device
+			// flow's code rather than giving way to it: the reviewer ends one
+			// or the other.
+			const auto offered = (!SetupMode || CliSetupOnly) && !cliPresented && shown.ConnectAdmitted
+				&& (flowRow ? CliSetupOnly : !waiting);
 			CliOfferButton->setVisible(offered);
 			CliTrustWarning->setVisible(!SetupMode && !flowRow && (offered || cliPresented));
 		}

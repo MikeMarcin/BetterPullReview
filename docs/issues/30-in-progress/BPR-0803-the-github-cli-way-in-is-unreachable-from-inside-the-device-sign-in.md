@@ -212,3 +212,117 @@ the bullets that assumed the offer was hidden during the flow:
   criterion alone.
 
 Platform: macOS, where the GitHub CLI way in is composed.
+
+## Built, 2026-09-24 (Mac batch 7): the code stays beside the GitHub CLI choice
+
+**What changes** (`src/adapters/qt`, presentation only; which ways in exist
+is still the account contract's answer):
+
+- **The card holding a running device flow stays in view.** In
+  `workbench_window::update_sign_in_surface`, choosing GitHub CLI (Use GitHub
+  CLI, or a card's GitHub CLI offer) used to switch the shared sign-in dialog
+  to CLI-only. That hid every card without a discovered GitHub CLI account,
+  including the GitHub.com card with the live code. Now the card that holds
+  the device sign-in while it is signing in stays visible. It shows its code,
+  its address and Open browser. It enters the CLI presentation only if the
+  inventory found an account on its host.
+- **The GitHub CLI choice stands beside the code.** In
+  `server_card::apply_account_row`, the GitHub CLI offer used to give way to a
+  running flow's row. Where sign-in asked for GitHub CLI and the host has a
+  discovered account, it now stays on the same card beside the code, so the
+  reviewer ends one or the other.
+- **Whichever ends first ends the other, visibly.**
+  - The GitHub CLI way in finishing first: `workbench_window::publish`
+    presses the flow's own Cancel when an accepted account session arrives
+    while a device flow is still asking for its code. The core decides
+    whether that cancel is legal. The flow's own session arrives only after
+    it has authorized, so it is never cancelled by this.
+  - The device authorization finishing first: the existing rule closes
+    sign-in when the session is accepted, which withdraws the CLI choice.
+  - Cancelling: the dialog's Cancel ends both, as before.
+- **The consent gates stay.** Use GitHub CLI still runs [[BPR-0909]]'s
+  discovery inventory first. Choosing an account, or a single account
+  connecting at once, still crosses the RFC-BPR-0015 read opt-in before any
+  `gh` read. [[BPR-1023]]'s admission check still stands in front of every
+  Connect, the GitHub CLI offer included.
+
+**Courses.**
+
+- `qt_composed_github_scale_100/125/200`, new
+  `test_the_code_stays_beside_the_github_cli_choice`, in two runs:
+  - *CLI first:* Sign in begins one flow whose code is in the dialog. Use
+    GitHub CLI runs one discovery and keeps the card, code and address in
+    view. The discovered account's offer then stands on the same card.
+    Choosing it activates exactly profile 32 while the code stays. The GitHub
+    CLI session arriving cancels the flow once; sign-in closes as finished
+    (no reviewer cancel); GitHub.com ends signed in on profile 32 as
+    `octo-reviewer`.
+  - *Device first:* the flow authorizing and its session arriving cancel
+    nothing and activate nothing; sign-in closes; GitHub.com ends signed in
+    on profile 31.
+- New `application_device_flow_cli_choice`: the real composition over the
+  recorded GitHub.com fixture, whose device poll now answers
+  `authorization_pending` until the course lets the browser finish (fixture
+  option `DeviceAuthorizationPending`). Three runs:
+  1. *One discovered account:* Use GitHub CLI connects it at once. The read
+     opt-in is asked once, with the code still in view behind it. GitHub.com
+     ends signed in on the GitHub CLI profile (2) as `octo-reviewer`. The
+     device flow is ended. Letting the browser finish 7 s later enrolls
+     nothing (no vault store) and the CLI session stays.
+  2. *Two discovered accounts, CLI chosen:* the offer is beside the code, and
+     choosing it reads nothing and signs nothing in by itself. Taking it asks
+     the opt-in once, with the code behind it, and ends as run 1.
+  3. *Two discovered accounts, browser first:* the device flow authorizes
+     while the choice is on screen. GitHub.com ends signed in on its native
+     profile (1), sign-in closes, no read opt-in is asked, and exactly one
+     device grant is stored.
+- **Negative controls.** Each change undone alone fails its row, and each
+  passes restored:
+
+  | Change undone | Row that fails | Assertion |
+  |---|---|---|
+  | The card with the flow kept visible | Qt row | "Use GitHub CLI during the flow … keeps the GitHub.com card, its code and its address in view" |
+  | The offer beside the flow | Qt row | "the GitHub CLI choice stands beside the running code, on the same card" |
+  | The cancel on another session | Qt row | "once the GitHub CLI way in has signed in, the device flow is ended through its own Cancel, once" |
+  | The cancel on another session | Composed course | "the device flow still waiting beside it is ended" |
+
+  The first change is not separable in the composed course: the fixture's
+  inventory always finds github.com, and the card stays for that reason.
+- **The signed-out offer is unchanged.** `qt_composed_github_scale_100`'s
+  existing signed-out assertion passes untouched.
+- Regression selection, 39 of 39 pass: `qt_composed_github`,
+  `qt_anonymous_public_preview`, `qt_workbench_window`,
+  `qt_device_authorization`, `qt_settings_window`, `qt_home_list` and
+  `qt_surface_capture_course` at every scale; the device-authorization panel
+  courses; the setup-destination, CLI, device-binding, two-account and
+  public-preview public paths; and the new course.
+
+**Rendered** (composed application, offscreen, `BPR_DEVICE_CLI_CHOICE_CAPTURE_DIR`):
+[code-beside-cli-choice.png](../../verification/BPR-0803-code-beside-cli-choice/code-beside-cli-choice.png)
+(the offer beside the code, two accounts),
+[code-behind-read-opt-in-at-once.png](../../verification/BPR-0803-code-beside-cli-choice/code-behind-read-opt-in-at-once.png)
+(the dialog behind the read opt-in, one account),
+[code-behind-read-opt-in-chosen.png](../../verification/BPR-0803-code-beside-cli-choice/code-behind-read-opt-in-chosen.png)
+and
+[code-beside-cli-choice-then-browser.png](../../verification/BPR-0803-code-beside-cli-choice/code-beside-cli-choice-then-browser.png).
+
+## Owner ask — parked on human-review (one rendered question)
+
+Prepared for a later session, not asked. One question on the last criterion
+alone:
+
+**The question.** While a device sign-in shows its code, pressing Use GitHub
+CLI keeps the code, the address and Open browser on GitHub.com's card. The
+account GitHub CLI found appears as a button on the same card, above the code
+(`code-beside-cli-choice.png`). Whichever you finish first ends the other:
+the GitHub CLI sign-in cancels the waiting code, and finishing in the browser
+closes sign-in. **Is this where you want to find the GitHub CLI choice while
+a code is on screen?**
+
+Bind the candidate to the build that contains this change, and show the
+capture beside `code-behind-read-opt-in-at-once.png`, the one-account case,
+where the choice is the read opt-in itself.
+
+clang-format 23.1.1 passes every touched file. The project tidy script
+reports nothing on `server_card.cpp` or the two courses. Its one finding is
+the untouched `home_view_state.hpp:35` they include.

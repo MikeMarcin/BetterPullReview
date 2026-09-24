@@ -6282,6 +6282,15 @@ namespace bpr::qt {
 			OverviewPage->present_observation(*aUpdate.LoadingOverview);
 		}
 		if (aUpdate.Session.has_value()) {
+			// [[BPR-0803]]. A device flow still asking for its code when some
+			// other way in -- GitHub CLI above all -- has signed in is ended
+			// here, through its own Cancel, so it never keeps running where the
+			// reviewer cannot see it. The flow's own session arrives after the
+			// flow has authorized, so it is never cancelled by this.
+			if (aUpdate.Session->Account.value() != 0U && DevicePanel != nullptr && DevicePanel->signing_in()
+				&& DevicePanel->cancel_button()->isEnabled()) {
+				DevicePanel->cancel_button()->click();
+			}
 			SessionPanel->apply_session(*aUpdate.Session);
 			update_server_cards();
 			if (SignInDialog && SignInDialog->isVisible() && aUpdate.Session->Account.value() != 0U
@@ -8652,8 +8661,13 @@ namespace bpr::qt {
 		for (auto* card : ServerCards) {
 			const auto matches = SignInHostname.empty() || card->hostname() == SignInHostname;
 			const auto cli     = !SignInCliOnly || std::ranges::any_of(SignInCliProfiles, [card](auto aProfile) { return card->holds(aProfile); });
-			card->setVisible(matches && cli);
-			card->set_setup_mode(true, SignInCliOnly);
+			// [[BPR-0803]]. Choosing GitHub CLI while a device flow runs keeps
+			// the card holding the flow in view: its code and address stay
+			// beside the GitHub CLI choice until one of them ends. Without a
+			// discovered account on this host the card shows only the flow.
+			const auto flowHere = DevicePanel != nullptr && card->device_sign_in() == DevicePanel && DevicePanel->signing_in();
+			card->setVisible(matches && (cli || flowHere));
+			card->set_setup_mode(true, SignInCliOnly && cli);
 		}
 		if (auto* lede = AccountsPanel->findChild<QLabel*>(QStringLiteral("accountsLede"))) {
 			lede->hide();

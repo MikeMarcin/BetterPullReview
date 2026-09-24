@@ -2079,16 +2079,18 @@ namespace bpr::app::detail {
 			// nobody has captured from the wire. Keeping them apart is what
 			// stops a documented shape from being read as a recorded one.
 			recorded_device_authorization_transport(
-				std::filesystem::path aFixtureRoot,
-				std::filesystem::path aDocumentedRoot,
-				const bool            aRefreshCourse,
-				const bool            aRejectRefresh,
-				const bool            aOfflineRefresh)
+				std::filesystem::path             aFixtureRoot,
+				std::filesystem::path             aDocumentedRoot,
+				const bool                        aRefreshCourse,
+				const bool                        aRejectRefresh,
+				const bool                        aOfflineRefresh,
+				std::shared_ptr<std::atomic_bool> aAuthorizationPending)
 				: FixtureRoot{ std::move(aFixtureRoot) }
 				, DocumentedRoot{ std::move(aDocumentedRoot) }
 				, RefreshCourse{ aRefreshCourse }
 				, RejectRefresh{ aRejectRefresh }
 				, OfflineRefresh{ aOfflineRefresh }
+				, AuthorizationPending{ std::move(aAuthorizationPending) }
 			{
 			}
 
@@ -2141,6 +2143,14 @@ namespace bpr::app::detail {
 				application::device_token_completion_handler aCompletion) override
 			{
 				++Submissions;
+				if (AuthorizationPending != nullptr && AuthorizationPending->load()) {
+					// [[BPR-0803]]. The reviewer has not finished in the browser.
+					aCompletion(application::device_token_deferred{
+						.Context = aExchange.Context,
+						.Reason  = application::device_token_delay_reason::authorization_pending,
+					});
+					return;
+				}
 				const auto parsed = adapters::github::detail::
 					parse_device_token_response(recorded(FixtureRoot, "token_success", { }));
 				if (!parsed.has_value()
@@ -2382,14 +2392,15 @@ namespace bpr::app::detail {
 				return QStringLiteral("fixture");
 			}
 
-			std::filesystem::path FixtureRoot;
-			std::filesystem::path DocumentedRoot;
-			bool                  RefreshCourse  = false;
-			bool                  RejectRefresh  = false;
-			bool                  OfflineRefresh = false;
-			std::size_t           Submissions    = 0U;
-			std::size_t           Renewals       = 0U;
-			std::string           AccessToken;
+			std::filesystem::path             FixtureRoot;
+			std::filesystem::path             DocumentedRoot;
+			bool                              RefreshCourse  = false;
+			bool                              RejectRefresh  = false;
+			bool                              OfflineRefresh = false;
+			std::shared_ptr<std::atomic_bool> AuthorizationPending;
+			std::size_t                       Submissions = 0U;
+			std::size_t                       Renewals    = 0U;
+			std::string                       AccessToken;
 		};
 
 		// [[BPR-0539]]. The identity of credential material, short enough to
@@ -3398,7 +3409,8 @@ namespace bpr::app::detail {
 						BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT },
 					aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings,
 					aOptions.RejectDeviceRefresh,
-					aOptions.OfflineDeviceRefresh);
+					aOptions.OfflineDeviceRefresh,
+					aOptions.DeviceAuthorizationPending);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
 				aOptions.LoseFirstReviewMutationResult, Recording, aOptions.ResolvesThreads);
 
