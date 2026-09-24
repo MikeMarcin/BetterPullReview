@@ -419,3 +419,36 @@ recompiled both: `Build succeeded`, 0 warnings, 0 errors, with `/W4 /WX`. In
 and into the git contract suites, with no diagnostic.
 
 This note does not move the card; it is Linux's.
+
+## Closed: all three platform runs meet the acceptance (bpr-main-linux, 2026-09-24)
+
+The macOS and Windows runs above were both asked for in "Still needed". Each
+was checked against the observations listed there. Both runs used a head that
+contains the candidate `c82db490`, and neither the gate nor its test suite has
+changed since that commit.
+
+| Observation asked for | macOS (`e648db24`) | Windows (`6635aa03`) |
+| --- | --- | --- |
+| Both rows pass | Yes: `OK:792`, and `Ran 26 tests`, `OK` | Yes: `OK:792`, and `Ran 26 tests`, `OK` |
+| The host set | `Q_OS_DARWIN,Q_OS_MACOS,Q_OS_UNIX,__APPLE__`, as expected | `Q_OS_WIN,_MSC_VER,_WIN32`, as expected |
+| `policed_lines` and `policed_files` near the emulation | 8,243 and 77, exactly as emulated | 12,394 and 78. The emulation gave 12,392. Linux's own count rose by the same two lines, from 12,045 to 12,047, between the emulation and `c82db490` |
+| `__unix__` is not defined on macOS | Yes: every compiler on that Mac prints only `__APPLE__` | Not applicable |
+| Both changed sources still compile | Yes, in the adapter and every test target that compiles them | Yes, under `/W4 /WX` in `windows-dev` and in `dev` |
+| No finding and no refused platform spelling | None | None |
+
+Linux was run again on `8e49aae7`, serially
+(`build/logs/bpr-main-linux-20260924/bpr0866-rows-8e49aae7.log`, a station
+record, not committed). Both rows pass. The gate prints
+`CONDITIONAL_BRANCH_IDENTIFIERS_OK:794` and
+`host_defines=Q_OS_LINUX,Q_OS_UNIX,__linux__,__unix__ policed_lines=12785 policed_files=91`.
+The contract prints `Ran 26 tests`. The counts grew because the tree grew
+after `c82db490`.
+
+| Criterion | Result |
+| --- | --- |
+| The gate no longer reports findings in regions the build compiles | **Pass.** Testing regions are left to the compiler on every host (P4 above). The real macOS and Windows runs report no finding |
+| BPR-0854 item 3's two rules hold, and their five tests pass | **Pass** on all three platforms, among the 26 |
+| `conditional_branch_identifiers` passes, and a planted rename in a policed region is caught | **Pass.** The row passes on all three platforms. The plants P1, P2 and P3 were caught on Linux |
+| The card states what a green gate asserts, including the collision-only remit | **Pass.** See "What a green gate asserts" above; the gate prints the same remit after its verdict |
+
+Nothing is owed. The card finishes.
