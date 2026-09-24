@@ -7,7 +7,6 @@
 	#include "bpr/adapters/update/release_update_installation.hpp"
 	#include "bpr/adapters/update/release_update_staging.hpp"
 #endif
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
@@ -15,6 +14,7 @@
 #include "bpr/qt/release_update_recovery_dialog.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "private_data_root.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -22,7 +22,6 @@
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QFile>
-#include <QFileInfo>
 #include <QLabel>
 #include <QMenuBar>
 #include <QPlainTextEdit>
@@ -107,9 +106,9 @@ namespace {
 		// [[BPR-1031]]. The course reopens the recovery store itself after the
 		// desktop is gone, so it names the root as the adapters admit it: Qt's
 		// '/' spelling is refused on Windows as an invalid path.
-		const auto path = app::native_filesystem_path(QFileInfo{ aTemporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(path), "private fixture state root");
-		return path;
+		const auto path = e2e::private_data_root(aTemporary);
+		expect(path.has_value(), "private fixture state root");
+		return *path;
 	}
 	void root_wiring()
 	{

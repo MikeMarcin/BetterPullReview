@@ -1,15 +1,13 @@
 #include "../../src/app/src/github_public_path_fixture.hpp"
-#include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
+#include "private_data_root.hpp"
 
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
-#include <QFileInfo>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
@@ -90,8 +88,8 @@ namespace {
 		unused_effect_executor                          effects;
 		const auto                                      selectedProfile = profile();
 		app::detail::github_public_path_fixture_options options;
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "wire fixture root is owner-private");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "wire fixture root is owner-private");
 		options.RepeatReadSessions = aRepeat;
 		app::detail::github_public_path_fixture_components fixture{ app::detail::github_public_path_fixture::uiforetw_74, selectedProfile, effects, options };
 		const auto                                         repository = request(read_operation::get_repository);
@@ -147,8 +145,8 @@ namespace {
 		QTemporaryDir temporary;
 		expect(temporary.isValid(), "isolated attended store exists");
 		app::detail::github_public_path_fixture_options options;
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "attended store is owner-private");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "attended store is owner-private");
 		options.PublicPreviewEnabledCourse = aAnonymous;
 		options.RegisteredDeviceCourse     = !aAnonymous;
 		options.RepeatReadSessions         = true;

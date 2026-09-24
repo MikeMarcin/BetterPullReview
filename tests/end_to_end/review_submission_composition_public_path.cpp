@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
 #include <QAction>
@@ -77,7 +78,9 @@ auto main(int argc, char** argv) -> int
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir data;
-	if (!data.isValid()) {
+	const auto    dataRoot = e2e::private_data_root(data);
+	if (!dataRoot) {
+		std::cerr << "review-submission-composition:fail private data root\n";
 		return EXIT_FAILURE;
 	}
 	auto server = std::make_shared<app::detail::review_submission_fixture_state>();
@@ -85,7 +88,7 @@ auto main(int argc, char** argv) -> int
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
 		auto                                     startup         = access::start(app::detail::github_public_path_fixture::github_com,
-																				 app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = std::filesystem::path{ data.path().toStdString() }, .EpochPhase = aPhase, .ReviewSubmissionServer = server },
+																				 app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server },
 																				 [&](auto aResult) {
 										 startupTerminal = true;
 										 if (aResult) {

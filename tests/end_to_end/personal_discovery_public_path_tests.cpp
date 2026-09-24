@@ -6,8 +6,6 @@
 // and a pull request opened by link is neither enrolled nor saved until the
 // reviewer follows it or saves its repository. Nothing mutates GitHub.
 #include "../../src/app/src/github_application_fixture_access.hpp"
-#include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
@@ -15,11 +13,11 @@
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "private_data_root.hpp"
 
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
-#include <QFileInfo>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -150,8 +148,8 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private discovery test root");
-	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-	expect(adapters::sqlite::make_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
+	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
+	expect(!root.empty(), "private desktop test root under the canonical storage policy");
 	auto options                   = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;

@@ -2,15 +2,13 @@
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
-#include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "private_data_root.hpp"
 
 #include <QApplication>
 #include <QComboBox>
 #include <QElapsedTimer>
-#include <QFileInfo>
 #include <QLabel>
 #include <QTemporaryDir>
 #include <QThread>
@@ -163,8 +161,8 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private registry root");
-	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-	expect(adapters::sqlite::make_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
+	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
+	expect(!root.empty(), "private desktop test root under the canonical storage policy");
 #if !defined(_WIN32)
 	const auto unsafeRoot = root / "unsafe-existing";
 	expect(std::filesystem::create_directory(unsafeRoot), "create designated unsafe fixture root");

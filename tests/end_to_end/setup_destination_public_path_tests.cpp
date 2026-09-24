@@ -1,7 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
-#include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -12,6 +10,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "private_data_root.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -19,7 +18,6 @@
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
-#include <QFileInfo>
 #include <QFontMetricsF>
 #include <QKeyEvent>
 #include <QLabel>
@@ -229,8 +227,8 @@ namespace {
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated folder course root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private folder course root");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private folder course root");
 		std::unique_ptr<app::github_application> owner;
 		auto                                     terminal = false;
 		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::large_review_v1, options, [&](auto aResult) {
@@ -303,8 +301,8 @@ namespace {
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated missing-endpoint course root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private endpoint course root");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private endpoint course root");
 		options.ModifiedMissingEndpointCourse = true;
 		std::unique_ptr<app::github_application> owner;
 		auto                                     terminal = false;
@@ -370,8 +368,8 @@ namespace {
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated link-location course root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private link-location course root");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private link-location course root");
 		options.RepeatReadSessions = true;
 		std::unique_ptr<app::github_application> owner;
 		auto                                     terminal = false;
@@ -454,8 +452,8 @@ namespace {
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated application store");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private desktop test root under the canonical storage policy");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private desktop test root under the canonical storage policy");
 		options.SetupUnconfiguredEnterprise = aEnterprise;
 		options.RegisteredDeviceCourse      = !aEnterprise;
 		// [[BPR-0732]]. The GitHub.com course composes the anonymous
@@ -661,8 +659,8 @@ namespace {
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated native refusal root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private native refusal root");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private native refusal root");
 		options.RegisteredDeviceCourse     = true;
 		options.PersistDeviceBindings      = true;
 		options.IndependentWindowReads     = true;
@@ -697,8 +695,8 @@ namespace {
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated connected CLI root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(*options.ApplicationDataRoot), "private connected CLI root");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private connected CLI root");
 		options.SetupUnconfiguredEnterprise = aUnknownHost;
 		options.IndependentWindowReads      = true;
 		options.PublicPreviewEnabledCourse  = aGithubCom;
@@ -807,12 +805,8 @@ namespace {
 		auto temporary    = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated CLI source/update root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(
-			QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(
-			adapters::sqlite::make_storage_root_owner_private(
-				*options.ApplicationDataRoot),
-			"private CLI source/update root");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private CLI source/update root");
 		options.EpochPhase                = app::detail::github_epoch_fixture_phase::single;
 		options.GhesCliSourceUpdateCourse = true;
 		options.ReviewSubmissionServer    = reviewServer;
@@ -1303,11 +1297,8 @@ namespace {
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated CLI discovery application store");
 		auto options                = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot = app::native_filesystem_path(
-			QFileInfo{ temporary.path() }.canonicalFilePath());
-		expect(adapters::sqlite::make_storage_root_owner_private(
-				   *options.ApplicationDataRoot),
-			   "private CLI discovery test root under the canonical storage policy");
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private CLI discovery test root under the canonical storage policy");
 		options.GithubCliDiscoveryAccounts
 			= std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
 				  { .Hostname = "ghe.discovered.example", .Login = "enterprise-reviewer" },
