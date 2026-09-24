@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1047"
 title: "sqlite_review_ledger_storage leaves two bpr-ledger-preflight-* directories in the system temporary directory after every run"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
