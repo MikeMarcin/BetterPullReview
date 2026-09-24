@@ -291,6 +291,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # root", "wire fixture root is owner-private", "private application root",
     # "private fixture state root").
     "application_logging": "dos-volume-name",
+    # [[BPR-0885]]. Measured on JaegAW 2026-09-23 at 664d6e36: contained, the row
+    # stops at its own setup, "test owner creates private root before logger
+    # admission", where make_storage_root_owner_private narrows a QTemporaryDir
+    # under the container's temporary directory. That is the helper and root
+    # shape BPR-0833 measured refused; the refusing call here was not traced.
+    # The same executable run uncontained passes every assertion, the Windows
+    # log's properties among them.
+    "quill_logging": "dos-volume-name",
     "application_selected_file_safety_public_path": "dos-volume-name",
     "application_attended_recent_replay": "dos-volume-name",
     "application_release_maintenance_public_path": "dos-volume-name",
