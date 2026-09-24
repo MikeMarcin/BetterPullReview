@@ -289,3 +289,43 @@ remains, so the card moves to Backlog with `platforms: ["win"]` and a
 dependency on BPR-0876. It returns to Ready for `bpr-main-win` when BPR-0876
 is Done. Then one Windows run of the five courses, with no leftover
 `bpr-*` directory under the container's `%TEMP%`, closes it.
+
+## The five courses run on Windows without leaking a directory (bpr-main-win, 2026-09-23)
+
+[[BPR-0876]] is Done, so the card came back to Ready and was claimed for the
+last line. The run used `db0de168` on `build/dev` (MSVC 19.51 Debug), with the
+five course executables rebuilt at that head. One serial ctest call ran the
+five courses from [[BPR-0854]] item 1, each as it is registered today. Before
+and after the call, a listing recorded every `bpr-*` root in the user's
+`%TEMP%` and in the container's `...\Packages\bprautomatedtest\AC\Temp`. The
+logs are station records under `build/logs/bpr-0868-main-win/` and are not
+committed.
+
+| Course | Registered | Result |
+| --- | --- | --- |
+| `application_device_binding_relaunch` | Uncontained ([[BPR-0876]]) | Passed, 15.90 s |
+| `application_profile_owner_admission_public_path` | Contained | Failed in 0.22 s at `SEED_REGISTRY_REFUSAL:0`, [[BPR-0907]]'s known contained refusal |
+| `application_profile_window_restart_public_path` | Uncontained | Passed, 16.37 s |
+| `application_profile_window_layout_public_path` | Uncontained | Passed, 36.94 s |
+| `application_profile_window_review_restoration_public_path` | Uncontained | Passed, 363.03 s |
+
+**Nothing leaked.**
+
+- The user `%TEMP%` held 574 `bpr-*` roots before and 574 after, the same
+  names. All of them are older runs' litter, the kind BPR-1051 is reserved
+  for.
+- The container's `AC\Temp` held no `bpr-*` root before or after.
+- The owner-admission course's own root, `AC\Temp\own-<id>`, was removed even
+  though the course failed at its seed. No `own-*` root from today is left in
+  either directory. The six in the user `%TEMP%` date from 2026-09-17.
+- None of the five printed `contained temporary: could not remove`.
+
+Four of the five now run uncontained, so their roots sit under the user's
+`%TEMP%` rather than the container's. The one still contained is the one that
+fails before its course proper. The helper removed its root cleanly as it
+failed, which is the path this card made loud.
+
+The second half of the line, a held handle shown to be reported, was met on
+a real leak (the `bpr-win` section above).
+
+**All three acceptance lines are met.**
