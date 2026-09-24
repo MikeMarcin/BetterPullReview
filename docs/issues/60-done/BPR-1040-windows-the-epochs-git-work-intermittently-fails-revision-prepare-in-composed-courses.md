@@ -172,3 +172,9 @@ branches, so macOS and Linux keep their paths. The one `spool_failure` seen in
 eight review-restoration runs before the trace went in did not recur in the 6
 traced runs or the 22 here. It remains unexplained and would name its site
 under the trace that is kept at the station.
+
+## Post-close pointer (2026-09-24)
+
+For the exclusive-open shape, "No product process held these files" is
+corrected by [[BPR-1104]]'s "Named twice, fixed at the launch and at the
+delete": the holder was this process's own inherited-handle `git` child.

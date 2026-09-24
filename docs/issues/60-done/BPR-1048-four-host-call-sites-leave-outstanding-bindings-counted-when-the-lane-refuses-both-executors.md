@@ -299,3 +299,62 @@ An `rfc-reviewer-critical`, dispatched by the coordinator and not by the lane
 that wrote the change, reviews `a670fd95` read-only and reports its findings. It
 changes no code, board state or GitHub. The card stays Done. A finding that
 needs work gets its own card, and the review's result is recorded here.
+
+## Independent review (2026-09-24)
+
+**Who and how.** An `rfc-reviewer-critical` (`claude-fable-5-1`) reviewed
+`a670fd95`. The coordinator dispatched it, as the owner decided above
+(decision `e2321e81`), and the lane that wrote the change did not. It worked
+read-only, on macOS, from source. It changed no code, board state or GitHub.
+This record replaces the "No independent review" paragraph above; that
+paragraph stays as history.
+
+**Verdict: no blocking finding.** The four acceptance criteria are supported.
+
+**Non-blocking findings, in the reviewer's order.** Line references are the
+reviewer's, in `src/application/src/github_application_host.cpp` unless
+another file is named.
+
+1. A failure queued in a turn that throws needs a later turn to run, and
+   after `Closing` almost no ingress supplies one. `run_turn`'s catch
+   (`:518-522`) does not drain `WithdrawnBindings`. `dispatch` (`:557-560`),
+   `enroll_profile` (`:656`) and `invalidate_device_grant` (`:4499-4503`)
+   return early when `Closing`. So `is_quiescent()` may never hold unless
+   `shutdown()` is called again. The reviewer suggests a test: a projection
+   sink that throws at shutdown, then `shutdown()` again, then assert
+   `is_quiescent()`.
+2. A withdrawal at shutdown is not exercised. The tests reach quiescence
+   through `quiescent_once_closed`
+   (`tests/application/github_application_host_tests.cpp:5613-5618`). The
+   reviewer gave a suggested test.
+3. When no turn is active, the failure runs at once. If the rotation's
+   `completion(false)` then throws, the exception escapes: `:3956` calls the
+   terminal outside any `try`, while the queued path catches it at
+   `:3968-3971`. There is also a wording nit about this card's "releases its
+   own `Outstanding` count".
+4. An allocation made at the site before the lane call can still escape.
+   `start_delete` changes state at `:4086-4090` before it builds `finish` at
+   `:4093`. `prepare_device_rotation` does the same at `:4536-4538`. This
+   predates this card and was outside its scope; the reviewer marks it as a
+   follow-up.
+5. The launch-erase site counts the request (`:4473`) before the
+   `std::function` conversion (`:4474`). In practice that conversion does
+   not allocate.
+6. More than eight queued withdrawals (slot exhaustion) is untested. The
+   reviewer judges it unreachable.
+
+**Disposition.** [[BPR-1112]] (all platforms, Ready) takes findings 1, 2
+and 4. Findings 3, 5 and 6 are recorded here, and BPR-1112 repeats them so
+that its implementer sees them; none has a card of its own. The card stays
+Done, as the owner decision above said it would.
+
+**Limitations.**
+
+- The review read the code and did not run it. No test run is reported for
+  this review.
+- This record was written from the coordinator's summary of the reviewer's
+  report. The reviewer's full report, including the text of the test it
+  suggested for finding 2, is not in the repository. The summary does not
+  name the revision the reviewer's checkout was at. The host file and its
+  test file are unchanged from `a670fd95` to `f985b4c8`, the revision this
+  record was written on.

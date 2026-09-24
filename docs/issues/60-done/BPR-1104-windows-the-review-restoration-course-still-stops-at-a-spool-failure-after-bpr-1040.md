@@ -248,3 +248,73 @@ An `rfc-reviewer-critical`, dispatched by the coordinator and not by the lane
 that wrote the change, reviews `51784082` read-only and reports its findings. It
 changes no code, board state or GitHub. The card stays Done. A finding that
 needs work gets its own card, and the review's result is recorded here.
+
+## Independent review (2026-09-24)
+
+**Who and how.** An `rfc-reviewer-critical` (`claude-fable-5-1`) reviewed
+`51784082`. The coordinator dispatched it, as the owner decided above
+(decision `ae582fb8`), and the lane that wrote the change did not. It worked
+read-only, on macOS, from source. It changed no code, board state or GitHub.
+
+**Verdict: no blocking finding.** Three things held:
+
+- The handle list is correct.
+- It fails closed with respect to handles.
+- The retry is idempotent and bounded.
+
+**Non-blocking findings, in the reviewer's order.** Line references are the
+reviewer's.
+
+1. `src/adapters/github/src/github_cli_process_runner.cpp:584-611` launches
+   `gh` and `git` on Windows with Qt's inherit-all default. There is no
+   `setCreateProcessArgumentsModifier`, while Unix sets
+   `CloseFileDescriptors` (`:606-610`). So `gh version`, `git --version` and
+   `gh api` reads can still hold a spool handle and reproduce this card's
+   second cause. This is pre-existing. The reviewer's fix is to apply the
+   same list.
+2. "Refused" means started and then terminated. The catch at
+   `src/adapters/git/src/installed_git_process.cpp:1891-1894` only clears
+   `inheritHandles`. The refusal at `:2652-2654` comes after the start
+   (`:2627`) and before `job.attach` (`:2675-2678`). `kill_process_group` is
+   a no-op on Windows (`:1334-1349`), so a grandchild can survive. The
+   reviewer suggests the guarded path's pattern (`:2036-2043`), which
+   replaces the program with one that exits at once, and tighter wording.
+   The branch is reachable only if the attribute list cannot be created, or
+   if a standard handle is NULL.
+3. The failure mode has no committed coverage. The Windows evidence is a
+   station loop that was not committed. The reviewer suggests two rows:
+   - hold an `ifstream`, run `git cat-file --batch`, and assert that an
+     exclusive `CreateFileW` succeeds;
+   - a row for the refusal branch.
+4. [[BPR-1040]]'s line "No product process held these files" is now known
+   to be false for the exclusive-open shape. The reviewer suggests adding a
+   pointer.
+5. With BPR-1040's rename retry, the retry adds up to about 2.6 s of
+   blocking. Which thread hosts that call is undetermined.
+6. The inferred source is plausible (`device_durable_copies`,
+   `src/app/src/github_application.cpp:7501-7575`).
+
+**Disposition.**
+
+- Finding 1 is [[BPR-1114]] (Windows, Ready).
+- Findings 2 and 3 are [[BPR-1115]] (Windows, Ready).
+- Finding 4: BPR-1040 now has a post-close pointer to this card's account.
+- Finding 5 is recorded here as an open question, with no card.
+- Finding 6 is informational.
+
+Finding 2 corrects this card's wording. Where the card says a start that
+bypassed the list "is refused as `process_start`", Git has in fact started
+and is then terminated, with nothing inherited. The text above is left as
+it was written, and this record is the correction. The card stays Done, as
+the owner decision above said it would.
+
+**Limitations.**
+
+- Every change under review is inside `Q_OS_WIN`. The review read it on
+  macOS and did not compile or run it on Windows. No test run is reported
+  for this review.
+- This record was written from the coordinator's summary of the reviewer's
+  report. The reviewer's full report is not in the repository. The summary
+  does not name the revision the reviewer's checkout was at. The two Git
+  adapter files and the gh CLI runner are unchanged from `51784082` to
+  `f985b4c8`, the revision this record was written on.

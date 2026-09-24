@@ -356,3 +356,65 @@ An `rfc-reviewer-critical`, dispatched by the coordinator and not by the lane
 that wrote the change, reviews `03117e63` read-only and reports its findings. It
 changes no code, board state or GitHub. The card stays Done. A finding that
 needs work gets its own card, and the review's result is recorded here.
+
+## Independent review (2026-09-24)
+
+**Who and how.** An `rfc-reviewer-critical` (`claude-fable-5-1`) reviewed
+`03117e63`. The coordinator dispatched it, as the owner decided above
+(decision `96421f40`), and the lane that wrote the change did not. It worked
+read-only, on macOS, from source. It changed no code, board state or GitHub.
+This record replaces the "No independent review" paragraph above; that
+paragraph stays as history.
+
+**Verdict: no blocking finding.** Two things held:
+
+- The launcher only ever deletes its own `mkdtemp` result.
+- The product takes an `XDG_RUNTIME_DIR` only when the directory is owned by
+  `geteuid()` with mode `0700`.
+
+**Non-blocking findings, in the reviewer's order.** Line references are the
+reviewer's.
+
+1. An over-long private `XDG_RUNTIME_DIR`, 73 bytes or more, now fails with
+   `endpoint-path-too-long` instead of falling through
+   (`src/adapters/sqlite/src/profile_activation.cpp:185-187`, `:222`). The
+   reviewer's fix: skip the XDG candidate when its size plus 35 is at least
+   `sizeof(sun_path)`.
+2. Two launches with different private `XDG_RUNTIME_DIR`s no longer meet.
+   They degrade to the lease's owner-busy path, which is the [[BPR-0881]]
+   symptom. It is intended, but this card does not document it.
+3. The AC2 row cannot catch a cleanup that follows symlinks
+   (`tests/scripts/network_isolation_counterexamples.py:214-230`). The
+   reviewer suggests adding escape symlinks.
+4. The other-owner claim is not pinned
+   (`tests/sqlite_contract/profile_activation_tests.cpp:350-396`). The
+   reviewer suggests testing `XDG_RUNTIME_DIR=/root` or `/var/lib/private`.
+5. On a host that has no bus address but does have a live
+   `$XDG_RUNTIME_DIR/bus`, the bus pin sends the Secret Service rows to the
+   real bus (`tests/network_isolation/linux_network_sandbox.cpp:138-151`;
+   `tests/github_contract/linux_secret_service_native_tests.cpp:1288-1291`).
+6. The launcher has small `/tmp` leak windows
+   (`linux_network_sandbox.cpp:328-331` and `:335`). A signal that arrives
+   between `mkdtemp` at `:284` and `:328` leaves one too.
+7. This card's wording is inaccurate. "Without following links" does not
+   hold for the configured and top-level candidates, which are checked with
+   `stat` (`profile_activation.cpp:185`, `:193`). Only the `bpr-<uid>` child
+   uses `lstat` (`:197`).
+
+**Disposition.** [[BPR-1113]] (Linux, Ready) takes findings 1, 3, 4 and 6 as
+work, and findings 2, 5 and 7 as documentation. The reviewer judged every
+finding non-blocking, and none of them contradicts one of the four
+acceptance records, so the card stays Done. Finding 7 corrects this card's
+wording. The text above is left as it was written, and this record is the
+correction.
+
+**Limitations.**
+
+- The review read the Linux-only code, meaning the `__linux__` candidate and
+  the Linux launcher, but did not compile or run it on Linux. No test run is
+  reported for this review.
+- This record was written from the coordinator's summary of the reviewer's
+  report. The reviewer's full report is not in the repository. The summary
+  does not name the revision the reviewer's checkout was at. The cited
+  product and launcher files are unchanged from `03117e63` to `f985b4c8`,
+  the revision this record was written on.
