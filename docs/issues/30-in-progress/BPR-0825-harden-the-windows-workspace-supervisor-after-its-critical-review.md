@@ -235,3 +235,186 @@ SQLite-to-agent adapter edge, are not chosen. The card leaves human-review for
   holds.
 - The card's acceptance applies unchanged: the BPR-0622 Windows courses pass,
   and macOS and Linux still pass if portable sources change.
+
+## Windows station, 2026-09-24 (bpr-main-win): item 3 implemented as the owner chose
+
+Run `bpr-main-win-20260923`. Setup:
+
+- Windows 11 Home 10.0.26200, VS 18 MSVC 19.51, Qt 6.11.2;
+- `build/dev` (Debug), and `build/core-only`;
+- the base is `4d739d28`. The change is on main as `bc6328ff` (claim
+  `b7a895a1`). It was rebased twice without conflict. Upstream touched
+  none of its files, and on the rebased tree `architecture_boundaries`,
+  `git_process_contract` and `agent_workspace_ownership` pass again.
+
+Logs are under `build/logs/bpr-0825-main-win/` on the station and are not
+committed.
+
+### The change
+
+**A new header-only target, `better_pull_review_platform`**
+(`BetterPullReview::Platform`, `src/platform/`). It holds the one definition
+of the Windows owner-private object,
+`bpr/platform/windows_private_object.hpp`:
+
+- `descriptor` builds the protected, owner-explicit descriptor: the token
+  user as owner with one full-access grant, and one for the AppContainer
+  when contained, with the directory's inheritance.
+- `validate` is the exact check, read from the opened object. It includes
+  [[BPR-1038]]'s inherited-file allowance.
+
+The target links only `Advapi32`, depends on nothing first-party, and
+includes no Qt, provider or adapter header.
+
+**Both sides are rebuilt on it, with their call shapes unchanged:**
+
+- The SQLite and logging side, through `src/adapters/native`.
+  `private_security_attributes` wraps the platform descriptor.
+  `validate_private_security` maps the platform verdict into the storage
+  failure vocabulary. `windows_object_kind` is the platform kind.
+- The agent side, in `windows_workspace_guard.hpp`.
+  `windows_private_descriptor` wraps the platform descriptor, and
+  `windows_private_to_current_user` is the platform check.
+
+The Git adapter's `prepare_workspace_registry` still reaches
+`windows_private_to_current_user` through `windows_object_private`. So it
+now admits the `ApplicationDataRoot` the SQLite adapter created through the
+same definition the SQLite side wrote it with. No adapter-to-adapter include
+edge is added. The Git adapter's existing private link to the agent adapter
+on Windows is older than this card, and is unchanged.
+
+**Consumers link the platform target:**
+
+- the agent adapter, `PUBLIC`, because its public guard header includes it;
+- the Windows supervisor, the SQLite adapter and the logging adapter;
+- the test targets that compile `installed_git_process.cpp` or include the
+  native header directly.
+
+**`architecture_boundaries` gains the owner entry**
+(`cmake/VerifyArchitectureBoundaries.cmake`):
+
+- a `verify_effect_owner` rule, "Windows owner-private descriptor
+  construction". It allows `InitializeAcl`, `AddAccessAllowed*Ace*` and
+  `SetSecurityDescriptor{Owner,Dacl,Control}` calls only in the platform
+  header, and requires `src/platform/CMakeLists.txt` to own it;
+- a neutrality check: the target must be the `INTERFACE`
+  `better_pull_review_platform`, may not link a first-party, Qt or provider
+  target, and its sources may not include Qt, provider or first-party layer
+  headers.
+
+`architecture_boundary_tests.py` adds two cases. Each proves a rule refuses
+what it should:
+
+- a second builder in the SQLite storage root, the agent guard or the native
+  header;
+- an unowned header;
+- a first-party link;
+- a Qt, adapter or application include;
+- a non-`INTERFACE` target.
+
+**The root `AGENTS.md` ownership table gains the `src/platform/` row.**
+`docs/architecture/system-architecture.md` names the target and its rule,
+and `release-maintenance.md` points the native primitives at it.
+
+### Evidence that the coupling holds
+
+**A new course step.** `agent_workspace_ownership` gains `sqlite-root`
+(Windows):
+
+- the course executable creates `data` with the SQLite adapter's own
+  `create_storage_root_owner_private`, as the product creates its data
+  root;
+- it then prepares, marks ready and cleans a workspace whose registry is
+  `data/agent-workspace-ownership-v1`, with a neighbourhood the Git adapter
+  creates itself;
+- expected: `cleaned`, and no journal or workspace left.
+
+**A reverted trial, run on the `sqlite-root` step alone.** The trial changed
+the directory inheritance to `CONTAINER_INHERIT_ACE` only:
+
+| Tree | Result |
+|---|---|
+| This change, unaltered | `cleaned` |
+| This change, with the trial edit made in the shared definition | `cleaned`: the SQLite root and the Git check move together |
+| The agent guard header restored to `HEAD`, so its own definition is back, with the same trial edit (which then reaches only the SQLite side, as a SQLite-side change did before) | `failure=1`, which is `repair_required`. The registry was never created. This is the silent coupling the card names |
+
+Both trial edits were reverted. The files were compared byte for byte with
+the kept copies, and the tree rebuilt.
+
+**A boundary negative control on the real tree.** With `HEAD`'s agent
+header restored, `VerifyArchitectureBoundaries.cmake` stops with "Windows
+owner-private descriptor construction ownership violation in
+src/adapters/agent/include/bpr/adapters/agent/windows_workspace_guard.hpp".
+With it removed, the check passes.
+
+### Verification, at the final tree
+
+- `cmake --build --preset dev`: exit 0, no warnings.
+- The BPR-0622 courses, 6 of 6 pass:
+  - `qt_agent_launch_canary` 105.6 s;
+  - `agent_parent_death` 48.3 s;
+  - `git_process_contract` 46.7 s;
+  - `agent_workspace_ownership` 9.4 s, `sqlite-root` included;
+  - `application_agent_crash_recovery` 52.5 s;
+  - `application_agent_materialization_crash_recovery` 43.6 s.
+- `architecture_boundaries` 18.1 s, `architecture_boundary_contract`
+  332.3 s, `core_dependency_boundary` and `core_boundary_contract`: pass.
+- Storage rows on the shared descriptor, 25 of 25 pass:
+  - every `sqlite_*` row;
+  - `quill_logging`, `application_logging`, `release_update_recovery`;
+  - `application_release_maintenance`,
+    `application_release_maintenance_public_path` and
+    `application_profile_activation_public_path`.
+  - The contained `sqlite_appcontainer_private_descriptor` prints
+    `token_contained=1 product_contained=1 created=1 usable=1
+    directory_valid=1 file_valid=1 directory_ace_count=2 file_ace_count=2`,
+    so the AppContainer entry is still written and admitted.
+- `test_network_isolation_manifest` shows exactly [[BPR-1108]]'s twelve
+  findings and no new one; no registration was added.
+  `test_network_isolation_structure_contract` passes.
+- `core-only` preset: configure and build pass, and 157 of 160 rows pass.
+  None of the three failures is this card's:
+  - `documentation_structure`: the local `NEXT_ID` was behind origin while it
+    ran;
+  - `test_network_isolation_manifest`: [[BPR-1108]]'s
+    `sqlite_release_maintenance_files` findings, the only one of its four
+    rows in that preset;
+  - `rfc0016_production_course_security`: a Windows path-separator
+    comparison in `tests/scripts/rfc0016_production_course_tests.py`
+    (`outcomes\x.json` against `outcomes/x.json`), reported separately.
+- clang-format 22.1.3:
+  - the new header is formatted;
+  - the other touched C++ files are as clean as before.
+- clang-tidy `--warnings-as-errors`, on `windows_agent_supervisor.cpp`,
+  `quill_log.cpp` and the course executable:
+  - no finding in any touched file or in the platform, native or agent
+    headers;
+  - the supervisor's five findings are older and are in lines this card
+    did not touch.
+
+### macOS and Linux
+
+The portable edits are CMake and tests:
+
+- the new `INTERFACE` target, and its links;
+- the boundary script and its tests;
+- the course's `neighbourhood` variable. On POSIX it keeps its old value,
+  and the `sqlite-root` step is `_WIN32` only.
+
+The header's content is `_WIN32` only. Nothing in the POSIX behaviour of
+these courses should change. But portable CMake and the boundary gate did
+change, so the criterion asks for runs, not reasoning. The macOS and Linux
+runs are owed from those stations; this one cannot make them:
+
+```sh
+ctest --preset dev --output-on-failure -R '^(agent_workspace_ownership|git_process_contract|agent_parent_death|qt_agent_launch_canary|application_agent_crash_recovery|application_agent_materialization_crash_recovery|architecture_boundaries|architecture_boundary_contract)$'
+```
+
+### Where the criteria stand
+
+- **Items 1–4: pass.** Items 1, 2 and 4 were done on 2026-09-17 (above).
+  Item 3 is done here, as the owner chose, with the course step and the
+  reverted trial.
+- **The BPR-0622 Windows courses: pass**, 6 of 6 at the final tree.
+- **macOS and Linux: pending**, for the runs above. The card stays In
+  Progress until those stations supply them. Only then can it finish.
