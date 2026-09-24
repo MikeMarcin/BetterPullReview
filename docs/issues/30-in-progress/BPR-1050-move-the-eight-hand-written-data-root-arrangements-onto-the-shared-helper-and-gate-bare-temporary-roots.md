@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1050"
 title: "Move the eight courses that hand-write the owner-private data-root arrangement onto bpr::e2e::private_data_root, and fail a gate when a course roots data in a bare temporary directory"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
