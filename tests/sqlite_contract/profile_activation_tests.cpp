@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <optional>
@@ -37,13 +38,28 @@ namespace {
 	using outcome = bpr::application::profile_activation_outcome;
 	using intent  = bpr::core::profile_launch_intent;
 	constexpr bpr::core::bpr_profile_id profile{ 1U };
-	void                                expect(bool aCondition, std::string_view aMessage)
+
+	/// \brief What a failed expectation throws, once its `FAILED:` line is out.
+	/// \details [[BPR-1118]]. The failure used to end the process with `std::exit`, which runs
+	/// no local destructor, so every failing run left its `/tmp` scratch roots behind. Throwing
+	/// unwinds through the courses' owners instead, and `main` turns it into the failing exit.
+	struct expectation_failed
+	{
+	};
+
+	[[noreturn]] void fail(const std::string_view aMessage)
+	{
+		std::cerr << "FAILED: " << aMessage << '\n';
+		throw expectation_failed{ };
+	}
+
+	void expect(const bool aCondition, const std::string_view aMessage)
 	{
 		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
+			fail(aMessage);
 		}
 	}
+
 	auto receive_request(const std::shared_ptr<bpr::application::profile_activation_server>& aServer) -> bpr::application::profile_activation_request
 	{
 		const auto until = std::chrono::steady_clock::now() + std::chrono::seconds{ 3 };
@@ -53,8 +69,7 @@ namespace {
 			}
 			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
 		}
-		expect(false, "bounded request arrival");
-		std::abort();
+		fail("bounded request arrival");
 	}
 #if !defined(_WIN32)
 	// The geometry this contract has to reproduce. A real macOS profile root is
@@ -71,26 +86,50 @@ namespace {
 		return aRoot.string().size() + legacy_endpoint_name.size() < sizeof(sockaddr_un::sun_path);
 	}
 
-	class scratch_directory
+	/// \brief A directory `mkdtemp` made, removed with everything in it when its owner goes.
+	/// \details [[BPR-1118]]. Owned from the moment it exists, so a course that fails anywhere
+	/// after this point, a half-built scratch root included, still removes it while unwinding.
+	class temporary_tree
 	{
 	public:
-		scratch_directory()
+		temporary_tree(std::string aPattern, const std::string_view aPurpose)
 		{
-			// This class is POSIX-only, but the MSVC gate reads text rather than
-			// branches, and the suppression is what the tree spells everywhere
-			// `std::getenv` is read (BPR-0519, [[BPR-0854]]).
+			expect(::mkdtemp(aPattern.data()) != nullptr, aPurpose);
+			Path = std::move(aPattern);
+		}
+		~temporary_tree()
+		{
+			std::error_code ignored;
+			std::filesystem::remove_all(Path, ignored);
+		}
+		temporary_tree(const temporary_tree&)                                     = delete;
+		auto                  operator=(const temporary_tree&) -> temporary_tree& = delete;
+		std::filesystem::path Path;
+	};
+
+	[[nodiscard]] auto scratch_pattern() -> std::string
+	{
+		// This is POSIX-only, but the MSVC gate reads text rather than
+		// branches, and the suppression is what the tree spells everywhere
+		// `std::getenv` is read (BPR-0519, [[BPR-0854]]).
 	#if defined(_MSC_VER)
 		#pragma warning(push)
 		#pragma warning(disable : 4996)
 	#endif
-			const auto* socketRoot = std::getenv("BPR_TEST_SOCKET_ROOT");
+		const auto* socketRoot = std::getenv("BPR_TEST_SOCKET_ROOT");
 	#if defined(_MSC_VER)
 		#pragma warning(pop)
 	#endif
-			auto pattern = (std::filesystem::path{ socketRoot ? socketRoot : "/tmp" } / "bpr-act-XXXXXX").string();
-			expect(::mkdtemp(pattern.data()) != nullptr, "make private scratch");
-			Base = std::filesystem::canonical(pattern.data());
-			Path = Base;
+		return (std::filesystem::path{ socketRoot ? socketRoot : "/tmp" } / "bpr-act-XXXXXX").string();
+	}
+
+	class scratch_directory
+	{
+	public:
+		scratch_directory()
+			: Made{ scratch_pattern(), "make private scratch" }
+			, Path{ std::filesystem::canonical(Made.Path) }
+		{
 			// Grow the root until it is at least as long as a real profile root and no shorter
 			// than the length at which an in-root endpoint stops fitting `sun_path`.
 			const auto target = std::max(realistic_root_size, sizeof(sockaddr_un::sun_path) - legacy_endpoint_name.size());
@@ -107,11 +146,10 @@ namespace {
 			if (const auto endpoint = profile_activation_endpoint(Path)) {
 				std::filesystem::remove(*endpoint, ignored);
 			}
-			std::filesystem::remove_all(Base, ignored);
 		}
 		scratch_directory(const scratch_directory&)                                     = delete;
 		auto                  operator=(const scratch_directory&) -> scratch_directory& = delete;
-		std::filesystem::path Base;
+		temporary_tree        Made;
 		std::filesystem::path Path;
 	};
 
@@ -358,10 +396,29 @@ namespace {
 		return inherited != nullptr ? std::optional<std::string>{ inherited } : std::nullopt;
 	}
 
-	void restore_runtime_directory(const std::optional<std::string>& aInherited)
+	/// \brief Puts back the `XDG_RUNTIME_DIR` this process inherited when a course ends, however it ends.
+	/// \details [[BPR-1118]]. A course declares it after its scratch root, so while a failure
+	/// unwinds it runs first, and the root then removes its endpoint where the endpoint resolves in
+	/// the inherited environment, as on the passing path.
+	class runtime_directory_restore
 	{
-		expect(aInherited ? ::setenv("XDG_RUNTIME_DIR", aInherited->c_str(), 1) == 0 : ::unsetenv("XDG_RUNTIME_DIR") == 0, "restore the inherited runtime directory");
-	}
+	public:
+		runtime_directory_restore()
+			: Inherited{ inherited_runtime_directory() }
+		{
+		}
+		~runtime_directory_restore()
+		{
+			// Not `expect`: a destructor may not throw while a failure unwinds, and `setenv` fails
+			// only for want of memory.
+			static_cast<void>(Inherited ? ::setenv("XDG_RUNTIME_DIR", Inherited->c_str(), 1) : ::unsetenv("XDG_RUNTIME_DIR"));
+		}
+		runtime_directory_restore(const runtime_directory_restore&)                    = delete;
+		auto operator=(const runtime_directory_restore&) -> runtime_directory_restore& = delete;
+
+	private:
+		std::optional<std::string> Inherited;
+	};
 
 	/// \brief Where the endpoint resolves when no `XDG_RUNTIME_DIR` is named: the next candidate.
 	auto endpoint_without_xdg_runtime_dir(const std::filesystem::path& aRoot) -> std::filesystem::path
@@ -379,13 +436,12 @@ namespace {
 	// exists, because it rewrites the process environment.
 	void test_runtime_directory_follows_a_private_xdg_runtime_dir()
 	{
-		const auto restore = inherited_runtime_directory();
-		auto       pattern = std::string{ "/tmp/bpr-xdg-XXXXXX" };
-		expect(::mkdtemp(pattern.data()) != nullptr, "make a private runtime directory");
-		const std::filesystem::path runtime{ pattern };
-		const auto                  child = runtime / ("bpr-" + std::to_string(::geteuid()));
-		const scratch_directory     root;
-		const auto                  resolvesIn = [&root](const std::filesystem::path& aDirectory) {
+		const temporary_tree            directory{ "/tmp/bpr-xdg-XXXXXX", "make a private runtime directory" };
+		const auto&                     runtime = directory.Path;
+		const auto                      child   = runtime / ("bpr-" + std::to_string(::geteuid()));
+		const scratch_directory         root;
+		const runtime_directory_restore restore;
+		const auto                      resolvesIn = [&root](const std::filesystem::path& aDirectory) {
 			const auto endpoint = profile_activation_endpoint(root.Path);
 			return endpoint.has_value() && endpoint->parent_path() == aDirectory;
 		};
@@ -409,9 +465,6 @@ namespace {
 		expect(::setenv("XDG_RUNTIME_DIR", "tmp", 1) == 0, "name a relative runtime directory");
 		expect(!resolvesIn(std::filesystem::path{ "tmp" }), "a relative XDG_RUNTIME_DIR is passed over");
 
-		restore_runtime_directory(restore);
-		std::error_code ignored;
-		std::filesystem::remove_all(runtime, ignored);
 		std::cout << "runtime-directory:xdg-private=followed:xdg-shared=passed-over:xdg-relative=passed-over\n";
 	}
 
@@ -423,12 +476,11 @@ namespace {
 	// directory that fits holds a bound endpoint, and one byte more is passed over.
 	void test_runtime_directory_passes_over_an_xdg_runtime_dir_the_endpoint_does_not_fit()
 	{
-		const auto restore = inherited_runtime_directory();
-		auto       pattern = std::string{ "/tmp/bpr-xdg-XXXXXX" };
-		expect(::mkdtemp(pattern.data()) != nullptr, "make a base for long runtime directories");
-		const std::filesystem::path base{ pattern };
-		const scratch_directory     root;
-		const auto                  nameSize = [&root] {
+		const temporary_tree            directory{ "/tmp/bpr-xdg-XXXXXX", "make a base for long runtime directories" };
+		const auto&                     base = directory.Path;
+		const scratch_directory         root;
+		const runtime_directory_restore restore;
+		const auto                      nameSize = [&root] {
 			const auto endpoint = profile_activation_endpoint(root.Path);
 			expect(endpoint.has_value(), "the inherited runtime directory resolves an endpoint");
 			return endpoint->filename().string().size();
@@ -463,9 +515,6 @@ namespace {
 		expect(*passedOver == fallback, "a private XDG_RUNTIME_DIR too long for the endpoint yields to the next candidate");
 		expect(std::filesystem::is_empty(tooLong), "a runtime directory too long for the endpoint earns no child");
 
-		restore_runtime_directory(restore);
-		std::error_code ignored;
-		std::filesystem::remove_all(base, ignored);
 		std::cout << "runtime-directory:xdg-" << longest << "-bytes=followed:xdg-" << longest + 1U << "-bytes=passed-over\n";
 	}
 
@@ -493,14 +542,13 @@ namespace {
 			std::cout << "runtime-directory:xdg-other-owner=skipped:no mode-0700 directory owned by another user at /root or /var/lib/private\n";
 			return;
 		}
-		const auto              restore = inherited_runtime_directory();
-		const scratch_directory root;
-		const auto              fallback = endpoint_without_xdg_runtime_dir(root.Path);
+		const scratch_directory         root;
+		const runtime_directory_restore restore;
+		const auto                      fallback = endpoint_without_xdg_runtime_dir(root.Path);
 		expect(::setenv("XDG_RUNTIME_DIR", other->c_str(), 1) == 0, "name a runtime directory another user owns");
 		const auto endpoint = profile_activation_endpoint(root.Path);
 		expect(endpoint.has_value() && endpoint->parent_path() != *other, "a private directory another user owns is passed over as XDG_RUNTIME_DIR");
 		expect(*endpoint == fallback, "another user's XDG_RUNTIME_DIR yields to the next candidate");
-		restore_runtime_directory(restore);
 		std::cout << "runtime-directory:xdg-other-owner=passed-over:" << other->string() << '\n';
 	}
 	#endif
@@ -516,8 +564,16 @@ namespace {
 		{
 			Path = std::filesystem::temp_directory_path() / ("bpr-act-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(++Counter));
 			expect(std::filesystem::create_directory(Path), "make private scratch");
-			expect(make_storage_root_owner_private(Path), "private scratch root");
-			Path = std::filesystem::canonical(Path);
+			// [[BPR-1118]]. No destructor runs for an object whose constructor throws, so the
+			// root made above is removed here if the rest of its construction fails.
+			try {
+				expect(make_storage_root_owner_private(Path), "private scratch root");
+				Path = std::filesystem::canonical(Path);
+			} catch (...) {
+				std::error_code ignored;
+				std::filesystem::remove_all(Path, ignored);
+				throw;
+			}
 		}
 		~scratch_directory()
 		{
@@ -737,17 +793,29 @@ auto main(int aCount, char** aArguments) -> int
 		const std::string_view expected{ aArguments[4] };
 		return ((expected == "queued" && result && *result == outcome::queued) || (expected == "refused" && result && *result == outcome::refused) || (expected == "indeterminate" && !result && result.error() == outcome::indeterminate)) ? 0 : 1;
 	}
+	// [[BPR-1118]]. A failure unwinds to here, removing every scratch root on its way. `std::exit`
+	// ran no local destructor, and an exception nothing catches need not unwind at all.
+	try {
 #if defined(__linux__)
-	test_runtime_directory_follows_a_private_xdg_runtime_dir();
-	test_runtime_directory_passes_over_an_xdg_runtime_dir_the_endpoint_does_not_fit();
-	test_runtime_directory_passes_over_another_users_xdg_runtime_dir();
+		test_runtime_directory_follows_a_private_xdg_runtime_dir();
+		test_runtime_directory_passes_over_an_xdg_runtime_dir_the_endpoint_does_not_fit();
+		test_runtime_directory_passes_over_another_users_xdg_runtime_dir();
 #endif
-	test_authority();
-	test_process_handoff();
-	test_hostile_framing();
+		test_authority();
+		test_process_handoff();
+		test_hostile_framing();
 #if !defined(_WIN32)
-	test_stale_endpoint();
-	test_rendezvous_keeps_only_its_socket();
+		test_stale_endpoint();
+		test_rendezvous_keeps_only_its_socket();
 #endif
+	} catch (const expectation_failed&) {
+		return EXIT_FAILURE;
+	} catch (const std::exception& aError) {
+		std::cerr << "FAILED: unexpected exception: " << aError.what() << '\n';
+		return EXIT_FAILURE;
+	} catch (...) {
+		std::cerr << "FAILED: unexpected exception\n";
+		return EXIT_FAILURE;
+	}
 	std::cout << "profile-activation-tests:pass\n";
 }
