@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0877"
 title: "Windows: four device-authorization rows print appearance and notification markers instead of their flow markers"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
