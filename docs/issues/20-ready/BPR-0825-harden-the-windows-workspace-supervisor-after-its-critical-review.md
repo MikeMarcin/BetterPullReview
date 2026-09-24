@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0825"
 title: "Harden the Windows workspace supervisor and recovery after BPR-0622's critical review"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
-metadata: {"found_by":"dsp-002 rfc-reviewer-critical of windows-lane 743c59d7..c94e02b1 (no blocking findings)","found_at":"2ba02ddbe59bf6e07302cbb7460f61cc9cad2627","run":"run-20260916-stations","dispatch":"dsp-002","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
-parked_on: "human-review"
+metadata: {"found_by":"dsp-002 rfc-reviewer-critical of windows-lane 743c59d7..c94e02b1 (no blocking findings)","found_at":"2ba02ddbe59bf6e07302cbb7460f61cc9cad2627","run":"run-20260916-stations","dispatch":"dsp-002","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0825-descriptor-home-v001","decision":"12977aca-c423-404d-9ad8-07cd5b7d9c24","selected":"(c) neutral header-only target"}}
 ---
 
 # BPR-0825: Harden the Windows workspace supervisor and recovery after BPR-0622's critical review
@@ -22,7 +21,7 @@ evidence; only the RFC0013 association is removed. The
 and [ledger](../../verification/RFC-BPR-0013.md#owner-amended-closeout-r4--2026-09-21)
 retain its origin and continuation.
 
-Pending: Windows owner-private descriptor ownership; prior supervisor, ACE and junction repairs and their native evidence remain intact.
+Pending: Windows owner-private descriptor ownership, now decided as option (c) (owner, 2026-09-24, below); prior supervisor, ACE and junction repairs and their native evidence remain intact.
 No owner decision, native observation or repair is supplied by this transfer.
 
 ## Origin
@@ -201,3 +200,38 @@ The integrator recommends (c). Adapters are narrow host capability ports,
 and (a) and (b) each add an adapter-to-adapter edge for a platform
 definition that neither adapter owns. Until the owner answers, the card is
 parked on this question and nothing else in it is open.
+
+## Owner decision, 2026-09-24: item 3 takes option (c) (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0825-descriptor-home-v001`, revision
+`902cda35`, fingerprint `8e0eeaec…`, decision
+`12977aca-c423-404d-9ad8-07cd5b7d9c24`, sequence 573, 2026-09-24T18:56:43Z,
+`actor: human`: **select**, verbatim:
+
+> (c) A new neutral header-only target that both adapters include, with a new
+> architecture-boundary owner (recommended)
+
+The note is empty. Options (a), a Git-to-SQLite adapter edge, and (b), a
+SQLite-to-agent adapter edge, are not chosen. The card leaves human-review for
+**Ready** on the Windows station. Item 3's work, as the owner chose it:
+
+- One definition of the Windows owner-private descriptor, and of its
+  validation, moves into a new header-only target (for example
+  `src/platform/windows_private_object.hpp`). It gets a new owner entry in
+  `architecture_boundaries` and in the root `AGENTS.md` ownership table. It
+  holds no adapter's state and no Qt, provider, filesystem-policy or process
+  decision beyond the descriptor shape itself.
+- The SQLite adapter's `private_security_attributes` and
+  `validate_private_security` (`catalog_database.cpp`), and the agent
+  adapter's `windows_private_descriptor` and `windows_private_to_current_user`,
+  which the Git adapter already includes, are rebuilt on that one definition.
+  No adapter-to-adapter include edge is added.
+- `prepare_workspace_registry` in `installed_git_process.cpp` checks
+  `ApplicationDataRoot` through the shared definition. A change on the SQLite
+  side can then no longer turn Windows workspace ownership into
+  `repair_required` silently. A reverted trial or a course shows the coupling
+  holds.
+- The card's acceptance applies unchanged: the BPR-0622 Windows courses pass,
+  and macOS and Linux still pass if portable sources change.

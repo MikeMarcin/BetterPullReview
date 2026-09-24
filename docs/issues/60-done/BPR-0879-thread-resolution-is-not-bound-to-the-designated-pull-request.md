@@ -168,6 +168,13 @@ build against their own account, where `select_observed_review_mutation`
 composes the live provider for whatever pull request is open. No such build
 is tagged or recorded here.
 
+**Owner answer, 2026-09-24.** That residual is the intended product behaviour.
+In attended session `cbd48b91`, the owner answered [[BPR-0897]] (decision
+`e1d2139c`) with "1. Yes, as designed: record the intent next to the
+composition". Composing the live provider for the open pull request in a
+release build is what the product is for. BPR-0897 carries the comment at the
+composition.
+
 ### The statistics assertion, and the guard it had to satisfy
 
 `review_mutation_coordinator::resolve_thread` counts the write, and a row

@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0897"
 title: "A non-attended release build composes a live mutation provider for whatever pull request is open"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-parked_on: "human-review"
-metadata: {"found_by":"dsp-006 worker on BPR-0879, while establishing whether any real pull request was ever mutated across that gap","found_at":"5c8ee790","run":"run-20260916-stations","dispatch":"dsp-006"}
+metadata: {"found_by":"dsp-006 worker on BPR-0879, while establishing whether any real pull request was ever mutated across that gap","found_at":"5c8ee790","run":"run-20260916-stations","dispatch":"dsp-006","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0897-observed-mutation-intent-v001","decision":"e1d2139c-92e2-40c8-8f84-6c59c2736fcb","selected":"1. Yes, as designed"}}
 ---
 
 # BPR-0897: A non-attended release build composes a live mutation provider for whatever pull request is open
@@ -90,3 +89,38 @@ anything it argues the opposite way about urgency: the reply path has to be
 rebuilt for [[BPR-0896]] regardless, and it is cheaper to build whatever guard
 answer (2) or (3) implies while that code is already open than to add it
 afterwards.
+
+## Owner decision, 2026-09-24: yes, as designed (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0897-observed-mutation-intent-v001`,
+revision `5c8ee790` (dsp-006; fact added in dsp-007), fingerprint `f222c2b9…`,
+decision `e1d2139c-92e2-40c8-8f84-6c59c2736fcb`, sequence 575,
+2026-09-24T18:59:01Z, `actor: human`: **select**, verbatim:
+
+> 1. Yes, as designed: record the intent next to the composition
+
+The note is empty. **The answer is recorded.** `select_observed_review_mutation`
+composing the live mutation provider for whatever pull request is open, in a
+non-attended release-configuration build, is the intended product behaviour.
+Answers 2 (a gate until [[BPR-0641]] opens it) and 3 (a designation step) are
+not chosen, so no guard or designation card follows from this card.
+
+Acceptance, as it now stands:
+
+- *The owner's answer is recorded here*: done (this section).
+- *The intent is written next to the composition*: **open**. This is the one
+  piece of work left: a short comment at `select_observed_review_mutation` in
+  the composition (`src/app`). The comment says that composing the live
+  provider for the open pull request is intended, cites this card and the
+  date, and contrasts it with the designated lane's two gates. If the
+  composition file is pinned by a round-trip contract, reseal it in the same
+  commit. The card leaves human-review for **Ready**.
+- *If (2) or (3), the guard has its own card*: not applicable.
+- *[[BPR-0879]]'s residual points at the answer*: done. BPR-0879's "Residual
+  honesty" paragraph now carries a dated pointer here.
+
+The dsp-007 fact still stands: a reply cannot be submitted through the live
+session until [[BPR-0896]]'s reconciliation is rebuilt. That limits what the
+answer exposes today; it does not change the answer.

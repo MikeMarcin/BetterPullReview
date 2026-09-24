@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0803"
 title: "The GitHub CLI way in is unreachable from inside the device sign-in"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0015", "RFC-BPR-0016"]
 depends_on: []
 platforms: ["mac"]
-metadata: {"pack":"bpr-shell-surfaces-v1","origin":"owner note on attended candidate bpr-0797-device-browser-opens, decision 946daa16, 2026-09-17; allocated on main in d14 because no existing acceptance covers when the CLI offer is reachable","acceptance":["RFC-BPR-0015 account contract","BPR-0773 account row rule"]}
+metadata: {"pack":"bpr-shell-surfaces-v1","origin":"owner note on attended candidate bpr-0797-device-browser-opens, decision 946daa16, 2026-09-17; allocated on main in d14 because no existing acceptance covers when the CLI offer is reachable","acceptance":["RFC-BPR-0015 account contract","BPR-0773 account row rule"],"owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0803-cli-during-device-flow-v001","decision":"dbae079d-f8b8-40c4-b78a-2bafe383031d","selected":"Keep the code on screen beside the CLI choice until the reviewer ends one of them"}}
 ---
 
 # BPR-0803: The GitHub CLI way in is unreachable from inside the device sign-in
@@ -172,3 +172,43 @@ flow-and-CLI interaction is named in the RFC-0015 independent review scope on
 BPR-0788's pending review, but that approval neither exercised nor accepted
 this interaction. This card stays Backlog as a follow-up to the closed RFC,
 and its acceptance above is unchanged.
+
+## Owner decision, 2026-09-24: keep the code on screen beside the CLI choice (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0803-cli-during-device-flow-v001`,
+revision `9f06d5b1` (re-observed 2026-09-22), fingerprint `f2843e83…`, decision
+`dbae079d-f8b8-40c4-b78a-2bafe383031d`, sequence 572, 2026-09-24T18:55:40Z,
+`actor: human`: **select**, verbatim:
+
+> Keep the code on screen beside the CLI choice until the reviewer ends one of
+> them
+
+The note is empty. This answers the revised decision under "Stale premise"
+above, and the alternative (cancel the device flow first) is not chosen. The
+card leaves Backlog for **Ready**. The acceptance that now applies, replacing
+the bullets that assumed the offer was hidden during the flow:
+
+- **The decision is recorded** (this section).
+- **The code stays in view.** Pressing Use GitHub CLI while a device flow is
+  awaiting authorization keeps the device code and address on screen beside
+  the CLI choice. The switch to the CLI must not hide the GitHub.com card or
+  the code, as it does at `9f06d5b1`. The flow keeps running where the
+  reviewer can see it until the reviewer ends one of the two: cancelling the
+  flow, finishing it in the browser, or finishing the CLI way in. Whichever
+  ends first, the other is ended or withdrawn visibly, never left running
+  unseen.
+- **Both endings are exercised.** A course completes the device authorization
+  while the CLI choice is on screen, and another takes the CLI way in while the
+  flow is running. Each shows which account the profile ends signed in to, and
+  shows no second flow left behind.
+- **The consent gates stay.** The RFC-BPR-0015 read opt-in and its consent
+  gate are crossed before any `gh` read, and the discovery inventory that Use
+  GitHub CLI runs first is [[BPR-0909]]'s accepted model.
+- **The signed-out offer is unchanged.** `qt_composed_github_scale_100`'s
+  existing signed-out offer assertion still passes.
+- **The rendered result gets its own attended verdict**, one question on this
+  criterion alone.
+
+Platform: macOS, where the GitHub CLI way in is composed.

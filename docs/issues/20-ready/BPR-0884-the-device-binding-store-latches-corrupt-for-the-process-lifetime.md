@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
-metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"02e3d59d","remaining":"independent review of the persistence and concurrency change (02e3d59d), pending the owner's decision; Linux, macOS and Windows runs are recorded","related_cards":["BPR-0541","BPR-0644","BPR-0841","BPR-0883","BPR-0887"]}
+metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"02e3d59d","remaining":"independent read-only critical review of 02e3d59d (owner said yes 2026-09-24, decision 8e1858ab: use rfc-reviewer-critical), to be dispatched by the coordinator; Linux, macOS and Windows runs are recorded","related_cards":["BPR-0541","BPR-0644","BPR-0841","BPR-0883","BPR-0887"]}
 ---
 
 # BPR-0884: The device binding store latches corrupt for the process lifetime, including on cancellation
@@ -394,3 +394,32 @@ they read `unavailable`, never `corrupt`, on `LockFileEx`.
 
 This note does not move the card. What remains is the independent review of
 `02e3d59d`, which is waiting on the owner's decision.
+
+## Owner decision, 2026-09-24: yes, an independent critical review (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0884-independent-review-v001`,
+revision `02e3d59d`, fingerprint `cf1da604…`, decision
+`8e1858ab-e9f7-4371-b854-71a6ab3e1946`, sequence 574, 2026-09-24T18:58:04Z,
+`actor: human`: **select**, verbatim:
+
+> Yes: run an independent read-only review of 02e3d59d
+
+Note, verbatim:
+
+> Yes use a rfc-reviewer-critical to double check the work.
+
+So the card goes to Done only after an `rfc-reviewer-critical` has reviewed
+the `02e3d59d` diff read-only (persistence, migration and concurrency:
+`src/adapters/sqlite/src/device_binding_store.cpp`,
+`src/application/src/device_binding_store.cpp` and its header, their tests and
+the host architecture note) and its findings are dispositioned here. The
+review is dispatched by the coordinator, not by a lane that wrote the change.
+It changes no code, board state or GitHub.
+
+The same session answered [[BPR-0644]]'s policy question: keep the grant, fail
+visibly and retry at the next launch. As "How this relates to BPR-0541 and
+BPR-0644" says, this change works with that answer; the store that no longer
+latches is what lets an in-process retry reach the database. The reviewer
+should read it with that answer in mind.

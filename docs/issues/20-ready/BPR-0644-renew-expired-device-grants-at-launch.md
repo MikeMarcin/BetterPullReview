@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0644"
 title: "Renew expired device grants at launch instead of forgetting them"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P1"
-parked_on: "human-review"
-acceptance: [{"criterion":"A fixture course restores a binding whose access lifetime elapsed while the app was closed by rotating with the refresh token, without a prompt","outcome":"pass","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"command","detail":"application_device_binding_launch_renewal passes at the integrated head (19.99 s, build/r2-logs/dsp2-int9-courses.log) and fails with the product change reverted (dsp2-0644-negative-control.log). The rotated grant resumes only the binding's exact account; the account-guard unit case fails without the guard (dsp2-0644c-control-*.log)."}},{"criterion":"A refresh-expired or rejected binding tombstones and offers Begin","outcome":"pass","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"command","detail":"Unit cases in application_github_host (refresh-expired, failure, abandonment by Sign out after the store, replacement, other account) pass; a rejected renewal erases both exact slots behind the tombstone and starts the deferred session (dsp2-int9-units.log). Existing device courses, the restart course and qt_device_authorization_scale_* pass."}},{"criterion":"Restoration across an orderly quit and SIGTERM (Further observation)","outcome":"pending","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"observation","detail":"application_device_binding_relaunch covers quit and SIGTERM with real relaunches and passes 3/3 (dsp2-int9-repeat.log), but also passes without the change, so it does not reproduce the observation. The candidate mechanism (locked Keychain or /user network failure sending restore cleanup into erasure) is recorded; keeping grants through such failures is an owner policy question (BPR-0541 fail-closed)."}},{"criterion":"The tests-disabled Mac app relaunched more than eight hours after a device sign-in resumes the session with no credential prompt (attended)","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"observation","detail":"Fingerprint-valid owner accept at attended session cbd48b91000b00f1e72e1ad62c7c384c event 405, 2026-09-20T03:52:48.224084+00:00; candidate rfc0013-r17-7b591faa-ad50fe5d, fingerprint a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb. Accepted tests-disabled r17 relaunch criterion only; preserved through r18, not rebound to its new diff/loading bundle. Other pending restoration observation unchanged."}}]
+metadata: {"owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0644-grant-policy-v001","decision":"3c46d164-e405-4c6c-bcd3-2f3b0c3b757c"},"supersedes_for_these_faults":"BPR-0541 fail-closed erasure","related_cards":["BPR-0541","BPR-0884","BPR-1048"]}
+acceptance: [{"criterion":"A fixture course restores a binding whose access lifetime elapsed while the app was closed by rotating with the refresh token, without a prompt","outcome":"pass","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"command","detail":"application_device_binding_launch_renewal passes at the integrated head (19.99 s, build/r2-logs/dsp2-int9-courses.log) and fails with the product change reverted (dsp2-0644-negative-control.log). The rotated grant resumes only the binding's exact account; the account-guard unit case fails without the guard (dsp2-0644c-control-*.log)."}},{"criterion":"A refresh-expired or rejected binding offers Begin. Amended 2026-09-24 by the owner's rule that a remembered grant is removed only when the person removes it in Settings: such a binding is no longer erased on its own; it stays, says that it needs signing in again, and offers Begin until the person removes it or a new sign-in replaces it","outcome":"pending","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"observation","detail":"Amended, not failed by a regression. Owner decision in attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0644-grant-policy-v001 (revision 75fab2d4), fingerprint 0416486e86fae1564a9b09ded7619d9e692b240179ade102a270183c6237af28, decision 3c46d164-e405-4c6c-bcd3-2f3b0c3b757c, actor human, 2026-09-24T18:39:17Z: select 'Keep the material: fail visibly and retry at the next launch', note 'Shouldn't remove until the user removes it in the settings menu.' Read literally, the note covers every automatic removal, so it reaches this criterion's tombstone as well as the question's locked, denied and offline faults. Before the amendment the criterion passed at 75fab2d448fd6b4d2b092ed0385db435de446520: unit cases in application_github_host (refresh-expired, failure, abandonment by Sign out after the store, replacement, other account) and a rejected renewal erasing both exact slots behind the tombstone (dsp2-int9-units.log). The amended behaviour is not built. If the engineering round finds a security reason that a rejected or spent refresh token must still be erased, it records the reason and asks the owner that one question, rather than reading it into this decision.","path":"docs/issues/20-ready/BPR-0644-renew-expired-device-grants-at-launch.md#owner-decision-2026-09-24-keep-the-grant-attended-session-cbd48b91"}},{"criterion":"Restoration across an orderly quit and SIGTERM (Further observation)","outcome":"pending","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"observation","detail":"application_device_binding_relaunch covers quit and SIGTERM with real relaunches and passes 3/3 (dsp2-int9-repeat.log), but also passes without the change, so it does not reproduce the observation. The candidate mechanism (locked Keychain or /user network failure sending restore cleanup into erasure) is recorded; keeping grants through such failures is an owner policy question (BPR-0541 fail-closed). Owner policy answered 2026-09-24 (decision 3c46d164): keep the material, fail visibly, retry at the next launch; see the new policy criterion."}},{"criterion":"The tests-disabled Mac app relaunched more than eight hours after a device sign-in resumes the session with no credential prompt (attended)","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"observation","detail":"Fingerprint-valid owner accept at attended session cbd48b91000b00f1e72e1ad62c7c384c event 405, 2026-09-20T03:52:48.224084+00:00; candidate rfc0013-r17-7b591faa-ad50fe5d, fingerprint a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb. Accepted tests-disabled r17 relaunch criterion only; preserved through r18, not rebound to its new diff/loading bundle. Other pending restoration observation unchanged."}},{"criterion":"Owner policy, 2026-09-24: a launch whose Keychain answers locked or denied, or whose network is down, including an offline launch after the access token expired, keeps the remembered device grant, shows the failure, and retries at the next launch; the grant's material is removed only when the person removes it in Settings","outcome":"pending","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"observation","detail":"Owner decision in attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0644-grant-policy-v001 (revision 75fab2d4), fingerprint 0416486e86fae1564a9b09ded7619d9e692b240179ade102a270183c6237af28, decision 3c46d164-e405-4c6c-bcd3-2f3b0c3b757c, actor human, 2026-09-24T18:39:17Z: select 'Keep the material: fail visibly and retry at the next launch', note 'Shouldn't remove until the user removes it in the settings menu.' Not built. Today such a launch erases the grant (BPR-0541's fail-closed rule; application_device_binding_relaunch's locked-vault phase asserts the erasure), and an offline launch after access expiry loses the grant after about three attempts because the tombstone precedes the first attempt.","path":"docs/issues/20-ready/BPR-0644-renew-expired-device-grants-at-launch.md#owner-decision-2026-09-24-keep-the-grant-attended-session-cbd48b91"}}]
 ---
 
 # Renew expired device grants at launch instead of forgetting them
@@ -178,3 +178,57 @@ The BPR-0794/0795 focused set was rerun at that source and passed 13 of 13
 session: `BPR-0794-cli-selected-diff`, `BPR-0795-loading-visible` and
 `BPR-0644-device-relaunch-8h`. The human part is open. The owner must quit
 their own running BetterPullReview before launching the bundle.
+
+## Owner decision, 2026-09-24: keep the grant (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0644-grant-policy-v001`, revision
+`75fab2d4`, fingerprint `0416486e…` equal to the prepared candidate's,
+decision `3c46d164-e405-4c6c-bcd3-2f3b0c3b757c`, sequence 567,
+2026-09-24T18:39:17Z, `actor: human`. The question was item 2 of "Pending,
+human" above. The owner chose **select**, verbatim:
+
+> Keep the material: fail visibly and retry at the next launch
+
+Note, verbatim:
+
+> Shouldn't remove until the user removes it in the settings menu.
+
+**What changes.** For the faults the question named, this replaces
+[[BPR-0541]]'s fail-closed erasure. A launch whose Keychain answers locked or
+denied, or whose network is down, keeps the remembered device grant. The
+same holds for an offline launch after the access token expired. The launch
+says what failed and retries at the next launch. The note states the rule
+behind that: **a remembered grant is removed only when the person removes it
+in Settings.** A new sign-in that replaces the grant is also the person's own
+action.
+
+**How it lands on this card's criteria.**
+
+- The new policy criterion (last in the acceptance list) is pending. The
+  course's locked-vault phase, which asserts erasure today, has to assert
+  retention, a visible failure and the retry instead. The critical review's
+  "an offline launch after access expiry loses the grant after about three
+  attempts, because the tombstone precedes the first attempt" is part of this
+  work, not a separate limit.
+- Criterion 2 is amended and pending. Read literally, the note also covers a
+  refresh-expired or server-rejected grant. Such a binding no longer erases
+  itself. It stays, says that it needs signing in again, and offers Begin
+  until the person removes it or a new sign-in replaces it. If the
+  engineering round finds a security reason that a rejected or spent refresh
+  token must still be erased, it records the reason and asks the owner that
+  one question. It does not read the answer into this decision.
+- Criterion 3, the restoration observation, is now answerable. The
+  mechanism recorded for it (a locked Keychain or a `/user` network failure
+  sending cleanup into erasure) is exactly what the policy removes. Rerun the
+  quit and SIGTERM relaunch course with those faults once the policy is
+  built.
+- Criteria 1 and 4 stand as recorded.
+
+[[BPR-0884]]'s store change works with this answer: a store that no longer
+latches is what lets an in-process retry reach the database. The card leaves
+human-review for **Ready**. The policy is engineering now, and nothing on it
+waits for the owner. Owned paths are unchanged: the application host's device
+restore and renewal, the device authorization host, their tests, and the
+architecture note's device-binding section.
