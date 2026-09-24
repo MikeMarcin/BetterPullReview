@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1074"
 title: "The workbench window shows its three drawers as windows of their own while it is built, so a probe that took the first window for the application saw it stop answering"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
