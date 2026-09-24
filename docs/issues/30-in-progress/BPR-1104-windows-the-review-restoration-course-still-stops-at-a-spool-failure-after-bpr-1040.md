@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1104"
 title: "Windows: the review-restoration course still stops at EPOCH_CACHE_FAILURE:7 (revision-prepare, spool_failure) after BPR-1040's retry"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
