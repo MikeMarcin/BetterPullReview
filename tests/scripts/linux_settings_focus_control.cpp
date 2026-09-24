@@ -29,7 +29,11 @@
 // activateWindow(), `focus` prints the window Qt treats as focused, and `quit`
 // quits. Each window prints the keys Qt delivers to it and Qt prints every
 // change of its focus window, so a course can compare the X11 window a key was
-// sent to with the window Qt delivers it to.
+// sent to with the window Qt delivers it to. BPR-0975 adds `remap A` or
+// `remap B`: hide() and show() that window, then raise() and activateWindow()
+// it, so a compositor that activates only newly mapped windows can be told
+// apart from one that refuses activation outright. The control runs on any Qt
+// platform plugin, including `wayland`, and prints its plugin's name first.
 //
 // `--consume-activation-echo` also drops every `_NET_ACTIVE_WINDOW` client
 // message before Qt handles it. Qt receives its own activation request, because
@@ -135,6 +139,13 @@ namespace {
 			auto& target = aCommand.back() == 'A' ? aFirst : aSecond;
 			target.activateWindow();
 			say("ACTIVATE_REQUESTED:" + target.name());
+		} else if (aCommand == "remap A" || aCommand == "remap B") {
+			auto& target = aCommand.back() == 'A' ? aFirst : aSecond;
+			target.hide();
+			target.show();
+			target.raise();
+			target.activateWindow();
+			say("REMAP_REQUESTED:" + target.name());
 		} else if (aCommand == "focus") {
 			say("QT_FOCUS_WINDOW:" + window_name(QGuiApplication::focusWindow(), aFirst, aSecond));
 		} else if (aCommand == "quit") {
@@ -173,6 +184,7 @@ auto main(int aArgc, char** aArgv) -> int
 	auto commands = std::unique_ptr<QSocketNotifier>{ };
 	auto pending  = std::string{ };
 	if (has_argument(aArgc, aArgv, "--commands")) {
+		say("PLATFORM:" + QGuiApplication::platformName().toStdString());
 		QObject::connect(&application, &QGuiApplication::focusWindowChanged, [&](QWindow* aWindow) {
 			say("QT_FOCUS_CHANGED:" + window_name(aWindow, first, second));
 		});

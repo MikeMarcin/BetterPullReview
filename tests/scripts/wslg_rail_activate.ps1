@@ -13,8 +13,11 @@
 # and only on RAIL_WINDOW top-level windows owned by msrdc.exe; the caller
 # must still prove that X11 focus reached the exact owned target.
 #
-# Output is one JSON object: the exact candidates and, with -Activate, the
-# activated handle and the foreground window before and after.
+# Output is one JSON object: the exact candidates, the current foreground
+# window and, with -Activate, the activated handle and the foreground window
+# before and after. The `foreground` field names a window's title only for an
+# msrdc RAIL_WINDOW, so a capture never records another application's title
+# (BPR-0975's activation probe reads it to see whether Windows followed WSLg).
 param(
 	[Parameter(Mandatory = $true)][string]$Title,
 	[switch]$Activate,
@@ -57,10 +60,18 @@ function Describe([IntPtr]$Window) {
 	$name = (Get-Process -Id $process -ErrorAction SilentlyContinue).ProcessName
 	[ordered]@{ handle = $Window.ToInt64(); class = [BprRail]::ClassOf($Window); title = [BprRail]::TitleOf($Window); process = $name }
 }
-$result = [ordered]@{ title = $Title; candidates = @(); activated = $null; before = $null; after = $null; error = $null }
+function Foreground {
+	$window = [BprRail]::GetForegroundWindow()
+	if ($window -eq [IntPtr]::Zero) { return $null }
+	$description = Describe $window
+	if (-not ($description.class -eq 'RAIL_WINDOW' -and $description.process -eq 'msrdc')) { $description.title = $null }
+	$description
+}
+$result = [ordered]@{ title = $Title; candidates = @(); foreground = $null; activated = $null; before = $null; after = $null; error = $null }
 try {
 	$candidates = @([BprRail]::Rail($Title) | Where-Object { (Describe $_).process -eq 'msrdc' })
 	$result.candidates = @($candidates | ForEach-Object { $_.ToInt64() })
+	$result.foreground = Foreground
 	if ($Activate) {
 		$target = if ($Handle -ne 0) { @($candidates | Where-Object { $_.ToInt64() -eq $Handle }) } else { $candidates }
 		if ($target.Count -ne 1) { throw "Expected one exact msrdc RAIL window to activate, found $($target.Count)" }
