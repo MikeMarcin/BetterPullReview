@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1037"
 title: "Four github_application.cpp probes (appearance theme, review ledger, round trip, defect) still wait without a bound and expire the run budget on a stage number"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-main-linux, BPR-0864's sibling-probe check","found_at":"3dca2d7a","rechecked_at":"4a4c1e40","related_cards":["BPR-0860","BPR-0863","BPR-0864","BPR-1036"],"reservation":"docs/issues/_reservations/BPR-1037--BPR-1037--aba615d53659.json"}
+acceptance: [{"criterion":"AC1 No waiting phase of the four probes can reach RUN_BUDGET_EXPIRED before naming why; each phase stalls with its own term and facts","outcome":"pass","revision":"a782886d","evidence":{"kind":"command","detail":"macOS (bpr-main-mac) at a782886d: all 22 waits in the four probes go through keep_waiting (5 s cap, 16-call floor, modality tail); each forced break named its own term at 5.00-5.01 s with no RUN_BUDGET_EXPIRED and no other term.","path":"docs/issues/60-done/BPR-1037-four-github-application-probes-still-wait-without-a-bound.md#negative-controls-ac2-one-forced-break-per-term"}},{"criterion":"AC2 Each new term is shown to fire by a deliberately broken run or equivalent forced check, and the diagnostic build is removed","outcome":"pass","revision":"a782886d","evidence":{"kind":"command","detail":"macOS at a782886d: one diagnostic build selecting BPR1037_BREAK=<term>; 22 forced checks plus one for the moved workbench probe, each printing its term and facts; the lost-effect and editor-selection breaks rerun on the final candidate; grep -c bpr1037_break gives 0 and the file matches the candidate hash.","path":"docs/issues/60-done/BPR-1037-four-github-application-probes-still-wait-without-a-bound.md#negative-controls-ac2-one-forced-break-per-term"}},{"criterion":"AC3 The four rows still pass on Linux and macOS, the round-trip contract passes with the resealed pins, and the workbench composition row still passes","outcome":"pass","revision":"c127cb38","evidence":{"kind":"command","detail":"macOS at a782886d: the five rows pass serially (workbench 22.91 s, ledger 36.47 s, round trip resealed 11.77 s, defect 53.46 s, theme 25.33 s). Linux (bpr-main-linux) at c127cb38, which contains a782886d: ctest -j1 -V on the same five rows, GCC 15.2 dev -Werror, offscreen, 5/5 (3.57/5.22/1.86/7.44/6.53 s), no _STALLED, COURSE_MODALITY_ or RUN_BUDGET_EXPIRED line; the round trip passed at that head's reseal (BPR-1046's, which carries this card's code).","path":"docs/issues/60-done/BPR-1037-four-github-application-probes-still-wait-without-a-bound.md#the-linux-run-bpr-main-linux-2026-09-23"}},{"criterion":"AC4 application_composition_contract passes","outcome":"pass","revision":"a782886d","evidence":{"kind":"command","detail":"macOS at a782886d: application_composition_contract, which builds and scans the tests-off Release graph, passes in 232.20 s.","path":"docs/issues/60-done/BPR-1037-four-github-application-probes-still-wait-without-a-bound.md#the-rows-on-the-final-candidate-ac3-ac4-macos"}}]
 ---
 
 # BPR-1037: Four github_application.cpp probes (appearance theme, review ledger, round trip, defect) still wait without a bound and expire the run budget on a stage number
@@ -311,3 +312,53 @@ ctest --test-dir build/dev -j1 -V -R '^(application_workbench_composition_contra
 Expected: 5/5, with no `_STALLED`, `COURSE_MODALITY_*` or
 `RUN_BUDGET_EXPIRED` line. The round-trip row verifies the new pins. When
 it passes, the card can finish. Windows is not part of this acceptance.
+
+## The Linux run (bpr-main-linux, 2026-09-23)
+
+The run was at `c127cb38`, which contains `a782886d` and `18f585cd`. It used
+a separate verification clone of `main` with a clean working tree, on JaegAW:
+WSL2 Ubuntu 26.04, GCC 15.2, Qt 6.11.2, `build/dev` (Debug) from the `dev`
+preset, which compiles with `-Werror`. The build before the run finished
+with no `warning:` line. The run was serial and offscreen: the card's
+command, `ctest --test-dir build/dev -j1 -V -R '^(application_workbench_composition_contract|application_review_ledger_composition_contract|application_review_round_trip_composition_contract|application_defect_composition_contract|application_appearance_theme_customization_contract)$'`,
+with `QT_QPA_PLATFORM=offscreen` and `DISPLAY` unset. The station's load
+average was 19.3 at the start of the batch, from a parallel build, and 4.9
+at the end. The log is
+`build/logs/bpr-main-linux-20260923/mac-batch5-linux-runs/bpr-b5-1037.log`,
+a station record that is not committed.
+
+**5/5 passed**, in 24.63 s.
+
+| Row | Result |
+|---|---|
+| `application_workbench_composition_contract` | Pass, 3.57 s, `WORKBENCH_COMPOSITION_CONTRACT_OK` |
+| `application_review_ledger_composition_contract` | Pass, 5.22 s, `REVIEW_LEDGER_COMPOSITION_CONTRACT_OK` |
+| `application_review_round_trip_composition_contract` | Pass, 1.86 s, `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK` |
+| `application_defect_composition_contract` | Pass, 7.44 s, `DEFECT_COMPOSITION_CONTRACT_OK` |
+| `application_appearance_theme_customization_contract` | Pass, 6.53 s, `APPEARANCE_THEME_CUSTOMIZATION_CONTRACT_OK` |
+
+The log has no `_STALLED`, `COURSE_MODALITY_*` or `RUN_BUDGET_EXPIRED` line.
+
+**The pins the round-trip row checked.** [[BPR-1046]] (`669a5a58`) changed
+`github_application.cpp` after this card and resealed on top of this card's
+reseal. The pins at `c127cb38` are that reseal (`0eccd810…`, `52f6a647…`),
+which covers this card's code as it stands in `c127cb38`. The row passing
+there is the check that the resealed pins match. The card asks for a run "at
+this card's commit or later", so the candidate qualifies.
+
+Against the expectation (5/5, no `_STALLED`, `COURSE_MODALITY_*` or
+`RUN_BUDGET_EXPIRED` line, and the round-trip row verifies the pins): met.
+The Linux observation holds.
+
+## Finished (bpr-main-linux, 2026-09-23)
+
+The one owed run is recorded above, so the card finishes on the two
+stations' observations. Windows is not part of this acceptance.
+
+| Criterion | Station | Candidate | Observation |
+|---|---|---|---|
+| AC1 | macOS | `a782886d` | All 22 waits go through `keep_waiting`; each forced break named its own term at 5.0 s, before any budget |
+| AC2 | macOS | `a782886d` | 22 forced checks plus one for the moved workbench probe, each naming its term; the diagnostic build removed (`grep -c bpr1037_break` gives 0) |
+| AC3 | macOS | `a782886d` | The five rows pass, the round trip with the resealed pins |
+| AC3 | Linux | `c127cb38` | The five rows pass, 5/5, with no stall, modality or budget line; the round trip passes at that head's pins |
+| AC4 | macOS | `a782886d` | `application_composition_contract` passes, 232.20 s |
