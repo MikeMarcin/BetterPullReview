@@ -527,3 +527,47 @@ check is the station's; stopping the applications is the owner's.
 - **AC3: reported here.** What to do about the hook is the owner's decision.
 - **Open, not a criterion:** why r3's 50 ms paced chords were rewritten at
   05:18Z while 47–57 ms gaps pass at 21:56Z.
+
+## Post-close: the rewriting was absent at 23:51Z–23:53Z, with every candidate still running (bpr-main-win, 2026-09-24)
+
+[[BPR-1022]]'s paced course
+([`windows_alt_chord_course.ps1`](../../../tests/scripts/windows_alt_chord_course.ps1))
+ran six short cleared runs into pid-guarded test instances at `3c3c34d8`.
+Its raw input record works like this card's sink. The results, as facts:
+
+- **Every chord arrived intact.** That is 20 sweep chords (Alt+`0x97` at 50,
+  100, 150 and 250 ms), 12 chords at 150 ms, and 8 faster ones. Four of those
+  had no gap. Four were fully back to back, as r8 and r9 pressed them, with
+  Alt to key in 0.4–0.8 ms.
+- **The same shape was rewritten earlier.** At 21:52Z–21:56Z, r8 and r9 saw a
+  `vk=0x00` in place of the Alt.
+- **Nothing held the Alt.** In all 40 chords, the raw Alt arrived within
+  0.2 ms of its injection.
+
+At 23:54Z every candidate in the survey table was still running, with the
+pid and start time recorded above:
+
+- `msrdc` 37336;
+- ChatGPT 17592 and `codex-computer-use-swift` 21016;
+- NVIDIA Overlay 10740;
+- Everything 28156;
+- Slack 28624;
+- Visual Studio 20452;
+- OneDrive 18292;
+- the Claude desktop app restarted at 19:55Z.
+
+This was read-only, and nothing was stopped or changed.
+
+**Inference.** The owner did not exit. It removed its hook or changed its
+rule while it kept running. For example, a tool may hook the keyboard only
+while one of its own modes or sessions is active. That also fits r3's 50 ms
+chords being rewritten at 05:18Z while longer gaps passed at 21:56Z.
+
+**For the owner.** If the rewriting comes back, the course is the check. Run
+it with `-GapMilliseconds 0 -HoldMilliseconds 0` against a test instance. It
+stops with exit code 4, "environment: Alt rewritten", when a hook takes the
+Alt. Otherwise it passes. The owner can compare that check with what was
+active at the time.
+
+The logs are station records under `build/logs/bpr-1022-main-win/`
+(`paced-*`), not committed.

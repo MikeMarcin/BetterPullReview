@@ -415,3 +415,85 @@ decision `7876410c-e657-44f8-be30-846db8115778`, sequence 582,
 The note is empty. The identification is [[BPR-1109]] (Ready, Windows,
 read-only). This card stays Done. Its Alt+Space, Alt+F, Alt+Up and Alt+F4 rows
 are still wanted once chords reach applications again.
+
+## Post-close: the Alt chords with real keys, paced and checked on raw input, at `3c3c34d8` (bpr-main-win, 2026-09-24)
+
+**Alt+Space, Alt+F, Alt+Up and Alt+F4 now hold with real keys on the real
+`windows` platform, 3 of 3 runs.** They agree with AC2 and the offscreen
+course. The card stays Done, and its acceptance record is unchanged.
+
+**The course.** [`windows_alt_chord_course.ps1`](../../../tests/scripts/windows_alt_chord_course.ps1)
+presses each chord at a person's pace: Alt down, a gap, the key down, the
+key up, Alt up. A thread of its own records the keyboard input as raw input
+delivers it, after every low-level hook has run. It keeps only synthetic
+input, so none of the owner's typing is recorded. A chord counts only when
+exactly its four keys arrived:
+
+- the Alt as `VK_MENU` with `WM_SYSKEYDOWN`;
+- the key as `WM_SYSKEYDOWN`, then `WM_SYSKEYUP`;
+- the Alt's release last;
+- no key with virtual-key code 0.
+
+Otherwise the run stops as "environment: Alt rewritten" with exit code 4,
+and the application is not judged. So a hook like [[BPR-1109]]'s can no
+longer pass or fail a product row.
+
+Checked offline against BPR-1109's recorded r9 pattern, the verdict reports
+the `vk=0x00` chord as rewritten. It also rejects an Alt that arrives as
+`WM_KEYDOWN`, a missing Alt and an extra key. It accepts the intact gapped
+chord. That self-test is a station helper, not committed.
+
+**The runs.** The candidate was `3c3c34d8` (`build/dev`, MSVC 19.51 Debug,
+Qt 6.11.2), with executable sha256 `f3783be98cbc4000…`. Each run used a fresh
+owner-private data root, which was removed afterwards. US keyboard layout
+(`0x04090409`). Keyboard only: the pointer never moved. Before every key
+press, the course checked by process id that the application's own window
+was in front. It always was, so no key went anywhere else. Before and after
+every run, Windows Terminal was in front and no `msrdc` window was showing.
+Every instance exited 0, and no `better_pull_review` process was left. The
+runs were at 23:51:04Z–23:53:47Z. Logs are station records under
+`build/logs/bpr-1022-main-win/` (`paced-*.json`, `paced-*-qt.txt`), not
+committed.
+
+**The gap sweep** used Alt with the unassigned key `0x97`, five times at
+each gap, interleaved. Every chord arrived intact, and nothing opened in the
+application. The raw Alt arrived within 0.2 ms of its injection, so nothing
+held it.
+
+| Gap | Intact | Raw Alt to key |
+|---|---|---|
+| 50 ms | 5 of 5 | 50.4–59.3 ms |
+| 100 ms | 5 of 5 | 100.3–113.1 ms |
+| 150 ms | 5 of 5 | 151.1–154.3 ms |
+| 250 ms | 5 of 5 | 250.3–262.0 ms |
+
+The lowest clean gap was 50 ms. The chords used 150 ms, a person's pace,
+with the key held 60 ms.
+
+**The chords**, 3 of 3 runs. Each chord's raw input was intact every time:
+`VK_MENU` `WM_SYSKEYDOWN`, the key `WM_SYSKEYDOWN` 150.4–162.3 ms later, the
+key `WM_SYSKEYUP`, then Alt up, and no `vk=0x00`.
+
+| Keys | At the application |
+|---|---|
+| Alt+Space | The native system menu opens: one `#32768` popup, and the thread in menu mode (`GUI_INMENUMODE`). |
+| then Esc | The system menu closes, and menu mode ends. The keyboard is back in Home's Open bar. |
+| Alt+F | Nothing opens: no popup, no menu mode, and the keyboard stays in the Open bar. Qt's key mapper offered `Key_F` with `AltModifier` to the shortcut map (`qt.qpa.events`, runs 2 and 3). |
+| Alt+Up | Nothing opens. Qt offered `Key_Up` with `AltModifier`, so the chord reached the shortcut map as a chord. |
+| Alt+F4 | The window closes, and the application exits 0. |
+
+Run 1 used the course before two fixes that changed nothing it asserts. One
+fix read Qt's log line shape, and the other corrected a console count. Runs 2
+and 3 used the committed course, sha256 `422fd6d4af2a233b…`.
+
+**Why the chords arrive now.** Two more runs pressed the same chords faster:
+one with no gap (Alt to key 0.3–0.9 ms, keys held 60 ms), and one fully back
+to back (no gap and no hold, as r8 and r9 pressed them). Both were intact,
+and both passed every check. So at 23:53Z nothing rewrote even back-to-back
+chords, although BPR-1109 saw them rewritten at 21:52Z–21:56Z. Nothing was
+stopped or changed to get there. A post-close note on [[BPR-1109]] records
+what that says about the hook.
+
+What this adds to AC2: Alt+Space's system menu, Alt+F4, and Alt+F and
+Alt+Up opening no menu are now shown with real keys on the real platform,
+not only offscreen. Alt+Tab was not pressed, for the reason given above.
