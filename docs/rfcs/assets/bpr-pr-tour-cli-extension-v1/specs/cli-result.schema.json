@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BPR tour CLI result envelope (proposed v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "command",
+    "request_id",
+    "status",
+    "data",
+    "warnings",
+    "error"
+  ],
+  "properties": {
+    "schema": {
+      "const": "bpr.tour.cli-result.v1"
+    },
+    "command": {
+      "enum": [
+        "capabilities",
+        "connect",
+        "open",
+        "status",
+        "show",
+        "edit",
+        "add",
+        "move",
+        "remove",
+        "ready",
+        "walk",
+        "preview",
+        "publish",
+        "recover",
+        "undo",
+        "redo",
+        "hooks.show",
+        "hooks.edit",
+        "hooks.reset",
+        "assist.context",
+        "assist.complete",
+        "outline.use"
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "error",
+        "conflict",
+        "partial",
+        "uncertain"
+      ]
+    },
+    "data": {
+      "type": "object"
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "error": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "message",
+            "recoverable"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recoverable": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

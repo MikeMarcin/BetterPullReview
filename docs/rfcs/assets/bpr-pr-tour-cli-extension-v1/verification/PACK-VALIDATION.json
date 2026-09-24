@@ -1,0 +1,48 @@
+{
+  "schema": "bpr.pr-tour.pack-validation.v1",
+  "authored_date": "2026-09-23",
+  "status": "passed",
+  "scope": "offline_artifact_checks_only",
+  "checks": [
+    {
+      "name": "payload integrity and exact inventory",
+      "result": "passed"
+    },
+    {
+      "name": "extension-only RFC and parent-scope preservation",
+      "result": "passed"
+    },
+    {
+      "name": "card and milestone DAG plus complete acceptance ownership",
+      "result": "passed"
+    },
+    {
+      "name": "local Markdown links and exact pr-tour identity",
+      "result": "passed"
+    },
+    {
+      "name": "machine envelopes, large identifier strings and reference byte-splice cases",
+      "result": "passed"
+    },
+    {
+      "name": "unit and negative artifact checks",
+      "result": "passed",
+      "tests": 28
+    }
+  ],
+  "rfcs": 3,
+  "cards": 20,
+  "milestones": 6,
+  "acceptance_requirements": 32,
+  "commands": [
+    "python3 -B scripts/verify_pack.py",
+    "python3 -B -m unittest discover -s tests -p 'test_*.py' -v"
+  ],
+  "product_implementation_performed": false,
+  "native_application_or_ipc_verification_performed": false,
+  "agent_model_behavior_verified": false,
+  "live_service_verification_performed": false,
+  "skill_installed": false,
+  "live_import_mapping_observed": false,
+  "limits": "All product acceptance rows remain Not run. These checks do not compile BPR, install pr-tour, invoke any model/provider or GitHub API, or validate the installed implement-rfc importer."
+}

@@ -1,0 +1,21 @@
+# Implement the pr-tour CLI extension
+
+Use the installed MASK-managed implement-rfc skill to import and implement this **extension-only** pack in the current BetterPullReview checkout. The original bpr-review-tour-v1 pack is already imported. Do not re-import it, clone its cards, reset its milestone plan/status, overwrite its RFCs or replace its shared-comment format.
+
+Read README.md, supporting/DECISIONS.md, supporting/SOURCE-AUDIT.md, supporting/INTEGRATION-MAP.md and the three new RFCs. Use milestone-plan.json as the offline-authored default execution seed, preserving its grouping/lineage. MILESTONES.md explains the boundaries and exact predecessor interfaces.
+
+At intake, inspect actual HEAD and the previous pack's import mapping; the supplied source snapshot predates that import. Resolve proposed RFC0044–0046 and PACK-PRTOUR aliases with the live allocator. Commit returned counter/receipts and a complete remap. Use the installed skill's actual validation/import interface; do not invent flags, restore retired skills, or call local validation a native import receipt. Archive original payloads and repair relative support links for the canonical live RFC paths as described in INTEGRATION-MAP.
+
+Implement one shared tour core/application path with a headless bpr tour frontend. The desktop must not shell out to its own CLI. Reuse current importer, anchors, four hooks, publisher, authority/journal and reconciliation. Qt Core/Network is acceptable; Widgets/GUI/QPA/display requirements are not. Preserve existing admitted host/account/platform/process constraints rather than bypass them through raw gh calls.
+
+Deliver the manual terminal path first. Human-readable output is default, --json explicit. Keep exact identity/revision/range semantics, trusted editor/stdin input, no surprise prompts in machine mode, coherent local undo/redo, finite preview/publish/recover and explicit authorization. No generic --yes approval bypass.
+
+Then implement shared WIP handoff through the same profile store and single runtime owner. CLI forwards finite authenticated commands when the desktop is open; do not open a second database writer. Flush ordinary dirty text safely, preserve IME/conflicts, and retain committed history across interfaces. Local saves/switching upload nothing. Cold recovery on another machine uses normal GitHub data; absent private history/provenance remains unknown. PENDING server staging is not general WIP sync or a recovered publish grant.
+
+Implement the portable skill named exactly pr-tour as a thin CLI wrapper. Use skill-source/pr-tour as the candidate, adapt to verified command syntax, and integrate it into the canonical shared AgentSkills source through the existing MASK workflow. Record upstream revision/access; missing authorization is an explicit distribution blocker, not a reason to fork BPR-local Claude/Codex copies. Do not edit implement-rfc roles or invent a new orchestration topology.
+
+The active agent uses the effective problem/solution/outline/comment hooks. It must not launch another agent, call model APIs, rewrite all stops, make a shadow draft, or publish through gh/HTTP directly. Exact scoped edits apply in place with ordinary undo. Skeletons have no bodies. Each generated stop receives current-code/current-text author interaction; tool reads are not human visits. Publication requires a current explicit request plus the real supported authorization path, with ordinary human-terminal fallback where an agent approval bridge is absent.
+
+Use focused production-path fixtures and the existing network-isolated/native lanes. Reuse unchanged parent evidence. Record each result with command/gesture, producing revision and actual surface. Offline pack tests are not application builds, native IPC/editor evidence, model behavior, live GitHub/GHES publication or user approval. Do not mutate company PRs, push upstream, access credentials, install shared skills or call paid models merely because a test card exists; use the established separately authorized paths.
+
+Finish with the cross-interface and independent-machine courses, source/ABI/package checks, documentation and simplification. Reconcile all 32 product requirements with actual evidence and canonical dependency-ordered closeout. Preserve open gates rather than marking unsupported or unobserved behavior Done/Auto-Verified.

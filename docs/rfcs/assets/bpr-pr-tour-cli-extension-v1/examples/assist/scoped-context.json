@@ -1,0 +1,44 @@
+{
+  "schema": "bpr.tour.cli-result.v1",
+  "command": "assist.context",
+  "request_id": "request-example-assist-context",
+  "status": "ok",
+  "data": {
+    "identity": {
+      "profile_id": "profile-example",
+      "host": "github.example.test",
+      "repository_id": "9007199254740993",
+      "repository": "example/project",
+      "pull_number": 123,
+      "account_id": "9007199254740995",
+      "draft_id": "draft-example",
+      "root_review_id": "9007199254740997"
+    },
+    "ticket_id": "ticket-example",
+    "editing_session_id": "session-example",
+    "field": "problem",
+    "expected_revision": "field-1",
+    "hook": "problem",
+    "hook_version": "effective-local-1",
+    "read_context": {
+      "schema": "bpr.review-preparation.request.v1",
+      "operation": "problem",
+      "scope": "selection",
+      "text_before": "Observed failure: ",
+      "selected_text": "Crash when reading data that's been concurrently deleted.",
+      "text_after": "\n\nFrequency is not established.",
+      "context": [
+        {
+          "ref": "pr-body:observed-1",
+          "kind": "author_statement",
+          "text": "Crash when reading data that's been concurrently deleted."
+        }
+      ],
+      "output_contract": "bpr.review-preparation.result.v1"
+    },
+    "model_launches": 0,
+    "remote_writes": 0
+  },
+  "warnings": [],
+  "error": null
+}

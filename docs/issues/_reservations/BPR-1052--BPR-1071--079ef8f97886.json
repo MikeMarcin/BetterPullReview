@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1052",
+    "BPR-1053",
+    "BPR-1054",
+    "BPR-1055",
+    "BPR-1056",
+    "BPR-1057",
+    "BPR-1058",
+    "BPR-1059",
+    "BPR-1060",
+    "BPR-1061",
+    "BPR-1062",
+    "BPR-1063",
+    "BPR-1064",
+    "BPR-1065",
+    "BPR-1066",
+    "BPR-1067",
+    "BPR-1068",
+    "BPR-1069",
+    "BPR-1070",
+    "BPR-1071"
+  ],
+  "reserve_for": "pr-tour-cli-extension-import",
+  "purpose": "Import bpr-pr-tour-cli-extension-v1 authored cards",
+  "created": "2026-09-24T04:04:48.247592+00:00",
+  "base": "2928e90ea38cb58dce57f7ee32aa7b817ed4e876"
+}

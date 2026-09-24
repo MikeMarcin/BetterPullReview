@@ -1,0 +1,167 @@
+{
+  "schema": "bpr.pr-tour.scenarios.v1",
+  "scenarios": [
+    {
+      "id": "local-save",
+      "purpose": "All three preparation interfaces save WIP locally without remote writes",
+      "acceptance": [
+        "AC45-03"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "cold-published",
+      "purpose": "Clean profile reconstructs shared content/order with no local manifest",
+      "acceptance": [
+        "AC45-01",
+        "AC45-02"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "cold-partial",
+      "purpose": "Failed comment page is partial rather than empty/deleted",
+      "acceptance": [
+        "AC45-02"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "pending-candidate",
+      "purpose": "New machine sees only available pending bytes and no grant/private WIP",
+      "acceptance": [
+        "AC45-09"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "running-owner",
+      "purpose": "CLI uses the running desktop owner rather than a second writer",
+      "acceptance": [
+        "AC45-05"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "lost-ipc-reply",
+      "purpose": "Commit-before-disconnect is reconciled by request identity",
+      "acceptance": [
+        "AC45-06"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "ime-conflict",
+      "purpose": "Dirty IME and external-editor revision conflicts preserve text",
+      "acceptance": [
+        "AC45-07"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "cross-undo",
+      "purpose": "Shared undo/redo retains raw bytes and never invokes model/GitHub",
+      "acceptance": [
+        "AC45-08"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "independent-agents",
+      "purpose": "Explicit draft identity isolates concurrent skill callers",
+      "acceptance": [
+        "AC44-05"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "manual-terminal",
+      "purpose": "Manual terminal flow works with no GUI/model",
+      "acceptance": [
+        "AC44-03"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "headless-link",
+      "purpose": "Standalone tests-disabled binary has no GUI/display dependencies",
+      "acceptance": [
+        "AC44-01"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "terminal-escape",
+      "purpose": "Untrusted control sequences do not execute in terminal",
+      "acceptance": [
+        "AC44-11"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "publish-authority",
+      "purpose": "Ready or JSON is not a publication grant",
+      "acceptance": [
+        "AC44-08",
+        "AC46-08"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "uncertain-send",
+      "purpose": "Reconciliation prevents duplicate creations after unknown outcome",
+      "acceptance": [
+        "AC44-10"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "range-aba",
+      "purpose": "Changing and undoing identical prose invalidates old ticket",
+      "acceptance": [
+        "AC46-06"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "outline-bodies",
+      "purpose": "Skeleton cannot contain hidden publishable comments or ready flags",
+      "acceptance": [
+        "AC46-07"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "read-not-visit",
+      "purpose": "Machine fetch is not an author visit",
+      "acceptance": [
+        "AC46-07"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "active-agent",
+      "purpose": "Effective hooks use active model without nested launch",
+      "acceptance": [
+        "AC46-05"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "policy-refusal",
+      "purpose": "Claimed provider cannot bypass required verified context policy",
+      "acceptance": [
+        "AC46-09"
+      ],
+      "status": "Not run"
+    },
+    {
+      "id": "actual-agent",
+      "purpose": "Attended run uses installed skill with actual binary and permissions",
+      "acceptance": [
+        "AC46-10"
+      ],
+      "status": "Not run"
+    }
+  ]
+}

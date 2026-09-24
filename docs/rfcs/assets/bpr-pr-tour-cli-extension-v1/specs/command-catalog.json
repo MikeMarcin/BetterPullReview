@@ -1,0 +1,166 @@
+{
+  "schema": "bpr.tour.command-catalog.v1",
+  "result_schema": "bpr.tour.cli-result.v1",
+  "commands": [
+    {
+      "name": "capabilities",
+      "effect_class": "read_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "connect",
+      "effect_class": "configure_auth",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "open",
+      "effect_class": "read_remote_and_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "status",
+      "effect_class": "read_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "show",
+      "effect_class": "read_local_or_remote",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "edit",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "add",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "move",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "remove",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "ready",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "walk",
+      "effect_class": "interactive_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "preview",
+      "effect_class": "read_local_or_remote",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "publish",
+      "effect_class": "publish_plan",
+      "remote_write": true,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "recover",
+      "effect_class": "read_remote_and_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "undo",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "redo",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "hooks.show",
+      "effect_class": "read_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "hooks.edit",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "hooks.reset",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": false
+    },
+    {
+      "name": "assist.context",
+      "effect_class": "assist_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": false,
+      "requires_explicit_ai_request": true
+    },
+    {
+      "name": "assist.complete",
+      "effect_class": "assist_local_edit",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": true
+    },
+    {
+      "name": "outline.use",
+      "effect_class": "edit_local",
+      "remote_write": false,
+      "requires_revision_for_mutation": true,
+      "requires_explicit_ai_request": true
+    }
+  ],
+  "default_output": "human",
+  "machine_flag": "--json",
+  "skill_name": "pr-tour",
+  "base_tour_format": "RFC-BPR-0040",
+  "no_generic_api_passthrough": true,
+  "remote_write_definition": "PR/review content mutation; explicit authentication can perform its own admitted network requests."
+}

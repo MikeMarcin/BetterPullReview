@@ -1,0 +1,25 @@
+{
+  "schema": "bpr.tour.cli-result.v1",
+  "command": "show",
+  "request_id": "request-example-show",
+  "status": "ok",
+  "data": {
+    "identity": {
+      "profile_id": "profile-example",
+      "host": "github.example.test",
+      "repository_id": "9007199254740993",
+      "repository": "example/project",
+      "pull_number": 123,
+      "account_id": "9007199254740995",
+      "draft_id": "draft-example",
+      "root_review_id": "9007199254740997"
+    },
+    "field": "problem",
+    "field_revision": "field-1",
+    "raw_markdown": "Crash when reading data that's been concurrently deleted.",
+    "source": "github_pr_body",
+    "provenance": "unknown"
+  },
+  "warnings": [],
+  "error": null
+}

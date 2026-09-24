@@ -1,0 +1,44 @@
+{
+  "schema": "bpr.pr-tour.extension-pack.v1",
+  "id": "bpr-pr-tour-cli-extension-v1",
+  "version": 1,
+  "authored_date": "2026-09-23",
+  "status": "proposed_design_and_implementation_plan",
+  "parent_pack_id": "bpr-review-tour-v1",
+  "parent_import": "already_imported_by_user; resolve actual mapping at intake",
+  "extension_only": true,
+  "new_files_only_overlay": true,
+  "product_implementation_performed": false,
+  "live_service_verification_performed": false,
+  "skill_installed": false,
+  "rfcs": [
+    {
+      "id": "RFC-BPR-0044",
+      "title": "Headless Tour Runtime and Terminal CLI",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0044-headless-tour-runtime-and-terminal-cli.md"
+    },
+    {
+      "id": "RFC-BPR-0045",
+      "title": "Shared Local Tour Drafts and Cross-Interface Recovery",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0045-shared-local-tour-drafts-and-cross-interface-recovery.md"
+    },
+    {
+      "id": "RFC-BPR-0046",
+      "title": "Thin pr-tour Agent Skill",
+      "path": "repository-overlay/docs/rfcs/RFC-BPR-0046-thin-pr-tour-agent-skill.md"
+    }
+  ],
+  "card_index": "cards/CARD-INDEX.json",
+  "milestone_plan": "milestone-plan.json",
+  "milestones_document": "MILESTONES.md",
+  "implementation_prompt": "IMPLEMENTATION-PROMPT.md",
+  "source_baseline": "references/SOURCE-BASELINE.json",
+  "acceptance_matrix": "verification/acceptance-matrix.json",
+  "skill": {
+    "name": "pr-tour",
+    "path": "skill-source/pr-tour/SKILL.md",
+    "status": "candidate_requires_cli_implementation",
+    "canonical_destination": "existing_shared_AgentSkills_source_via_MASK"
+  },
+  "checksums": "SHA256SUMS"
+}

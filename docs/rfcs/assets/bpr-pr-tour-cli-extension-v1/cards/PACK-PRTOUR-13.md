@@ -1,0 +1,33 @@
+---
+schema: "implement-rfc.card.v1"
+id: "PACK-PRTOUR-13"
+title: "Expose effective hooks and scoped active-agent edit tickets"
+status: "Backlog"
+rfcs: ["RFC-BPR-0046"]
+depends_on: ["PACK-PRTOUR-05", "PACK-PRTOUR-08", "PACK-PRTOUR-11"]
+metadata: {"pack": "bpr-pr-tour-cli-extension-v1", "milestone": "pr-tour-skill", "acceptance": ["AC46-05", "AC46-06"]}
+---
+
+# Expose effective hooks and scoped active-agent edit tickets
+
+## Outcome
+
+Expose assist context/complete and outline proposal/use through the CLI using the parent four hooks and result DTOs. The active agent supplies output; BPR launches no nested model. Tickets bind fixed local target/range/revision/source/hook/session, survive normal short-process pairing, and refuse stale/superseded/ambiguous output.
+
+## Existing ownership seams
+
+Parent RFC0043 settings/context/result validation; shared text transaction; CLI contract.
+
+Use the nearest current AGENTS.md and the actual mapped parent contracts. These are integration seams, not permission to copy embedded worktree snapshots or build parallel services.
+
+## Direct acceptance
+
+UTF-8 range/CRLF/emoji, repeated text, source/field/hook change, owner switch, explicit cancellation, no-op, invalid result and ABA tests. Only selected text changes as one undoable edit; outline bodies/ready directives reject. No model call from a read.
+
+Acceptance ownership: AC46-05, AC46-06
+
+## Execution boundary
+
+Milestone: **pr-tour-skill**. This is a pack-local alias, not an allocated live BPR issue. Allocate/remap only extension cards at intake, preserving original plan lineage.
+
+Run focused tests and record command/result/producing revision. Reuse unchanged valid parent evidence. An implementation card does not authorize real company PR writes, remote pushes, credentials, paid model calls, agent permission changes or upstream skill installation. Use existing isolated fixtures and separately authorized designated acceptance. Missing capabilities/evidence remain explicit. No GitHub Actions or new model-routing topology is introduced.

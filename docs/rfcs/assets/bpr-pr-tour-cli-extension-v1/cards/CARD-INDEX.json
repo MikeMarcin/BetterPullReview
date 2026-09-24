@@ -1,0 +1,342 @@
+{
+  "schema": "bpr.pr-tour.card-index.v1",
+  "cards": [
+    {
+      "id": "PACK-PRTOUR-01",
+      "path": "cards/PACK-PRTOUR-01.md",
+      "title": "Import only the extension and reconcile live predecessor mappings",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045",
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [],
+      "milestone": "intake",
+      "acceptance": []
+    },
+    {
+      "id": "PACK-PRTOUR-02",
+      "path": "cards/PACK-PRTOUR-02.md",
+      "title": "Expose the shared tour service facade and semantic commands",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-01"
+      ],
+      "milestone": "headless-manual",
+      "acceptance": [
+        "AC44-02"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-03",
+      "path": "cards/PACK-PRTOUR-03.md",
+      "title": "Build and install a non-GUI tour runtime and bpr executable",
+      "rfcs": [
+        "RFC-BPR-0044"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-02"
+      ],
+      "milestone": "headless-manual",
+      "acceptance": [
+        "AC44-01"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-04",
+      "path": "cards/PACK-PRTOUR-04.md",
+      "title": "Add precise open, import, show and capability commands",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-03"
+      ],
+      "milestone": "headless-manual",
+      "acceptance": [
+        "AC44-05"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-05",
+      "path": "cards/PACK-PRTOUR-05.md",
+      "title": "Implement revisioned local commands and machine result contract",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-02",
+        "PACK-PRTOUR-03",
+        "PACK-PRTOUR-04"
+      ],
+      "milestone": "headless-manual",
+      "acceptance": [
+        "AC44-04"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-06",
+      "path": "cards/PACK-PRTOUR-06.md",
+      "title": "Integrate trusted external editors and local undo redo",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-05"
+      ],
+      "milestone": "headless-manual",
+      "acceptance": [
+        "AC44-07"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-07",
+      "path": "cards/PACK-PRTOUR-07.md",
+      "title": "Provide the manual terminal walkthrough and safe code rendering",
+      "rfcs": [
+        "RFC-BPR-0044"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-06"
+      ],
+      "milestone": "headless-manual",
+      "acceptance": [
+        "AC44-03",
+        "AC44-06",
+        "AC44-11"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-08",
+      "path": "cards/PACK-PRTOUR-08.md",
+      "title": "Compose terminal publication maintenance and read-first recovery",
+      "rfcs": [
+        "RFC-BPR-0044"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-04",
+        "PACK-PRTOUR-05",
+        "PACK-PRTOUR-07"
+      ],
+      "milestone": "publish-and-recover",
+      "acceptance": [
+        "AC44-08",
+        "AC44-09",
+        "AC44-10"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-09",
+      "path": "cards/PACK-PRTOUR-09.md",
+      "title": "Persist shared draft history and presentation-neutral resumption",
+      "rfcs": [
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-05",
+        "PACK-PRTOUR-06"
+      ],
+      "milestone": "same-machine-handoff",
+      "acceptance": [
+        "AC45-03",
+        "AC45-08"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-10",
+      "path": "cards/PACK-PRTOUR-10.md",
+      "title": "Add bounded authenticated owner forwarding for tour commands",
+      "rfcs": [
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-03",
+        "PACK-PRTOUR-09"
+      ],
+      "milestone": "same-machine-handoff",
+      "acceptance": [
+        "AC45-05",
+        "AC45-06"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-11",
+      "path": "cards/PACK-PRTOUR-11.md",
+      "title": "Connect desktop buffers and same-machine authoring handoff",
+      "rfcs": [
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-09",
+        "PACK-PRTOUR-10"
+      ],
+      "milestone": "same-machine-handoff",
+      "acceptance": [
+        "AC45-04",
+        "AC45-07"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-12",
+      "path": "cards/PACK-PRTOUR-12.md",
+      "title": "Verify cold published recovery and incomplete remote observations",
+      "rfcs": [
+        "RFC-BPR-0045"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-04",
+        "PACK-PRTOUR-08"
+      ],
+      "milestone": "publish-and-recover",
+      "acceptance": [
+        "AC45-01",
+        "AC45-02",
+        "AC45-09"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-13",
+      "path": "cards/PACK-PRTOUR-13.md",
+      "title": "Expose effective hooks and scoped active-agent edit tickets",
+      "rfcs": [
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-05",
+        "PACK-PRTOUR-08",
+        "PACK-PRTOUR-11"
+      ],
+      "milestone": "pr-tour-skill",
+      "acceptance": [
+        "AC46-05",
+        "AC46-06"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-14",
+      "path": "cards/PACK-PRTOUR-14.md",
+      "title": "Implement the thin pr-tour conversational skill",
+      "rfcs": [
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-13"
+      ],
+      "milestone": "pr-tour-skill",
+      "acceptance": [
+        "AC46-02",
+        "AC46-03",
+        "AC46-04"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-15",
+      "path": "cards/PACK-PRTOUR-15.md",
+      "title": "Test agent attention provenance authority and adversarial inputs",
+      "rfcs": [
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-13",
+        "PACK-PRTOUR-14"
+      ],
+      "milestone": "pr-tour-skill",
+      "acceptance": [
+        "AC46-07",
+        "AC46-08",
+        "AC46-09"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-16",
+      "path": "cards/PACK-PRTOUR-16.md",
+      "title": "Integrate canonical pr-tour distribution and compatibility checks",
+      "rfcs": [
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-14"
+      ],
+      "milestone": "pr-tour-skill",
+      "acceptance": [
+        "AC46-01"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-17",
+      "path": "cards/PACK-PRTOUR-17.md",
+      "title": "Qualify standalone packages and native headless safety",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045",
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-08",
+        "PACK-PRTOUR-11",
+        "PACK-PRTOUR-12",
+        "PACK-PRTOUR-15",
+        "PACK-PRTOUR-16"
+      ],
+      "milestone": "verification-closeout",
+      "acceptance": [
+        "AC44-12"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-18",
+      "path": "cards/PACK-PRTOUR-18.md",
+      "title": "Run attended three-interface and second-machine acceptance",
+      "rfcs": [
+        "RFC-BPR-0045",
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-17"
+      ],
+      "milestone": "verification-closeout",
+      "acceptance": [
+        "AC45-10",
+        "AC46-10"
+      ]
+    },
+    {
+      "id": "PACK-PRTOUR-19",
+      "path": "cards/PACK-PRTOUR-19.md",
+      "title": "Document the workflow and simplify the integration",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045",
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-15",
+        "PACK-PRTOUR-17"
+      ],
+      "milestone": "verification-closeout",
+      "acceptance": []
+    },
+    {
+      "id": "PACK-PRTOUR-20",
+      "path": "cards/PACK-PRTOUR-20.md",
+      "title": "Independently review extension boundaries and close out truthfully",
+      "rfcs": [
+        "RFC-BPR-0044",
+        "RFC-BPR-0045",
+        "RFC-BPR-0046"
+      ],
+      "depends_on": [
+        "PACK-PRTOUR-18",
+        "PACK-PRTOUR-19"
+      ],
+      "milestone": "verification-closeout",
+      "acceptance": []
+    }
+  ]
+}

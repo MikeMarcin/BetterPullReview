@@ -1,0 +1,33 @@
+{
+  "schema": "bpr.tour.cli-result.v1",
+  "command": "open",
+  "request_id": "request-example-open",
+  "status": "partial",
+  "data": {
+    "identity": {
+      "profile_id": "profile-example",
+      "host": "github.example.test",
+      "repository_id": "9007199254740993",
+      "repository": "example/project",
+      "pull_number": 123,
+      "account_id": "9007199254740995",
+      "draft_id": "draft-example",
+      "root_review_id": "9007199254740997"
+    },
+    "recovery": "partial",
+    "available_stop_ids": [
+      "stop-A"
+    ],
+    "unavailable_comment_ids": [
+      "9007199254740999"
+    ],
+    "publishable": false,
+    "remote_writes": 0
+  },
+  "warnings": [],
+  "error": {
+    "code": "partial_observation",
+    "message": "One linked comment could not be read; this is not evidence of deletion.",
+    "recoverable": true
+  }
+}

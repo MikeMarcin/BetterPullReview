@@ -1,0 +1,121 @@
+{
+  "schema": "bpr.pr-tour.extension-baseline.v1",
+  "authored_date": "2026-09-23",
+  "source_snapshot": {
+    "filename": "better_pull_review_project_source.md",
+    "sha256": "d7aee1486d171456540bfd26c2b02bc8ee5bec47dbffb0d5429141fbef69ea2d",
+    "bytes": 185209814,
+    "generated": "2026-09-22T23:21:38-07:00",
+    "live_checkout_inspected": false,
+    "source_entries": [
+      {
+        "path": "AGENTS.md",
+        "dump_heading_line": 7310,
+        "dump_content_first_line": 7316,
+        "lines": 81,
+        "sha256": "0168bda20d47eb7a5074399e46da54d61880b6fb2771d59746298ec9213a49f2"
+      },
+      {
+        "path": "docs/architecture/system-architecture.md",
+        "dump_heading_line": 7671,
+        "dump_content_first_line": 7677,
+        "lines": 1322,
+        "sha256": "c8da65743a01e5f52a18d49467615f7b8a0033339842684065bdbce1472192c1"
+      },
+      {
+        "path": "CMakeLists.txt",
+        "dump_heading_line": 9716,
+        "dump_content_first_line": 9722,
+        "lines": 155,
+        "sha256": "b45690ce6952d6d4b91f13bd4f83013c62af81ac2d9eba8109766b3d96692196"
+      },
+      {
+        "path": ".mask.json",
+        "dump_heading_line": 937870,
+        "dump_content_first_line": 937876,
+        "lines": 32,
+        "sha256": "f040d621a38654d5459246220f4459f338976eb3ca621a8d642fc545968f47b4"
+      },
+      {
+        "path": "cmake/BprDependencies.cmake",
+        "dump_heading_line": 967927,
+        "dump_content_first_line": 967933,
+        "lines": 258,
+        "sha256": "b068f61f4f33f3436b41988a6164430ca6a97290d0eda4a251468cc85a96cdc9"
+      },
+      {
+        "path": "src/adapters/github/CMakeLists.txt",
+        "dump_heading_line": 1414664,
+        "dump_content_first_line": 1414670,
+        "lines": 186,
+        "sha256": "12baecd1c10747a908ebb7df0f6dec98430a7b1b0080962283aae73b8dd3d5f6"
+      },
+      {
+        "path": "src/adapters/sqlite/CMakeLists.txt",
+        "dump_heading_line": 1513295,
+        "dump_content_first_line": 1513301,
+        "lines": 64,
+        "sha256": "21a7eaf18705cd6e9a29f2e513b7b13af813750874a83dd8ff7f0e225a580c58"
+      },
+      {
+        "path": "src/adapters/sqlite/include/bpr/adapters/sqlite/profile_activation.hpp",
+        "dump_heading_line": 1513464,
+        "dump_content_first_line": 1513470,
+        "lines": 47,
+        "sha256": "8e84f78ecc44550664c88a6d08d84eeab0d9949f4e473b7d2d90933c5d011645"
+      },
+      {
+        "path": "src/adapters/sqlite/include/bpr/adapters/sqlite/profile_runtime_lease.hpp",
+        "dump_heading_line": 1513545,
+        "dump_content_first_line": 1513551,
+        "lines": 17,
+        "sha256": "9924f387dc0b34629c9e8b907e67eb31f0bea2a506f8f632a1383921d41d4ee2"
+      },
+      {
+        "path": "src/app/CMakeLists.txt",
+        "dump_heading_line": 1542596,
+        "dump_content_first_line": 1542602,
+        "lines": 658,
+        "sha256": "77375594e6207105c821757ccd8fc1d85e7e03a0507ec82de74b7ff9d197385a"
+      },
+      {
+        "path": "src/application/CMakeLists.txt",
+        "dump_heading_line": 1585268,
+        "dump_content_first_line": 1585274,
+        "lines": 101,
+        "sha256": "4dfe3cd1a7577e3c2783b1704c89df8946daf43e8dcd0805f5dbbc977635209e"
+      },
+      {
+        "path": "src/core/include/bpr/core/revisioned_review_draft.hpp",
+        "dump_heading_line": 1655965,
+        "dump_content_first_line": 1655971,
+        "lines": 40,
+        "sha256": "01fcd1081f58e6d6a29ad879526dd5b24a9e190cba6f2dfcc2c2fa1c74e8c87c"
+      }
+    ]
+  },
+  "parent_pack": {
+    "id": "bpr-review-tour-v1",
+    "archive": "betterpullreview-review-tour-rfc-pack-v1.zip",
+    "sha256": "b4f45e7e63465b0dc4d0308699d1bcb6308ec6e1d0720eef42c05be1bf0478d6",
+    "bytes": 150582,
+    "manifest_sha256": "acbaa942066d68c6f4673477ef2cfa3db8df0340708b69d8161a53aefce8fb20",
+    "payload_checksum_count": 82,
+    "payload_checksums_verified": true,
+    "rfcs": [
+      "RFC-BPR-0039",
+      "RFC-BPR-0040",
+      "RFC-BPR-0041",
+      "RFC-BPR-0042",
+      "RFC-BPR-0043"
+    ],
+    "user_reports_already_imported": true,
+    "live_import_mapping_observed": false
+  },
+  "new_proposed_rfcs": [
+    "RFC-BPR-0044",
+    "RFC-BPR-0045",
+    "RFC-BPR-0046"
+  ],
+  "no_parent_files_in_overlay": true
+}

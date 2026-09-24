@@ -1,0 +1,82 @@
+{
+  "schema": "bpr.pr-tour.byte-range-cases.v1",
+  "cases": [
+    {
+      "id": "middle-phrase",
+      "before": "Problem: a slow read.\nKeep this.",
+      "begin": 9,
+      "end": 15,
+      "replacement": "an unsafe",
+      "captured_revision": 1,
+      "current_revision": 1,
+      "expected_status": "applied",
+      "expected": "Problem: an unsafe read.\nKeep this."
+    },
+    {
+      "id": "unicode-crlf",
+      "before": "🔎 café\r\nProblem: old text.\r\nKeep **this**.",
+      "begin": 21,
+      "end": 29,
+      "replacement": "precise text",
+      "captured_revision": 1,
+      "current_revision": 1,
+      "expected_status": "applied",
+      "expected": "🔎 café\r\nProblem: precise text.\r\nKeep **this**."
+    },
+    {
+      "id": "combining",
+      "before": "Café and tests",
+      "begin": 11,
+      "end": 16,
+      "replacement": "checks",
+      "captured_revision": 1,
+      "current_revision": 1,
+      "expected_status": "applied",
+      "expected": "Café and checks"
+    },
+    {
+      "id": "selection-whitespace",
+      "before": "A  B",
+      "begin": 1,
+      "end": 3,
+      "replacement": " ",
+      "captured_revision": 1,
+      "current_revision": 1,
+      "expected_status": "applied",
+      "expected": "A B"
+    },
+    {
+      "id": "no-op",
+      "before": "Keep **this**.",
+      "begin": 5,
+      "end": 13,
+      "replacement": "**this**",
+      "captured_revision": 1,
+      "current_revision": 1,
+      "expected_status": "no_op",
+      "expected": "Keep **this**."
+    },
+    {
+      "id": "stale-aba",
+      "before": "Original text restored.",
+      "begin": 9,
+      "end": 13,
+      "replacement": "word",
+      "captured_revision": 1,
+      "current_revision": 3,
+      "expected_status": "stale",
+      "expected": "Original text restored."
+    },
+    {
+      "id": "invalid-scalar-boundary",
+      "before": "🔎 note",
+      "begin": 1,
+      "end": 4,
+      "replacement": "x",
+      "captured_revision": 1,
+      "current_revision": 1,
+      "expected_status": "invalid_range",
+      "expected": "🔎 note"
+    }
+  ]
+}

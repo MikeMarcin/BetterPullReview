@@ -175,6 +175,9 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0041](RFC-BPR-0041-staged-tour-publication-and-recovery.md) | Staged Tour Publication and Recovery | Proposed | Imported 2026-09-23; one native pending review staged, wired and submitted as COMMENT, with unknown outcomes reconciled rather than retried |
 | [RFC-BPR-0042](RFC-BPR-0042-published-tour-maintenance-and-reconciliation.md) | Published Tour Maintenance and Reconciliation | Proposed | Imported 2026-09-23; later updates preserve comment identity and discussion, website edits are remote truth with preserved local conflicts |
 | [RFC-BPR-0043](RFC-BPR-0043-scoped-review-preparation-ai-assistance.md) | Scoped Review Preparation AI Assistance | Proposed | Imported 2026-09-23; optional in-place undoable writing commands and skeleton-only outlines after the manual lifecycle; no bulk Ready or autonomous publication |
+| [RFC-BPR-0044](RFC-BPR-0044-headless-tour-runtime-and-terminal-cli.md) | Headless Tour Runtime and Terminal CLI | Proposed | Imported 2026-09-23 from the pr-tour CLI extension pack; an AI-free `bpr tour` terminal frontend over the RFC-BPR-0039 to 0042 tour services, with no GUI or display requirement |
+| [RFC-BPR-0045](RFC-BPR-0045-shared-local-tour-drafts-and-cross-interface-recovery.md) | Shared Local Tour Drafts and Cross-Interface Recovery | Proposed | Imported 2026-09-23; one same-machine WIP draft shared by desktop, CLI and skill through a single profile owner; published tours recover from GitHub alone |
+| [RFC-BPR-0046](RFC-BPR-0046-thin-pr-tour-agent-skill.md) | Thin pr-tour Agent Skill | Proposed | Imported 2026-09-23; a thin `pr-tour` skill over `bpr tour` that uses the active agent and the RFC-BPR-0043 hooks, distributed through the shared skill workflow |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -253,6 +256,16 @@ live ID mapping](assets/bpr-review-tour-v1.LIVE_IMPORT.md) and [adopted
 eight-milestone plan](plans/bpr-review-tour-v1/milestone-plan.json) retain the
 source and execution order. Import leaves all twenty-six cards in Backlog and all
 five RFCs Proposed; BPR-1016 owns the single ordered closeout.
+
+RFC-BPR-0044 through RFC-BPR-0046 are the imported pr-tour CLI extension pack,
+additive to the review-tour pack: a headless `bpr tour` terminal frontend, one
+local tour draft shared across desktop, CLI and skill, and a thin `pr-tour`
+agent skill that calls the CLI. They reuse the RFC-BPR-0039 to 0043 contracts
+rather than reauthoring them. Their [source pack and live ID
+mapping](assets/bpr-pr-tour-cli-extension-v1.LIVE_IMPORT.md) and [adopted
+six-milestone plan](plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json)
+retain the source and execution order. Import leaves all twenty cards in Backlog
+and all three RFCs Proposed; BPR-1071 owns the single ordered closeout.
 
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile

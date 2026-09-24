@@ -1,0 +1,27 @@
+{
+  "schema": "bpr.tour.cli-result.v1",
+  "command": "publish",
+  "request_id": "request-example-publish",
+  "status": "error",
+  "data": {
+    "identity": {
+      "profile_id": "profile-example",
+      "host": "github.example.test",
+      "repository_id": "9007199254740993",
+      "repository": "example/project",
+      "pull_number": 123,
+      "account_id": "9007199254740995",
+      "draft_id": "draft-example",
+      "root_review_id": "9007199254740997"
+    },
+    "plan_id": "plan-example",
+    "remote_writes": 0,
+    "next_action": "Run bpr tour publish --profile profile-example --draft draft-example from your terminal."
+  },
+  "warnings": [],
+  "error": {
+    "code": "interaction_required",
+    "message": "No supported approval bridge is available for this invocation.",
+    "recoverable": true
+  }
+}

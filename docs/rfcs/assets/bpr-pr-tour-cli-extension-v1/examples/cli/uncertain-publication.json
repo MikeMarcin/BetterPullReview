@@ -1,0 +1,32 @@
+{
+  "schema": "bpr.tour.cli-result.v1",
+  "command": "publish",
+  "request_id": "request-example-publish",
+  "status": "uncertain",
+  "data": {
+    "identity": {
+      "profile_id": "profile-example",
+      "host": "github.example.test",
+      "repository_id": "9007199254740993",
+      "repository": "example/project",
+      "pull_number": 123,
+      "account_id": "9007199254740995",
+      "draft_id": "draft-example",
+      "root_review_id": "9007199254740997"
+    },
+    "attempt_id": "attempt-example",
+    "phase": "submission_uncertain",
+    "confirmed_comment_ids": [
+      "9007199254740998",
+      "9007199254740999"
+    ],
+    "next_action": "recover",
+    "automatic_retry": false
+  },
+  "warnings": [],
+  "error": {
+    "code": "outcome_unknown",
+    "message": "Submission may have reached GitHub. Reconcile this attempt before another write.",
+    "recoverable": true
+  }
+}

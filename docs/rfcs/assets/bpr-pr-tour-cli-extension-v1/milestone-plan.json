@@ -1,0 +1,158 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-pr-tour-cli-extension-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0044",
+      "RFC-BPR-0045",
+      "RFC-BPR-0046"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake",
+      "outcome": "Import only the extension with collision-free mappings and an explicit parent/runtime baseline.",
+      "work": [
+        {
+          "issue": "PACK-PRTOUR-01"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Parent archive/import mappings and current HEAD are recorded; no parent cards are cloned or reset.",
+        "New RFC/card aliases and support links are remapped; the installed implement-rfc imports this offline grouping."
+      ],
+      "boundary": "Extension-only work; preserve parent authority and current source/platform/human evidence limits. No automatic remote effects."
+    },
+    {
+      "id": "headless-manual",
+      "outcome": "A separately runnable non-GUI CLI supports the complete local manual authoring and rehearsal path.",
+      "work": [
+        {
+          "issue": "PACK-PRTOUR-02"
+        },
+        {
+          "issue": "PACK-PRTOUR-03"
+        },
+        {
+          "issue": "PACK-PRTOUR-04"
+        },
+        {
+          "issue": "PACK-PRTOUR-05"
+        },
+        {
+          "issue": "PACK-PRTOUR-06"
+        },
+        {
+          "issue": "PACK-PRTOUR-07"
+        }
+      ],
+      "depends_on": [
+        "intake"
+      ],
+      "exit_criteria": [
+        "Desktop/core-only builds retain their boundaries; tests-disabled CLI has no GUI/display requirement.",
+        "Precise open/edit/outline/source/undo and human/JSON behavior work through shared services with zero AI and zero remote writes."
+      ],
+      "boundary": "Extension-only work; preserve parent authority and current source/platform/human evidence limits. No automatic remote effects."
+    },
+    {
+      "id": "publish-and-recover",
+      "outcome": "Terminal publication uses the existing plan/journal, and cold published recovery is machine-independent.",
+      "work": [
+        {
+          "issue": "PACK-PRTOUR-08"
+        },
+        {
+          "issue": "PACK-PRTOUR-12"
+        }
+      ],
+      "depends_on": [
+        "headless-manual"
+      ],
+      "exit_criteria": [
+        "Preview/confirm/stage/submit/update/recover flow preserves exact authority and no-duplicate semantics in isolated fixtures.",
+        "Clean-profile GitHub reconstruction preserves current published content and reports absent/private/partial data honestly."
+      ],
+      "boundary": "Extension-only work; preserve parent authority and current source/platform/human evidence limits. No automatic remote effects."
+    },
+    {
+      "id": "same-machine-handoff",
+      "outcome": "One local WIP draft is usable across desktop, CLI and skill-command clients with the desktop open.",
+      "work": [
+        {
+          "issue": "PACK-PRTOUR-09"
+        },
+        {
+          "issue": "PACK-PRTOUR-10"
+        },
+        {
+          "issue": "PACK-PRTOUR-11"
+        }
+      ],
+      "depends_on": [
+        "headless-manual"
+      ],
+      "exit_criteria": [
+        "Native ownership/forwarding and shared journal prevent second-writer, duplicate-request and stale-editor loss.",
+        "CLI→desktop→command-client→CLI retains exact text/order/source/readiness/conflicts/undo without copying or uploading; owner crash and IME cases have evidence."
+      ],
+      "boundary": "Extension-only work; preserve parent authority and current source/platform/human evidence limits. No automatic remote effects."
+    },
+    {
+      "id": "pr-tour-skill",
+      "outcome": "The thin named pr-tour skill uses the active agent and effective scoped hooks over the CLI.",
+      "work": [
+        {
+          "issue": "PACK-PRTOUR-13"
+        },
+        {
+          "issue": "PACK-PRTOUR-14"
+        },
+        {
+          "issue": "PACK-PRTOUR-15"
+        },
+        {
+          "issue": "PACK-PRTOUR-16"
+        }
+      ],
+      "depends_on": [
+        "publish-and-recover",
+        "same-machine-handoff"
+      ],
+      "exit_criteria": [
+        "No secondary publisher, draft format, model session or hook defaults are introduced.",
+        "Per-stop author interaction, policy, exact replacement and real publication approval boundaries pass focused tests; canonical distribution status is explicit."
+      ],
+      "boundary": "Extension-only work; preserve parent authority and current source/platform/human evidence limits. No automatic remote effects."
+    },
+    {
+      "id": "verification-closeout",
+      "outcome": "Packages, actual interfaces and claimed hosts are qualified and all extension claims are reconciled.",
+      "work": [
+        {
+          "issue": "PACK-PRTOUR-17"
+        },
+        {
+          "issue": "PACK-PRTOUR-18"
+        },
+        {
+          "issue": "PACK-PRTOUR-19"
+        },
+        {
+          "issue": "PACK-PRTOUR-20"
+        }
+      ],
+      "depends_on": [
+        "pr-tour-skill"
+      ],
+      "exit_criteria": [
+        "Actual native/website/agent courses record supported and absent evidence independently; a fresh machine needs only GitHub for published meaning.",
+        "All extension acceptance rows, docs and canonical closure agree; no missing prerequisite is called complete."
+      ],
+      "boundary": "Extension-only work; preserve parent authority and current source/platform/human evidence limits. No automatic remote effects."
+    }
+  ],
+  "unplanned_work": []
+}

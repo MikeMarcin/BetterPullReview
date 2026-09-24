@@ -1,0 +1,30 @@
+{
+  "schema": "bpr.tour.cli-result.v1",
+  "command": "open",
+  "request_id": "request-example-open",
+  "status": "ok",
+  "data": {
+    "identity": {
+      "profile_id": "profile-example",
+      "host": "github.example.test",
+      "repository_id": "9007199254740993",
+      "repository": "example/project",
+      "pull_number": 123,
+      "account_id": "9007199254740995",
+      "draft_id": "draft-example",
+      "root_review_id": "9007199254740997"
+    },
+    "observed_state": "published",
+    "recovery": "complete",
+    "private_history": "unknown",
+    "remote_writes": 0,
+    "stop_ids": [
+      "stop-A",
+      "stop-B"
+    ],
+    "problem_revision": "field-1",
+    "structure_revision": "outline-1"
+  },
+  "warnings": [],
+  "error": null
+}
