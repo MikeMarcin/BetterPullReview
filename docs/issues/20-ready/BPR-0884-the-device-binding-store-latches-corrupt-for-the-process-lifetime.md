@@ -308,3 +308,42 @@ The logs are station records under `build/logs/bpr-0884-main-win/` and are
 not committed. The card stays in Ready: Windows owes nothing more on the
 five rows that exercise this change, and the owner may want to review the
 diff first.
+
+### macOS: all six pass (bpr-main-mac, Mac batch 5, 2026-09-23)
+
+Run on `70c4974a`, which contains `02e3d59d`. Apple Silicon, AppleClang,
+Qt 6.11.2, `build/dev` Debug, reconfigured and rebuilt first (exit 0, no
+`error` or `warning:` line). The owed selector ran once, serially and
+verbose:
+`ctest --test-dir build/dev --output-on-failure -V -R "^(sqlite_device_binding_storage|sqlite_private_store_open|application_github_host|application_device_binding_restart|application_device_binding_launch_renewal|application_device_binding_relaunch)$"`.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | Passed, 0.55 s (`application github host tests passed`) |
+| `sqlite_private_store_open` | Passed, 0.47 s |
+| `sqlite_device_binding_storage` | Passed, 2.76 s (`device-binding-storage-tests:pass`) |
+| `application_device_binding_restart` | Passed, 29.39 s |
+| `application_device_binding_launch_renewal` | Passed, 20.13 s |
+| `application_device_binding_relaunch` | Passed, 8.85 s |
+
+6/6, ctest exit 0. The one-minute load was 24.2 at the start and 9.5 at the
+end.
+
+- **The lock checks.** As on Windows, `sqlite_device_binding_storage` prints
+  only `device-binding-storage-tests:pass`. Each of the three contention
+  checks asserts `unavailable`, and a `corrupt` would have stopped the
+  contract with its own `FAILED:` line. So on macOS's POSIX lock layer all
+  three read `unavailable`, never `corrupt`. The row's 2.76 s agrees with the
+  busy migration waiting out its 2-second timeout. The same binary also runs
+  [[BPR-0887]]'s nesting checks, which merged cleanly with this change.
+- **No admission-retry line on macOS, as built.** `test_device_binding_admission_refusal_is_retried`
+  and its `admission-retry` case are compiled only under `_WIN32`
+  (`tests/sqlite_contract/private_store_open_tests.cpp`, the `#if
+  defined(_WIN32)` blocks around the case list and its dispatch). macOS runs
+  `non-ansi-root` (all twelve stores `opened=1`, then `pass`) and
+  `owner-only` (33 files at `600`, then `pass`), then
+  `private-store-open-tests:pass`. The expectation of
+  `admission-retry:refused=1:retried=1` applies to Windows only.
+
+The card stays in Ready, waiting on the Windows relaunch question and any
+review, as the Windows section says.
