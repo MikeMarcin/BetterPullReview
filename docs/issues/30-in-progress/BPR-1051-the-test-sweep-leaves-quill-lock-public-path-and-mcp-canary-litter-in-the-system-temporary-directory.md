@@ -413,3 +413,147 @@ Expect:
   temporary directory, because this measurement cannot see what that row
   leaves.
 - `quill_logging` is the logging-adapter row the change must pass on Windows.
+
+## macOS, AC4 (bpr-main-mac, 2026-09-24)
+
+Station `bpr-main-mac`: macOS 26.6.2 on Apple Silicon, Apple clang 21.0.0,
+Qt 6.11.2, `build/dev` Debug. The head was `bcd57840`, which contains
+`09f3d48f`. It was reconfigured and rebuilt, with exit 0 and no `warning:`
+line. The logs, the per-row JSON and the driver are station records under
+`build/logs/bpr-1050-1051-1073-1074-mac/` and are not committed.
+
+### Method
+
+Each row's command ran directly, not through ctest, from 09:24:30Z to
+09:26:45Z. A scratch driver, not committed, did this for one row at a time:
+
+- It read the row from `ctest --show-only=json-v1`: the command after the
+  runner's `--`, the working directory, `ENVIRONMENT`,
+  `ENVIRONMENT_MODIFICATION`, `TIMEOUT` and the pass and fail expressions.
+- It made the runner's own layout, but kept it:
+  `/private/tmp/bpr1051-direct-XXXXXX/`, mode `0700`, with a `fixture/`
+  child, mode `0700`, as `TMPDIR`. It wrote `profile.sb` beside it with the
+  runner's own `write_profile()`, which it imported from
+  `scripts/run_network_isolated_test.py`, with no loopback ports. So each row
+  ran under the profile that ctest gives it. That is the template plus the
+  runner's one allowance, for sockets under its own directory. On macOS,
+  `profile_activation.cpp` puts the activation endpoint in `$TMPDIR`. The
+  template alone would confine the row more tightly than ctest does.
+- It gave the child the row's environment, including
+  `BPR_AUTOMATED_TEST_BOUNDARY=1` and the unset loader variables. It also set
+  the runner's four variables: an empty `BPR_TEST_LOOPBACK_PORTS`, and
+  `BPR_TEST_SOCKET_ROOT` and `TMPDIR` both naming the kept `fixture/`, with a
+  new `BPR_TEST_SOCKET_TOKEN`. It then ran
+  `/usr/bin/sandbox-exec -f <profile> <command…>`.
+- It judged the row by CTest's rule on the captured output.
+- It listed `fixture/` two levels deep afterwards. It compared the names of
+  `/private/tmp/QuillBackendLock*` and the top level of `/private/tmp`
+  before and after. It did the same for the user's own `$TMPDIR`.
+
+On this station the card's `ls /tmp | grep -c '^QuillBackendLock'` would
+count 0 whatever `/tmp` holds. The shell profile aliases `ls` to a lister that
+puts an icon before each name. The counts here come from `find` and Python.
+
+### Results at the candidate
+
+All 12 rows are registered on macOS.
+
+| Row | Direct run | `TMPDIR` afterwards | New `QuillBackendLock*` |
+| --- | --- | --- | --- |
+| `rfc0017_public_preview_decision_contract` | pass, 1.43 s, 44 tests | empty | none |
+| `application_mcp_context_helper` | pass, 0.54 s | empty | none |
+| `application_agent_crash_recovery` | pass, 46.16 s | empty | none |
+| `application_agent_materialization_crash_recovery` | pass, 40.58 s | empty | none |
+| `application_attended_launch_contract` | pass, 20.87 s | `bpr-activate-5335cb89d0717ebb.sock` | none |
+| `runtime_process_surface` | pass, 0.61 s | `bpr-activate-9a5a06119ba39cd8.sock` | none |
+| `application_device_binding_relaunch` | pass, 9.08 s | empty | none |
+| `application_profile_activation_public_path` | pass, 4.85 s | `act-s_eaeqeu-agent-workspaces-v1/`, mode `0700` | none |
+| `application_profile_owner_admission_public_path` | pass, 2.45 s | empty | none |
+| `quill_logging` | pass, 0.38 s | empty | none |
+| `quill_logging_backpressure` | pass, 0.09 s | empty | none |
+| `application_logging` | pass, 6.75 s | empty | none |
+
+- **None of the five kinds appeared.** No `bpr-public-path-*`,
+  `bpr-mcp-canary-*`, `bpr` followed by 8 characters, or `bpr-tidy-db-*` was
+  left in any `TMPDIR`. No row added an entry to `/private/tmp`. No
+  `QuillBackendLock*` was created. `/private/tmp` held the same 69 lock files,
+  dated 2026-09-21 and 2026-09-23, before and after these runs.
+  Nothing new of this project's appeared in the user's `$TMPDIR` either. Its
+  only new files were `att-*-postings-*.bin`, which a desktop indexer that
+  another process runs held open.
+- **Through ctest, as registered**, the same 12 rows passed 12 of 12.
+  `quill_logging` and the logging rows are the logging-adapter rows that the
+  change must pass on macOS.
+- **The ctest runs for [[BPR-1050]]** (09:05:25Z to 09:23:52Z) included both
+  agent crash-recovery courses and added no lock file either. The lock's path
+  ignores `TMPDIR`, so a ctest run can show this one kind on macOS.
+
+### Three entries outside the card's kinds
+
+The card's expectation was that `find` prints nothing. It printed three
+entries. None is one of the five kinds, and each sits in the directory that
+the runner owns and deletes when the row ends:
+
+- **`bpr-activate-<digest>.sock`**, from `application_attended_launch_contract`
+  and `runtime_process_surface`. This is the profile activation endpoint.
+  `profile_activation.cpp`'s `runtime_directory()` puts it in `$TMPDIR` on
+  macOS and in `$XDG_RUNTIME_DIR` on Linux. Both courses end an owner with a
+  signal, so the owner never closes its endpoint. The Linux measurement gave
+  each run a fresh `XDG_RUNTIME_DIR` and removed it afterwards, so it could
+  not have seen the same thing.
+- **`act-<random>-agent-workspaces-v1/`**, from
+  `application_profile_activation_public_path`. On macOS
+  `private_fixture_parent()` roots the course's `act-*` directory in
+  `BPR_TEST_SOCKET_ROOT`, which is the runner's directory. The course removes
+  `act-*`, but not the workspace directory that the application makes beside
+  it. On Linux the course makes its own parent under `/tmp` and removes the
+  whole parent, so nothing is left.
+
+Under ctest the runner removes its directory, and the three entries go with
+it. The 51 row runs that ctest made on this station today left no `bpr-net-*`
+directory in `/private/tmp`. It holds the same eight as before these runs,
+all dated 2026-09-20 to 2026-09-23. They are not attributed here and were
+left alone. The user's own `$TMPDIR` does hold 20 `bpr-activate-*.sock` and
+one `bpr-public-path-*` from 2026-09-19 to 2026-09-22. They were made by
+earlier work on this station outside the runner, and none is from these runs.
+So a killed owner does leave its endpoint behind on macOS whenever the process
+runs outside the runner. That has been reported to the coordinator. This card
+does not take it.
+
+### Does the sandbox let the process create the lock? Yes
+
+The negative control ran in two steps.
+
+1. `options.check_backend_singleton_instance = false;` was deleted from
+   `src/adapters/logging/src/quill_log.cpp`, and nothing else changed. Then
+   `app_better_pull_review` and `quill_logging` were rebuilt.
+2. The same driver ran two rows:
+   - `application_attended_launch_contract` **passed** in 20.99 s, and it left
+     **`/private/tmp/QuillBackendLock30415`**: empty, mode `0644`, created at
+     09:28:24Z, and held by no process. The course ran as pid 30408, and the
+     next row started as pid 30428. Only this project's binaries link Quill.
+     So 30415 was an application the course launched and ended. Under the
+     derived profile, the application created the file in `/tmp`, and Quill
+     did not skip the check.
+   - `quill_logging` **failed** with exit 1:
+     `a running backend creates no Quill lock file in /tmp`. As on Linux, the
+     failing `expect` left its `qt_temp-*` in its `TMPDIR`.
+
+**Restored.** The file was copied back from the saved original. Its SHA-256,
+`c7c588af08ffb775036de7ee201955d3cfce4756aaac108a46ee6ff379263677`, is the
+same as at `09f3d48f`, and `git diff` is empty. The whole tree was rebuilt:
+33 steps, exit 0, no `warning:` line. Both rows were run directly again. The
+course passed with no lock file, and `quill_logging` passed.
+`/private/tmp/QuillBackendLock30415` was removed by its exact name. It is the
+only entry this station removed from `/private/tmp`, apart from its own 16
+`bpr1051-direct-*` roots, which were each removed by the name the driver
+recorded.
+
+### Acceptance state after this run
+
+- **AC4: pass on macOS.** Over the 12 rows, which are all registered here,
+  a direct run under the row's own sandbox profile, with a kept `TMPDIR`,
+  passed every row. It left none of the five kinds, and it created no Quill
+  lock. The sandbox allows the lock. The only thing that stops it is the
+  product's setting, and the negative control brings the lock back.
+- **AC5: still owed by bpr-main-win.** The card stays In Progress.
