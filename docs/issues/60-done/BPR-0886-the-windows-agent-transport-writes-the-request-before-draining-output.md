@@ -187,3 +187,60 @@ only the test canary; no installed agent was run. The console log is a
 station record under
 `build/logs/bpr-main-linux-20260923/bpr-1038-1022-0886-linux/bpr-0886-agent-launch-canary.log`
 and is not committed. The acceptance record above is unchanged.
+
+## Post-close correction: the architecture boundary rows (bpr-main-win, 2026-09-24)
+
+**`0ba63b0a` turned `architecture_boundaries` and
+`architecture_boundary_contract` red on every host, and `628b64d0` turns them
+green again.** The behaviour this card accepted is unchanged.
+
+The native Windows backend, `windows_agent_process.cpp`, is held to two rules
+in `cmake/VerifyArchitectureBoundaries.cmake`, and `0ba63b0a` broke both.
+
+- The shared protocol loop owns the output ceilings. A backend that names
+  `maximum_agent_stderr_bytes` fails with `Agent process backend duplicates
+  shared protocol logic`. `park_available` bounded the parked standard error
+  with `application::maximum_agent_stderr_bytes + 1U`.
+- The native Windows backend may not mention `QProcess`. A comment said the
+  transport reads "as the POSIX transport's QProcess" does.
+
+bpr-main-linux bisected the red rows to this change: they pass at
+`0ba63b0a^`. This station's own integration pass saw
+`architecture_boundaries` fail on the first rule while working on
+[[BPR-1074]].
+
+**The correction (`628b64d0`)** moves the ceilings behind the loop's seam and
+leaves the gate as it was. `agent_protocol_loop.hpp` declares
+`agent_protocol_read_ahead_limit(agent_protocol_stream)`, and
+`agent_protocol_loop.cpp` defines it. It returns one byte past the ceiling the
+loop applies to each stream: standard output's through the decoder, and
+standard error's in `drain_standard_error`. The Windows transport asks the
+loop for both limits and no longer names either ceiling. The values are what
+they were, so every refusal is unchanged. The comment now says "as the POSIX
+transport reads while it writes". `application_agent_protocol_loop` asserts
+both limits.
+
+**Verification**, `build/dev`, MSVC 19.51 Debug, Qt 6.11.2, serial, at the
+candidate before the push rebased it:
+
+| Row | Result |
+| --- | --- |
+| `architecture_boundaries` | passes |
+| `architecture_boundary_contract` | passes, 139 tests, 319.95 s |
+| `application_agent_protocol_loop` | passes |
+| `qt_agent_launch_canary` (this card's contract row, contained) | passes, 105.63 s |
+
+`clang-format` 22.1.8 reports the four touched files clean. The push gate
+built the rebased tree and ran both boundary rows again before it pushed
+`628b64d0`. Both passed.
+
+**Guard.** This station's push gate
+(`C:\Users\mikem\bpr-main-helpers\gate-push.sh`, not committed) now builds
+`build/dev` and runs `architecture_boundaries` and
+`architecture_boundary_contract` whenever the outgoing commits touch `src/`.
+It refuses the push unless both rows run and pass. Checked against this
+incident: with `0ba63b0a`'s `windows_agent_process.cpp` restored in the
+working tree, `gate-push.sh --check-boundaries-only 0ba63b0a^ 0ba63b0a`
+decided that `src/` was touched, built, and refused with
+`BOUNDARY GATE FAILED`. Both rows failed, the first on
+`maximum_agent_stderr_bytes`. The file was then restored.
