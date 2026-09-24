@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1072"
 title: "Windows: concurrent network-sandbox launches fail at the AppContainer profile, and can delete it, because every launch calls CreateAppContainerProfile and only ERROR_ALREADY_EXISTS counts as an existing profile"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
