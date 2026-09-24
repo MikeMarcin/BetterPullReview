@@ -323,3 +323,85 @@ That needs its own foreground window.
 
 Those keys were not sent here: into the owner's Terminal they would open its
 system menu, type into a shell or close it.
+
+## BPR-1022's real-key rows with the application in front, 2026-09-24T21:52Z (cleared): the hook is still there
+
+The coordinator announced and cleared this run.
+
+- **The harness:** `fg-1022-realkeys.ps1`, tag `r8-bpr1109`, driving a test
+  instance of `build/dev` at `38507ec5`. The executable's SHA-256 is
+  `e7f0e336…`. The instance was pid 44652, on a fresh private data root that
+  was removed afterwards.
+- **Guards:**
+  - Before the run, the foreground was Windows Terminal, and no `msrdc`
+    window was showing.
+  - Before every gesture, the harness confirmed by pid that the foreground
+    was the application's own window, and would have aborted otherwise. It
+    was the application's window at every step, and no key went elsewhere.
+- **Afterwards:** the window was closed with `WM_CLOSE`, exit code 0, and
+  no `better_pull_review` process was left. The foreground went back to
+  Windows Terminal.
+- **Recorded:** the synthetic-only raw input sink ran alongside. The logs
+  are `build/logs/bpr-1109-main-win/realkeys-r8-*` and
+  `build/logs/bpr-1022-main-win/realkeys-r8-bpr1109.json`. They are not
+  committed.
+
+### Which keys fail (facts)
+
+| Chord | Raw input | At the application |
+|---|---|---|
+| Alt+Space | `vk=0x00` down, Space `WM_KEYDOWN`, Space up, `vk=0x00` up | no system menu (FAIL) |
+| Alt+F | `vk=0x00` in place of the Alt, F `WM_KEYDOWN` | nothing opens (the row passes, but only because the Alt never arrived) |
+| Alt+Up | `vk=0x00` in place of the Alt, Up `WM_KEYDOWN` | nothing opens (the same) |
+| Alt+F4 | `vk=0x00` in place of the Alt, F4 `WM_KEYDOWN` | the window stays open (FAIL) |
+| Alt alone, left or right | `VK_MENU`, `WM_SYSKEYDOWN` | the application menu opens |
+| Ctrl with right Alt (AltGr), alone or with Q | `VK_CONTROL`, then `VK_MENU` E0 | nothing opens (pass) |
+
+This is the r4–r7 pattern of 05:20Z–06:46Z, unchanged. So at the end of
+this investigation the symptom is exactly what it was at the start.
+
+The "File highlighted" rows fail in the same way r6 recorded, and those
+failures are not this card's: the harness lists the application menu's
+items without File.
+
+### What it settles, and what it does not
+
+- **The hook is not gone.** So the Claude desktop instance that exited at
+  about 19:55Z is not the owner, unless its restarted successor installed
+  the same hook again.
+- **The rewriting is selective.**
+  - Alt+`0x97` passed at 21:48Z and 21:49Z, with Windows Terminal in front.
+  - Alt+Space, F, Up and F4 were rewritten at 21:52Z, with the application
+    in front.
+  - Two things changed between those runs: the chord key, and the
+    foreground process. These runs cannot say which one the hook keys on.
+- **AC1: still pending.** The candidates are the long-running hook-capable
+  processes in the survey table:
+  - `msrdc` 37336;
+  - `ChatGPT.exe` and its computer-use runtime (21016);
+  - the NVIDIA overlay 10740;
+  - Everything 28156;
+  - the restarted Claude desktop app.
+  None of them was stopped to test it, and none will be without the owner.
+- **AC2: now observed.** The rewriting of Alt+Space, F, Up and F4 is the same
+  at the start (BPR-1022 r7, 06:46Z) and at the end (r8, 21:52Z). Nothing was
+  stopped or changed.
+
+### The next attribution step
+
+One more cleared run, of about 1 minute, with the same guards and the
+application in front:
+
+- Send Alt+`0x97`, which is harmless in the application, and read the raw
+  input sink.
+  - If it passes there too, the hook keys on the chord key, not on the
+    foreground process.
+  - If it is rewritten, the hook keys on the foreground process.
+- Either answer narrows the list:
+  - A per-key hook acting on Alt+Space in every application behaves like a
+    launcher or quick-entry shortcut. Inference: that points at the chat
+    and launcher apps' global shortcuts.
+  - A per-application hook points at a tool with per-window rules.
+
+After that, the owner can check those applications' shortcut settings. Only
+the owner should change them.
