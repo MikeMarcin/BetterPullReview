@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0884"
 title: "The device binding store latches corrupt for the process lifetime, including on cancellation"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
-metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"02e3d59d","remaining":"independent read-only critical review of 02e3d59d (owner said yes 2026-09-24, decision 8e1858ab: use rfc-reviewer-critical), to be dispatched by the coordinator; Linux, macOS and Windows runs are recorded","related_cards":["BPR-0541","BPR-0644","BPR-0841","BPR-0883","BPR-0887"]}
+metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"02e3d59d","remaining":"none: the owner-required independent read-only review of 02e3d59d (rfc-reviewer-critical, claude-fable-5-1, 2026-09-24) found no blocking issue; its residual is BPR-1111","related_cards":["BPR-0541","BPR-0644","BPR-0841","BPR-0883","BPR-0887","BPR-1048","BPR-1111"],"review":{"reviewer":"rfc-reviewer-critical","model":"claude-fable-5-1","mode":"read-only, macOS, from source","head":"2852dde0","candidate":"02e3d59d","verdict":"no blocking finding","decision":"8e1858ab-e9f7-4371-b854-71a6ab3e1946"}}
+acceptance: [{"criterion":"AC1 A cancelled or busy open leaves the store usable on the next call, shown by a contract that reuses one store","outcome":"pass","revision":"02e3d59d","evidence":{"kind":"command","detail":"sqlite_device_binding_storage retries a cancelled quick_check preflight and an interrupted legacy migration on the same store, and asserts unavailable (never corrupt) for a busy migration, a locked first read and a writer racing the snapshot. Linux pass at 02e3d59d (trials C1-C3, C5, C6 fail at their pins); Windows pass at 78c8ac85 (record f7e93488) and bcd57840 (record 76a0ecdd, 6 of 6); macOS pass at 70c4974a (record 7d40ae8c, 6 of 6). Residual from the independent review, finding 1: an SQLite I/O, NOMEM, PROTOCOL or BUSY_RECOVERY failure after the first read still latches corrupt; ordinary lock holders cannot reach it; carded as BPR-1111.","path":"docs/issues/60-done/BPR-0884-the-device-binding-store-latches-corrupt-for-the-process-lifetime.md#closeout-2026-09-24"}},{"criterion":"AC2 A genuine post-admission corruption still latches, and that is still pinned","outcome":"pass","revision":"02e3d59d","evidence":{"kind":"command","detail":"sqlite_device_binding_storage: an unknown schema object gives corrupt; after repair the same store's load and erase still fail and a new store loads. Linux pass at 02e3d59d (trial C4, never latch, fails here); the same binary passes on Windows (78c8ac85, bcd57840) and macOS (70c4974a).","path":"docs/issues/60-done/BPR-0884-the-device-binding-store-latches-corrupt-for-the-process-lifetime.md#verification-on-linux"}},{"criterion":"AC3 The card records how this interacts with BPR-0541 and BPR-0644","outcome":"pass","revision":"02e3d59d","evidence":{"kind":"freeform","detail":"The section 'How this relates to BPR-0541 and BPR-0644' records that the store never reports success without a complete establish, that BPR-0541's host latch is unchanged, and that the change works with either answer to BPR-0644 (the owner since chose keep the grant, fail visibly and retry at next launch). The independent review found the change consistent with BPR-0841, BPR-0541 and BPR-0644.","path":"docs/issues/60-done/BPR-0884-the-device-binding-store-latches-corrupt-for-the-process-lifetime.md#how-this-relates-to-bpr-0541-and-bpr-0644"}},{"criterion":"AC4 A fallback post that throws leaves the queue drainable and is_quiescent() reachable, shown by a test that injects the throw","outcome":"pass","revision":"02e3d59d","evidence":{"kind":"command","detail":"application_github_host, test_device_binding_persistence_stays_drainable_when_its_posts_are_refused: withdrawal at admission, a stranded queued successor and a refused closing refusal, each followed by is_quiescent() and a served next request. Linux pass at 02e3d59d (trials A1-A3 fail at their assertions); Windows and macOS pass. The independent review (finding 3c) notes the test pins at least one terminal per request, not exactly one; BPR-1111 adds a per-request counter.","path":"docs/issues/60-done/BPR-0884-the-device-binding-store-latches-corrupt-for-the-process-lifetime.md#verification-on-linux"}},{"criterion":"AC5 Owner requirement (attended session cbd48b91, decision 8e1858ab): an independent read-only rfc-reviewer-critical review of 02e3d59d, with its findings dispositioned on the card","outcome":"pass","revision":"02e3d59d","evidence":{"kind":"observation","detail":"rfc-reviewer-critical (claude-fable-5-1), dispatched by the coordinator, read-only on macOS from source at 2852dde0 (product files unchanged since 02e3d59d); ran sqlite_device_binding_storage and application_github_host (2 of 2 pass) and the documentation gate. Verdict: no blocking finding. Finding 1 and 3c -> BPR-1111; finding 2 -> the stale 'Recorded, not changed' bullet now points at BPR-1048 (a670fd95); 3a and 3b informational. Recorded from the coordinator's summary; the reviewer's full report is not in the repository.","path":"docs/issues/60-done/BPR-0884-the-device-binding-store-latches-corrupt-for-the-process-lifetime.md#independent-review-2026-09-24"}}]
 ---
 
 # BPR-0884: The device binding store latches corrupt for the process lifetime, including on cancellation
@@ -137,6 +138,16 @@ Three further details:
   A file substituted between admission and open is a security signal, and
   busy or locked cannot arise at open.
 
+**Narrowed by the independent review (2026-09-24).** The code classifies
+only the first read's failure. A failure at a later read in `inspect()`, or
+at `read_rows`' prepare or step, still reports `corrupt` and latches. So an
+SQLite I/O, memory, protocol or WAL-recovery error at those points latches
+the store. The single-snapshot detail above holds for `inspect()`'s reads,
+but not for the `read_rows` re-read, which runs after the rollback. The
+reviewer's probe showed that ordinary lock holders cannot reach either path.
+The residual is [[BPR-1111]]. See "Independent review (2026-09-24)",
+finding 1.
+
 ### How this relates to BPR-0541 and BPR-0644
 
 **[[BPR-0541]].** Its fail-closed rule is that a store or vault failure
@@ -201,6 +212,11 @@ The header contract on `device_binding_persistence` says this, and so does
   but the host's own `OutstandingBindings` stays counted. That gap predates
   this card, and it is only reachable when both executors refuse (allocation
   failure). It is a follow-up candidate and needs an ID.
+
+  **Since closed (2026-09-24).** [[BPR-1048]] was the follow-up. It fixed
+  this gap at `a670fd95`, and each of the four sites now takes its own
+  failure path on a withdrawal. The independent review's finding 2 found
+  this bullet stale.
 
 ### Verification on Linux
 
@@ -423,3 +439,95 @@ visibly and retry at the next launch. As "How this relates to BPR-0541 and
 BPR-0644" says, this change works with that answer; the store that no longer
 latches is what lets an in-process retry reach the database. The reviewer
 should read it with that answer in mind.
+
+## Independent review (2026-09-24)
+
+**Who and how.** An `rfc-reviewer-critical` (`claude-fable-5-1`) reviewed
+the `02e3d59d` change. The coordinator dispatched it, as the owner decided
+above (decision `8e1858ab`), and the lane that wrote the change did not. It
+worked read-only, on macOS, from source, at `2852dde0`. The product files are
+unchanged there since `02e3d59d`. It ran `sqlite_device_binding_storage` and
+`application_github_host`, and both passed. It also ran
+`verify_documentation.py`. It changed no code, board state or GitHub. This
+review meets the owner's review requirement. It replaces the "No independent
+review" paragraph above, which stays as history.
+
+**Verdict: no blocking finding.** These held:
+
+- **The snapshot against writers.** `inspect()` reads inside `BEGIN` ...
+  `ROLLBACK` (`src/adapters/sqlite/src/device_binding_store.cpp:260-264`).
+  The migration's `BEGIN IMMEDIATE` at `:323` is unconditional, so a change
+  made in the gap after the snapshot fails as `unavailable`.
+- **Fail-closed** (`:233-235`).
+- **Exactly one terminal per request**, under the executor contract
+  (`src/application/src/device_binding_store.cpp:96-198`).
+- **Migration failures.** The reviewer found no migration failure that
+  should latch.
+- **Consistency** with [[BPR-0841]], [[BPR-0541]] and [[BPR-0644]].
+
+**Non-blocking findings, in the reviewer's order.** Line references are the
+reviewer's, in `src/adapters/sqlite/src/device_binding_store.cpp` unless
+another file is named.
+
+1. "Only a verdict latches" is narrower in code than this card claims. Only
+   the first read is classified (`:281-285`). Later failures (`:288-289`,
+   `:305-306`, `:312-313`) and `read_rows`' prepare and step (`:145-146`,
+   `:157-158`) map to `corrupt`. So `SQLITE_IOERR_*`, `NOMEM`, `PROTOCOL`
+   and `BUSY_RECOVERY` latch the store as corrupt. The `:276` re-read runs
+   after the snapshot's rollback, so the comment at `:253-257` holds only
+   inside `inspect()`. A scratch probe showed that ordinary lock holders
+   cannot reach these paths. The I/O and WAL-recovery class remains. It
+   predates this card, and this card narrowed it. The reviewer suggests:
+   - classify the step and prepare results in `read_rows` through
+     `detail::classify_sqlite_result`
+     (`src/adapters/sqlite/src/catalog_database.cpp:4291-4306`);
+   - drop the `:276` re-read, or move it;
+   - state the residual on this card.
+2. The "Recorded, not changed" text about the `OutstandingBindings` gap is
+   stale, because [[BPR-1048]] closed the gap. It should cross-reference
+   BPR-1048.
+3. Informational:
+   - (a) A stop at `ensure_open()` (`:241-242`) can turn `corrupt` into
+     `cancelled` without latching. The next call judges the file again.
+   - (b) A stranded successor always gets `unavailable`
+     (`src/application/src/device_binding_store.cpp:177`).
+   - (c) `test_device_binding_persistence_stays_drainable_when_its_posts_are_refused`
+     (`tests/application/github_application_host_tests.cpp:5492-5549`)
+     checks that each request gets at least one terminal, not exactly one.
+     The reviewer suggests a per-request counter.
+
+**Disposition.**
+
+- Finding 1 and finding 3(c) are [[BPR-1111]] (all platforms, Ready). The
+  residual is also stated under "Decision: what a failure does to the
+  store" above.
+- Finding 2 is corrected in place. The stale bullet now says that BPR-1048
+  closed the gap at `a670fd95`, and its original text is kept.
+- Findings 3(a) and 3(b) are informational and need no change.
+
+**Limitations.**
+
+- The review ran on macOS only. The Windows and Linux lock layers are
+  covered by the platform runs recorded above, not by the review.
+- This record was written from the coordinator's summary of the reviewer's
+  report. The reviewer's full report and its scratch probe are not in the
+  repository.
+
+## Closeout (2026-09-24)
+
+Every criterion now has evidence, and the review the owner required is
+complete, with no blocking finding. Each platform record is its own section
+above.
+
+| Criterion | Linux (`02e3d59d`) | Windows | macOS | Result |
+| --- | --- | --- | --- | --- |
+| A cancelled or busy open leaves the same store usable on its next call | Pass | Pass at `78c8ac85` (record `f7e93488`) and again at `bcd57840` (record `76a0ecdd`) | Pass at `70c4974a` (record `7d40ae8c`) | Pass. The residual I/O and recovery class is [[BPR-1111]] |
+| A genuine post-admission corruption still latches, and is pinned | Pass | Pass, same binary | Pass, same binary | Pass |
+| How this interacts with BPR-0541 and BPR-0644 | Recorded above | — | — | Pass |
+| A throwing fallback `post` leaves the lane drainable and `is_quiescent()` reachable | Pass | Pass (`application_github_host`) | Pass (`application_github_host`) | Pass. [[BPR-1111]] tightens the test from at least one terminal to exactly one |
+| The owner's independent read-only critical review of `02e3d59d` (decision `8e1858ab`) | — | — | Review at `2852dde0` | Pass: no blocking finding, and every finding is dispositioned above |
+
+The Windows record `f7e93488` passed five of six rows. Its sixth,
+`application_device_binding_relaunch`, was refused at its seed under
+containment, for [[BPR-0876]]'s reason, before any device-binding load.
+Record `76a0ecdd` then passed all six as registered.
