@@ -6522,6 +6522,11 @@ namespace bpr::qt {
 		const application::github_host_diagnostic_projection& aDiagnostic)
 	{
 		SessionPanel->apply_rate_limits(aDiagnostic.RateLimits);
+		// [[BPR-0644]]. Before the diagnostic, whose presentation change is
+		// what redraws the cards.
+		if (aDiagnostic.GrantKept) {
+			SessionPanel->apply_kept_grant(aDiagnostic.Reason);
+		}
 		SessionPanel->apply_diagnostic(
 			aDiagnostic.Reason,
 			aDiagnostic.RetryAfterSeconds,
@@ -6996,6 +7001,14 @@ namespace bpr::qt {
 					shown.LastProblem = SessionPanel->showing_diagnostic()
 						? QString::fromStdString(SessionPanel->diagnostic_text())
 						: QString::fromStdString(SessionPanel->status_text());
+					// [[BPR-0644]]. The host kept the remembered grant through
+					// this failure: a refused one needs signing in again, and
+					// anything else is tried again at the next launch.
+					if (const auto kept = SessionPanel->kept_grant_reason(); kept.has_value()) {
+						shown.KeptGrant = *kept == core::github_reason_code::authentication_failed
+							? kept_grant::needs_sign_in
+							: kept_grant::retried_next_launch;
+					}
 					break;
 				case core::github_status::session_ready:
 				case core::github_status::loading_pull_request:

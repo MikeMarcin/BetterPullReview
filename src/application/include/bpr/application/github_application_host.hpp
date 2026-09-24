@@ -221,12 +221,20 @@ namespace bpr::application {
 		/// \brief Configures metadata persistence before any enrollment or startup restore.
 		/// [[BPR-0644]]. With a renewal sink, a restored binding whose access
 		/// lifetime elapsed but whose refresh lifetime remains is renewed before
-		/// its session starts instead of being tombstoned. The sink runs on the
-		/// decision lane. The renewal takes its barrier through
-		/// `prepare_device_rotation`, and ends when the rotated grant's
-		/// enrollment names the binding's exact account. A different account,
-		/// `invalidate_device_grant`, or any replacement of the held session
-		/// ends it without enrollment and erases both slots of its authority.
+		/// its session starts. The sink runs on the decision lane. The renewal
+		/// asks `prepare_device_rotation`, which writes no tombstone for it, and
+		/// ends when the rotated grant's enrollment names the binding's exact
+		/// account.
+		///
+		/// The owner's rule of 2026-09-24 decides every other ending: a
+		/// remembered grant is removed only when the person removes it (Sign
+		/// out) or a new sign-in replaces it. So `invalidate_device_grant`, a
+		/// refresh-expired binding and a composition with no sink fail the held
+		/// session visibly with the failure they name and keep the grant: the
+		/// row stays live, both slots stay, and the next launch tries again.
+		/// Only a rotated grant whose `/user` names a different account erases
+		/// both slots of the renewal's authority, because that material
+		/// signs in as someone the binding never named.
 		void configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock, device_launch_renewal_sink aLaunchRenewal = { });
 		/// \brief Loads the trusted device binding for a compiled native profile, then resumes normally.
 		/// \details An admitted observer receives one terminal on the decision lane
@@ -241,11 +249,17 @@ namespace bpr::application {
 		auto restore_device_profile(github_profile_authority                           aCompiledProfile,
 									std::function<void(device_profile_restore_status)> aCompletion = { },
 									std::function<bool()>                              aCurrent    = { }) -> bool;
-		/// \brief Deactivates only the accepted device grant that owns a renewal failure.
-		void invalidate_device_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration);
+		/// \brief Ends the device grant that owns a renewal failure.
+		/// \details An accepted session is deactivated. A launch renewal fails its
+		/// held session with `aFailure` and keeps the grant ([[BPR-0644]]).
+		void invalidate_device_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, core::github_failure aFailure);
 		/// \brief Records the exact refresh slot's successful store after access acceptance.
 		void settle_device_binding(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, device_binding_lifetime aLifetime);
 		/// \brief Tombstones the exact accepted grant before either rotated slot can change.
+		/// \details A launch renewal owns no accepted session and writes no
+		/// tombstone: its row stays live until the rotated grant's binding is
+		/// stored, so a renewal that cannot finish leaves the grant for the next
+		/// launch ([[BPR-0644]]).
 		void               prepare_device_rotation(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion);
 		[[nodiscard]] auto accepted_device_lifetime() const noexcept -> std::optional<device_binding_lifetime>;
 		[[nodiscard]] auto accepted_device_binding_durable() const noexcept -> bool;

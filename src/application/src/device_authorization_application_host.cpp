@@ -54,6 +54,28 @@ namespace bpr::application {
 				|| aFailure == device_authorization_transport_failure::timeout;
 		}
 
+		// [[BPR-0644]]. What a renewal that could not finish says to the GitHub
+		// host, in its own vocabulary. A failure to reach the server or the
+		// credential store says nothing about the grant, so it is tried again;
+		// a refused or missing refresh is a grant that needs signing in again.
+		[[nodiscard]] auto session_failure(
+			const device_authorization_refresh_failure aFailure) noexcept
+			-> core::github_failure
+		{
+			switch (aFailure) {
+			case device_authorization_refresh_failure::transport_failed:
+				return core::github_failure::network;
+			case device_authorization_refresh_failure::vault_unavailable:
+			case device_authorization_refresh_failure::storage_failed:
+				return core::github_failure::vault;
+			case device_authorization_refresh_failure::none:
+			case device_authorization_refresh_failure::refresh_absent:
+			case device_authorization_refresh_failure::refresh_rejected:
+				return core::github_failure::authentication;
+			}
+			return core::github_failure::authentication;
+		}
+
 		[[nodiscard]] auto elapsed_seconds_between(
 			const std::chrono::milliseconds aFrom,
 			const std::chrono::milliseconds aTo) noexcept -> std::uint32_t
@@ -169,9 +191,9 @@ namespace bpr::application {
 	{
 		Host->prepare_device_rotation(std::move(aAuthority), aGeneration, std::move(aCompletion));
 	}
-	void github_host_device_authorization_enrollment::invalidate_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration)
+	void github_host_device_authorization_enrollment::invalidate_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, const device_authorization_refresh_failure aFailure)
 	{
-		Host->invalidate_device_grant(std::move(aAuthority), aGeneration);
+		Host->invalidate_device_grant(std::move(aAuthority), aGeneration, session_failure(aFailure));
 	}
 
 	auto make_system_device_authorization_clock()
@@ -1219,7 +1241,7 @@ namespace bpr::application {
 			report_reenrollment(aFailure);
 			drop_deadline(timer_purpose::refresh);
 			if (authority) {
-				Enrollment->invalidate_grant(*authority, generation);
+				Enrollment->invalidate_grant(*authority, generation, aFailure);
 			}
 		}
 
@@ -1717,7 +1739,7 @@ namespace bpr::application {
 			return;
 		}
 		if (!valid(aAuthority) || aIdentityGeneration.value() == 0U) {
-			host.Enrollment->invalidate_grant(std::move(aAuthority), aIdentityGeneration);
+			host.Enrollment->invalidate_grant(std::move(aAuthority), aIdentityGeneration, device_authorization_refresh_failure::none);
 			return;
 		}
 		if (host.RefreshAuthority.has_value() && !(*host.RefreshAuthority == aAuthority)) {

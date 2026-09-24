@@ -1,9 +1,12 @@
 // [[BPR-0644]]. A stored device grant whose access lifetime elapsed while the
-// application was closed is renewed at launch with its refresh material, and
-// only a refresh-expired or refused grant is tombstoned. Every lifetime below
-// is a complete composition over the same application data root; the runtime
-// fixture vault object is the only thing that survives, and no token is
-// serialized anywhere.
+// application was closed is renewed at launch with its refresh material. Under
+// the owner's rule of 2026-09-24 nothing the launch meets removes the grant: an
+// offline launch, a refresh-expired grant and a refused one each fail visibly,
+// keep both slots and a live row, and offer Begin beside Sign out. The next
+// launch tries again; Sign out or a new sign-in is what removes it. Every
+// lifetime below is a complete composition over the same application data
+// root; the runtime fixture vault object is the only thing that survives, and
+// no token is serialized anywhere.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -14,7 +17,10 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QLabel>
+#include <QPixmap>
 #include <QPushButton>
+#include <QString>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -41,11 +47,11 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	}
-	void wait_for(const std::function<bool()>& aCondition, std::string_view aMessage)
+	void wait_for(const std::function<bool()>& aCondition, std::string_view aMessage, const qint64 aTimeoutMs = 15000)
 	{
 		QElapsedTimer elapsed;
 		elapsed.start();
-		while (!aCondition() && elapsed.elapsed() < 15000) {
+		while (!aCondition() && elapsed.elapsed() < aTimeoutMs) {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
@@ -101,7 +107,7 @@ namespace {
 	// A signed-out launch offers the device flow, not a token prompt: the
 	// GitHub.com card's sign-in is the device flow and the panel's Begin is
 	// enabled.
-	void expect_device_sign_in_offered(app::github_application& aApp, std::string_view aMessage)
+	auto github_card(app::github_application& aApp) -> qt::server_card*
 	{
 		aApp.window().open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
@@ -111,9 +117,38 @@ namespace {
 				github = card;
 			}
 		}
+		return github;
+	}
+	void expect_device_sign_in_offered(app::github_application& aApp, std::string_view aMessage)
+	{
+		auto* const github = github_card(aApp);
 		expect(github != nullptr && !github->signed_in(), aMessage);
 		auto* const panel = aApp.window().device_authorization();
 		expect(panel != nullptr && panel->begin_button() != nullptr && panel->begin_button()->isEnabled(), aMessage);
+	}
+	// [[BPR-0644]]. The failed launch kept the grant: both slots, no erasure
+	// attempted since `aBefore` (the shared fixture vault counts across
+	// lifetimes), the card's sentence naming how it ends, and a Sign out
+	// beside Begin.
+	void expect_grant_kept(app::github_application& aApp, const app::detail::github_public_path_fixture_evidence& aBefore, const qt::kept_grant aKept, std::string_view aMessage)
+	{
+		const auto evidence = github_application_fixture_access::evidence(aApp);
+		expect(evidence.SecretRetained && evidence.RefreshRetained && evidence.VaultDeleteAttempts == aBefore.VaultDeleteAttempts && evidence.RefreshDeleteAttempts == aBefore.RefreshDeleteAttempts, aMessage);
+		expect(aApp.window().session_panel()->status() == core::github_status::session_failed, aMessage);
+		expect_device_sign_in_offered(aApp, aMessage);
+		auto* const github = github_card(aApp);
+		expect(github->presentation().KeptGrant == aKept && github->sign_out_button()->isVisibleTo(github) && !github->consequence_label()->text().isEmpty(), aMessage);
+		std::cout << "KEPT_GRANT_SENTENCE:" << github->consequence_label()->text().toStdString() << '\n';
+		// Rendered evidence, written only when a directory is named, as the
+		// other capture courses do: the card as the composed Settings page
+		// draws it.
+		const auto directory = qEnvironmentVariable("BPR_KEPT_GRANT_CAPTURE_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		static auto captures = 0;
+		const auto  path     = QStringLiteral("%1/kept-grant-%2.png").arg(directory).arg(++captures);
+		expect(github->grab().save(path, "PNG"), "the kept-grant capture is written");
 	}
 }
 
@@ -152,6 +187,9 @@ int main(int aArgc, char** aArgv)
 		const auto closed = github_application_fixture_access::evidence(*renewed);
 		expect(closed.SecretRetained && closed.RefreshRetained, "the rotated pair is retained across an orderly quit");
 	}
+	// The shared fixture vault's counters run across lifetimes; each kept-grant
+	// check compares with the last lifetime's closing count.
+	auto ledger = app::detail::github_public_path_fixture_evidence{ };
 	// The rotated binding carries the rotated lifetime: the same clock that
 	// found the old access expired now finds eight fresh hours.
 	{
@@ -160,62 +198,106 @@ int main(int aArgc, char** aArgv)
 		expect(resumed->status().DeviceAuthorizationRefreshRotations == 0U, "a fresh rotated grant is not rotated again");
 		expect(github_application_fixture_access::evidence(*resumed).DeviceTransportSubmissions == 0U, "the resume sends nothing to the token endpoint");
 		shutdown(*resumed);
+		ledger = github_application_fixture_access::evidence(*resumed);
+	}
+
+	// The policy criterion: an offline launch after the access token expired.
+	// Every renewal attempt meets a network failure; the launch says so, keeps
+	// the grant, and the next launch online renews it. Before the owner's rule
+	// the renewal tombstoned the row before its first attempt, and this launch
+	// lost the grant.
+	options.DeviceWallOffsetSeconds = (2 * access_lifetime_seconds) + 1200;
+	options.OfflineDeviceRefresh    = true;
+	{
+		auto offline = launch(options);
+		// The device host retries a network failure three times, five seconds
+		// apart, before it gives up.
+		wait_for([&offline] { return offline->window().session_panel()->status() == core::github_status::session_failed; }, "an offline launch renewal fails the held session visibly", 30000);
+		wait_for([&offline] { return github_application_fixture_access::device_binding_store_idle(*offline); }, "the offline launch completes its metadata work");
+		settle(500);
+		expect(github_application_fixture_access::evidence(*offline).DeviceTransportSubmissions >= 1U && offline->status().DeviceAuthorizationRefreshRotations == 0U, "the offline launch tried the renewal and rotated nothing");
+		expect_grant_kept(*offline, ledger, qt::kept_grant::retried_next_launch, "an offline launch keeps the grant and says the next launch tries again");
+		shutdown(*offline);
+		const auto closed = github_application_fixture_access::evidence(*offline);
+		expect(closed.SecretRetained && closed.RefreshRetained && closed.VaultDeleteAttempts == ledger.VaultDeleteAttempts, "an orderly quit after an offline launch keeps the grant");
+	}
+	options.OfflineDeviceRefresh = false;
+	{
+		auto online = launch(options);
+		wait_for([&online] { return online->status().DeviceAuthorizationRefreshRotations == 1U && github_application_fixture_access::device_binding_durable(*online); },
+				 "the next launch, online, renews the kept grant");
+		wait_for([&online] { return online->window().session_panel()->status() == core::github_status::session_ready; }, "and resumes the session");
+		expect(github_application_fixture_access::evidence(*online).LastEnrollmentDigest.empty(), "no pasted credential was taken");
+		shutdown(*online);
+		ledger = github_application_fixture_access::evidence(*online);
 	}
 
 	// Criterion 2, refresh-expired. The stored refresh lifetime has elapsed,
-	// so nothing is spent: the binding is tombstoned and the device flow is
-	// offered.
-	options.DeviceWallOffsetSeconds = access_lifetime_seconds + 600 + refresh_lifetime_seconds + 600;
+	// so nothing is spent. The grant is kept and the launch says it needs
+	// signing in again; Begin and Sign out are both offered.
+	options.DeviceWallOffsetSeconds = (3 * access_lifetime_seconds) + 1800 + refresh_lifetime_seconds;
 	{
 		auto expired = launch(options);
+		wait_for([&expired] { return expired->window().session_panel()->status() == core::github_status::session_failed; }, "a refresh-expired grant fails its held session visibly");
 		wait_for([&expired] { return github_application_fixture_access::device_binding_store_idle(*expired); }, "the refresh-expired launch completes its metadata work");
 		settle(500);
-		expect(expired->window().session_panel()->status() == core::github_status::no_profile, "a refresh-expired grant does not establish a session");
 		expect(github_application_fixture_access::evidence(*expired).DeviceTransportSubmissions == 0U, "refresh-expired material is never sent");
 		expect(expired->status().DeviceAuthorizationRefreshResumes == 0U, "a refresh-expired grant does not resume");
-		expect_device_sign_in_offered(*expired, "a refresh-expired launch offers the device sign-in with Begin enabled");
+		expect_grant_kept(*expired, ledger, qt::kept_grant::needs_sign_in, "a refresh-expired launch keeps the grant, asks for signing in again, and offers Begin");
 		shutdown(*expired);
+		ledger = github_application_fixture_access::evidence(*expired);
 	}
 	{
+		// Still there at the next launch, still saying so; Sign out is the
+		// person's way to remove it.
 		auto after = launch(options);
-		wait_for([&after] { return github_application_fixture_access::device_binding_store_idle(*after); }, "the launch after a refresh-expired tombstone completes its metadata work");
+		wait_for([&after] { return after->window().session_panel()->status() == core::github_status::session_failed; }, "the kept refresh-expired grant is met again at the next launch");
 		settle(500);
-		expect(after->window().session_panel()->status() == core::github_status::no_profile && after->status().DeviceAuthorizationRefreshResumes == 0U,
-			   "a tombstoned binding stays signed out");
-		expect(github_application_fixture_access::evidence(*after).DeviceTransportSubmissions == 0U, "a tombstoned binding is never renewed");
-		expect_device_sign_in_offered(*after, "a tombstoned binding offers the device sign-in with Begin enabled");
+		expect_grant_kept(*after, ledger, qt::kept_grant::needs_sign_in, "the next launch keeps it too");
+		github_card(*after)->sign_out_button()->click();
+		wait_for([&after] { const auto evidence = github_application_fixture_access::evidence(*after); return !evidence.SecretRetained && !evidence.RefreshRetained; },
+				 "Sign out on the failed card erases both slots");
+		wait_for([&after] { return github_application_fixture_access::device_binding_store_idle(*after); }, "the sign-out completes its metadata work");
 		shutdown(*after);
+	}
+	{
+		auto removed = launch(options);
+		wait_for([&removed] { return github_application_fixture_access::device_binding_store_idle(*removed); }, "the launch after Sign out completes its metadata work");
+		settle(500);
+		expect(removed->window().session_panel()->status() == core::github_status::no_profile, "after Sign out the grant is gone and the launch is signed out");
+		expect_device_sign_in_offered(*removed, "and offers the device sign-in with Begin enabled");
+		shutdown(*removed);
 	}
 
 	// Criterion 2, server-rejected. A fresh grant, a launch after its access
-	// expired, and a token endpoint that refuses the refresh material.
-	options.SharedDeviceVault = app::detail::make_shared_github_fixture_vault();
-	static_cast<void>(seed(options));
+	// expired, and a token endpoint that refuses the refresh material. The
+	// grant is kept, and the refusal is met again at every launch until the
+	// person signs in again or signs out.
+	options.SharedDeviceVault       = app::detail::make_shared_github_fixture_vault();
+	options.DeviceWallOffsetSeconds = 0;
+	ledger                          = seed(options);
 	options.DeviceWallOffsetSeconds = access_lifetime_seconds + 600;
 	options.RejectDeviceRefresh     = true;
 	{
 		auto rejected = launch(options);
 		wait_for([&rejected] { return github_application_fixture_access::evidence(*rejected).DeviceTransportSubmissions == 1U; }, "the launch spends the refresh material once");
+		wait_for([&rejected] { return rejected->window().session_panel()->status() == core::github_status::session_failed; }, "a rejected renewal fails the held session instead of establishing it");
 		wait_for([&rejected] { return github_application_fixture_access::device_binding_store_idle(*rejected); }, "the rejected launch completes its metadata work");
 		settle(500);
-		expect(rejected->window().session_panel()->status() == core::github_status::session_failed, "a rejected renewal fails the held session instead of establishing it");
 		expect(rejected->status().DeviceAuthorizationRefreshRotations == 0U, "a rejected renewal rotates nothing");
-		expect_device_sign_in_offered(*rejected, "a rejected launch offers the device sign-in with Begin enabled");
-		wait_for([&rejected] { const auto evidence = github_application_fixture_access::evidence(*rejected); return !evidence.SecretRetained && !evidence.RefreshRetained; },
-				 "a rejected renewal leaves neither slot behind its tombstoned row");
+		expect_grant_kept(*rejected, ledger, qt::kept_grant::needs_sign_in, "a rejected launch keeps the grant, asks for signing in again, and offers Begin");
 		shutdown(*rejected);
+		ledger = github_application_fixture_access::evidence(*rejected);
 	}
-	options.RejectDeviceRefresh = false;
 	{
 		auto after = launch(options);
+		wait_for([&after] { return after->window().session_panel()->status() == core::github_status::session_failed; }, "the kept refused grant is met again at the next launch");
 		wait_for([&after] { return github_application_fixture_access::device_binding_store_idle(*after); }, "the launch after a rejected renewal completes its metadata work");
 		settle(500);
-		expect(github_application_fixture_access::evidence(*after).DeviceTransportSubmissions == 0U, "refused refresh material is never replayed on a later launch");
-		expect(after->window().session_panel()->status() == core::github_status::no_profile, "the rejected binding stays tombstoned");
-		// Begin, not a pasted token: the offered gesture reaches the device flow.
-		expect_device_sign_in_offered(*after, "the launch after a rejected renewal offers the device sign-in");
+		expect_grant_kept(*after, ledger, qt::kept_grant::needs_sign_in, "the next launch keeps it and says so again");
+		// Begin, not a pasted token: a new sign-in replaces the kept grant.
 		after->window().device_authorization()->begin_button()->click();
-		wait_for([&after] { return github_application_fixture_access::device_binding_durable(*after); }, "Begin reaches a fresh device grant");
+		wait_for([&after] { return github_application_fixture_access::device_binding_durable(*after); }, "Begin reaches a fresh device grant that replaces the kept one");
 		expect(github_application_fixture_access::evidence(*after).LastEnrollmentDigest.empty(), "Begin took no pasted credential");
 		shutdown(*after);
 	}

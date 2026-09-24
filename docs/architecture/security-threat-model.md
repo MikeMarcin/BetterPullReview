@@ -69,6 +69,16 @@ schema, duplicate identities, backward or expired lifetime facts, missing
 material and mismatches cannot establish a remembered session. No enumeration
 or arbitrary account selector is introduced.
 
+Not establishing a session is not erasing the grant ([[BPR-0644]]). Under the
+owner's rule of 2026-09-24, a launch whose keychain is locked or refuses,
+whose access slot is missing, whose network is down, or whose token or refresh
+material the server refuses keeps both slots and the live row, and fails
+visibly. Nothing resumes from the kept material until the next launch
+validates it again through the same checks. Only Sign out or a replacing
+sign-in removes it. Material that signs in as an account the binding never
+named is still erased at once, because keeping it would keep another person's
+credential; that exception is put to the owner on BPR-0644.
+
 Before replacement or erasure, the stored binding is durably tombstoned. Only
 a settled replacement pair can become resumable. Sign out and manual-token
 replacement exact-delete access and refresh slots; manual sessions are deleted

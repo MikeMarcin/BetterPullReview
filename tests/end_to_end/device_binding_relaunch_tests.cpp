@@ -20,6 +20,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -111,15 +112,19 @@ auto main(int aArgc, char** aArgv) -> int
 		application->select_device_authorization();
 		wait_for([&application] { return github_application_fixture_access::device_binding_durable(*application); }, "the seeding lifetime persists a settled grant");
 	} else if (locked) {
-		// BPR-0541's rule, unchanged by [[BPR-0644]]: a restored grant whose
-		// vault will not answer fails the session and is erased. Whether it
-		// should be kept is an owner decision this course will follow.
+		// [[BPR-0644]]. The owner's rule of 2026-09-24 replaces BPR-0541's
+		// fail-closed erasure here: a restored grant whose keychain will not
+		// answer fails the session visibly and keeps both slots and its live
+		// row, so the next launch tries it again. Only Sign out removes it.
 		wait_for([&application] { return application->window().session_panel()->status() == core::github_status::session_failed; },
 				 "a locked vault fails the restored session visibly");
-		wait_for([&application] { const auto evidence = github_application_fixture_access::evidence(*application); return evidence.VaultDeleteAttempts == 1U && evidence.RefreshDeleteAttempts == 1U && !evidence.SecretRetained && !evidence.RefreshRetained; },
-				 "a locked vault erases both slots of the restored grant");
+		wait_for([&application] { return github_application_fixture_access::device_binding_store_idle(*application); }, "the locked launch completes its metadata work");
 		const auto evidence = github_application_fixture_access::evidence(*application);
+		expect(evidence.VaultDeleteAttempts == 0U && evidence.RefreshDeleteAttempts == 0U && evidence.SecretRetained && evidence.RefreshRetained,
+			   "a locked vault erases neither slot of the restored grant");
 		expect(evidence.DeviceTransportSubmissions == 0U && evidence.LastEnrollmentDigest.empty(), "a locked vault spends and prompts for nothing");
+		expect(application->window().session_panel()->kept_grant_reason() == std::optional{ core::github_reason_code::vault_unavailable },
+			   "the failure says the credential store did not answer and that the grant was kept");
 	} else {
 		wait_for([&application] { return application->window().session_panel()->status() == core::github_status::session_ready; },
 				 "the remembered grant restores the session with hours of access left");
@@ -141,12 +146,8 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 
 	shutdown(*application);
-	if (locked) {
-		std::cerr << "device-binding-relaunch:" << Phase << ":pass\n";
-		return EXIT_SUCCESS;
-	}
 	const auto closed = github_application_fixture_access::evidence(*application);
-	expect(closed.SecretRetained && closed.RefreshRetained, "an orderly quit retains the accepted device pair");
+	expect(closed.SecretRetained && closed.RefreshRetained, locked ? "an orderly quit after a locked launch keeps the grant" : "an orderly quit retains the accepted device pair");
 	write_vault(options);
 	std::cerr << "device-binding-relaunch:" << Phase << ":pass\n";
 	return EXIT_SUCCESS;

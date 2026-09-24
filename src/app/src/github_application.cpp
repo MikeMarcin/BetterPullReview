@@ -1361,7 +1361,7 @@ namespace bpr::app {
 			{
 				Inner->prepare_refresh(std::move(aAuthority), aGeneration, std::move(aCompletion));
 			}
-			void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override { Inner->invalidate_grant(std::move(aAuthority), aGeneration); }
+			void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, application::device_authorization_refresh_failure aFailure) override { Inner->invalidate_grant(std::move(aAuthority), aGeneration, aFailure); }
 
 			[[nodiscard]] auto enrollments() const noexcept -> std::size_t
 			{
@@ -1386,7 +1386,7 @@ namespace bpr::app {
 			void enroll_grant(core::host_profile_id aProfile, application::github_credential_material aCredential, application::device_binding_lifetime aLifetime, bool aSettled) override { Enroll(aProfile, std::move(aCredential), aLifetime, aSettled); }
 			void settle_binding(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, application::device_binding_lifetime aLifetime) override { Inner.settle_binding(std::move(aAuthority), aGeneration, aLifetime); }
 			void prepare_refresh(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion) override { Inner.prepare_refresh(std::move(aAuthority), aGeneration, std::move(aCompletion)); }
-			void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override { Inner.invalidate_grant(std::move(aAuthority), aGeneration); }
+			void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, application::device_authorization_refresh_failure aFailure) override { Inner.invalidate_grant(std::move(aAuthority), aGeneration, aFailure); }
 
 		private:
 			application::device_authorization_enrollment_port& Inner;

@@ -40,6 +40,23 @@ namespace bpr::qt {
 		refused,
 	};
 
+	/// \brief A failed session's remembered device grant, as its card says it.
+	///
+	/// \details [[BPR-0644]]. Under the owner's rule of 2026-09-24 a remembered
+	/// grant stays until the person removes it or a new sign-in replaces it, so
+	/// a session that fails does not take it away. The card says which kind of
+	/// failure it was kept through, and offers Sign out, which removes it.
+	enum class kept_grant : std::uint8_t {
+		/// Nothing is kept, or the session did not fail.
+		none,
+		/// The network or the credential store failed; the next launch tries
+		/// the grant again.
+		retried_next_launch,
+		/// GitHub refused the grant, or it can no longer renew; it needs signing
+		/// in again.
+		needs_sign_in,
+	};
+
 	/// \brief The window's decision about one host, as its card presents it.
 	///
 	/// \details Everything here is decided outside the card, from the session
@@ -75,7 +92,9 @@ namespace bpr::qt {
 		bool    ConnectAdmitted = true;
 		QString ConnectDescription;
 		/// The last problem a failed session reported on this host; empty when none.
-		QString                                    LastProblem;
+		QString LastProblem;
+		/// [[BPR-0644]]. The remembered grant the failed session kept, if any.
+		kept_grant                                 KeptGrant = kept_grant::none;
 		core::github_capabilities                  Capabilities;
 		application::github_rate_limits_projection RateLimits;
 		application::public_preview_presentation   PublicPreview;

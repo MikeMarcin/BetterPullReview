@@ -295,8 +295,13 @@ namespace bpr::application {
 		virtual void settle_binding(github_credential_authority_key, core::github_identity_generation, device_binding_lifetime) { }
 		/// \brief Invalidates durable metadata before spending refresh material.
 		virtual void prepare_refresh(github_credential_authority_key, core::github_identity_generation, std::function<void(bool)> aCompletion) { aCompletion(true); }
-		/// \brief Ends the accepted grant when renewal becomes terminal.
-		virtual void invalidate_grant(github_credential_authority_key, core::github_identity_generation) { }
+		/// \brief Ends the grant when renewal becomes terminal, saying why.
+		///
+		/// \details [[BPR-0644]]. The reason decides what the GitHub host shows
+		/// for a launch renewal that could not finish, whose grant it keeps: a
+		/// network or credential-store failure is tried again at the next
+		/// launch, and a refused or missing refresh needs signing in again.
+		virtual void invalidate_grant(github_credential_authority_key, core::github_identity_generation, device_authorization_refresh_failure) { }
 	};
 
 	/// \brief Enrolls through the exact GitHub host vault boundary.
@@ -313,7 +318,7 @@ namespace bpr::application {
 		void enroll_grant(core::host_profile_id aProfile, github_credential_material aCredential, device_binding_lifetime aLifetime, bool aRefreshSettled) override;
 		void settle_binding(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, device_binding_lifetime aLifetime) override;
 		void prepare_refresh(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion) override;
-		void invalidate_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override;
+		void invalidate_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, device_authorization_refresh_failure aFailure) override;
 
 	private:
 		github_application_host* Host;

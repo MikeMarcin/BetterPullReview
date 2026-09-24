@@ -216,6 +216,16 @@ endfunction()
 # path changes; the mutation-branch pin is unchanged. Covers e6134dbc..the
 # BPR-1036 floor commit; nothing else touched the pinned scope. Review
 # recorded on BPR-1036.
+# BPR-0644 reseal: device_authorization_enrollment_port::invalidate_grant now
+# carries the renewal's failure (device_authorization_refresh_failure), and the
+# two enrollment wrappers in github_application.cpp -- the tests-enabled
+# counting one and setup_device_enrollment -- forward it unchanged to the
+# enrollment they wrap. The GitHub host decides from it what a launch renewal
+# that could not finish says; composition decides nothing. No other product
+# path in the pinned scope changes; the vault, transport and mutation wiring
+# are untouched and the mutation-branch pin is unchanged. Covers d3b583d0..the
+# BPR-0644 commit; nothing else touched the pinned scope. Review recorded on
+# BPR-0644.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -234,7 +244,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fb638412a13a54dfcb1ecff46b23bcdbb3e112f796238e8e2152497abe26b92b"
+		"fcf7b4bb564b51655cfe81b4b49b50b1d6e437cf389d39bd39e339495cfe29cb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -373,7 +383,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "77cecb38b7ee325c1d1b5b1357bca10f49fd6401cf7d13e5dce6ea56d036c331"
+        "2edb8d2de16ceb8a19358011113c8067718a92100f81921d9d8876e885f5da9d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

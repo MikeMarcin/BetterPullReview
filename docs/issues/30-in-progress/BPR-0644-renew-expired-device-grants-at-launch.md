@@ -232,3 +232,147 @@ human-review for **Ready**. The policy is engineering now, and nothing on it
 waits for the owner. Owned paths are unchanged: the application host's device
 restore and renewal, the device authorization host, their tests, and the
 architecture note's device-binding section.
+
+## The keep-grant policy, built (Mac batch 7, 2026-09-24)
+
+The owner's rule (decision `3c46d164`) is now the launch's behaviour: **a
+remembered grant is removed only when the person removes it (Sign out) or a
+new sign-in replaces it.** A launch that cannot restore it fails visibly with
+its own reason, erases nothing, leaves the row live, and the next launch tries
+again.
+
+### What changed
+
+- **A restored grant's failure no longer erases it.** `fail_session` used to
+  delete any restored device binding whose session failed before acceptance
+  (BPR-0541's fail-closed rule). Now it deletes a provisional credential, or
+  a persistent one only when its caller asks. The access-slot branch for a
+  restored binding (locked, denied, missing or unreadable) fails with `vault`
+  and keeps the grant. So do a network failure and a `/user` authentication
+  refusal. The credential stays selected, so **Sign out erases both slots
+  through the ordered path**, and an orderly quit keeps it
+  (`DeviceBindingDurable` stays true).
+- **The tombstone before the first attempt is gone.** `prepare_device_rotation`
+  answers a launch renewal's barrier with `true` and writes nothing. The row
+  stays live until the rotated grant's binding replaces it. Before, an offline
+  launch lost the grant after three attempts, and so did a launch quit while
+  it retried: the row was already tombstoned. An accepted session's in-process
+  rotation keeps its barrier; see [[BPR-1116]].
+- **A renewal that cannot finish keeps the grant.** The enrollment port's
+  `invalidate_grant` now carries the device host's failure. The GitHub host
+  maps it (`transport_failed` to `network`; `vault_unavailable` and
+  `storage_failed` to `vault`; `refresh_rejected`, `refresh_absent` and `none`
+  to `authentication`). `end_launch_renewal` releases the device host's chain,
+  selects the renewal's slot as the kept grant, and fails the held session
+  with that reason. A rotated grant whose own `/user` fails, before or after
+  it names the account, is kept the same way (`keep_renewed_launch_grant`).
+- **Criterion 2: refresh-expired and rejected grants stay.** A refresh-expired
+  binding (or one with no renewal composed) is no longer tombstoned at
+  restore. It is held and failed at once with `authentication`, spending
+  nothing. A refused refresh is kept the same way. Both say they need signing
+  in again, offer Begin, and stay until the person signs out or a new sign-in
+  replaces them. The next launch meets the refusal again and says so again.
+- **The failure says the grant was kept.** `github_host_diagnostic_projection`
+  gains `GrantKept`. `github_session_panel` keeps the kept reason for the
+  failed session. The server card (`kept_grant`) then offers **Sign out**
+  beside Sign in and says how the grant ends:
+  - network or credential store: *"Your sign-in is still remembered on this
+    Mac and is tried again at the next launch. Sign out forgets it."*
+  - refused or expired: *"Your sign-in on this Mac needs signing in again. It
+    stays remembered until you sign in or sign out."*
+  Captures: [kept-grant-offline.png](../../verification/BPR-0644-kept-grant/kept-grant-offline.png)
+  and [kept-grant-needs-sign-in.png](../../verification/BPR-0644-kept-grant/kept-grant-needs-sign-in.png),
+  the composed Settings card as `application_device_binding_launch_renewal`
+  draws it (`BPR_KEPT_GRANT_CAPTURE_DIR`). The composed Settings window takes
+  the application palette offscreen, so these captures are light only.
+- Composition forwards the new failure argument in its two enrollment
+  wrappers. That is the only `src/app` product change, and the round-trip pins
+  are resealed with a `BPR-0644 reseal` note: full
+  `fcf7b4bb564b51655cfe81b4b49b50b1d6e437cf389d39bd39e339495cfe29cb`,
+  manifest `2edb8d2de16ceb8a19358011113c8067718a92100f81921d9d8876e885f5da9d`,
+  mutation branch unchanged. The fixture gains `OfflineDeviceRefresh`.
+- The architecture notes ([github-host-implementation](../../architecture/github-host-implementation.md),
+  [security-threat-model](../../architecture/security-threat-model.md)) state the rule
+  and its one exception.
+
+### The one automatic erasure left, and why (the owner's question)
+
+The card asked for this: if the round finds a security reason to erase
+anyway, record the reason and ask. **No such reason was found for a refused,
+spent or expired refresh token.** Such material is dead. Keeping it lets no
+one sign in, and presenting it again costs one refused request. The old
+tombstone was a crash-consistency marker, not a security control. Under the
+owner's rule a crash after the spend now leaves a live row, and the next
+launch spends whatever the refresh slot holds: the rotated token if its store
+landed, or the dead one, which asks for signing in again.
+
+**One case still erases on its own:** material that signs in as an account
+the binding never named. Two paths reach it: a launch renewal's rotated grant
+whose `/user` answers another account, and a restored access slot whose
+`/user` answers another account. The host refuses the session in both, as
+before. It also erases both slots behind a tombstone. The reason: the slot
+would otherwise keep a live credential for someone else, under a key that
+names the person's own account. Nothing would ever use it, but it would stay
+on the machine. The two profile-mismatch erasures in `handle_profile_now`
+(the compiled profile changed under a binding) are unchanged too. Restore
+validation refuses such a binding before it gets that far.
+
+**Ask (one question, prepared for a later session, not asked):** *When the
+material in a remembered sign-in turns out to sign in as a different GitHub
+account than the one remembered, should BetterPullReview (a) keep erasing it
+at once, as the one automatic removal, or (b) keep it until you sign out, like
+every other failure?*
+
+### Verification (macOS 26.6.2 arm64, `build/dev`)
+
+- `application_github_host`:
+  - `test_restored_binding_launch_failures_keep_the_grant` (renamed from
+    `..._stay_fail_closed`): locked, denied, network and authentication each
+    keep both slots and a live row, publish `GrantKept` with their own
+    reason, and keep the grant through an orderly quit. A fresh host over the
+    same store retries and presents it to `/user`. Sign out on the failed
+    session erases both slots behind a tombstone.
+  - `test_restore_device_profile_renews_an_access_expired_grant_before_its_session`:
+    the launch barrier writes no tombstone, and eight endings are covered.
+    Network, refused, refresh-expired and the rotated grant's offline `/user`
+    are kept, then removed by Sign out. Enrollment succeeds. Another account
+    still erases. Sign out and a replacing token erase as before.
+  - The missing-access and backward/expired-lifetime cases now keep.
+- `application_device_authorization_refresh`: the refused and refresh-expired
+  renewals report `refresh_rejected`. A new offline case reports
+  `transport_failed` after the bounded retries.
+- `application_device_binding_launch_renewal` (36 s):
+  - an offline launch after access expiry keeps the grant, and the next
+    launch online renews it (rotation 2);
+  - refresh-expired is kept at two launches, then Sign out on the card erases
+    both slots, and the following launch is signed out;
+  - a refused renewal is kept at two launches, then Begin replaces it with a
+    fresh grant.
+- `application_device_binding_relaunch` (the quit and SIGTERM course, rerun
+  with the fault): seed, quit, quit, SIGTERM, verify, then **locked keeps the
+  grant** (no delete attempts, both slots retained, live row, `vault_unavailable`
+  kept reason), and **the relaunch after it restores the session**.
+- **Negative controls.** With the old delete condition restored in
+  `fail_session`, three rows fail: `application_github_host` at "an offline
+  launch renewal keeps the grant", the renewal course at "an offline launch
+  keeps the grant", and the relaunch course at "a locked vault erases neither
+  slot". With the launch tombstone restored in `prepare_device_rotation`, two
+  fail: `application_github_host` at "writes no tombstone" and the renewal
+  course at "the next launch, online, renews the kept grant". That second
+  failure is the critical review's finding. Restored, all pass.
+- Also passing: the regression set (`device|github_host|composed_github|session_panel|composition_contract|restart|relaunch|two_account|sign_in|account|credential|vault|core_github`),
+  56 of 59. It includes `application_composition_contract` (231.7 s) and
+  `application_review_round_trip_composition_contract` with the new pins.
+  The three failures are `qt_anonymous_public_preview_scale_100/125/200` at
+  the pre-existing [[BPR-1023]] assertion.
+- clang-format 23.1.1 passes every touched file. The project tidy script
+  reports nothing on touched lines. Its four findings are pre-existing:
+  `home_view_state.hpp:35` and untouched `std::endl` lines in the two courses.
+
+### Residual, carded
+
+[[BPR-1116]]: while the application runs, an accepted session's renewal that
+gives up still deactivates and erases the grant. The in-process rotation still
+tombstones before it spends. A restored session whose refresh slot is missing
+is still signed out and erased. All three follow from the owner's rule but are
+outside this card's launch scope.

@@ -257,6 +257,7 @@ namespace bpr::qt {
 	void github_session_panel::apply_status(const core::github_status aStatus)
 	{
 		CurrentStatus = aStatus;
+		KeptGrantReason.reset();
 		const auto hasPullRequest
 			= Environment.HasPullRequest && Environment.HasPullRequest();
 		if (aStatus == core::github_status::loading_pull_request && hasPullRequest) {
@@ -541,6 +542,20 @@ namespace bpr::qt {
 	auto github_session_panel::status() const noexcept -> core::github_status
 	{
 		return CurrentStatus;
+	}
+
+	void github_session_panel::apply_kept_grant(const core::github_reason_code aReason)
+	{
+		if (CurrentStatus != core::github_status::session_failed) {
+			return;
+		}
+		KeptGrantReason = aReason;
+	}
+
+	auto github_session_panel::kept_grant_reason() const noexcept
+		-> std::optional<core::github_reason_code>
+	{
+		return KeptGrantReason;
 	}
 
 	auto github_session_panel::statistics() const noexcept

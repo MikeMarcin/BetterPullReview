@@ -183,6 +183,9 @@ namespace bpr::app::detail {
 		/// [[BPR-0644]]. The access slot answers `locked`, as a platform keychain
 		/// does when it will not answer without a prompt this launch.
 		bool LockedDeviceVault = false;
+		/// [[BPR-0644]]. The token endpoint cannot be reached: every renewal
+		/// attempt answers a network failure, as an offline launch does.
+		bool OfflineDeviceRefresh = false;
 		/// [[BPR-0657]]. Lets a course refresh the pull request: the recorded
 		/// read script is replayed for each session the product establishes,
 		/// with the fixture's replies and resolutions overlaid.

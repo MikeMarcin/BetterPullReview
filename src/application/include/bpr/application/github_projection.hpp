@@ -262,6 +262,10 @@ namespace bpr::application {
 		std::optional<github_rate_limit_projection> RateLimitCause   = std::nullopt;
 		github_bootstrap_failure_stage              BootstrapStage   = github_bootstrap_failure_stage::none;
 		github_capability_diagnostic                CapabilityDetail = github_capability_diagnostic::none;
+		/// [[BPR-0644]]. The failed session's remembered device grant is still on
+		/// this machine: nothing erased it, and the next launch tries it again.
+		/// Only the person's Sign out, or a new sign-in, removes it.
+		bool GrantKept = false;
 
 		auto operator<=>(const github_host_diagnostic_projection&) const = default;
 	};

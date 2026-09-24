@@ -156,6 +156,23 @@ namespace bpr::qt {
 				"Signs in with a token for this session only; it is asked for again after a restart.");
 		}
 
+		// [[BPR-0644]]. What a failed session left on this machine, and how it
+		// ends: the next launch, a new sign-in, or Sign out.
+		[[nodiscard]] auto kept_grant_sentence(const kept_grant aKept) -> QString
+		{
+			switch (aKept) {
+			case kept_grant::none:
+				return { };
+			case kept_grant::retried_next_launch:
+				return QStringLiteral("Your sign-in is still remembered on %1 and is tried again at the next launch. Sign out forgets it.")
+					.arg(this_machine_text());
+			case kept_grant::needs_sign_in:
+				return QStringLiteral("Your sign-in on %1 needs signing in again. It stays remembered until you sign in or sign out.")
+					.arg(this_machine_text());
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto access_sentence(const core::github_capabilities& aCapabilities)
 			-> QString
 		{
@@ -722,9 +739,13 @@ namespace bpr::qt {
 		LoginLabel->setVisible(!flowRow);
 		Actions->setVisible(!flowRow);
 
-		auto consequence = QString{ };
+		// [[BPR-0644]]. A failed session whose remembered grant was kept.
+		const auto kept        = !signedIn && shown.KeptGrant != kept_grant::none;
+		auto       consequence = QString{ };
 		if (signedIn) {
 			consequence = grant_sentence(*shown.Session);
+		} else if (kept) {
+			consequence = kept_grant_sentence(shown.KeptGrant);
 		} else if (shown.ReadingPublic) {
 			consequence = QStringLiteral("Reading public pull requests without an account.");
 		} else {
@@ -738,7 +759,7 @@ namespace bpr::qt {
 		// control while the card speaks for it. A host not chosen connects the
 		// profile it speaks for; a chosen GitHub CLI profile's retry is its
 		// Connect. The GitHub CLI offer stays beside them.
-		SignOutButton->setVisible(signedIn);
+		SignOutButton->setVisible(signedIn || kept);
 		const auto signIn = !CliSetupOnly && shown.Current && !signedIn && !waiting && native != nullptr && shown.SignInAdmitted;
 		SignInButton->setVisible(signIn);
 		SignInButton->setDefault(signIn && !cliPresented);

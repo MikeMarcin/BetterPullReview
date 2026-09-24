@@ -2082,11 +2082,13 @@ namespace bpr::app::detail {
 				std::filesystem::path aFixtureRoot,
 				std::filesystem::path aDocumentedRoot,
 				const bool            aRefreshCourse,
-				const bool            aRejectRefresh)
+				const bool            aRejectRefresh,
+				const bool            aOfflineRefresh)
 				: FixtureRoot{ std::move(aFixtureRoot) }
 				, DocumentedRoot{ std::move(aDocumentedRoot) }
 				, RefreshCourse{ aRefreshCourse }
 				, RejectRefresh{ aRejectRefresh }
+				, OfflineRefresh{ aOfflineRefresh }
 			{
 			}
 
@@ -2198,6 +2200,17 @@ namespace bpr::app::detail {
 					return;
 				}
 				++Renewals;
+				if (OfflineRefresh) {
+					// [[BPR-0644]]. An offline launch: the exchange never
+					// reaches the server, so nothing is spent.
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aExchange.Context,
+							.Failure = application::
+								device_authorization_transport_failure::network,
+						});
+					return;
+				}
 				if (RejectRefresh) {
 					// [[BPR-0644]]. The token endpoint's refusal of spent or
 					// revoked refresh material, which is a terminal answer and
@@ -2371,10 +2384,11 @@ namespace bpr::app::detail {
 
 			std::filesystem::path FixtureRoot;
 			std::filesystem::path DocumentedRoot;
-			bool                  RefreshCourse = false;
-			bool                  RejectRefresh = false;
-			std::size_t           Submissions   = 0U;
-			std::size_t           Renewals      = 0U;
+			bool                  RefreshCourse  = false;
+			bool                  RejectRefresh  = false;
+			bool                  OfflineRefresh = false;
+			std::size_t           Submissions    = 0U;
+			std::size_t           Renewals       = 0U;
 			std::string           AccessToken;
 		};
 
@@ -3383,7 +3397,8 @@ namespace bpr::app::detail {
 					std::filesystem::path{
 						BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT },
 					aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings,
-					aOptions.RejectDeviceRefresh);
+					aOptions.RejectDeviceRefresh,
+					aOptions.OfflineDeviceRefresh);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
 				aOptions.LoseFirstReviewMutationResult, Recording, aOptions.ResolvesThreads);
 

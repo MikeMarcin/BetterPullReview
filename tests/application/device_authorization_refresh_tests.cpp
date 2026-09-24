@@ -316,13 +316,15 @@ namespace {
 			enroll(aProfile, std::move(aCredential));
 		}
 
-		void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override
+		void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, const application::device_authorization_refresh_failure aFailure) override
 		{
 			Order->emplace_back("invalidate-grant");
 			Invalidations.emplace_back(std::move(aAuthority), aGeneration);
+			InvalidationFailures.push_back(aFailure);
 		}
 
 		std::vector<std::pair<application::github_credential_authority_key, core::github_identity_generation>> Invalidations;
+		std::vector<application::device_authorization_refresh_failure>                                         InvalidationFailures;
 		std::vector<bool>                                                                                      RefreshSettled;
 		std::vector<application::device_binding_lifetime>                                                      Lifetimes;
 		order_log*                                                                                             Order;
@@ -1674,6 +1676,8 @@ namespace {
 			expect(world.Host.refresh_observation().State == application::device_authorization_refresh_state::reenrollment_required, "a refresh-expired restore requires sign-in");
 			expect(world.Enrollment.Invalidations.size() == 1U && world.Enrollment.Invalidations.front().first == authority() && world.Enrollment.Invalidations.front().second == accepted_generation(),
 				   "and ends exactly the restored grant");
+			expect(world.Enrollment.InvalidationFailures == std::vector{ application::device_authorization_refresh_failure::refresh_rejected },
+				   "as one that needs signing in again");
 		}
 		{
 			harness world;
@@ -1706,6 +1710,30 @@ namespace {
 			expect(world.Transport.RefreshMaterial.size() == 1U && world.Enrollment.Credentials.empty(), "a refused renewal is not retried and enrolls nothing");
 			expect(world.Host.refresh_observation().Failure == application::device_authorization_refresh_failure::refresh_rejected && world.Enrollment.Invalidations.size() == 1U,
 				   "a refused renewal ends the restored grant as rejected");
+			expect(world.Enrollment.InvalidationFailures == std::vector{ application::device_authorization_refresh_failure::refresh_rejected },
+				   "and says so to the GitHub host, which keeps the grant and asks for signing in again");
+		}
+		{
+			// [[BPR-0644]]. An offline launch: every attempt is a network
+			// failure. The bounded retries run out and the grant is ended as a
+			// transport failure, which the GitHub host keeps for the next
+			// launch rather than asking the reviewer to sign in again.
+			harness world;
+			world.Vault.Stored = "retained-refresh";
+			world.Host.renew_restored_grant(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1, .AccessExpiresAt = 900, .RefreshExpiresAt = 5000 });
+			world.Lane.drain();
+			for (std::size_t attempt = 0U; attempt < 8U && world.Enrollment.Invalidations.empty(); ++attempt) {
+				if (attempt > 0U) {
+					world.Clock.advance(world.Timer.last_delay());
+					world.Timer.fire();
+					world.Lane.drain();
+				}
+				world.Transport.answer_refresh(application::device_authorization_transport_error{ .Context = world.Transport.last_refresh_context(), .Failure = application::device_authorization_transport_failure::network });
+				world.Lane.drain();
+			}
+			expect(world.Enrollment.Credentials.empty() && world.Enrollment.Invalidations.size() == 1U
+					   && world.Enrollment.InvalidationFailures == std::vector{ application::device_authorization_refresh_failure::transport_failed },
+				   "an offline launch renewal runs out of attempts and ends the grant as a transport failure, not a rejection");
 		}
 	}
 
