@@ -272,3 +272,23 @@ not touch the quit path. [[BPR-1033]]'s `9d3fb998` changes only a
 The probe runs were made before the bound comment's wording was corrected.
 That change was to a comment only, and the code the probes ran is the code
 committed.
+
+## Post-close: macOS at `8e49aae7` (bpr-main-mac, 2026-09-23)
+
+Run on `8e49aae7`, which contains `e02a001e`. Since `e02a001e` nothing has
+changed under `src/app`, in `profile_management_host.cpp` or the application
+headers, in `profile_management_public_path_tests.cpp`, or in
+`tests/end_to_end/CMakeLists.txt`. macOS 26.6.2 on Apple Silicon, Apple
+clang 21.0.0, Qt 6.11.2, `build/dev` (Debug). `cmake --build --preset dev
+--target test_profile_management_public_path` exited 0 with no `warning` or
+`error:` line. It recompiled `profile_desktop.cpp` and relinked the course.
+
+The macOS command above,
+`ctest --preset dev -R '^application_profile_management_public_path$' --output-on-failure`,
+passed in 4.85 s, 1/1, exit 0. The row's output ends with
+`profile-management-public-path:pass` and contains no `FAILED:` line. The
+BPR-1045 section has no platform guard, so a failure quit made in the startup
+completion ended the desktop with exit code 1 on macOS too. The console log
+and `LastTest.log` are under `build/logs/bpr-1045-mac/` on this station and
+are not committed. Nothing in the acceptance changes. The Windows command
+above has not been run.
