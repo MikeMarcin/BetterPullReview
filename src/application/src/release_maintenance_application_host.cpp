@@ -28,7 +28,8 @@ namespace bpr::application {
 			case reason::privacy_refusal:
 			case reason::limit_exceeded:
 			case reason::incomplete_inventory:
-			case reason::recovery_required:    return aReason;
+			case reason::recovery_required:
+			case reason::storage_not_private:  return aReason;
 			default:                           return reason::io_failure;
 			}
 		}

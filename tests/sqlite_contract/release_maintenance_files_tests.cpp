@@ -4,6 +4,7 @@
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "platform_test_support.hpp"
 
 #include <chrono>
 #include <cstdlib>
@@ -365,6 +366,13 @@ namespace {
 		write(repository / "HEAD", "ref: refs/heads/unused\n");
 		write(repository / "config", "[core]\n bare = true\n");
 		write(repository / "objects/pack" / ("pack-" + std::string(40U, 'b') + ".pack"), "synthetic pack fixture");
+#if defined(_WIN32)
+		// [[BPR-1038]]. Git writes its packs read-only, and the purge must
+		// delete them as they are.
+		fs::permissions(repository / "objects/pack" / ("pack-" + std::string(40U, 'b') + ".pack"), fs::perms::owner_read, fs::perm_options::replace);
+		expect((::GetFileAttributesW((repository / "objects/pack" / ("pack-" + std::string(40U, 'b') + ".pack")).c_str()) & FILE_ATTRIBUTE_READONLY) != 0U,
+			   "the synthetic pack is read-only, as Git writes it");
+#endif
 		write(repository / "refs/betterpullreview/v1/scope" / std::string(64U, 'c') / "epoch/000000000000000a/head", std::string(40U, 'd'));
 		write(root.Path / "locks/v1" / (cache + ".lock"), "");
 		for (const auto name : { "config-global", "config-system", "attributes-system" }) {
@@ -386,6 +394,32 @@ namespace {
 		expect(files.erase(erase, **candidate, { }, [] { return true; }).has_value(), "confirmed complete profile removes exact cache objects");
 		expect(!fs::exists(repository) && fs::exists(root.Path), "empty cache skeleton removed without removing profile root");
 	}
+#if defined(_WIN32)
+	/// \brief [[BPR-1038]]. The installed Git owner makes its isolation
+	/// directories with `std::filesystem::create_directory`, and Git makes its
+	/// own inside the cache, so on Windows they carry the owner-private entries
+	/// they inherit rather than a protected descriptor of their own. The purge
+	/// inventory admits exactly that, and refuses a directory with any further
+	/// entry as not private, not as a changed selection.
+	void test_inherited_git_isolation_directories()
+	{
+		scratch root;
+		seed(root.Path);
+		for (const auto* const name : { "home", "xdg", "tmp", "work" }) {
+			expect(fs::create_directory(root.Path / name), "Git isolation directory made the way the Git owner makes it");
+		}
+		// Nested: `v1` inherits from `repositories`, which inherits from the root.
+		expect(fs::create_directories(root.Path / "repositories" / "v1"), "nested cache directories made the same way");
+		auto                                        owner = lease(root.Path);
+		adapters::sqlite::release_maintenance_files files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U } };
+		const auto                                  prepare = context(files, command::prepare_purge);
+		expect(files.prepare(prepare, { }).has_value(), "inherited owner-private isolation directories are inventoried");
+		expect(bpr::tests::sqlite_contract::make_permissive(root.Path / "home", true), "a further entry on one isolation directory");
+		const auto refused = files.prepare(prepare, { });
+		expect(!refused && refused.error() == reason::storage_not_private,
+			   "a directory with a further entry is refused as not private, not as a changed selection");
+	}
+#endif
 	void test_recovery_refuses_replaced_objects()
 	{
 		scratch root;
@@ -427,6 +461,9 @@ auto main(int aArgc, char** aArgv) -> int
 	test_durable_recovery();
 	test_credential_cleanup_and_recovery();
 	test_populated_cache_inventory();
+#if defined(_WIN32)
+	test_inherited_git_isolation_directories();
+#endif
 	test_recovery_refuses_replaced_objects();
 	std::cout << "release-maintenance-files-tests:pass\n";
 }

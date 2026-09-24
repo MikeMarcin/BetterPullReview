@@ -348,7 +348,7 @@ namespace bpr::core {
 		{
 			return aReason == reason::unavailable || aReason == reason::io_failure || aReason == reason::selection_changed
 				|| aReason == reason::privacy_refusal || aReason == reason::limit_exceeded || aReason == reason::incomplete_inventory
-				|| aReason == reason::recovery_required;
+				|| aReason == reason::recovery_required || aReason == reason::storage_not_private;
 		}
 
 		auto apply(state& aState, const release_maintenance_failed& aEvent) noexcept -> output

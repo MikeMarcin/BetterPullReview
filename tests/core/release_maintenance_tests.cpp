@@ -298,6 +298,13 @@ namespace {
 		pending = begin(active, command::export_diagnostics);
 		expect(transition(active, release_maintenance_commit_started{ pending }).Accepted, "export commits under its exact context");
 		expect(transition(active, release_maintenance_failed{ pending, reason::io_failure }).Diagnostic == reason::io_failure && !active.Prepared, "export failure consumes the preview and remains visible");
+		// [[BPR-1038]]. A refusal because storage is not private is an
+		// operational failure under its own reason, and before any commit it
+		// needs no recovery.
+		pending = begin(active, command::prepare_purge);
+		expect(transition(active, release_maintenance_failed{ pending, reason::storage_not_private }).Diagnostic == reason::storage_not_private
+				   && active.Phase == phase::failed && !active.RecoveryRequired,
+			   "a storage privacy refusal fails preparation under its own reason");
 	}
 
 	void test_inventory_confirmation_and_capability_revocation()

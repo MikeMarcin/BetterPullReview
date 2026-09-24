@@ -35,16 +35,20 @@ namespace {
 	class storage final : public application::release_maintenance_storage_port
 	{
 	public:
-		std::shared_ptr<preparation> Candidate = std::make_shared<preparation>();
-		int                          Prepares  = 0;
-		int                          Erases    = 0;
-		bool                         Fail      = false;
-		bool                         Changed   = false;
+		std::shared_ptr<preparation> Candidate  = std::make_shared<preparation>();
+		int                          Prepares   = 0;
+		int                          Erases     = 0;
+		bool                         Fail       = false;
+		bool                         Changed    = false;
+		bool                         NotPrivate = false;
 		std::function<void()>        During;
 		auto                         authority() const noexcept -> core::release_maintenance_authority override { return { core::bpr_profile_id{ 1U }, core::application_session_id{ 2U }, core::release_maintenance_root_id{ 3U } }; }
 		auto                         capabilities() const noexcept -> core::release_maintenance_capabilities override { return { true, true, true, true }; }
 		auto                         revalidate(const core::release_maintenance_context&, const application::release_maintenance_preparation&) -> application::release_maintenance_result override
 		{
+			if (NotPrivate) {
+				return std::unexpected(reason::storage_not_private);
+			}
 			return Changed ? application::release_maintenance_result{ std::unexpected(reason::invalid_authority) } : application::release_maintenance_result{ };
 		}
 		auto prepare(const core::release_maintenance_context& aContext, std::stop_token) -> std::expected<std::shared_ptr<const application::release_maintenance_preparation>, reason> override
@@ -250,6 +254,16 @@ namespace {
 		changed.intent(command::export_diagnostics, destination);
 		changed.drain();
 		expect(destination->Bytes.empty() && !changed.Host.state().Pending && changed.Host.state().Reason == reason::selection_changed, "native authority rechecked before frozen export with a consumed failure terminal");
+		// [[BPR-1038]]. A native refusal for privacy is its own operational
+		// failure, not a changed selection.
+		fixture notPrivate;
+		notPrivate.preview();
+		notPrivate.Storage.NotPrivate = true;
+		auto notPrivateDestination    = std::make_shared<output>();
+		notPrivate.intent(command::export_diagnostics, notPrivateDestination);
+		notPrivate.drain();
+		expect(notPrivateDestination->Bytes.empty() && notPrivate.Host.state().Reason == reason::storage_not_private,
+			   "a storage privacy refusal keeps its own reason through the host");
 		fixture cancelled;
 		cancelled.intent(command::prepare_clear);
 		cancelled.intent(command::cancel);

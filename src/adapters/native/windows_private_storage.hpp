@@ -451,8 +451,12 @@ namespace bpr::adapters::native_storage {
 			? static_cast<BYTE>(OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE)
 			: static_cast<BYTE>(0U);
 		const auto dacl_protected = (control & SE_DACL_PROTECTED) != 0U;
-		const auto inherited_file = kind == windows_object_kind::regular_file
-			&& allow_inherited && !dacl_protected;
+		// Where the caller allows it, an unprotected descriptor passes only as
+		// exactly the owner-private entries inherited from its parent: a file's
+		// carry no further inheritance, and a directory's carry the same
+		// inheritance on to its own children ([[BPR-1038]]). Its access is the
+		// parent's, so it is private exactly when the parent is.
+		const auto inherited = allow_inherited && !dacl_protected;
 		// The order the entries were written in is not part of the contract, so
 		// each expected trustee is required exactly once as a set, and any other
 		// trustee refuses the object outright.
@@ -466,11 +470,11 @@ namespace bpr::adapters::native_storage {
 			const auto* ace             = static_cast<const ACCESS_ALLOWED_ACE*>(raw_ace);
 			const auto  exact_protected = dacl_protected
 				&& ace->Header.AceFlags == expected_flags;
-			const auto exact_inherited_file = inherited_file
-				&& ace->Header.AceFlags == static_cast<BYTE>(INHERITED_ACE);
+			const auto exact_inherited = inherited
+				&& ace->Header.AceFlags == static_cast<BYTE>(INHERITED_ACE | expected_flags);
 			if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE
 				|| ace->Mask != FILE_ALL_ACCESS
-				|| (!exact_protected && !exact_inherited_file)) {
+				|| (!exact_protected && !exact_inherited)) {
 				return std::unexpected(failure::invalid_permissions);
 			}
 			auto* granted = static_cast<PSID>(const_cast<DWORD*>(&ace->SidStart));

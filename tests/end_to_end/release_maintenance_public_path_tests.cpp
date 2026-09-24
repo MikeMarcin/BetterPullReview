@@ -46,13 +46,16 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	}
-	void until(const std::function<bool()>& aCondition, const char* aMessage)
+	void until(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aReport = { })
 	{
 		QElapsedTimer timer;
 		timer.start();
 		while (!aCondition() && timer.elapsed() < 15000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
+		}
+		if (!aCondition() && aReport) {
+			aReport();
 		}
 		expect(aCondition(), aMessage);
 	}
@@ -251,7 +254,8 @@ auto main(int aArgc, char** aArgv) -> int
 	until([&] { return status->text().contains(QStringLiteral("files were cleared")); }, "real diagnostic deletion reaches a truthful terminal");
 	expect(!std::filesystem::exists(root / "logs" / "diagnostics.log") && std::filesystem::exists(root / "state" / "v1" / "review-queue.sqlite3"), "clear removes only diagnostics");
 	confirm(*panel, command::prepare_purge);
-	until([&] { return panel->action(command::purge_profile)->isEnabled() || status->text().contains(QStringLiteral("prevents")) || status->text().contains(QStringLiteral("partial")); }, "native full-profile inventory returns");
+	// [[BPR-1038]]. A privacy refusal is a returned inventory too, and says so.
+	until([&] { return panel->action(command::purge_profile)->isEnabled() || status->text().contains(QStringLiteral("prevents")) || status->text().contains(QStringLiteral("partial")) || status->text().contains(QStringLiteral("not private")); }, "native full-profile inventory returns");
 	if (!panel->action(command::purge_profile)->isEnabled()) {
 		std::cerr << status->text().toStdString() << '\n';
 		for (const auto& entry : std::filesystem::recursive_directory_iterator{ root }) {
@@ -260,7 +264,15 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	expect(panel->action(command::purge_profile)->isEnabled(), "complete real profile can be purged");
 	confirm(*panel, command::purge_profile);
-	until([&] { return status->text().contains(QStringLiteral("data was purged")); }, "exact profile purge completes through real Settings");
+	until(
+		[&] { return status->text().contains(QStringLiteral("data was purged")); }, "exact profile purge completes through real Settings",
+		[&] {
+			// [[BPR-1038]]. A purge that stops says where, as the inventory above does.
+			std::cerr << status->text().toStdString() << '\n';
+			for (const auto& entry : std::filesystem::recursive_directory_iterator{ root }) {
+				std::cerr << entry.path().lexically_relative(root) << '\n';
+			}
+		});
 	expect(!std::filesystem::exists(root / "state" / "v1" / "device-bindings.sqlite3") && !std::filesystem::exists(root / "state" / "v1" / "review-queue.sqlite3"), "private stores and binding metadata are removed");
 	expect(read(app::native_filesystem_path(destination)) == bytes, "exported user file survives profile purge");
 #if defined(__APPLE__)

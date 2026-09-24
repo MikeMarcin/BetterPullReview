@@ -43,6 +43,8 @@ namespace bpr::qt {
 			case reason::invalid_selection:
 			case reason::invalid_completion:
 			case reason::invalid_command:      return QStringLiteral("The operation was refused. Prepare a new selection before trying again.");
+			case reason::storage_not_private:
+				return QStringLiteral("A file or folder in this profile is not private to your account, so nothing was prepared or deleted.");
 			}
 			return QStringLiteral("The operation was refused.");
 		}

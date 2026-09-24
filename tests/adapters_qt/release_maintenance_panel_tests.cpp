@@ -114,6 +114,7 @@ namespace {
 		unsigned                                         Prepares = 0U;
 		unsigned                                         Erases   = 0U;
 		bool                                             Fail     = false;
+		std::optional<reason>                            Refusal;
 		std::optional<core::release_maintenance_context> Erased;
 		auto                                             authority() const noexcept -> core::release_maintenance_authority override { return { core::bpr_profile_id{ 31U }, core::application_session_id{ 41U }, core::release_maintenance_root_id{ 51U } }; }
 		auto                                             capabilities() const noexcept -> core::release_maintenance_capabilities override { return { true, true, true, true }; }
@@ -122,6 +123,9 @@ namespace {
 		{
 			expect(std::this_thread::get_id() != Gui, "preparation enters storage only on the worker");
 			++Prepares;
+			if (Refusal) {
+				return std::unexpected(*Refusal);
+			}
 			auto result = std::make_shared<preparation>();
 			if (aContext.Operation != command::preview_diagnostics) {
 				core::release_maintenance_inventory inventory{ core::release_maintenance_revision{ 9U }, { }, aContext.Operation == command::prepare_purge ? core::release_profile_purge_categories : 1U, 6U, 0U, true };
@@ -366,6 +370,24 @@ namespace {
 		expect(test.Panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceStatus"))->text().contains(QStringLiteral("Cleanup may be partial")), "failure is not presented as cancellation or successful rollback");
 		capture(*test.Window.settings(), QStringLiteral("-recovery"));
 	}
+	/// \brief [[BPR-1038]]. A purge refused because a file or folder is not
+	/// private says so, rather than asking for a new preparation of a
+	/// selection that never changed.
+	void not_private_refusal_is_named()
+	{
+		fixture test;
+		test.Storage.Refusal = reason::storage_not_private;
+		test.Panel->action(command::prepare_purge)->trigger();
+		test.proceed();
+		test.Lifecycle.Complete({ });
+		test.Decisions.drain();
+		test.drain();
+		const auto text = test.Panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceStatus"))->text();
+		expect(test.Host.state().Phase == phase::failed && test.Host.state().Reason == reason::storage_not_private,
+			   "the refusal reaches the core as its own operational failure");
+		expect(text.contains(QStringLiteral("not private")) && !text.contains(QStringLiteral("changed")),
+			   "the panel names a refusal for privacy, not a changed selection");
+	}
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -376,6 +398,7 @@ auto main(int aArgc, char** aArgv) -> int
 	stale_save_and_unavailable();
 	destructive_confirmation_and_stale_selection();
 	cancel_barrier_and_partial_failure();
+	not_private_refusal_is_named();
 	std::cout << "release-maintenance-panel:pass keyboard accessibility exact-target default-cancel stale-dialog partial-failure worker-boundary incremental-preview\n";
 	return EXIT_SUCCESS;
 }

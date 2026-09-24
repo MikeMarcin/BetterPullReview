@@ -130,6 +130,11 @@ namespace bpr::core {
 		identity_exhausted,
 		shutdown,
 		invalid_command,
+		/// \brief A file or directory in the profile is not private to its
+		/// owner, so the operation touched nothing ([[BPR-1038]]). Distinct from
+		/// `selection_changed`: nothing changed, and preparing again cannot
+		/// help.
+		storage_not_private,
 	};
 	enum class release_maintenance_phase : std::uint8_t {
 		idle,

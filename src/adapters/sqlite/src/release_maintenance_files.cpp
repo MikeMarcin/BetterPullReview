@@ -869,8 +869,17 @@ namespace bpr::adapters::sqlite {
 			const bool directory = (attributes.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U;
 			const auto kind      = directory ? win::windows_object_kind::directory : win::windows_object_kind::regular_file;
 			const auto native    = win::identity_of(aHandle, kind);
-			if (!native || !win::validate_private_security(aHandle, security(), kind, !directory) || standard.EndOfFile.QuadPart < 0) {
+			if (!native || standard.EndOfFile.QuadPart < 0) {
 				fail(reason::invalid_authority);
+			}
+			// [[BPR-1038]]. The walk admits each entry only after its parent,
+			// so an entry whose descriptor is exactly the owner-private entries
+			// inherited from that parent is as private as the parent. The
+			// installed Git owner's isolation directories, and the ones Git
+			// creates inside them, are made that way. A descriptor that is
+			// neither that nor the protected one is refused for what it is.
+			if (!win::validate_private_security(aHandle, security(), kind, true)) {
+				fail(reason::storage_not_private);
 			}
 			std::string_view object{ reinterpret_cast<const char*>(native->Object.data()), native->Object.size() };
 			entry            observed{ .Path = std::move(aPath), .Device = native->Volume, .Inode = read_integer(object), .ObjectHigh = read_integer(object), .Directory = directory };
@@ -1042,18 +1051,49 @@ namespace bpr::adapters::sqlite {
 			}
 		}
 		void remove_journal(HANDLE, HANDLE aJournal) { dispose(aJournal); }
+		auto empty_directory(const std::filesystem::path& aPath) -> bool
+		{
+			WIN32_FIND_DATAW data{ };
+			const auto       search = ::FindFirstFileW((aPath / L"*").c_str(), &data);
+			if (search == INVALID_HANDLE_VALUE) {
+				fail(reason::io_failure);
+			}
+			auto empty = true;
+			do {
+				const std::wstring_view name{ data.cFileName };
+				if (name != L"." && name != L"..") {
+					empty = false;
+					break;
+				}
+			} while (::FindNextFileW(search, &data));
+			::FindClose(search);
+			return empty;
+		}
 		void remove_exact(HANDLE aRoot, const entry& aItem)
 		{
 			auto directory = parent(aRoot, aItem.Path);
 			if (!inspect(directory.Value, leaf(aItem.Path))) {
 				return;
 			}
+			// [[BPR-1038]]. `state` and `state/v1` keep the shared registry and
+			// updater stores, which the running desktop holds open. POSIX answers
+			// a removal there with "not empty", which is accepted below; Windows
+			// refuses the DELETE handle first, with a sharing violation. So they
+			// are kept, without asking, while they still hold anything.
+			if (aItem.Directory && (aItem.Path == "state" || aItem.Path == "state/v1") && !empty_directory(path_for(directory.Value, leaf(aItem.Path)))) {
+				return;
+			}
 			auto object = open_native(directory.Value, leaf(aItem.Path), DELETE, FILE_SHARE_READ);
 			if (held_identity(object.Value, aItem.Path) != aItem) {
 				fail(reason::selection_changed);
 			}
-			FILE_DISPOSITION_INFO disposition{ TRUE };
-			if (!::SetFileInformationByHandle(object.Value, FileDispositionInfo, &disposition, sizeof(disposition))) {
+			// [[BPR-1038]]. Git writes its packs and pack indexes read-only, and
+			// the plain disposition refuses a read-only file, so a purge that
+			// reached the cache stopped part-way and needed recovery. This one
+			// deletes the file as it is, without clearing the attribute first.
+			auto disposition  = FILE_DISPOSITION_INFO_EX{ };
+			disposition.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
+			if (!::SetFileInformationByHandle(object.Value, FileDispositionInfoEx, &disposition, sizeof(disposition))) {
 				if (aItem.Directory && ::GetLastError() == ERROR_DIR_NOT_EMPTY && (aItem.Path == "state" || aItem.Path == "state/v1")) {
 					return;
 				}
