@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1038"
 title: "Windows: Purge profile refuses once the Git isolation exists, because its directories carry inherited permissions the purge inventory rejects"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
