@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1024"
 title: "On WSLg, keys go to the window whose activation the window manager refused (Settings close with sibling workbenches)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
