@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1115"
 title: "Windows: a Git launch refused for its handle list is started and then killed; add committed coverage of the inheritance restriction"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
