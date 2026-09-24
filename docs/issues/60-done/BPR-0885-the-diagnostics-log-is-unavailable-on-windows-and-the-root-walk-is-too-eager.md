@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0885"
 title: "The diagnostics log is unconditionally unavailable on Windows, and its root walk creates shared ancestors"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable logging partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","largely_fixed_by":"19a3dfd7","linux_done_at":"0e07334b","remaining":"Windows and macOS runs of the logging selector at 0e07334b or later","related_cards":["BPR-0874","BPR-0891","BPR-1030"]}
+acceptance: [{"criterion":"AC1 Windows either has a log with the stated properties, or a recorded reason and an honest status","outcome":"pass","revision":"0e07334b","evidence":{"kind":"command","detail":"Windows open_log (19a3dfd7) enforces owner-private, no reparse point, single link and one writer; BPR-0891 observed its writes. bpr-main-win at 664d6e36 (contains 0e07334b): quill_logging.exe run uncontained exits 0 with quill-logging-tests:pass. The contained setup refusal is pinned dos-volume-name at c599c087.","path":"docs/issues/60-done/BPR-0885-the-diagnostics-log-is-unavailable-on-windows-and-the-root-walk-is-too-eager.md#windows-the-logger-passes-uncontained-the-row-stops-before-it-contained-bpr-main-win-2026-09-23"}},{"criterion":"AC2 A storage root beneath a symlinked ancestor opens its log on macOS","outcome":"pass","revision":"0e07334b","evidence":{"kind":"command","detail":"macOS: quill_logging passes at 073c7b09 (contains 0e07334b), and again in the full sweep at 239f3861 and at the pin candidate; the assertion 'existing symlinked ancestor resolves without creating shared directories' prints only on failure.","path":"docs/issues/60-done/BPR-0885-the-diagnostics-log-is-unavailable-on-windows-and-the-root-walk-is-too-eager.md#the-macos-half-bpr-main-mac-mac-batch-5-2026-09-23"}},{"criterion":"AC3 The component never creates a directory above the storage root","outcome":"pass","revision":"0e07334b","evidence":{"kind":"command","detail":"Linux at 0e07334b: 'logger never creates unowned ancestors or root' passes, and the negative control restoring the old walk fails it. macOS passes; Windows passes uncontained, where only ensure_private_child creates anything.","path":"docs/issues/60-done/BPR-0885-the-diagnostics-log-is-unavailable-on-windows-and-the-root-walk-is-too-eager.md#the-premise-is-stale-the-linux-half-bpr-main-linux-2026-09-23"}},{"criterion":"AC4 A failure to open names its cause","outcome":"pass","revision":"0e07334b","evidence":{"kind":"command","detail":"Linux at 0e07334b: every refusal names its exact cause; the third to fifth negative controls fail or pass as expected. Windows at 664d6e36, uncontained: the portable check (cause other than none) passes with no '..., and named' failure.","path":"docs/issues/60-done/BPR-0885-the-diagnostics-log-is-unavailable-on-windows-and-the-root-walk-is-too-eager.md#the-containment-pin-and-finished-bpr-main-mac-mac-batch-6-2026-09-23"}}]
 ---
 
 # BPR-0885: The diagnostics log is unconditionally unavailable on Windows, and its root walk creates shared ancestors
@@ -277,3 +278,63 @@ block just before the pass line. It prints only if it fails, so
 opened with `status::available` and `failure::none`. With the Windows
 record above, both platforms have run the owed selector. What remains on
 Windows is the containment pin, which is the card owner's decision.
+
+## The containment pin, and finished (bpr-main-mac, Mac batch 6, 2026-09-23)
+
+Claimed at `3c29b579`. The Windows section left one decision to the card
+owner: whether to pin `quill_logging` uncontained on Windows. **Decision:
+pin it, as `dos-volume-name`.** The Windows station measured both sides at
+`664d6e36`. Contained, the row stops at its own setup, before the logger
+runs. Uncontained, the same executable passes every assertion. That is the
+evidence every other `dos-volume-name` pin rests on. The alternative, leaving
+the row red on Windows, would hide a real logger regression behind a known
+setup failure.
+
+**The change, `c599c087`.** `tests/logging/CMakeLists.txt` registers
+`quill_logging` with `WINDOWS_UNCONTAINED`, and
+`scripts/verify_test_network_isolation.py` adds it to the pinned set. The
+entry cites this card and says what was measured. It also says that the
+refusing call was not traced, only that it is the `make_storage_root_owner_private`
+root shape [[BPR-0833]] measured. The keyword changes nothing on macOS and
+Linux. `quill_logging_backpressure` is `UNIX`-only and is not touched. No
+digest pin covers either file.
+
+**Verification (macOS, at `ea2229c6`, the same change before the push
+rebase).** `build/dev` was reconfigured and rebuilt (exit 0).
+
+| Check | Result |
+| --- | --- |
+| `ctest --preset dev -j1 -V -R '^(test_network_isolation_structure_contract\|test_network_isolation_manifest\|quill_logging\|quill_logging_backpressure\|skip_report_contract\|documentation_structure)$'` | 6/6 passed. `quill-logging-tests:pass`; the structure contract ran 64 cases, OK |
+| The macOS registration of `quill_logging` | Still contained: the sandbox runner's prefix, label `bpr_network_isolated` |
+| The Windows manifest check, emulated: the macOS entry rewritten as the Windows backend would register it, passed to the verifier's own `configured_failures` with the Windows pinned set | Keyword registration with the new entry: no failure |
+| **Negative control:** the entry without the keyword (the old contained registration) | Fails: "is pinned as bpr_windows_uncontained but is registered contained; retire it from the pinned set" |
+| **Negative control:** the keyword without the entry | Fails: "uses bpr_windows_uncontained but is not in the pinned Windows set" |
+| `python3 scripts/verify_documentation.py --root .`; `git diff --check` | `DOCUMENTATION_OK`; clean |
+
+The emulation is not a Windows run. It shows that the verifier accepts the
+pair as the macro builds it on Windows, and that it refuses each half without
+the other. The first real Windows confirmation is bpr-main-win's next run of
+`test_network_isolation_manifest` and `quill_logging` at `c599c087` or later.
+The expected result is that both pass, with `quill_logging` labelled
+`bpr_windows_uncontained`. That run is housekeeping for the registration.
+It is not one of this card's criteria, which are about the logger and are
+already observed on all three platforms.
+
+This station's full sweep at `239f3861`
+([record](../../verification/sweep-2026-09-23-mac.md)) also passed
+`quill_logging`, `quill_logging_backpressure`, `application_logging` and
+`application_profile_management_public_path` on macOS.
+
+**Acceptance.**
+
+- *Windows has a log with the stated properties:* pass. Implemented at
+  `19a3dfd7`, and its writes were observed by [[BPR-0891]]. At `664d6e36`,
+  which contains `0e07334b`, `quill_logging` passes uncontained on Windows.
+- *A storage root beneath a symlinked ancestor opens its log on macOS:*
+  pass. macOS at `073c7b09` and `239f3861`.
+- *The component never creates a directory above the storage root:* pass.
+  Linux at `0e07334b`, where the first negative control fails it. macOS
+  passes, and so does Windows uncontained.
+- *A failure to open names its cause:* pass. Linux gives the exact cause, and
+  its negative controls behave as expected. Windows, uncontained, printed no
+  "..., and named" failure.
