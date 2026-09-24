@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1046"
 title: "application_threaded_reply_contract fails at HEAD: since cc038748 a card's Reply selects the thread's line before it names the thread, so the draft is not a reply"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-main-linux, BPR-1044's survey and BPR-0883's integration pass","found_at":"7eb4aa87","reproduced_at":["7eb4aa87","874dc0ae","78c8ac85"],"first_bad":"cc038748","last_good":"24c9e90c","bisect":"first-parent 88dc42fc..52c3ab60, Linux","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0649","BPR-0657","BPR-0879","BPR-0985"],"run":"bpr-main-linux-20260923","reservation":"docs/issues/_reservations/BPR-1046--BPR-1047--4cc848046b0e.json"}
+acceptance: [{"criterion":"AC1 application_threaded_reply_contract passes on Linux and prints THREADED_REPLY_CONTRACT_OK with the full evidence mask","outcome":"pass","revision":"c127cb38","evidence":{"kind":"command","detail":"Linux (bpr-main-linux) at c127cb38, which contains 669a5a58: ctest -j1 -V, GCC 15.2 dev -Werror, offscreen; application_threaded_reply_contract passed in 2.94 s with THREADED_REPLY_CONTRACT_OK, which the contract prints only after every fixture's output carries THREADED_REPLY_EVIDENCE:11111; no THREADED_REPLY_FAILED or RUN_BUDGET_EXPIRED line. Also 2.82 s in BPR-1044's sweep at 7cd4ab5d.","path":"docs/issues/60-done/BPR-1046-application-threaded-reply-contract-fails-because-reply-selects-the-line-before-naming-the-thread.md#the-linux-run-bpr-main-linux-2026-09-23"}},{"criterion":"AC2 When a thread's line cannot be selected, Reply shows the notice and leaves no pending reply a later draft could take, proven by a test","outcome":"pass","revision":"669a5a58","evidence":{"kind":"command","detail":"macOS (bpr-main-mac) at 669a5a58: test_a_reply_waits_for_its_threads_own_comparison (qt_workbench_conversation_reveal) shows the notice when another file arrives and names nothing afterwards; cc038748's off-file refusal still holds; the host's PendingReplyThread path is removed.","path":"docs/issues/60-done/BPR-1046-application-threaded-reply-contract-fails-because-reply-selects-the-line-before-naming-the-thread.md#checks-ac2-ac3"}},{"criterion":"AC3 A negative control proves the new check can fail","outcome":"pass","revision":"669a5a58","evidence":{"kind":"command","detail":"macOS at 669a5a58: the pre-cc038748 order, HEAD's order with no wait, and the host dropping the reply target each fail (the first two in qt_workbench_conversation_reveal, the third in application_threaded_reply_contract with reply=-); temporary edits removed, grep -c BPR1046_ gives 0.","path":"docs/issues/60-done/BPR-1046-application-threaded-reply-contract-fails-because-reply-selects-the-line-before-naming-the-thread.md#checks-ac2-ac3"}},{"criterion":"AC4 The row passes on macOS and Windows","outcome":"pass","revision":"669a5a58","evidence":{"kind":"command","detail":"macOS at 669a5a58: application_threaded_reply_contract passed in 22.61 s among 12/12 focused rows. Windows (bpr-main-win) at 2532ca6e, which contains 669a5a58, windows-dev MSVC 19.51 Debug: qt_workbench_conversation_reveal 10.94 s and application_threaded_reply_contract 13.39 s pass.","path":"docs/issues/60-done/BPR-1046-application-threaded-reply-contract-fails-because-reply-selects-the-line-before-naming-the-thread.md#windows-2-of-2-pass-bpr-main-win-2026-09-23"}}]
 ---
 
 # BPR-1046: application_threaded_reply_contract fails at HEAD: since cc038748 a card's Reply selects the thread's line before it names the thread, so the draft is not a reply
@@ -356,3 +357,18 @@ above ran serially and both rows pass:
 `THREADED_REPLY_CONTRACT_OK`. AC4's Windows half is met.
 The logs are station records under `build/logs/bpr-0887-1046-main-win/`
 and are not committed.
+
+## Finished (bpr-main-linux, 2026-09-23)
+
+The Linux and Windows runs owed above are both recorded, so the card
+finishes on the three stations' observations. The Linux row also passed
+again (2.82 s) in [[BPR-1044]]'s 164-row sweep at `7cd4ab5d` plus that
+card's test-only change, which does not touch this path.
+
+| Criterion | Station | Candidate | Observation |
+|---|---|---|---|
+| AC1 | Linux | `c127cb38` | `application_threaded_reply_contract` passes, 2.94 s. `THREADED_REPLY_CONTRACT_OK` comes only after every fixture carries `THREADED_REPLY_EVIDENCE:11111` |
+| AC2 | macOS | `669a5a58` | `test_a_reply_waits_for_its_threads_own_comparison`: the notice is shown when another file arrives, and no reply is left waiting; the host has no pending-reply path |
+| AC3 | macOS | `669a5a58` | The three breaks each fail: the pre-`cc038748` order, HEAD's order with no wait, and the host dropping the reply target |
+| AC4 | macOS | `669a5a58` | The row passes, 22.61 s |
+| AC4 | Windows | `2532ca6e` (contains `669a5a58`) | Both rows pass: `qt_workbench_conversation_reveal` 10.94 s, `application_threaded_reply_contract` 13.39 s |
