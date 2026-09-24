@@ -263,3 +263,36 @@ rests on the third and fourth runs, at 23:45Z. It also rests on the
 application's startup behaviour, which was measured between 23:23Z and
 00:06Z, after the window. Nothing recorded as passing evidence on this card
 came from inside the window.
+
+## Post-close: AC4 on macOS at `7b376657` (bpr-main-mac, 2026-09-23)
+
+**AC4 now holds on macOS, by a run.** On Linux it still rests on the
+reasoning above: this station did not run Linux.
+
+The run is at `7b376657`, which contains `785a6828`. It also contains
+[[BPR-1046]]'s `669a5a58`, which later changed `workbench_window.cpp`, its
+header and `workbench_window_tests.cpp`. So these are the macOS rows at
+current main, not at the merge commit itself. macOS 26.6.2 on Apple Silicon,
+Apple clang 21.0.0, Qt 6.11.2, `build/dev` (Debug). The build was made at
+`b5cb3b43`, whose build inputs are those of `7b376657`. It exited 0 with no
+`warning:` line. So the added `#include <QWindow>`, the change's one product
+line outside `#if defined(_WIN32)`, compiles here.
+
+This passed 10 of 10, exit 0, serial, offscreen and contained as registered:
+`ctest --preset dev -R '^(qt_workbench_window_scale_(100|125|200)|qt_workbench_title_row_scale_(100|125|200)|qt_workbench_focus_order_scale_(100|125|200)|qt_composed_github_scale_100)$' --output-on-failure`.
+
+| Rows | Time at 100 / 125 / 200 |
+| --- | --- |
+| `qt_workbench_window_scale_*` | 19.09 / 19.50 / 20.21 s |
+| `qt_workbench_title_row_scale_*` | 1.27 / 1.47 / 1.90 s |
+| `qt_workbench_focus_order_scale_*` | 0.75 / 0.25 / 0.26 s |
+| `qt_composed_github_scale_100` | 3.57 s at 100 |
+
+The window rows are there because AC4 names window rows. The Windows station
+found `qt_workbench_window_scale_*` red at `b9991925` without this change.
+On macOS all three pass. `application_windows_title_row` and
+`qt_workbench_strip_menu` are registered only on Windows. The cocoa course
+`application_profile_empty_desktop_native_menu_bar` was not run: it needs
+the owner's Aqua session, and this sweep was unattended. The console log is
+a station record under `build/logs/bpr-1038-1022-0886-mac/` and is not
+committed. The acceptance record above is unchanged.
