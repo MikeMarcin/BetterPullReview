@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0897"
 title: "A non-attended release build composes a live mutation provider for whatever pull request is open"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-006 worker on BPR-0879, while establishing whether any real pull request was ever mutated across that gap","found_at":"5c8ee790","run":"run-20260916-stations","dispatch":"dsp-006","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0897-observed-mutation-intent-v001","decision":"e1d2139c-92e2-40c8-8f84-6c59c2736fcb","selected":"1. Yes, as designed"}}
+acceptance: [{"criterion":"The owner's answer is recorded here, and the intent is written next to the composition rather than living only on this card","outcome":"pass","revision":"29d7c377","evidence":{"kind":"observation","detail":"Owner answer 1 (yes, as designed) recorded from attended session cbd48b91, decision e1d2139c. A comment above select_observed_review_mutation in src/app/src/github_application.cpp states the intent, cites BPR-0897 and the date, and contrasts the designated lane's two gates. Pins resealed in the same commit; application_review_round_trip_composition_contract and application_composition_contract pass; the contract fails against the pre-comment source (full digest drift)."}},{"criterion":"If the answer is (2) or (3), the resulting guard or designation step has its own card and its own contract row","outcome":"pass","revision":"29d7c377","evidence":{"kind":"observation","detail":"Not applicable: the owner chose answer 1, so no guard or designation card follows."}},{"criterion":"BPR-0879's residual is updated to point at the answer","outcome":"pass","revision":"29d7c377","evidence":{"kind":"observation","detail":"BPR-0879's Residual honesty paragraph carries a dated pointer to BPR-0897's answer (c2401e8a)."}}]
 ---
 
 # BPR-0897: A non-attended release build composes a live mutation provider for whatever pull request is open
