@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1051"
 title: "The test sweep leaves QuillBackendLock*, bpr-public-path-* and bpr-mcp-canary-* litter in the system temporary directory"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
