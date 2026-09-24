@@ -37,3 +37,22 @@ are the preview's own: the shared `paint_tab_markers` helper in
 
 These captures are evidence for the owner's review of the change. They are
 not an acceptance of it.
+
+## The Colours card offers 45 roles (2026-09-24, owner decision `e16dfcbf`)
+
+Rendered on the Mac integrator (macOS 26.6.2 arm64, Qt 6.11.2, offscreen,
+`build/dev`) through `colour_role_list`, the Colours card's own list, with the
+built-in light or dark palette applied and the filter set to `Diff`. The
+"before" captures come from the same source with the two hunk-header roles
+offered again; the "after" captures come from the change as committed.
+
+| Capture | What it shows |
+|---|---|
+| [colours-diff-light-before.png](BPR-0986-review-pane-roles/colours-diff-light-before.png) | Light, before: Diff 8, including "Diff hunk header background" and "Diff hunk header text" |
+| [colours-diff-light-after.png](BPR-0986-review-pane-roles/colours-diff-light-after.png) | Light, after: Diff 6; the two hunk-header rows are gone |
+| [colours-diff-dark-before.png](BPR-0986-review-pane-roles/colours-diff-dark-before.png) | Dark, before |
+| [colours-diff-dark-after.png](BPR-0986-review-pane-roles/colours-diff-dark-after.png) | Dark, after |
+
+With the filter cleared, the list holds 47 rows before and 45 after. The
+theme documents, import and export keep both roles; only the card stops
+offering them.

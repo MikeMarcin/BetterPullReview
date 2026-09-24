@@ -85,14 +85,16 @@ namespace bpr::qt {
 		auto operator<=>(const colour_role_list_statistics&) const = default;
 	};
 
-	/// \brief RFC-BPR-0034's Colours list: all 47 roles, grouped, filtered, picked.
+	/// \brief RFC-BPR-0034's Colours list: 45 offered roles, grouped, filtered,
+	/// picked.
 	///
-	/// \details [[BPR-0790]]. Every role of the core's closed vocabulary, in the
-	/// core's own order, in the four groups the accepted design names, with sticky
-	/// group headers carrying the count of the roles each one lists. A row is a
-	/// swatch, the role's name in words, and its value in the code font; an edited
-	/// row shows its new value in ink with the old one beside it. The rows scroll
-	/// inside the list, so the page never has to widen or lengthen for them.
+	/// \details [[BPR-0790]]. Every role of the core's closed vocabulary that the
+	/// card offers, in the core's own order, in the four groups the accepted design
+	/// names, with sticky group headers carrying the count of the roles each one
+	/// lists. A row is a swatch, the role's name in words, and its value in the
+	/// code font; an edited row shows its new value in ink with the old one beside
+	/// it. The rows scroll inside the list, so the page never has to widen or
+	/// lengthen for them.
 	///
 	/// The words and the grouping are `appearance_role_display`'s, which derives
 	/// them from the core enumeration. A `core::stable_name` is never shown: it is
@@ -100,7 +102,7 @@ namespace bpr::qt {
 	/// box.
 	///
 	/// The rows are built when the list is first shown or first asked about, not
-	/// when it is constructed. Forty-seven rows of four widgets each is the largest
+	/// when it is constructed. Forty-five rows of four widgets each is the largest
 	/// fixed structure in the application's chrome, and a reviewer who never opens
 	/// Appearance should not be carrying it: the workbench's own bound on its
 	/// retained widget tree is what makes that concrete. Everything supplied before
@@ -139,7 +141,9 @@ namespace bpr::qt {
 		/// \brief The pinned header, shown when its group's own header scrolls off.
 		[[nodiscard]] auto sticky_header() const noexcept -> QWidget*;
 		[[nodiscard]] auto sticky_heading_text() const -> QString;
-		/// Asking about a row builds the rows, which is why these are not const.
+		/// Asking about a row builds the rows, which is why these are not const. A
+		/// role the card does not offer (`appearance_role_offered`) has no row, and
+		/// these answer null for it.
 		[[nodiscard]] auto row_of(core::appearance_role aRole) -> QWidget*;
 		[[nodiscard]] auto swatch_of(core::appearance_role aRole) -> QAbstractButton*;
 		[[nodiscard]] auto name_label_of(core::appearance_role aRole) -> QLabel*;
@@ -184,7 +188,7 @@ namespace bpr::qt {
 			QLabel*  Count   = nullptr;
 		};
 
-		/// \brief Builds the four group headers and the 47 rows, once.
+		/// \brief Builds the four group headers and the 45 offered rows, once.
 		void ensure_rows();
 		void refresh_row(core::appearance_role aRole);
 		void refresh_rows();

@@ -215,3 +215,66 @@ The card leaves human-review for **Ready**. What is left here:
 AC2 and AC3 stand as recorded at `55e9405f`. When BPR-1107 changes the
 painter, its own rows keep AC2's "the panes paint what the preview shows"
 true.
+
+## The Colours card offers 45 roles, 2026-09-24 (Mac batch 7)
+
+**AC1 is built.** The role vocabulary's presentation half,
+`appearance_role_display`, now says whether the Colours card offers each
+role (`Offered`, read through `appearance_role_offered`). The two
+hunk-header roles are the only ones not offered. `colour_role_list` builds no
+row for a role that is not offered, and its accessors answer null for such a
+role. The Diff group's sticky header therefore counts 6, and the card lists
+45 rows: 7, 6, 6 and 26. The core's vocabulary, both theme documents, import,
+export and the contrast policy are untouched, so a theme still carries both
+roles, as the owner's option (a) says. RFC-BPR-0006 is not reopened.
+
+Rendered: the
+[BPR-0986 rendering note](../../verification/BPR-0986-review-pane-roles.md#the-colours-card-offers-45-roles-2026-09-24-owner-decision-e16dfcbf)
+shows the card's Diff group in light and dark, before (8 rows, with both
+hunk-header rows) and after (6 rows).
+
+Verification on macOS 26.6.2 arm64, `build/dev`:
+
+- `qt_colour_role_list` asserts 45 listed rows in the core's order, no row,
+  swatch or value for either hunk-header role, Diff 6, and a `hunk` filter
+  that finds nothing. `qt_appearance_role_display` gains
+  `test_the_card_offers_every_role_but_the_hunk_header`: exactly those two
+  roles are withdrawn, the offered groups are 7, 6, 6 and 26, and both keep
+  their group and words. `qt_appearance_settings_panel` expects the card to
+  list 45.
+- Pass: those three, `qt_settings_window` at 100/125/150/200,
+  `qt_appearance_profile`, `qt_theme_preview_strip`,
+  `qt_surface_capture_course_scale_100`,
+  `application_appearance_profile_consumers`,
+  `application_native_appearance_probe_contract`,
+  `application_appearance_theme_customization_contract`,
+  `application_appearance_gesture_contract` and
+  `application_appearance_store_fallback_contract`.
+- **Negative control.** With both roles offered again, all three row tests
+  fail: "45 of the 47 roles the core declares are listed", "exactly the two
+  hunk-header roles are not offered" and "the card lists the 45 roles it
+  offers". Restored, they pass.
+- clang-format 23.1.1 passes the seven touched files. The project tidy script
+  reports nothing on the four touched translation units.
+
+## Owner ask — parked on human-review (one question, the current-line band)
+
+What is left here is the owner's look at the current-line band, asked
+**alone**. The combined candidate was rejected for its tab markers only
+(decision `6b7243c3`), and [[BPR-1107]] now owns white space.
+
+**The question, for its own candidate:** In the review panes, the reader's
+line is always also selected, so it sits under the selection wash. When that
+line is unchanged, it now wears the current-line colour beneath the wash,
+which makes it a shade apart from the rest of the washed selection: light
+(219, 233, 249) becomes (210, 227, 247), and dark (20, 35, 57) becomes
+(27, 43, 66). A changed reading line keeps its change band, and every other
+line is as it was. **Do you accept the reader's line a shade apart under the
+selection wash as the review window's look?**
+
+How to prepare it (not prepared by this round, as instructed): render the
+panes with white-space drawing turned off, so the band is the only
+difference between the captures. Once [[BPR-1107]] lands, that is its
+setting's "none"; the "before" is the same source with the band's paint call
+switched off, as in the note's pixel table. Bind the candidate to that exact
+build and to both themes, and ask nothing else on it.

@@ -39,10 +39,19 @@ namespace bpr::qt {
 	/// theme document keys on, so it must not change with wording; this is the
 	/// wording, so it must not reach a document. The page the RFC replaces showed
 	/// stable names in a combo box, which is why the distinction is stated here.
+	///
+	/// `Offered` says whether the Colours card lists the role at all. Two roles
+	/// are not offered: `diff_hunk_header_background` and `diff_hunk_header_text`
+	/// name a surface the review window does not have, and a row that changed
+	/// nothing on screen would offer a reviewer a control that does nothing. The
+	/// owner amended RFC-BPR-0034 C5 from 47 offered roles to 45 on 2026-09-24
+	/// ([[BPR-0986]]). The core's vocabulary and the theme documents keep both
+	/// roles, so import and export still carry them.
 	struct appearance_role_display
 	{
 		appearance_role_group Group = appearance_role_group::surfaces_and_text;
 		std::string_view      Text;
+		bool                  Offered = true;
 	};
 
 	/// \brief Returns how the supplied role is shown.
@@ -59,6 +68,10 @@ namespace bpr::qt {
 	/// \brief Returns the group the supplied role lists in.
 	[[nodiscard]] auto appearance_role_group_of(core::appearance_role aRole) noexcept
 		-> appearance_role_group;
+
+	/// \brief Returns whether the Colours card lists the supplied role.
+	[[nodiscard]] auto appearance_role_offered(core::appearance_role aRole) noexcept
+		-> bool;
 
 	/// \brief Returns the role's name in words, as the Colours list shows it.
 	[[nodiscard]] auto appearance_role_text(core::appearance_role aRole) -> QString;

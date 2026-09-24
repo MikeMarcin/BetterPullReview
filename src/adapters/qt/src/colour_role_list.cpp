@@ -133,7 +133,7 @@ namespace bpr::qt {
 		// Qt::WheelFocus, which includes Tab, so this well is a real stop on the
 		// way through the card and a screen reader would reach it unannounced.
 		// It keeps that stop, because the well is how a keyboard reviewer
-		// scrolls 47 roles, and is named instead. The theme strip's well takes
+		// scrolls 45 roles, and is named instead. The theme strip's well takes
 		// the other route (`theme_preview_strip.cpp`, Qt::NoFocus) because Left
 		// and Right on the strip itself already scroll the selection into view.
 		Well->setAccessibleName(QStringLiteral("Colour roles"));
@@ -188,7 +188,7 @@ namespace bpr::qt {
 			[this](int) { refresh_sticky_header(); });
 
 		// The rows are deliberately not built here. See the class documentation:
-		// forty-seven rows of four widgets each is the largest fixed structure in
+		// forty-five rows of four widgets each is the largest fixed structure in
 		// the application's chrome, and a reviewer who never opens Appearance should
 		// not be carrying it.
 	}
@@ -209,12 +209,16 @@ namespace bpr::qt {
 		}
 
 		// Built from the core's published count, in the core's own order, so a role
-		// the core declares cannot be one this list omits. The group each row
-		// belongs to is the vocabulary's, which derives it from the same
-		// enumeration.
+		// the core declares cannot be one this list omits by accident. The group
+		// each row belongs to, and whether it is offered at all, are the
+		// vocabulary's, which derives both from the same enumeration. A role that
+		// is not offered has no row ([[BPR-0986]]).
 		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
 			 ++index) {
-			const auto role  = role_at(index);
+			const auto role = role_at(index);
+			if (!appearance_role_offered(role)) {
+				continue;
+			}
 			const auto group = appearance_role_group_of(role);
 			if (GroupHeaders[static_cast<std::size_t>(group)].Frame == nullptr) {
 				auto& header = GroupHeaders[static_cast<std::size_t>(group)];
@@ -345,6 +349,9 @@ namespace bpr::qt {
 		}
 		auto listed = std::size_t{ 0U };
 		for (auto index = std::size_t{ 0U }; index < RoleRows.size(); ++index) {
+			if (RoleRows[index].Frame == nullptr) {
+				continue;
+			}
 			const auto shown = aText.isEmpty()
 				|| appearance_role_text(role_at(index))
 					   .contains(aText, Qt::CaseInsensitive);
@@ -441,7 +448,7 @@ namespace bpr::qt {
 		auto roles = std::vector<core::appearance_role>{ };
 		roles.reserve(RoleRows.size());
 		for (auto index = std::size_t{ 0U }; index < RoleRows.size(); ++index) {
-			if (!RoleRows[index].Frame->isHidden()) {
+			if (RoleRows[index].Frame != nullptr && !RoleRows[index].Frame->isHidden()) {
 				roles.push_back(role_at(index));
 			}
 		}
@@ -469,7 +476,8 @@ namespace bpr::qt {
 	auto colour_role_list::value_text(const core::appearance_role aRole) -> QString
 	{
 		ensure_rows();
-		return RoleRows[core::index_of(aRole)].Value->text();
+		const auto* const value = RoleRows[core::index_of(aRole)].Value;
+		return value != nullptr ? value->text() : QString{ };
 	}
 
 	auto colour_role_list::statistics() const noexcept
@@ -504,15 +512,20 @@ namespace bpr::qt {
 		if (!ValueFontSupplied) {
 			return;
 		}
-		for (auto index = std::size_t{ 0U }; index < RoleRows.size(); ++index) {
-			RoleRows[index].Value->setFont(ValueFont);
-			RoleRows[index].Previous->setFont(ValueFont);
+		for (auto& entry : RoleRows) {
+			if (entry.Frame != nullptr) {
+				entry.Value->setFont(ValueFont);
+				entry.Previous->setFont(ValueFont);
+			}
 		}
 	}
 
 	void colour_role_list::refresh_row(const core::appearance_role aRole)
 	{
-		auto&      entry   = RoleRows[core::index_of(aRole)];
+		auto& entry = RoleRows[core::index_of(aRole)];
+		if (entry.Frame == nullptr) {
+			return;
+		}
 		const auto shown   = colour_of(aRole);
 		const auto changed = edited(aRole);
 		entry.Swatch->setIcon(swatch_icon(shown, palette(), devicePixelRatioF()));
@@ -554,14 +567,15 @@ namespace bpr::qt {
 	{
 		auto counted = std::array<std::size_t, appearance_role_group_count>{ };
 		for (auto index = std::size_t{ 0U }; index < RoleRows.size(); ++index) {
-			if (!RoleRows[index].Frame->isHidden()) {
+			if (RoleRows[index].Frame != nullptr && !RoleRows[index].Frame->isHidden()) {
 				++counted[static_cast<std::size_t>(
 					appearance_role_group_of(role_at(index)))];
 			}
 		}
-		// Counted rather than restated. The accepted design prints 7, 8, 6 and 26,
-		// and those are exactly the memberships the vocabulary reports, so a role
-		// added to one group cannot leave a stale number beside it.
+		// Counted rather than restated. Since RFC-BPR-0034 C5's 2026-09-24
+		// amendment the card prints 7, 6, 6 and 26, and those are exactly the
+		// offered memberships the vocabulary reports, so a role added to one group
+		// cannot leave a stale number beside it.
 		for (auto index = std::size_t{ 0U }; index < GroupHeaders.size(); ++index) {
 			GroupHeaders[index].Count->setText(
 				QString::number(static_cast<qulonglong>(counted[index])));

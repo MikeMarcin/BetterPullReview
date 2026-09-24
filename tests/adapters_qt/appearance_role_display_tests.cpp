@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -109,6 +110,42 @@ namespace {
 			"grouped out of the list");
 	}
 
+	/// \brief The card offers 45 roles: every one but the two hunk-header roles.
+	///
+	/// \details [[BPR-0986]]. RFC-BPR-0034 C5 was amended from 47 offered roles
+	/// to 45 on 2026-09-24, because the review window has no hunk header for the
+	/// two roles to change. They stay in the vocabulary and in their group.
+	void test_the_card_offers_every_role_but_the_hunk_header()
+	{
+		auto offered   = std::array<std::size_t, qt::appearance_role_group_count>{ };
+		auto withdrawn = std::vector<core::appearance_role>{ };
+		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
+			 ++index) {
+			const auto role = role_at(index);
+			if (qt::appearance_role_offered(role)) {
+				++offered[static_cast<std::size_t>(qt::appearance_role_group_of(role))];
+			} else {
+				withdrawn.push_back(role);
+			}
+		}
+		expect(
+			withdrawn
+				== std::vector{ core::appearance_role::diff_hunk_header_background,
+								core::appearance_role::diff_hunk_header_text },
+			"exactly the two hunk-header roles are not offered");
+		expect(
+			offered
+				== std::array<std::size_t, qt::appearance_role_group_count>{ 7U, 6U, 6U, 26U },
+			"so the card's groups offer 7, 6, 6 and 26 roles, 45 in all");
+		expect(
+			qt::appearance_role_group_of(core::appearance_role::diff_hunk_header_text)
+					== qt::appearance_role_group::diff
+				&& !qt::appearance_role_text(
+						core::appearance_role::diff_hunk_header_background)
+						.isEmpty(),
+			"and both keep their group and their words");
+	}
+
 	/// \brief The wording the owner accepted, where it differs from the identifier.
 	void test_the_accepted_wording_is_used()
 	{
@@ -156,6 +193,7 @@ auto main() -> int
 	test_every_role_has_words();
 	test_no_displayed_name_is_a_stable_name();
 	test_the_four_groups_hold_every_role();
+	test_the_card_offers_every_role_but_the_hunk_header();
 	test_the_accepted_wording_is_used();
 	std::cout << "appearance-role-display-tests:pass\n";
 	return EXIT_SUCCESS;

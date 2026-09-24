@@ -43,10 +43,15 @@ namespace bpr::qt {
 			return { group::diff, "Diff in-line removed background" };
 		case role::diff_moved_background:
 			return { group::diff, "Diff moved background" };
+		// Not offered ([[BPR-0986]]): the review window has no hunk header. Its
+		// panes show whole documents, and a group's start is drawn as the
+		// boundary rule below.
 		case role::diff_hunk_header_background:
-			return { group::diff, "Diff hunk header background" };
+			return { .Group   = group::diff,
+					 .Text    = "Diff hunk header background",
+					 .Offered = false };
 		case role::diff_hunk_header_text:
-			return { group::diff, "Diff hunk header text" };
+			return { .Group = group::diff, .Text = "Diff hunk header text", .Offered = false };
 		case role::diff_group_boundary_rule:
 			return { group::diff, "Diff group boundary rule" };
 
@@ -124,6 +129,11 @@ namespace bpr::qt {
 		-> appearance_role_group
 	{
 		return display_of(aRole).Group;
+	}
+
+	auto appearance_role_offered(const core::appearance_role aRole) noexcept -> bool
+	{
+		return display_of(aRole).Offered;
 	}
 
 	auto appearance_role_text(const core::appearance_role aRole) -> QString

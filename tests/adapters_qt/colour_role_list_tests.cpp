@@ -1,8 +1,10 @@
 /// \file
-/// \brief Proves RFC-BPR-0034's Colours list: 47 roles, four groups, live picking.
+/// \brief Proves RFC-BPR-0034's Colours list: 45 roles, four groups, live picking.
 ///
 /// \details Criterion C5's list half. The inventory is every role the core
-/// declares, in four groups with sticky headers carrying counted totals; the filter
+/// declares except the two hunk-header roles the card no longer offers (C5
+/// amended from 47 to 45 on 2026-09-24, [[BPR-0986]]), in four groups with
+/// sticky headers carrying counted totals; the filter
 /// lists what it matches; a swatch opens the picker through the settable seam and
 /// every colour the picker moves through is reported, so the review window can
 /// preview as the reviewer picks; a cancelled pick reports the colour the role
@@ -123,22 +125,35 @@ namespace {
 		settle();
 	}
 
-	/// \brief Every role must be listed, grouped, and counted.
-	void test_the_inventory_is_the_whole_vocabulary()
+	/// \brief Every offered role must be listed, grouped, and counted.
+	void test_the_inventory_is_the_offered_vocabulary()
 	{
 		auto list = qt::colour_role_list{ };
 		list.set_theme_colours(dark_palette());
 		show(list);
 
 		expect(
-			list.listed_roles().size() == core::appearance_role_count
-				&& core::appearance_role_count == 47U,
-			"every one of the 47 roles the core declares is listed");
+			list.listed_roles().size() == 45U && core::appearance_role_count == 47U,
+			"45 of the 47 roles the core declares are listed");
+		for (const auto unoffered :
+			 { role::diff_hunk_header_background, role::diff_hunk_header_text }) {
+			expect(
+				!qt::appearance_role_offered(unoffered)
+					&& list.row_of(unoffered) == nullptr
+					&& list.swatch_of(unoffered) == nullptr
+					&& list.value_text(unoffered).isEmpty(),
+				"the two hunk-header roles, whose surface the review window does not "
+				"have, get no row");
+		}
+		auto order = std::size_t{ 0U };
 		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
 			 ++index) {
 			const auto listed = static_cast<role>(static_cast<std::uint8_t>(index));
+			if (!qt::appearance_role_offered(listed)) {
+				continue;
+			}
 			expect(
-				list.listed_roles()[index] == listed,
+				list.listed_roles()[order++] == listed,
 				"the rows are in the core's own order, so the list cannot reorder "
 				"the vocabulary");
 			expect(
@@ -169,7 +184,7 @@ namespace {
 					== QStringLiteral("Surfaces and text")
 				&& list.group_count_text(group::surfaces_and_text)
 					== QStringLiteral("7")
-				&& list.group_count_text(group::diff) == QStringLiteral("8")
+				&& list.group_count_text(group::diff) == QStringLiteral("6")
 				&& list.group_count_text(group::review_states)
 					== QStringLiteral("6")
 				&& list.group_count_text(group::syntax) == QStringLiteral("26"),
@@ -207,12 +222,12 @@ namespace {
 		list.set_theme_colours(dark_palette());
 		show(list);
 
-		list.filter_field()->setText(QStringLiteral("hunk"));
+		list.filter_field()->setText(QStringLiteral("in-line"));
 		settle();
 		const auto listed = list.listed_roles();
 		expect(
-			listed.size() == 2U && listed[0] == role::diff_hunk_header_background
-				&& listed[1] == role::diff_hunk_header_text,
+			listed.size() == 2U && listed[0] == role::diff_intraline_added_background
+				&& listed[1] == role::diff_intraline_removed_background,
 			"the filter lists exactly the roles whose words it matches");
 		expect(
 			list.group_count_text(group::diff) == QStringLiteral("2"),
@@ -233,12 +248,18 @@ namespace {
 			"the filter is case-insensitive and matches the accepted wording, so "
 			"searching for in-line finds the intraline roles");
 
+		list.filter_field()->setText(QStringLiteral("hunk"));
+		settle();
+		expect(
+			list.listed_roles().empty() && list.group_header_of(group::diff)->isHidden(),
+			"a role the card does not offer is not found by the filter either");
+
 		list.filter_field()->clear();
 		settle();
 		expect(
-			list.listed_roles().size() == core::appearance_role_count
+			list.listed_roles().size() == 45U
 				&& list.group_count_text(group::syntax) == QStringLiteral("26"),
-			"clearing the filter lists the whole vocabulary again");
+			"clearing the filter lists every offered role again");
 	}
 
 	/// \brief A group header must pin itself once its own header scrolls away.
@@ -431,7 +452,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewColourRoleListTests"));
-	test_the_inventory_is_the_whole_vocabulary();
+	test_the_inventory_is_the_offered_vocabulary();
 	test_values_are_set_in_the_code_font();
 	test_the_filter_lists_what_it_matches();
 	test_group_headers_stick();

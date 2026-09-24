@@ -730,10 +730,9 @@ namespace {
 			"and it follows the theme on screen when that changes");
 
 		expect(
-			panel.colours() != nullptr
-				&& panel.colours()->listed_roles().size()
-					== core::appearance_role_count,
-			"the card lists the whole role vocabulary");
+			panel.colours() != nullptr && panel.colours()->listed_roles().size() == 45U,
+			"the card lists the 45 roles it offers (RFC-BPR-0034 C5, amended "
+			"2026-09-24)");
 	}
 
 	/// \brief A swatch previews through the picker, and one bar offers the choice.
@@ -1067,7 +1066,7 @@ namespace {
 			expect(
 				static_cast<std::size_t>(combo->count())
 					!= core::appearance_role_count,
-				"no combo box offers the 47 roles: the role combo box is gone");
+				"no combo box offers the roles: the role combo box is gone");
 			expect(
 				combo->findText(QStringLiteral("Follow the system")) < 0
 					&& combo->findText(
@@ -1143,7 +1142,7 @@ namespace {
 	/// `qt_settings_window`, which asserts it in four appearances and at four scales
 	/// through the composed window. What is panel-local, and what makes that
 	/// possible, is that the two large collections bound themselves: the six tiles
-	/// and the 47 colour rows each scroll inside their own well instead of asking the
+	/// and the 45 colour rows each scroll inside their own well instead of asking the
 	/// page for their full width and height. The measured minimum is recorded as
 	/// context rather than compared against an invented figure.
 	void test_the_page_does_not_demand_width()
@@ -1171,7 +1170,7 @@ namespace {
 		expect(
 			list->well() != nullptr
 				&& list->well()->verticalScrollBar()->maximum() > 0,
-			"and the 47 rows scroll inside theirs rather than lengthening the page");
+			"and the 45 rows scroll inside theirs rather than lengthening the page");
 		panel.hide();
 	}
 
