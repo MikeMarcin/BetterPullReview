@@ -19,7 +19,11 @@ namespace bpr::adapters::git::detail {
 	/// for removal. The rename failed with `ERROR_SHARING_VIOLATION`, no
 	/// user-mode process held the file (the Restart Manager listed none), and
 	/// the same rename succeeded 50 ms later. A real-time scanner that reads
-	/// each new file is the usual holder.
+	/// each new file is the usual holder. [[BPR-1104]] found a fourth: deleting
+	/// the spool once it is renamed away, which failed and succeeded the same
+	/// way. It also found a holder this retry cannot outlast: a Git child that
+	/// inherited a stream on the spool, now prevented at the launch
+	/// (`standard_handles_only` in installed_git_process.cpp).
 	///
 	/// `aAttempt` performs the operation once and returns `ERROR_SUCCESS` or the
 	/// Windows error. Only the errors such a holder produces are repeated:

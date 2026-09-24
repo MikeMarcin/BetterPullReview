@@ -2160,6 +2160,38 @@ namespace bpr::adapters::git {
 		}
 #endif
 
+		/// \brief Removes one file name; on Windows, repeated while another
+		/// handle briefly holds the file ([[BPR-1104]], `retry_while_held`).
+		///
+		/// \details `remove_exact_private_file` renames a spool to a quarantine
+		/// name and then deletes it. [[BPR-1040]] retried the rename; on the
+		/// Windows station the delete right after it then failed with
+		/// `ERROR_SHARING_VIOLATION`, and the same delete succeeded 50 to 250 ms
+		/// later. The delete now takes the same bounded retry, and after it the
+		/// last error fails the removal as before. A name that is not there is
+		/// not removed, as before.
+		[[nodiscard]] auto remove_file_name(const std::filesystem::path& aPath) -> bool
+		{
+#if defined(Q_OS_WIN)
+			const auto removed = detail::retry_while_held([&]() -> DWORD {
+				std::error_code error;
+				if (std::filesystem::remove(aPath, error) && !error) {
+					return ERROR_SUCCESS;
+				}
+				if (!error) {
+					return ERROR_FILE_NOT_FOUND;
+				}
+				return error.category() == std::system_category()
+					? static_cast<DWORD>(error.value())
+					: ERROR_GEN_FAILURE;
+			});
+			return removed == ERROR_SUCCESS;
+#else
+			std::error_code error;
+			return std::filesystem::remove(aPath, error) && !error;
+#endif
+		}
+
 		struct spool_publish_result
 		{
 			bool Success        = false;
@@ -2663,8 +2695,7 @@ namespace bpr::adapters::git {
 			if (exact_identity(*quarantine, aExpected.Kind) != aExpected) {
 				return false;
 			}
-			std::error_code error;
-			return std::filesystem::remove(*quarantine, error) && !error
+			return remove_file_name(*quarantine)
 				&& missing(*quarantine)
 				&& synchronize_directory(aPath.parent_path());
 		}

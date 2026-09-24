@@ -1813,6 +1813,94 @@ namespace bpr::adapters::git {
 			return { };
 		}
 
+#if defined(Q_OS_WIN)
+		/// \brief Starts an unguarded Git with exactly its three standard handles.
+		///
+		/// \details [[BPR-1104]]. The Windows counterpart of the
+		/// `CloseFileDescriptors` flag every Unix launch sets, and the rule the
+		/// supervisor already applies to a guarded Git. Qt creates the child with
+		/// `bInheritHandles` and no list, so without one Git inherited every
+		/// inheritable handle this process held at that instant, and kept it
+		/// until it exited. A C runtime stream (`std::ifstream`) is inheritable
+		/// by default, and on the Windows station a stream reading one epoch's
+		/// pack spool was inherited by the `index-pack` of another: the spool's
+		/// exclusive open and its removal were then refused
+		/// (`ERROR_SHARING_VIOLATION`) for as long as that Git ran.
+		class standard_handles_only final
+		{
+		public:
+			standard_handles_only()                                                = default;
+			standard_handles_only(const standard_handles_only&)                    = delete;
+			auto operator=(const standard_handles_only&) -> standard_handles_only& = delete;
+			~standard_handles_only()
+			{
+				if (Attributes != nullptr) {
+					::DeleteProcThreadAttributeList(Attributes);
+				}
+			}
+
+			void install(QProcess& aProcess)
+			{
+				aProcess.setCreateProcessArgumentsModifier([this](QProcess::CreateProcessArguments* const aArguments) {
+					limit_inheritance(aArguments);
+				});
+			}
+
+			/// Set only once the list is in place, so a start that bypassed it is
+			/// refused rather than run with every inheritable handle.
+			[[nodiscard]] auto restricted() const noexcept -> bool
+			{
+				return Restricted;
+			}
+
+		private:
+			void limit_inheritance(QProcess::CreateProcessArguments* const aArguments) noexcept
+			{
+				try {
+					const auto& original = *aArguments->startupInfo;
+					Inherited.clear();
+					for (const auto handle : { original.hStdInput, original.hStdOutput, original.hStdError }) {
+						if (handle == nullptr || handle == INVALID_HANDLE_VALUE) {
+							throw std::runtime_error{ "standard handle" };
+						}
+						// A handle list may not name one handle twice.
+						if (std::ranges::find(Inherited, handle) == Inherited.end()) {
+							Inherited.push_back(handle);
+						}
+					}
+					auto size = SIZE_T{ 0U };
+					static_cast<void>(::InitializeProcThreadAttributeList(nullptr, 1U, 0U, &size));
+					AttributeBuffer.assign(size, BYTE{ 0U });
+					const auto list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(AttributeBuffer.data());
+					if (size == 0U || ::InitializeProcThreadAttributeList(list, 1U, 0U, &size) == FALSE) {
+						throw std::runtime_error{ "attribute list" };
+					}
+					Attributes = list;
+					if (::UpdateProcThreadAttribute(Attributes, 0U, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, static_cast<void*>(Inherited.data()), Inherited.size() * sizeof(HANDLE), nullptr, nullptr) == FALSE) {
+						throw std::runtime_error{ "handle list" };
+					}
+					Startup                 = STARTUPINFOEXW{ };
+					Startup.StartupInfo     = original;
+					Startup.StartupInfo.cb  = sizeof(Startup);
+					Startup.lpAttributeList = Attributes;
+					aArguments->startupInfo = &Startup.StartupInfo;
+					aArguments->flags |= EXTENDED_STARTUPINFO_PRESENT;
+					aArguments->inheritHandles = true;
+					Restricted                 = true;
+				} catch (...) {
+					// Nothing is inherited, and the start is refused afterwards.
+					aArguments->inheritHandles = false;
+				}
+			}
+
+			std::vector<BYTE>            AttributeBuffer;
+			LPPROC_THREAD_ATTRIBUTE_LIST Attributes = nullptr;
+			std::vector<HANDLE>          Inherited;
+			STARTUPINFOEXW               Startup{ };
+			bool                         Restricted = false;
+		};
+#endif
+
 		// The supervisor, rather than Git, retains the journal lock. Git may
 		// close inherited descriptors or leave descendants behind when it exits.
 		struct git_workspace_lifetime
@@ -2422,6 +2510,9 @@ namespace bpr::adapters::git {
 			auto                   process        = std::make_unique<QProcess>();
 			windows_job            job;
 			git_workspace_lifetime lifetime;
+#if defined(Q_OS_WIN)
+			standard_handles_only inheritance;
+#endif
 			try {
 				process->setProgram(executable);
 				process->setArguments(arguments);
@@ -2443,6 +2534,11 @@ namespace bpr::adapters::git {
 				if (aRequest.WorkspaceGuard && !lifetime.prepare(*process, *aRequest.WorkspaceGuard)) {
 					return failed_execution(process, job, processGroupId, git_process_failure::invalid_configuration, lifetime);
 				}
+#if defined(Q_OS_WIN)
+				if (!aRequest.WorkspaceGuard) {
+					inheritance.install(*process);
+				}
+#endif
 				QObject::connect(
 					process.get(),
 					&QProcess::started,
@@ -2552,6 +2648,11 @@ namespace bpr::adapters::git {
 					}
 				}
 				processGroupId = resolve_process_group(*process, 0);
+#if defined(Q_OS_WIN)
+				if (!aRequest.WorkspaceGuard && !inheritance.restricted()) {
+					return failed(git_process_failure::process_start);
+				}
+#endif
 				if (aRequest.WorkspaceGuard) {
 					// The supervisor owns Git's lifetime; attaching it to this
 					// process's kill-on-close job would end it with this process.
