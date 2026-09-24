@@ -147,7 +147,7 @@ d17). The defect is cursor *delivery* after Qt's enter, which none of the four
 candidates covers, and it is not visible to the offscreen test: that test
 reads Qt's own bookkeeping under a platform with no cursor at all.
 
-Carded as [BPR-0746](../50-blocked/BPR-0746-the-resize-cursor-is-not-delivered-over-the-seam-on-the-signed-bundle.md),
+Carded as [BPR-0746](BPR-0746-the-resize-cursor-is-not-delivered-over-the-seam-on-the-signed-bundle.md),
 with three ranked hypotheses about the macOS cursor path and the logging check
 that discriminates them on the real windowed application before any product
 change.
