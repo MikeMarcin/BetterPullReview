@@ -104,3 +104,117 @@ detector nobody checked against that compiler.
   the calibration call).
 - [BPR-0822 survey](../../verification/BPR-0822-linux-gcc-aggregate-cleanup-survey.md)
   and `docs/development/build-and-test.md` for the documented command.
+
+## Fixed: the survey chooses its compilers by each unit's language (bpr-main-linux, 2026-09-23)
+
+Station `bpr-main-linux` (JaegAW: WSL2 Ubuntu 26.04, GCC `15.2.0-16ubuntu1`,
+Qt 6.11.2), claimed at `010d6da9`. The logs are station records under
+`build/logs/bpr-main-linux-20260924/impl/` (`bpr-1025/*.log`,
+`bpr-1025-*.log`) and are not committed.
+
+### The change
+
+`scripts/survey_gcc_aggregate_cleanups.py` no longer looks at the first
+entry.
+
+- **Language first.** `unit_language` reads a unit's last `-x` language, or
+  else its suffix, by GCC's own rules: `.C` is C++ and `.c` is C.
+  `survey_plan` groups the C++ units by their recorded compiler, in
+  first-use order, and sets the C units and any other units aside. The order
+  of `--build-dir` and of the entries no longer matters.
+- **Every C++ compiler is calibrated.** Each GCC compiler the databases
+  record is calibrated in turn, in its own work directory, and prints
+  `compiler <path>, C++ units: <n>` before its calibration line. If any
+  calibration fails, the survey stops with status 2 before a single unit is
+  compiled. A unit is surveyed only when its compiler calibrated and is
+  affected. If no compiler is affected, it stops with status 0.
+- **C units are surveyed, deliberately.** They are recompiled with their
+  own recorded compiler, as before, and counted in `units=`. They are not
+  calibrated, because C has no destructors, so a C unit can fail to compile
+  but cannot yield a finding. The survey prints `C units: <n>, compiled with
+  their recorded compiler; C has no destructors to report`. This keeps the
+  documented command's unit count.
+- **Anything else is named.** Units in another language, and the C++ units
+  of a Clang compiler in a database that also records GCC, are skipped and
+  counted. A database with no C++ unit is refused with status 2. A compiler
+  that is neither GCC nor Clang, such as a launcher, is still refused with
+  status 2, and the survey names it.
+- `--json` also records each compiler's calibration, `c_units` and
+  `skipped_units`. With one compiler, its `calibration` field is the same
+  line as before.
+- `docs/development/build-and-test.md` says which compiler is calibrated,
+  and lists the new status-2 case.
+
+### AC2: the selection test, with no compiler
+
+`tests/scripts/survey_gcc_aggregate_cleanups_tests.py`, registered as
+`gcc_aggregate_survey_selection_contract`, drives the survey's `main` with
+`compiler_family`, `calibrate` and `survey_unit` replaced by recorders. Its
+databases are synthetic, and its temporary directories are contained. It
+has 8 tests, all passing:
+
+- a database whose first entry is `cc` compiling `sqlite3.c` calibrates only
+  `/usr/bin/c++`, and surveys both units;
+- either order of `app-release` and `dev` calibrates `/usr/bin/c++`;
+- two C++ compilers are each calibrated, in first-use order;
+- no unit is surveyed when one of them fails calibration;
+- the units of an unaffected compiler are not surveyed;
+- Clang units and assembler units are skipped and named, and a database of
+  only Clang is skipped with status 0;
+- a C-only database is refused;
+- the language is read from `-x` before the suffix.
+
+**Against the selection at `010d6da9`** (the test run on a copy of the old
+script, `bpr-1025-negctl-old-selection.log`), 7 tests fail and 8 subtests
+error:
+
+- `Lists differ: ['/usr/bin/cc'] != ['/usr/bin/c++']`, for the first entry
+  and for `app-release` named first.
+- `['/usr/bin/g++-14'] != ['/usr/bin/g++-14', '/usr/bin/c++']`, for the two
+  compilers.
+- The language test errors (7 subtests and its last assertion), because
+  `unit_language` does not exist there.
+- `dev` named first passes, as it always did.
+
+### AC1 and AC3: the real databases at one revision
+
+Both trees were built at `010d6da9` in this checkout:
+
+- `build/dev`: 460 entries, 459 by `/usr/bin/c++` and one C unit.
+- `build/app-release`: a fresh Release build, 487 steps, whose only warning
+  is the SQLite amalgamation's known `-Wstringop-overread`. It has 228
+  entries, and the first is `_bpr/sqlite/3.53.4/sqlite3.c` by `/usr/bin/cc`.
+
+Each run below was serial, with its own `TMPDIR` in an owned directory. None
+left anything there. "Before" is the script at `010d6da9`. "After" is this
+change (script SHA-256 `611b5d0828d82fb7…`).
+
+| Run | Result |
+| --- | --- |
+| Before, `--build-dir build/dev --build-dir build/app-release --jobs 10` (the documented command) | Calibration line below; `units=688 failures=0 sites=39 gated=0`; `GCC_AGGREGATE_SURVEY_OK`; exit 0; 315 s |
+| After, the same command | `compiler /usr/bin/c++, C++ units: 686`; **the same calibration line**; `C units: 2, …`; `units=688 failures=0 sites=39 gated=0`; exit 0; 315 s. **The 39 noted sites are line for line the same**, all under `tests/` |
+| After, `--build-dir build/app-release` alone | `compiler /usr/bin/c++, C++ units: 227`; the same calibration line; `C units: 1, …`; `units=228 failures=0 sites=0 gated=0`; `GCC_AGGREGATE_SURVEY_OK`; exit 0; 121 s |
+| After, `--build-dir build/app-release --build-dir build/dev` | The same as the documented order: 686 C++ units, the same line, `units=688 … sites=39 gated=0`, exit 0; 299 s |
+| Negative control: before, `app-release` alone | `calibration build failed:` with 7 `undefined reference` lines (`operator new(unsigned long)`, `typeinfo for std::runtime_error`, `__gxx_personality_v0`, …), then `GCC_AGGREGATE_SURVEY_FAILED:calibration`; exit 2 |
+| Negative control: before, `app-release` then `dev` | The same failure; exit 2 |
+
+The calibration line in every passing run is
+`calibration: 25 shapes; 16 double-destroy at run time (documented GCC 15.2 behaviour: 16); detector flags 16`.
+
+### Acceptance
+
+- **AC1: pass.** The `app-release` database alone, and named before
+  `build/dev`, calibrates `/usr/bin/c++` and prints the same calibration line
+  as the `dev` survey. With no gated site in the tree, it exits 0. The
+  script before the change fails both runs.
+- **AC2: pass.** The selection test needs no compiler. It pins the C-first
+  case and calibrates both of two C++ compilers, and it fails against the
+  selection at `010d6da9`.
+- **AC3: pass.** At `010d6da9`'s trees, the documented two-preset command
+  reports the same calibration line, `units=688`, the same 39 sites and exit
+  0, before and after.
+
+Also run, all passing (`bpr-1025-rows-1.log`, `-rows-2.log`):
+`gcc_aggregate_survey_selection_contract`,
+`contained_temporary_usage_contract`, `skip_report_contract`,
+`test_network_isolation_manifest` and `documentation_structure`.

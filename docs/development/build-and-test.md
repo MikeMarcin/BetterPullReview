@@ -893,10 +893,20 @@ python3 scripts/survey_gcc_aggregate_cleanups.py --build-dir build/dev --build-d
   double-destroy. Next it recompiles each translation unit with its recorded
   flags plus GCC's GIMPLE and EH dumps. It reports the nested cleanups that one
   throw would run twice.
-- **Exit status.** 1 when a finding lies under `src/`. 2 when calibration or a
-  compile fails, the compiler is neither GCC nor Clang, or the database was
-  configured from another checkout. 0 when the tree is clean or the compiler
-  is unaffected. Findings under `tests/` are listed but do not fail it.
+- **Which compiler it calibrates.** Each C++ compiler the databases record,
+  chosen by each unit's language (`-x`, else its suffix), in any order of
+  `--build-dir` and of entries ([[BPR-1025]]). It prints
+  `compiler <path>, C++ units: <n>` before each calibration. A C++ unit is
+  surveyed only after its compiler calibrated. C units, such as the vendored
+  SQLite amalgamation that `cc` compiles, are recompiled with their own
+  compiler and counted in `units=`; C has no destructors, so they cannot yield
+  a finding. Units in another language, and those of a Clang compiler beside
+  GCC, are skipped and named. The `app-release` database alone works.
+- **Exit status.** 1 when a finding lies under `src/`. 2 when a calibration or
+  a compile fails, a compiler is neither GCC nor Clang, the databases record no
+  C++ unit, or a database was configured from another checkout. 0 when the
+  tree is clean or no compiler is affected. Findings under `tests/` are listed
+  but do not fail it.
 - **Reading a finding.** It names the line GCC attributes to the overlap,
   which for an initializer list can be the closing brace of the enclosing
   function. It means GCC built overlapping exception cleanups there; the call

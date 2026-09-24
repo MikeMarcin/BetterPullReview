@@ -15,17 +15,24 @@ Warnings do not find these sites: `-O3 -Wmaybe-uninitialized` reported two of
 them, and the tree then built clean with others still present. Clang tooling
 sees Clang's lowering, not GCC's. This survey therefore asks GCC itself:
 
-1. Calibration. It compiles an embedded reproducer with the same compiler,
-   runs it to count live objects after a later initializer throws in each
-   shape, and requires the detector below to flag exactly the shapes that
-   double-destroy at run time. A disagreement stops the survey, so a GCC
-   whose dump format or lowering changed cannot report a false clean result.
-   If no shape double-destroys, the compiler is not affected and the survey
-   stops with success.
-2. Survey. It recompiles every translation unit of each supplied CMake
-   compilation database with its recorded flags plus
+1. Calibration. It compiles an embedded reproducer with each C++ compiler the
+   databases record, runs it to count live objects after a later initializer
+   throws in each shape, and requires the detector below to flag exactly the
+   shapes that double-destroy at run time. A disagreement stops the survey, so
+   a GCC whose dump format or lowering changed cannot report a false clean
+   result. A compiler for which no shape double-destroys is not affected, and
+   its units are not surveyed; if no compiler is affected, the survey stops
+   with success. The C++ units, and so the compilers, are chosen by each
+   unit's language (`-x`, else its suffix), not by the order of the entries
+   ([[BPR-1025]]).
+2. Survey. It recompiles every C++ translation unit of an affected compiler
+   in each supplied CMake compilation database with its recorded flags plus
    `-fdump-tree-gimple-lineno`, then reads each dump. Object files and dumps
-   go to a temporary directory; the build tree is not modified.
+   go to a temporary directory; the build tree is not modified. C units are
+   compiled the same way with their own recorded compiler, which is not
+   calibrated: C has no destructors, so they can fail to compile but never
+   yield a finding. Units in any other language, and those of a Clang
+   compiler in a database that also records GCC, are skipped and counted.
 3. Detector. For every destructor call inside a `finally` or `catch` handler,
    it takes the protected `try` body and, for a flag-guarded call, the
    statements at which all its guard flags are 1. Two calls whose object
@@ -376,7 +383,7 @@ def calibrate(compiler: str, work: pathlib.Path) -> tuple[bool, str, int]:
 
 
 def survey_unit(entry: dict[str, Any], work: pathlib.Path, index: int) -> dict[str, Any]:
-    arguments = shlex.split(entry["command"]) if "command" in entry else list(entry["arguments"])
+    arguments = entry_arguments(entry)
     unit = work / f"tu-{index}"
     unit.mkdir()
     command: list[str] = []
@@ -409,6 +416,70 @@ def survey_unit(entry: dict[str, Any], work: pathlib.Path, index: int) -> dict[s
         "findings": findings,
         "stderr": result.stderr[-2000:] if result.returncode else "",
     }
+
+
+# GCC's own suffix rules: `.C` is C++, `.c` is C.
+CXX_SUFFIXES = frozenset({".cc", ".cp", ".cxx", ".cpp", ".CPP", ".c++", ".C", ".cppm", ".ixx"})
+C_SUFFIXES = frozenset({".c"})
+CXX_LANGUAGES = frozenset({"c++", "c++-header", "c++-module"})
+C_LANGUAGES = frozenset({"c", "c-header"})
+
+
+def entry_arguments(entry: dict[str, Any]) -> list[str]:
+    return shlex.split(entry["command"]) if "command" in entry else list(entry["arguments"])
+
+
+def unit_language(entry: dict[str, Any]) -> str:
+    """`c++`, `c` or `other`: the last `-x` language, else the file's suffix."""
+    language = None
+    arguments = entry_arguments(entry)[1:]
+    for index, argument in enumerate(arguments):
+        if argument == "-x" and index + 1 < len(arguments):
+            language = arguments[index + 1]
+        elif argument.startswith("-x") and len(argument) > 2:
+            language = argument[2:]
+    if language is None:
+        suffix = pathlib.PurePath(entry["file"]).suffix
+        return "c++" if suffix in CXX_SUFFIXES else "c" if suffix in C_SUFFIXES else "other"
+    return "c++" if language in CXX_LANGUAGES else "c" if language in C_LANGUAGES else "other"
+
+
+def survey_plan(entries: list[tuple[str, dict[str, Any]]]) -> dict[str, Any]:
+    """Each C++ compiler with its units' indexes, in first-use order; the C and other units."""
+    compilers: dict[str, list[int]] = {}
+    c_units: list[int] = []
+    other_units: list[int] = []
+    for index, (_, entry) in enumerate(entries):
+        language = unit_language(entry)
+        if language == "c++":
+            compilers.setdefault(entry_arguments(entry)[0], []).append(index)
+        elif language == "c":
+            c_units.append(index)
+        else:
+            other_units.append(index)
+    return {"compilers": compilers, "c_units": c_units, "other_units": other_units}
+
+
+def calibrate_compilers(
+    compilers: list[str], plan: dict[str, Any], work: pathlib.Path
+) -> tuple[list[int] | None, list[dict[str, Any]]]:
+    """Calibrate each GCC compiler in turn. Returns the units of the affected
+    ones, or None as soon as one fails, and every calibration made."""
+    surveyed: list[int] = []
+    calibrations: list[dict[str, Any]] = []
+    for position, compiler in enumerate(compilers):
+        units = plan["compilers"][compiler]
+        print(f"compiler {compiler}, C++ units: {len(units)}")
+        compiler_work = work / f"calibration-{position}"
+        compiler_work.mkdir()
+        calibrated, report, affected = calibrate(compiler, compiler_work)
+        print(report)
+        calibrations.append({"compiler": compiler, "units": len(units), "calibration": report})
+        if not calibrated:
+            return None, calibrations
+        if affected:
+            surveyed += units
+    return surveyed, calibrations
 
 
 def main() -> int:
@@ -444,29 +515,46 @@ def main() -> int:
     if foreign:
         print(f"GCC_AGGREGATE_SURVEY_FAILED:{len(foreign)} compiled files lie outside {root}, e.g. {foreign[0]}")
         return 2
-    first = entries[0][1]
-    compiler = shlex.split(first["command"])[0] if "command" in first else first["arguments"][0]
-    family = compiler_family(compiler)
-    if family == "clang":
-        print(f"GCC_AGGREGATE_SURVEY_SKIPPED:{compiler} is Clang, which lowers these initializations correctly")
-        return 0
-    if family != "gcc":
-        print(f"GCC_AGGREGATE_SURVEY_FAILED:cannot identify {compiler} as GCC or Clang (a compiler launcher is not supported)")
+    plan = survey_plan(entries)
+    if not plan["compilers"]:
+        print("GCC_AGGREGATE_SURVEY_FAILED:the compile databases record no C++ unit")
         return 2
+    families = {compiler: compiler_family(compiler) for compiler in plan["compilers"]}
+    unknown = [compiler for compiler, family in families.items() if family not in ("gcc", "clang")]
+    if unknown:
+        print(f"GCC_AGGREGATE_SURVEY_FAILED:cannot identify {', '.join(unknown)} as GCC or Clang "
+              "(a compiler launcher is not supported)")
+        return 2
+    gcc = [compiler for compiler, family in families.items() if family == "gcc"]
+    clang = [compiler for compiler, family in families.items() if family == "clang"]
+    if not gcc:
+        print(f"GCC_AGGREGATE_SURVEY_SKIPPED:{', '.join(clang)} "
+              f"{'is Clang, which lowers' if len(clang) == 1 else 'are Clang, which lower'} these initializations correctly")
+        return 0
+    for compiler in clang:
+        print(f"skipped {len(plan['compilers'][compiler])} C++ units of {compiler}, which is Clang")
+    if plan["other_units"]:
+        print(f"skipped {len(plan['other_units'])} units that are neither C++ nor C, "
+              f"e.g. {entries[plan['other_units'][0]][1]['file']}")
 
     with tempfile.TemporaryDirectory(prefix="bpr-gcc-aggregate-survey-") as temporary:
         work = pathlib.Path(temporary)
-        calibrated, report, affected = calibrate(compiler, work)
-        print(report)
-        if not calibrated:
+        surveyed, calibrations = calibrate_compilers(gcc, plan, work)
+        if surveyed is None:
             print("GCC_AGGREGATE_SURVEY_FAILED:calibration")
             return 2
-        if affected == 0:
-            print("GCC_AGGREGATE_SURVEY_OK:this compiler does not double-destroy any calibrated shape")
+        if not surveyed:
+            print("GCC_AGGREGATE_SURVEY_OK:"
+                  + ("this compiler does not" if len(gcc) == 1 else "no compiler here does")
+                  + " double-destroy any calibrated shape")
             return 0
+        if plan["c_units"]:
+            print(f"C units: {len(plan['c_units'])}, compiled with their recorded compiler; "
+                  "C has no destructors to report")
+        selected = sorted(surveyed + plan["c_units"])
         with concurrent.futures.ProcessPoolExecutor(max(1, options.jobs)) as pool:
-            futures = [pool.submit(survey_unit, entry, work, index) for index, (_, entry) in enumerate(entries)]
-            results = [(preset, future.result()) for (preset, _), future in zip(entries, futures)]
+            futures = [pool.submit(survey_unit, entries[index][1], work, index) for index in selected]
+            results = [(entries[index][0], future.result()) for index, future in zip(selected, futures)]
 
     failures = [result for _, result in results if result["returncode"] != 0 or result["dumps"] != 2]
     sites: dict[tuple[str, int], dict[str, Any]] = collections.OrderedDict()
@@ -493,8 +581,11 @@ def main() -> int:
         print(f"{'GATED' if is_gated else 'noted'} {relative}:{line} [{','.join(sorted(site['presets']))}] {pairs}")
     if options.json:
         options.json.write_text(json.dumps({
-            "calibration": report,
+            "calibration": "\n".join(calibration["calibration"] for calibration in calibrations),
+            "calibrations": calibrations,
             "units": len(results),
+            "c_units": len(plan["c_units"]),
+            "skipped_units": sum(len(plan["compilers"][compiler]) for compiler in clang) + len(plan["other_units"]),
             "failures": [{"file": result["file"], "returncode": result["returncode"], "stderr": result["stderr"]} for result in failures],
             "sites": [{"file": relative, "line": line, "pairs": sorted(site["pairs"]), "presets": sorted(site["presets"]),
                        "units": sorted(site["units"])} for (relative, line), site in sorted(sites.items())],

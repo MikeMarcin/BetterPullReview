@@ -424,6 +424,16 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/contained_temporary_usage_tests.py"
 )
 
+# [[BPR-1025]]. Which compilers the GCC aggregate-cleanup survey calibrates:
+# by each unit's language, every distinct C++ compiler, before any unit is
+# surveyed. The compiler-facing steps are replaced, so no compiler is needed.
+bpr_add_network_isolated_test(
+    NAME gcc_aggregate_survey_selection_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/survey_gcc_aggregate_cleanups_tests.py"
+)
+
 # The same helper's own behaviour: it works at the declared interpreter floor
 # ([[BPR-0867]]) and names a removal it cannot perform ([[BPR-0868]]). Contained
 # on Windows like its neighbour above; nothing in it needs the host.
