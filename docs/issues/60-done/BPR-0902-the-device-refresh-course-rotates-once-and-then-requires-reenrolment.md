@@ -251,3 +251,10 @@ shared. Linux passed the row at `2b2e5549`, the same day this card was found
 (7.93 s, `docs/verification/dsp5-linux-full-sweep.md`). All three platforms
 passed it at `0d19c990` (`RFC-BPR-0016.md`). The new line follows the verdict
 on every platform. The next macOS and Linux sweeps confirm HEAD.
+
+**Where it landed.** The push gate rebased the change, so it is on main as
+`3727a762` and the finish as `c5299262`. `0749027e`, the revision the
+acceptance names, differs from `3727a762` only by another station's GitHub
+read-contract and fixture work (`github_read_contract.cpp`, the
+`uiforetw-74` recording and their tests). None of that is on the
+device-authorization path.
