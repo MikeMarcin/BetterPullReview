@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1111"
 title: "The device-binding store latches corrupt on SQLite I/O and recovery errors after its first read"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
