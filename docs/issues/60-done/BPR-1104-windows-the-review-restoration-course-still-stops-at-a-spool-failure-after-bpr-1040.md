@@ -218,3 +218,14 @@ The logs are station records under
 `build/logs/bpr-main-linux-20260924/bpr-1102-1104-post-close/`
 (`bpr-1104-post.log`, and `build-dev-e2dc8f82.log` for the build). They are
 not committed.
+
+## Post-close macOS rerun (2026-09-24, integrator)
+
+At `e2dc8f82` on macOS 26.6.2 arm64 (`build/dev` Debug, incremental rebuild
+clean), `ctest --preset dev -j1 -R "git_(process|protocol|cache)|installed_git"`:
+`git_protocol_boundary` 0.40 s, `application_git_protocol_v2` 0.40 s,
+`git_process_contract` 94.17 s and `git_cache_contract` 262.91 s, all passed.
+The Windows-only handle restriction changes nothing observable on macOS,
+confirming AC4's code-judged macOS half by a run. The recommended
+independent review of the Windows inheritance change remains the owner's
+decision.

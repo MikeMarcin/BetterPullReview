@@ -207,3 +207,13 @@ The logs are station records under
 `build/logs/bpr-main-linux-20260924/bpr-1102-1104-post-close/` and are not
 committed. They are `bpr-1102-post.log`, `bpr-1102-ctest-5660cf3b.log` for
 the earlier run, and `build-dev-e2dc8f82.log` for the build.
+
+## Post-close macOS rerun (2026-09-24, integrator)
+
+At `e2dc8f82` on macOS 26.6.2 arm64 (Apple clang, Qt 6.11.2, `build/dev`
+Debug, incremental rebuild clean), `ctest --preset dev -j1`:
+`application_diff_workbench_public_path` passed in 12.31 s,
+`application_review_round_trip_composition_contract` in 11.29 s (the
+resealed pin matches on macOS), `application_appearance_theme_customization_contract`
+in 24.43 s and `application_appearance_store_fallback_contract` in 12.85 s.
+This confirms AC4's code-judged macOS half by a run.
