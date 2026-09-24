@@ -34,8 +34,9 @@ namespace bpr::qt {
 		std::uint64_t FormattedRows = 0U;
 		/// Diff, selection and current-line bands the last adoption emitted.
 		std::uint64_t BandsPainted = 0U;
-		/// Tab markers the code surface drew on its last repaint.
-		std::uint64_t TabMarkersPainted = 0U;
+		/// [[BPR-1107]]. White space marks the code surface drew on its last
+		/// repaint.
+		std::uint64_t WhiteSpacePainted = 0U;
 		/// Line numbers the gutter drew on its last repaint.
 		std::uint64_t GutterNumbersPainted = 0U;
 

@@ -15,6 +15,7 @@
 #include <QTextDocument>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace bpr::qt {
@@ -26,11 +27,15 @@ namespace bpr::qt {
 		/// A sample row is this multiple of the code font's own line spacing, which
 		/// is the airier setting the accepted design draws a sample at.
 		constexpr auto SampleRowSpacing = 1.45;
-		/// How far a tab marker's arrow reaches back along the tab stop.
-		constexpr auto TabMarkerArm = 3.0;
-		/// A tab marker is a hint rather than a character, so it sits below the
-		/// strength of the text it measures.
-		constexpr auto TabMarkerAlpha = 140;
+		/// [[BPR-1107]]. A tab's line stops this far short of each end.
+		constexpr auto WhiteSpaceTabInset = 1.5;
+		/// A space's dot: its radius as a share of the space's advance, bounded.
+		constexpr auto WhiteSpaceDotShare   = 0.12;
+		constexpr auto WhiteSpaceDotMinimum = 0.9;
+		constexpr auto WhiteSpaceDotMaximum = 1.6;
+		/// White space is a hint rather than a character, so it sits below the
+		/// strength of the text around it.
+		constexpr auto WhiteSpaceAlpha = 140;
 
 		[[nodiscard]] auto role_colour(
 			const code_role_colors&     aColors,
@@ -445,39 +450,94 @@ namespace bpr::qt {
 		return painted;
 	}
 
-	auto paint_tab_markers(
-		QPainter&           aPainter,
-		const QRectF&       aRow,
-		const std::uint32_t aIndent,
-		const qreal         aTabStopDistance,
-		const QColor&       aColor) -> std::uint32_t
+	auto white_space_characters(const QStringView aLine)
+		-> std::vector<core::white_space_character>
 	{
-		if (aIndent == 0U || aTabStopDistance <= 0.0 || !aColor.isValid()) {
+		auto characters = std::vector<core::white_space_character>{ };
+		characters.reserve(static_cast<std::size_t>(aLine.size()));
+		for (const auto character : aLine) {
+			characters.push_back(character == QLatin1Char{ ' ' }        ? core::white_space_character::space
+									 : character == QLatin1Char{ '\t' } ? core::white_space_character::tab
+																		: core::white_space_character::other);
+		}
+		return characters;
+	}
+
+	auto paint_white_space(
+		QPainter&                               aPainter,
+		const QRectF&                           aRow,
+		const std::span<const white_space_mark> aMarks,
+		const QColor&                           aColor) -> std::uint32_t
+	{
+		if (aMarks.empty() || !aColor.isValid()) {
 			return 0U;
 		}
 		auto faint = aColor;
-		faint.setAlpha(TabMarkerAlpha);
+		faint.setAlpha(WhiteSpaceAlpha);
 		aPainter.save();
-		aPainter.setPen(QPen{ faint, 1.0 });
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
 		const auto middle  = aRow.center().y();
-		const auto arm     = std::min(TabMarkerArm, aTabStopDistance / 4.0);
 		auto       painted = std::uint32_t{ 0U };
-		for (auto depth = std::uint32_t{ 0U }; depth < aIndent; ++depth) {
-			const auto left = aRow.left()
-				+ static_cast<qreal>(depth) * aTabStopDistance;
-			const auto right = left + aTabStopDistance * 0.6;
-			if (right > aRow.right()) {
-				break;
+		for (const auto& mark : aMarks) {
+			const auto width = mark.Right - mark.Left;
+			if (width <= 0.0) {
+				continue;
 			}
-			aPainter.drawLine(QPointF{ left, middle }, QPointF{ right, middle });
-			aPainter.drawLine(
-				QPointF{ right - arm, middle - arm }, QPointF{ right, middle });
-			aPainter.drawLine(
-				QPointF{ right - arm, middle + arm }, QPointF{ right, middle });
+			if (mark.Tab) {
+				// A line from where the tab starts to its stop, a hair inside
+				// each end so two tabs in a row read as two.
+				const auto inset = std::min(WhiteSpaceTabInset, width / 4.0);
+				aPainter.setPen(QPen{ faint, 1.0 });
+				aPainter.setBrush(Qt::NoBrush);
+				aPainter.drawLine(QPointF{ mark.Left + inset, middle }, QPointF{ mark.Right - inset, middle });
+			} else {
+				const auto radius = std::clamp(width * WhiteSpaceDotShare, WhiteSpaceDotMinimum, WhiteSpaceDotMaximum);
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(faint);
+				aPainter.drawEllipse(QPointF{ (mark.Left + mark.Right) / 2.0, middle }, radius, radius);
+			}
 			++painted;
 		}
 		aPainter.restore();
 		return painted;
+	}
+
+	auto paint_white_space_of_block(
+		QPainter&                       aPainter,
+		const QPlainTextEdit&           aEditor,
+		const QTextBlock&               aBlock,
+		const core::white_space_drawing aDrawing,
+		const bool                      aSelected,
+		const QColor&                   aColor) -> std::uint32_t
+	{
+		if (!aBlock.isValid() || aDrawing == core::white_space_drawing::none || !aColor.isValid()) {
+			return 0U;
+		}
+		const auto text  = aBlock.text();
+		const auto drawn = core::white_space_drawn(white_space_characters(text), aDrawing, aSelected);
+		auto       marks = std::vector<white_space_mark>{ };
+		auto       row   = QRectF{ };
+		auto       at    = QTextCursor{ aBlock };
+		for (auto index = std::size_t{ 0U }; index < drawn.size(); ++index) {
+			if (!drawn[index]) {
+				continue;
+			}
+			// Where the editor put the character and the one after it, so the
+			// tab stops, the font and the scroll offset are the editor's own.
+			at.setPosition(aBlock.position() + static_cast<int>(index));
+			const auto start = aEditor.cursorRect(at);
+			at.setPosition(aBlock.position() + static_cast<int>(index) + 1);
+			const auto end = aEditor.cursorRect(at);
+			if (row.isNull()) {
+				row = QRectF{ start };
+			}
+			marks.push_back(white_space_mark{
+				.Left  = static_cast<qreal>(start.left()),
+				.Right = static_cast<qreal>(end.left()),
+				.Tab   = text.at(static_cast<qsizetype>(index)) == QLatin1Char{ '\t' },
+			});
+		}
+		return paint_white_space(aPainter, row, marks, aColor);
 	}
 
 	auto paint_code_sample(
@@ -530,14 +590,55 @@ namespace bpr::qt {
 					++painted.BandsPainted;
 				}
 			}
-			if (row.Indent > 0U) {
-				painted.TabMarkersPainted += paint_tab_markers(
+			// [[BPR-1107]]. The row's white space, laid out the way the text below
+			// is drawn: the leading tabs to their stops, then every character of
+			// every token at its own advance.
+			if (aOptions.WhiteSpace != core::white_space_drawing::none) {
+				auto line = QString{ static_cast<qsizetype>(row.Indent), QLatin1Char{ '\t' } };
+				for (const auto& token : row.Tokens) {
+					line += token.Text;
+				}
+				const auto drawn = core::white_space_drawn(white_space_characters(line), aOptions.WhiteSpace, row.Selected);
+				auto       marks = std::vector<white_space_mark>{ };
+				auto       index = std::size_t{ 0U };
+				const auto mark  = [&](const qreal aLeft, const qreal aRight, const bool aTab) {
+					if (index < drawn.size() && drawn[index]) {
+						marks.push_back(white_space_mark{ .Left = aLeft, .Right = aRight, .Tab = aTab });
+					}
+					++index;
+				};
+				for (auto depth = std::uint32_t{ 0U }; depth < row.Indent; ++depth) {
+					const auto left = textLeft + static_cast<qreal>(depth) * tabStop;
+					mark(left, left + tabStop, true);
+				}
+				// Each character at the offset the token's own text reaches, in
+				// the token's own emphasis, which is how the text is drawn below.
+				auto tokenLeft = textLeft + static_cast<qreal>(row.Indent) * tabStop;
+				for (const auto& token : row.Tokens) {
+					auto       font     = aFont;
+					const auto emphasis = code_syntax_emphasis_of(token.Role, aOptions.Emphasis);
+					if (emphasis.Bold) {
+						font.setBold(true);
+					}
+					if (emphasis.Italic) {
+						font.setItalic(true);
+					}
+					const auto tokenMetrics = QFontMetricsF{ font };
+					for (auto offset = qsizetype{ 0 }; offset < token.Text.size(); ++offset) {
+						const auto character = token.Text.at(offset);
+						const auto left      = tokenLeft + tokenMetrics.horizontalAdvance(token.Text.left(offset));
+						const auto right     = character == QLatin1Char{ '\t' }
+							? textLeft + (std::floor((left - textLeft) / tabStop) + 1.0) * tabStop
+							: tokenLeft + tokenMetrics.horizontalAdvance(token.Text.left(offset + 1));
+						mark(left, right, character == QLatin1Char{ '\t' });
+					}
+					tokenLeft += tokenMetrics.horizontalAdvance(token.Text);
+				}
+				painted.WhiteSpacePainted += paint_white_space(
 					aPainter,
 					QRectF{ textLeft, top, aRect.right() - textLeft, rowHeight },
-					row.Indent,
-					tabStop,
-					role_colour(
-						aColors, core::appearance_role::code_line_number_text));
+					marks,
+					role_colour(aColors, core::appearance_role::code_line_number_text));
 			}
 			auto x = textLeft + static_cast<qreal>(row.Indent) * tabStop;
 			for (const auto& token : row.Tokens) {

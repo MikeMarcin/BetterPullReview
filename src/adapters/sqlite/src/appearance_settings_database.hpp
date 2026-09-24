@@ -35,7 +35,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// meaning left once every variant has a slot of its own — it existed only to
 	/// say which single theme the one palette belonged to — so it is migration
 	/// input rather than a column version 7 keeps.
-	inline constexpr std::int64_t appearance_settings_schema_version = 7;
+	/// Version 8 adds `code_white_space`, when the code panes draw white space
+	/// ([[BPR-1107]]); a version-7 record takes the fresh default, "selection".
+	inline constexpr std::int64_t appearance_settings_schema_version = 8;
 
 	/// \brief Owns the durable appearance settings database.
 	///

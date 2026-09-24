@@ -56,6 +56,8 @@ namespace bpr::qt {
 		std::uint64_t DiagonalTilesPainted = 0U;
 		/// Selections that had to move the well to show the tile they chose.
 		std::uint64_t ScrollsIntoView = 0U;
+		/// [[BPR-1107]]. White space marks the tiles drew, cumulative.
+		std::uint64_t WhiteSpacePainted = 0U;
 
 		auto operator<=>(const theme_preview_statistics&) const = default;
 	};
@@ -122,6 +124,9 @@ namespace bpr::qt {
 		/// `default_typography_settings` starts a fresh installation from — never a
 		/// family named in this file.
 		void set_code_font(QFont aFont);
+		/// \brief [[BPR-1107]]. When the tiles draw white space: the typography's
+		/// own choice, so a tile shows what its theme's review window shows.
+		void set_white_space(core::white_space_drawing aDrawing);
 		void set_dispatch(theme_preview_dispatch aDispatch);
 
 		[[nodiscard]] auto cards() const noexcept
@@ -175,10 +180,11 @@ namespace bpr::qt {
 		std::optional<core::appearance_variant>                 System;
 		std::array<std::size_t, core::appearance_variant_count> CustomisedCounts{ };
 		std::array<core::appearance_palette, core::appearance_variant_count>
-								 ThemePalettes{ };
-		QFont                    CodeFont;
-		theme_preview_dispatch   Dispatch;
-		theme_preview_statistics Statistics;
+								  ThemePalettes{ };
+		QFont                     CodeFont;
+		core::white_space_drawing WhiteSpace = core::white_space_drawing::none;
+		theme_preview_dispatch    Dispatch;
+		theme_preview_statistics  Statistics;
 	};
 } // namespace bpr::qt
 

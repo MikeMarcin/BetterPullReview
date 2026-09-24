@@ -76,6 +76,22 @@ namespace bpr::qt {
 				SelectedBase = aBase;
 				SelectedHead = aHead;
 			}
+			/// \brief [[BPR-1107]]. The lines this side's selection washes.
+			void set_selected_lines(std::optional<core::line_span> aLines)
+			{
+				if (SelectedLines != aLines) {
+					SelectedLines = aLines;
+					viewport()->update();
+				}
+			}
+			/// \brief [[BPR-1107]]. When this pane draws white space.
+			void set_white_space(const core::white_space_drawing aDrawing)
+			{
+				if (WhiteSpace != aDrawing) {
+					WhiteSpace = aDrawing;
+					viewport()->update();
+				}
+			}
 
 			/// \brief Widths the gutter to the widest number it will ever show.
 			///
@@ -165,9 +181,9 @@ namespace bpr::qt {
 				return PaintedRules;
 			}
 
-			[[nodiscard]] auto painted_tab_markers() const noexcept -> std::uint64_t
+			[[nodiscard]] auto painted_white_space() const noexcept -> std::uint64_t
 			{
-				return PaintedTabMarkers;
+				return PaintedWhiteSpace;
 			}
 
 			/// \brief The first block the viewport can show, and where it sits.
@@ -282,18 +298,20 @@ namespace bpr::qt {
 					painter.setBrush(color);
 					painter.drawRoundedRect(marker, 2.0, 2.0);
 				}
-				paint_tab_markers_of_visible_lines(painter);
+				paint_white_space_of_visible_lines(painter);
 			}
 
-			/// \brief [[BPR-0986]]. Marks each visible line's leading tabs at the tab width.
+			/// \brief [[BPR-1107]]. Draws each visible line's white space as the
+			/// setting asks: a space as a dot, a tab as a line to its stop.
 			///
-			/// \details The Appearance preview's markers, drawn by the same shared
-			/// helper in the same `code_line_number_text` role at this pane's own
-			/// tab stop, so the preview shows what the review window shows. Only
-			/// the blocks the viewport can show are walked.
-			void paint_tab_markers_of_visible_lines(QPainter& aPainter)
+			/// \details The Appearance preview draws through the same shared helper
+			/// in the same `code_line_number_text` role, so the preview shows what
+			/// the review window shows. A line is under the selection when the
+			/// pane's washed lines hold it. Only the blocks the viewport can show
+			/// are walked.
+			void paint_white_space_of_visible_lines(QPainter& aPainter)
 			{
-				if (!GutterText.isValid() || tabStopDistance() <= 0.0) {
+				if (!GutterText.isValid() || WhiteSpace == core::white_space_drawing::none) {
 					return;
 				}
 				const auto limit = static_cast<qreal>(viewport()->height());
@@ -305,15 +323,22 @@ namespace bpr::qt {
 					if (!block.isVisible()) {
 						continue;
 					}
-					const auto text   = block.text();
-					auto       indent = qsizetype{ 0 };
-					while (indent < text.size() && text.at(indent) == QLatin1Char{ '\t' }) {
-						++indent;
-					}
-					if (indent > 0) {
-						PaintedTabMarkers += paint_tab_markers(aPainter, geometry, static_cast<std::uint32_t>(indent), tabStopDistance(), GutterText);
-					}
+					PaintedWhiteSpace += paint_white_space_of_block(aPainter, *this, block, WhiteSpace, selected_block(block.blockNumber()), GutterText);
 				}
+			}
+
+			/// \brief Whether one block lies under the pane's selection wash.
+			[[nodiscard]] auto selected_block(const int aBlock) const -> bool
+			{
+				const auto contains = [](const std::optional<core::line_span> aSpan, const std::optional<std::uint32_t> aLine) {
+					return aSpan && aLine && *aLine >= aSpan->Begin && *aLine < aSpan->End;
+				};
+				const auto block = static_cast<std::uint32_t>(std::max(aBlock, 0));
+				if (UnifiedRows != nullptr) {
+					return block < UnifiedRows->size()
+						&& (contains(SelectedBase, (*UnifiedRows)[block].Base) || contains(SelectedHead, (*UnifiedRows)[block].Head));
+				}
+				return contains(SelectedLines, block);
 			}
 
 			void resizeEvent(QResizeEvent* aEvent) override;
@@ -332,18 +357,20 @@ namespace bpr::qt {
 
 			class gutter_area;
 
-			gutter_area*                 Gutter = nullptr;
-			QColor                       GutterBackground;
-			QColor                       GutterText;
-			std::vector<std::uint32_t>   Boundaries;
-			QColor                       RuleColor;
-			std::optional<std::uint32_t> ConversationAnchor;
-			std::vector<diff_line_mark>  Marks;
-			QColor                       ThreadMarkColor{ 0xD2, 0x99, 0x22 };
-			QColor                       NewThreadMarkColor{ 0x09, 0x69, 0xDA };
-			std::uint64_t                PaintedRules       = 0U;
-			std::uint64_t                PaintedLineNumbers = 0U;
-			std::uint64_t                PaintedTabMarkers  = 0U;
+			gutter_area*                   Gutter = nullptr;
+			QColor                         GutterBackground;
+			QColor                         GutterText;
+			std::vector<std::uint32_t>     Boundaries;
+			QColor                         RuleColor;
+			std::optional<std::uint32_t>   ConversationAnchor;
+			std::vector<diff_line_mark>    Marks;
+			QColor                         ThreadMarkColor{ 0xD2, 0x99, 0x22 };
+			QColor                         NewThreadMarkColor{ 0x09, 0x69, 0xDA };
+			std::uint64_t                  PaintedRules       = 0U;
+			std::uint64_t                  PaintedLineNumbers = 0U;
+			std::uint64_t                  PaintedWhiteSpace  = 0U;
+			std::optional<core::line_span> SelectedLines;
+			core::white_space_drawing      WhiteSpace = core::white_space_drawing::none;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -1303,8 +1330,8 @@ namespace bpr::qt {
 		auto statistics                   = Statistics;
 		statistics.GroupBoundariesPainted = pane(Left)->painted_rules()
 			+ pane(Right)->painted_rules();
-		statistics.TabMarkersPainted = pane(Left)->painted_tab_markers()
-			+ pane(Right)->painted_tab_markers() + pane(Unified)->painted_tab_markers();
+		statistics.WhiteSpacePainted = pane(Left)->painted_white_space()
+			+ pane(Right)->painted_white_space() + pane(Unified)->painted_white_space();
 		return statistics;
 	}
 
@@ -2196,6 +2223,11 @@ namespace bpr::qt {
 		// to how a role becomes a colour cannot reach one surface and miss another.
 		colors.Syntax = code_role_colors_of(aProfile.palette());
 		Colors        = std::move(colors);
+		// [[BPR-1107]]. When the panes draw white space, from the same
+		// typography record the preview reads.
+		for (auto* const target : { Left, Right, Unified }) {
+			pane(target)->set_white_space(aProfile.typography().Code.WhiteSpace);
+		}
 		update_diff_paint();
 	}
 
@@ -2349,6 +2381,7 @@ namespace bpr::qt {
 					washed = lines;
 				}
 			}
+			pane(&aPane)->set_selected_lines(washed);
 
 			if (CurrentResult && Colors.Supplied) {
 				append_intraline_emphasis(

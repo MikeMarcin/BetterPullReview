@@ -38,12 +38,22 @@ roles to 45; the theme documents keep both roles". C5, the Colours paragraph
 and C5's verification row below now say 45. `diff_hunk_header_background` and
 `diff_hunk_header_text` stay in RFC-BPR-0006's theme documents, import and
 export. The review window has no hunk header, so the card stops offering the
-two roles as though they did something. The amended C5 is not yet built; the
-card lists 47 until BPR-0986 lands it. In the same session the owner rejected
+two roles as though they did something. The amended C5 was built by
+BPR-0986 at `8f0ec40b`. In the same session the owner rejected
 the review panes' tab markers in favour of Sublime Text's white-space model
 with a setting, which is [[BPR-1107]] and bears on C4's "two tab depths with
 markers". This status is unchanged: C1 to C6 were accepted as written for the
 candidate built from `ed2b3f14`.
+
+**Follow-on from that verdict, 2026-09-24 ([[BPR-1107]]).** BPR-1107 builds
+the owner's white-space model. The preview and the review panes draw a space
+as a dot and a tab as a line to its stop, through one shared painter. The Type
+card gains a twelfth row, White space, directly beneath Tab width. It offers
+None, Under the selection, Leading, Trailing, Leading and trailing, and All,
+and is persisted with the typography (appearance store version 8). C3 and the
+Type paragraph below say twelve rows accordingly. The owner's acceptance of
+the drawing, the choices and the default is BPR-1107's own criterion. It is
+pending, and it does not reopen C1 to C6.
 
 ## Summary and scope
 
@@ -113,11 +123,12 @@ is gone; the tiles are the control.
 
 ### Type
 
-Two columns. Left, eleven rows: Interface font (the system font unless chosen,
-with a chooser), Interface size in points with a stepper, Interface weight as
-a 100 to 900 stepper, Line height as a percentage stepper; Code font, Code
-size, Code weight, Tab width as a 2, 4, 8 segment, Ligatures, Bold syntax
-emphasis and Italic syntax emphasis as switches. Sizes are shown in points
+Two columns. Left, twelve rows (eleven before [[BPR-1107]]): Interface font
+(the system font unless chosen, with a chooser), Interface size in points with
+a stepper, Interface weight as a 100 to 900 stepper, Line height as a
+percentage stepper; Code font, Code size, Code weight, Tab width as a 2, 4, 8
+segment, White space as a choice of when the review panes draw it, Ligatures,
+Bold syntax emphasis and Italic syntax emphasis as switches. Sizes are shown in points
 with two decimals dropped when zero, never in hundredths. Right, a labelled
 Preview: an interface sample (a drawer row and a path at the interface font,
 size, weight and line height) and a six-line code sample painted from the
@@ -205,7 +216,8 @@ variant, which it already does.
   the wider snippet; both System tiles split diagonally by clipping with the
   half in effect named in the caption; customised counts captioned; the mode
   combo box absent.
-- **C3 — Type rows.** Eleven one-line rows of label, info glyph and control
+- **C3 — Type rows.** Twelve one-line rows (eleven before [[BPR-1107]]) of
+  label, info glyph and control
   with sizes in points, weight as a 100 to 900 stepper, tab width as a 2, 4, 8
   segment and switches for ligatures and emphasis; every consequence reachable
   by hover, by keyboard focus and as the glyph's accessible description; Reset

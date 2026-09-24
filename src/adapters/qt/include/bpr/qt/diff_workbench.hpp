@@ -111,9 +111,9 @@ namespace bpr::qt {
 		std::uint64_t MovedBandsPainted        = 0U;
 		/// [[BPR-0986]]. Current-line bands composed for the reading line.
 		std::uint64_t CurrentLineBandsPainted = 0U;
-		/// [[BPR-0986]]. Tab markers the panes actually drew, counted where they
-		/// are drawn, as the boundary rules are.
-		std::uint64_t TabMarkersPainted    = 0U;
+		/// [[BPR-1107]]. White space marks (dots and tab lines) the panes actually
+		/// drew, counted where they are drawn, as the boundary rules are.
+		std::uint64_t WhiteSpacePainted    = 0U;
 		std::size_t   SemanticIndexEntries = 0U;
 		std::array<
 			diff_geometry_rebuild_cause,

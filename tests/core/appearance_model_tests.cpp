@@ -1,4 +1,5 @@
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/white_space.hpp"
 
 #include <algorithm>
 #include <array>
@@ -279,6 +280,7 @@ namespace {
 		case typography_field::line_height:
 		case typography_field::family:
 		case typography_field::tab_width:
+		case typography_field::white_space:
 			expect(false, "only the shared numeric font fields are assignable here");
 			break;
 		}
@@ -519,6 +521,81 @@ namespace {
 
 } // namespace
 
+namespace {
+	/// \brief [[BPR-1107]]. One line written with `.` for a space, `>` for a tab
+	/// and anything else for another character.
+	[[nodiscard]] auto line_of(const std::string_view aText) -> std::vector<white_space_character>
+	{
+		auto line = std::vector<white_space_character>{ };
+		for (const auto character : aText) {
+			line.push_back(character == '.'       ? white_space_character::space
+							   : character == '>' ? white_space_character::tab
+												  : white_space_character::other);
+		}
+		return line;
+	}
+
+	/// \brief The drawn characters of one line, written back with `^` under each.
+	[[nodiscard]] auto marked(const std::string_view aText, const white_space_drawing aDrawing, const bool aSelected) -> std::string
+	{
+		const auto drawn  = white_space_drawn(line_of(aText), aDrawing, aSelected);
+		auto       result = std::string{ };
+		for (const auto flag : drawn) {
+			result += flag ? '^' : ' ';
+		}
+		return result;
+	}
+
+	void test_white_space_drawing_follows_the_choice()
+	{
+		// The owner's reference, line 1: four spaces, a word, a space, a word,
+		// spaces, and two trailing spaces.
+		constexpr auto line = std::string_view{ "....a.bc...d.." };
+		expect(marked(line, white_space_drawing::none, true) == "              ", "none draws nothing, even selected");
+		expect(marked(line, white_space_drawing::selection, false) == "              ", "selection draws nothing on a line that is not selected");
+		expect(marked(line, white_space_drawing::selection, true) == "^^^^ ^  ^^^ ^^", "and every white space character of a selected line");
+		expect(marked(line, white_space_drawing::leading, false) == "^^^^          ", "leading draws the indentation only");
+		expect(marked(line, white_space_drawing::trailing, false) == "            ^^", "trailing draws what follows the last other character");
+		expect(marked(line, white_space_drawing::boundary, false) == "^^^^        ^^", "boundary draws both");
+		expect(marked(line, white_space_drawing::all, false) == "^^^^ ^  ^^^ ^^", "all draws every white space character, enclosed ones too");
+		// Tabs are white space like spaces, and a line of white space alone is
+		// both leading and trailing.
+		expect(marked(">>.a>b", white_space_drawing::leading, false) == "^^^   ", "leading takes tabs and spaces alike");
+		expect(marked(">>.a>b", white_space_drawing::all, false) == "^^^ ^ ", "an enclosed tab is drawn only by all or a selection");
+		expect(marked(">.>", white_space_drawing::trailing, false) == "^^^" && marked(">.>", white_space_drawing::leading, false) == "^^^",
+			   "a line of white space alone is both leading and trailing");
+		expect(white_space_drawn(line_of(""), white_space_drawing::all, true).empty(), "an empty line draws nothing");
+		expect(marked("abc", white_space_drawing::all, true) == "   ", "a line with no white space draws nothing");
+		expect(white_space_drawn(line_of("..a"), static_cast<white_space_drawing>(white_space_drawing_count), true) == std::vector<bool>(3U, false),
+			   "a value outside the vocabulary draws nothing");
+	}
+
+	void test_white_space_vocabulary_is_closed()
+	{
+		auto names = std::vector<std::string_view>{ };
+		for (auto index = std::size_t{ 0U }; index < white_space_drawing_count; ++index) {
+			const auto drawing = static_cast<white_space_drawing>(static_cast<std::uint8_t>(index));
+			expect(valid(drawing) && !stable_name(drawing).empty(), "every declared choice is valid and named");
+			names.push_back(stable_name(drawing));
+		}
+		std::ranges::sort(names);
+		expect(std::ranges::adjacent_find(names) == names.end(), "no two choices share a durable name");
+		expect(code_font_settings{ }.WhiteSpace == white_space_drawing::selection, "the default is Sublime Text's own: under the selection");
+		expect(bounds_of(typography_field::white_space).Minimum == 0U
+				   && bounds_of(typography_field::white_space).Maximum == white_space_drawing_count - 1U,
+			   "the bounds are the vocabulary's ordinals");
+		auto settings             = typography_settings{ };
+		settings.Ui.Font.Family   = "UI";
+		settings.Code.Font.Family = "Code";
+		expect(std::ranges::none_of(validate_typography(settings), [](const typography_rejection& aRejection) { return aRejection.Field == typography_field::white_space; }),
+			   "every declared choice is legal");
+		settings.Code.WhiteSpace = static_cast<white_space_drawing>(white_space_drawing_count);
+		const auto rejections    = validate_typography(settings);
+		expect(std::ranges::count(rejections, typography_rejection{ .Target = typography_target::code_font, .Field = typography_field::white_space, .Reason = typography_reason::malformed_value }) == 1,
+			   "a value outside the vocabulary is refused as malformed");
+	}
+} // namespace
+
 int main()
 {
 	test_dif_preferences_resolve_conservatively();
@@ -530,5 +607,7 @@ int main()
 	test_the_core_invents_no_font_family();
 	test_typography_bounds_are_enforced_exactly();
 	test_every_violation_is_reported_in_order();
+	test_white_space_drawing_follows_the_choice();
+	test_white_space_vocabulary_is_closed();
 	return EXIT_SUCCESS;
 }

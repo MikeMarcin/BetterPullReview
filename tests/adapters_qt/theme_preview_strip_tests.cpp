@@ -287,6 +287,23 @@ namespace {
 			"the strip announces how to move and which tile is selected");
 	}
 
+	/// \brief [[BPR-1107]]. The tiles draw white space as the typography's
+	/// choice says, through the review panes' own painter.
+	void test_tiles_draw_white_space_as_the_typography_chooses()
+	{
+		auto strip = qt::theme_preview_strip{ };
+		show(strip);
+		const auto drawn = [&strip](const core::white_space_drawing aDrawing) {
+			strip.set_white_space(aDrawing);
+			const auto before = strip.statistics().WhiteSpacePainted;
+			static_cast<void>(strip.grab());
+			return strip.statistics().WhiteSpacePainted - before;
+		};
+		expect(drawn(core::white_space_drawing::none) == 0U, "none draws no white space on any tile");
+		expect(drawn(core::white_space_drawing::all) > 0U, "all draws the snippet's spaces on the tiles");
+		expect(drawn(core::white_space_drawing::selection) == 0U, "the tile snippet selects nothing, so under the selection draws nothing");
+	}
+
 	/// \brief C2's pixel comparison: both halves of both System tiles.
 	void test_both_system_tiles_split_diagonally_by_palette()
 	{
@@ -428,6 +445,7 @@ auto main(int argc, char** argv) -> int
 	test_keyboard_selection_moves_and_scrolls_into_view();
 	test_a_press_chooses_the_tile_under_it();
 	test_captions_name_the_resolution_and_the_customised_counts();
+	test_tiles_draw_white_space_as_the_typography_chooses();
 	test_both_system_tiles_split_diagonally_by_palette();
 	test_tiles_follow_the_supplied_theme_palettes_and_font();
 	test_adoption_marks_the_tile_without_dispatching_or_scrolling();

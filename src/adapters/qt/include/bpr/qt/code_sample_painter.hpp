@@ -4,12 +4,14 @@
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/white_space.hpp"
 
 #include <QByteArray>
 #include <QColor>
 #include <QList>
 #include <QRectF>
 #include <QString>
+#include <QStringView>
 #include <QTextEdit>
 #include <QTextLayout>
 
@@ -248,20 +250,55 @@ namespace bpr::qt {
 		const QColor&                    aBackground,
 		const QColor&                    aText) -> std::uint32_t;
 
-	/// \brief Paints one faint marker per tab stop of a row's leading indent.
+	/// \brief One white space character as laid out on a row.
 	///
-	/// \details Drawn rather than written. A glyph would depend on the code font
-	/// shipping one, and a tab marker that silently became a replacement box is
-	/// worse than no marker at all. The marker sits at the tab stop the code
-	/// record chose, so changing tab width moves it.
+	/// \details Where the character starts and where the next one does, in the
+	/// painter's coordinates, and whether it is a tab. A tab's right edge is its
+	/// tab stop, so a tab that begins partway to a stop is shorter.
+	struct white_space_mark
+	{
+		qreal Left  = 0.0;
+		qreal Right = 0.0;
+		bool  Tab   = false;
+
+		auto operator<=>(const white_space_mark&) const = default;
+	};
+
+	/// \brief Classifies one line's characters for `core::white_space_drawn`.
+	[[nodiscard]] auto white_space_characters(QStringView aLine)
+		-> std::vector<core::white_space_character>;
+
+	/// \brief Paints white space the Sublime Text way ([[BPR-1107]]).
 	///
-	/// \returns How many markers were painted.
-	auto paint_tab_markers(
-		QPainter&     aPainter,
-		const QRectF& aRow,
-		std::uint32_t aIndent,
-		qreal         aTabStopDistance,
-		const QColor& aColor) -> std::uint32_t;
+	/// \details A space is a small dot at the middle of its cell, and a tab a
+	/// thin line from where it starts to its tab stop, both at the row's middle
+	/// in `aColor` at a faint alpha. Drawn rather than written: a glyph would
+	/// depend on the code font shipping one. This is the only white space
+	/// renderer: the review panes, the type preview and the theme tiles all
+	/// come here, so the preview shows what the review window shows.
+	///
+	/// \returns How many marks were painted.
+	auto paint_white_space(
+		QPainter&                         aPainter,
+		const QRectF&                     aRow,
+		std::span<const white_space_mark> aMarks,
+		const QColor&                     aColor) -> std::uint32_t;
+
+	/// \brief Paints the drawn white space of one laid-out editor line.
+	///
+	/// \details For a code surface that is a text editor: the characters are
+	/// classified, the core decides which are drawn for `aDrawing` and whether
+	/// the line is selected, and each drawn one is placed where the editor put
+	/// it, so the tab stops are the editor's own.
+	///
+	/// \returns How many marks were painted.
+	auto paint_white_space_of_block(
+		QPainter&                 aPainter,
+		const QPlainTextEdit&     aEditor,
+		const QTextBlock&         aBlock,
+		core::white_space_drawing aDrawing,
+		bool                      aSelected,
+		const QColor&             aColor) -> std::uint32_t;
 
 	/// \brief How a directly painted sample is laid out.
 	struct code_sample_paint_options
@@ -274,6 +311,8 @@ namespace bpr::qt {
 		/// Tab stop distance; zero derives four space widths of the font.
 		qreal                TabStopDistance = 0.0;
 		code_syntax_emphasis Emphasis;
+		/// [[BPR-1107]]. When white space is drawn.
+		core::white_space_drawing WhiteSpace = core::white_space_drawing::none;
 	};
 
 	/// \brief What one directly painted sample actually drew.
@@ -282,7 +321,7 @@ namespace bpr::qt {
 		std::uint32_t RowsPainted       = 0U;
 		std::uint32_t NumbersPainted    = 0U;
 		std::uint32_t BandsPainted      = 0U;
-		std::uint32_t TabMarkersPainted = 0U;
+		std::uint32_t WhiteSpacePainted = 0U;
 
 		auto operator<=>(const code_sample_paint_result&) const = default;
 	};

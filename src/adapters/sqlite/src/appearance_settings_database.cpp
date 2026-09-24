@@ -104,8 +104,18 @@ namespace bpr::adapters::sqlite::detail {
 			"dif_visibility", "motion_mode"
 		};
 
-		/// \brief Returns every column the current settings table declares, in order.
-		[[nodiscard]] auto settings_column_names() -> std::vector<std::string>
+		/// \brief [[BPR-1107]]. The one column version 8 adds, last.
+		constexpr std::string_view WhiteSpaceColumn = "code_white_space";
+
+		/// \brief What a version-7 record carries into version 8: the default a
+		/// fresh installation has, Sublime Text's own "under the selection".
+		constexpr auto MigratedWhiteSpace = core::code_font_settings{ }.WhiteSpace;
+
+		/// \brief Returns every column the settings table declares, in order.
+		///
+		/// \details Version 7's shape without `aWhiteSpace`, which only the
+		/// version-7 step and the version-7 admission check ask for.
+		[[nodiscard]] auto settings_column_names(const bool aWhiteSpace = true) -> std::vector<std::string>
 		{
 			auto names = std::vector<std::string>{ "singleton", "mode" };
 			for (std::size_t index = 0U; index < core::appearance_variant_count;
@@ -115,6 +125,9 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			for (const auto scalar : ScalarColumnNames) {
 				names.emplace_back(scalar);
+			}
+			if (aWhiteSpace) {
+				names.emplace_back(WhiteSpaceColumn);
 			}
 			return names;
 		}
@@ -141,7 +154,7 @@ namespace bpr::adapters::sqlite::detail {
 		/// assembled. `validate` compares the created table against
 		/// `settings_column_names` on every open, so the two cannot drift apart
 		/// without the next open refusing the file.
-		[[nodiscard]] auto settings_schema() -> std::string
+		[[nodiscard]] auto settings_schema(const bool aWhiteSpace = true) -> std::string
 		{
 			auto sql = std::string{
 				"CREATE TABLE appearance_settings("
@@ -167,8 +180,13 @@ namespace bpr::adapters::sqlite::detail {
 				   "code_syntax_italic INTEGER NOT NULL "
 				   "CHECK(code_syntax_italic IN (0, 1)),"
 				   "dif_visibility INTEGER NOT NULL CHECK(dif_visibility IN (0, 1)),"
-				   "motion_mode INTEGER NOT NULL CHECK(motion_mode IN (0, 1, 2))"
-				   ") STRICT";
+				   "motion_mode INTEGER NOT NULL CHECK(motion_mode IN (0, 1, 2))";
+			if (aWhiteSpace) {
+				sql += "," + std::string{ WhiteSpaceColumn } + " INTEGER NOT NULL CHECK("
+					+ std::string{ WhiteSpaceColumn } + " BETWEEN 0 AND "
+					+ std::to_string(core::white_space_drawing_count - 1U) + ")";
+			}
+			sql += ") STRICT";
 			return sql;
 		}
 
@@ -554,12 +572,13 @@ namespace bpr::adapters::sqlite::detail {
 			// versions 3 to 5 both. Version 6 adds the two Dif columns. Version 7
 			// is a different set rather than a longer prefix of the same one: it
 			// drops the three single-palette columns, so it carries its own list.
-			const auto columnCount   = aVersion == 1 ? 14U : aVersion == 2 ? 15U
-				: aVersion >= 6                                            ? 18U
-																		   : 16U;
-			const auto current       = settings_column_names();
+			const auto columnCount = aVersion == 1 ? 14U : aVersion == 2 ? 15U
+				: aVersion >= 6                                          ? 18U
+																		 : 16U;
+			// Versions 7 and 8 carry a column per variant; 8 adds white space.
+			const auto current       = settings_column_names(aVersion >= 8);
 			auto       settingsNames = std::vector<std::string_view>{ };
-			if (aVersion >= appearance_settings_schema_version) {
+			if (aVersion >= 7) {
 				for (const auto& name : current) {
 					settingsNames.emplace_back(name);
 				}
@@ -674,7 +693,7 @@ namespace bpr::adapters::sqlite::detail {
 			const auto empty = core::export_theme(core::appearance_palette{ });
 			auto       names = std::vector<std::string>{ };
 			auto       carry = std::string{ "INSERT INTO appearance_settings(" }
-				+ joined(settings_column_names(), ", ") + ") SELECT singleton, mode";
+				+ joined(settings_column_names(false), ", ") + ") SELECT singleton, mode";
 			for (std::size_t index = 0U; index < core::appearance_variant_count;
 				 ++index) {
 				names.emplace_back(core::stable_name(variant_at(index)));
@@ -691,7 +710,7 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto& statement : std::array{
 					 std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
 					 std::string{ "DROP TABLE appearance_settings" },
-					 settings_schema() }) {
+					 settings_schema(false) }) {
 				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
 					return ran;
 				}
@@ -722,6 +741,42 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			return execute(
 				aDatabase, "DROP TABLE appearance_settings_previous", aStop);
+		}
+
+		/// \brief [[BPR-1107]]. Adds when the code panes draw white space.
+		///
+		/// \details The row is carried across a fresh table, as every earlier
+		/// step carries it, so its CHECK constraints are verified again on the way
+		/// through. The new column takes the default a fresh installation has, so
+		/// a reviewer who never chose sees what a new reviewer sees.
+		[[nodiscard]] auto migrate_to_version_8(::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			const auto rows = scalar_integer(aDatabase, "SELECT count(*) FROM appearance_settings WHERE singleton != 1");
+			if (!rows || *rows != 0) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			const auto previous = joined(settings_column_names(false), ", ");
+			auto       carry    = std::string{ "INSERT INTO appearance_settings(" };
+			carry += previous;
+			carry += ", ";
+			carry += WhiteSpaceColumn;
+			carry += ") SELECT ";
+			carry += previous;
+			carry += ", ";
+			carry += std::to_string(static_cast<int>(MigratedWhiteSpace));
+			carry += " FROM appearance_settings_previous";
+			for (const auto& statement : std::array{
+					 std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
+					 std::string{ "DROP TABLE appearance_settings" },
+					 settings_schema(),
+					 carry,
+					 std::string{ "DROP TABLE appearance_settings_previous" } }) {
+				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
+					return ran;
+				}
+			}
+			return { };
 		}
 
 		[[nodiscard]] auto establish_schema(
@@ -791,7 +846,13 @@ namespace bpr::adapters::sqlite::detail {
 					return migrated;
 				}
 			}
-			if (auto migrated = migrate_to_version_7(aDatabase, aStop); !migrated) {
+			if (*current < 7) {
+				if (auto migrated = migrate_to_version_7(aDatabase, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+			}
+			if (auto migrated = migrate_to_version_8(aDatabase, aStop); !migrated) {
 				rollback();
 				return migrated;
 			}
@@ -995,6 +1056,7 @@ namespace bpr::adapters::sqlite::detail {
 				columns += ", " + variant_document_column(variant_at(index));
 				columns += ", " + variant_stored_column(variant_at(index));
 			}
+			columns += ", " + std::string{ WhiteSpaceColumn };
 			auto statement = prepare(
 				aDatabase,
 				columns + " FROM appearance_settings WHERE singleton = 1");
@@ -1082,6 +1144,12 @@ namespace bpr::adapters::sqlite::detail {
 				= ::sqlite3_column_int64(statement->Value, 10) != 0;
 			settings.Typography.Code.SyntaxItalic
 				= ::sqlite3_column_int64(statement->Value, 11) != 0;
+			const auto whiteSpace = ::sqlite3_column_int64(
+				statement->Value, static_cast<int>(1U + ScalarColumnNames.size() + 2U * core::appearance_variant_count));
+			if (whiteSpace < 0 || whiteSpace >= static_cast<std::int64_t>(core::white_space_drawing_count)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			settings.Typography.Code.WhiteSpace = static_cast<core::white_space_drawing>(whiteSpace);
 
 			// A durable record can be written by another build or edited by hand.
 			// The core is the authority on typography legality, so a record it
@@ -1254,7 +1322,8 @@ namespace bpr::adapters::sqlite::detail {
 			&& integer(code.TabWidth) && integer(code.Ligatures ? 1 : 0)
 			&& integer(code.SyntaxBold ? 1 : 0) && integer(code.SyntaxItalic ? 1 : 0)
 			&& integer(static_cast<std::int64_t>(aSettings.Dif.Visibility))
-			&& integer(static_cast<std::int64_t>(aSettings.Dif.Motion));
+			&& integer(static_cast<std::int64_t>(aSettings.Dif.Motion))
+			&& integer(static_cast<std::int64_t>(code.WhiteSpace));
 		if (!bound) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}

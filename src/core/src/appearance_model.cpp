@@ -382,9 +382,30 @@ namespace bpr::core {
 			return typography_bounds{ .Minimum = 80U, .Maximum = 300U };
 		case typography_field::tab_width:
 			return typography_bounds{ .Minimum = 1U, .Maximum = 16U };
+		case typography_field::white_space:
+			return typography_bounds{ .Minimum = 0U, .Maximum = static_cast<std::uint32_t>(white_space_drawing_count - 1U) };
 		}
 
 		return typography_bounds{ };
+	}
+
+	auto stable_name(const white_space_drawing aDrawing) noexcept -> std::string_view
+	{
+		switch (aDrawing) {
+		case white_space_drawing::none:
+			return "none";
+		case white_space_drawing::selection:
+			return "selection";
+		case white_space_drawing::leading:
+			return "leading";
+		case white_space_drawing::trailing:
+			return "trailing";
+		case white_space_drawing::boundary:
+			return "boundary";
+		case white_space_drawing::all:
+			return "all";
+		}
+		return { };
 	}
 
 	auto validate_typography(const typography_settings& aSettings)
@@ -410,6 +431,15 @@ namespace bpr::core {
 				typography_target::code_font,
 				typography_field::tab_width,
 				aSettings.Code.TabWidth));
+		// [[BPR-1107]]. A closed choice, so the only illegal value is one outside
+		// it, which only a cast can produce.
+		if (!valid(aSettings.Code.WhiteSpace)) {
+			rejections.push_back(typography_rejection{
+				.Target = typography_target::code_font,
+				.Field  = typography_field::white_space,
+				.Reason = typography_reason::malformed_value,
+			});
+		}
 		return rejections;
 	}
 } // namespace bpr::core

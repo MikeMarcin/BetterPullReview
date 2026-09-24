@@ -1,7 +1,7 @@
 /// \file
 /// \brief Proves RFC-BPR-0034's rebuilt Appearance page translates and owns nothing.
 ///
-/// \details Criteria C3 and C5 as the page composes them: eleven Type rows that are
+/// \details Criteria C3 and C5 as the page composes them: twelve Type rows that are
 /// one line each, every consequence reachable by hover, by keyboard focus and as the
 /// glyph's accessible description, sizes shown in points, tab width as a 2, 4, 8
 /// segment, switches for ligatures and the two emphases, each card's header Reset
@@ -228,6 +228,9 @@ namespace {
 			{ QStringLiteral("appearanceTabWidthRow"),
 			  QStringLiteral("Tab width"),
 			  aPanel.tab_width_option(4U) },
+			{ QStringLiteral("appearanceWhiteSpaceRow"),
+			  QStringLiteral("White space"),
+			  aPanel.white_space_selector() },
 			{ QStringLiteral("appearanceLigaturesRow"),
 			  QStringLiteral("Ligatures"),
 			  aPanel.ligatures_switch() },
@@ -346,7 +349,8 @@ namespace {
 		show(panel);
 
 		const auto rows = type_rows(panel);
-		expect(rows.size() == 11U, "the Type card carries eleven rows");
+		// [[BPR-1107]] adds White space beside Tab width, so eleven became twelve.
+		expect(rows.size() == 12U, "the Type card carries twelve rows");
 		for (const auto& row : rows) {
 			auto* const frame = panel.findChild<QWidget*>(row.Object);
 			expect(
@@ -560,6 +564,72 @@ namespace {
 				&& recorded.last_typography()->Code.TabWidth == 5U,
 			"and an unrelated gesture carries that width on rather than quietly "
 			"replacing it");
+	}
+
+	/// \brief [[BPR-1107]]. When the panes draw white space is one row beside
+	/// Tab width: six choices in the vocabulary's order, the adopted one shown
+	/// without a gesture, and a choice leaving as a typography intent.
+	void test_white_space_is_a_row_beside_tab_width()
+	{
+		auto recorded                      = recorder{ };
+		auto panel                         = qt::appearance_settings_panel{ recorded.sink() };
+		auto adopted                       = legal_settings();
+		adopted.Typography.Code.WhiteSpace = core::white_space_drawing::trailing;
+		panel.adopt(adopted);
+		show(panel);
+		recorded.clear();
+
+		auto* const selector = panel.white_space_selector();
+		expect(selector != nullptr && selector->count() == static_cast<int>(core::white_space_drawing_count),
+			   "the row offers one item per choice the core declares");
+		const auto labels = std::array{ QStringLiteral("None"), QStringLiteral("Under the selection"), QStringLiteral("Leading"),
+										QStringLiteral("Trailing"), QStringLiteral("Leading and trailing"), QStringLiteral("All") };
+		for (auto index = 0; index < selector->count(); ++index) {
+			expect(selector->itemData(index).toInt() == index && selector->itemText(index) == labels.at(static_cast<std::size_t>(index)),
+				   "in the vocabulary's own order, each named the way Sublime Text's list names it");
+		}
+		expect(selector->currentData().toInt() == static_cast<int>(core::white_space_drawing::trailing) && !recorded.last_typography().has_value(),
+			   "the adopted choice is shown, and showing it dispatches nothing");
+		auto* const row      = panel.findChild<QWidget*>(QStringLiteral("appearanceWhiteSpaceRow"));
+		auto* const tabWidth = panel.findChild<QWidget*>(QStringLiteral("appearanceTabWidthRow"));
+		expect(row != nullptr && tabWidth != nullptr && row->parentWidget() == tabWidth->parentWidget()
+				   && row->geometry().top() > tabWidth->geometry().top()
+				   && row->geometry().top() - tabWidth->geometry().bottom() < row->geometry().height(),
+			   "the row sits directly beneath Tab width on the Type card");
+
+		selector->setCurrentIndex(selector->findData(static_cast<int>(core::white_space_drawing::all)));
+		const auto offered = recorded.last_typography();
+		expect(offered.has_value() && offered->Code.WhiteSpace == core::white_space_drawing::all
+				   && offered->Code.TabWidth == adopted.Typography.Code.TabWidth,
+			   "choosing All offers exactly that choice and carries the rest of the typography on");
+		panel.hide();
+	}
+
+	/// \brief [[BPR-1107]]. The Type card for the design page, in the four
+	/// themes. Written only when a directory is named.
+	void test_white_space_row_design_captures()
+	{
+		const auto directory = qEnvironmentVariable("BPR_WHITE_SPACE_CAPTURE_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto panel   = qt::appearance_settings_panel{ };
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			auto adopted = legal_settings();
+			adopted.Mode = mode;
+			panel.adopt(adopted);
+			profile.apply_to(panel);
+			panel.adopt_appearance(profile);
+			show(panel);
+			auto* const card = panel.findChild<QWidget*>(QStringLiteral("appearanceTypeCard"));
+			expect(card != nullptr, "the Type card is composed");
+			const auto name = core::stable_name(mode);
+			expect(card->grab().save(QStringLiteral("%1/type-card-%2.png").arg(directory, QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()))), "PNG"),
+				   "the Type card capture is written");
+			panel.hide();
+		}
 	}
 
 	/// \brief Every font gesture must leave as an intent, carrying its value.
@@ -1311,6 +1381,8 @@ auto main(int argc, char** argv) -> int
 	test_every_consequence_is_reachable_three_ways();
 	test_sizes_read_in_points_within_the_core_bounds();
 	test_tab_width_is_a_segment();
+	test_white_space_is_a_row_beside_tab_width();
+	test_white_space_row_design_captures();
 	test_font_gestures_translate_to_intents();
 	test_a_refusal_restores_and_reports();
 	test_persistence_failure_remains_visible_across_session_changes();

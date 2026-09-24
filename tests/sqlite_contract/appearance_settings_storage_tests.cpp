@@ -211,6 +211,16 @@ namespace {
 		::sqlite3* raw = nullptr;
 		expect(::sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK,
 			   "a legacy fixture opens raw");
+		// [[BPR-1107]]. Every version before 8 lacks the white-space column.
+		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN code_white_space", nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "a legacy down-edit drops the version-8 column");
+		if (aVersion == 7) {
+			for (const auto& statement : { std::string{ "UPDATE appearance_meta SET schema_format = 7" }, std::string{ "PRAGMA user_version = 7" } }) {
+				expect(::sqlite3_exec(raw, statement.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "a version-7 down-edit statement runs: " + statement);
+			}
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the legacy fixture closes");
+			return;
+		}
 		auto statements = std::vector<std::string>{
 			"ALTER TABLE appearance_settings ADD COLUMN palette_document TEXT NOT NULL DEFAULT ''",
 			"UPDATE appearance_settings SET palette_document = " + document_column(aVariant),
@@ -1250,6 +1260,67 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1107]]. Version 8 keeps when the panes draw white space: every
+	/// choice round-trips, a version-7 file takes the fresh default, and a value
+	/// outside the vocabulary is refused.
+	auto test_white_space_round_trips_migrates_and_refuses() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		{
+			const auto path     = scratch.file("white-space.sqlite3");
+			auto       database = appearance_settings_database::open(path, { });
+			expect(database.has_value(), "a fresh store opens");
+			for (std::size_t index = 0U; index < core::white_space_drawing_count; ++index) {
+				auto settings                       = legal_baseline();
+				settings.Typography.Code.WhiteSpace = static_cast<core::white_space_drawing>(static_cast<std::uint8_t>(index));
+				expect(database->store(settings, { }).has_value(), "every white space choice stores");
+				const auto loaded = database->load({ });
+				expect(loaded.has_value() && loaded->has_value() && **loaded == settings,
+					   "and loads back exactly: " + std::string{ core::stable_name(settings.Typography.Code.WhiteSpace) });
+			}
+			const auto columns = appearance_settings_columns(database->handle());
+			expect(columns.has_value() && std::ranges::find(*columns, std::string{ "appearance_settings.code_white_space" }) != columns->end(),
+				   "the schema declares code_white_space");
+		}
+		{
+			const auto path                     = scratch.file("v7.sqlite3");
+			auto       original                 = distinct_settings();
+			original.Typography.Code.WhiteSpace = core::white_space_drawing::trailing;
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(original, { }).has_value(), "a current record stores before the down-edit");
+			}
+			down_edit_to_version(path, 7, core::appearance_variant::high_contrast_dark, true);
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(), "a version-seven file opens and migrates forward");
+			const auto loaded                   = migrated->load({ });
+			auto       expected                 = original;
+			expected.Typography.Code.WhiteSpace = core::white_space_drawing::selection;
+			expect(loaded.has_value() && loaded->has_value() && **loaded == expected,
+				   "it keeps every value it had and takes the fresh default for white space, under the selection");
+		}
+		{
+			const auto path = scratch.file("corrupt-white-space.sqlite3");
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(legal_baseline(), { }).has_value(), "a record stores");
+			}
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "the file opens raw");
+			expect(::sqlite3_exec(raw, "UPDATE appearance_settings SET code_white_space = 6", nullptr, nullptr, nullptr) != SQLITE_OK,
+				   "the table's CHECK refuses a value outside the vocabulary");
+			expect(::sqlite3_exec(raw, "PRAGMA ignore_check_constraints = 1", nullptr, nullptr, nullptr) == SQLITE_OK
+					   && ::sqlite3_exec(raw, "UPDATE appearance_settings SET code_white_space = 6", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "a value written past the CHECK stands in for a file edited by another tool");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the raw handle closes");
+			auto database = appearance_settings_database::open(path, { });
+			expect(database.has_value(), "the file still opens");
+			const auto loaded = database->load({ });
+			expect(!loaded.has_value() && loaded.error() == catalog_database_failure::integrity_failure,
+				   "and the reader refuses the record whole rather than guessing a choice");
+		}
+	}
+
 	auto test_the_schema_stores_no_review_content() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -1320,6 +1391,7 @@ auto main() -> int
 	test_corrupt_dif_values_are_refused();
 	test_version_five_dif_migration_and_corrupt_refusal();
 	test_legacy_refusal_preserves_schema_and_rows();
+	test_white_space_round_trips_migrates_and_refuses();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;

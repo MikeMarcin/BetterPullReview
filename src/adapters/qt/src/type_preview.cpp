@@ -93,9 +93,18 @@ namespace bpr::qt {
 			viewport()->update();
 		}
 
-		[[nodiscard]] auto tab_markers_painted() const noexcept -> std::uint64_t
+		/// \brief [[BPR-1107]]. When white space is drawn, and which rows the
+		/// sample's selection holds.
+		void set_white_space(const core::white_space_drawing aDrawing, std::vector<bool> aSelectedRows)
 		{
-			return TabMarkers;
+			WhiteSpace   = aDrawing;
+			SelectedRows = std::move(aSelectedRows);
+			viewport()->update();
+		}
+
+		[[nodiscard]] auto white_space_painted() const noexcept -> std::uint64_t
+		{
+			return WhiteSpaceMarks;
 		}
 
 		[[nodiscard]] auto gutter_numbers_painted() const noexcept -> std::uint64_t
@@ -133,10 +142,12 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* const aEvent) override
 		{
 			QPlainTextEdit::paintEvent(aEvent);
-			TabMarkers = 0U;
-			if (!MarkerColor.isValid() || tabStopDistance() <= 0.0) {
+			WhiteSpaceMarks = 0U;
+			if (!MarkerColor.isValid() || WhiteSpace == core::white_space_drawing::none) {
 				return;
 			}
+			// [[BPR-1107]]. The review panes' own helper, so the preview draws
+			// white space exactly as the review window does.
 			auto painter = QPainter{ viewport() };
 			for (auto block = firstVisibleBlock(); block.isValid();
 				 block      = block.next()) {
@@ -145,20 +156,9 @@ namespace bpr::qt {
 				if (geometry.top() > static_cast<qreal>(viewport()->height())) {
 					break;
 				}
-				const auto text   = block.text();
-				auto       indent = qsizetype{ 0 };
-				while (indent < text.size()
-					   && text.at(indent) == QLatin1Char{ '\t' }) {
-					++indent;
-				}
-				if (indent > 0) {
-					TabMarkers += paint_tab_markers(
-						painter,
-						geometry,
-						static_cast<std::uint32_t>(indent),
-						tabStopDistance(),
-						MarkerColor);
-				}
+				const auto row = static_cast<std::size_t>(std::max(block.blockNumber(), 0));
+				WhiteSpaceMarks += paint_white_space_of_block(
+					painter, *this, block, WhiteSpace, row < SelectedRows.size() && SelectedRows[row], MarkerColor);
 			}
 		}
 
@@ -231,8 +231,10 @@ namespace bpr::qt {
 		QColor                     GutterBackground;
 		QColor                     GutterText;
 		QColor                     MarkerColor;
-		std::uint64_t              TabMarkers    = 0U;
-		std::uint64_t              GutterNumbers = 0U;
+		core::white_space_drawing  WhiteSpace = core::white_space_drawing::none;
+		std::vector<bool>          SelectedRows;
+		std::uint64_t              WhiteSpaceMarks = 0U;
+		std::uint64_t              GutterNumbers   = 0U;
 	};
 
 	type_preview::type_preview(QWidget* const aParent)
@@ -349,7 +351,7 @@ namespace bpr::qt {
 	auto type_preview::statistics() const noexcept -> type_preview_statistics
 	{
 		auto statistics                 = Statistics;
-		statistics.TabMarkersPainted    = Code->tab_markers_painted();
+		statistics.WhiteSpacePainted    = Code->white_space_painted();
 		statistics.GutterNumbersPainted = Code->gutter_numbers_painted();
 		return statistics;
 	}
@@ -367,6 +369,11 @@ namespace bpr::qt {
 		Code->set_marker_colors(
 			Colors[core::index_of(core::appearance_role::code_gutter_background)],
 			Colors[core::index_of(core::appearance_role::code_line_number_text)]);
+		auto selectedRows = std::vector<bool>{ };
+		for (const auto& row : sample) {
+			selectedRows.push_back(row.Selected);
+		}
+		Code->set_white_space(Typography.Code.WhiteSpace, std::move(selectedRows));
 		// Replaced only when the text actually differs. Setting it unconditionally
 		// would drop every block layout on each adoption, so a typography change
 		// that moved no glyph would still relayout the whole sample.
@@ -449,11 +456,29 @@ namespace bpr::qt {
 				? QStringLiteral("bold emphasis on, italic off")
 				: QStringLiteral("italic emphasis on, bold off");
 		}();
+		// [[BPR-1107]]. When white space is drawn, in the words its row uses.
+		const auto whiteSpace = [&code]() -> QString {
+			switch (code.WhiteSpace) {
+			case core::white_space_drawing::none:
+				return QStringLiteral("white space not drawn");
+			case core::white_space_drawing::selection:
+				return QStringLiteral("white space drawn under the selection");
+			case core::white_space_drawing::leading:
+				return QStringLiteral("leading white space drawn");
+			case core::white_space_drawing::trailing:
+				return QStringLiteral("trailing white space drawn");
+			case core::white_space_drawing::boundary:
+				return QStringLiteral("leading and trailing white space drawn");
+			case core::white_space_drawing::all:
+				return QStringLiteral("all white space drawn");
+			}
+			return { };
+		}();
 		Caption->setText(
 			QStringLiteral(
 				"Interface %1 pt, weight %2, line height %3 %. Code %4 pt, weight "
-				"%5, tabs of %6, ligatures %7, %8. Diff, selection and current-line "
-				"colours from %9.")
+				"%5, tabs of %6, ligatures %7, %8, %9. Diff, selection and "
+				"current-line colours from %10.")
 				.arg(point_size_text(ui.Font.PointSizeCentipoints))
 				.arg(ui.Font.Weight)
 				.arg(ui.LineHeightPercent)
@@ -463,6 +488,7 @@ namespace bpr::qt {
 				.arg(
 					code.Ligatures ? QStringLiteral("on") : QStringLiteral("off"))
 				.arg(emphasis)
+				.arg(whiteSpace)
 				.arg(
 					ThemeName.isEmpty()
 						? QStringLiteral("the theme on screen")

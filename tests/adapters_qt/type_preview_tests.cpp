@@ -232,10 +232,28 @@ namespace {
 			"the wash is laid over the added band rather than under it, which is "
 			"the order the comparison panes lay them in");
 
+		// [[BPR-1107]]. The default draws white space under the selection: the
+		// selected added row's two tabs and the three spaces between its words.
 		expect(
-			preview.statistics().TabMarkersPainted == 5U,
-			"five tab markers: one on the first indented row and two on each of "
-			"the next two");
+			preview.statistics().WhiteSpacePainted == 5U,
+			"under the selection, the selected row's two tabs and three spaces");
+		const auto drawnWith = [&preview, &profile](const core::white_space_drawing aDrawing) {
+			auto code       = profile.typography().Code;
+			code.WhiteSpace = aDrawing;
+			expect(profile.select_code_font(code).accepted(), "every white space choice is accepted typography");
+			preview.adopt_appearance(profile);
+			preview.code_surface()->viewport()->repaint();
+			return preview.statistics().WhiteSpacePainted;
+		};
+		expect(drawnWith(core::white_space_drawing::leading) == 5U,
+			   "leading: one tab on the first indented row and two on each of the next two");
+		expect(drawnWith(core::white_space_drawing::all) == 21U
+				   && preview.caption_text().contains(QStringLiteral("all white space drawn")),
+			   "all: every tab and every space of the six rows, and the caption says so");
+		expect(drawnWith(core::white_space_drawing::none) == 0U
+				   && preview.caption_text().contains(QStringLiteral("white space not drawn")),
+			   "none: nothing, and the caption says so");
+		static_cast<void>(drawnWith(core::white_space_drawing::selection));
 		expect(
 			preview.statistics().GutterNumbersPainted == 6U,
 			"the gutter numbers all six rows");

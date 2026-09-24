@@ -276,6 +276,8 @@ namespace bpr::qt {
 				return QStringLiteral("line height");
 			case core::typography_field::tab_width:
 				return QStringLiteral("tab width");
+			case core::typography_field::white_space:
+				return QStringLiteral("white space");
 			}
 			return { };
 		}
@@ -592,6 +594,32 @@ namespace bpr::qt {
 			}
 		}
 
+		// [[BPR-1107]]. When the panes draw white space, Sublime Text's way: a
+		// space as a dot, a tab as a line to its stop. One choice at a time, in
+		// the vocabulary's own order, each item carrying its ordinal.
+		WhiteSpace = new QComboBox{ typeRows };
+		WhiteSpace->setObjectName(QStringLiteral("appearanceWhiteSpace"));
+		WhiteSpace->setAccessibleName(QStringLiteral("Draw white space"));
+		for (const auto& [drawing, text] : std::array{
+				 std::pair{ core::white_space_drawing::none, QStringLiteral("None") },
+				 std::pair{ core::white_space_drawing::selection, QStringLiteral("Under the selection") },
+				 std::pair{ core::white_space_drawing::leading, QStringLiteral("Leading") },
+				 std::pair{ core::white_space_drawing::trailing, QStringLiteral("Trailing") },
+				 std::pair{ core::white_space_drawing::boundary, QStringLiteral("Leading and trailing") },
+				 std::pair{ core::white_space_drawing::all, QStringLiteral("All") },
+			 }) {
+			WhiteSpace->addItem(text, static_cast<int>(drawing));
+		}
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceWhiteSpaceRow"),
+			QStringLiteral("White space"),
+			QStringLiteral(
+				"When the review panes draw white space: a space as a dot, a tab "
+				"as a line to its stop."),
+			WhiteSpace);
+
 		Ligatures = new QCheckBox{ typeRows };
 		Ligatures->setAccessibleName(QStringLiteral("Ligatures"));
 		add_row(
@@ -793,6 +821,10 @@ namespace bpr::qt {
 					onTypography();
 				});
 		}
+		QObject::connect(
+			WhiteSpace, &QComboBox::currentIndexChanged, this, [onTypography](int) {
+				onTypography();
+			});
 
 		// Nothing is on screen yet and no variant has been named, so there is no
 		// palette to show. The first adoption supplies both.
@@ -850,6 +882,7 @@ namespace bpr::qt {
 		set_theme_palettes(std::move(palettes));
 		set_customised_counts(counts);
 		set_code_font(aProfile.code_font());
+		ThemePreviews->set_white_space(aProfile.typography().Code.WhiteSpace);
 		Specimen->adopt_appearance(aProfile);
 	}
 
@@ -936,6 +969,11 @@ namespace bpr::qt {
 	auto appearance_settings_panel::motion_selector() const noexcept -> QComboBox*
 	{
 		return MotionSelector;
+	}
+
+	auto appearance_settings_panel::white_space_selector() const noexcept -> QComboBox*
+	{
+		return WhiteSpace;
 	}
 
 	void appearance_settings_panel::set_dispatch(
@@ -1460,6 +1498,7 @@ namespace bpr::qt {
 				.Ligatures    = Ligatures->isChecked(),
 				.SyntaxBold   = SyntaxBold->isChecked(),
 				.SyntaxItalic = SyntaxItalic->isChecked(),
+				.WhiteSpace   = static_cast<core::white_space_drawing>(WhiteSpace->currentData().toInt()),
 			},
 		};
 	}
@@ -1491,6 +1530,7 @@ namespace bpr::qt {
 					tab_width_options[index] == record.Typography.Code.TabWidth);
 			}
 		}
+		WhiteSpace->setCurrentIndex(WhiteSpace->findData(static_cast<int>(record.Typography.Code.WhiteSpace)));
 		Ligatures->setChecked(record.Typography.Code.Ligatures);
 		SyntaxBold->setChecked(record.Typography.Code.SyntaxBold);
 		SyntaxItalic->setChecked(record.Typography.Code.SyntaxItalic);

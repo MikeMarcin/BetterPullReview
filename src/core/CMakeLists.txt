@@ -40,6 +40,7 @@ add_library(
         src/setup_destination.cpp
         src/profile_window.cpp
         src/transition.cpp
+        src/white_space.cpp
         src/workbench_interaction.cpp
 )
 add_library(BetterPullReview::Core ALIAS better_pull_review_core)

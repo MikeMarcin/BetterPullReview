@@ -321,6 +321,17 @@ namespace bpr::qt {
 		}
 	}
 
+	void theme_preview_strip::set_white_space(const core::white_space_drawing aDrawing)
+	{
+		if (WhiteSpace == aDrawing) {
+			return;
+		}
+		WhiteSpace = aDrawing;
+		if (Canvas != nullptr) {
+			Canvas->update();
+		}
+	}
+
 	void theme_preview_strip::set_code_font(QFont aFont)
 	{
 		if (CodeFont == aFont) {
@@ -528,6 +539,7 @@ namespace bpr::qt {
 			.RowHeight = static_cast<qreal>(
 							 theme_preview_tile_height - TileSampleBottomMargin)
 				/ static_cast<qreal>(std::max<std::size_t>(sample.size(), 1U)),
+			.WhiteSpace = WhiteSpace,
 		};
 
 		for (auto index = std::size_t{ 0U }; index < Cards.size(); ++index) {
@@ -547,15 +559,16 @@ namespace bpr::qt {
 
 			painter.save();
 			painter.setClipPath(rounded);
-			static_cast<void>(paint_code_sample(
-				painter,
-				frame,
-				sample,
-				code_role_colors_of(
-					ThemePalettes[application::variant_index(
-						base_variant(card.Mode))]),
-				code,
-				options));
+			Statistics.WhiteSpacePainted += paint_code_sample(
+												painter,
+												frame,
+												sample,
+												code_role_colors_of(
+													ThemePalettes[application::variant_index(
+														base_variant(card.Mode))]),
+												code,
+												options)
+												.WhiteSpacePainted;
 			if (const auto overlay = overlay_variant(card.Mode);
 				overlay.has_value()) {
 				// The split is a clip and nothing else. No edge is drawn, so what

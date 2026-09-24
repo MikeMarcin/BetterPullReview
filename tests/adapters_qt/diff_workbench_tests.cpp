@@ -13,7 +13,9 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPalette>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QSplitter>
@@ -1919,9 +1921,10 @@ namespace {
 		auto           workbench = qt::diff_workbench{ };
 		workbench.resize(1'200, 760);
 		workbench.show();
-		auto profile      = qt::appearance_profile{ };
-		auto codeFont     = profile.typography().Code;
-		codeFont.TabWidth = 4U;
+		auto profile        = qt::appearance_profile{ };
+		auto codeFont       = profile.typography().Code;
+		codeFont.TabWidth   = 4U;
+		codeFont.WhiteSpace = core::white_space_drawing::leading;
 		expect(profile.select_code_font(codeFont).accepted(), "four-column tabs are accepted");
 		workbench.adopt_appearance(profile);
 		profile.apply_code_font_to(workbench);
@@ -1933,12 +1936,34 @@ namespace {
 		}));
 		settle_geometry(workbench);
 		const auto unstyledPositions = tabbed_correspondence_geometry(workbench, 4);
-		// [[BPR-0986]]. Each pane marks its leading tabs as the Appearance preview
-		// does: one marker per tab stop, six a side here, on every paint.
-		const auto markersBefore = workbench.statistics().TabMarkersPainted;
-		workbench.left_pane()->viewport()->repaint();
-		workbench.right_pane()->viewport()->repaint();
-		expect(workbench.statistics().TabMarkersPainted - markersBefore == 12U, "each pane marks its six leading tabs once per paint");
+		// [[BPR-1107]]. Each pane draws its white space as the Appearance preview
+		// does, through the same helper: with leading chosen, one line per
+		// indenting tab, six a side here, on every paint.
+		const auto drawnOnRepaint = [&workbench] {
+			const auto before = workbench.statistics().WhiteSpacePainted;
+			workbench.left_pane()->viewport()->repaint();
+			workbench.right_pane()->viewport()->repaint();
+			return workbench.statistics().WhiteSpacePainted - before;
+		};
+		expect(drawnOnRepaint() == 12U, "each pane draws a line for each of its six leading tabs once per paint");
+		const auto drawnWith = [&](const core::white_space_drawing aDrawing) {
+			codeFont.WhiteSpace = aDrawing;
+			expect(profile.select_code_font(codeFont).accepted(), "every white space choice is accepted");
+			workbench.adopt_appearance(profile);
+			// The adoption's own update lands first, so the count below is
+			// one paint of each pane.
+			QApplication::processEvents();
+			return drawnOnRepaint();
+		};
+		expect(drawnWith(core::white_space_drawing::all) == 32U,
+			   "all: fifteen tabs and spaces on the left, seventeen on the right with its introduction's two spaces");
+		expect(drawnWith(core::white_space_drawing::trailing) == 0U, "trailing: these lines have none");
+		expect(drawnWith(core::white_space_drawing::selection) == 2U,
+			   "under the selection: the selected change, the right-only introduction, shows its two spaces and nothing else does");
+		expect(drawnWith(core::white_space_drawing::none) == 0U, "none: nothing");
+		codeFont.WhiteSpace = core::white_space_drawing::leading;
+		expect(profile.select_code_font(codeFont).accepted(), "leading is accepted again");
+		workbench.adopt_appearance(profile);
 		const auto spans = application::token_span_list{
 			{ .Line = 0U, .Column = 1U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
 			{ .Line = 1U, .Column = 2U, .Length = 3U, .Role = core::appearance_role::syntax_builtin },
@@ -3262,6 +3287,75 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// \brief [[BPR-1107]]. The design page's pane captures: the owner's own
+	/// reference lines, side by side with one change, in each of the four themes
+	/// and each white space choice. Written only when a directory is named, as
+	/// the other capture courses do; the assertions run either way.
+	void test_white_space_design_captures()
+	{
+		// The reference's three lines, with two trailing spaces added to the
+		// first so trailing has something to draw.
+		constexpr auto leftText  = "    4 spaces.        8 more spaces  \n\t\t 2 tabs.\n\t 1 tab.\tAnother tab, smaller because of spacing\n";
+		constexpr auto rightText = "    4 spaces.        8 more spaces  \n\t\t 2 tabs.\n\t 1 tab.\tAnother tab, smaller because of spacing!\n";
+		const auto     diff      = computed(leftText, rightText, { }, 51U);
+		const auto     directory = qEnvironmentVariable("BPR_WHITE_SPACE_CAPTURE_DIR");
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto workbench = qt::diff_workbench{ };
+			workbench.resize(1'400, 320);
+			workbench.show();
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto selected = context(diff, 92U, 92U);
+			workbench.set_loading(selected);
+			workbench.publish(qt::test::prepare_publication({
+				.Context = selected,
+				.Result  = std::make_shared<const core::computed_file_diff>(diff),
+			}));
+			settle_geometry(workbench);
+			for (const auto drawing : { core::white_space_drawing::none, core::white_space_drawing::selection, core::white_space_drawing::leading,
+										core::white_space_drawing::trailing, core::white_space_drawing::boundary, core::white_space_drawing::all }) {
+				auto code       = profile.typography().Code;
+				code.TabWidth   = 4U;
+				code.WhiteSpace = drawing;
+				// Large enough that a dot reads on the design page.
+				code.Font.PointSizeCentipoints = 1600U;
+				expect(profile.select_code_font(code).accepted(), "every white space choice is accepted for the capture");
+				profile.apply_to(workbench);
+				workbench.adopt_appearance(profile);
+				profile.apply_code_font_to(workbench);
+				// The reader on the first line, so under the selection has a
+				// selected line to draw on.
+				static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 0U));
+				QApplication::processEvents();
+				const auto before = workbench.statistics().WhiteSpacePainted;
+				workbench.left_pane()->viewport()->repaint();
+				workbench.right_pane()->viewport()->repaint();
+				const auto drawn = workbench.statistics().WhiteSpacePainted - before;
+				expect((drawing == core::white_space_drawing::none) == (drawn == 0U), "every choice but none draws something on these lines");
+				if (!directory.isEmpty()) {
+					// The two panes side by side, without the chrome around them.
+					const auto left    = workbench.left_pane()->grab();
+					const auto right   = workbench.right_pane()->grab();
+					auto       picture = QPixmap{ QSize{ left.width() + right.width(), std::max(left.height(), right.height()) } };
+					picture.setDevicePixelRatio(left.devicePixelRatio());
+					picture.fill(Qt::transparent);
+					{
+						auto painter = QPainter{ &picture };
+						painter.drawPixmap(0, 0, left);
+						painter.drawPixmap(static_cast<int>(static_cast<qreal>(left.width()) / left.devicePixelRatio()), 0, right);
+					}
+					const auto path = QStringLiteral("%1/panes-%2-%3.png")
+										  .arg(directory, QString::fromUtf8(core::stable_name(mode).data(), static_cast<qsizetype>(core::stable_name(mode).size())),
+											   QString::fromUtf8(core::stable_name(drawing).data(), static_cast<qsizetype>(core::stable_name(drawing).size())));
+					expect(picture.save(path, "PNG"), "the design capture is written");
+				}
+			}
+			workbench.hide();
+		}
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -3274,6 +3368,7 @@ auto main(int argc, char** argv) -> int
 			   "one-pane comparison has a dedicated unified source surface");
 	}
 	test_the_panes_number_their_own_lines();
+	test_white_space_design_captures();
 	test_the_viewport_fill_survives_a_style_clearing_it();
 	test_the_gutter_follows_the_documents_digit_count();
 	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();

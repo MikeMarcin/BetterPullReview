@@ -213,6 +213,8 @@ namespace bpr::qt {
 			-> QAbstractButton*;
 		/// \brief The tab width the segment currently expresses.
 		[[nodiscard]] auto tab_width() const -> std::uint32_t;
+		/// \brief [[BPR-1107]]. When the code panes draw white space.
+		[[nodiscard]] auto white_space_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto ligatures_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_bold_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_italic_switch() const noexcept -> QCheckBox*;
@@ -301,6 +303,7 @@ namespace bpr::qt {
 		/// The 2, 4, 8 segment, in that order; an entry is absent when the core's
 		/// own bounds do not admit that width.
 		std::array<QAbstractButton*, 3U> TabWidths{ };
+		QComboBox*                       WhiteSpace     = nullptr;
 		QCheckBox*                       Ligatures      = nullptr;
 		QCheckBox*                       SyntaxBold     = nullptr;
 		QCheckBox*                       SyntaxItalic   = nullptr;

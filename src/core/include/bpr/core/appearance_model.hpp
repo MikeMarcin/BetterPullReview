@@ -373,6 +373,8 @@ namespace bpr::core {
 		weight,
 		line_height,
 		tab_width,
+		/// [[BPR-1107]]. Bounded as the ordinals of `white_space_drawing`.
+		white_space,
 	};
 
 	/// \brief Names why one typography value is illegal.
@@ -456,21 +458,55 @@ namespace bpr::core {
 		auto operator<=>(const ui_font_settings&) const = default;
 	};
 
+	/// \brief When the code panes draw white space ([[BPR-1107]]).
+	///
+	/// \details Sublime Text's model, which the owner asked for on 2026-09-24:
+	/// a drawn space is a dot and a drawn tab a line to its stop. The choices are
+	/// the easy and useful subset of Sublime's `draw_white_space` list, one at a
+	/// time. Leading white space runs from the start of a line to its first
+	/// other character, trailing white space from its last other character to
+	/// the end, and a line of white space alone is both. `boundary` is leading
+	/// and trailing together. `selection` draws every white space character of
+	/// a selected line and none elsewhere, which is Sublime's own default.
+	///
+	/// Ordinal values are the appearance schema contract.
+	enum class white_space_drawing : std::uint8_t {
+		none      = 0,
+		selection = 1,
+		leading   = 2,
+		trailing  = 3,
+		boundary  = 4,
+		all       = 5,
+	};
+
+	inline constexpr std::size_t white_space_drawing_count = 6U;
+
+	/// \brief Rejects a value outside the closed vocabulary.
+	[[nodiscard]] constexpr auto valid(const white_space_drawing aDrawing) noexcept -> bool
+	{
+		return static_cast<std::size_t>(aDrawing) < white_space_drawing_count;
+	}
+
+	/// \brief Returns the durable name of one white-space choice.
+	[[nodiscard]] auto stable_name(white_space_drawing aDrawing) noexcept -> std::string_view;
+
 	/// \brief Describes the code font's settings.
 	///
-	/// \details Tab width, ligatures, and the two syntax emphasis switches are
-	/// code-only: a tab width for application chrome has no meaning. The three
-	/// boolean members have no legality rule because every boolean value is
-	/// legal, and that omission is deliberate rather than missing.
+	/// \details Tab width, ligatures, the two syntax emphasis switches and white
+	/// space drawing are code-only: a tab width for application chrome has no
+	/// meaning. The three boolean members have no legality rule because every
+	/// boolean value is legal, and that omission is deliberate rather than
+	/// missing.
 	///
 	/// There is deliberately no line height. See `ui_font_settings`.
 	struct code_font_settings
 	{
-		font_settings Font;
-		std::uint32_t TabWidth     = 4U;
-		bool          Ligatures    = false;
-		bool          SyntaxBold   = true;
-		bool          SyntaxItalic = true;
+		font_settings       Font;
+		std::uint32_t       TabWidth     = 4U;
+		bool                Ligatures    = false;
+		bool                SyntaxBold   = true;
+		bool                SyntaxItalic = true;
+		white_space_drawing WhiteSpace   = white_space_drawing::selection;
 
 		auto operator<=>(const code_font_settings&) const = default;
 	};

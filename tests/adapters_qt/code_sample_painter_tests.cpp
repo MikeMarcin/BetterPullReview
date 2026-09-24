@@ -16,6 +16,7 @@
 #include <QColor>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFontMetricsF>
 #include <QImage>
 #include <QPainter>
 #include <QPlainTextEdit>
@@ -489,52 +490,97 @@ namespace {
 			"decides no colour of its own");
 	}
 
-	void test_tab_markers_follow_the_chosen_width()
+	/// \brief [[BPR-1107]]. A space is a dot at the middle of its cell, and a
+	/// tab a line from where it starts to its stop.
+	void test_white_space_is_dots_and_lines_to_the_stop()
 	{
 		auto image = QImage{ 200, 40, QImage::Format_ARGB32 };
 		image.fill(Qt::black);
+		// A tab from 0 to its stop at 40, a space from 40 to 48, and a tab that
+		// begins at 48 and so is shorter: it ends at the stop at 80.
+		const auto marks = std::vector<qt::white_space_mark>{
+			{ .Left = 0.0, .Right = 40.0, .Tab = true },
+			{ .Left = 40.0, .Right = 48.0, .Tab = false },
+			{ .Left = 48.0, .Right = 80.0, .Tab = true },
+		};
 		auto painted = std::uint32_t{ 0U };
 		{
 			auto painter = QPainter{ &image };
-			painted      = qt::paint_tab_markers(
-				painter,
-				QRectF{ 0.0, 0.0, 200.0, 40.0 },
-				2U,
-				40.0,
-				QColor{ 255, 255, 255 });
+			painted      = qt::paint_white_space(painter, QRectF{ 0.0, 0.0, 200.0, 40.0 }, marks, QColor{ 255, 255, 255 });
 		}
-		expect(painted == 2U, "one marker per tab stop of the indent");
-		const auto lit = [&image](const int aFrom, const int aTo) {
+		expect(painted == 3U, "one mark per white space character");
+		const auto lit = [&image](const int aFrom, const int aTo, const int aY) {
 			for (auto x = aFrom; x < aTo; ++x) {
-				if (image.pixelColor(x, 20) != QColor{ 0, 0, 0 }) {
+				if (image.pixelColor(x, aY) != QColor{ 0, 0, 0 }) {
 					return true;
 				}
 			}
 			return false;
 		};
-		expect(
-			lit(0, 24) && lit(40, 64) && !lit(28, 38),
-			"a marker sits at each tab stop and the space between two stops is "
-			"left alone, so the marker is drawn at the chosen width");
+		expect(lit(4, 36, 20) && !lit(4, 36, 14) && !lit(4, 36, 26), "a tab is a thin line across its cell at the row's middle");
+		expect(lit(43, 46, 20) && !lit(41, 42, 20) && !lit(47, 48, 20), "a space is a dot at the middle of its cell, not a line across it");
+		expect(lit(52, 76, 20) && !lit(82, 200, 20), "a tab that begins partway to a stop is a shorter line that ends at the stop");
 
 		auto empty = QImage{ 200, 40, QImage::Format_ARGB32 };
 		empty.fill(Qt::black);
 		{
 			auto painter = QPainter{ &empty };
-			expect(
-				qt::paint_tab_markers(
-					painter, QRectF{ 0.0, 0.0, 200.0, 40.0 }, 0U, 40.0,
-					QColor{ 255, 255, 255 })
-					== 0U,
-				"an unindented row gets no marker");
-			expect(
-				qt::paint_tab_markers(
-					painter, QRectF{ 0.0, 0.0, 200.0, 40.0 }, 2U, 0.0,
-					QColor{ 255, 255, 255 })
-					== 0U,
-				"a surface with no tab stop yet gets no marker rather than a "
-				"marker at zero");
+			expect(qt::paint_white_space(painter, QRectF{ 0.0, 0.0, 200.0, 40.0 }, { }, QColor{ 255, 255, 255 }) == 0U, "no white space draws nothing");
+			expect(qt::paint_white_space(painter, QRectF{ 0.0, 0.0, 200.0, 40.0 }, marks, QColor{ }) == 0U, "a surface with no colour yet draws nothing");
 		}
+	}
+
+	/// \brief [[BPR-1107]]. A sample painted directly draws its white space
+	/// for each choice, and a text editor's line through the same helper.
+	void test_each_choice_draws_the_white_space_it_names()
+	{
+		const auto font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+		auto       dark = qt::appearance_profile{ };
+		static_cast<void>(dark.select_mode(core::appearance_mode::dark));
+		// One row: a tab, then "a b", then two trailing spaces; selected or not.
+		const auto sampleOf = [](const bool aSelected) {
+			return qt::code_sample{
+				qt::code_sample_row{
+					.Number   = 1U,
+					.Kind     = qt::code_sample_row_kind::context,
+					.Indent   = 1U,
+					.Selected = aSelected,
+					.Tokens   = { { QStringLiteral("a b  "), role::syntax_normal } },
+				},
+			};
+		};
+		const auto painted = [&](const core::white_space_drawing aDrawing, const bool aSelected) {
+			auto image = QImage{ 240, 40, QImage::Format_ARGB32 };
+			image.fill(Qt::transparent);
+			auto painter = QPainter{ &image };
+			return qt::paint_code_sample(painter, QRectF{ 0.0, 0.0, 240.0, 40.0 }, sampleOf(aSelected), qt::code_role_colors_of(dark.palette()), font,
+										 qt::code_sample_paint_options{ .WhiteSpace = aDrawing })
+				.WhiteSpacePainted;
+		};
+		expect(painted(core::white_space_drawing::none, true) == 0U, "none draws nothing");
+		expect(painted(core::white_space_drawing::selection, false) == 0U && painted(core::white_space_drawing::selection, true) == 4U,
+			   "under the selection draws every white space character of a selected row and nothing on another");
+		expect(painted(core::white_space_drawing::leading, false) == 1U, "leading draws the indenting tab");
+		expect(painted(core::white_space_drawing::trailing, false) == 2U, "trailing draws the two trailing spaces");
+		expect(painted(core::white_space_drawing::boundary, false) == 3U, "leading and trailing draws both");
+		expect(painted(core::white_space_drawing::all, false) == 4U, "all draws the enclosed space too");
+
+		auto editor = QPlainTextEdit{ };
+		editor.setFont(font);
+		editor.setTabStopDistance(QFontMetricsF{ font }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
+		editor.setPlainText(QStringLiteral("\ta b  "));
+		editor.resize(320, 80);
+		editor.show();
+		QApplication::processEvents();
+		auto image = QImage{ editor.viewport()->size(), QImage::Format_ARGB32 };
+		image.fill(Qt::transparent);
+		auto       painter = QPainter{ &image };
+		const auto block   = editor.document()->firstBlock();
+		expect(qt::paint_white_space_of_block(painter, editor, block, core::white_space_drawing::all, false, QColor{ 255, 255, 255 }) == 4U,
+			   "an editor's line draws through the same helper, at the editor's own positions");
+		expect(qt::paint_white_space_of_block(painter, editor, block, core::white_space_drawing::none, false, QColor{ 255, 255, 255 }) == 0U,
+			   "and draws nothing when none is chosen");
+		editor.hide();
 	}
 
 	void test_the_gutter_paints_the_numbers_it_was_given()
@@ -591,7 +637,8 @@ auto main(int argc, char** argv) -> int
 	test_the_accepted_samples_exercise_what_the_criteria_name();
 	test_a_sample_becomes_a_document_and_a_classification();
 	test_painting_a_sample_directly_uses_the_supplied_palette();
-	test_tab_markers_follow_the_chosen_width();
+	test_white_space_is_dots_and_lines_to_the_stop();
+	test_each_choice_draws_the_white_space_it_names();
 	test_the_gutter_paints_the_numbers_it_was_given();
 	std::cout << "code-sample-painter-tests:pass\n";
 	return EXIT_SUCCESS;
