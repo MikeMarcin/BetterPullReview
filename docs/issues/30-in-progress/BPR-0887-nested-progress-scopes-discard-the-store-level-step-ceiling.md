@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0887"
 title: "Nested progress scopes reset the handler to null, silently discarding the store-level step ceiling"
-status: "Blocked"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
-blocked_by: "windows-copied-store-refusal"
 ---
 
 # BPR-0887: Nested progress scopes reset the handler to null, silently discarding the store-level step ceiling
@@ -351,3 +350,30 @@ It does not finish on 19 of 20.
 
 Either way, move the card back to In Progress and finish it with the
 records above.
+
+## Unblocked: Windows passes 20 of 20 (bpr-main-win, 2026-09-23)
+
+[[BPR-1049]] carded and fixed the Windows row this card was blocked on. The
+behaviour contract's lossless-migration check copied a private root, and each
+copied entry inherited its parent's entries on Windows. The test now narrows
+each copied entry as it made the original root. Nothing in the stores changed.
+
+At `8393e2ed` (which contains `7eec1053`) with BPR-1049's change, on
+`build/dev` (MSVC 19.51 Debug), serial:
+`ctest --preset dev -j1 --output-on-failure -R "^(sqlite_|contained_catalog_probe$)"`
+passes **20 of 20**. `sqlite_epoch_catalog_behavior_contract` passes in
+102.68 s, and every check after its old stopping line (1,792 of 6,661) runs on
+Windows for the first time. That includes the checks through the epoch
+catalogue's `progress_guard`, which this card changed. The other nineteen
+rows pass as they did at `2532ca6e`.
+
+The run used the Ninja `dev` preset, not the Visual Studio `windows-dev`
+preset the earlier Windows run used. Both are the same MSVC Debug
+configuration. The logs are station records under
+`build/logs/bpr-0887-main-win/` and are not committed.
+
+| Criterion | macOS | Linux | Windows |
+|---|---|---|---|
+| AC1, the outer ceiling survives a nested `execute` | Pass (`7eec1053`) | Pass (`c127cb38`) | Pass (`2532ca6e`) |
+| AC2, the SQLite suite passes | Pass | Pass, 19/19 | **Pass, 20/20** (`8393e2ed` + BPR-1049) |
+| AC3, the comment is true | Pass | n/a | n/a |
