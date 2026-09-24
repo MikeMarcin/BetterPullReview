@@ -171,6 +171,11 @@ GIT_PROCESS_FACTORY = (
     / "installed_git_process.hpp"
 ).read_text(encoding="utf-8")
 
+# [[BPR-0825]] The header-only platform target, as the repository declares it.
+PLATFORM_HEADER = "src/platform/include/bpr/platform/windows_private_object.hpp"
+PLATFORM_TARGET = (REPOSITORY_ROOT / "src/platform/CMakeLists.txt").read_text(
+    encoding="utf-8"
+)
 AGENT_TARGET = (
     REPOSITORY_ROOT / "src" / "adapters" / "agent" / "CMakeLists.txt"
 ).read_text(encoding="utf-8")
@@ -1613,6 +1618,83 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "CreateProcessW",
                     "RemovedProcessCreation",
                 )
+            },
+        )
+
+    def test_windows_private_descriptor_has_one_definition(self) -> None:
+        # [[BPR-0825]] Only the platform header builds the Windows
+        # owner-private descriptor. A second builder, in the SQLite storage
+        # root or the agent's workspace guard as before, is refused, and the
+        # permission is the platform target's own header.
+        builder = "InitializeAcl(acl, size, ACL_REVISION);\n"
+        platform = {
+            PLATFORM_HEADER: builder,
+            "src/platform/CMakeLists.txt": PLATFORM_TARGET,
+        }
+        result = self.run_check(platform)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for other, call in (
+            ("src/adapters/sqlite/src/catalog_database.cpp", builder),
+            (
+                "src/adapters/agent/include/bpr/adapters/agent/"
+                "windows_workspace_guard.hpp",
+                "AddAccessAllowedAceEx(acl, ACL_REVISION, 0, FILE_ALL_ACCESS, sid);\n",
+            ),
+            (
+                "src/adapters/native/windows_private_storage.hpp",
+                "SetSecurityDescriptorDacl(&descriptor, TRUE, acl, FALSE);\n",
+            ),
+        ):
+            with self.subTest(other=other):
+                self.assert_failure(
+                    "Windows owner-private descriptor construction ownership "
+                    "violation",
+                    {**platform, other: call},
+                )
+        self.assert_failure(
+            # CMake wraps its message before the owner's name.
+            "Designated effect source windows_private_object.hpp is not owned",
+            {
+                PLATFORM_HEADER: builder,
+                "src/platform/CMakeLists.txt":
+                    "add_library(better_pull_review_platform INTERFACE)\n",
+            },
+        )
+
+    def test_platform_target_stays_neutral(self) -> None:
+        # [[BPR-0825]] The platform target is the neutral home the owner chose
+        # over an adapter-to-adapter edge, so it may not take one itself.
+        self.assert_failure(
+            "Platform target must not depend on a first-party layer, Qt or a "
+            "provider",
+            {
+                PLATFORM_HEADER: "",
+                "src/platform/CMakeLists.txt": PLATFORM_TARGET
+                + "target_link_libraries(better_pull_review_platform "
+                "INTERFACE BetterPullReview::AdapterSQLite)\n",
+            },
+        )
+        for include in (
+            "#include <QString>\n",
+            '#include "bpr/adapters/sqlite/storage_root.hpp"\n',
+            '#include "bpr/application/git_process_port.hpp"\n',
+        ):
+            with self.subTest(include=include):
+                self.assert_failure(
+                    "Platform target must stay free of Qt, providers",
+                    {
+                        PLATFORM_HEADER: include,
+                        "src/platform/CMakeLists.txt": PLATFORM_TARGET,
+                    },
+                )
+        self.assert_failure(
+            "Platform target must be the header-only "
+            "better_pull_review_platform",
+            {
+                PLATFORM_HEADER: "",
+                "src/platform/CMakeLists.txt":
+                    "add_library(better_pull_review_platform STATIC "
+                    "include/bpr/platform/windows_private_object.hpp)\n",
             },
         )
 

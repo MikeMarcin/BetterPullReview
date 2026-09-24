@@ -23,6 +23,8 @@
 
 #include <aclapi.h>
 
+#include "bpr/platform/windows_private_object.hpp"
+
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -80,6 +82,12 @@ namespace bpr::adapters::agent::detail {
 		HANDLE Value = nullptr;
 	};
 
+	/// The platform object kind for a workspace directory or file.
+	[[nodiscard]] constexpr auto windows_private_kind(const bool aDirectory) noexcept -> ::bpr::platform::windows_private_object::object_kind
+	{
+		return aDirectory ? ::bpr::platform::windows_private_object::object_kind::directory : ::bpr::platform::windows_private_object::object_kind::regular_file;
+	}
+
 	/// The process token's user, and its AppContainer SID when contained. A
 	/// contained process can only open objects that also grant its package.
 	class windows_private_principals final
@@ -133,122 +141,45 @@ namespace bpr::adapters::agent::detail {
 		std::vector<BYTE> Container;
 	};
 
-	/// Builds the protected, owner-explicit descriptor every private workspace
-	/// object is created with: owner and one full-access grant for the token
-	/// user, plus the AppContainer when contained. The owner is set explicitly
-	/// because an elevated token otherwise defaults new objects to its
-	/// TokenOwner (often BUILTIN\Administrators), which would then fail the
-	/// check below for an object this process created itself.
+	/// [[BPR-0825]]. The protected, owner-explicit descriptor every private
+	/// workspace object is created with. It is the platform target's one
+	/// definition, the one the SQLite adapter's storage roots are created with,
+	/// so the Git adapter's check of the application data root below reads the
+	/// same shape the SQLite side wrote.
 	class windows_private_descriptor final
 	{
 	public:
 		[[nodiscard]] static auto make(const windows_private_principals& aPrincipals, const bool aDirectory)
 			-> std::optional<windows_private_descriptor>
 		{
-			auto       result = windows_private_descriptor{ };
-			const auto flags  = static_cast<BYTE>(aDirectory ? (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE) : 0U);
-			auto       size   = static_cast<DWORD>(sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) + ::GetLengthSid(aPrincipals.user()));
-			if (aPrincipals.container() != nullptr) {
-				size += static_cast<DWORD>(sizeof(ACCESS_ALLOWED_ACE) + ::GetLengthSid(aPrincipals.container()));
-			}
-			result.Acl.resize(size);
-			const auto acl = static_cast<PACL>(static_cast<void*>(result.Acl.data()));
-			if (::InitializeAcl(acl, size, ACL_REVISION) == FALSE
-				|| ::AddAccessAllowedAceEx(acl, ACL_REVISION, flags, FILE_ALL_ACCESS, aPrincipals.user()) == FALSE
-				|| (aPrincipals.container() != nullptr
-					&& ::AddAccessAllowedAceEx(acl, ACL_REVISION, flags, FILE_ALL_ACCESS, aPrincipals.container()) == FALSE)
-				|| ::InitializeSecurityDescriptor(&result.Descriptor, SECURITY_DESCRIPTOR_REVISION) == FALSE
-				|| ::SetSecurityDescriptorOwner(&result.Descriptor, aPrincipals.user(), FALSE) == FALSE
-				|| ::SetSecurityDescriptorDacl(&result.Descriptor, TRUE, acl, FALSE) == FALSE
-				|| ::SetSecurityDescriptorControl(&result.Descriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED) == FALSE) {
+			auto result = windows_private_descriptor{ };
+			if (!result.Descriptor.initialize(aPrincipals.user(), aPrincipals.container(), windows_private_kind(aDirectory))) {
 				return std::nullopt;
 			}
-			result.Attributes.nLength              = sizeof(result.Attributes);
-			result.Attributes.lpSecurityDescriptor = &result.Descriptor;
-			result.Attributes.bInheritHandle       = FALSE;
 			return result;
 		}
 
 		windows_private_descriptor(const windows_private_descriptor&)                    = delete;
 		auto operator=(const windows_private_descriptor&) -> windows_private_descriptor& = delete;
-		windows_private_descriptor(windows_private_descriptor&& aOther) noexcept
-			: Acl{ std::move(aOther.Acl) }
-			, Descriptor{ aOther.Descriptor }
-			, Attributes{ aOther.Attributes }
-		{
-			rebind();
-		}
-		auto operator=(windows_private_descriptor&&) -> windows_private_descriptor& = delete;
-		~windows_private_descriptor()                                               = default;
+		windows_private_descriptor(windows_private_descriptor&&) noexcept                = default;
+		auto operator=(windows_private_descriptor&&) -> windows_private_descriptor&      = delete;
+		~windows_private_descriptor()                                                    = default;
 
-		[[nodiscard]] auto attributes() noexcept -> SECURITY_ATTRIBUTES* { return &Attributes; }
+		[[nodiscard]] auto attributes() noexcept -> SECURITY_ATTRIBUTES* { return Descriptor.attributes(); }
 
 	private:
 		windows_private_descriptor() noexcept = default;
-		void rebind() noexcept
-		{
-			if (!Acl.empty()) {
-				Descriptor.Dacl = static_cast<PACL>(static_cast<void*>(Acl.data()));
-			}
-			Attributes.lpSecurityDescriptor = &Descriptor;
-		}
 
-		std::vector<BYTE>   Acl;
-		SECURITY_DESCRIPTOR Descriptor{ };
-		SECURITY_ATTRIBUTES Attributes{ };
+		::bpr::platform::windows_private_object::descriptor Descriptor;
 	};
 
-	/// True only for exactly the descriptor above: owner is the token user,
-	/// the DACL is protected, and it holds only full-access grants to the user
-	/// (and the AppContainer when contained), non-inheritable on a file. A
-	/// private-looking path or an inherited grant is not enough.
+	/// True only for exactly the descriptor above, read from the opened
+	/// object: the platform target's check, protected DACL required.
 	[[nodiscard]] inline auto windows_private_to_current_user(
 		const HANDLE aObject, const windows_private_principals& aPrincipals, const bool aDirectory) -> bool
 	{
-		PSID                 owner      = nullptr;
-		PACL                 dacl       = nullptr;
-		PSECURITY_DESCRIPTOR descriptor = nullptr;
-		if (::GetSecurityInfo(aObject, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &owner, nullptr, &dacl, nullptr, &descriptor) != ERROR_SUCCESS) {
-			return false;
-		}
-		struct local_free
-		{
-			PSECURITY_DESCRIPTOR Value;
-			~local_free() { static_cast<void>(::LocalFree(Value)); }
-		} freed{ descriptor };
-		SECURITY_DESCRIPTOR_CONTROL control  = 0U;
-		DWORD                       revision = 0U;
-		if (owner == nullptr || ::EqualSid(owner, aPrincipals.user()) == FALSE || dacl == nullptr
-			|| ::GetSecurityDescriptorControl(descriptor, &control, &revision) == FALSE
-			|| (control & SE_DACL_PROTECTED) == 0U) {
-			return false;
-		}
-		const auto expectedFlags = static_cast<BYTE>(aDirectory ? (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE) : 0U);
-		auto       user          = 0U;
-		auto       container     = 0U;
-		for (DWORD index = 0U; index < dacl->AceCount; ++index) {
-			void* entry = nullptr;
-			if (::GetAce(dacl, index, &entry) == FALSE) {
-				return false;
-			}
-			const auto* const header = static_cast<ACE_HEADER*>(entry);
-			if (header->AceType != ACCESS_ALLOWED_ACE_TYPE || header->AceFlags != expectedFlags) {
-				return false;
-			}
-			const auto* const allowed = static_cast<ACCESS_ALLOWED_ACE*>(entry);
-			const auto        sid     = static_cast<PSID>(static_cast<void*>(const_cast<DWORD*>(&allowed->SidStart)));
-			if (allowed->Mask != FILE_ALL_ACCESS) {
-				return false;
-			}
-			if (::EqualSid(sid, aPrincipals.user()) != FALSE) {
-				++user;
-			} else if (aPrincipals.container() != nullptr && ::EqualSid(sid, aPrincipals.container()) != FALSE) {
-				++container;
-			} else {
-				return false;
-			}
-		}
-		return user == 1U && container == (aPrincipals.container() != nullptr ? 1U : 0U);
+		return ::bpr::platform::windows_private_object::validate(aObject, aPrincipals.user(), aPrincipals.container(), windows_private_kind(aDirectory)).Verdict
+			== ::bpr::platform::windows_private_object::verdict::owner_private;
 	}
 
 	/// Kind 2 identity of a single-link regular file that is not a reparse point.

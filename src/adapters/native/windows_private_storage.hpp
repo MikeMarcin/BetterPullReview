@@ -2,6 +2,7 @@
 #define BPR_ADAPTERS_NATIVE_WINDOWS_PRIVATE_STORAGE_HPP
 
 #if defined(_WIN32)
+	#include "bpr/platform/windows_private_object.hpp"
 	#include "storage_failure.hpp"
 	#include <algorithm>
 	#include <array>
@@ -29,10 +30,10 @@
 namespace bpr::adapters::native_storage {
 	inline constexpr std::size_t MaximumWindowsPathCharacters  = 32'767U;
 	inline constexpr std::size_t ReservedCatalogPathCharacters = 128U;
-	enum class windows_object_kind : std::uint8_t {
-		regular_file,
-		directory,
-	};
+	// [[BPR-0825]]. The owner-private descriptor, and its check, are the
+	// platform target's one definition; the Git adapter admits a root this
+	// adapter created only through the same one.
+	using windows_object_kind = ::bpr::platform::windows_private_object::object_kind;
 
 	class windows_handle final
 	{
@@ -307,6 +308,8 @@ namespace bpr::adapters::native_storage {
 		std::vector<std::byte> ContainerSid;
 	};
 
+	// [[BPR-0825]]. The descriptor itself is the platform target's; this keeps
+	// the storage adapters' call shape and ties it to their principals.
 	class private_security_attributes final
 	{
 	public:
@@ -314,70 +317,7 @@ namespace bpr::adapters::native_storage {
 			const private_security&   security,
 			const windows_object_kind kind) -> bool
 		{
-			const auto sid_bytes       = ::GetLengthSid(security.sid());
-			const auto container_bytes = security.contained()
-				? ::GetLengthSid(security.container_sid())
-				: 0U;
-			auto       required        = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE)
-				- sizeof(DWORD) + static_cast<std::size_t>(sid_bytes);
-			if (security.contained()) {
-				required += sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD)
-					+ static_cast<std::size_t>(container_bytes);
-			}
-			if (required > std::numeric_limits<DWORD>::max()) {
-				return false;
-			}
-			Acl                    = std::vector<std::byte>(required);
-			auto*      acl         = reinterpret_cast<PACL>(Acl.data());
-			const auto inheritance = kind == windows_object_kind::directory
-				? static_cast<DWORD>(OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE)
-				: 0U;
-			if (::InitializeAcl(
-					acl, static_cast<DWORD>(Acl.size()), ACL_REVISION)
-					== 0
-				|| ::AddAccessAllowedAceEx(
-					   acl,
-					   ACL_REVISION,
-					   inheritance,
-					   FILE_ALL_ACCESS,
-					   security.sid())
-					== 0) {
-				return false;
-			}
-			// The container is the identity the process actually runs as, not a
-			// second principal: a lowbox access check refuses an object whose
-			// DACL names only the token user, so without this entry an
-			// owner-private object excludes its own creator.
-			if (security.contained()
-				&& ::AddAccessAllowedAceEx(
-					   acl,
-					   ACL_REVISION,
-					   inheritance,
-					   FILE_ALL_ACCESS,
-					   security.container_sid())
-					== 0) {
-				return false;
-			}
-			if (::InitializeSecurityDescriptor(
-					&Descriptor, SECURITY_DESCRIPTOR_REVISION)
-					== 0
-				|| ::SetSecurityDescriptorOwner(
-					   &Descriptor, security.sid(), FALSE)
-					== 0
-				|| ::SetSecurityDescriptorDacl(
-					   &Descriptor, TRUE, acl, FALSE)
-					== 0
-				|| ::SetSecurityDescriptorControl(
-					   &Descriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED)
-					== 0) {
-				return false;
-			}
-			Attributes = SECURITY_ATTRIBUTES{
-				.nLength              = sizeof(SECURITY_ATTRIBUTES),
-				.lpSecurityDescriptor = &Descriptor,
-				.bInheritHandle       = FALSE,
-			};
-			return true;
+			return Descriptor.initialize(security.sid(), security.container_sid(), kind);
 		}
 
 		/// \brief Refused: the descriptor's owner is a pointer into the
@@ -387,18 +327,16 @@ namespace bpr::adapters::native_storage {
 
 		[[nodiscard]] auto attributes() noexcept -> SECURITY_ATTRIBUTES*
 		{
-			return &Attributes;
+			return Descriptor.attributes();
 		}
 
 		[[nodiscard]] auto acl() noexcept -> PACL
 		{
-			return reinterpret_cast<PACL>(Acl.data());
+			return Descriptor.acl();
 		}
 
 	private:
-		std::vector<std::byte> Acl;
-		SECURITY_DESCRIPTOR    Descriptor{ };
-		SECURITY_ATTRIBUTES    Attributes{ };
+		::bpr::platform::windows_private_object::descriptor Descriptor;
 	};
 
 	[[nodiscard]] inline auto validate_private_security(
@@ -407,89 +345,13 @@ namespace bpr::adapters::native_storage {
 		const windows_object_kind kind,
 		const bool                allow_inherited = false) -> std::expected<void, failure>
 	{
-		PSID                 owner      = nullptr;
-		PACL                 dacl       = nullptr;
-		PSECURITY_DESCRIPTOR descriptor = nullptr;
-		const auto           status     = ::GetSecurityInfo(
-			handle,
-			SE_FILE_OBJECT,
-			OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
-			&owner,
-			nullptr,
-			&dacl,
-			nullptr,
-			&descriptor);
-		const auto owned_descriptor = local_memory{ descriptor };
-		if (status != ERROR_SUCCESS) {
-			return std::unexpected(windows_error_failure(status));
+		namespace object   = ::bpr::platform::windows_private_object;
+		const auto checked = object::validate(
+			handle, expected.sid(), expected.container_sid(), kind, allow_inherited);
+		if (checked.Verdict == object::verdict::unreadable) {
+			return std::unexpected(windows_error_failure(checked.Error));
 		}
-		SECURITY_DESCRIPTOR_CONTROL control  = 0U;
-		DWORD                       revision = 0U;
-		ACL_SIZE_INFORMATION        information{ };
-		// Inside a container the owner-private descriptor carries exactly one
-		// extra entry, for the package SID that the restricted access check
-		// requires. Anything beyond that pair is not owner-private.
-		const auto expected_ace_count = static_cast<ULONG>(
-			expected.contained() ? 2U : 1U);
-		if (owner == nullptr || dacl == nullptr
-			|| ::EqualSid(owner, expected.sid()) == 0
-			|| ::GetSecurityDescriptorControl(
-				   descriptor, &control, &revision)
-				== 0
-			|| (control & SE_DACL_PRESENT) == 0U
-			|| (!allow_inherited && (control & SE_DACL_PROTECTED) == 0U)
-			|| ::GetAclInformation(
-				   dacl,
-				   &information,
-				   sizeof(information),
-				   AclSizeInformation)
-				== 0
-			|| information.AceCount != expected_ace_count) {
-			return std::unexpected(failure::invalid_permissions);
-		}
-		const auto expected_flags = kind == windows_object_kind::directory
-			? static_cast<BYTE>(OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE)
-			: static_cast<BYTE>(0U);
-		const auto dacl_protected = (control & SE_DACL_PROTECTED) != 0U;
-		// Where the caller allows it, an unprotected descriptor passes only as
-		// exactly the owner-private entries inherited from its parent: a file's
-		// carry no further inheritance, and a directory's carry the same
-		// inheritance on to its own children ([[BPR-1038]]). Its access is the
-		// parent's, so it is private exactly when the parent is.
-		const auto inherited = allow_inherited && !dacl_protected;
-		// The order the entries were written in is not part of the contract, so
-		// each expected trustee is required exactly once as a set, and any other
-		// trustee refuses the object outright.
-		auto user_grants      = 0U;
-		auto container_grants = 0U;
-		for (auto index = ULONG{ 0U }; index < expected_ace_count; ++index) {
-			void* raw_ace = nullptr;
-			if (::GetAce(dacl, index, &raw_ace) == 0 || raw_ace == nullptr) {
-				return std::unexpected(failure::invalid_permissions);
-			}
-			const auto* ace             = static_cast<const ACCESS_ALLOWED_ACE*>(raw_ace);
-			const auto  exact_protected = dacl_protected
-				&& ace->Header.AceFlags == expected_flags;
-			const auto exact_inherited = inherited
-				&& ace->Header.AceFlags == static_cast<BYTE>(INHERITED_ACE | expected_flags);
-			if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE
-				|| ace->Mask != FILE_ALL_ACCESS
-				|| (!exact_protected && !exact_inherited)) {
-				return std::unexpected(failure::invalid_permissions);
-			}
-			auto* granted = static_cast<PSID>(const_cast<DWORD*>(&ace->SidStart));
-			if (::EqualSid(granted, expected.sid()) != 0) {
-				++user_grants;
-			} else if (
-				expected.contained()
-				&& ::EqualSid(granted, expected.container_sid()) != 0) {
-				++container_grants;
-			} else {
-				return std::unexpected(failure::invalid_permissions);
-			}
-		}
-		if (user_grants != 1U
-			|| container_grants != (expected.contained() ? 1U : 0U)) {
+		if (checked.Verdict != object::verdict::owner_private) {
 			return std::unexpected(failure::invalid_permissions);
 		}
 		return { };

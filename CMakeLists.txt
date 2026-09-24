@@ -144,6 +144,7 @@ add_subdirectory(third_party/sqlite)
 
 add_subdirectory(src/core)
 add_subdirectory(src/application)
+add_subdirectory(src/platform)
 add_subdirectory(src/adapters)
 add_subdirectory(src/app)
 if(BPR_DISTRIBUTION_BUILD)

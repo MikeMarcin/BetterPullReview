@@ -39,6 +39,9 @@ target_link_libraries(
         BetterPullReview::Application
     PRIVATE
         BetterPullReview::SQLite3
+        # [[BPR-0825]]. Storage roots are created with the platform
+        # target's one owner-private descriptor (src/adapters/native).
+        BetterPullReview::Platform
 )
 target_compile_features(
     better_pull_review_adapter_sqlite

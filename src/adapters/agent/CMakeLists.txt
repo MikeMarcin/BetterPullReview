@@ -35,6 +35,7 @@ if(WIN32)
     target_compile_features(tool_better_pull_review_agent_supervisor PRIVATE cxx_std_23)
     target_include_directories(tool_better_pull_review_agent_supervisor PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_link_libraries(tool_better_pull_review_agent_supervisor PRIVATE Kernel32 Advapi32)
+    target_link_libraries(tool_better_pull_review_agent_supervisor PRIVATE BetterPullReview::Platform)
     bpr_enable_hardening(tool_better_pull_review_agent_supervisor)
     bpr_enable_warnings(tool_better_pull_review_agent_supervisor)
     add_dependencies(better_pull_review_adapter_agent tool_better_pull_review_agent_supervisor)
@@ -66,6 +67,9 @@ target_link_libraries(
     PRIVATE
         Qt6::Core
 )
+# [[BPR-0825]]. The public Windows workspace guard builds and checks its
+# private objects with the platform target's one owner-private definition.
+target_link_libraries(better_pull_review_adapter_agent PUBLIC BetterPullReview::Platform)
 target_compile_features(better_pull_review_adapter_agent PUBLIC cxx_std_23)
 if(BUILD_TESTING)
     target_compile_definitions(

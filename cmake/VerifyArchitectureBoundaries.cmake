@@ -1614,6 +1614,17 @@ if(EXISTS "${core_cmake}")
     file(READ "${core_cmake}" core_cmake_contents)
 endif()
 
+# [[BPR-0825]]. The header-only platform target: definitions several adapters
+# share and none owns, starting with the Windows owner-private object.
+set(
+    platform_windows_private_object_relative
+    "src/platform/include/bpr/platform/windows_private_object.hpp"
+)
+set(platform_cmake_contents "")
+if(EXISTS "${BPR_ROOT}/src/platform/CMakeLists.txt")
+    file(READ "${BPR_ROOT}/src/platform/CMakeLists.txt" platform_cmake_contents)
+endif()
+
 function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
     set(allowed_relative_files "${allowed_relative_file}" ${ARGN})
     set(allowed_files "")
@@ -1696,6 +1707,9 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(current_allowed_relative MATCHES "^src/core/")
             set(effect_owner_cmake "${core_cmake_contents}")
             set(effect_owner_target "better_pull_review_core")
+        elseif(current_allowed_relative MATCHES "^src/platform/")
+            set(effect_owner_cmake "${platform_cmake_contents}")
+            set(effect_owner_target "better_pull_review_platform")
         else()
             set(effect_owner_cmake "${github_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_github")
@@ -1788,6 +1802,69 @@ verify_effect_owner(
     "Windows Credential Manager API"
     "${windows_credential_manager_relative}"
 )
+
+# [[BPR-0825]]. One definition of the Windows owner-private descriptor. The
+# SQLite and logging storage roots and the agent and Git workspace objects are
+# all created with the platform target's descriptor, and the Git adapter admits
+# the data root the SQLite adapter created only as that descriptor. A second
+# builder anywhere else could drift from it and silently turn Windows workspace
+# ownership into repair_required, so only the platform header builds one.
+verify_effect_owner(
+    "(InitializeAcl|AddAccessAllowed(Object)?Ace(Ex)?|SetSecurityDescriptor(Owner|Dacl|Control))[ \t\r\n]*\\("
+    "Windows owner-private descriptor construction"
+    "${platform_windows_private_object_relative}"
+)
+# The platform target is neutral: it depends on no first-party target and
+# includes nothing from Qt, a provider or another layer, so an adapter can take
+# it without an adapter-to-adapter edge.
+if(NOT platform_cmake_contents STREQUAL "")
+    if(
+        NOT platform_cmake_contents
+            MATCHES "add_library\\([ \t\r\n]*better_pull_review_platform[ \t\r\n]+INTERFACE[ \t\r\n]*\\)"
+    )
+        message(
+            FATAL_ERROR
+            "Platform target must be the header-only better_pull_review_platform"
+        )
+    endif()
+    string(
+        REPLACE
+            "add_library(BetterPullReview::Platform ALIAS better_pull_review_platform)"
+            ""
+            platform_cmake_dependencies
+            "${platform_cmake_contents}"
+    )
+    if(
+        platform_cmake_dependencies
+            MATCHES "(BetterPullReview::|better_pull_review_(core|application|adapter)|Qt6::|quill|glaze)"
+    )
+        message(
+            FATAL_ERROR
+            "Platform target must not depend on a first-party layer, Qt or a provider"
+        )
+    endif()
+endif()
+file(
+    GLOB_RECURSE platform_source_files
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/platform/*.h"
+    "${BPR_ROOT}/src/platform/*.hpp"
+    "${BPR_ROOT}/src/platform/*.cpp"
+)
+foreach(platform_source IN LISTS platform_source_files)
+    file(READ "${platform_source}" platform_source_contents)
+    if(
+        platform_source_contents
+            MATCHES "#[ \t]*include[ \t]*[<\"](Q[A-Za-z]|qt|bpr/(core|application|adapters|app)/|quill/|sqlite|glaze/)"
+    )
+        file(RELATIVE_PATH platform_source_relative "${BPR_ROOT}" "${platform_source}")
+        message(
+            FATAL_ERROR
+            "Platform target must stay free of Qt, providers and first-party "
+            "layers: ${platform_source_relative}"
+        )
+    endif()
+endforeach()
 
 get_filename_component(
     github_designated_live_observer_file

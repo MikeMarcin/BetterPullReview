@@ -23,6 +23,7 @@ The core decides. The host performs. Qt presents.
 | `src/application/` | Effects, bounded observations, serialized completion lane, cancellation, lifecycle |
 | `src/adapters/qt/` | Qt events, widgets, actions, models, focus, accessibility, rendering, incremental projection |
 | `src/adapters/{github,git,sqlite,agent,syntax,mcp}` | Narrow application-host capability ports; no provider types cross inward. `mcp` is the shipped read-only context helper (its own executable, core-only link) |
+| `src/platform/` | Header-only platform definitions that several adapters share and none owns, so no adapter-to-adapter edge is needed: today the Windows owner-private object, its descriptor and its exact check. No adapter state, Qt, provider, file-system policy or process decision; `architecture_boundaries` refuses a second descriptor builder |
 | `src/app/` | Concrete composition and application entry point |
 | `tests/` | Core, host, contract, Qt, end-to-end, fixture, benchmark, and fuzz evidence |
 | `packaging/` | Distribution metadata and release-time platform policy |

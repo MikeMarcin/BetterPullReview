@@ -214,6 +214,15 @@ def main() -> None:
         check(exe, "normal", root, "cleaned")
         check(exe, "recover", root, "recovered=0 live=0")
         assert_empty(root)
+        if os.name != "posix":
+            # BPR-0825: the data root the SQLite adapter creates is admitted by
+            # the Git adapter's workspace registry, through the one
+            # owner-private descriptor both now take from the platform target.
+            root = create_root(parent, "sqlite-root")
+            check(exe, "sqlite-root", root, "cleaned")
+            if list((root / "sqlite-neighbourhood").iterdir()) or list(
+                    (root / "data" / "agent-workspace-ownership-v1").glob("*.jsonl")):
+                raise RuntimeError("sqlite-root cleanup retained owned state")
         root = create_root(parent, "busy-cleanup")
         check(exe, "busy-cleanup", root, "cleaned")
         assert_empty(root)

@@ -234,6 +234,11 @@ better_pull_review_application
     application host, ports, requests, sessions, caches
     depends on core
 
+better_pull_review_platform
+    header-only platform definitions several adapters share and none owns
+    (the Windows owner-private object descriptor and its check, BPR-0825)
+    depends on nothing first-party
+
 better_pull_review_adapter_github
 better_pull_review_adapter_git
 better_pull_review_adapter_sqlite
@@ -269,6 +274,10 @@ The live repository may use different target names, but it must enforce these ru
   exception out of the application host, Qt adapter, and ordinary provider;
   authenticated GitHub traffic still uses native HTTPS only.
 - The Qt adapter uses Qt idiomatically. It does not own canonical GitHub state, review policy, persistence, asynchronous orchestration, or stale-result policy.
+- A definition two adapters must agree on, and neither owns, lives in the
+  header-only platform target rather than behind an adapter-to-adapter edge.
+  Only its header builds the Windows owner-private descriptor; the storage
+  roots and the agent and Git workspace objects all use it ([[BPR-0825]]).
 - The composition root is the only place that knows all concrete pieces.
 - In-process communication uses typed C++ calls and records. JSON/RPC is added only at a real process boundary such as an agent protocol.
 
@@ -329,6 +338,7 @@ BetterPullReview/
       git/
       sqlite/
       ai/
+    platform/
     app/
       main.cpp
   tests/

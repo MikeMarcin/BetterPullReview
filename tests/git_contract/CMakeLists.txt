@@ -386,7 +386,9 @@ if(UNIX OR WIN32)
             test_better_pull_review_agent_workspace_ownership_tests
             PRIVATE ../../src/adapters/agent/include
         )
-        target_link_libraries(test_better_pull_review_agent_workspace_ownership_tests PRIVATE Advapi32)
+        # [[BPR-0825]]. The sqlite-root course creates its data root through the
+        # SQLite adapter, as the product does.
+        target_link_libraries(test_better_pull_review_agent_workspace_ownership_tests PRIVATE Advapi32 BetterPullReview::Platform BetterPullReview::AdapterSQLite)
     endif()
     target_compile_definitions(
         test_better_pull_review_agent_workspace_ownership_tests
@@ -423,7 +425,7 @@ if(WIN32)
     )
         if(TARGET ${bpr_git_source_target})
             target_include_directories(${bpr_git_source_target} PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/agent/include")
-            target_link_libraries(${bpr_git_source_target} PRIVATE Advapi32)
+            target_link_libraries(${bpr_git_source_target} PRIVATE Advapi32 BetterPullReview::Platform)
         endif()
     endforeach()
 endif()

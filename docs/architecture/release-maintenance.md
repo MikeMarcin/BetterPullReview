@@ -222,7 +222,10 @@ Windows retains the volume and full 128-bit file identity, checks protected
 private ACLs and holds no-delete-sharing handles. Windows lease validation now
 verifies the genuine process-owned native lease rather than accepting a path
 or a user-constructed lease value. Shared private-storage primitives are in
-`src/adapters/native/`; they add no core dependency.
+`src/adapters/native/`; they add no core dependency. The Windows owner-private
+descriptor they create and check objects with is the header-only platform
+target's (`src/platform/`), the same one the agent and Git workspace objects
+use ([[BPR-0825]]).
 
 The closed inventory admits known private databases and their exact sidecars,
 the one diagnostic log, and complete manifest-identified managed Git caches.

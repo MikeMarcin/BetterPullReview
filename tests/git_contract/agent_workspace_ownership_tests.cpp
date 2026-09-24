@@ -2,6 +2,7 @@
 
 #if defined(_WIN32)
 	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
+	#include "bpr/adapters/sqlite/storage_root.hpp"
 #else
 	#include <fcntl.h>
 	#include <sys/file.h>
@@ -21,6 +22,7 @@ namespace {
 	namespace core        = bpr::core;
 	namespace git         = bpr::adapters::git;
 	std::filesystem::path root;
+	std::filesystem::path neighbourhood;
 	std::string           phase;
 
 	template <typename Identity>
@@ -65,7 +67,7 @@ namespace {
 					.RightEpoch  = core::epoch_ordinal{ 1U },
 				},
 			},
-			.ParentDirectory = root / "neighbourhood",
+			.ParentDirectory = neighbourhood,
 		};
 	}
 }
@@ -90,15 +92,32 @@ auto main(int argc, char** argv) -> int
 		if (argc != 3) {
 			return 2;
 		}
-		phase               = argv[1];
-		root                = std::filesystem::canonical(argv[2]);
-		const auto registry = root / "registry";
+		phase         = argv[1];
+		root          = std::filesystem::canonical(argv[2]);
+		auto registry = root / "registry";
+		neighbourhood = root / "neighbourhood";
+#if defined(_WIN32)
+		if (phase == "sqlite-root") {
+			// [[BPR-0825]]. The product's own pairing: the SQLite adapter creates
+			// the application data root, and the Git adapter admits the workspace
+			// registry beneath it only when that root carries the one
+			// owner-private descriptor they now share. The Git adapter creates
+			// the neighbourhood itself, so every object here is the product's.
+			const auto data = root / "data";
+			neighbourhood   = root / "sqlite-neighbourhood";
+			if (!bpr::adapters::sqlite::create_storage_root_owner_private(data)) {
+				std::cout << "storage-root-refused\n";
+				return 0;
+			}
+			registry = data / "agent-workspace-ownership-v1";
+		}
+#endif
 		if (phase == "recover" || phase == "cancelled") {
 			std::stop_source stop;
 			if (phase == "cancelled") {
 				stop.request_stop();
 			}
-			const auto result = git::recover_installed_agent_workspaces(registry, root / "neighbourhood", stop.get_token());
+			const auto result = git::recover_installed_agent_workspaces(registry, neighbourhood, stop.get_token());
 			if (result) {
 				std::cout << "recovered=" << result->Recovered << " live=" << result->Live << '\n';
 			} else {
@@ -149,7 +168,7 @@ auto main(int argc, char** argv) -> int
 			if (removed) {
 				throw std::runtime_error{ "cleanup bypassed independent live owner" };
 			}
-			const auto recovered = git::recover_installed_agent_workspaces(registry, root / "neighbourhood");
+			const auto recovered = git::recover_installed_agent_workspaces(registry, neighbourhood);
 			if (!recovered || recovered->Live != 1U || recovered->Recovered != 0U) {
 				throw std::runtime_error{ "failed cleanup lost shared ownership" };
 			}
