@@ -1788,6 +1788,16 @@ namespace {
 			oldRows = database.logical_fingerprint(true);
 		}
 		std::filesystem::copy(originalRoot.path(), copiedRoot.path(), std::filesystem::copy_options::recursive);
+#if defined(_WIN32)
+		// [[BPR-1049]]. On Windows every entry a copy creates inherits its
+		// parent's entries, and the stores refuse an inherited descriptor, so
+		// the copy would be refused before any migration ran. Each copied entry
+		// is narrowed as the root was. POSIX copies keep each entry's own mode.
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ copiedRoot.path() }) {
+			expect(test_platform::make_owner_private(entry.path(), entry.is_directory()),
+				   "each copied entry becomes owner-private");
+		}
+#endif
 		made = sqlite::make_epoch_catalog({ .StorageRoot = copiedRoot.path() });
 		expect(made.has_value(), "a copy of the previous file migrates to v6");
 		port   = std::move(*made);

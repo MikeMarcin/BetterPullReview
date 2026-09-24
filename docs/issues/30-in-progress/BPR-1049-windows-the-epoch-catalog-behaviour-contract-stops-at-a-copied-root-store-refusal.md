@@ -69,3 +69,38 @@ checks.
   the same name.
 - AC3 macOS and Linux are unchanged: the POSIX path of the test does not
   change.
+
+## Fixed in the test; the whole row passes on Windows (bpr-main-win, 2026-09-23)
+
+Run `bpr-main-win-20260923`, `build/dev` (MSVC 19.51 Debug), serial. The logs
+are station records under `build/logs/bpr-0887-main-win/` and are not
+committed.
+
+**The fix.** After its `std::filesystem::copy`, the test now narrows each
+copied directory and file with `test_platform::make_owner_private`, the same
+call that made the original root owner-private. That gives each copy the
+explicit, protected descriptor the stores require. It is inside
+`#if defined(_WIN32)`. The POSIX copy keeps each entry's mode and is
+untouched. The stores are unchanged.
+
+| Run | Result |
+| --- | --- |
+| Negative control: the narrowing compiled out (`#if 0`) | Fails at line 1,792, `FAIL: a copy of the previous file migrates to v6`, as at `86b04901` and `669a5a58` (AC2) |
+| The fix | `sqlite_epoch_catalog_behavior_contract` passes in 93.09 s, every check after line 1,792 included (AC1) |
+
+**[[BPR-0887]]'s Windows selector, 20 of 20.** At `8393e2ed` with this
+change,
+`ctest --preset dev -j1 --output-on-failure -R "^(sqlite_|contained_catalog_probe$)"`
+passes all 20 rows. `sqlite_epoch_catalog_behavior_contract` takes 102.68 s,
+alongside the other nineteen (`rows20.log`). The only later change to the
+file is a comment reflowed to carry this card's tag.
+
+**macOS and Linux (AC3).** The change is inside `#if defined(_WIN32)`. The
+POSIX path of the test is byte for byte what it was, and the row passes there
+as BPR-0887 records (macOS 18/18, Linux 19/19).
+
+**The same shape elsewhere, not measured here.** Two Git contract suites also
+copy a tree with `std::filesystem::copy`:
+`epoch_maintenance_integration_tests.cpp:1033` and
+`git_cache_contract_tests.cpp:2419`. Whether those copies meet the same
+refusal on Windows was not measured in this card.
