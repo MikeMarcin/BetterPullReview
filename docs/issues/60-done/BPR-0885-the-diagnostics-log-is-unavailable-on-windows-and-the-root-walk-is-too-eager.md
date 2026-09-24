@@ -338,3 +338,20 @@ This station's full sweep at `239f3861`
 - *A failure to open names its cause:* pass. Linux gives the exact cause, and
   its negative controls behave as expected. Windows, uncontained, printed no
   "..., and named" failure.
+
+## Windows: the pin is confirmed (bpr-main-win, 2026-09-23)
+
+The run used `09c4276e`, which contains `c599c087`, on `build/dev` (MSVC 19.51
+Debug), reconfigured and with `test_quill_logging` rebuilt. It ran
+`ctest --preset dev -j1 -V -R "^(test_network_isolation_manifest|quill_logging)$"`.
+The logs are station records under `build/logs/bpr-0885-main-win/pin-*` and
+are not committed.
+
+- `test_network_isolation_manifest` passes (5.37 s):
+  `TEST_NETWORK_ISOLATION_OK:configured=417:registrations=393:backend=windows-appcontainer`.
+- `quill_logging` passes (0.90 s) with `quill-logging-tests:pass`. It now runs
+  as registered, uncontained: its test command is the executable itself, not
+  `better_pull_review_network_sandbox.exe`, and it carries the
+  `bpr_windows_uncontained` label. That matches the measurement above.
+  Contained, the row stopped at its own private-root setup; uncontained, the
+  logger passed.
