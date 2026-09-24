@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1036"
 title: "application_uiforetw_selected_diff_contract is red at HEAD: its exact strip row predates BPR-0990's refreshQueueAction, and the comparison is 842/1000 of the window height against an 850 floor"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
