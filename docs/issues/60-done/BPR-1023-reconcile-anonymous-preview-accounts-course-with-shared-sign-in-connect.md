@@ -211,3 +211,41 @@ refuses it, as this course sends one.
 - The project tidy script reports nothing on the two touched translation
   units. Its three findings are in untouched headers they include
   (`dif_runtime.hpp:1`, `home_view_state.hpp:35`).
+
+## Post-close: Linux at `45191097` (bpr-main-linux, 2026-09-24)
+
+**AC2's three rows now pass on Linux, where they were red before `b9d6bb26`.**
+
+The run was in the station's main checkout, with a clean tree, at `45191097`.
+That revision contains `b9d6bb26`. The station is WSL2 Ubuntu 26.04 with GCC
+15.2 and Qt 6.11.2. The tree is `build/dev` (Debug) from the `dev` preset,
+which compiles with `-Werror`. It was rebuilt at `9ee4ee50`, with no
+compiler `warning:` line, and `45191097` changes no path under `src/`,
+`tests/` or `cmake/` from it. The rows ran serially and offscreen:
+`ctest --test-dir build/dev -j1 --output-on-failure`, with
+`QT_QPA_PLATFORM=offscreen`, with `DISPLAY`, `WAYLAND_DISPLAY` and
+`DBUS_SESSION_BUS_ADDRESS` unset, and with fresh absolute `HOME` and XDG
+roots.
+
+| Row | Before the fix, `09f3d48f` | At `45191097` |
+| --- | --- | --- |
+| `qt_anonymous_public_preview_scale_100` | fail, 0.11 s | pass, 0.43 s |
+| `qt_anonymous_public_preview_scale_125` | fail, 0.11 s | pass, 0.40 s |
+| `qt_anonymous_public_preview_scale_200` | fail, 0.12 s | pass, 0.43 s |
+
+The "before" column is this station's full sweep at `09f3d48f` ([[BPR-1051]],
+2026-09-24), which predates `b9d6bb26`. Each row stopped there at "GitHub.com's
+Connect, while it is not chosen, activates exactly its native HTTPS
+profile", the assertion this card's Observation names. At `45191097` each
+passes, and a verbose rerun of `_100` ends with
+`anonymous-public-preview-tests:pass`. The AC1 failing-before control was not
+repeated here; it is the macOS run above. The runs added nothing to `/tmp`
+and no `bpr-` name to `/run/user/1000`.
+
+The logs are station records under
+`build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
+`bpr-1023-rows.log`, `bpr-1023-rows-verbose.log` and
+`build-dev-9ee4ee50.log`. The "before" is
+`build/logs/bpr-main-linux-20260924/bpr-1051/full-sweep-09f3d48f.log`. The
+acceptance record above is unchanged. Windows has not been run from this
+station.

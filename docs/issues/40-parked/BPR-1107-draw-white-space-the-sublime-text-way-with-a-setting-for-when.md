@@ -326,3 +326,44 @@ process being descheduled rather than work the refresh does. It did not
 recur. The row is a sampled Debug observation, and one outlier in 31 is not
 a regression. It is recorded here and not carded.
 
+
+## Linux at `45191097` (bpr-main-linux, 2026-09-24)
+
+**AC2's and AC3's rows pass on Linux, 16 of 16, including the appearance
+store's version 8.** No macOS or Windows run was made from this station.
+
+The run was in the station's main checkout, with a clean tree, at
+`45191097`, which contains `eb9a94a9`. WSL2 Ubuntu 26.04, GCC 15.2, Qt
+6.11.2, `build/dev` (Debug, `-Werror`), rebuilt at `9ee4ee50` with no
+`warning:` line. `45191097` changes nothing under `src/`, `tests/` or
+`cmake/` from it. `ctest --test-dir build/dev -j1 --output-on-failure`,
+offscreen, with `DISPLAY`, `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS`
+unset and fresh absolute `HOME` and XDG roots.
+
+| Row | Result |
+| --- | --- |
+| `core_appearance_policy` | pass, 0.00 s |
+| `qt_code_sample_painter` | pass, 0.02 s |
+| `qt_type_preview` | pass, 0.04 s |
+| `qt_theme_preview_strip` | pass, 0.09 s |
+| `qt_diff_workbench_scale_100` | pass, 2.75 s |
+| `qt_diff_workbench_scale_125` | pass, 2.98 s |
+| `qt_diff_workbench_scale_200` | pass, 3.51 s |
+| `qt_appearance_settings_panel` | pass, 0.22 s |
+| `qt_appearance_profile` | pass, 0.26 s |
+| `sqlite_appearance_settings_storage` | pass, 0.37 s |
+| `application_appearance_host` | pass, 0.02 s |
+| `application_appearance_profile_consumers` | pass, 0.01 s |
+| `application_native_appearance_probe_contract` | pass, 2.90 s |
+| `application_appearance_theme_customization_contract` | pass, 5.85 s |
+| `application_appearance_gesture_contract` | pass, 6.53 s |
+| `application_appearance_store_fallback_contract` | pass, 3.38 s |
+
+The runs added nothing to `/tmp` and no `bpr-` name to `/run/user/1000`.
+The negative control (the drawing switched off) was not repeated here; it is
+the macOS run above. `application_large_review_history` was not run.
+
+The acceptance record above is unchanged, and the card stays parked on AC4.
+The log is a station record under
+`build/logs/bpr-main-linux-20260924/batch7-linux/bpr-1107-rows.log` and is
+not committed.

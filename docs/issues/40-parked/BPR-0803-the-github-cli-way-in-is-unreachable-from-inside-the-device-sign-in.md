@@ -328,3 +328,59 @@ where the choice is the read opt-in itself.
 clang-format 23.1.1 passes every touched file. The project tidy script
 reports nothing on `server_card.cpp` or the two courses. Its one finding is
 the untouched `home_view_state.hpp:35` they include.
+
+## Linux at `45191097` (bpr-main-linux, 2026-09-24): the Qt rows pass, and the composed course is now registered only on macOS
+
+**The portable half passes on Linux. The composed course could not, and is
+now registered only where the GitHub CLI way in is composed.** The card is
+macOS; its Qt change is portable, so this station ran it.
+
+The run was in the station's main checkout, with a clean tree, at
+`45191097`, which contains `9577a516`. WSL2 Ubuntu 26.04, GCC 15.2, Qt
+6.11.2, `build/dev` (Debug, `-Werror`), rebuilt at `9ee4ee50` with no
+`warning:` line. `45191097` changes nothing under `src/`, `tests/` or
+`cmake/` from it. `ctest --test-dir build/dev -j1 --output-on-failure`,
+offscreen, with `DISPLAY`, `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS`
+unset and fresh absolute `HOME` and XDG roots.
+
+| Row | Result |
+| --- | --- |
+| `qt_composed_github_scale_100` | pass, 3.25 s |
+| `qt_composed_github_scale_125` | pass, 3.48 s |
+| `qt_composed_github_scale_200` | pass, 4.66 s |
+| `application_device_flow_cli_choice` | **fail**, 15.34 s: `FAILED: one discovered account connects at once and signs in` |
+
+The three Qt rows include `test_the_code_stays_beside_the_github_cli_choice`
+and the untouched signed-out offer assertion.
+
+**Why the composed course failed.** Use GitHub CLI's discovery in the
+composition is `#if defined(__APPLE__)` code (`github_application.cpp`, the
+discovery dispatch). On Linux and Windows no GitHub CLI session can arrive,
+so the course's first ending waited out its 15 s bound. The setup course
+gates its GitHub CLI courses with `#if defined(__APPLE__)` for the same
+reason, but this row was registered on every platform. On Windows it was also
+registered `WINDOWS_UNCONTAINED` without being in the pinned uncontained set
+of `scripts/verify_test_network_isolation.py`, which that check refuses.
+
+The failing run left its course root, `/tmp/device_flow_cli_choice-nsdREo`,
+because `expect` ends with `std::exit` and the course's `QTemporaryDir` is
+never destroyed. That is [[BPR-1121]]'s pattern. The root held only this
+run's application data. Its listing and its one-line `diagnostics.log` were
+saved, and it was then removed by its exact name.
+
+**Correction, `89907c1f`.** `application_device_flow_cli_choice` is
+registered only on macOS, beside a comment that says why. The executable
+still builds everywhere, so its source stays portable. The
+`WINDOWS_UNCONTAINED` keyword went with it. On macOS that keyword changes
+nothing, so the macOS registration and the evidence above are unchanged.
+After the reconfigure on Linux, `ctest -N -R '^application_device_flow_cli_choice$'`
+lists no test, the three Qt rows are unchanged, and
+`test_network_isolation_manifest` passes. The Windows station's next
+reconfigure drops the row there too.
+
+The acceptance record above is unchanged, and the card stays parked on its
+one rendered question. The logs are station records under
+`build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
+`bpr-0803-rows.log`, `bpr-0803-leftover-listing.txt`,
+`bpr-0803-leftover-diagnostics.log`, `build-dev-bpr0803-registration.log`
+and `bpr-0803-registration-manifest.log`.

@@ -377,3 +377,36 @@ gives up still deactivates and erases the grant. The in-process rotation still
 tombstones before it spends. A restored session whose refresh slot is missing
 is still signed out and erased. All three follow from the owner's rule but are
 outside this card's launch scope.
+
+## Linux at `45191097` (bpr-main-linux, 2026-09-24)
+
+**The keep-grant policy's courses pass on Linux, and so do the pins
+`1347f776` resealed.** No macOS or Windows run was made from this station.
+
+The run was in the station's main checkout, with a clean tree, at
+`45191097`, which contains `1347f776`. WSL2 Ubuntu 26.04, GCC 15.2, Qt
+6.11.2, `build/dev` (Debug, `-Werror`), rebuilt at `9ee4ee50` with no
+`warning:` line. `45191097` changes nothing under `src/`, `tests/` or
+`cmake/` from it. `ctest --test-dir build/dev -j1 --output-on-failure`,
+offscreen, with `DISPLAY`, `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS`
+unset and fresh absolute `HOME` and XDG roots. The courses use the
+fixture's synthetic vault, not the Secret Service.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | pass, 0.08 s |
+| `application_device_authorization_refresh` | pass, 0.11 s |
+| `application_device_binding_launch_renewal` | pass, 36.44 s |
+| `application_device_binding_relaunch` | pass, 8.11 s; a verbose rerun prints `DEVICE_BINDING_RELAUNCH_OK` |
+| `application_review_round_trip_composition_contract` | pass, 1.67 s |
+| `application_composition_contract` | pass, 471.22 s |
+
+The round-trip contract's pass shows that the pins resealed with the
+`BPR-0644 reseal` note match the Linux checkout. The runs added nothing to
+`/tmp` and no `bpr-` name to `/run/user/1000`. The negative controls were not
+repeated here; they are the macOS runs above.
+
+The acceptance record above is unchanged, and the card stays parked on its
+owner question. The logs are station records under
+`build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
+`bpr-0644-rows.log` and `bpr-0644-relaunch-verbose.log`.
