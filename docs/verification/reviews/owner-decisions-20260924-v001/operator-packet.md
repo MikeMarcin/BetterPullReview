@@ -1,8 +1,9 @@
 # Owner decisions, 2026-09-24 (v001)
 
-Status: **22 questions ready and protected at sequence 566, one capture
-waiting on a Windows build, and the earlier licensing question still pending.
-No verdict is inferred from preparation.**
+Status: **22 new candidates at sequence 566: 21 questions ready and
+protected, and one capture waiting on a Windows build. The earlier licensing
+question is also ready and still pending. No verdict is inferred from
+preparation.**
 
 The owner asked: "if there are questions to answer or reviews to do then
 prepare an attended review session". This packet puts every owner decision
