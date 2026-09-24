@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1049"
 title: "Windows: sqlite_epoch_catalog_behavior_contract stops at a copied-root store refusal (BPR-0878 item 2), so its later checks never run on Windows"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
