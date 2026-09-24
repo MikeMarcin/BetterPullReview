@@ -391,6 +391,27 @@ namespace {
 		expect(sentinel.good(), "the cleanup refusal sentinel is durable");
 	}
 
+	/// \brief Removes the preflight directory a refused cleanup correctly kept.
+	///
+	/// \details [[BPR-1047]]. The hook made the product's cleanup unsafe, so the
+	/// product kept the whole preflight directory in the system temporary
+	/// directory. The test caused that, so the test removes it, and only after
+	/// it has asserted what the refusal preserved. It removes nothing but the
+	/// directory the product itself named there.
+	void remove_retained_preflight_root(const std::filesystem::path& aClone)
+	{
+		const auto root = aClone.parent_path();
+		expect(
+			aClone.filename() == "clone"
+				&& root.filename().string().starts_with("bpr-ledger-preflight-")
+				&& root == std::filesystem::temp_directory_path() / root.filename(),
+			"the retained preflight root is the product's own temporary directory");
+		auto error = std::error_code{ };
+		std::filesystem::remove_all(root, error);
+		expect(!error, "the test removes the preflight root it caused the product to keep: " + error.message());
+		expect(!std::filesystem::exists(root, error) && !error, "nothing of the preflight root remains");
+	}
+
 	void copy_file_exactly(
 		const std::filesystem::path& aSource,
 		const std::filesystem::path& aDestination)
@@ -1166,6 +1187,7 @@ namespace {
 					!image.Exists || !image.Bytes.contains(privateCanary),
 					"a failed cleanup leaves no readable private-ledger clone");
 			}
+			remove_retained_preflight_root(CleanupHookState->Clone);
 			CleanupHookState.reset();
 		}
 	}
