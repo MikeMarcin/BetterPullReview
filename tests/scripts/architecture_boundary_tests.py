@@ -384,6 +384,9 @@ GITHUB_CLI_PROCESS_RUNNER_SOURCE = """\
 #include <memory>
 #include <mutex>
 #include <thread>
+#if defined(Q_OS_WIN)
+#include "bpr/platform/windows_standard_handles.hpp"
+#endif
 
 using clock = std::chrono::steady_clock;
 
@@ -683,6 +686,14 @@ process_execution execute_process(
         | QProcess::UnixProcessFlag::DisableCoreDumps
         | QProcess::UnixProcessFlag::ResetSignalHandlers
         | QProcess::UnixProcessFlag::CreateNewSession);
+#elif defined(Q_OS_WIN)
+    bpr::platform::windows_standard_handles::launch_restriction inheritance;
+    process->setCreateProcessArgumentsModifier([&inheritance, aFailStandardHandleList](QProcess::CreateProcessArguments* const aArguments) {
+        if (aFailStandardHandleList) {
+            aArguments->startupInfo->hStdError = nullptr;
+        }
+        inheritance.apply(aArguments->startupInfo, aArguments->flags, aArguments->inheritHandles);
+    });
 #endif
     QObject::connect(
         process.get(),
@@ -749,6 +760,11 @@ process_execution execute_process(
             return failed(github_cli_process_failure::start_failure);
         }
     }
+#if defined(Q_OS_WIN)
+    if (!inheritance.restricted()) {
+        return failed(github_cli_process_failure::start_failure);
+    }
+#endif
     process->write(
         request.StandardInput.data(),
         static_cast<qint64>(request.StandardInput.size()));
@@ -3972,6 +3988,74 @@ auto finish_background_reap(
                             + hostile_surface
                     },
                 )
+
+    def test_cli_runner_restricts_every_windows_launch(self) -> None:
+        # [[BPR-1114]] The runner's one process-creation modifier is the
+        # platform launch restriction, pinned whole. Removing a piece, doubling
+        # it, widening its body or leaving it only in a comment fails the gate;
+        # a second modifier of any other shape is a raw-command surface.
+        runner = "src/adapters/github/src/github_cli_process_runner.cpp"
+        restriction = (
+            "process->setCreateProcessArgumentsModifier([&inheritance, "
+            "aFailStandardHandleList](QProcess::CreateProcessArguments* const "
+            "aArguments) {\n"
+            "        if (aFailStandardHandleList) {\n"
+            "            aArguments->startupInfo->hStdError = nullptr;\n"
+            "        }\n"
+            "        inheritance.apply(aArguments->startupInfo, "
+            "aArguments->flags, aArguments->inheritHandles);\n"
+            "    });\n"
+        )
+        self.assertEqual(GITHUB_CLI_PROCESS_RUNNER_SOURCE.count(restriction), 1)
+        missing = "must restrict every Windows launch to its"
+        mutations = (
+            ("removed", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                restriction, "")),
+            ("doubled", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                restriction, restriction + "    " + restriction)),
+            ("comment only", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                restriction, "/* " + restriction + " */\n")),
+            ("unconditional withholding", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                "        if (aFailStandardHandleList) {\n"
+                "            aArguments->startupInfo->hStdError = nullptr;\n"
+                "        }\n",
+                "        aArguments->startupInfo->hStdError = nullptr;\n")),
+            ("program replaced", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                "        inheritance.apply(",
+                "        aArguments->applicationName = nullptr;\n"
+                "        inheritance.apply(")),
+            ("inheritance forced", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                "aArguments->flags, aArguments->inheritHandles);",
+                "aArguments->flags, aArguments->inheritHandles);\n"
+                "        aArguments->inheritHandles = true;")),
+            ("no restriction object", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                "bpr::platform::windows_standard_handles::launch_restriction "
+                "inheritance;",
+                "")),
+            ("no post-start refusal", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                "    if (!inheritance.restricted()) {\n"
+                "        return failed(github_cli_process_failure::start_failure);\n"
+                "    }\n",
+                "")),
+            ("no platform header", GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                '#include "bpr/platform/windows_standard_handles.hpp"\n', "")),
+        )
+        for name, mutated in mutations:
+            with self.subTest(mutation=name):
+                self.assertNotEqual(mutated, GITHUB_CLI_PROCESS_RUNNER_SOURCE)
+                self.assert_failure(missing, {runner: mutated})
+        self.assert_failure(
+            "Forbidden shell/raw-command surface",
+            {
+                runner: GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                + "void other(QProcess& process) {\n"
+                "    process.setCreateProcessArgumentsModifier(\n"
+                "        [](QProcess::CreateProcessArguments* a) {\n"
+                "            a->applicationName = nullptr;\n"
+                "        });\n"
+                "}\n"
+            },
+        )
 
     def test_cli_runner_rejects_unsafe_channel_routing(self) -> None:
         hostile_surfaces = (

@@ -32,6 +32,17 @@ namespace bpr::adapters::github::detail {
 		virtual ~github_cli_process_runner_test_seam() = default;
 
 		virtual auto before_execute() -> void = 0;
+
+		/// \brief Windows only: makes the next launch's standard-handle list
+		/// fail to build.
+		/// \details [[BPR-1114]]. The launch's standard error handle is
+		/// withheld, as a null standard handle would be, so the runner takes
+		/// the refusal it would take for a list it cannot build. Consulted once
+		/// per execution, after `before_execute`.
+		[[nodiscard]] virtual auto fail_standard_handle_list() -> bool
+		{
+			return false;
+		}
 	};
 
 	[[nodiscard]] auto make_github_cli_process_runner()

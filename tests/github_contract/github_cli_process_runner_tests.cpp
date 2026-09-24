@@ -8,11 +8,13 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -44,6 +46,8 @@ extern char** environ;
 		#define WIN32_LEAN_AND_MEAN
 	#endif
 	#include <Windows.h>
+	#include <fcntl.h>
+	#include <io.h>
 #endif
 
 namespace {
@@ -302,6 +306,20 @@ namespace {
 		if (mode == QStringLiteral("nonzero")) {
 			std::cout << "discard-me";
 			return 7;
+		}
+		if (mode == QStringLiteral("hold")) {
+			// [[BPR-1114]]. Says it is running, then stays alive so the parent
+			// can look at what it holds.
+			if (aArguments.size() < 4) {
+				return 114;
+			}
+			QFile marker{ aArguments.at(3) };
+			if (!marker.open(QIODevice::WriteOnly | QIODevice::Truncate) || marker.write("started", 7) != 7) {
+				return 115;
+			}
+			marker.close();
+			std::this_thread::sleep_for(10s);
+			return 0;
 		}
 		if (mode == QStringLiteral("touch")) {
 			if (aArguments.size() < 4) {
@@ -1468,6 +1486,188 @@ namespace {
 					== github_cli_process_failure::cancelled,
 			"pre-start cancellation launches no child");
 	}
+
+#if defined(_WIN32)
+	/// \brief Counts every process this test process creates from now on.
+	///
+	/// \details The Git process contract's accounting job, again: this process
+	/// joins a job of its own, which allows no breakaway, so every process it
+	/// creates afterwards is born in that job, and the job's accounting counts
+	/// it even after it has exited. A process cannot leave a job, so the one
+	/// test that needs this runs last.
+	class created_processes final
+	{
+	public:
+		created_processes()
+			: Job{ ::CreateJobObjectW(nullptr, nullptr) }
+		{
+			expect(Job != nullptr, "create the process-creation accounting job");
+			expect(
+				::AssignProcessToJobObject(Job, ::GetCurrentProcess()) != FALSE,
+				"this test process joins its accounting job");
+		}
+		created_processes(const created_processes&)                    = delete;
+		auto operator=(const created_processes&) -> created_processes& = delete;
+		~created_processes()
+		{
+			static_cast<void>(::CloseHandle(Job));
+		}
+
+		[[nodiscard]] auto total() const -> DWORD
+		{
+			JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting{ };
+			expect(
+				::QueryInformationJobObject(Job, JobObjectBasicAccountingInformation, &accounting, sizeof(accounting), nullptr) != FALSE,
+				"read the process-creation accounting job");
+			return accounting.TotalProcesses;
+		}
+
+	private:
+		HANDLE Job = nullptr;
+	};
+
+	class standard_handle_list_seam final
+		: public github_cli_process_runner_test_seam
+	{
+	public:
+		auto before_execute() -> void override { }
+
+		[[nodiscard]] auto fail_standard_handle_list() -> bool override
+		{
+			return Fail.load();
+		}
+
+		std::atomic_bool Fail{ true };
+	};
+
+	// [[BPR-1114]]. A child started through the runner inherits its three
+	// standard handles and nothing else. The parent holds a C runtime stream
+	// on a file, which the C runtime makes inheritable, while the runner
+	// starts the child; the stream then closes, and while the child still runs
+	// the parent opens the file with no sharing at all. A child that inherited
+	// the stream's handle would still hold the file, and the open would be
+	// refused with ERROR_SHARING_VIOLATION, as [[BPR-1104]] found for a Git
+	// child. The production factory is used: the restriction is not a seam.
+	auto test_windows_launch_inherits_only_standard_handles() -> void
+	{
+		QTemporaryDir directory;
+		expect(directory.isValid(), "inherited-handle directory is available");
+		const auto runner = make_github_cli_process_runner();
+		const auto held   = std::filesystem::path{
+			QDir{ directory.path() }.filePath(QStringLiteral("held-by-the-parent.bin")).toStdWString()
+		};
+		{
+			std::ofstream output{ held, std::ios::binary };
+			output << "held by the parent while the child starts";
+		}
+		auto stream = std::make_optional<std::ifstream>(held, std::ios::binary);
+		expect(stream->is_open(), "the parent holds a C runtime stream on the file");
+
+		const auto marker  = directory.filePath(QStringLiteral("hold-started.marker"));
+		auto       request = base_request(directory, { "--bpr-helper", "hold", utf8(marker) });
+		request.Timeout    = 8s;
+		std::stop_source                         cancellation;
+		std::atomic_bool                         returned{ false };
+		std::optional<github_cli_process_result> result;
+		std::thread                              call{ [&] {
+			result.emplace(runner->run(request, cancellation.get_token()));
+			returned.store(true);
+		} };
+		const auto deadline = std::chrono::steady_clock::now() + 5s;
+		while (!QFileInfo::exists(marker) && !returned.load() && std::chrono::steady_clock::now() < deadline) {
+			std::this_thread::sleep_for(10ms);
+		}
+		const auto running = QFileInfo::exists(marker) && !returned.load();
+		stream.reset();
+
+		const auto exclusive = ::CreateFileW(held.c_str(), GENERIC_READ, 0U, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+		const auto error     = exclusive == INVALID_HANDLE_VALUE ? ::GetLastError() : DWORD{ ERROR_SUCCESS };
+		const auto stillRan  = !returned.load();
+		if (exclusive != INVALID_HANDLE_VALUE) {
+			static_cast<void>(::CloseHandle(exclusive));
+		}
+		cancellation.request_stop();
+		call.join();
+		expect(running, "the child started through the runner is running");
+		expect(stillRan, "the exclusive open is made while that child still runs");
+		expect(
+			error == ERROR_SUCCESS,
+			"the parent opens the file with no sharing while the child runs: the child inherited none of "
+			"the parent's handles (a refusal is error "
+				+ std::to_string(error) + ", and 32 is ERROR_SHARING_VIOLATION)");
+		expect(
+			result.has_value() && !result->has_value()
+				&& result->error() == github_cli_process_failure::cancelled,
+			"the held child is cancelled");
+		std::cout << "BPR-1114 inherited handle: the parent opened its file with no sharing while the runner's child ran\n";
+	}
+
+	// [[BPR-1114]]. The Git-acquisition runner's standard output is a spool
+	// file Qt opens, not a pipe. The restriction's list names that file handle
+	// like any other standard handle, so the child still starts and writes its
+	// output into the spool.
+	auto test_windows_spooled_launch_keeps_its_file() -> void
+	{
+		QTemporaryDir store;
+		expect(store.isValid(), "spool store is available");
+		const auto directory = std::filesystem::path{ QDir{ store.path() }.absolutePath().toStdWString() };
+		const auto spool     = directory / "wire.pack";
+		const auto runner    = make_github_cli_git_acquisition_process_runner({
+			.MaximumFileBytes        = 1024U,
+			.Directory               = directory,
+			.MaximumDirectoryBytes   = 4096U,
+			.MaximumDirectoryEntries = 16U,
+			.StandardOutputFile      = spool,
+			.DiscardStandardOutput   = true,
+		});
+		expect(runner != nullptr, "the spooling runner is available");
+		const auto result = runner->run(base_request(store, { "--bpr-helper", "stdout", "7" }), { });
+		expect(result.has_value(), "a launch whose standard output is a spool file starts under the restriction");
+		std::error_code sizeError;
+		expect(std::filesystem::file_size(spool, sizeError) == 7U && !sizeError, "the child wrote its standard output into the spool");
+		std::cout << "BPR-1114 spooled launch: the child wrote 7 bytes into its spool\n";
+	}
+
+	// [[BPR-1114]]. A launch whose handle list cannot be built is refused by
+	// process creation itself: nothing is created, so no child runs, and the
+	// run fails as start_failure. The seam withholds the standard error handle,
+	// as a null standard handle would. The job's accounting shows that no
+	// process was created at all, not that one was created and killed, and the
+	// child's marker shows that it never ran. The same launch without the seam
+	// creates a process and succeeds, so the count can see a launch.
+	auto test_windows_refused_launch_creates_nothing() -> void
+	{
+		QTemporaryDir directory;
+		expect(directory.isValid(), "refused-launch directory is available");
+		const auto              seam   = std::make_shared<standard_handle_list_seam>();
+		const auto              runner = make_github_cli_process_runner_for_test(seam);
+		const created_processes created;
+
+		const auto refusedMarker  = directory.filePath(QStringLiteral("refused.marker"));
+		const auto createdBefore  = created.total();
+		const auto refused        = runner->run(base_request(directory, { "--bpr-helper", "touch", utf8(refusedMarker) }), { });
+		const auto createdRefused = created.total() - createdBefore;
+		expect(
+			!refused.has_value() && refused.error() == github_cli_process_failure::start_failure,
+			"a launch refused for its handle list fails as start_failure");
+		expect(
+			createdRefused == 0U,
+			"a launch refused for its handle list creates no process at all (created "
+				+ std::to_string(createdRefused) + ")");
+		expect(!QFileInfo::exists(refusedMarker), "the refused child never ran");
+
+		seam->Fail.store(false);
+		const auto allowedMarker        = directory.filePath(QStringLiteral("allowed.marker"));
+		const auto createdAllowedBefore = created.total();
+		const auto allowed              = runner->run(base_request(directory, { "--bpr-helper", "touch", utf8(allowedMarker) }), { });
+		const auto createdAllowed       = created.total() - createdAllowedBefore;
+		expect(allowed.has_value(), "the same launch with its handle list succeeds");
+		expect(createdAllowed >= 1U, "the accounting job counts the launch it allowed");
+		expect(QFileInfo::exists(allowedMarker), "the allowed child ran");
+		std::cout << "BPR-1114 refused launch: start_failure, " << createdRefused << " processes created; the allowed launch created "
+				  << createdAllowed << '\n';
+	}
+#endif
 }
 
 auto main(int argc, char* argv[]) -> int
@@ -1490,6 +1690,13 @@ auto main(int argc, char* argv[]) -> int
 	if (
 		arguments.size() >= 2
 		&& arguments.at(1) == QStringLiteral("--bpr-helper")) {
+#if defined(_WIN32)
+		// The helper writes exact bytes. In the C runtime's text mode the
+		// `\r\n` of the http-error response came out as `\r\r\n`, and the
+		// opt-in row failed on Windows for that alone ([[BPR-0878]] item 3).
+		static_cast<void>(::_setmode(::_fileno(stdout), _O_BINARY));
+		static_cast<void>(::_setmode(::_fileno(stderr), _O_BINARY));
+#endif
 		return helper_main(arguments);
 	}
 
@@ -1507,6 +1714,12 @@ auto main(int argc, char* argv[]) -> int
 #endif
 	test_watchdog_failure_quarantines_worker();
 	test_deadline_cancellation_and_startup();
+#if defined(_WIN32)
+	test_windows_launch_inherits_only_standard_handles();
+	test_windows_spooled_launch_keeps_its_file();
+	// Last: it moves this process into an accounting job it cannot leave.
+	test_windows_refused_launch_creates_nothing();
+#endif
 	std::cout << "GitHub CLI process runner tests passed\n";
 	return EXIT_SUCCESS;
 }

@@ -657,7 +657,15 @@ pre-cancellation precede work-item allocation and request copying. On Unix the
 runner requests closed inherited descriptors, disabled core dumps, reset
 signal handlers, and `CreateNewSession`; the child is the new session's
 initial process-group leader. A compiled child directly observes those four
-facts. Compiled lifecycle cases prove cleanup on clean exit, failure, timeout,
+facts. On Windows every child inherits only its three standard handles,
+through the platform target's launch restriction that the Git adapter's
+unguarded Git also takes; a launch whose handle list cannot be built is
+refused by process creation itself, so nothing starts and the run fails as
+`start_failure`, and a child created without the restriction all the same is
+refused after the start (BPR-1114). A compiled Windows case holds a C runtime
+stream on a file while a child starts and opens that file with no sharing
+while the child runs; another shows through a job's process accounting that a
+refused launch creates no process. Compiled lifecycle cases prove cleanup on clean exit, failure, timeout,
 and cancellation signals descendants that remain in that initial process
 group and reaps the direct child; a separate escape case proves a descendant
 that moves to another group can survive before the fixture removes it. A

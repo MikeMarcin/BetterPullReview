@@ -237,7 +237,8 @@ better_pull_review_application
 better_pull_review_platform
     header-only platform definitions several adapters share and none owns
     (the Windows owner-private object descriptor and its check, BPR-0825;
-    the Windows standard-handles-only launch restriction, BPR-1115)
+    the Windows standard-handles-only launch restriction the Git and gh CLI
+    runners take, BPR-1115 and BPR-1114)
     depends on nothing first-party
 
 better_pull_review_adapter_github

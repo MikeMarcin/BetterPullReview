@@ -66,3 +66,26 @@ Row-by-row first failing lines are in
 - Every row above is either passing on Windows or carried by its own card with
   a measured cause.
 - This card is closed only when none of the eight is left unaccounted for.
+
+## Item 3 fixed and recorded under BPR-1114 (bpr-main-win, 2026-09-24)
+
+`github_cli_process_runner` still failed on Windows at `877e3d60`, at "opt-in
+preserves only exact bounded stdout and completed exit code".
+
+**Cause, shown by the control below.** The test executable is its own
+helper child, and its `http-error` mode writes
+`HTTP/2.0 401 Unauthorized\r\n\r\n{}` through `std::cout`. The helper's
+standard output was in the C runtime's text mode, which writes each `\n` as
+`\r\n`. So the exact bytes the row expects could not arrive. The runner itself
+was not at fault. The bytes that did arrive were not captured.
+
+**Fix.** The helper sets its standard output and error to binary mode on
+Windows, as the Git process contract's fake Git already does ([[BPR-0437]]).
+The change is in `tests/github_contract/github_cli_process_runner_tests.cpp`.
+It is part of [[BPR-1114]], whose new Windows rows run after this one and
+could not run while it failed.
+
+**Checked.** With the fix, the row passes on Windows. The control is a
+station patch that put the helper back in text mode, rebuilt and ran, then
+was restored. Under that patch the row fails at the same line. So item 3 is
+accounted for. The other seven are unchanged.

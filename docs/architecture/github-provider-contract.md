@@ -201,7 +201,9 @@ by `gh api`; callers cannot contribute arguments or environment names.
 The runner owns one serialized process worker. On Unix it requests a new
 session, closed inherited descriptors, disabled core dumps, and reset signal
 handlers; the child is the new session's initial process-group leader.
-Compiled child observation proves those flag/session/group facts. Compiled
+Compiled child observation proves those flag/session/group facts. On Windows
+every child inherits only its three standard handles, and a launch whose
+handle list cannot be built is refused at creation (BPR-1114). Compiled
 lifecycle cases prove clean exit, failure, timeout, and cancellation signal
 descendants that remain in that initial process group while the direct child
 is reaped; an escape case proves a descendant that moves to another process

@@ -7,6 +7,13 @@ the functional core or Qt presentation adapter.
 - Keep GitHub CLI process execution in
   `src/github_cli_process_runner.cpp`; it is the only GitHub source permitted
   to use `QProcess`.
+- On Windows every launch through that runner takes the platform target's
+  launch restriction (`bpr/platform/windows_standard_handles.hpp`), the one
+  the Git adapter's unguarded Git takes: the child inherits its three standard
+  handles and nothing else, a launch whose handle list cannot be built is
+  refused at creation, and a child started without the restriction is refused
+  after the start (BPR-1114). That restriction is the runner's only
+  process-creation modifier; `architecture_boundaries` refuses any other.
 - Keep GitHub CLI invocation and child-environment construction in
   `src/gh_cli_transport.cpp`. The exact `GH_TELEMETRY=0` hardening setting in
   that source is the sole permitted telemetry reference.

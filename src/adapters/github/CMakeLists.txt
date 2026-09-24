@@ -149,10 +149,13 @@ if(BPR_BUILD_QT)
             PRIVATE
                 src/windows_credential_manager.cpp
         )
+        # [[BPR-1114]]. The gh CLI runner takes the platform target's launch
+        # restriction, the same one the Git adapter's unguarded Git takes.
         target_link_libraries(
             better_pull_review_adapter_github
             PRIVATE
                 Advapi32
+                BetterPullReview::Platform
         )
     endif()
 

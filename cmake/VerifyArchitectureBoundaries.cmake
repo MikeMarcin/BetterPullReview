@@ -3897,9 +3897,73 @@ function(reject_github_process_runner_surface forbidden_pattern surface_name)
 endfunction()
 
 reject_github_process_runner_surface(
-    "(startCommand|splitCommand|setNativeArguments|startDetached|QProcess::execute|setCreateProcessArgumentsModifier)"
+    "(startCommand|splitCommand|setNativeArguments|startDetached|QProcess::execute)"
     "shell/raw-command"
 )
+# [[BPR-1114]] Every Windows launch through the runner inherits its three
+# standard handles and nothing else. The runner's one process-creation modifier
+# is the platform target's launch restriction, pinned whole over code alone, so
+# a modifier in a comment counts for nothing: it hands the restriction the
+# startup block, creation flags and inheritance flag and touches nothing else,
+# and the only thing the test seam may do is withhold the standard error handle
+# so that the list cannot be built. A launch whose list cannot be built is
+# refused at creation, and a child created without the restriction all the
+# same is refused after the start. Any other modifier is a raw-command surface.
+set(
+    github_process_windows_launch_restriction
+    "process->setCreateProcessArgumentsModifier([&inheritance, aFailStandardHandleList](QProcess::CreateProcessArguments* const aArguments) { if (aFailStandardHandleList) { aArguments->startupInfo->hStdError = nullptr; } inheritance.apply(aArguments->startupInfo, aArguments->flags, aArguments->inheritHandles); });"
+)
+string(
+    REPLACE
+    "${github_process_windows_launch_restriction}"
+    ""
+    github_process_runner_code_without_launch_restriction
+    "${github_process_runner_code_compact}"
+)
+string(LENGTH "${github_process_runner_code_compact}" github_process_runner_code_length)
+string(
+    LENGTH
+    "${github_process_runner_code_without_launch_restriction}"
+    github_process_runner_code_without_launch_restriction_length
+)
+string(
+    LENGTH
+    "${github_process_windows_launch_restriction}"
+    github_process_windows_launch_restriction_length
+)
+math(
+    EXPR
+    github_process_windows_launch_restriction_bytes
+    "${github_process_runner_code_length} - ${github_process_runner_code_without_launch_restriction_length}"
+)
+if(
+    NOT github_process_windows_launch_restriction_bytes
+        EQUAL github_process_windows_launch_restriction_length
+    OR NOT github_process_runner_code_compact
+        MATCHES "#[ ]?include \"bpr/platform/windows_standard_handles\\.hpp\""
+    OR NOT github_process_runner_code_compact
+        MATCHES "bpr::platform::windows_standard_handles::launch_restriction inheritance;"
+    OR NOT github_process_runner_code_compact
+        MATCHES "if \\(!inheritance\\.restricted\\(\\)\\) \\{ return failed\\(github_cli_process_failure::start_failure\\); \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must restrict every Windows launch to its "
+        "standard handles with exactly one platform launch restriction, and "
+        "refuse a child started without it"
+    )
+endif()
+if(
+    github_process_runner_code_without_launch_restriction
+        MATCHES "setCreateProcessArgumentsModifier"
+)
+    message(
+        FATAL_ERROR
+        "Forbidden shell/raw-command surface in "
+        "${github_process_runner_relative}: a process-creation modifier other "
+        "than the platform launch restriction"
+    )
+endif()
 # [[BPR-0807]] The Git-acquisition factory is the only source of file limits,
 # so its refusals must be code in its own body: a spool outside the store or
 # over an existing file, a zero or oversized per-file limit, a relative store,

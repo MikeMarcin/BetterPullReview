@@ -31,6 +31,10 @@
 	#include <unistd.h>
 #endif
 
+#if defined(Q_OS_WIN)
+	#include "bpr/platform/windows_standard_handles.hpp"
+#endif
+
 namespace bpr::adapters::github::detail {
 	namespace {
 		using clock = std::chrono::steady_clock;
@@ -538,12 +542,16 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		/// \p aFailStandardHandleList is the test seam's: on Windows it withholds
+		/// the launch's standard error handle, as a null standard handle would,
+		/// so the standard-handle list cannot be built and the launch is refused.
 		[[nodiscard]] auto execute_process(
 			const github_cli_process_request&     aRequest,
 			const std::stop_token                 aStop,
 			const std::atomic_bool&               aShutdownRequested,
 			const clock::time_point               aDeadline,
-			const github_cli_process_file_limits& aFileLimits) -> process_execution
+			const github_cli_process_file_limits& aFileLimits,
+			[[maybe_unused]] const bool           aFailStandardHandleList) -> process_execution
 		{
 			validated_process_request validated;
 			try {
@@ -582,6 +590,9 @@ namespace bpr::adapters::github::detail {
 				};
 			}
 
+#if defined(Q_OS_WIN)
+			bpr::platform::windows_standard_handles::launch_restriction inheritance;
+#endif
 			auto       process        = std::make_unique<QProcess>();
 			const auto processGroupId = std::make_shared<qint64>(0);
 			try {
@@ -608,6 +619,20 @@ namespace bpr::adapters::github::detail {
 					| QProcess::UnixProcessFlag::DisableCoreDumps
 					| QProcess::UnixProcessFlag::ResetSignalHandlers
 					| QProcess::UnixProcessFlag::CreateNewSession);
+#elif defined(Q_OS_WIN)
+				// [[BPR-1114]]. The Windows counterpart of CloseFileDescriptors,
+				// the platform target's launch restriction the Git adapter's
+				// unguarded Git also takes ([[BPR-1115]]): every gh or Git this
+				// runner starts inherits its three standard handles and nothing
+				// else, where Qt alone would hand it every inheritable handle this
+				// process holds. A launch whose list cannot be built is refused at
+				// creation, so nothing starts, and the run fails as start_failure.
+				process->setCreateProcessArgumentsModifier([&inheritance, aFailStandardHandleList](QProcess::CreateProcessArguments* const aArguments) {
+					if (aFailStandardHandleList) {
+						aArguments->startupInfo->hStdError = nullptr;
+					}
+					inheritance.apply(aArguments->startupInfo, aArguments->flags, aArguments->inheritHandles);
+				});
 #endif
 
 				std::string standardOutput;
@@ -726,6 +751,14 @@ namespace bpr::adapters::github::detail {
 							github_cli_process_failure::start_failure);
 					}
 				}
+#if defined(Q_OS_WIN)
+				// A list that could not be built never gets here: process creation
+				// refused the start. This catches a child created without the
+				// restriction all the same, which must not run.
+				if (!inheritance.restricted()) {
+					return failed(github_cli_process_failure::start_failure);
+				}
+#endif
 
 				std::size_t inputOffset = 0;
 				while (inputOffset < aRequest.StandardInput.size()) {
@@ -979,11 +1012,13 @@ namespace bpr::adapters::github::detail {
 						if (TestSeam != nullptr) {
 							TestSeam->before_execute();
 						}
+						const auto failStandardHandleList = TestSeam != nullptr
+							&& TestSeam->fail_standard_handle_list();
 						execution.emplace(execute_process(
 							item->Request,
 							item->Stop,
 							ShutdownRequested,
-							item->Deadline, FileLimits));
+							item->Deadline, FileLimits, failStandardHandleList));
 					} catch (...) {
 						publish(
 							item,
