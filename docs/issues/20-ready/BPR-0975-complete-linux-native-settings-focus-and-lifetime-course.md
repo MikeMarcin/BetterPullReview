@@ -2,16 +2,55 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0975"
 title: "Complete Linux native Settings focus and window-lifetime course"
-status: "Blocked"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-0731"]
 priority: "P2"
 platforms: ["linux"]
-metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961","BPR-1024"],"station":"bpr-main-linux","candidate":"b651554ff50bdde1c5a41fd9a77f6c0e075b16c8","evidence":"docs/verification/BPR-0975-linux-native-settings.md"}
-blocked_by: "window-manager-activation"
+metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961","BPR-1024"],"station":"bpr-main-linux","candidate":"b651554ff50bdde1c5a41fd9a77f6c0e075b16c8","evidence":"docs/verification/BPR-0975-linux-native-settings.md","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0975-wslg-activation-v001","decision":"35aa7cb0-1d37-4588-b8ad-3cdf2764a9e4","outcome":"reject","direction":"find why GUI activation does not work on WSLg and fix it"}}
 ---
 
 # Complete Linux native Settings focus and window-lifetime course
+
+## Owner direction, 2026-09-24: find out why WSLg refuses it, and fix it (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0975-wslg-activation-v001`, revision
+`b651554f`, fingerprint `292bd12e…`, decision
+`35aa7cb0-1d37-4588-b8ad-3cdf2764a9e4`, sequence 578, 2026-09-24T19:02:41Z,
+`actor: human`. The question offered (a) a real Linux desktop or (b) an
+amendment that accepts WSLg's refused activation. The owner chose
+**reject**, turning down both, with this note, verbatim:
+
+> Seems like we should be able to run GUI apps there. Figure out why it's not
+> working and fix it.
+>
+> https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps
+
+What that settles:
+
+- **No amendment.** AC2 stands as written, and WSLg's refusal is not accepted
+  as a platform difference.
+- **No other desktop was offered.** The owner did not choose to supply a
+  GNOME or KDE desktop. The course is to pass on the JaegAW WSLg host.
+- **The work is to find out why activation is refused there, and fix it.** The
+  note is direction, so the earlier position below, that re-mapping Settings
+  "would work around the compositor, not fix a product defect, so it is not
+  done here", no longer bounds the work. The fix goes in whatever layer the
+  diagnosis names: the WSLg or Weston configuration on the station, how the
+  application or Qt requests activation (for example the `_NET_ACTIVE_WINDOW`
+  source indication and timestamp, or `_NET_WM_USER_TIME`), or the
+  application's own window handling. It is recorded with a failing-before
+  control.
+- The AC4 limits still hold. Any change to the station's WSLg or display
+  configuration is recorded as a station change and reverted afterwards, or
+  justified as a documented prerequisite, rather than done quietly.
+- [[BPR-1024]]'s correction (`xcb_activation_host`) stays in place, and the
+  owner declined an upstream Qt report (`BPR-1024-upstream-qt-report-v001`).
+
+The card leaves `window-manager-activation` for **Ready** on the Linux
+station.
 
 ## Current state, 2026-09-23
 

@@ -424,3 +424,21 @@ The rest of AC3:
   The diagnosis still passes. The focused suites pass. Only Linux compiles
   the host. The negative control on the parent fails.
 - **AC4: pass,** for every run of this hold.
+
+## Post-close owner decision, 2026-09-24: no upstream Qt report (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-1024-upstream-qt-report-v001`,
+revision `59915464` (capture 2026-09-24T06:41Z), fingerprint `356ad0f5…`,
+decision `2cc0e7d1-0f0a-429d-9764-67315701a4f2`, sequence 583,
+2026-09-24T19:14:11Z, `actor: human`: **select**, verbatim:
+
+> No: do not prepare or file one
+
+The note is empty. No upstream Qt report is prepared or filed, and the
+capture stays a repository record. The product's correction
+(`xcb_activation_host`, `59915464`) is unchanged. In the same session the owner
+rejected accepting WSLg's refused activation for [[BPR-0975]] and directed
+that the cause be found and fixed. That work is BPR-0975's, now Ready, and
+this card stays Done.

@@ -280,3 +280,22 @@ it in their next ordinary sweep, and nothing else is owed.
 **No independent review.** The change moves when four failure paths run,
 inside the host's decision turn. This lane runs as a leaf and cannot start a
 reviewer. The design trial above is the direct evidence for the timing.
+
+## Post-close owner decision, 2026-09-24: yes, an independent critical review (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-1048-independent-review-v001`, revision `a670fd95`,
+fingerprint `cc1d00f9…`, decision `e2321e81-3011-4178-bd9b-aef06139a3be`, sequence 585,
+2026-09-24T19:16:52Z, `actor: human`: **select**, verbatim:
+
+> Yes: run an independent read-only review of a670fd95
+
+Note, verbatim:
+
+> Yes, use rfc-reviewer-critical to double check the work
+
+An `rfc-reviewer-critical`, dispatched by the coordinator and not by the lane
+that wrote the change, reviews `a670fd95` read-only and reports its findings. It
+changes no code, board state or GitHub. The card stays Done. A finding that
+needs work gets its own card, and the review's result is recorded here.

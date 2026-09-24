@@ -316,3 +316,24 @@ review found untouched.
   finds no POSIX path moved.
 
 The card is finished with these records.
+
+## Post-close owner decision, 2026-09-24: the purge privacy rule is accepted (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-1038-purge-policy-v001`, revision
+`fe7dad99`, fingerprint `80702460…`, decision
+`8254f48b-019f-4357-b5c2-cec48aab2e19`, sequence 584, 2026-09-24T19:16:12Z,
+`actor: human`: **accept**, note empty.
+
+The question, verbatim from the candidate: "Do you accept this Windows privacy
+rule for Purge profile: a directory is admitted when it carries either the
+protected owner-private descriptor, or exactly the owner-private entries
+inherited from its parent (the user, and the package SID when contained, each
+with full access, user as owner), and anything else is refused as not private
+to your account?" The rule under "Decided: the inventory admits exactly the
+inherited owner-private descriptor" is now the owner's accepted security
+policy for Purge profile, and not only the station's choice. Its stated limit
+stands: a later change to a parent's descriptor would flow down, and the parent
+is itself admitted only in the same exact form, in the same walk. Nothing
+changes in the product.

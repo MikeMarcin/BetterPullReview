@@ -143,3 +143,23 @@ sources, tests and scripts are the ones measured.
 - The nine pinned rows keep their registration unchanged. Run as registered at
   `38cc26d7`, five pass and four fail uncontained, as above.
 - `git diff --check` is clean.
+
+## Post-close owner decision, 2026-09-24: revert the four pins (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-1020-uncontained-pins-v001`, revision
+`41bb3229`, fingerprint `b070e2e1…`, decision
+`dcc2b167-d51d-4b47-9ccf-68b33f616640`, sequence 581, 2026-09-24T19:12:47Z,
+`actor: human`: **select**, verbatim:
+
+> Revert the four pins and leave those rows unpinned, as BPR-0812 did
+
+The note is empty. The owner overrode the reasoning in "Why four rows that
+fail uncontained are still pinned". `sqlite_release_maintenance_files`,
+`application_attended_recent_replay`,
+`application_release_maintenance_public_path` and
+`application_release_update_public_path` come out of the pinned set. This card
+stays Done: its AC1 was true at `41bb3229` and is not rewritten. The revert is
+new work, [[BPR-1108]] (Ready, Windows). Once it lands, the Windows gate carries
+those rows' findings until each is contained or recorded there.

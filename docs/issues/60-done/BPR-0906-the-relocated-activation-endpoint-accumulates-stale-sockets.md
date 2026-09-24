@@ -337,3 +337,22 @@ above. The Linux lane ran as a leaf that cannot start a reviewer.
   Pass: this section and BPR-0895's "Consistent with BPR-0906".
 - **Windows is unaffected, or the card says why it is not.** Pass: named
   pipes, recorded above.
+
+## Post-close owner decision, 2026-09-24: yes, an independent critical review (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0906-independent-review-v001`, revision `03117e63`,
+fingerprint `b1a8c022…`, decision `96421f40-a5d6-4cbf-90b4-e855e8650f8b`, sequence 576,
+2026-09-24T18:59:20Z, `actor: human`: **select**, verbatim:
+
+> Yes: run an independent read-only review of 03117e63
+
+Note, verbatim:
+
+> Yes double check with rfc-reviewer-critical
+
+An `rfc-reviewer-critical`, dispatched by the coordinator and not by the lane
+that wrote the change, reviews `03117e63` read-only and reports its findings. It
+changes no code, board state or GitHub. The card stays Done. A finding that
+needs work gets its own card, and the review's result is recorded here.

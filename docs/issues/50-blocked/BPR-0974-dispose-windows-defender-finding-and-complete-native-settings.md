@@ -4,11 +4,11 @@ id: "BPR-0974"
 title: "Dispose Windows Defender finding and complete native Settings qualification"
 status: "Blocked"
 rfcs: []
-depends_on: ["BPR-0730"]
+depends_on: ["BPR-0730","BPR-1110"]
 priority: "P1"
 platforms: ["win"]
 blocked_by: "security-owner-disposition"
-metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Windows full native menu/shortcut/window-lifetime course","AC-11 current Windows inventory refresh"],"related_cards":["BPR-0960","BPR-0962"]}
+metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Windows full native menu/shortcut/window-lifetime course","AC-11 current Windows inventory refresh"],"related_cards":["BPR-0960","BPR-0962","BPR-1110"],"owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0974-defender-disposition-v001","decision":"3482f766-1945-42d2-b175-b2e89434c4e6","outcome":"reject","note":"Explain why this is being triggered."}}
 ---
 
 # Dispose Windows Defender finding and complete native Settings qualification
@@ -173,3 +173,37 @@ tests-enabled Debug build at current `main`, the strip's Application menu
 opens Profiles > New Window through the same posted click and UI Automation
 path in every [[BPR-0980]] run. That is not AC2 evidence: it was not the
 cleared tests-disabled image, and it was not the full course.
+
+## Owner decision, 2026-09-24: explain the detection first (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-0974-defender-disposition-v001`,
+revision "Defender threat 2147731250 on source 2d3bdbdf, rechecked read-only
+2026-09-23", fingerprint `7f01c8b7…`, decision
+`3482f766-1945-42d2-b175-b2e89434c4e6`, sequence 577, 2026-09-24T19:00:23Z,
+`actor: human`: **reject**, with this note, verbatim:
+
+> Explain why this is being triggered.
+
+None of the three dispositions under "What the owner decides (AC1)" is
+authorized:
+
+- no fresh scanned image;
+- no false-positive submission;
+- no deferral to RFC-0038.
+
+The owner first wants to know why Defender classifies the tests-disabled
+Release image as `Trojan:Win32/Bearfoos.A!ml`. That explanation is
+[[BPR-1110]], a read-only investigation on the Windows station, and this card
+now depends on it. The card stays **Blocked** on `security-owner-disposition`.
+Once BPR-1110 reports, the disposition is asked again, informed by what it
+found, as one question. Every prohibition above still applies:
+
+- do not restore quarantine, add exclusions, disable security, or rename or
+  rebuild around the detection;
+- do not execute a different image;
+- make no external disclosure.
+
+[[BPR-0653]]'s Windows capture needs the same kind of tests-disabled image and
+waits in the session; it is not this card's question.

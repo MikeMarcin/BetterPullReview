@@ -229,3 +229,22 @@ The Windows-only handle restriction changes nothing observable on macOS,
 confirming AC4's code-judged macOS half by a run. The recommended
 independent review of the Windows inheritance change remains the owner's
 decision.
+
+## Post-close owner decision, 2026-09-24: yes, an independent critical review (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-1104-independent-review-v001`, revision `51784082`,
+fingerprint `d557512c…`, decision `ae582fb8-d480-456a-8ef5-79011030e131`, sequence 586,
+2026-09-24T19:17:18Z, `actor: human`: **select**, verbatim:
+
+> Yes: run an independent read-only review of 51784082
+
+Note, verbatim:
+
+> Yes use rfc-reviewer-critical to double check the work
+
+An `rfc-reviewer-critical`, dispatched by the coordinator and not by the lane
+that wrote the change, reviews `51784082` read-only and reports its findings. It
+changes no code, board state or GitHub. The card stays Done. A finding that
+needs work gets its own card, and the review's result is recorded here.

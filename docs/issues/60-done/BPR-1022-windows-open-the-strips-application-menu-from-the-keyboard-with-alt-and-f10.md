@@ -399,3 +399,19 @@ The console logs are station records under
 `build/logs/bpr-main-linux-20260923/bpr-1038-1022-0886-linux/bpr-1022-rows.log`
 and `build/logs/bpr-main-linux-20260924/impl/bpr-1022-window-rows-b60e04b0.log`,
 and are not committed. The acceptance record above is unchanged.
+
+## Post-close owner decision, 2026-09-24: identify the hook read-only (attended session cbd48b91)
+
+Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md),
+hand-back at sequence 589. Candidate `BPR-1022-alt-chord-hook-v001`, revision
+`3db65162` (seventh real-key run at `21332605`), fingerprint `d6d74c7b…`,
+decision `7876410c-e657-44f8-be30-846db8115778`, sequence 582,
+2026-09-24T19:13:28Z, `actor: human`: **select**, verbatim:
+
+> I do not know what it is; have the Windows station identify it read-only,
+> without stopping or changing it
+
+The note is empty. The identification is [[BPR-1109]] (Ready, Windows,
+read-only). This card stays Done. Its Alt+Space, Alt+F, Alt+Up and Alt+F4 rows
+are still wanted once chords reach applications again.
