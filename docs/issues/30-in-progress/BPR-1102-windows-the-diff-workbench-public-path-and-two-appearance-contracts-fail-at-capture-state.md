@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1102"
 title: "Windows: application_diff_workbench_public_path and the two appearance contracts (theme_customization, store_fallback) fail at DIFF_INTERACTION_FAILURE:capture-state"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
