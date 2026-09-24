@@ -423,3 +423,127 @@ one passed apart from the known red `dif_context` row, which failed only in
 its known way. The gate passed. The card already records that the gate's
 form cannot fire for a bare temporary root under a macOS ctest run. The card
 stays In Progress for AC4, which is owed by bpr-main-win.
+
+## Windows, AC4 (bpr-main-win, 2026-09-24)
+
+Station `bpr-main-win`: Windows 11 (10.0.26200), MSVC 19.51, Qt 6.11.2,
+`build/windows-dev` (Visual Studio 18 2026 generator, Debug). The head was
+`bcd57840`, which contains `ff9bc9e2` and [[BPR-1051]]'s `09f3d48f`.
+`cmake --preset windows-dev` and `cmake --build --preset windows-dev` both
+exited 0, and the build printed no warning or error line. The card's four
+Windows commands ran as written, serially, through `.cmd` files. The sweep
+excluded two rows, for the reason given below. The logs are station records
+under `build/logs/bpr-1050-main-win/` and are not committed. Later commits on
+`main` before this note touch only `docs/`.
+
+### The gate
+
+| Check | Result |
+| --- | --- |
+| `test_network_isolation_structure_contract`, `test_network_isolation_manifest` | 2 of 2 passed. The manifest printed `TEST_NETWORK_ISOLATION_OK:configured=419:registrations=396:backend=windows-appcontainer`. The structure contract ran 65 tests, `OK (skipped=10)`. The skipped tests are the macOS and POSIX live-image cases |
+| The configured rows (`ctest -C Debug --show-only=json-v1`) | All 419 carry `AGENT_WORKSPACE_RECOVERY_REFUSED`. 417 carry all three entries. `rfc0017_release_absence_negative_control` carries `PUBLIC_PATH_FAILED` and the refusal, and `application_automated_run_budget` carries only the refusal. No row carries the `bpr_expects_workspace_recovery_refusal` label |
+| `application_profile_management_public_path` | It carries all three entries and only the `bpr_windows_uncontained` label, as the card expects on Windows. The verifier accepts it |
+
+### The table's 32 rows
+
+All 32 are registered on Windows, and all are `WINDOWS_UNCONTAINED`. The first
+run passed 30 of 32 in 676.03 s, and its log has no refusal line.
+
+- **`application_profile_window_review_restoration_public_path`** stopped at
+  its 16th phase, the `unavailable-file` course's `auth-seed`, with
+  `EPOCH_CACHE_FAILURE:7`, `EPOCH_EFFECT_FAILED:revision-prepare:0` and
+  `FAILED: reading epoch ready`. The 15 phases before it passed, and none
+  printed a refusal. This is the spool failure that [[BPR-1040]] left
+  unexplained after its retry ("one `spool_failure` in eight"). It is not this
+  card's, and it is reported to the coordinator for its own card. The course
+  then passed on its own (365.48 s) and again in the sweep (366.21 s).
+- **`application_agent_finding_dif_context_contract`** failed with
+  `dif-context-evidence failed=dif-saw-consider dif-comment-ready-after-conversion dif-acknowledge-after-acceptance`
+  and `agent-finding-dif-context-evidence:1:0:1:0:0:1:0`. The last two
+  assertions are [[BPR-0966]]'s known ones. `dif-saw-consider` is not in the
+  record from Linux or macOS, so its origin was measured:
+  - At the candidate, the consider cue was missed in 9 of 9 runs: the table
+    run, 7 runs alone and the sweep.
+  - With only `agent_finding_composition_public_path.cpp` put back to
+    `3db65162`, the version before `ff9bc9e2`, and its target rebuilt, it
+    was missed in 4 of 6 runs. The other 2 failed only in the known way
+    (`1:1:1:0:0:1:0`).
+  - So the miss is older than this card. The course samples the Dif clip
+    while it waits for the agent turn, and on this station the clip it looks
+    for is often gone before a sample lands. No run printed a refusal line.
+    The file was restored, and the target was rebuilt at the candidate. The
+    miss is reported to the coordinator for its own card.
+
+### The thirteen
+
+13 of 13 passed, in 237.35 s, with no refusal line.
+
+### The restoration course: the narrowing is needed on Windows
+
+| Run | Result |
+| --- | --- |
+| At the candidate | Passed, 365.48 s. The driver relayed all 34 phase lines, and **0** were refusal lines |
+| **Negative control:** `make_root_private(root)` replaced with `pass` in `profile_window_review_restoration_contract.py`, locally | **Failed** on `Regex=[AGENT_WORKSPACE_RECOVERY_REFUSED]`, in 366.77 s. All 34 phases passed and the course printed `PROFILE_WINDOW_REVIEW_RESTORATION_OK`, but it printed **34** refusal lines, one per phase, across its 17 phase roots. An example is `AGENT_WORKSPACE_RECOVERY_REFUSED:C:\Users\mikem\AppData\Local\Temp\bpr-0709-restart-0c73272982cd6792\auth\agent-workspace-ownership-v1:repair-required` |
+| Restored | The file's SHA-256 is `540c95da…2913dd1` again, which is the candidate's. Nothing was committed, and no `bpr-0709-restart-*` directory was left in `%TEMP%` |
+
+So passing Windows runs of this course did print the line, in every phase,
+before this card. The old driver did not relay a passing phase's standard
+error, so nobody could see it. `os.chmod(root, 0o700)` does not narrow the
+descriptor on Windows, and `make_root_private` is what removes the refusal.
+**The narrowing is needed on Windows**, and it is not a duplicate of the
+chmod.
+
+### The whole `application_` sweep
+
+`ctest --preset windows-dev -j1 -R "^application_" -E "^(application_windows_title_row|application_profile_activation_public_path)$"`,
+from 09:53:33Z to 10:33:46Z. Two of the 156 rows were held back. This
+station had no clearance to use the desktop's foreground while another
+station's GUI courses were running on it.
+`application_windows_title_row` runs on the real `windows` platform.
+`application_profile_activation_public_path` runs offscreen, but its handoff
+calls `AllowSetForegroundWindow`. They will be run when the desktop is
+cleared.
+
+- **149 of 154 passed**, in 2,411.04 s.
+- **No row printed `AGENT_WORKSPACE_RECOVERY_REFUSED`.** The full output of
+  all 154 rows (`LastTest.log`) has no such line, and no row failed on it. So
+  no other Windows row has the cause this card fixes.
+- **The five failures, none of them this card's:**
+
+| Row | How it failed | Owner |
+| --- | --- | --- |
+| `application_agent_finding_dif_context_contract` | As above | [[BPR-0966]], and the older `dif-saw-consider` miss, which is reported for its own card |
+| `application_diff_workbench_public_path` | `DIFF_INTERACTION_FAILURE:capture-state`, then `PUBLIC_PATH_FAILED` | No card yet. It fails in 4 of 4 runs here. [[BPR-1022]] recorded the same failure at `b9991925`, before `ff9bc9e2`. Reported to the coordinator |
+| `application_appearance_theme_customization_contract` | The same failure, through its `theme customization process failed (1)` | The same |
+| `application_appearance_store_fallback_contract` | The same failure, through its `fallback session process failed (1)` | The same |
+| `application_profile_owner_admission_public_path` | Contained: `SEED_REGISTRY_REFUSAL:0`, `FAILED: seed registry` | [[BPR-0907]] |
+
+### Registration
+
+Nothing was pinned or registered again. Every row in the table was already
+`WINDOWS_UNCONTAINED`, so the three courses that now narrow their parent met
+no container, as the card expected.
+
+### AC4: pass on Windows
+
+Every row in the table passes as registered. The one exception is
+`dif_context`, which is known red. It fails in [[BPR-0966]]'s known way plus
+one miss that is measured to be older than this card. The restoration course
+also stopped once at [[BPR-1040]]'s residual epoch failure, which is not a
+refusal, and it passed twice after that. The gate passes. No pin or
+registration changed.
+
+## Finished (bpr-main-win, 2026-09-24)
+
+Each criterion now has its record on the station that owes it:
+
+| Criterion | Station | Candidate | Observation |
+| --- | --- | --- | --- |
+| AC1 | Linux | `ff9bc9e2` | No hand-written copy remains. Each other `grep` hit is one the criterion lists |
+| AC2 | Linux | `ff9bc9e2` | The plants in `application_poller_liveness` and `application_logging` each fail on the refusal and name the course. Neither was committed |
+| AC3 | Linux | `ff9bc9e2`, `09f3d48f` | The table's rows pass except the known `dif_context`. Across the thirteen, the line comes only from `shared-parent`. The whole 423-row suite has no other refusal line |
+| AC4 | Windows | `bcd57840` | See above |
+| AC5 | macOS | `bcd57840` | 31 of 32 pass, and `dif_context` fails in its known way. The gate passes, and its limit on macOS is recorded |
+
+The two held-back Windows rows are outside every criterion. Their refusal
+count will be added here when they have run.
