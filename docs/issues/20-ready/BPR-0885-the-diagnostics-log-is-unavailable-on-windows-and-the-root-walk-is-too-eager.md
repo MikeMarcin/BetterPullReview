@@ -206,3 +206,50 @@ so no pin moves.
   Expected: 3/3 passed, and `quill-logging-tests:pass`. The criterion
   itself is the assertion "existing symlinked ancestor resolves without
   creating shared directories".
+
+## Windows: the logger passes uncontained; the row stops before it contained (bpr-main-win, 2026-09-23)
+
+`build/windows-dev` (Visual Studio generator, MSVC 19.51, Debug, Qt 6.11.2)
+was rebuilt at `664d6e36`, which contains `0e07334b`, and the build exited
+0. The owed selector then ran serially and verbose. Only five of its six
+names are registered on Windows: `quill_logging_backpressure` is inside
+`if(UNIX)` in `tests/logging/CMakeLists.txt`.
+
+| Row | Result |
+| --- | --- |
+| `application_logging` | Passed, 7.22 s. It prints `EPOCH_EFFECT_FAILED:revision-prepare:0` on purpose, as [[BPR-1040]] notes |
+| `application_profile_management_public_path` | Passed, 14.00 s |
+| `application_profile_multi_window_public_path` | Passed, 35.17 s |
+| `application_release_maintenance_public_path` | **Failed**: `FAILED: native full-profile inventory returns`. This is [[BPR-1038]]'s step, where purge refuses the Git isolation's inherited descriptors. It is not BPR-1040's intermittent Git failure, and it is deterministic, so it was not re-run. |
+| `quill_logging` | **Failed** contained in 0.05 s: `test owner creates private root before logger admission` |
+
+**`quill_logging`, measured as the card asks, before any pin.** The same
+`quill_logging.exe` from the `windows-dev` build was run directly, twice:
+
+- **Uncontained**, as its own process: exit 0, `quill-logging-tests:pass`.
+  That covers every assertion, including "existing symlinked ancestor
+  resolves without creating shared directories" and the refusal-cause
+  checks. No "..., and named" failure appeared.
+- **Contained**, through `better_pull_review_network_sandbox.exe` with the
+  registered command: exit 1 at `test owner creates private root before
+  logger admission`.
+
+The failing step is the test's own setup, before the logger runs:
+`private_root()` calls `make_storage_root_owner_private` on a
+`QTemporaryDir` under the container's temporary directory. That is the
+helper the `sqlite_*_storage` rows are pinned for as `dos-volume-name` in
+`scripts/verify_test_network_isolation.py`. So this is the containment
+question the card anticipated, like [[BPR-0874]]'s, and not this card's
+logger. Whether this exact call refuses at `GetFinalPathNameByHandleW` was
+not traced. The measurement shows only that the setup step fails inside
+the container and the whole test passes outside it. The fitting
+registration change is a `WINDOWS_UNCONTAINED` pin with `dos-volume-name`,
+as the storage rows have. It is not made here: this record is the card path
+only, and the pin is the card owner's decision.
+
+For this card, then, Windows shows the log working and every assertion
+passing uncontained. Two rows in the selector remain red for other cards'
+reasons: `quill_logging` contained, for the containment pin, and release
+maintenance, for [[BPR-1038]]. The card stays in Ready for macOS. The logs
+are station records under `build/logs/bpr-0885-main-win/` and are not
+committed.
