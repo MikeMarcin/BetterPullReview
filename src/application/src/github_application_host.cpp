@@ -512,6 +512,7 @@ namespace bpr::application {
 						},
 						std::move(deferred));
 				}
+				fail_withdrawn_bindings();
 				TurnActive = false;
 				schedule_deferred_ingress();
 			} catch (...) {
@@ -3923,6 +3924,54 @@ namespace bpr::application {
 			};
 		}
 
+		// [[BPR-1048]]. Calls the persistence lane with `aFinish` as the
+		// request's terminal. The caller has already counted the request, and
+		// may have set a pending flag. The lane throws only when it withdrew the
+		// request: it could post neither the effect nor its terminal, and no
+		// terminal follows ([[BPR-0884]]). A withdrawal is a failure, never a
+		// success ([[BPR-0541]]), so `aFinish` gets the terminal a refused
+		// effect gets, `unavailable`, and undoes the count and the flag itself.
+		// The throw is not passed on: the request has had its one terminal.
+		template <typename TCall>
+		void call_binding_lane(TCall&& aCall, std::function<void(device_binding_result)> aFinish)
+		{
+			try {
+				std::forward<TCall>(aCall)(binding_callback(aFinish));
+			} catch (...) {
+				fail_withdrawn_binding(std::move(aFinish));
+			}
+		}
+
+		// Inside a turn the failure waits for the turn's end, where the lane's
+		// own terminal would have found it. A turn can set up after the call
+		// what that failure decides by: a replacement's session is recorded
+		// after the invalidation that asked for the tombstone. Outside a turn
+		// the call is the only work in progress, so it fails now.
+		void fail_withdrawn_binding(std::function<void(device_binding_result)> aFinish)
+		{
+			if (TurnActive && WithdrawnBindingCount < WithdrawnBindings.size()) {
+				WithdrawnBindings.at(WithdrawnBindingCount++).emplace(std::move(aFinish));
+				return;
+			}
+			aFinish(std::unexpected(device_binding_failure::unavailable));
+		}
+
+		// A failure may make another request that is withdrawn in turn. It
+		// joins the queue and is failed before the turn ends. As on the lane,
+		// a throwing terminal cannot stop the ones behind it or end the turn.
+		void fail_withdrawn_bindings()
+		{
+			while (WithdrawnBindingCount != 0U) {
+				auto finish = std::move(*WithdrawnBindings.front());
+				std::move(WithdrawnBindings.begin() + 1, WithdrawnBindings.begin() + static_cast<std::ptrdiff_t>(WithdrawnBindingCount), WithdrawnBindings.begin());
+				WithdrawnBindings.at(--WithdrawnBindingCount).reset();
+				try {
+					finish(std::unexpected(device_binding_failure::unavailable));
+				} catch (...) {
+				}
+			}
+		}
+
 		void binding_failure()
 		{
 			DeviceBindingDurable = false;
@@ -4005,24 +4054,25 @@ namespace bpr::application {
 			}
 			const auto record     = device_binding_record{ .Authority = *CredentialAuthority, .Lifetime = *DeviceLifetime };
 			const auto generation = BindingGeneration;
-			BindingStorePending   = true;
+			auto       finish     = std::function<void(device_binding_result)>{ [this, record, generation](device_binding_result aResult) {
+				--OutstandingBindings;
+				BindingStorePending = false;
+				if (Closing || generation != BindingGeneration || CredentialAuthority != record.Authority || DeviceLifetime != record.Lifetime) {
+					return;
+				}
+				if (!aResult || remaining_access_lifetime(record.Lifetime, WallClock()) == 0U) {
+					binding_failure();
+					return;
+				}
+				DeviceBindingDurable = true;
+				// [[BPR-0660]]. "Remembered on this Mac" is a fact the
+				// card states, so the session is published again once
+				// it is one.
+				republish_accepted_session();
+			} };
+			BindingStorePending = true;
 			++OutstandingBindings;
-			Persistence->store(record, binding_callback([this, record, generation](device_binding_result aResult) {
-								   --OutstandingBindings;
-								   BindingStorePending = false;
-								   if (Closing || generation != BindingGeneration || CredentialAuthority != record.Authority || DeviceLifetime != record.Lifetime) {
-									   return;
-								   }
-								   if (!aResult || remaining_access_lifetime(record.Lifetime, WallClock()) == 0U) {
-									   binding_failure();
-									   return;
-								   }
-								   DeviceBindingDurable = true;
-								   // [[BPR-0660]]. "Remembered on this Mac" is a fact the
-								   // card states, so the session is published again once
-								   // it is one.
-								   republish_accepted_session();
-							   }));
+			call_binding_lane([this, &record](auto aCallback) { Persistence->store(record, std::move(aCallback)); }, std::move(finish));
 		}
 
 		void start_delete(const core::github_identity_generation   aGeneration,
@@ -4041,30 +4091,31 @@ namespace bpr::application {
 			if (BindingErasePending) {
 				return;
 			}
-			BindingErasePending  = true;
 			const auto authority = *CredentialAuthority;
+			auto       finish    = std::function<void(device_binding_result)>{ [this, authority](device_binding_result aResult) {
+				--OutstandingBindings;
+				BindingErasePending = false;
+				if (CredentialAuthority != authority) {
+					binding_failure();
+					return;
+				}
+				if (!aResult) {
+					ShutdownCleanupFailed = Closing;
+					if (Closing || !DeferredSession) {
+						binding_failure();
+						start_delete_unblocked(BindingDeleteGeneration, std::move(BindingDeleteTerminal), BindingDeleteRefresh);
+						return;
+					}
+					StartupCleanupOperation.reset();
+					DeferredTerminal = std::move(BindingDeleteTerminal);
+					fail_delete_operation();
+					return;
+				}
+				start_delete_unblocked(BindingDeleteGeneration, std::move(BindingDeleteTerminal), BindingDeleteRefresh);
+			} };
+			BindingErasePending = true;
 			++OutstandingBindings;
-			Persistence->erase(authority, binding_callback([this, authority](device_binding_result aResult) {
-								   --OutstandingBindings;
-								   BindingErasePending = false;
-								   if (CredentialAuthority != authority) {
-									   binding_failure();
-									   return;
-								   }
-								   if (!aResult) {
-									   ShutdownCleanupFailed = Closing;
-									   if (Closing || !DeferredSession) {
-										   binding_failure();
-										   start_delete_unblocked(BindingDeleteGeneration, std::move(BindingDeleteTerminal), BindingDeleteRefresh);
-										   return;
-									   }
-									   StartupCleanupOperation.reset();
-									   DeferredTerminal = std::move(BindingDeleteTerminal);
-									   fail_delete_operation();
-									   return;
-								   }
-								   start_delete_unblocked(BindingDeleteGeneration, std::move(BindingDeleteTerminal), BindingDeleteRefresh);
-							   }));
+			call_binding_lane([this, &authority](auto aCallback) { Persistence->erase(authority, std::move(aCallback)); }, std::move(finish));
 		}
 
 		device_binding_persistence*          Persistence = nullptr;
@@ -4099,6 +4150,15 @@ namespace bpr::application {
 		core::github_identity_generation         BindingDeleteGeneration;
 		std::optional<deferred_session_terminal> BindingDeleteTerminal;
 		refresh_disposition                      BindingDeleteRefresh = refresh_disposition::erase;
+
+		// [[BPR-1048]]. Terminals of binding requests the lane withdrew during
+		// the current turn, failed at its end, or at the end of the next turn
+		// when this one ends in an exception. Each is still counted, so the
+		// host is not quiescent before they run. Queueing moves a
+		// `std::function` into a free slot and allocates nothing; when every
+		// slot is taken the failure is delivered at once.
+		std::array<std::optional<std::function<void(device_binding_result)>>, 8> WithdrawnBindings;
+		std::size_t                                                              WithdrawnBindingCount = 0U;
 
 		std::shared_ptr<github_window_read_host> ReadWindow;
 		std::vector<window_slot>                 AttachedWindows;
@@ -4411,7 +4471,7 @@ namespace bpr::application {
 				if (renews && (!host.LaunchRenewalSink || remaining_refresh_lifetime(selected->Lifetime, now) == 0U)) {
 					host.binding_failure();
 					++host.OutstandingBindings;
-					host.Persistence->erase(authority, host.binding_callback([&host](device_binding_result) { --host.OutstandingBindings; }));
+					host.call_binding_lane([&host, &authority](auto aCallback) { host.Persistence->erase(authority, std::move(aCallback)); }, [&host](device_binding_result) { --host.OutstandingBindings; });
 					host.start_deferred_session();
 					return;
 				}
@@ -4474,8 +4534,9 @@ namespace bpr::application {
 		}
 		host.DeviceBindingDurable = false;
 		const auto generation     = ++host.BindingGeneration;
-		++host.OutstandingBindings;
-		host.Persistence->erase(aAuthority, host.binding_callback([&host, aAuthority, aGeneration, generation, launch, completion = std::move(aCompletion)](device_binding_result aResult) {
+		// A withdrawn tombstone answers `false`, once, like a refused one, so no
+		// refresh material is spent without a written tombstone ([[BPR-1048]]).
+		auto finish = std::function<void(device_binding_result)>{ [&host, aAuthority, aGeneration, generation, launch, completion = std::move(aCompletion)](device_binding_result aResult) {
 			--host.OutstandingBindings;
 			const auto current = !host.Closing && host.BindingGeneration == generation
 				&& (launch ? host.owns_launch_renewal(aAuthority, aGeneration) : host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration);
@@ -4483,7 +4544,9 @@ namespace bpr::application {
 				host.binding_failure();
 			}
 			completion(aResult.has_value() && current);
-		}));
+		} };
+		++host.OutstandingBindings;
+		host.call_binding_lane([&host, &aAuthority](auto aCallback) { host.Persistence->erase(aAuthority, std::move(aCallback)); }, std::move(finish));
 	}
 
 	auto github_application_host::accepted_device_lifetime() const noexcept -> std::optional<device_binding_lifetime>

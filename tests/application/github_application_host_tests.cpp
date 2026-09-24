@@ -5548,6 +5548,200 @@ namespace {
 		std::optional<result> closing;
 		expect(refused(closing) && !closing && persistence.is_quiescent(), "a refusal whose terminal is refused leaves nothing pending");
 	}
+
+	// [[BPR-1048]]. A host whose persistence lane can be made to withdraw a
+	// request. With both executors refusing, the lane posts neither the
+	// request's effect nor its terminal, so it withdraws the request and
+	// throws, and no terminal follows ([[BPR-0884]]). Every host call site
+	// counts the request in `OutstandingBindings`, and some set a pending
+	// flag, before it calls the lane.
+	class withdrawing_binding_lane
+	{
+	public:
+		explicit withdrawing_binding_lane(const std::int64_t aNow = 1000)
+			: Fixture{ application::github_credential_shutdown_policy::retain_accepted_device_grants }
+		{
+			Fixture.Host.configure_device_persistence(Persistence, [aNow] { return aNow; });
+		}
+		// Runs `aCall` while the lane withdraws every request, and reports
+		// whether a throw reached the caller.
+		template <typename TCall>
+		[[nodiscard]] auto escapes_while_withdrawing(TCall&& aCall) -> bool
+		{
+			Effects.Refuse = true;
+			Lane.Refuse    = true;
+			auto escaped   = false;
+			try {
+				std::forward<TCall>(aCall)();
+			} catch (...) {
+				escaped = true;
+			}
+			Effects.Refuse = false;
+			Lane.Refuse    = false;
+			return escaped;
+		}
+		// Runs every queue, and answers every vault deletion, until nothing is left.
+		void settle()
+		{
+			while (Effects.Inner.pending() != 0U || Lane.Inner.pending() != 0U || Fixture.Lane.pending() != 0U || Answered < Fixture.Vault.Deletes.size()) {
+				Effects.Inner.drain();
+				Lane.Inner.drain();
+				Fixture.Lane.drain();
+				answer_deletes();
+			}
+		}
+		// The failure a refused binding request publishes.
+		[[nodiscard]] auto failed_visibly(const std::size_t aDiagnosticsBefore) const -> bool
+		{
+			return Fixture.Projections.host_diagnostic_count() > aDiagnosticsBefore
+				&& Fixture.Projections.last_host_diagnostic().Reason == core::github_reason_code::vault_unavailable;
+		}
+		[[nodiscard]] auto tombstoned() const -> bool { return !Store.Rows.empty() && Store.Rows.front().Tombstone; }
+		// Signs out, then asks for a restore. True when the restore reads the
+		// store, rather than being answered `unavailable` at admission because
+		// a binding request is still counted.
+		[[nodiscard]] auto later_restore_reaches_the_store() -> bool
+		{
+			Fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+			settle();
+			const auto loads    = std::ranges::count(Store.Operations, "load");
+			const auto results  = std::make_shared<std::vector<application::device_profile_restore_status>>();
+			const auto admitted = Fixture.Host.restore_device_profile(native_profile(core::host_profile_id{ 11U }), [results](const application::device_profile_restore_status aStatus) { results->push_back(aStatus); });
+			settle();
+			return admitted && std::ranges::count(Store.Operations, "load") == loads + 1 && results->size() == 1U;
+		}
+		[[nodiscard]] auto quiescent_once_closed() -> bool
+		{
+			Fixture.Host.shutdown();
+			settle();
+			return Fixture.Host.is_quiescent();
+		}
+
+		host_fixture                            Fixture;
+		binding_store                           Store;
+		refusable_executor                      Effects;
+		refusable_executor                      Lane;
+		application::device_binding_persistence Persistence{ Store, Effects, Lane };
+
+	private:
+		void answer_deletes()
+		{
+			for (; Answered < Fixture.Vault.Deletes.size(); ++Answered) {
+				const auto deletion = Fixture.Vault.Deletes.at(Answered);
+				deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			}
+		}
+		std::size_t Answered = 0U;
+	};
+
+	// `persist_settled_device_binding`: a withdrawn store is a failed store.
+	void test_a_withdrawn_binding_store_fails_like_a_refused_one()
+	{
+		withdrawing_binding_lane course;
+		auto&                    host = course.Fixture.Host;
+		establish_native_session(course.Fixture, core::host_profile_id{ 11U }, core::github_account_id{ 51U }, std::nullopt, application::github_credential_provenance::device_grant, binding_lifetime());
+		const auto authority   = *host.accepted_credential_authority();
+		const auto generation  = host.accepted_identity_generation();
+		const auto diagnostics = course.Fixture.Projections.host_diagnostic_count();
+		const auto escaped     = course.escapes_while_withdrawing([&] { host.settle_device_binding(authority, generation, binding_lifetime()); });
+		course.settle();
+		expect(!escaped, "store: the host handles a withdrawn store, so its caller sees no throw");
+		expect(course.failed_visibly(diagnostics) && course.Store.Operations.empty() && !host.accepted_device_binding_durable(),
+			   "store: a withdrawn store fails visibly, and nothing is written or remembered");
+		host.settle_device_binding(authority, generation, binding_lifetime());
+		course.settle();
+		expect(course.Store.Operations == std::vector<std::string>{ "store" } && host.accepted_device_binding_durable(), "store: the pending flag does not block the next store");
+		expect(course.later_restore_reaches_the_store(), "store: a later restore is not refused by a leftover count");
+		expect(course.quiescent_once_closed(), "store: the host is quiescent once closed");
+	}
+
+	// `start_delete`: a withdrawn tombstone takes the refused tombstone's path.
+	void test_a_withdrawn_binding_tombstone_fails_like_a_refused_one()
+	{
+		// A replacement is waiting on the tombstone. As with a refused one, the
+		// replacement fails and neither vault slot is touched.
+		{
+			withdrawing_binding_lane course;
+			auto&                    host = course.Fixture.Host;
+			settle_grant(course.Fixture);
+			course.settle();
+			const auto authority   = *host.accepted_credential_authority();
+			const auto diagnostics = course.Fixture.Projections.host_diagnostic_count();
+			const auto escaped     = course.escapes_while_withdrawing([&] { host.enroll_profile(core::host_profile_id{ 11U }, credential()); });
+			course.settle();
+			expect(!escaped, "replacement: the host handles a withdrawn tombstone, so its caller sees no throw");
+			expect(course.failed_visibly(diagnostics) && !course.tombstoned() && course.Fixture.Vault.Deletes.empty() && course.Fixture.Provider.Profiles.size() == 1U && !host.accepted_session(),
+				   "replacement: a withdrawn tombstone fails the replacement, and neither slot is touched");
+			host.dispatch(core::deactivate_github_identity_intent{ });
+			course.settle();
+			expect(std::ranges::count(course.Store.Operations, "erase") == 1 && course.tombstoned() && course.Fixture.Vault.Deletes.size() == 1U && course.Fixture.Vault.Deletes.front().Context.Authority == authority,
+				   "replacement: the pending flag does not block the next tombstone, and Sign out then erases the credential");
+			expect(course.later_restore_reaches_the_store(), "replacement: a later restore is not refused by a leftover count");
+			expect(course.quiescent_once_closed(), "replacement: the host is quiescent once closed");
+		}
+		// Sign out, with nothing waiting. As with a refused tombstone, the
+		// credential that was signed out is still erased.
+		{
+			withdrawing_binding_lane course;
+			auto&                    host = course.Fixture.Host;
+			settle_grant(course.Fixture);
+			course.settle();
+			const auto authority   = *host.accepted_credential_authority();
+			const auto diagnostics = course.Fixture.Projections.host_diagnostic_count();
+			const auto escaped     = course.escapes_while_withdrawing([&] { host.dispatch(core::deactivate_github_identity_intent{ }); });
+			course.settle();
+			expect(!escaped, "sign out: the host handles a withdrawn tombstone, so its caller sees no throw");
+			expect(course.failed_visibly(diagnostics) && !course.tombstoned() && course.Fixture.Vault.Deletes.size() == 1U && course.Fixture.Vault.Deletes.front().Context.Authority == authority,
+				   "sign out: a withdrawn tombstone fails visibly, and the signed-out credential is still erased");
+			expect(course.later_restore_reaches_the_store(), "sign out: a later restore is not refused by a leftover count");
+			expect(course.quiescent_once_closed(), "sign out: the host is quiescent once closed");
+		}
+	}
+
+	// `prepare_device_rotation`: a withdrawn barrier answers false, once.
+	void test_a_withdrawn_rotation_barrier_answers_false_once()
+	{
+		withdrawing_binding_lane course;
+		auto&                    host = course.Fixture.Host;
+		settle_grant(course.Fixture);
+		course.settle();
+		const auto        authority   = *host.accepted_credential_authority();
+		const auto        generation  = host.accepted_identity_generation();
+		const auto        diagnostics = course.Fixture.Projections.host_diagnostic_count();
+		std::vector<bool> answers;
+		const auto        rotate  = [&] { host.prepare_device_rotation(authority, generation, [&answers](const bool aReady) { answers.push_back(aReady); }); };
+		const auto        escaped = course.escapes_while_withdrawing(rotate);
+		course.settle();
+		expect(!escaped, "rotation: the host handles a withdrawn barrier, so its caller sees no throw");
+		expect(answers == std::vector{ false } && !course.tombstoned() && course.failed_visibly(diagnostics),
+			   "rotation: a withdrawn barrier answers false exactly once, with no tombstone written, and fails visibly");
+		rotate();
+		course.settle();
+		expect(answers == std::vector{ false, true } && course.tombstoned(), "rotation: the next barrier writes its tombstone before it answers true");
+		expect(course.later_restore_reaches_the_store(), "rotation: a later restore is not refused by a leftover count");
+		expect(course.quiescent_once_closed(), "rotation: the host is quiescent once closed");
+	}
+
+	// The launch restore's erase of a binding whose refresh lifetime elapsed.
+	void test_a_withdrawn_launch_restore_erase_is_not_left_counted()
+	{
+		using status                                     = application::device_profile_restore_status;
+		const auto                               profile = native_profile(core::host_profile_id{ 11U });
+		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		withdrawing_binding_lane                 course{ binding_lifetime().RefreshExpiresAt };
+		course.Store.Rows = { record };
+		std::vector<status> results;
+		course.Fixture.Host.restore_device_profile(profile, [&results](const status aStatus) { results.push_back(aStatus); });
+		// The load reads the store, and its terminal then asks for the tombstone.
+		course.Effects.Inner.drain();
+		const auto escaped = course.escapes_while_withdrawing([&] { course.Lane.Inner.drain(); });
+		course.settle();
+		const auto withdrawn = !escaped && results == std::vector{ status::unavailable } && !course.tombstoned();
+		expect(withdrawn && course.later_restore_reaches_the_store() && course.tombstoned(),
+			   "launch erase: the restore ends unavailable with no tombstone written, and the next restore reaches the store and writes it");
+		expect(course.quiescent_once_closed(), "launch erase: the host is quiescent once closed");
+	}
+
 	void test_restore_device_profile_exact_predicate_cancels_before_authentication()
 	{
 		using status                                     = application::device_profile_restore_status;
@@ -6645,6 +6839,10 @@ auto main() -> int
 	test_restored_binding_is_validated_before_resume();
 	test_device_binding_persistence_barriers();
 	test_device_binding_persistence_stays_drainable_when_its_posts_are_refused();
+	test_a_withdrawn_binding_store_fails_like_a_refused_one();
+	test_a_withdrawn_binding_tombstone_fails_like_a_refused_one();
+	test_a_withdrawn_rotation_barrier_answers_false_once();
+	test_a_withdrawn_launch_restore_erase_is_not_left_counted();
 	test_binding_load_cancellation_and_stale_terminal();
 	test_setup_authentication_preserves_review_until_exact_acceptance();
 	test_setup_acceptance_reuses_validated_bootstrap();

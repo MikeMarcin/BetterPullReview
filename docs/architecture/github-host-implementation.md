@@ -1397,6 +1397,21 @@ refuses that terminal too, a new request is withdrawn and the call throws. A
 queued request instead gets its terminal in the lane turn that finished the
 request before it.
 
+The GitHub host counts each binding request, and some set a pending flag,
+before it calls the lane. So it treats a withdrawal as the lane's
+`unavailable` terminal, never as a success, and does not pass the throw on
+([[BPR-1048]]). This holds for the settled-binding store, the tombstone behind
+Sign out, replacement and cleanup, the rotation barrier, and the launch
+restore's erase of an expired binding. Inside a host turn the failure runs
+when the turn ends, where the lane's own terminal would have found it. That
+matters for a replacement: its session is recorded after the invalidation
+that asked for the tombstone, so a withdrawn tombstone fails the replacement
+and leaves both vault slots alone, as a refused one does. Outside a turn the
+failure runs at once. A withdrawn rotation barrier answers `false` exactly
+once. The count and the flag are undone, so later restores are admitted and
+the host can become quiescent. The startup load already failed its restore
+as `unavailable` at the call.
+
 Startup loads only the compiled native GitHub.com device profile after both
 hosts exist. `resume_profile` validates its current profile contract, retrieves
 the exact vault item and checks authenticated `/user` identity before accepting
