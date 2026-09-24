@@ -594,3 +594,158 @@ floor", so the card leaves `owner-entry-row-placement` and is **Ready**:
   is also what [[BPR-1033]]'s AC3 waits for.
 - [[BPR-1106]] is the design round the note asks for. If it moves the entries
   out of the row, the floor returns toward 850, and that card says so.
+
+## The floor from the measured stacks (bpr-main-linux, 2026-09-24)
+
+This follows the owner's answer above, as recorded there. The station is
+bpr-main-linux: WSL2 Ubuntu, GCC 15.2, Qt 6.11.2, `build/dev`, offscreen with
+the basic Windows style (`QT_STYLE_OVERRIDE=Windows`, the row's own
+environment). Every run used a fresh `HOME` and fresh XDG roots under `/tmp`,
+with `DISPLAY` and `WAYLAND_DISPLAY` unset. The work began on `a1c35078`,
+this card's claim. Before it was pushed it was rebased onto `e6134dbc`, which
+brought [[BPR-0897]]'s comment above `select_observed_review_mutation` into
+the same file and its own reseal of the same pins.
+
+### The change
+
+The floor is the measured stack's, in both the capture and the course script:
+
+| Platform | Height floor | Stack it comes from |
+|---|---|---|
+| Linux | 842/1000 | this station: 19 + 30 + 20 + 50 + 14 + 6 + **842** + 19 = 1000 |
+| macOS | 835/1000 | bpr-main-mac, above: 20 + 30 + 22 + 50 + 15 + 6 + **835** + 22 = 1000 |
+| Windows | 850/1000, unchanged | no stack measured; see below |
+
+- **Capture** (`src/app/src/github_application.cpp`).
+  `uiforetw_capture_height_floor` is now one branch per platform: `__APPLE__`
+  835, `_WIN32` 850, otherwise 842. Its comment says why. The width floor
+  stays at 750. `UIFORETW_CAPTURE_LAYOUT_FAILED` and `report_capture_layout`
+  are unchanged, so the line still names the stack; its `height_floor=` is now
+  the platform's floor.
+- **Course script**
+  (`tests/end_to_end/application_uiforetw_selected_diff_contract.cmake`). It
+  still asserts the floor on its own, now as `bpr_comparison_height_floor` by
+  host (`CMAKE_HOST_APPLE` 835, `CMAKE_HOST_WIN32` 850, otherwise 842), in both
+  of its height comparisons. Its failure message now prints `height_floor=`.
+- **Windows keeps 850.** Neither the recorded answer nor the dispatch names a
+  Windows figure, and no Windows stack has been measured. On Windows the strip
+  is the title row and there is no menu bar row ([[BPR-0653]]), so the entry
+  row fits inside the owner's 850 budget: [[BPR-1033]]'s committed run passed
+  this row at 850 in all four profiles. Keeping 850 lowers nothing without a
+  measurement and adds no Windows-only failure. Measuring the Windows stack
+  and moving its floor to it is a one-line change on each side, if wanted.
+- **Specification.** The primary layout in
+  `docs/ux/workbench-specification.md` now names the chrome above the
+  comparison in the amended AC-01's order: the strip, the entry rows, the
+  epoch line. It also gives the measured floors this course holds.
+
+### Pinned-code review and reseal
+
+This is the implementer's review of the pinned diff, as the contract's reseal
+notes require. It is not an independent review.
+
+The only pinned file changed is `src/app/src/github_application.cpp`, which
+moves the full-application digest and the production manifest. The pins
+matched the tree at `e6134dbc`, after BPR-0897's reseal: that tree's file
+hashes to BPR-0897's full pin, `4cbedb68…`. So the reviewed range is
+`e6134dbc..` this commit, and this commit is the only change in it: `git diff
+e6134dbc -- src/app/` is the one hunk below. The two reseal notes sit side by
+side in the contract, BPR-0897's first.
+
+There is one hunk, in the `BPR_BUILD_TESTING` fixture-access anonymous
+namespace. `uiforetw_capture_height_floor` goes from one constant to the
+platform branch above, with a `\details` comment, and the width floor's
+declaration loses one space of alignment. The constants are read only by the
+capture's layout comparison and its failure line. Every product action the
+probe and the capture take is unchanged. No product, credential, provider,
+vault, transport or mutation path changes. The mutation-branch pin is
+unchanged at `a7e2081e…d1e8a`.
+
+New values, printed by the contract's own `BPR_PRINT_PINNED_DIGESTS` mode on
+the rebased tree:
+
+- full application
+  `fb638412a13a54dfcb1ecff46b23bcdbb3e112f796238e8e2152497abe26b92b`;
+- production manifest
+  `77cecb38b7ee325c1d1b5b1357bca10f49fd6401cf7d13e5dce6ea56d036c331`.
+
+Before the reseal, the contract failed on the drifted full digest in 0.01 s
+(`bpr1036-floor-roundtrip-unsealed.log`, before the rebase). That is the
+negative control.
+
+### Verification
+
+The build is `cmake --build --preset dev --target app_better_pull_review`
+(exit 0, no `warning:` or `error:` line). The logs are station records under
+`build/r2-logs/` on bpr-main-linux and are not committed.
+
+The first seven rows ran before the rebase, on `a1c35078` plus this change.
+The rebase added only BPR-0897's comment to the capture's file, outside the
+capture, so they stand. After the rebase the application was rebuilt and the
+four rows in the "rebased" line ran again.
+
+| Check | Result | Log |
+|---|---|---|
+| `ctest --preset dev -V -R '^application_uiforetw_selected_diff_contract$' --output-on-failure` | **Pass**, 15.05 s: `UIFORETW_SELECTED_DIFF_CONTRACT_OK`. All four profiles hold `comparison_height_ratio_permille` 842, width 987 and `navigation_row_exact_order` true | `bpr1036-floor-uiforetw.log` |
+| Negative control 1: the capture's Linux floor set to 843, rebuilt | **Fails as it should**, 1.99 s. The capture exits 1 in light with `UIFORETW_CAPTURE_LAYOUT_FAILED:987:842 width_floor=750 height_floor=843 window=1280x1000 menu_bar=0+19 strip=19+30 epoch_line=69+50 comparison=0,139 1264x842 status_bar=981+19 stack=workbenchMenuBar@0+19,workbenchPrimaryToolbar@19+30,composeReviewActionButton@49+20,composeInlineDraftActionButton@49+20,epochComparisonControl@69+50,diffWorkbenchStatus@119+14,QStatusBar@981+19 unstacked=6 beside=diffSharedScrollBar@1264+16 modality=Review …` | `bpr1036-negctl-843-capture.log` |
+| Negative control 2: only the script's Linux floor set to 843, capture at 842 | **Fails as it should**, 2.11 s: `UIforETW light is not a native pane-dominant focused review: ratio=987x842 computed=987x842 comparison=1264x842 crop=1264x842 height_floor=843`. The script's own assertion holds without the capture's | `bpr1036-negctl-843-script.log` |
+| Both controls reverted | Byte-for-byte: both files' SHA-256 match the candidate's (`977f7c7b…` before the rebase, `8a23cb65…`), and the binary was rebuilt from the candidate before the rows below | `bpr1036-candidate-sha256.txt`, `bpr1036-revert-build.log` |
+| `application_review_round_trip_composition_contract` | Fails on the drifted full digest before the reseal (0.01 s); **passes** after it (1.63 s) | `bpr1036-floor-roundtrip-unsealed.log`, `bpr1036-floor-final-rows.log` |
+| `application_uiforetw_selected_diff_contract`, `application_workbench_composition_contract`, `application_github_public_path_uiforetw_74`, resealed | **Pass**: 15.11 s, 3.03 s, 1.21 s | `bpr1036-floor-final-rows.log` |
+| `application_composition_contract` (the tests-off Release graph and its forbidden bytes) | **Pass**, 452.64 s (its timeout is 600 s) | `bpr1036-floor-composition-contract.log` |
+| Rebased (`e6134dbc` plus this change), rebuilt and resealed: `application_uiforetw_selected_diff_contract`, `application_review_round_trip_composition_contract`, `application_workbench_composition_contract`, `application_github_public_path_uiforetw_74` | **Pass**: 15.27 s, 1.65 s, 3.05 s, 1.23 s. All four UIforETW profiles hold 842/1000 and the exact row. The capture file's SHA-256 is `fb638412…`, the new full pin | `bpr1036-floor-rebased-rows.log` |
+| `/usr/bin/clang-format` 22.1.8 `--dry-run --Werror` on the capture, `git diff --check` | Clean | — |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | `bpr1036-floor-docgate-*.log` |
+
+`clang-tidy` was not rerun. The change adds no function, expression or name,
+only a constant's value per platform. The last tidy of this file passed at
+`3d941d47` (`bpr1036-tidy-c2.log`).
+
+### Acceptance state
+
+- **AC1** (the row passes on Linux and macOS, with the strip row asserted
+  exactly, in order): **pass on Linux**, at 842/1000 with the exact row, in all
+  four profiles. **macOS is owed**; see below.
+- **AC2** (a too-short comparison fails with a line naming the widgets; the
+  card records what took the height and whether the floor or the product
+  changed): **pass**. RFC-BPR-0037's entry row took the height (recorded
+  above). **The floor changed, not the product**, under the owner's AC-01
+  amendment. Negative control 1 is a deliberately broken run naming the stack.
+- **AC3** (no wait reaches `RUN_BUDGET_EXPIRED` unnamed): **pass**,
+  unchanged since `3d941d47`. This change does not touch the probe's waits.
+- **AC4** (the round-trip contract passes resealed, and
+  `application_composition_contract` passes): **pass on Linux**. The macOS
+  round-trip run rides on the same command as AC1.
+- **Windows** stays [[BPR-1033]]'s. Its floor is unchanged at 850, the value
+  its committed pass ran against.
+
+The card stays **In Progress**. AC1 names macOS, so the Mac's run is part of
+acceptance, not a confirmation that can follow a finish.
+
+### Evidence still owed
+
+1. **macOS (bpr-main-mac), at this card's commit or later.** First
+   `cmake --build --preset dev --target app_better_pull_review`, then:
+
+   ```sh
+   ctest --preset dev -V -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure
+   ```
+
+   Expected:
+   - Both rows pass. The UIforETW row prints
+     `UIFORETW_SELECTED_DIFF_CONTRACT_OK`, with no
+     `UIFORETW_NAVIGATION_ROW_UNEXPECTED` and no
+     `UIFORETW_CAPTURE_LAYOUT_FAILED`.
+   - Each profile's
+     `build/dev/tests/end_to_end/uiforetw-selected-diff-contract/data/evidence/<profile>/capture-facts.json`
+     holds `comparison_height_ratio_permille` 835 and
+     `navigation_row_exact_order` true.
+   - The round-trip row prints `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK`.
+
+   If the macOS comparison measures under 835, the failure line names the
+   stack. Record it here: it would be a new row taking height, not a floor to
+   lower. A pass completes AC1 and AC4 on macOS, and the card can finish.
+2. **Windows (bpr-main-win), not required by this card.** The next Windows
+   build compiles the `_WIN32` branch, whose value is the 850 it replaces. The
+   expected result of the row is unchanged: it passes, as [[BPR-1033]]
+   recorded.

@@ -40,6 +40,22 @@ authored and directly requested pull requests of the saved repositories
 └──────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
 ```
 
+Above the comparison sit, in order, the strip, the review surface's entry rows
+and the epoch line, with no scroll area and no separate title bar
+(RFC-BPR-0028 AC-01, as the owner amended it on 2026-09-24). The entry rows are
+the composition entry row, **Compose review** and **Draft comment or reply**
+(RFC-BPR-0037, [[BPR-0929]]), and, while a pull request loads, the readiness
+line ([[BPR-0795]]). Nothing else sits between the strip and the epoch line.
+Where the entries finally sit is [[BPR-1106]]'s design round.
+
+The entry row is inside the review state's space budget ([[BPR-0246]]). In
+Review at 1280x1000 with every drawer collapsed, the comparison takes 842/1000
+of the window's height on Linux and 835/1000 on macOS (offscreen, where the menu
+bar takes a row on both), and `application_uiforetw_selected_diff_contract`
+holds it there: a further row that takes height from the comparison fails that
+course, whose failure line names every row stacked with the comparison
+([[BPR-1036]]).
+
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
 
 ## Overview files

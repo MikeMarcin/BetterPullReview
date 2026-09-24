@@ -53,6 +53,21 @@ math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 bpr_private_data_root(BPR_ROOT)
 
+# [[BPR-1036]]. The comparison's height floor, in pixels of the 1000-pixel
+# capture window and so in thousandths of it, asserted here on its own as well
+# as in the capture. RFC-BPR-0028 AC-01, as the owner amended it on 2026-09-24,
+# admits the review surface's entry rows between the strip and the epoch line,
+# so the floor is the stack measured with the composition entry row in place:
+# 842 on Linux and 835 on macOS. Windows has no menu bar row and no measured
+# stack yet, so it keeps the owner's 850 budget ([[BPR-0246]]).
+if(CMAKE_HOST_APPLE)
+    set(bpr_comparison_height_floor 835)
+elseif(CMAKE_HOST_WIN32)
+    set(bpr_comparison_height_floor 850)
+else()
+    set(bpr_comparison_height_floor 842)
+endif()
+
 set(bpr_evidence_root "${BPR_ROOT}/evidence")
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${bpr_evidence_root}")
@@ -441,9 +456,9 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
     if(NOT width_ratio EQUAL computed_width_ratio
             OR NOT height_ratio EQUAL computed_height_ratio
             OR computed_width_ratio LESS 750
-            OR computed_height_ratio LESS 850
+            OR computed_height_ratio LESS bpr_comparison_height_floor
             OR comparison_width LESS 960
-            OR comparison_height LESS 850
+            OR comparison_height LESS bpr_comparison_height_floor
             OR NOT crop_width EQUAL comparison_width
             OR NOT crop_height EQUAL comparison_height)
         message(FATAL_ERROR
@@ -451,7 +466,8 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             "ratio=${width_ratio}x${height_ratio} "
             "computed=${computed_width_ratio}x${computed_height_ratio} "
             "comparison=${comparison_width}x${comparison_height} "
-            "crop=${crop_width}x${crop_height}"
+            "crop=${crop_width}x${crop_height} "
+            "height_floor=${bpr_comparison_height_floor}"
         )
     endif()
     math(EXPR comparison_right

@@ -17273,8 +17273,27 @@ namespace bpr::app {
 
 		/// \brief [[BPR-1036]]. The capture's layout floors, in thousandths of
 		/// the window the comparison must take.
-		inline constexpr int uiforetw_capture_width_floor  = 750;
+		///
+		/// \details The height floor is the measured stack's. RFC-BPR-0028
+		/// AC-01, as the owner amended it on 2026-09-24, admits the review
+		/// surface's entry rows between the strip and the epoch line, so the
+		/// composition entry row's height is no longer a regression. The floor
+		/// is the comparison's height with that row in place: 842 on Linux and
+		/// 835 on macOS, where the menu bar, the entry row, the status line and
+		/// the status bar are each a little taller under offscreen. Any further
+		/// row that takes height fails and is named. Windows has no menu bar
+		/// row and no measured stack yet, so it keeps the owner's 850 budget
+		/// ([[BPR-0246]]), which its row already meets ([[BPR-1033]]).
+		/// [[BPR-1106]] may move the entries; if it does, the floor goes back
+		/// toward 850 with it. The course script asserts the same floors.
+		inline constexpr int uiforetw_capture_width_floor = 750;
+	#if defined(__APPLE__)
+		inline constexpr int uiforetw_capture_height_floor = 835;
+	#elif defined(_WIN32)
 		inline constexpr int uiforetw_capture_height_floor = 850;
+	#else
+		inline constexpr int uiforetw_capture_height_floor = 842;
+	#endif
 
 		/// \brief [[BPR-1036]]. Names what shares the capture window with the
 		/// comparison when the comparison is under a layout floor.

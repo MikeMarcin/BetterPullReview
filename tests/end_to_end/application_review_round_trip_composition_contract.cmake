@@ -206,6 +206,16 @@ endfunction()
 # pull request, and contrasts it with the designated lane's two gates. No code
 # changes; the mutation-branch pin is unchanged. Covers 4248720b..the BPR-0897
 # commit; nothing else touched the pinned scope. Review recorded on BPR-0897.
+# BPR-1036 floor reseal: the BPR_BUILD_TESTING UIforETW capture's height floor
+# is the measured stack's under RFC-BPR-0028 AC-01 as the owner amended it on
+# 2026-09-24: 842 on Linux, 835 on macOS, 850 kept on Windows. One constant
+# becomes a three-way platform branch with its comment; the failure line that
+# names the stack is unchanged. The capture reads window state and writes only
+# to standard streams and its evidence directory; every product action it
+# takes is unchanged. No credential, provider, vault, transport or mutation
+# path changes; the mutation-branch pin is unchanged. Covers e6134dbc..the
+# BPR-1036 floor commit; nothing else touched the pinned scope. Review
+# recorded on BPR-1036.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -224,7 +234,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4cbedb68e21fe49f76fcfd9edc2d1d3e7f2ed7421b9bcc95eb14b0af31a9736d"
+		"fb638412a13a54dfcb1ecff46b23bcdbb3e112f796238e8e2152497abe26b92b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -363,7 +373,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "efce74e1587536e09b79bdf596a75213176eedba7df503776f8698e5d126d237"
+        "77cecb38b7ee325c1d1b5b1357bca10f49fd6401cf7d13e5dce6ea56d036c331"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
