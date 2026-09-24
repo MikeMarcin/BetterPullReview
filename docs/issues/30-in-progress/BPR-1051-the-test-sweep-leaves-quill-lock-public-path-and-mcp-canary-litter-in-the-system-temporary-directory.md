@@ -665,3 +665,39 @@ inside its runs of these rows.
 - AC1 to AC3 and AC6 (Linux) and AC4 (macOS) are unchanged, and each passes.
   The card stays In Progress until the activation course is measured on
   Windows.
+
+### The activation course, measured (bpr-main-win, 2026-09-24)
+
+The coordinator cleared the desktop's foreground. Before the run, and again
+after, the foreground window was a terminal, and no WSLg (`msrdc`) window was
+open. The same loop ran with the card's directory name, at head `93b3c53e`,
+with the build from `bcd57840`. Only `docs/` changed in between.
+
+| Row | Result | Left in its directory |
+| --- | --- | --- |
+| `application_profile_activation_public_path` | Passed, 13.44 s (`PROFILE_ACTIVATION_OK`), uncontained as registered, 0 refusal lines | nothing |
+
+**AC5: pass on Windows.** The eleven rows in the card's list are all
+registered here. Ten ran uncontained and left nothing in their temporary
+directory. The one contained row, owner admission, fails in [[BPR-0907]]'s
+known way, and it left nothing in its container's temporary directory. The
+logging-adapter rows pass. There is no Quill lock file on Windows.
+
+## Finished (bpr-main-win, 2026-09-24)
+
+| Criterion | Station | Candidate | Observation |
+| --- | --- | --- | --- |
+| AC1 | Linux | `ff9bc9e2` | Each of the five kinds is attributed to its rows, from a per-row measurement over all 423 rows |
+| AC2 | Linux | `09f3d48f` | The named rows pass, each `TMPDIR` is empty afterwards, and `/tmp` gains no lock file. The whole suite with `TMPDIR` unset adds nothing of this user's to `/tmp` |
+| AC3 | Linux | `09f3d48f` | Reverting each fix brings its kind back, and `quill_logging` fails its new assertion |
+| AC4 | macOS | `bcd57840` | 12 of 12 rows pass in direct sandboxed runs with a kept `TMPDIR`, leaving none of the five kinds and no lock. The sandbox allows the lock, and the negative control brings it back |
+| AC5 | Windows | `bcd57840` | The eleven rows, as above |
+| AC6 | Linux | `09f3d48f` | The canary removes only the directory it created |
+
+Recorded here but not taken by this card, and each reported to the
+coordinator:
+
+- the two Windows courses that leave their own `QTemporaryDir` roots;
+- the macOS activation endpoints that a killed owner leaves outside the
+  runner;
+- `rfc0017`'s `MAX_PATH` headroom.

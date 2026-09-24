@@ -548,3 +548,21 @@ Each criterion now has its record on the station that owes it:
 
 The two held-back Windows rows are outside every criterion. Their refusal
 count will be added here when they have run.
+
+## Post-close: the two held-back Windows rows (bpr-main-win, 2026-09-24)
+
+The coordinator cleared the desktop's foreground. Before each run, and again
+after, the foreground window was a terminal, and no WSLg (`msrdc`) window was
+open. The build was the same `build/windows-dev` at `bcd57840`. Main had
+since moved to `93b3c53e`, with changes only in `docs/`.
+
+| Row | Result | Refusal lines |
+| --- | --- | --- |
+| `application_profile_activation_public_path` | Passed, 13.44 s (`PROFILE_ACTIVATION_OK`). It ran through [[BPR-1051]]'s AC5 loop, with a fresh `TEMP` | **0** |
+| `application_windows_title_row` | Passed, 2.25 s, on the real `windows` platform: `title-row:1280x852:ok`, `title-row:1920x1080:ok`, `windows-title-row-host-tests:pass` | **0** |
+
+So all 156 `application_` rows have now run on Windows under the gate, and
+none printed `AGENT_WORKSPACE_RECOVERY_REFUSED`. The logs are
+`build/logs/bpr-1050-main-win/titlerow.log` and
+`build/logs/bpr-1051-main-win/ac5-activation-*`, station records that are
+not committed.
