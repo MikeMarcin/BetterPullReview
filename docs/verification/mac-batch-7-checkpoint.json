@@ -1,0 +1,24 @@
+{
+ "schema": "bpr.milestone_checkpoint",
+ "schema_version": 1,
+ "milestone": "Mac batch 7",
+ "station": "bpr-main-mac",
+ "branch": "main",
+ "date": "2026-09-24",
+ "mandate": "implement available unattended work, focus on closing out rfcs; revise stale cards and rfcs; push and pull as needed; continue any mac work that becomes available",
+ "source": "owner-decisions-20260924-v001 consumption (docs/verification/owner-decisions-20260924-v001-consumption.json)",
+ "cards": [
+  {"card": "BPR-0897", "state": "Done", "commits": ["d393bb5c", "c3a55f25", "589ee191"], "result": "intent comment at select_observed_review_mutation; pins resealed"},
+  {"card": "BPR-0986", "state": "Parked (human-review)", "commits": ["8f0ec40b", "bdfc0489"], "result": "Colours card offers 45 roles; owner ask prepared: the current-line band alone, rendered after BPR-1107 with white space off"},
+  {"card": "BPR-1036", "state": "Done", "commits": ["557792d5", "69d11f8b"], "result": "coordinator aside: macOS rows pass at b18888aa (835/1000); BPR-1033 AC3 macOS half recorded, card not moved"},
+  {"card": "BPR-0644", "state": "Parked (human-review)", "commits": ["1347f776", "cfff152c"], "result": "keep-grant policy built for launches; owner ask prepared: keep erasing material that signs in as another account, or keep it until Sign out"},
+  {"card": "BPR-1116", "state": "Ready (new)", "commits": ["d93433b4", "1347f776"], "result": "follow-up: in-process renewal and missing refresh slot still erase"},
+  {"card": "BPR-1023", "state": "Done", "commits": ["b9d6bb26", "60069e4b"], "result": "option 1: every card Connect obeys host activation; course reconciled; control fails without the gate"},
+  {"card": "BPR-0803", "state": "pending", "next": "claim; keep the device code visible beside the CLI choice; courses for each ending; park for one rendered question"},
+  {"card": "BPR-1107", "state": "pending", "next": "white-space drawing plus setting; captures; owner acceptance later"},
+  {"card": "BPR-1106", "state": "pending", "next": "frontend-design round; mockups on the card; park for one question"}
+ ],
+ "ids_allocated": ["BPR-1116"],
+ "commands_running": [],
+ "next_action": "BPR-0803"
+}
