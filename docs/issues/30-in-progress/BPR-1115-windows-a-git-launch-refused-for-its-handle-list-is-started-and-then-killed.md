@@ -81,3 +81,130 @@ nothing drives the refusal branch.
 
 [[BPR-1114]] should use the refusal shape this card settles for the gh CLI
 runner.
+
+## Refused at creation, with committed rows (bpr-main-win, 2026-09-24)
+
+Run `bpr-main-win-20260923`, `build/dev` (MSVC 19.51 Debug, Qt 6.11.2),
+Windows 11 10.0.26200, on `49f4a9c5` plus this change. The logs are station
+records under `build/logs/bpr-1115-main-win/` and are not committed.
+
+**The shape settled here.** The list-building code moved out of
+`installed_git_process.cpp` into the platform target, as
+`src/platform/include/bpr/platform/windows_standard_handles.hpp`
+(`launch_restriction`), so that [[BPR-1114]] can give the gh CLI runner the
+same code instead of a copy. It depends on nothing first-party and includes no
+Qt: an adapter hands it the three fields of its own `CreateProcessArguments`
+(the startup block, the creation flags and the inheritance flag).
+
+- On success it points the call at its own extended startup block, whose
+  `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` names exactly the standard input,
+  output and error handles, and turns inheritance on. That is what
+  [[BPR-1104]] shipped.
+- When a standard handle is null or invalid, or the list cannot be built, it
+  turns inheritance off and adds `DETACHED_PROCESS | CREATE_NEW_CONSOLE`.
+  Those two flags exclude each other, so `CreateProcessW` fails the call with
+  `ERROR_INVALID_PARAMETER` before it opens the program. **No process is
+  created**, so no Git runs, with or without handles. Qt reports
+  `FailedToStart`, and the adapter's existing mapping makes that
+  `process_start`.
+
+This is "refuse before anything starts" rather than the guarded path's
+"replace the program with one that exits at once". The guarded path has the
+bundled supervisor to substitute. The gh CLI runner in [[BPR-1114]] has no
+such program, and a substitute still creates a process. Refusing at creation
+needs nothing on disk and creates nothing, and both runners can share it.
+
+The check after the start stays. It now fires only for a child created
+without the restriction all the same: a Qt that never called the modifier, or
+a Windows that accepted the refused flags. Such a child is still terminated
+before it is attached to the job. The guarded path is unchanged.
+
+**The rows (AC1, AC2).** Both are Windows-only rows at the end of
+`git_process_contract`. They drive the adapter through
+`make_installed_git_process`, with the contract's fake Git: a copy of the
+test executable, launched through the same unguarded path as every cache
+operation.
+
+- `run_windows_inherited_handle_contract` (AC2). The parent holds an
+  `std::ifstream` on a file while the adapter starts an `index-pack`. The
+  fake blocks in it. Once the fake reports that it is running, the parent
+  closes the stream and opens the file with `CreateFileW` and no sharing.
+  That open succeeds while Git still runs.
+- `run_windows_refused_launch_contract` (AC1). The contract's
+  compile-time fault seam (`BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION`, a
+  marker in the isolation root) withholds the standard error handle, as a
+  null standard handle would, so the list cannot be built. The row counts
+  processes with a job object that this test process joins, so every process
+  it creates afterwards is counted, even after it has exited. The refused
+  `index_pack` returns `process_start`, **0 processes are created**, and the
+  fake's invocation log is unchanged. Without the marker, the same request
+  succeeds and creates 2 processes. So the count can see a launch.
+
+```text
+BPR-1115 inherited handle: the parent opened its file with no sharing while the unguarded Git ran
+BPR-1115 refused launch: process_start, 0 processes created; the allowed launch created 2
+Git process contract passed
+```
+
+AC2 names `git cat-file --batch`. The row runs the fake Git's blocked
+`index-pack` instead. A real Git exits as soon as the adapter closes its
+input, so it never stays alive long enough to look at what it holds. What a
+child inherits is decided by the launch, not by the program, and the fake is
+started by exactly the same launch code.
+
+**Negative controls.** These are station patches to the platform header,
+rebuilt and run, then restored. They were never committed.
+
+| Patch | Result |
+| --- | --- |
+| The list is not attached. The restriction reports success but leaves Qt's inherit-everything default in place (the list removed). | `git_process_contract` fails at the inherited-handle row: the exclusive open is refused with error 32, `ERROR_SHARING_VIOLATION`. |
+| The refusal only turns inheritance off, which is the shape [[BPR-1104]] shipped. | The inherited-handle row passes. The refusal row fails with "creates no process at all (created 1)": the child is created, and is then killed by the check after the start. |
+
+Each negative control run left its temporary root behind, because `require`
+exits the process. Both roots were removed by their exact names.
+
+**AC3.** macOS and Linux keep their paths. Every change in behaviour is
+inside `Q_OS_WIN` or `_WIN32`: the platform header, the Git runner's
+restriction and its post-start check, the two rows, and the Windows-only
+platform link in `src/adapters/git/CMakeLists.txt`. The rest is portable,
+but it changes no behaviour there:
+
+- The fake Git's blocked `index-pack` now also writes a `block-started`
+  marker. Nothing else reads it.
+- `architecture_boundaries` gains required patterns, which are checked as
+  text on every host.
+- `architecture_boundary_contract` gains two tests.
+
+The macOS and Linux stations should rerun `git_process_contract`,
+`git_cache_contract`, `architecture_boundaries` and
+`architecture_boundary_contract` on the pushed revision. This station did not
+run them there.
+
+**AC4.** On the candidate, serially: `architecture_boundaries` (18.77 s),
+`architecture_boundary_contract` (336.68 s), `git_protocol_boundary`,
+`msvc_secure_crt_contract`, `application_git_protocol_v2`,
+`native_git_smart_transport_contract`, `git_process_contract` (47.95 s),
+`git_cache_contract` (73.66 s) and `git_sparse_cache_contract` (26.02 s):
+9 of 9 pass. After that run, the platform header's two casts were rewritten
+in the form the Git runner's own list used before, which clang-tidy accepts.
+The full tree was rebuilt without a warning, and `git_process_contract` was
+rerun: it passes (48.20 s), with the same two lines. `clang-format` is clean. `clang-tidy` finds nothing in the new code,
+including the platform header, which was checked with a header filter the
+repository's `/`-only `HeaderFilterRegex` does not reach on Windows. Its five
+findings in `installed_git_process.cpp` predate this change.
+
+**Baseline, for the record.** Before this change, at `877e3d60`,
+`git_process_contract`, `gh_cli_transport` and `msvc_secure_crt_contract`
+passed. `github_cli_process_runner` failed at "opt-in preserves only exact
+bounded stdout and completed exit code", which is [[BPR-0878]]'s item 3 and
+is taken up under [[BPR-1114]].
+
+**Boundaries.** `architecture_boundaries` now allows the handle-list APIs
+in the platform header, alongside the Git runner and the two agent sources.
+It requires the Git runner to include and apply the restriction and to keep
+the check after the start. `architecture_boundary_contract` checks that
+removing any of those pieces fails the gate, that the same list-building
+code anywhere else is refused, and that the platform target must own the
+header. `AGENTS.md`, `docs/architecture/system-architecture.md`,
+`docs/architecture/git-and-epoch-model.md` and the platform target's
+`CMakeLists.txt` describe the new definition.

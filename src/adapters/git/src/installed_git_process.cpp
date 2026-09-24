@@ -62,6 +62,7 @@
 	#include <qt_windows.h>
 
 	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
+	#include "bpr/platform/windows_standard_handles.hpp"
 #endif
 
 namespace bpr::adapters::git {
@@ -1814,91 +1815,45 @@ namespace bpr::adapters::git {
 		}
 
 #if defined(Q_OS_WIN)
+		using launch_restriction = bpr::platform::windows_standard_handles::launch_restriction;
+
 		/// \brief Starts an unguarded Git with exactly its three standard handles.
 		///
-		/// \details [[BPR-1104]]. The Windows counterpart of the
-		/// `CloseFileDescriptors` flag every Unix launch sets, and the rule the
-		/// supervisor already applies to a guarded Git. Qt creates the child with
-		/// `bInheritHandles` and no list, so without one Git inherited every
-		/// inheritable handle this process held at that instant, and kept it
-		/// until it exited. A C runtime stream (`std::ifstream`) is inheritable
-		/// by default, and on the Windows station a stream reading one epoch's
-		/// pack spool was inherited by the `index-pack` of another: the spool's
-		/// exclusive open and its removal were then refused
-		/// (`ERROR_SHARING_VIOLATION`) for as long as that Git ran.
-		class standard_handles_only final
+		/// \details [[BPR-1104]], [[BPR-1115]]. The platform target's launch
+		/// restriction: the Windows counterpart of the `CloseFileDescriptors`
+		/// flag every Unix launch sets, and the rule the supervisor already
+		/// applies to a guarded Git. Qt creates the child with handle inheritance
+		/// on and no list, so without one Git inherited every inheritable handle
+		/// this process held at that instant, and kept it until it exited. On the
+		/// Windows station a C runtime stream reading one epoch's pack spool was
+		/// inherited by the `index-pack` of another, and the spool's exclusive
+		/// open and its removal were refused (`ERROR_SHARING_VIOLATION`) for as
+		/// long as that Git ran.
+		///
+		/// A launch whose list cannot be built is refused by process creation
+		/// itself: no Git is created, and the start fails as `process_start`.
+		/// \p aInheritance must outlive the start.
+		void restrict_to_standard_handles(
+			QProcess&                                     aProcess,
+			launch_restriction&                           aInheritance,
+			[[maybe_unused]] const std::filesystem::path& aIsolation)
 		{
-		public:
-			standard_handles_only()                                                = default;
-			standard_handles_only(const standard_handles_only&)                    = delete;
-			auto operator=(const standard_handles_only&) -> standard_handles_only& = delete;
-			~standard_handles_only()
-			{
-				if (Attributes != nullptr) {
-					::DeleteProcThreadAttributeList(Attributes);
-				}
-			}
-
-			void install(QProcess& aProcess)
-			{
-				aProcess.setCreateProcessArgumentsModifier([this](QProcess::CreateProcessArguments* const aArguments) {
-					limit_inheritance(aArguments);
+	#if defined(BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION)
+			// The contract's seam for the refusal: withholding the standard error
+			// handle, as a null standard handle would, leaves the list unbuildable.
+			std::error_code markerError;
+			if (std::filesystem::exists(aIsolation / "inject-standard-handle-list-failure", markerError) && !markerError) {
+				aProcess.setCreateProcessArgumentsModifier([&aInheritance](QProcess::CreateProcessArguments* const aArguments) {
+					aArguments->startupInfo->hStdError = nullptr;
+					aInheritance.apply(aArguments->startupInfo, aArguments->flags, aArguments->inheritHandles);
 				});
+				return;
 			}
-
-			/// Set only once the list is in place, so a start that bypassed it is
-			/// refused rather than run with every inheritable handle.
-			[[nodiscard]] auto restricted() const noexcept -> bool
-			{
-				return Restricted;
-			}
-
-		private:
-			void limit_inheritance(QProcess::CreateProcessArguments* const aArguments) noexcept
-			{
-				try {
-					const auto& original = *aArguments->startupInfo;
-					Inherited.clear();
-					for (const auto handle : { original.hStdInput, original.hStdOutput, original.hStdError }) {
-						if (handle == nullptr || handle == INVALID_HANDLE_VALUE) {
-							throw std::runtime_error{ "standard handle" };
-						}
-						// A handle list may not name one handle twice.
-						if (std::ranges::find(Inherited, handle) == Inherited.end()) {
-							Inherited.push_back(handle);
-						}
-					}
-					auto size = SIZE_T{ 0U };
-					static_cast<void>(::InitializeProcThreadAttributeList(nullptr, 1U, 0U, &size));
-					AttributeBuffer.assign(size, BYTE{ 0U });
-					const auto list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(AttributeBuffer.data());
-					if (size == 0U || ::InitializeProcThreadAttributeList(list, 1U, 0U, &size) == FALSE) {
-						throw std::runtime_error{ "attribute list" };
-					}
-					Attributes = list;
-					if (::UpdateProcThreadAttribute(Attributes, 0U, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, static_cast<void*>(Inherited.data()), Inherited.size() * sizeof(HANDLE), nullptr, nullptr) == FALSE) {
-						throw std::runtime_error{ "handle list" };
-					}
-					Startup                 = STARTUPINFOEXW{ };
-					Startup.StartupInfo     = original;
-					Startup.StartupInfo.cb  = sizeof(Startup);
-					Startup.lpAttributeList = Attributes;
-					aArguments->startupInfo = &Startup.StartupInfo;
-					aArguments->flags |= EXTENDED_STARTUPINFO_PRESENT;
-					aArguments->inheritHandles = true;
-					Restricted                 = true;
-				} catch (...) {
-					// Nothing is inherited, and the start is refused afterwards.
-					aArguments->inheritHandles = false;
-				}
-			}
-
-			std::vector<BYTE>            AttributeBuffer;
-			LPPROC_THREAD_ATTRIBUTE_LIST Attributes = nullptr;
-			std::vector<HANDLE>          Inherited;
-			STARTUPINFOEXW               Startup{ };
-			bool                         Restricted = false;
-		};
+	#endif
+			aProcess.setCreateProcessArgumentsModifier([&aInheritance](QProcess::CreateProcessArguments* const aArguments) {
+				aInheritance.apply(aArguments->startupInfo, aArguments->flags, aArguments->inheritHandles);
+			});
+		}
 #endif
 
 		// The supervisor, rather than Git, retains the journal lock. Git may
@@ -2511,7 +2466,7 @@ namespace bpr::adapters::git {
 			windows_job            job;
 			git_workspace_lifetime lifetime;
 #if defined(Q_OS_WIN)
-			standard_handles_only inheritance;
+			launch_restriction inheritance;
 #endif
 			try {
 				process->setProgram(executable);
@@ -2536,7 +2491,7 @@ namespace bpr::adapters::git {
 				}
 #if defined(Q_OS_WIN)
 				if (!aRequest.WorkspaceGuard) {
-					inheritance.install(*process);
+					restrict_to_standard_handles(*process, inheritance, aConfiguration.Home.parent_path());
 				}
 #endif
 				QObject::connect(
@@ -2649,6 +2604,11 @@ namespace bpr::adapters::git {
 				}
 				processGroupId = resolve_process_group(*process, 0);
 #if defined(Q_OS_WIN)
+				// A list that could not be built never gets here: process creation
+				// refused the start. This catches a child created without the
+				// restriction all the same, by a Qt that never called the modifier
+				// or a process creation that accepted the refused flags. It must
+				// not run.
 				if (!aRequest.WorkspaceGuard && !inheritance.restricted()) {
 					return failed(git_process_failure::process_start);
 				}

@@ -776,7 +776,11 @@ OIDs under the same repository and environment policy.
 The implemented process worker serializes calls. Unix children enter a new
 session/process group; guarded Windows code assigns children to a Job Object
 and closes inherited handles, with target-native execution retained in
-BPR-0053. Input, retained output, time, cancellation, descendant termination,
+BPR-0053. Every unguarded Windows Git inherits only its three standard
+handles, through the platform target's launch restriction; a launch whose
+handle list cannot be built is refused by process creation itself, so no Git
+is created and the request fails as `process_start` (BPR-1104, BPR-1115).
+Input, retained output, time, cancellation, descendant termination,
 and two-stage reaping are bounded. If the adapter still cannot prove a child
 reaped after both stages, it permanently quarantines the lane and deliberately
 retains the process wrapper instead of invoking a potentially unbounded Qt

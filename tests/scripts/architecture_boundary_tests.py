@@ -176,6 +176,13 @@ PLATFORM_HEADER = "src/platform/include/bpr/platform/windows_private_object.hpp"
 PLATFORM_TARGET = (REPOSITORY_ROOT / "src/platform/CMakeLists.txt").read_text(
     encoding="utf-8"
 )
+# [[BPR-1115]] The Windows launch restriction the QProcess launchers share.
+PLATFORM_STANDARD_HANDLES_HEADER = (
+    "src/platform/include/bpr/platform/windows_standard_handles.hpp"
+)
+PLATFORM_STANDARD_HANDLES_SOURCE = (
+    REPOSITORY_ROOT / PLATFORM_STANDARD_HANDLES_HEADER
+).read_text(encoding="utf-8")
 AGENT_TARGET = (
     REPOSITORY_ROOT / "src" / "adapters" / "agent" / "CMakeLists.txt"
 ).read_text(encoding="utf-8")
@@ -1922,6 +1929,65 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                             )
                     },
                 )
+
+    def test_installed_git_runner_restricts_unguarded_windows_launches(
+        self,
+    ) -> None:
+        # [[BPR-1115]] Every unguarded Windows Git takes the platform target's
+        # launch restriction, and a Git started without it is refused. Each
+        # piece is required, so removing one on any host fails the gate even
+        # though only Windows runs the row that exercises it.
+        for fragment in (
+            '#include "bpr/platform/windows_standard_handles.hpp"',
+            "windows_standard_handles::launch_restriction",
+            "Inheritance.apply(aArguments->startupInfo, aArguments->flags, "
+            "aArguments->inheritHandles)",
+            "restrict_to_standard_handles(*process",
+            "!inheritance.restricted()",
+        ):
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, GIT_PROCESS_RUNNER_SOURCE)
+                self.assert_failure(
+                    "Installed-Git runner contract is incomplete",
+                    {
+                        "src/adapters/git/src/"
+                        "installed_git_process.cpp":
+                            GIT_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "REMOVED_STANDARD_HANDLE_RESTRICTION",
+                            )
+                    },
+                )
+
+    def test_platform_owns_the_shared_launch_restriction(self) -> None:
+        # [[BPR-1115]] The platform header may build the handle list; the same
+        # code anywhere else is refused, and the permission is the platform
+        # target's own header.
+        platform = {
+            PLATFORM_STANDARD_HANDLES_HEADER: PLATFORM_STANDARD_HANDLES_SOURCE,
+            "src/platform/CMakeLists.txt": PLATFORM_TARGET,
+        }
+        result = self.run_check(platform)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for other in (
+            "src/adapters/github/src/windows_standard_handles.hpp",
+            "src/adapters/native/windows_standard_handles.hpp",
+        ):
+            with self.subTest(other=other):
+                self.assert_failure(
+                    "native Windows agent containment API ownership violation",
+                    {**platform, other: PLATFORM_STANDARD_HANDLES_SOURCE},
+                )
+        self.assert_failure(
+            # CMake wraps its message before the owner's name.
+            "Designated effect source windows_standard_handles.hpp",
+            {
+                PLATFORM_STANDARD_HANDLES_HEADER:
+                    PLATFORM_STANDARD_HANDLES_SOURCE,
+                "src/platform/CMakeLists.txt":
+                    "add_library(better_pull_review_platform INTERFACE)\n",
+            },
+        )
 
     def test_installed_git_runner_rejects_expanded_authority(self) -> None:
         hostile_surfaces = (

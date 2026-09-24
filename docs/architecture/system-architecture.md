@@ -236,7 +236,8 @@ better_pull_review_application
 
 better_pull_review_platform
     header-only platform definitions several adapters share and none owns
-    (the Windows owner-private object descriptor and its check, BPR-0825)
+    (the Windows owner-private object descriptor and its check, BPR-0825;
+    the Windows standard-handles-only launch restriction, BPR-1115)
     depends on nothing first-party
 
 better_pull_review_adapter_github

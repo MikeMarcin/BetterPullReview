@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -821,6 +822,9 @@ namespace {
 					::_exit(0);
 				}
 #endif
+				// [[BPR-1115]]. The inherited-handle row waits for this before it
+				// looks at what the running Git holds.
+				write_text(fake_isolation_root() / "block-started", "started");
 				std::this_thread::sleep_for(std::chrono::seconds{ 20 });
 				return 0;
 			}
@@ -3976,6 +3980,170 @@ namespace {
 			}
 		}
 	}
+
+#if defined(_WIN32)
+	/// \brief Counts every process this test process creates from now on.
+	///
+	/// \details This process joins a job of its own, which allows no breakaway,
+	/// so every process it creates afterwards is born in that job, and the job's
+	/// accounting counts it even after it has exited. A process cannot leave a
+	/// job, so the one row that needs this runs last.
+	class created_processes final
+	{
+	public:
+		created_processes()
+			: Job{ ::CreateJobObjectW(nullptr, nullptr) }
+		{
+			require(Job != nullptr, "create the process-creation accounting job");
+			require(
+				::AssignProcessToJobObject(Job, ::GetCurrentProcess()) != FALSE,
+				"this test process joins its accounting job");
+		}
+		created_processes(const created_processes&)                    = delete;
+		auto operator=(const created_processes&) -> created_processes& = delete;
+		~created_processes()
+		{
+			static_cast<void>(::CloseHandle(Job));
+		}
+
+		[[nodiscard]] auto total() const -> DWORD
+		{
+			JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting{ };
+			require(
+				::QueryInformationJobObject(Job, JobObjectBasicAccountingInformation, &accounting, sizeof(accounting), nullptr) != FALSE,
+				"read the process-creation accounting job");
+			return accounting.TotalProcesses;
+		}
+
+	private:
+		HANDLE Job = nullptr;
+	};
+
+	[[nodiscard]] auto fake_invocation_count(const std::filesystem::path& aRoot) -> std::size_t
+	{
+		const auto log   = read_text(aRoot / "invocations.log");
+		auto       count = std::size_t{ 0U };
+		for (auto offset = log.find("BEGIN\n"); offset != std::string::npos; offset = log.find("BEGIN\n", offset + 1U)) {
+			++count;
+		}
+		return count;
+	}
+
+	// [[BPR-1115]]. An unguarded Git inherits its three standard handles and
+	// nothing else. The parent holds a C runtime stream on a file, which the C
+	// runtime makes inheritable, while it starts Git; the stream then closes,
+	// and while that Git still runs the parent opens the file with no sharing
+	// at all. A Git that inherited the stream's handle would still hold the
+	// file, and the open would be refused with ERROR_SHARING_VIOLATION, which
+	// is what [[BPR-1104]] found on a pack spool. The Git is the contract's fake
+	// (this executable), blocked in index-pack, because a real Git never stays
+	// alive on the adapter's closed input long enough to look.
+	auto run_windows_inherited_handle_contract() -> void
+	{
+		temporary_root root{ "git-inherited-handle" };
+		const auto     fakeGitPath = make_fake_git_executable(root.Path);
+		auto           adapter     = make_adapter(fakeGitPath, root.Path);
+		const auto     repository  = repository_path(root.Path, '5');
+		initialize_repository(*adapter, repository, application::git_hash_algorithm::sha1);
+		const auto operation = make_operation(0x55U);
+		write_spool(*adapter, operation, std::as_bytes(std::span{ std::string_view{ "BPR_BLOCK" } }));
+
+		const auto held = root.Path / "held-by-the-parent.bin";
+		write_text(held, "held by the parent while Git starts");
+		auto stream = std::make_optional<std::ifstream>(held, std::ios::binary);
+		require(stream->is_open(), "the parent holds a C runtime stream on the file");
+
+		using index_result = application::git_process_result<application::git_index_pack_success>;
+		std::stop_source            cancellation;
+		std::atomic_bool            returned{ false };
+		std::optional<index_result> blocked;
+		std::thread                 call{ [&] {
+			blocked = adapter->index_pack(
+				{
+					.Repository        = repository,
+					.Operation         = operation,
+					.SpoolBytes        = 9U,
+					.MaximumInputBytes = 9U,
+					.ExpectedPack      = object<application::git_pack_id>(sha1_pack_hex, application::git_hash_algorithm::sha1),
+				},
+				cancellation.get_token());
+			returned.store(true);
+		} };
+		const auto started  = root.Path / "block-started";
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 15 };
+		while (!std::filesystem::exists(started) && !returned.load() && std::chrono::steady_clock::now() < deadline) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 20 });
+		}
+		const auto running = std::filesystem::exists(started) && !returned.load();
+		stream.reset();
+
+		const auto exclusive = ::CreateFileW(held.c_str(), GENERIC_READ, 0U, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+		const auto error     = exclusive == INVALID_HANDLE_VALUE ? ::GetLastError() : DWORD{ ERROR_SUCCESS };
+		const auto stillRan  = !returned.load();
+		if (exclusive != INVALID_HANDLE_VALUE) {
+			static_cast<void>(::CloseHandle(exclusive));
+		}
+		cancellation.request_stop();
+		call.join();
+		require(running, "the unguarded fake Git is running, blocked in index-pack");
+		require(stillRan, "the exclusive open is made while that Git still runs");
+		require(
+			error == ERROR_SUCCESS,
+			"the parent opens the file with no sharing while Git runs: Git inherited none of the "
+			"parent's handles (a refusal is error "
+				+ std::to_string(error) + ", and 32 is ERROR_SHARING_VIOLATION)");
+		require(
+			blocked.has_value() && !blocked->has_value()
+				&& blocked->error() == application::git_process_failure::cancelled,
+			"the blocked Git is cancelled");
+		std::cout << "BPR-1115 inherited handle: the parent opened its file with no sharing while the unguarded Git ran\n";
+	}
+
+	// [[BPR-1115]]. A launch whose handle list cannot be built is refused by
+	// process creation itself: nothing is created, so no Git runs, and the
+	// request fails as `process_start`. The fault seam withholds the standard
+	// error handle, as a null standard handle would. The job's accounting shows
+	// that no process was created at all, not that one was created and killed,
+	// and the fake Git's invocation log shows that it never ran. The same
+	// request without the seam creates a process and succeeds, so the count
+	// can see a launch.
+	auto run_windows_refused_launch_contract() -> void
+	{
+		temporary_root root{ "git-refused-launch" };
+		const auto     fakeGitPath = make_fake_git_executable(root.Path);
+		auto           adapter     = make_adapter(fakeGitPath, root.Path);
+		const auto     repository  = repository_path(root.Path, '6');
+		initialize_repository(*adapter, repository, application::git_hash_algorithm::sha1);
+		const auto operation = make_operation(0x66U);
+
+		const created_processes created;
+		const auto              marker = root.Path / "inject-standard-handle-list-failure";
+		write_text(marker, "withhold standard error");
+		const auto invocationsBefore = fake_invocation_count(root.Path);
+		const auto createdBefore     = created.total();
+		const auto refused           = fake_index_request(*adapter, repository, operation, "BPR_REFUSED_LAUNCH");
+		const auto createdRefused    = created.total() - createdBefore;
+		const auto invocationsAfter  = fake_invocation_count(root.Path);
+		require(
+			!refused.has_value() && refused.error() == application::git_process_failure::process_start,
+			"a launch refused for its handle list fails as process_start");
+		require(
+			createdRefused == 0U,
+			"a launch refused for its handle list creates no process at all (created "
+				+ std::to_string(createdRefused) + ")");
+		require(invocationsAfter == invocationsBefore, "the refused Git never ran");
+
+		require(std::filesystem::remove(marker), "remove the handle-list fault marker");
+		const auto createdAcceptedBefore = created.total();
+		const auto accepted              = fake_index_request(*adapter, repository, operation, "BPR_ACCEPTED_LAUNCH");
+		const auto createdAccepted       = created.total() - createdAcceptedBefore;
+		require(accepted.has_value(), "the same launch with its handle list succeeds");
+		require(createdAccepted >= 1U, "the accounting job counts the launch it allowed");
+		require(fake_invocation_count(root.Path) > invocationsAfter, "the allowed Git ran");
+		std::cout << "BPR-1115 refused launch: process_start, " << createdRefused << " processes created; the allowed launch created "
+				  << createdAccepted << '\n';
+	}
+#endif
 }
 
 auto main(int argc, char** argv) -> int
@@ -4017,6 +4185,11 @@ auto main(int argc, char** argv) -> int
 	run_process_error_detail_contract();
 	run_fsck_severity_contract();
 	run_sparse_special_blob_contract();
+#if defined(_WIN32)
+	run_windows_inherited_handle_contract();
+	// Last: it moves this process into an accounting job it cannot leave.
+	run_windows_refused_launch_contract();
+#endif
 	std::cout << "Git process contract passed\n";
 	return 0;
 }

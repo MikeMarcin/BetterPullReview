@@ -1620,6 +1620,13 @@ set(
     platform_windows_private_object_relative
     "src/platform/include/bpr/platform/windows_private_object.hpp"
 )
+# [[BPR-1115]]. The Windows launch restriction the QProcess launchers share: a
+# child inherits its three standard handles and nothing else, and a launch whose
+# list cannot be built is refused by process creation.
+set(
+    platform_windows_standard_handles_relative
+    "src/platform/include/bpr/platform/windows_standard_handles.hpp"
+)
 set(platform_cmake_contents "")
 if(EXISTS "${BPR_ROOT}/src/platform/CMakeLists.txt")
     file(READ "${BPR_ROOT}/src/platform/CMakeLists.txt" platform_cmake_contents)
@@ -1752,6 +1759,9 @@ verify_effect_owner(
     "${git_process_runner_relative}"
     "${agent_windows_process_relative}"
     "${agent_windows_supervisor_relative}"
+    # [[BPR-1115]]. The handle list a QProcess launcher applies is built here,
+    # once, rather than in each launcher.
+    "${platform_windows_standard_handles_relative}"
 )
 verify_effect_owner(
     "QNetworkAccessManager"
@@ -3014,6 +3024,14 @@ set(
     "transaction_success"
     "probe_pack_sha256"
     "capability_probe[ \t\r\n]*\\("
+    # [[BPR-1115]]. Every unguarded Windows Git takes the platform target's
+    # launch restriction, whose refusal creates nothing, and a Git that started
+    # without it all the same is refused.
+    "#[ \t]*include[ \t]*\"bpr/platform/windows_standard_handles\\.hpp\""
+    "windows_standard_handles::launch_restriction"
+    "(aInheritance|inheritance)\\.apply[ \t\r\n]*\\([ \t\r\n]*aArguments->startupInfo[ \t\r\n]*,[ \t\r\n]*aArguments->flags[ \t\r\n]*,[ \t\r\n]*aArguments->inheritHandles[ \t\r\n]*\\)"
+    "restrict_to_standard_handles[ \t\r\n]*\\([ \t\r\n]*\\*process"
+    "!inheritance\\.restricted[ \t\r\n]*\\([ \t]*\\)"
 )
 foreach(required_git_process_pattern IN LISTS required_git_process_patterns)
     if(

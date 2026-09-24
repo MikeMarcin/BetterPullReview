@@ -39,7 +39,9 @@ if(BPR_BUILD_QT)
     if(WIN32)
         # [[BPR-0622]]. The ownership journal applies the same header-only
         # Windows guard and private-object rules as the agent supervisor.
-        target_link_libraries(better_pull_review_adapter_git PRIVATE BetterPullReview::AdapterAgent Advapi32)
+        # [[BPR-1115]]. An unguarded Git takes the platform target's launch
+        # restriction.
+        target_link_libraries(better_pull_review_adapter_git PRIVATE BetterPullReview::AdapterAgent BetterPullReview::Platform Advapi32)
     endif()
     # [[BPR-0622]]. A guarded Git launch runs inside the bundled supervisor on
     # Windows too.
