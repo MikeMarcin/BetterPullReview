@@ -1216,6 +1216,45 @@ namespace bpr::adapters::github::detail {
 				&& (!merged || json_text(json_member(object, "state")) == "closed");
 		}
 
+		// [[BPR-0892]]. GitHub always sends a file's `sha` and `changes`, and
+		// its `patch` unless the diff is binary or too large. A recorded page
+		// keeps what GitHub sent, so a course reads the shape the product reads.
+		// Each of the three is optional and checked. Nothing else is admitted.
+		[[nodiscard]] auto has_file_fixture_keys(const fixture_json_object& aObject) -> bool
+		{
+			constexpr auto allowed = std::array<std::string_view, 8U>{
+				"additions",
+				"changes",
+				"deletions",
+				"filename",
+				"patch",
+				"previous_filename",
+				"sha",
+				"status",
+			};
+			return has_required_fixture_keys(aObject, { "additions", "deletions", "filename", "status" })
+				&& std::ranges::all_of(sorted_keys(aObject), [&allowed](const std::string& aKey) {
+					   return std::ranges::find(allowed, aKey) != allowed.end();
+				   });
+		}
+
+		[[nodiscard]] auto valid_file_fixture_extras(const fixture_json_object& aObject) -> bool
+		{
+			if (aObject.contains("changes")) {
+				const auto& changes = json_member(aObject, "changes");
+				if (!exact_integer(changes)) {
+					return false;
+				}
+				const auto additions = json_uint(json_member(aObject, "additions"));
+				const auto total     = json_uint(changes);
+				if (total < additions || total - additions != json_uint(json_member(aObject, "deletions"))) {
+					return false;
+				}
+			}
+			return (!aObject.contains("patch") || json_is_string(json_member(aObject, "patch")))
+				&& (!aObject.contains("sha") || valid_json_oid(json_member(aObject, "sha")));
+		}
+
 		[[nodiscard]] auto validate_files_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
@@ -1225,26 +1264,7 @@ namespace bpr::adapters::github::detail {
 				return false;
 			}
 			return std::ranges::all_of(json_array(aDocument), [](const fixture_json_value& aValue) {
-				if (
-					!json_is_object(aValue)
-					|| !(
-						has_exact_keys(
-							json_object(aValue),
-							{
-								"additions",
-								"deletions",
-								"filename",
-								"status",
-							})
-						|| has_exact_keys(
-							json_object(aValue),
-							{
-								"additions",
-								"deletions",
-								"filename",
-								"previous_filename",
-								"status",
-							}))) {
+				if (!json_is_object(aValue) || !has_file_fixture_keys(json_object(aValue))) {
 					return false;
 				}
 				const auto object = json_object(aValue);
@@ -1262,7 +1282,8 @@ namespace bpr::adapters::github::detail {
 							"unchanged",
 						})
 					|| !exact_integer(json_member(object, "additions"))
-					|| !exact_integer(json_member(object, "deletions"))) {
+					|| !exact_integer(json_member(object, "deletions"))
+					|| !valid_file_fixture_extras(object)) {
 					return false;
 				}
 				const auto hasPrevious = object.contains("previous_filename");

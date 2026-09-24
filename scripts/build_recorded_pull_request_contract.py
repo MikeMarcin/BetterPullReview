@@ -168,13 +168,20 @@ def main() -> int:
         "title": pull["title"],
         "user": {"login": login, "node_id": f"U_{login}"},
     })
-    # Metadata only. The content a reviewer sees is diffed from git objects, not
-    # from this, which is the whole reason `objects.pack` exists beside it.
+    # The content a reviewer sees is diffed from git objects, not from this,
+    # which is the whole reason `objects.pack` exists beside it. The page still
+    # carries the `patch`, `sha` and `changes` GitHub sent, because GitHub
+    # always sends them and the product must read a page that holds them.
+    # BPR-0892: before this, no course had ever served a files page with a
+    # patch in it.
     write(root / "responses/files.json", [
         {
             "additions": entry["additions"],
+            "changes": entry["changes"],
             "deletions": entry["deletions"],
             "filename": entry["filename"],
+            "patch": entry["patch"],
+            "sha": entry["sha"],
             "status": entry["status"],
         }
         for entry in recording["files"]

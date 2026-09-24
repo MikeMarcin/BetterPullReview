@@ -349,7 +349,9 @@ RECORDED_RESPONSE_FIELDS = {
     "GetViewerIdentity": {"id", "login", "name", "node_id"},
     "GetRepository": {"default_branch", "full_name", "id", "login", "name", "node_id", "owner", "private"},
     "GetPullRequest": {"base", "body", "changed_files", "commits", "draft", "full_name", "head", "id", "login", "merged", "node_id", "number", "ref", "repo", "sha", "state", "title", "user"},
-    "ListPullRequestFiles": {"additions", "deletions", "filename", "status"},
+    # BPR-0892. GitHub always sends `patch`, `sha` and `changes`, and the
+    # recording keeps them, so the served page does too.
+    "ListPullRequestFiles": {"additions", "changes", "deletions", "filename", "patch", "sha", "status"},
     "ListPullRequestCommits": {"author", "commit", "login", "message", "node_id", "sha"},
     "ListReviews": set(),
     "ListReviewThreads": {"data", "endCursor", "files", "hasNextPage", "headRefOid", "id", "nodes", "pageInfo", "path", "pullRequest", "repository", "reviewThreads", "totalCount", "viewerViewedState"},
@@ -489,7 +491,17 @@ def artifact_field_violations(
     return violations
 
 
-def byte_security_violations(payload: bytes) -> list[str]:
+def byte_security_violations(
+    payload: bytes, reviewed: tuple[str, ...] = ()
+) -> list[str]:
+    """Scans raw bytes for every sensitive pattern class.
+
+    `reviewed` names excerpts whose links are reviewed content: the patches a
+    recorded files page carries are the pull request's own source, which may
+    link anywhere, as the recording's own check already holds. Only the URL
+    host scan skips them. Every other pattern is still scanned inside them.
+    BPR-0892.
+    """
     lowered = payload.lower()
     violations = []
     forbidden_fragments = (
@@ -530,7 +542,10 @@ def byte_security_violations(payload: bytes) -> list[str]:
     if re.search(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])", text):
         violations.append("IP address")
 
-    for match in re.finditer(r"https?://[^\"\\\s]+", text):
+    linked = text
+    for excerpt in reviewed:
+        linked = linked.replace(excerpt, "")
+    for match in re.finditer(r"https?://[^\"\\\s]+", linked):
         hostname = (urlsplit(match.group(0)).hostname or "").lower()
         if hostname not in ALLOWED_URL_HOSTS:
             violations.append(f"non-allowlisted URL host: {hostname}")
@@ -548,25 +563,44 @@ def reject_duplicate_members(
     return result
 
 
-def decoded_string_values(value: object) -> list[str]:
-    values: list[str] = []
+def decoded_string_values(
+    value: object, reviewed: bool = False
+) -> list[tuple[str, bool]]:
+    """Every key and string value, each with whether it is a reviewed patch."""
+    values: list[tuple[str, bool]] = []
     if isinstance(value, dict):
         for key, nested in value.items():
-            values.append(key)
-            values.extend(decoded_string_values(nested))
+            values.append((key, False))
+            values.extend(decoded_string_values(nested, key == "patch"))
     elif isinstance(value, list):
         for nested in value:
             values.extend(decoded_string_values(nested))
     elif isinstance(value, str):
-        values.append(value)
+        values.append((value, reviewed))
     return values
 
 
 def decoded_security_violations(value: object) -> list[str]:
     violations = []
-    for text in decoded_string_values(value):
-        violations.extend(byte_security_violations(text.encode("utf-8")))
+    for text, reviewed in decoded_string_values(value):
+        violations.extend(
+            byte_security_violations(
+                text.encode("utf-8"), (text,) if reviewed else ()
+            )
+        )
     return violations
+
+
+def reviewed_patch_excerpts(payload: bytes) -> tuple[str, ...]:
+    """The patches of a files page, exactly as they appear in its bytes."""
+    document = json.loads(payload)
+    if not isinstance(document, list):
+        return ()
+    return tuple(
+        json.dumps(entry["patch"])[1:-1]
+        for entry in document
+        if isinstance(entry, dict) and isinstance(entry.get("patch"), str)
+    )
 
 
 class CapabilityDocument:
@@ -687,8 +721,13 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
             with self.subTest(path=relative_path):
                 payload = (FIXTURE_ROOT / relative_path).read_bytes()
                 self.assertTrue(payload.endswith(b"\n"))
+                reviewed = (
+                    reviewed_patch_excerpts(payload)
+                    if relative_path.endswith("/responses/files.json")
+                    else ()
+                )
                 self.assertEqual(
-                    byte_security_violations(payload),
+                    byte_security_violations(payload, reviewed),
                     [],
                 )
 
@@ -1178,6 +1217,40 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
         for pattern_class, payload in unsafe_payloads.items():
             with self.subTest(pattern_class=pattern_class):
                 self.assertTrue(byte_security_violations(payload))
+
+    def test_patch_links_are_reviewed_but_nothing_else_is(self) -> None:
+        """BPR-0892. A patch may link anywhere. It may not carry anything else."""
+        page = [{"filename": "a.cpp", "patch": "+// https://outside.example/doc"}]
+        payload = json.dumps(page).encode("utf-8")
+        self.assertEqual(
+            byte_security_violations(payload, reviewed_patch_excerpts(payload)),
+            [],
+        )
+        self.assertEqual(decoded_security_violations(page), [])
+        self.assertTrue(byte_security_violations(payload))
+
+        outside = [dict(page[0], note="https://outside.example/doc")]
+        payload = json.dumps(outside).encode("utf-8")
+        self.assertTrue(
+            byte_security_violations(payload, reviewed_patch_excerpts(payload))
+        )
+        self.assertTrue(decoded_security_violations(outside))
+
+        for unsafe in (
+            "+// octo@example.com",
+            "+// 192.0.2.10",
+            "+// /Users/octo/private",
+            "+// " + SYNTHETIC_CANARY,
+        ):
+            with self.subTest(unsafe=unsafe):
+                unsafe_page = [{"filename": "a.cpp", "patch": unsafe}]
+                payload = json.dumps(unsafe_page).encode("utf-8")
+                self.assertTrue(
+                    byte_security_violations(
+                        payload, reviewed_patch_excerpts(payload)
+                    )
+                )
+                self.assertTrue(decoded_security_violations(unsafe_page))
 
     def test_byte_scanner_detects_synthetic_canary(self) -> None:
         payload = json.dumps({"value": SYNTHETIC_CANARY}).encode("utf-8")

@@ -1,32 +1,47 @@
 [
 	{
 		"additions": 2,
+		"changes": 3,
 		"deletions": 1,
 		"filename": "UIforETW/Resource.h",
+		"patch": "@@ -37,6 +37,7 @@\n #define IDC_TRACEDIR                    1019\r\n #define IDC_EXTRAPROVIDERS              1019\r\n #define IDC_EXTRAKERNELFLAGS            1019\r\n+#define IDC_CLRTRACING                  1019\r\n #define IDC_BUTTON1                     1020\r\n #define IDC_EXTRASTACKWALKS             1020\r\n #define IDC_TEMPTRACEDIR                1021\r\n@@ -94,7 +95,7 @@\n // \r\n #ifdef APSTUDIO_INVOKED\r\n #ifndef APSTUDIO_READONLY_SYMBOLS\r\n-#define _APS_NEXT_RESOURCE_VALUE        136\r\n+#define _APS_NEXT_RESOURCE_VALUE        137\r\n #define _APS_NEXT_COMMAND_VALUE         32812\r\n #define _APS_NEXT_CONTROL_VALUE         1034\r\n #define _APS_NEXT_SYMED_VALUE           101\r",
+		"sha": "79a81a859f1b281c99e3c624b3263e618d7e1652",
 		"status": "modified"
 	},
 	{
 		"additions": 1,
+		"changes": 1,
 		"deletions": 0,
 		"filename": "UIforETW/Support.cpp",
+		"patch": "@@ -62,6 +62,7 @@ void CUIforETWDlg::TransferSettings(bool saving)\n \t\t{ L\"SampledStacks\", &bSampledStacks_ },\r\n \t\t{ L\"FastSampling\", &bFastSampling_ },\r\n \t\t{ L\"GPUTracing\", &bGPUTracing_ },\r\n+\t\t{ L\"CLRTracing\", &bCLRTracing_ },\r\n \t\t{ L\"ShowCommands\", &bShowCommands_ },\r\n \t\t{ L\"ChromeDeveloper\", &bChromeDeveloper_ },\r\n \t\t{ L\"AutoViewTraces\", &bAutoViewTraces_ },\r",
+		"sha": "b32897b0a169f200e926432371cf5715b616ba76",
 		"status": "modified"
 	},
 	{
 		"additions": 18,
+		"changes": 23,
 		"deletions": 5,
 		"filename": "UIforETW/UIforETW.rc",
+		"patch": "@@ -74,6 +74,7 @@ END\n // remains consistent on all systems.\r\n IDR_MAINFRAME           ICON                    \"res\\\\UIforETW.ico\"\r\n \r\n+\r\n /////////////////////////////////////////////////////////////////////////////\r\n //\r\n // Dialog\r\n@@ -106,13 +107,13 @@ BEGIN\n     PUSHBUTTON      \"About\",IDC_ABOUT,455,7,50,14\r\n     EDITTEXT        IDC_OUTPUT,7,24,453,110,ES_MULTILINE | ES_READONLY | WS_VSCROLL\r\n     PUSHBUTTON      \"Close\",IDOK,512,7,50,14\r\n-    CONTROL         \"&Compress Trace\",IDC_COMPRESSTRACE,\"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,28,67,10\r\n+    CONTROL         \"&Compress Trace\",IDC_COMPRESSTRACE,\"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,24,67,10\r\n     CONTROL         \"Context s&witch call stacks\",IDC_CONTEXTSWITCHCALLSTACKS,\r\n-                    \"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,42,98,10\r\n+                    \"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,36,98,10\r\n     CONTROL         \"CP&U sampling call stacks\",IDC_CPUSAMPLINGCALLSTACKS,\r\n-                    \"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,56,93,10\r\n-    CONTROL         \"&Fast sampling\",IDC_FASTSAMPLING,\"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,70,59,10\r\n-    CONTROL         \"&GPU tracing\",IDC_GPUTRACING,\"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,84,53,10\r\n+                    \"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,48,93,10\r\n+    CONTROL         \"&Fast sampling\",IDC_FASTSAMPLING,\"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,60,59,10\r\n+    CONTROL         \"&GPU tracing\",IDC_GPUTRACING,\"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,72,53,10\r\n     LTEXT           \"&Input tracing:\",IDC_INPUTTRACING_LABEL,464,99,45,8\r\n     COMBOBOX        IDC_INPUTTRACING,511,97,51,127,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP\r\n     COMBOBOX        IDC_TRACINGMODE,464,116,98,133,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP\r\n@@ -122,6 +123,7 @@ BEGIN\n     LTEXT           \"Trace inform&ation:\",IDC_STATIC,239,135,60,8\r\n     EDITTEXT        IDC_TRACENOTES,239,145,323,68,ES_MULTILINE | ES_WANTRETURN | WS_VSCROLL\r\n     EDITTEXT        IDC_TRACENAMEEDIT,75,144,160,14,ES_AUTOHSCROLL | ES_WANTRETURN | NOT WS_VISIBLE | NOT WS_TABSTOP\r\n+    CONTROL         \"&CLR tracing\",IDC_CLRTRACING,\"Button\",BS_AUTOCHECKBOX | WS_TABSTOP,464,84,53,10\r\n END\r\n \r\n IDD_SETTINGS DIALOGEX 0, 0, 401, 178\r\n@@ -296,6 +298,17 @@ BEGIN\n END\r\n \r\n \r\n+/////////////////////////////////////////////////////////////////////////////\r\n+//\r\n+// AFX_DIALOG_LAYOUT\r\n+//\r\n+\r\n+IDD_UIFORETW_DIALOG AFX_DIALOG_LAYOUT\r\n+BEGIN\r\n+    0\r\n+END\r\n+\r\n+\r\n /////////////////////////////////////////////////////////////////////////////\r\n //\r\n // String Table\r",
+		"sha": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
 		"status": "modified"
 	},
 	{
 		"additions": 22,
+		"changes": 22,
 		"deletions": 0,
 		"filename": "UIforETW/UIforETWDlg.cpp",
+		"patch": "@@ -159,6 +159,7 @@ void CUIforETWDlg::DoDataExchange(CDataExchange* pDX)\n \tDDX_Control(pDX, IDC_CONTEXTSWITCHCALLSTACKS, btCswitchStacks_);\r\n \tDDX_Control(pDX, IDC_FASTSAMPLING, btFastSampling_);\r\n \tDDX_Control(pDX, IDC_GPUTRACING, btGPUTracing_);\r\n+\tDDX_Control(pDX, IDC_CLRTRACING, btCLRTracing_ );\r\n \tDDX_Control(pDX, IDC_SHOWCOMMANDS, btShowCommands_);\r\n \r\n \tDDX_Control(pDX, IDC_INPUTTRACING, btInputTracing_);\r\n@@ -212,6 +213,7 @@ BEGIN_MESSAGE_MAP(CUIforETWDlg, CDialog)\n \tON_BN_CLICKED(ID_PASTEOVERRIDE, &CUIforETWDlg::NotesPaste)\r\n \tON_WM_ACTIVATE()\r\n \tON_WM_TIMER()\r\n+\tON_BN_CLICKED( IDC_CLRTRACING, &CUIforETWDlg::OnBnClickedClrtracing )\r\n END_MESSAGE_MAP()\r\n \r\n \r\n@@ -424,6 +426,7 @@ BOOL CUIforETWDlg::OnInitDialog()\n \tCheckDlgButton(IDC_CPUSAMPLINGCALLSTACKS, bSampledStacks_);\r\n \tCheckDlgButton(IDC_FASTSAMPLING, bFastSampling_);\r\n \tCheckDlgButton(IDC_GPUTRACING, bGPUTracing_);\r\n+\tCheckDlgButton(IDC_CLRTRACING, bCLRTracing_);\r\n \tCheckDlgButton(IDC_SHOWCOMMANDS, bShowCommands_);\r\n \r\n \t// If a fast sampling speed is requested then set it now. Note that\r\n@@ -486,6 +489,7 @@ BOOL CUIforETWDlg::OnInitDialog()\n \t\t\t\t\tL\"more practical.\");\r\n \t\ttoolTip_.AddTool(&btGPUTracing_, L\"Check this to allow seeing GPU usage \"\r\n \t\t\t\t\tL\"in WPA, and more data in GPUView.\");\r\n+\t\ttoolTip_.AddTool(&btCLRTracing_, L\"Check this to record CLR call stacks\" );\r\n \t\ttoolTip_.AddTool(&btShowCommands_, L\"This tells UIforETW to display the commands being \"\r\n \t\t\t\t\tL\"executed. This can be helpful for diagnostic purposes but is not normally needed.\");\r\n \r\n@@ -651,6 +655,7 @@ void CUIforETWDlg::UpdateEnabling()\n \tSmartEnableWindow(btSampledStacks_.m_hWnd, !bIsTracing_);\r\n \tSmartEnableWindow(btCswitchStacks_.m_hWnd, !bIsTracing_);\r\n \tSmartEnableWindow(btGPUTracing_.m_hWnd, !bIsTracing_);\r\n+\tSmartEnableWindow(btCLRTracing_.m_hWnd, !bIsTracing_ );\r\n }\r\n \r\n void CUIforETWDlg::OnSysCommand(UINT nID, LPARAM lParam)\r\n@@ -852,6 +857,18 @@ void CUIforETWDlg::OnBnClickedStarttracing()\n \t\t}\r\n \t}\r\n \r\n+\tif (bCLRTracing_)\r\n+\t{\r\n+\t\t// CLR runtime provider\r\n+\t\t// https://msdn.microsoft.com/en-us/library/ff357718(v=vs.100).aspx\r\n+\t\tuserProviders += L\"+e13c0d23-ccbc-4e12-931b-d9cc2eee27e4:0x1CCBD:0x5\";\r\n+        \r\n+\t\t// note: this seems to be an updated version of\r\n+\t\t// userProviders += L\"+ClrAll:0x98:5\";\r\n+\t\t// which results in Invalid flags. (0x3ec) when I run it\r\n+\t\t// https://msdn.microsoft.com/en-us/library/windows/hardware/hh448186.aspx\r\n+\t}\r\n+\r\n \t// Increase the user buffer sizes when doing graphics tracing or Chrome tracing.\r\n \tconst int numUserBuffers = BufferCountBoost(bGPUTracing_ ? 200 : 100) + BufferCountBoost(useChromeProviders_ ? 100 : 0);\r\n \tstd::wstring userBuffers = stringPrintf(L\" -buffersize 1024 -minbuffers %d -maxbuffers %d\", numUserBuffers, numUserBuffers);\r\n@@ -1204,6 +1221,10 @@ void CUIforETWDlg::OnBnClickedGPUtracing()\n \tbGPUTracing_ = !bGPUTracing_;\r\n }\r\n \r\n+void CUIforETWDlg::OnBnClickedClrtracing()\r\n+{\r\n+\tbCLRTracing_ = !bCLRTracing_;\r\n+}\r\n \r\n void CUIforETWDlg::OnCbnSelchangeInputtracing()\r\n {\r\n@@ -1365,6 +1386,7 @@ void CUIforETWDlg::OnSize(UINT nType, int /*cx*/, int /*cy*/)\n \t\t\tMoveControl(this, btSampledStacks_, xDelta, 0);\r\n \t\t\tMoveControl(this, btFastSampling_, xDelta, 0);\r\n \t\t\tMoveControl(this, btGPUTracing_, xDelta, 0);\r\n+\t\t\tMoveControl(this, btCLRTracing_, xDelta, 0 );\r\n \t\t\tMoveControl(this, btInputTracingLabel_, xDelta, 0);\r\n \t\t\tMoveControl(this, btInputTracing_, xDelta, 0);\r\n \t\t\tMoveControl(this, btTracingMode_, xDelta, 0);\r",
+		"sha": "a991d36ba3d4100324c066ed18e1f3cff584ef3a",
 		"status": "modified"
 	},
 	{
 		"additions": 3,
+		"changes": 3,
 		"deletions": 0,
 		"filename": "UIforETW/UIforETWDlg.h",
+		"patch": "@@ -66,12 +66,14 @@ class CUIforETWDlg : public CDialog\n \tbool bSampledStacks_ = true;\r\n \tbool bFastSampling_ = false;\r\n \tbool bGPUTracing_ = false;\r\n+\tbool bCLRTracing_ = false;\r\n \tbool bShowCommands_ = false;\r\n \tCButton btCompress_;\r\n \tCButton btCswitchStacks_;\r\n \tCButton btSampledStacks_;\r\n \tCButton btFastSampling_;\r\n \tCButton btGPUTracing_;\r\n+\tCButton btCLRTracing_;\r\n \tCButton btShowCommands_;\r\n \r\n \tbool bHeapStacks_ = true;\r\n@@ -268,4 +270,5 @@ class CUIforETWDlg : public CDialog\n \tafx_msg void OnTimer(UINT_PTR nIDEvent);\r\n public:\r\n \tafx_msg void OnBnClickedGPUtracing();\r\n+\tafx_msg void OnBnClickedClrtracing();\r\n };\r",
+		"sha": "9fba480fe3343ba195a59932687b08187e930392",
 		"status": "modified"
 	}
 ]

@@ -52,11 +52,16 @@ Each file carries `base_content_base64` and `head_content_base64` — its whole
 content on both sides — beside the patch.
 
 That is not redundancy. The comparison surface diffs real file content out of
-git objects; the served fixture's `responses/files.json` carries no patch at
-all, and the content comes from git packfiles. A patch is hunks with context,
-so the base and head of a file cannot be reconstructed from one. Without the
-blobs this recording could be validated but never rendered, which is the gap
-BPR-0187 records.
+git objects, and the content comes from git packfiles. A patch is hunks with
+context, so the base and head of a file cannot be reconstructed from one.
+Without the blobs this recording could be validated but never rendered, which
+is the gap BPR-0187 records.
+
+The served fixture's `responses/files.json` does carry each file's `patch`,
+`sha` and `changes` as GitHub sent them ([[BPR-0892]]). The product ignores
+them, but GitHub always sends them, so a course must read a page that holds
+them. Until BPR-0892 the generator kept only four keys, and no course had
+served a files page with a patch in it.
 
 The blobs are checked against the recording rather than trusted: each pair is
 diffed and must produce exactly the additions and deletions the API reported.

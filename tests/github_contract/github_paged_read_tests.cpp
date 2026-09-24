@@ -18,6 +18,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -409,7 +410,34 @@ namespace {
 		commit_count_above_cap_overlong,
 		commit_count_above_cap_wrong_head,
 		collection_cap_exact,
+		measured_largest_files_page,
+		measured_file_cap_pages,
 	};
+
+	// [[BPR-0892]]. Page shapes measured from real pull requests on
+	// 2026-09-23. microsoft/TypeScript#51387 (656 files, +282,700 -284,842)
+	// gave the largest page: 1,176,273 bytes, 1,048,253 of them patch, the
+	// largest patch 100,071 bytes, and 61 of its 100 files sent with no patch.
+	// NixOS/nixpkgs#322537 (21,294 files) stops at GitHub's 3,000-file limit:
+	// 30 pages, 12,665,213 bytes in all, the largest page 723,104 bytes.
+	inline constexpr std::size_t measured_largest_page_bytes     = 1'176'273U;
+	inline constexpr std::size_t measured_largest_patch_bytes    = 100'071U;
+	inline constexpr std::size_t measured_files_without_patch    = 61U;
+	inline constexpr std::size_t measured_cap_largest_page_bytes = 723'104U;
+	inline constexpr std::size_t measured_cap_total_bytes        = 12'665'213U;
+
+	// Diff-shaped patch text of `aBytes` characters. Its newlines escape to two
+	// bytes each, so the served JSON is somewhat larger.
+	[[nodiscard]] auto measured_patch(const std::size_t aBytes) -> std::string
+	{
+		constexpr std::string_view line  = "+    const auto value = compute(input, 42);\n";
+		std::string                patch = "@@ -1,400 +1,400 @@\n";
+		while (patch.size() + line.size() <= aBytes) {
+			patch += line;
+		}
+		patch.append(aBytes - patch.size(), 'x');
+		return patch;
+	}
 
 	class paged_fixture_transport final : public github_wire_transport_port
 	{
@@ -502,11 +530,14 @@ namespace {
 		std::vector<std::string> ReviewCommentPages;
 		int                      ReviewCommentStatus = 200;
 		std::vector<http_header> ReviewCommentHeaders;
+		// The raw size of each files page served, for the measured scenarios.
+		mutable std::vector<std::size_t> FilesPageBytes;
 
 	private:
 		[[nodiscard]] auto advertised_file_count() const noexcept -> std::uint32_t
 		{
-			if (Scenario == fixture_scenario::collection_cap_exact) {
+			if (Scenario == fixture_scenario::collection_cap_exact
+				|| Scenario == fixture_scenario::measured_file_cap_pages) {
 				return 3'000U;
 			}
 			if (Scenario == fixture_scenario::file_count_mismatch) {
@@ -735,6 +766,7 @@ namespace {
 			fixture_array files;
 			const auto    page  = aRequest.Wire.Semantic.Page;
 			const auto    total = Scenario == fixture_scenario::collection_cap_exact
+					|| Scenario == fixture_scenario::measured_file_cap_pages
 				? std::size_t{ 3'000U }
 				: std::size_t{ 101U };
 			const auto    begin = (static_cast<std::size_t>(page) - 1U) * std::size_t{ 100U };
@@ -770,8 +802,28 @@ namespace {
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::large_ignored_patch) {
 					file.insert_or_assign("patch", std::string(500U * 1'024U, 'p'));
+				} else if (Scenario == fixture_scenario::measured_largest_files_page && page == 1U) {
+					// 39 patches: the largest measured one, then the rest of
+					// the measured page's bytes spread evenly, so this page is
+					// at least as large as that one. 61 files carry none.
+					const auto slot    = index - begin;
+					const auto patched = std::size_t{ 100U } - measured_files_without_patch;
+					if (slot >= patched) {
+						file.erase("patch");
+					} else {
+						const auto rest = measured_largest_page_bytes - measured_largest_patch_bytes;
+						file.insert_or_assign("patch", measured_patch(slot == 0U ? measured_largest_patch_bytes : rest / (patched - 1U)));
+					}
+				} else if (Scenario == fixture_scenario::measured_file_cap_pages) {
+					// Every page as heavy as the heaviest measured one.
+					file.insert_or_assign("patch", measured_patch(measured_cap_largest_page_bytes / 100U));
 				}
 				files.push_back(std::move(file));
+			}
+			if (Scenario == fixture_scenario::measured_largest_files_page
+				|| Scenario == fixture_scenario::measured_file_cap_pages) {
+				const auto bytes = fixture_json(files).size();
+				FilesPageBytes.push_back(bytes);
 			}
 			const auto hasNext = end < total;
 			if (!hasNext) {
@@ -2040,6 +2092,36 @@ namespace {
 					enterpriseTransport.Requests,
 					[](const github_wire_request& aRequest) { return aRequest.Wire.Path == "/api/graphql"; }),
 			"GHES exhausts the same production pipeline under its exact namespace");
+	}
+
+	// [[BPR-0892]]. The page and aggregate ceilings against the largest real
+	// shapes measured, with the production limits. GitHub sends `patch` on
+	// every page, and the product must load a pull request of that shape.
+	auto test_measured_files_page_shapes() -> void
+	{
+		auto       largest = paged_fixture_transport{ fixture_scenario::measured_largest_files_page };
+		const auto loaded  = perform_paged_github_read(largest,
+													   profile(),
+													   provider_request(),
+													   core::provider_snapshot_id{ 70U },
+													   std::stop_token{ });
+		expect(!largest.FilesPageBytes.empty() && largest.FilesPageBytes.front() >= measured_largest_page_bytes,
+			   "the served first page is at least as large as the largest measured files page");
+		expect(loaded.has_value() && loaded->Files.size() == 101U,
+			   "a pull request whose files page is as large as the largest measured one loads under the production page limit");
+
+		auto       capped    = paged_fixture_transport{ fixture_scenario::measured_file_cap_pages };
+		const auto collected = perform_paged_github_read(capped,
+														 profile(),
+														 provider_request(),
+														 core::provider_snapshot_id{ 71U },
+														 std::stop_token{ });
+		const auto served    = std::accumulate(capped.FilesPageBytes.begin(), capped.FilesPageBytes.end(), std::size_t{ 0U });
+		expect(capped.FilesPageBytes.size() == 30U && served >= measured_cap_total_bytes
+				   && std::ranges::all_of(capped.FilesPageBytes, [](const std::size_t aBytes) { return aBytes >= measured_cap_largest_page_bytes; }),
+			   "the served 3,000 files come in 30 pages, each at least as large as the largest measured one");
+		expect(collected.has_value() && collected->Files.size() == 3'000U,
+			   "a pull request at GitHub's 3,000-file limit, every page as heavy as the heaviest measured, loads under the production aggregate limit");
 	}
 
 	auto test_raw_structural_limits() -> void
@@ -3538,6 +3620,7 @@ auto main() -> int
 	test_capability_shaped_query();
 	test_successful_exhaustive_read();
 	test_graphql_head_is_bound_to_rest_snapshot();
+	test_measured_files_page_shapes();
 	test_raw_structural_limits();
 	test_search_result_limit_preserves_exact_pull_request();
 	test_limited_search_still_validates_received_records();

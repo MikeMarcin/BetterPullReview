@@ -1776,6 +1776,28 @@ namespace {
 				.has_value(),
 			"unchanged is a valid GitHub file status");
 
+		// [[BPR-0892]]. GitHub sends `sha`, `changes` and `patch` with every
+		// file, and a recorded page may keep them. Each is checked, and nothing
+		// else is admitted.
+		const auto withGitHubKeys = [&recording](const std::string_view aKeys) {
+			auto response = recording.Responses[3].Response;
+			replace_once(response.Body, "\"status\": \"modified\"", std::string{ "\"status\": \"modified\",\n" } + std::string{ aKeys });
+			return validate_strict_fixture_response(read_operation::list_pull_request_files, response).has_value();
+		};
+		expect(withGitHubKeys("    \"changes\": 15,\n    \"patch\": \"@@ -1,3 +1,12 @@\\n-old\\n+new\",\n    \"sha\": \"0123456789abcdef0123456789abcdef01234567\""),
+			   "a file carrying GitHub's sha, changes and patch is a valid fixture");
+		expect(withGitHubKeys("    \"changes\": 15,\n    \"sha\": \"0123456789abcdef0123456789abcdef01234567\""),
+			   "a file GitHub sent without a patch is a valid fixture");
+		for (const auto& [keys, refusal] : std::array<std::pair<std::string_view, std::string_view>, 5U>{ {
+				 { "    \"changes\": 14", "changes that are not additions plus deletions are refused" },
+				 { "    \"changes\": \"15\"", "changes that are not an integer are refused" },
+				 { "    \"patch\": 7", "a patch that is not a string is refused" },
+				 { "    \"sha\": \"not-an-object-id\"", "a sha that is not an object id is refused" },
+				 { "    \"blob_url\": \"https://github.com/octo-org/review-repository/blob/head/review.cpp\"", "a key GitHub sends that no fixture may keep is still refused" },
+			 } }) {
+			expect(!withGitHubKeys(keys), refusal);
+		}
+
 		auto nullableCommitRecording = load_recording("github-com", server_contract::github_com);
 		replace_once(
 			nullableCommitRecording.Responses[5].Response.Body,
