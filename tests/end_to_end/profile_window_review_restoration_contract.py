@@ -23,6 +23,11 @@ def run(application, phase, root, vault=b""):
     if result.returncode != 0 or f"profile-window-review-restoration:{phase}:pass" not in diagnostic:
         # stdout is vault material; never report it, including on process failure.
         raise SystemExit(f"{phase} failed ({result.returncode})\n{diagnostic}")
+    # [[BPR-1050]]. Standard error is the phase's diagnostic, never vault
+    # material, so a passing phase relays it too. A line the application prints
+    # while the phase passes, such as AGENT_WORKSPACE_RECOVERY_REFUSED, then
+    # reaches CTest and the error expressions every row carries.
+    sys.stderr.write(diagnostic)
     if len(result.stdout) > 2048:
         raise SystemExit("fixture vault output exceeded bound")
     return result.stdout
@@ -62,7 +67,13 @@ def main():
     arguments = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-0709-restart-") as temporary:
         root = Path(temporary).resolve()
+        # [[BPR-1050]]. Each phase's data root is a child of this directory, and
+        # the agent workspace neighbourhood beside that root trusts only a
+        # private parent. On Windows `os.chmod` does not narrow it, and the
+        # application refused it; `make_root_private` writes the descriptor
+        # the stores define there.
         os.chmod(root, 0o700)
+        make_root_private(root)
         auth = root / "auth"
         make_root_private(auth)
         vault = seed_auth(arguments.application, auth)

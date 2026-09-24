@@ -22,6 +22,11 @@ Tests are direct evidence, not naming evidence.
   uses Qt's basic Windows style to avoid the offscreen Fusion cached-painter
   fault; native-style UX remains a separate target-native gate.
 - End-to-end tests use the real composition root.
+- A course's application data root is the `data` child of a temporary
+  directory the course has narrowed to owner-private, made by that language's
+  helper (`docs/development/build-and-test.md`, "A course's data root sits one
+  owned level down"). Every row fails on `AGENT_WORKSPACE_RECOVERY_REFUSED`
+  unless it registers `EXPECTS_WORKSPACE_RECOVERY_REFUSAL`.
 - A pull request named in the Home bar opens on Overview, which shows no
   comparison and no drawer. A course that reads either states its modality
   and needs through `enter_course_modality`; which modality shows what is

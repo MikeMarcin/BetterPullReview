@@ -21,16 +21,14 @@
 /// search does. Offscreen, every combination passes.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
-#include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "private_data_root.hpp"
 
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
-#include <QFileInfo>
 #include <QMenu>
 #include <QTemporaryDir>
 #include <QThread>
@@ -39,6 +37,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 
@@ -170,10 +169,8 @@ auto main(int aArgc, char** aArgv) -> int
 	// the agent workspace neighbourhood beside the root refuses a parent that
 	// another principal can write, and a refusal there leaves the agent host,
 	// with its realigner, out of the composition this course is about.
-	const auto parent = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-	expect(adapters::sqlite::make_storage_root_owner_private(parent), "the test root's parent is owner-private");
-	const auto root = parent / "data";
-	expect(adapters::sqlite::create_storage_root_owner_private(root), "the test root is owner-private under the storage policy");
+	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
+	expect(!root.empty(), "the test root and its parent are owner-private under the storage policy");
 	auto options                = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot = root;
 

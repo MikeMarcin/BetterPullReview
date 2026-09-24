@@ -2661,7 +2661,15 @@ target_compile_definitions(test_profile_management_public_path PRIVATE BPR_BUILD
 target_compile_features(test_profile_management_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_management_public_path)
 bpr_enable_warnings(test_profile_management_public_path)
-bpr_add_network_isolated_test(NAME application_profile_management_public_path WINDOWS_UNCONTAINED COMMAND test_profile_management_public_path)
+# [[BPR-1050]]. The course's `shared-parent` section asserts [[BPR-0817]]'s
+# refusal of a group-writable parent, so the refusal line is its subject there.
+# The section is compiled out on Windows, where the row keeps the refusal entry
+# for its main root.
+set(bpr_profile_management_refusal "")
+if(NOT WIN32)
+    set(bpr_profile_management_refusal EXPECTS_WORKSPACE_RECOVERY_REFUSAL)
+endif()
+bpr_add_network_isolated_test(NAME application_profile_management_public_path WINDOWS_UNCONTAINED ${bpr_profile_management_refusal} COMMAND test_profile_management_public_path)
 # [[BPR-0777]]. The course now drives both empty-desktop policies and three
 # reopening gestures, so it starts several more profile runtimes than it did at 90 s.
 set_tests_properties(application_profile_management_public_path PROPERTIES

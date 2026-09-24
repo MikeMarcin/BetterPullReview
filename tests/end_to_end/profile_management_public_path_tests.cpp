@@ -1,7 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -9,13 +8,13 @@
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "private_data_root.hpp"
 
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
 #include <QElapsedTimer>
-#include <QFileInfo>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QListWidget>
@@ -114,13 +113,13 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private desktop test scratch");
-	// [[BPR-0817]]. The data root is a folder inside the private scratch, as an
-	// installed data root is a folder inside a private data folder. The agent
-	// workspace neighbourhood sits beside the root, so its parent is the scratch,
-	// not the host's temporary directory, which on stock Linux is a shared 1777
-	// `/tmp` the neighbourhood correctly refuses.
-	const auto root = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath()) / "data";
-	expect(adapters::sqlite::create_storage_root_owner_private(root), "private desktop test root under the canonical storage policy");
+	// [[BPR-0817]], [[BPR-1050]]. The data root is a folder inside the private
+	// scratch, as an installed data root is a folder inside a private data
+	// folder. The agent workspace neighbourhood sits beside the root, so its
+	// parent is the scratch, not the host's temporary directory, which on stock
+	// Linux is a shared 1777 `/tmp` the neighbourhood correctly refuses.
+	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
+	expect(!root.empty(), "private desktop test root under the canonical storage policy");
 	{
 		auto store = adapters::sqlite::make_appearance_settings_store({ .StorageRoot = root });
 		expect(store.has_value(), "legacy appearance store");

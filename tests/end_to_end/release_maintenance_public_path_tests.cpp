@@ -1,6 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
-#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #if defined(_WIN32)
@@ -13,6 +12,7 @@
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
+#include "private_data_root.hpp"
 
 #include <QAbstractItemModel>
 #include <QAction>
@@ -32,6 +32,7 @@
 #include <QThread>
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string_view>
@@ -103,9 +104,10 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary{ qEnvironmentVariable("QUALIFICATION_TARGET_ROOT", QDir::tempPath()) + QStringLiteral("/maintenance-XXXXXX") };
 	expect(temporary.isValid(), "disposable app root exists");
-	const auto parent = app::native_filesystem_path(QFileInfo{ temporary.path() }.canonicalFilePath());
-	const auto root   = parent / "data";
-	expect(adapters::sqlite::create_storage_root_owner_private(root), "private application root");
+	// [[BPR-1050]]. One owned level down, so the agent workspace neighbourhood
+	// beside the root has a private parent.
+	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
+	expect(!root.empty(), "private application root");
 	constexpr auto hostileLegacyLines = std::string_view{ "2026-09-21T01:00:00Z v=1 op=application outcome=failed request=99 http_status=0 summary=sanitized dropped=0 detail=BPR_CANARY_SECRET_1 BPR_CANARY_SOURCE_1 BPR_CANARY_COMMENT_1\nlegacy BPR_CANARY_SOURCE_2\n" };
 #if defined(_WIN32)
 	// [[BPR-1030]]. On Windows the running logger is the log's only writer: it

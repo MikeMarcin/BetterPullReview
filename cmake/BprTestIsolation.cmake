@@ -616,7 +616,7 @@ function(bpr_add_network_isolated_test)
     cmake_parse_arguments(
         PARSE_ARGV 0
         bpr_test
-        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED;EXPECTS_FAILED_RUN;EXPECTS_NONZERO_EXIT"
+        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED;EXPECTS_FAILED_RUN;EXPECTS_NONZERO_EXIT;EXPECTS_WORKSPACE_RECOVERY_REFUSAL"
         "NAME;WORKING_DIRECTORY;LOOPBACK_PORT_COUNT"
         "COMMAND;CONFIGURATIONS"
     )
@@ -794,6 +794,7 @@ function(bpr_add_network_isolated_test)
     # is asserted instead, against CTest's own manifest, by
     # `scripts/verify_test_network_isolation.py`, so the comment above about a
     # guarantee that cannot drift is now enforced rather than claimed.
+    set(bpr_failure_expressions "")
     if(bpr_test_EXPECTS_FAILED_RUN)
         # One row asks what a *failed* run reports, so the marker it must not
         # be failed by is the marker it exists to observe, and the non-zero
@@ -821,18 +822,44 @@ function(bpr_add_network_isolated_test)
             APPEND
             PROPERTY LABELS "bpr_expects_nonzero_exit"
         )
+        list(APPEND bpr_failure_expressions "PUBLIC_PATH_FAILED")
+    else()
+        list(
+            APPEND
+            bpr_failure_expressions
+            "PUBLIC_PATH_FAILED"
+            "TEST_RUNNER_CHILD_EXIT_FAILED"
+        )
+    endif()
+    # BPR-1050. A course that roots its application data directly in a bare
+    # temporary directory puts the agent workspace neighbourhood's parent in the
+    # system temporary directory. On Linux that is a shared, root-owned `1777`
+    # `/tmp`, and on Windows `%TEMP%` carries inherited entries, so startup
+    # recovery refuses it and prints this line once. The course still passed:
+    # before BPR-1044, twelve rows printed it on every run. The product's own
+    # line is the evidence, so it fails every row here, whatever the course is
+    # written in, whenever the line reaches CTest. A row whose subject is the
+    # refusal says so with EXPECTS_WORKSPACE_RECOVERY_REFUSAL, which is written
+    # down at the row and pinned in `scripts/verify_test_network_isolation.py`.
+    #
+    # What this cannot see: a driver that captures its child's standard error
+    # and does not relay it, and any macOS run under CTest, where the runner's
+    # `TMPDIR` is a private directory that recovery accepts. There a bare root
+    # is not refused, so there is nothing to fail on.
+    if(bpr_test_EXPECTS_WORKSPACE_RECOVERY_REFUSAL)
         set_property(
             TEST "${bpr_test_NAME}"
             APPEND
-            PROPERTY FAIL_REGULAR_EXPRESSION "PUBLIC_PATH_FAILED"
+            PROPERTY LABELS "bpr_expects_workspace_recovery_refusal"
         )
     else()
+        list(APPEND bpr_failure_expressions "AGENT_WORKSPACE_RECOVERY_REFUSED")
+    endif()
+    if(bpr_failure_expressions)
         set_property(
             TEST "${bpr_test_NAME}"
             APPEND
-            PROPERTY FAIL_REGULAR_EXPRESSION
-                "PUBLIC_PATH_FAILED"
-                "TEST_RUNNER_CHILD_EXIT_FAILED"
+            PROPERTY FAIL_REGULAR_EXPRESSION ${bpr_failure_expressions}
         )
     endif()
     # A Windows loader finds a shared Qt only on PATH: nothing deploys the

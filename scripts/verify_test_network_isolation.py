@@ -467,7 +467,17 @@ FORBIDDEN_EXIT_VERDICT_PROPERTIES = {
 # of APPEND; until this record existed nothing noticed it at all.
 RUN_VERDICT_EXPRESSION = "PUBLIC_PATH_FAILED"
 CHILD_EXIT_EXPRESSION = "TEST_RUNNER_CHILD_EXIT_FAILED"
-INHERITED_FAILURE_EXPRESSIONS = [RUN_VERDICT_EXPRESSION, CHILD_EXIT_EXPRESSION]
+# BPR-1050. The application's own line when startup recovery refuses the agent
+# workspace neighbourhood's parent, which is what a course rooted directly in a
+# bare temporary directory prints on Linux and Windows. It is independent of
+# the verdict entries above: a row exempt from those still fails on it, and
+# only a row whose subject is the refusal drops it.
+WORKSPACE_REFUSAL_EXPRESSION = "AGENT_WORKSPACE_RECOVERY_REFUSED"
+INHERITED_FAILURE_EXPRESSIONS = [
+    RUN_VERDICT_EXPRESSION,
+    CHILD_EXIT_EXPRESSION,
+    WORKSPACE_REFUSAL_EXPRESSION,
+]
 EXPECTS_FAILED_RUN_LABEL = "bpr_expects_failed_run"
 EXPECTS_NONZERO_EXIT_LABEL = "bpr_expects_nonzero_exit"
 # The narrower exemption: a row whose child exits non-zero because that is the
@@ -480,14 +490,28 @@ EXPECTS_NONZERO_EXIT_LABEL = "bpr_expects_nonzero_exit"
 # scanner exits 1. Measured green with a child exit of 1 under BPR-0890, which
 # is the same green an abort in a shutdown tail produced.
 EXPECTS_NONZERO_EXIT_TESTS = {"rfc0017_release_absence_negative_control"}
-EXPECTS_NONZERO_EXIT_EXPRESSIONS = [RUN_VERDICT_EXPRESSION]
+EXPECTS_NONZERO_EXIT_EXPRESSIONS = [RUN_VERDICT_EXPRESSION, WORKSPACE_REFUSAL_EXPRESSION]
 # The rows whose subject is a failed run, so the rows that inherit neither
-# entry: the marker they exist to observe must not fail them, and the non-zero
-# exit they end on is the thing being asserted rather than a fault. Exact in
-# one direction only. A row that takes the exemption without being written down
-# here fails the gate; a name here that is not configured does not, because a
-# row registered on one platform must not turn the gate red on the others.
+# verdict entry: the marker they exist to observe must not fail them, and the
+# non-zero exit they end on is the thing being asserted rather than a fault.
+# Exact in one direction only. A row that takes the exemption without being
+# written down here fails the gate; a name here that is not configured does
+# not, because a row registered on one platform must not turn the gate red on
+# the others.
 EXPECTS_FAILED_RUN_TESTS = {"application_automated_run_budget"}
+EXPECTS_FAILED_RUN_EXPRESSIONS = [WORKSPACE_REFUSAL_EXPRESSION]
+# BPR-1050. The rows whose subject is the workspace recovery refusal itself, so
+# the rows that drop `WORKSPACE_REFUSAL_EXPRESSION` and keep everything else.
+# `application_profile_management_public_path`'s `shared-parent` section builds
+# a group-writable parent on purpose and asserts that recovery refuses it
+# (BPR-0817). The section is compiled out on Windows, so the row takes the
+# exemption only where the section runs. Exact in one direction only, for that
+# reason: a recorded row configured without the label is merely held to the
+# stricter rule.
+EXPECTS_WORKSPACE_RECOVERY_REFUSAL_LABEL = "bpr_expects_workspace_recovery_refusal"
+EXPECTS_WORKSPACE_RECOVERY_REFUSAL_TESTS = {
+    "application_profile_management_public_path",
+}
 REQUIRED_COMMAND_BOUND_TESTS = {
     "architecture_boundaries",
     "architecture_boundary_contract",
@@ -851,9 +875,12 @@ def inherited_verdict_failures(
     Three kinds of row are exempt, each for a reason that is written down
     rather than inferred: the live lane, which accepts no verdict property at
     all; the rows labelled `bpr_expects_failed_run`, whose subject is a failed
-    run; and the enumerated macOS rows registered outside the seam, which
-    cannot inherit anything and are held to the stronger rule instead - no pass
-    expression, so their exit status is the only thing that decides them.
+    run and which keep only the workspace refusal entry; and the enumerated
+    macOS rows registered outside the seam, which cannot inherit anything and
+    are held to the stronger rule instead - no pass expression, so their exit
+    status is the only thing that decides them. Independently of those, a row
+    labelled `bpr_expects_workspace_recovery_refusal` drops the workspace
+    refusal entry and keeps the rest (BPR-1050).
     """
     failures: list[str] = []
     exempt = set(macos_unsandboxed or {})
@@ -875,6 +902,22 @@ def inherited_verdict_failures(
         value = property_value(test, "FAIL_REGULAR_EXPRESSION")
         labels = property_value(test, "LABELS") or []
         labels = labels if isinstance(labels, list) else []
+        refusal_exempt = EXPECTS_WORKSPACE_RECOVERY_REFUSAL_LABEL in labels
+        if refusal_exempt and name not in EXPECTS_WORKSPACE_RECOVERY_REFUSAL_TESTS:
+            failures.append(
+                f"{name} takes the {EXPECTS_WORKSPACE_RECOVERY_REFUSAL_LABEL} "
+                "exemption without being recorded in "
+                "EXPECTS_WORKSPACE_RECOVERY_REFUSAL_TESTS"
+            )
+
+        def expected(expressions: list[str]) -> list[str] | None:
+            kept = [
+                expression
+                for expression in expressions
+                if not (refusal_exempt and expression == WORKSPACE_REFUSAL_EXPRESSION)
+            ]
+            return kept or None
+
         if EXPECTS_FAILED_RUN_LABEL in labels and EXPECTS_NONZERO_EXIT_LABEL in labels:
             failures.append(
                 f"{name} carries both {EXPECTS_FAILED_RUN_LABEL} and "
@@ -887,10 +930,11 @@ def inherited_verdict_failures(
                     f"{name} takes the {EXPECTS_FAILED_RUN_LABEL} exemption "
                     "without being recorded in EXPECTS_FAILED_RUN_TESTS"
                 )
-            if value is not None:
+            if value != expected(EXPECTS_FAILED_RUN_EXPRESSIONS):
                 failures.append(
                     f"{name} is an expected-failure row and must carry no "
-                    f"FAIL_REGULAR_EXPRESSION; found {value!r}"
+                    "verdict expression, only "
+                    f"{expected(EXPECTS_FAILED_RUN_EXPRESSIONS)!r}; found {value!r}"
                 )
             continue
         if EXPECTS_NONZERO_EXIT_LABEL in labels:
@@ -899,10 +943,10 @@ def inherited_verdict_failures(
                     f"{name} takes the {EXPECTS_NONZERO_EXIT_LABEL} exemption "
                     "without being recorded in EXPECTS_NONZERO_EXIT_TESTS"
                 )
-            if value != EXPECTS_NONZERO_EXIT_EXPRESSIONS:
+            if value != expected(EXPECTS_NONZERO_EXIT_EXPRESSIONS):
                 failures.append(
                     f"{name} asserts its own non-zero exit and must still carry "
-                    f"{EXPECTS_NONZERO_EXIT_EXPRESSIONS!r}; found {value!r}"
+                    f"{expected(EXPECTS_NONZERO_EXIT_EXPRESSIONS)!r}; found {value!r}"
                 )
             continue
         if name in EXPECTS_NONZERO_EXIT_TESTS or name in EXPECTS_FAILED_RUN_TESTS:
@@ -911,10 +955,10 @@ def inherited_verdict_failures(
                 f"{EXPECTS_FAILED_RUN_LABEL} nor {EXPECTS_NONZERO_EXIT_LABEL}"
             )
             continue
-        if value != INHERITED_FAILURE_EXPRESSIONS:
+        if value != expected(INHERITED_FAILURE_EXPRESSIONS):
             failures.append(
                 f"{name} must carry the inherited fail-closed verdict "
-                f"{INHERITED_FAILURE_EXPRESSIONS!r}; found {value!r}"
+                f"{expected(INHERITED_FAILURE_EXPRESSIONS)!r}; found {value!r}"
             )
     return failures
 

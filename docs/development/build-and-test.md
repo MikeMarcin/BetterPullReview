@@ -1046,6 +1046,34 @@ on every Linux and macOS sweep, and readers would learn to ignore that list.
 under `tests/` can skip a case but does not use the runner. It reads each
 script's own text, so it does not see a skip raised in an imported helper.
 
+### A course's data root sits one owned level down
+
+The application keeps its agent workspace neighbourhood beside its data root,
+and startup recovery refuses a neighbourhood whose parent another principal
+can write. A course that roots its data directly in a bare temporary
+directory puts that parent in the system temporary directory: a shared `1777`
+`/tmp` on Linux, and `%TEMP%` with its inherited entries on Windows. The
+application then prints
+`AGENT_WORKSPACE_RECOVERY_REFUSED:<root>/agent-workspace-ownership-v1:repair-required`
+once and composes no disposable agent workspaces ([[BPR-1044]]).
+
+So a course makes its root the `data` child of a temporary directory it has
+narrowed to owner-private. Each language has one helper:
+
+- C++: `bpr::e2e::private_data_root` in `tests/end_to_end/private_data_root.hpp`;
+- CMake: `bpr_private_data_root` in `tests/end_to_end/bpr_narrow_owner_private.cmake`;
+- Python: `contained_temporary_directory`, narrowed with `make_root_private`
+  from `tests/end_to_end/bpr_narrow_owner_private.py`.
+
+`bpr_add_network_isolated_test` fails every row whose output contains
+`AGENT_WORKSPACE_RECOVERY_REFUSED` ([[BPR-1050]]). A row whose subject is the
+refusal registers with `EXPECTS_WORKSPACE_RECOVERY_REFUSAL`, and
+`scripts/verify_test_network_isolation.py` pins which rows may. The error
+expression sees only what reaches CTest. It cannot see a driver that captures
+its child's standard error and does not relay it, and it cannot fire in a
+macOS run under CTest, whose `TMPDIR` is a private directory that recovery
+accepts.
+
 ### On macOS the tests-enabled build is an application bundle
 
 Both macOS graphs are bundles. The executable is at

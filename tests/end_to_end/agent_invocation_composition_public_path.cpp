@@ -1,3 +1,4 @@
+#include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
@@ -559,14 +560,28 @@ auto main(int argc, char** argv) -> int
 	if (data && !data->isValid()) {
 		return EXIT_FAILURE;
 	}
-	const auto      dataRoot = crashMaterializing ? std::filesystem::path{ argv[4] } : argc == 4 && !workspaceDiagnostic ? std::filesystem::path{ argv[3] }
-																														 : std::filesystem::path{ data->path().toStdString() } / "data";
-	std::error_code dataError;
-	std::filesystem::create_directories(dataRoot, dataError);
-	if (dataError || !adapters::sqlite::make_storage_root_owner_private(dataRoot)) {
+	// A root the driver passes in is the driver's to arrange; this course only
+	// makes it private. Its own root is one owned level below its temporary
+	// directory ([[BPR-1050]]), because the agent workspace neighbourhood beside
+	// the root refuses a parent another principal can write.
+	const auto privateRoot = [&]() -> std::optional<std::filesystem::path> {
+		if (data) {
+			return e2e::private_data_root(*data);
+		}
+		auto            root = std::filesystem::path{ argv[crashMaterializing ? 4 : 3] };
+		std::error_code rootError;
+		std::filesystem::create_directories(root, rootError);
+		if (rootError || !adapters::sqlite::make_storage_root_owner_private(root)) {
+			return std::nullopt;
+		}
+		return root;
+	}();
+	if (!privateRoot) {
 		std::cerr << "agent-invocation-composition-failure:private-test-root\n";
 		return EXIT_FAILURE;
 	}
+	const auto& dataRoot = *privateRoot;
+
 	auto diagnosticGitRoot = workspaceDiagnostic ? std::make_unique<QTemporaryDir>() : nullptr;
 	if (diagnosticGitRoot && !diagnosticGitRoot->isValid()) {
 		return EXIT_FAILURE;

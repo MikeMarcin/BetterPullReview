@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import unittest
+import unittest.mock
 
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
@@ -22,12 +23,16 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     AUTOMATED_TEST_BOUNDARY_MODIFICATION,
     AUTOMATED_TEST_BOUNDARY_PRODUCT_RUN_TEST,
     AUTOMATED_TEST_BOUNDARY_VARIABLE,
+    CHILD_EXIT_EXPRESSION,
     EXIT_VERDICT_TESTS,
+    EXPECTS_FAILED_RUN_EXPRESSIONS,
     EXPECTS_FAILED_RUN_LABEL,
     EXPECTS_FAILED_RUN_TESTS,
     EXPECTS_NONZERO_EXIT_EXPRESSIONS,
     EXPECTS_NONZERO_EXIT_LABEL,
     EXPECTS_NONZERO_EXIT_TESTS,
+    EXPECTS_WORKSPACE_RECOVERY_REFUSAL_LABEL,
+    EXPECTS_WORKSPACE_RECOVERY_REFUSAL_TESTS,
     FORBIDDEN_EXIT_VERDICT_PROPERTIES,
     INHERITED_FAILURE_EXPRESSIONS,
     LIVE_CREDENTIAL_VARIABLES,
@@ -39,10 +44,12 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     MACOS_UNSANDBOXED_TESTS,
     PRE_BOUNDARY_INJECTION_VARIABLES,
     RAW_REGISTRATION_OWNER,
+    RUN_VERDICT_EXPRESSION,
     STAGE_ZERO_PRELOADER,
     STAGE_ZERO_PRELOADER_SOURCE,
     WINDOWS_UNCONTAINED_LABEL,
     WINDOWS_UNCONTAINED_TESTS,
+    WORKSPACE_REFUSAL_EXPRESSION,
     boundary_marker_failures,
     composition_symbols,
     configured_failures,
@@ -733,6 +740,8 @@ class ConfiguredManifestTests(unittest.TestCase):
             ["PUBLIC_PATH_FAILED"],
             ["TEST_RUNNER_CHILD_EXIT_FAILED"],
             list(reversed(INHERITED_FAILURE_EXPRESSIONS)),
+            # BPR-1050. The value before the workspace refusal joined it.
+            ["PUBLIC_PATH_FAILED", "TEST_RUNNER_CHILD_EXIT_FAILED"],
         ):
             with self.subTest(value=value):
                 self.assertTrue(exit_verdict_failures(
@@ -835,7 +844,13 @@ class ConfiguredManifestTests(unittest.TestCase):
         # ...)` runs after the registration seam and replaces the property
         # outright. This is the shape that passed the gate before the check
         # existed.
-        for replacement in (["x"], ["PUBLIC_PATH_FAILED"], [], ["PUBLIC_PATH_FAILED", "x"]):
+        for replacement in (
+            ["x"],
+            ["PUBLIC_PATH_FAILED"],
+            [],
+            ["PUBLIC_PATH_FAILED", "x"],
+            [RUN_VERDICT_EXPRESSION, CHILD_EXIT_EXPRESSION],
+        ):
             with self.subTest(replacement=replacement):
                 failures = inherited_verdict_failures(
                     {
@@ -868,10 +883,32 @@ class ConfiguredManifestTests(unittest.TestCase):
                 {
                     "name": "LABELS",
                     "value": ["bpr_network_isolated", EXPECTS_FAILED_RUN_LABEL],
-                }
+                },
+                {
+                    "name": "FAIL_REGULAR_EXPRESSION",
+                    "value": list(EXPECTS_FAILED_RUN_EXPRESSIONS),
+                },
             ],
         }
         self.assertEqual(inherited_verdict_failures({"tests": [exempt]}), [])
+        # BPR-1050. The failed-run exemption covers the verdict entries only;
+        # a failed-run row that also dropped the workspace refusal is wider
+        # than the exemption it took.
+        self.assertTrue(
+            any(
+                "must carry no verdict expression" in value
+                for value in inherited_verdict_failures(
+                    {
+                        "tests": [
+                            {
+                                "name": recorded,
+                                "properties": exempt["properties"][:1],
+                            }
+                        ]
+                    }
+                )
+            )
+        )
         unrecorded = {
             "name": "unrecorded_expected_failure",
             "properties": [
@@ -900,7 +937,7 @@ class ConfiguredManifestTests(unittest.TestCase):
         }
         self.assertTrue(
             any(
-                "must carry no FAIL_REGULAR_EXPRESSION" in value
+                "must carry no verdict expression" in value
                 for value in inherited_verdict_failures({"tests": [contradictory]})
             )
         )
@@ -979,6 +1016,68 @@ class ConfiguredManifestTests(unittest.TestCase):
                 )
             )
         )
+
+    def test_workspace_refusal_rows_drop_only_the_refusal_entry(self) -> None:
+        # BPR-1050. A row whose subject is the refusal drops that one entry and
+        # keeps the verdict it inherits; nothing else about it is exempt.
+        recorded = sorted(EXPECTS_WORKSPACE_RECOVERY_REFUSAL_TESTS)[0]
+        verdict = [RUN_VERDICT_EXPRESSION, CHILD_EXIT_EXPRESSION]
+
+        def row(name: str, labels: list[str], value: object) -> dict[str, object]:
+            properties: list[dict[str, object]] = [
+                {"name": "LABELS", "value": ["bpr_network_isolated", *labels]}
+            ]
+            if value is not None:
+                properties.append({"name": "FAIL_REGULAR_EXPRESSION", "value": value})
+            return {"name": name, "properties": properties}
+
+        refusal = [EXPECTS_WORKSPACE_RECOVERY_REFUSAL_LABEL]
+        self.assertEqual(
+            inherited_verdict_failures({"tests": [row(recorded, refusal, verdict)]}),
+            [],
+        )
+        for value in (None, [], [RUN_VERDICT_EXPRESSION], list(INHERITED_FAILURE_EXPRESSIONS)):
+            with self.subTest(value=value):
+                self.assertTrue(
+                    any(
+                        "inherited fail-closed verdict" in failure
+                        for failure in inherited_verdict_failures(
+                            {"tests": [row(recorded, refusal, value)]}
+                        )
+                    )
+                )
+        self.assertTrue(
+            any(
+                "without being recorded" in failure
+                for failure in inherited_verdict_failures(
+                    {"tests": [row("unrecorded", refusal, verdict)]}
+                )
+            )
+        )
+        # Exact in one direction only: a recorded row configured without the
+        # label, as on Windows where its section is compiled out, is held to
+        # the ordinary rule and passes it.
+        self.assertEqual(
+            inherited_verdict_failures(
+                {"tests": [row(recorded, [], list(INHERITED_FAILURE_EXPRESSIONS))]}
+            ),
+            [],
+        )
+        # Combined with the failed-run exemption, nothing is left to carry.
+        failed_run = sorted(EXPECTS_FAILED_RUN_TESTS)[0]
+        with unittest.mock.patch(
+            "scripts.verify_test_network_isolation.EXPECTS_WORKSPACE_RECOVERY_REFUSAL_TESTS",
+            {failed_run},
+        ):
+            self.assertEqual(
+                inherited_verdict_failures(
+                    {"tests": [row(failed_run, [EXPECTS_FAILED_RUN_LABEL, *refusal], None)]}
+                ),
+                [],
+            )
+        self.assertIn(WORKSPACE_REFUSAL_EXPRESSION, INHERITED_FAILURE_EXPRESSIONS)
+        self.assertIn(WORKSPACE_REFUSAL_EXPRESSION, EXPECTS_NONZERO_EXIT_EXPRESSIONS)
+        self.assertEqual(EXPECTS_FAILED_RUN_EXPRESSIONS, [WORKSPACE_REFUSAL_EXPRESSION])
 
     def test_live_lane_and_unsandboxed_exception_keep_process_exit(self) -> None:
         live = {"name": LIVE_TEST_NAME, "properties": []}

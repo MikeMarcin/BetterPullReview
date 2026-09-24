@@ -1,11 +1,10 @@
-#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/github_application.hpp"
 
+#include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
 #include <QApplication>
 #include <QByteArray>
-#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QtEnvironmentVariables>
@@ -39,27 +38,14 @@ namespace {
 	{
 		auto dataRoot = QTemporaryDir{ };
 		expect(dataRoot.isValid(), "the run owns a writable data root");
-		// Canonical, not merely absolute. The composition refuses a data root
-		// that is not its own canonical form, and on macOS a temporary
-		// directory lives under `/var`, which is a symlink to `/private/var`.
-		// The fixture resolves the same way for the same reason.
-		const auto canonicalDataRoot
-			= QFileInfo{ dataRoot.path() }.canonicalFilePath();
-		expect(!canonicalDataRoot.isEmpty(),
-			   "the data root resolves to a canonical path");
-		// [[BPR-0832]]. Owner-private by the stores' own definition. On Windows a
-		// temporary directory inherits its parent's access-control list, which
-		// the profile registry refuses. The root sits inside the narrowed
-		// temporary directory rather than being it, because the agent workspace
-		// neighbourhood is created beside the root and trusts only a private
-		// parent.
-		const auto privateParent = std::filesystem::path{ canonicalDataRoot.toStdU16String() };
-		const auto privateRoot   = privateParent / "data";
-		auto       rootError     = std::error_code{ };
-		expect(bpr::adapters::sqlite::make_storage_root_owner_private(privateParent)
-				   && std::filesystem::create_directory(privateRoot, rootError) && !rootError
-				   && bpr::adapters::sqlite::make_storage_root_owner_private(privateRoot),
-			   "the data root is owner-private");
+		// [[BPR-0832]], [[BPR-1050]]. Canonical, because the composition refuses
+		// a data root that is not its own canonical form, and on macOS a
+		// temporary directory lives under `/var`, which is a symlink to
+		// `/private/var`. Owner-private by the stores' own definition, and one
+		// owned level below the temporary directory, because the agent workspace
+		// neighbourhood beside the root trusts only a private parent.
+		const auto privateRoot = bpr::e2e::private_data_root(dataRoot).value_or(std::filesystem::path{ });
+		expect(!privateRoot.empty(), "the data root is owner-private");
 
 		std::unique_ptr<bpr::app::github_application> application;
 		auto                                          startupTerminal = false;

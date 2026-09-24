@@ -1,8 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/github_public_path_fixture.hpp"
+#include "private_data_root.hpp"
 
-#include "bpr/adapters/sqlite/storage_root.hpp"
-#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
@@ -885,16 +884,15 @@ namespace bpr::e2e::large_review {
 		// inherited entries, and the profile registry refuses it as a root
 		// (registry_unavailable). So on every platform the data root sits in the
 		// private temporary directory rather than being it, as in [[BPR-0812]]'s
-		// agent courses, and the neighbourhood is removed with it. Windows names the
-		// root natively, the spelling its storage root validator admits.
-		const auto      dataRoot = app::native_filesystem_path(data.path()) / "data";
-		std::error_code dataError;
-		if (!adapters::sqlite::make_storage_root_owner_private(dataRoot.parent_path())
-			|| !std::filesystem::create_directory(dataRoot, dataError) || dataError
-			|| !adapters::sqlite::make_storage_root_owner_private(dataRoot)) {
+		// agent courses, and the neighbourhood is removed with it. [[BPR-1050]]:
+		// the shared helper makes that arrangement, canonical and named natively.
+		const auto privateRoot = e2e::private_data_root(data);
+		if (!privateRoot) {
 			std::cerr << "large-review-benchmark-failed: private data root parent\n";
 			return EXIT_FAILURE;
 		}
+		const auto& dataRoot = *privateRoot;
+
 		benchmark_report report;
 		report.UnavailableCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
 		report.ApproximateCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--approximate";
