@@ -57,3 +57,52 @@ row for a reason that has nothing to do with what it checks.
   and at one well past the measured limit.
 - AC3 Negative control: without the fix the row fails again past the limit.
 - AC4 macOS and Linux keep their path, or the change is run there.
+
+## Measured, and the scratch Git takes long paths (bpr-main-win, 2026-09-24)
+
+Run `bpr-main-win-20260923`, `build/dev`, at `7f347d65`. Each run is the
+registered row, `ctest --preset dev -j1 -V -R`, with `TEMP` and `TMP` set to
+the station's temporary directory plus one padded child of the stated extra
+length. The logs are station records under `build/logs/bpr-1105-main-win/`
+and are not committed. `LongPathsEnabled` is 1 on this host.
+
+**The limit (AC1).** The deepest scratch file is 198 characters below
+`TEMP`: `\bpr<16 hex>\template\` and the 168-character review path above. The
+call that fails is the template's `git add -A`, with `Filename too long`:
+
+| Extra characters | `TEMP` length | Deepest path | Row |
+| ---: | ---: | ---: | --- |
+| 0 | 33 | 231 | passes, 44 tests |
+| 10, 20, 24, 26 | 43 to 59 | 241 to 257 | passes |
+| 28 | 61 | 259 | passes |
+| 29 | 62 | 260 | fails: `git add -A` ... `Filename too long` |
+| 30, 45 | 63, 78 | 261, 276 | fails the same way; 13 of 44 tests at 45 |
+
+So the row fails once a path reaches MAX_PATH, 260 characters, and the
+station's own `TEMP` leaves 28 characters of margin. Python wrote the same
+files without complaint; only Git refused them. The validator under test runs
+only `rev-parse` and `cat-file`, which never stat the working tree, so its
+own calls are not affected.
+
+**The fix.** `run_scratch_git` passes `-c core.longpaths=true` on Windows,
+the setting [[BPR-0622]] gave the cache inspection for the same reason. Git
+for Windows then uses long-path calls for the scratch repository. On other
+platforms the command is unchanged. The row's checks are unchanged.
+
+**The row passes past the limit (AC2).** With the fix: extra 0, 29, 30, 45
+and 100 characters (`TEMP` 33 to 133, deepest path 231 to 331) all pass, 44
+of 44 tests each, in 4.4 to 4.9 s, and leave nothing in the padded
+directory.
+
+**Negative control (AC3).** The table above is the row without the fix, on
+the same station and `TEMP` lengths: it fails from 29 characters on.
+
+**AC4.** The flag is added only where `os.name == "nt"`, so the macOS and
+Linux command is byte for byte what it was.
+
+**Not fixed here.** On a Windows host with `LongPathsEnabled` 0, Python's
+own writes are limited to MAX_PATH as well, so the row is expected to fail
+there past the same limit, in the fixture builder rather than in Git. That was
+not run. Only the system setting removes that limit; shortening the scratch
+names the test controls (`bpr<16 hex>`, `template`) would buy fewer than 20
+characters.

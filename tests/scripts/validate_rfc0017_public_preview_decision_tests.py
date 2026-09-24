@@ -123,12 +123,21 @@ FORBIDDEN_IMPORT_ROOTS = frozenset({
 })
 
 
+#: [[BPR-1105]]. The scratch repository mirrors the real review directory, so
+#: its deepest file sits 198 characters below the temporary directory. With a
+#: temporary directory 29 characters longer than the Windows station's own,
+#: that file reaches MAX_PATH, and Git for Windows refuses to stat it
+#: ("Filename too long") unless core.longpaths is set, as [[BPR-0622]] found for
+#: the cache refs. Other platforms need nothing, and get nothing.
+SCRATCH_GIT_LONG_PATHS = ("-c", "core.longpaths=true") if os.name == "nt" else ()
+
+
 def run_scratch_git(arguments: list[str], *, cwd: Path) -> bytes:
     environment = dict(os.environ)
     environment.update(SCRATCH_GIT_ENVIRONMENT)
     completed = subprocess.run(
         ["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=",
-         *arguments],
+         *SCRATCH_GIT_LONG_PATHS, *arguments],
         cwd=str(cwd), capture_output=True, env=environment, check=False)
     if completed.returncode != 0:
         raise AssertionError(
