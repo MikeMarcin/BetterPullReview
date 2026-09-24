@@ -2151,6 +2151,18 @@ namespace {
 		const auto initialContext = *workbench->current_context();
 		const auto initialStats   = workbench->statistics();
 		const auto capture        = [&](const std::string_view aStep) {
+			// [[BPR-1102]]. The link map has a frame only once the panes'
+			// time-sliced measurement completes, and a resize restarts it. Four
+			// passes are enough where a 4 ms batch measures the whole fixture;
+			// on the Windows Debug build a batch measures at most 32 lines. Wait
+			// for the measurement itself, bounded, then drain as before, as
+			// [[BPR-1033]]'s capture does. An expiry reads geometry_pending=1
+			// in the facts below.
+			const auto measuring = std::chrono::steady_clock::now();
+			while (workbench->geometry_pending()
+				   && std::chrono::steady_clock::now() - measuring < std::chrono::seconds{ 5 }) {
+				QApplication::processEvents();
+			}
 			settle_automated_events();
 			const auto step = QString::fromLatin1(
 				aStep.data(), static_cast<qsizetype>(aStep.size()));
@@ -2160,7 +2172,29 @@ namespace {
 			if (!retained.has_value() || !rendered.has_value()
 				|| !workbench->current_context().has_value()
 				|| !selection.has_value()) {
-				return fail(QStringLiteral("capture-state"));
+				fail(QStringLiteral("capture-state"));
+				// [[BPR-1102]]. One term per clause, then what the frames wait
+				// on, printed after the marker so every earlier line keeps its
+				// place.
+				const auto  pending = workbench->statistics();
+				const auto* linkMap = workbench->link_map();
+				auto        facts   = QTextStream{ stdout };
+				facts << "DIFF_INTERACTION_CAPTURE_STATE_FACTS: step=" << step
+					  << " retained_frame=" << retained.has_value()
+					  << " link_map_frame=" << rendered.has_value()
+					  << " context=" << workbench->current_context().has_value()
+					  << " selection=" << selection.has_value()
+					  << " geometry_pending=" << workbench->geometry_pending()
+					  << " geometry_rebuilds=" << pending.GeometryRebuilds
+					  << " geometry_failures=" << pending.GeometryFailures
+					  << " measurement_batches=" << pending.MeasurementBatches
+					  << " measurement_restarts=" << pending.MeasurementRestarts
+					  << " max_batch_lines=" << pending.MaximumMeasurementBatchLines
+					  << " link_map=visible:" << linkMap->isVisible() << ",size:"
+					  << linkMap->width() << 'x' << linkMap->height()
+					  << ",links:" << linkMap->visible_links().size() << '\n';
+				facts.flush();
+				return false;
 			}
 			const auto imageName = step + QStringLiteral(".png");
 			if (!aWindow.grab().save(directory.filePath(imageName), "PNG")) {

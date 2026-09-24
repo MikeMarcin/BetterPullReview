@@ -190,6 +190,16 @@ endfunction()
 # changes; the mutation-branch and full-application pins are unchanged. Covers
 # b60e04b0..the BPR-1024 commit; nothing else touched the pinned scope. Review
 # recorded on BPR-1024.
+# BPR-1102 reseal: the BPR_BUILD_TESTING diff interaction capture in main.cpp
+# waits, bounded at 5 s, for the workbench's pane measurement before each
+# capture's four event passes, and prints one facts line after
+# DIFF_INTERACTION_FAILURE:capture-state naming each clause and what the link
+# map's frame waits on. The course reads workbench state and writes only to
+# standard output and its evidence directory; every product action it takes is
+# unchanged. github_application.cpp is unchanged. No credential, provider,
+# vault, transport or mutation path changes; the mutation-branch and
+# full-application pins are unchanged. Covers 59915464..the BPR-1102 commit;
+# nothing else touched the pinned scope. Review recorded on BPR-1102.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -347,7 +357,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a61473dd57783648f406d3b044bc98ba74ca5639195dcd45cef77e845b515770"
+        "5f829027587e2ad4ce663e1135279c7aebac50cffb4646bfdf7014a72afc2ed9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
