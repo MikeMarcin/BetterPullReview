@@ -293,3 +293,54 @@ is unchanged (`a7e2081e…d1e8a`). New values:
   Expected: 3/3, and the round-trip row confirms the resealed pins.
 - **Windows (bpr-main-win):**
   `cmake --build --preset windows-dev && ctest --preset windows-dev -j1 --output-on-failure -R '^(application_threaded_reply_contract|qt_workbench_conversation_reveal)$'`.
+
+## The Linux run (bpr-main-linux, 2026-09-23)
+
+The run was at `c127cb38`, which contains `669a5a58`. It used a separate
+verification clone of `main` with a clean working tree, on JaegAW: WSL2
+Ubuntu 26.04, GCC 15.2, Qt 6.11.2, `build/dev` (Debug) from the `dev`
+preset, which compiles with `-Werror`. The build before the run finished
+with no `warning:` line. The run was serial and offscreen: the card's
+command with `-V`,
+`ctest --test-dir build/dev -j1 -V --output-on-failure -R '^(application_threaded_reply_contract|qt_workbench_conversation_reveal|application_review_round_trip_composition_contract)$'`,
+with `QT_QPA_PLATFORM=offscreen` and `DISPLAY` unset. The station's load
+average was 19.3 at the start of the batch, from a parallel build, and 4.9
+at the end. The log is
+`build/logs/bpr-main-linux-20260923/mac-batch5-linux-runs/bpr-b5-1046.log`,
+a station record that is not committed.
+
+**3/3 passed**, in 5.92 s.
+
+| Row | Result |
+|---|---|
+| `qt_workbench_conversation_reveal` | Pass, 1.12 s, `workbench-conversation-reveal:pass` |
+| `application_review_round_trip_composition_contract` | Pass, 1.86 s, `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK`. Nothing touched `src/app` or the contract between `669a5a58` and `c127cb38`, so the pins it checked are this card's reseal (`0eccd810…`, `52f6a647…`) |
+| `application_threaded_reply_contract` | Pass, 2.94 s, `THREADED_REPLY_CONTRACT_OK`. The contract prints that only after every fixture's output carries `THREADED_REPLY_EVIDENCE:11111` |
+
+The log has no `THREADED_REPLY_FAILED`, `RUN_BUDGET_EXPIRED` or `_STALLED`
+line. Before the change the row failed on this station at 40.35 s
+(`78c8ac85`). Against the expectation (3/3, and the round-trip row confirms
+the resealed pins): met. The Linux observation holds.
+
+### Acceptance, as it stands
+
+- **AC1** (the row passes on Linux with the full evidence mask): **pass**, at
+  `c127cb38` above.
+- **AC2** (the notice, and no pending reply a later draft could take, proven
+  by a test): pass, as recorded above.
+- **AC3** (a negative control proves the new check can fail): pass, as
+  recorded above.
+- **AC4** (the row passes on macOS and Windows): macOS passes. **Windows is
+  owed.**
+
+### Still owed: the Windows run (bpr-main-win)
+
+On a head that contains `669a5a58`, rebuilt:
+
+```sh
+cmake --build --preset windows-dev
+ctest --preset windows-dev -j1 --output-on-failure -R '^(application_threaded_reply_contract|qt_workbench_conversation_reveal)$'
+```
+
+Expected: 2/2, and `application_threaded_reply_contract` prints
+`THREADED_REPLY_CONTRACT_OK`. When that run passes, the card can finish.

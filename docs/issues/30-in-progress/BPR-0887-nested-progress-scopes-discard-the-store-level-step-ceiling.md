@@ -230,3 +230,57 @@ When both pass on a head that contains this change, the card can finish.
 - **The comment at `device_binding_store.cpp:55-56` is true again:** pass. The
   ceiling now holds for the whole scope, and the comment (now lines 55-59)
   also says that `configure_connection` replaces the limits.
+
+## The Linux run (bpr-main-linux, 2026-09-23)
+
+The run was at `c127cb38`, which contains `7eec1053`. It used a separate
+verification clone of `main` with a clean working tree, on JaegAW: WSL2
+Ubuntu 26.04, GCC 15.2, Qt 6.11.2, `build/dev` (Debug) from the `dev`
+preset, which compiles with `-Werror`. The build before the run finished
+with no `warning:` line. The run was serial and offscreen: the card's
+command with `-V`,
+`ctest --test-dir build/dev -j1 -V --output-on-failure -R '^(sqlite_|contained_catalog_probe$)'`,
+with `QT_QPA_PLATFORM=offscreen` and `DISPLAY` unset. The station was busy:
+its load average was 19.3 at the start, from a parallel build, and 4.9 at the
+end. The log is
+`build/logs/bpr-main-linux-20260923/mac-batch5-linux-runs/bpr-b5-0887.log`,
+a station record that is not committed.
+
+**19/19 passed**, in 148.48 s.
+
+| Row | Result |
+|---|---|
+| `sqlite_device_binding_storage` | Pass, 3.04 s. It prints `device-binding-storage-tests:pass`, which comes only after `nested_progress_scopes()` returns |
+| `sqlite_epoch_catalog_behavior_contract` | Pass, 136.69 s, under its 180 s timeout. Earlier Linux runs recorded on this station took 123.6-171.5 s, so this is its usual range here |
+| The other 17 rows | Pass, 0.00-4.13 s each |
+
+**Why 19 rows and not 18.** `sqlite_private_store_open` has been registered
+on every platform since `874dc0ae` ([[BPR-0883]]), which landed after the
+macOS run. The macOS run's 18 rows are the other 18 here. The row passed
+(0.06 s). So on Windows, only one row is still Windows-only:
+`sqlite_appcontainer_private_descriptor`.
+
+Against the expectation: all rows pass, including `sqlite_device_binding_storage`
+with `device-binding-storage-tests:pass`. Met. The Linux observation holds.
+
+### Acceptance, as it stands
+
+- **After a nested `execute`, the outer ceiling is still installed, proven by
+  a test:** pass on macOS. The same check passes on Linux.
+- **The SQLite contract suite passes on all three platforms:** macOS and
+  Linux pass. **Windows is owed.**
+- **The comment at `device_binding_store.cpp:55-56` is true again:** pass.
+
+### Still owed: the Windows run (bpr-main-win)
+
+On a head that contains `7eec1053`, rebuilt:
+
+```sh
+cmake --build --preset windows-dev
+ctest --preset windows-dev -j1 --output-on-failure -R '^(sqlite_|contained_catalog_probe$)'
+```
+
+Expected: 20 rows pass. They are the 19 above plus
+`sqlite_appcontainer_private_descriptor`. This corrects the list in "Still
+needed" above, which predates `874dc0ae`. When that run passes, the card can
+finish.
