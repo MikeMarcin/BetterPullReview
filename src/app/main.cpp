@@ -3454,17 +3454,19 @@ namespace {
 		// chain they already build. A tests-disabled build composes no
 		// fixture, has no second slot, and runs none of the courses that read
 		// these lines.
-		auto refreshRetained = false;
-		auto refreshStores   = std::size_t{ 0U };
-		auto refreshDeletes  = std::size_t{ 0U };
-		auto pastedDigest    = std::string{ };
-		auto refreshDigest   = std::string{ };
+		auto refreshRetained  = false;
+		auto refreshStores    = std::size_t{ 0U };
+		auto refreshDeletes   = std::size_t{ 0U };
+		auto refreshRetrieves = std::size_t{ 0U };
+		auto pastedDigest     = std::string{ };
+		auto refreshDigest    = std::string{ };
 #if defined(BPR_BUILD_TESTING)
-		refreshRetained = fixtureEvidence.RefreshRetained;
-		refreshStores   = fixtureEvidence.RefreshStores;
-		refreshDeletes  = fixtureEvidence.RefreshDeletes;
-		pastedDigest    = fixtureEvidence.LastEnrollmentDigest;
-		refreshDigest   = fixtureEvidence.RefreshStoredDigest;
+		refreshRetained  = fixtureEvidence.RefreshRetained;
+		refreshStores    = fixtureEvidence.RefreshStores;
+		refreshDeletes   = fixtureEvidence.RefreshDeletes;
+		refreshRetrieves = fixtureEvidence.RefreshRetrieveAttempts;
+		pastedDigest     = fixtureEvidence.LastEnrollmentDigest;
+		refreshDigest    = fixtureEvidence.RefreshStoredDigest;
 #endif
 
 		QTextStream stream{ stdout };
@@ -3722,7 +3724,20 @@ namespace {
 					   << (status.ShutdownCleanupFailed ? "true" : "false")
 					   << '\n'
 					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
-									 : "DEVICE_FLOW_REFRESH_FAILED\n");
+									 : "DEVICE_FLOW_REFRESH_FAILED\n")
+					   // [[BPR-0902]]. How often the refresh slot was read: by
+					   // each renewal, and by the session's own presence probe.
+					   // The counts above are all short by one whether the
+					   // second renewal was never armed, gave up before it
+					   // read the slot, or read it and was refused; this count
+					   // tells those apart. Measured on Windows, a run whose
+					   // two rotations both complete reads it four times, and
+					   // one whose second renewal is refused before reading
+					   // reads it twice. It follows the verdict, so no row
+					   // pins it.
+					   << "DEVICE_FLOW_REFRESH_RETRIEVES:"
+					   << static_cast<unsigned long long>(refreshRetrieves)
+					   << '\n';
 			} else if (aRun.Device.Registered) {
 				// The registered course makes the opposite claim: the grant
 				// must reach the existing vault exactly once, and the token
