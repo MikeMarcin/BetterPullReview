@@ -29,7 +29,7 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 - C++23
 - Qt 6 Widgets, Core, Gui, Network, and required platform integration
 - CMake 4.4.2 and Ninja
-- Centralized package discovery for prebuilt Qt, libsecret, Python, and Git
+- Centralized package discovery for prebuilt Qt, libsecret, libxcb, Python, and Git
 - SQLite 3.53.4 through a verified CPM-acquired, directly linked C API
 - Installed Git executable through `QProcess`
 - Native HTTPS as the default production GitHub authentication transport
@@ -275,10 +275,11 @@ The live repository may use different target names, but it must enforce these ru
 Build dependency ownership is centralized before these product targets are
 declared. Qt is acquired by the pinned provider by default or supplied through
 an explicit caller-installed root, then resolved in CMake package mode;
-Python, Git, and Linux libsecret use the standard CMake or
+Python, Git, and Linux libsecret and libxcb use the standard CMake or
 `pkg-config` providers only when the selected graph needs them. The centralized
 provider verifies the resulting `Qt6::*`, `LibSecret::LibSecret`,
-`Python3::Interpreter`, and `Git::Git` targets before product subdirectories
+`PkgConfig::BPR_XCB`, `Python3::Interpreter`, and `Git::Git` targets before
+product subdirectories
 are evaluated and rejects any predeclared collision with those owned names.
 Standard tool discovery uses CMake's built-in modules and rejects package
 redirects for provider-owned names. The source tree configures only as the

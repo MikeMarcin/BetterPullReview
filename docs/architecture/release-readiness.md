@@ -70,7 +70,7 @@ release graph.
 | Quill and bundled fmt | `cmake/BprQuillProvider.cmake`, `third_party/quill/`: 13.0.0, controlled headers | Code is compiled into the logging adapter; retained MIT/fmt notices are inputs to the delivered notices, not proof they were packaged. |
 | Glaze | `cmake/BprGlazeProvider.cmake`, `third_party/glaze/`: 8.3.0, controlled headers | Used by the production GitHub adapter as well as fixtures; include compiled code and its retained notice. |
 | LibArchive | `cmake/BprReleaseArchiveProvider.cmake`: 3.8.9, macOS static staging dependency; system zlib enabled | Reuse generated `_bpr/LibArchive-NOTICES.txt`, already copied into the Mac bundle. Reconcile all linked source notices and native dependencies. |
-| OS/toolchain libraries | Security/CoreFoundation/AppKit and other linked Apple frameworks/system libraries; Windows Advapi32/Kernel32/Bcrypt; Linux libsecret >= 0.20 and its dependency closure; C/C++/thread runtimes | Distinguish supplied platform prerequisites from bundled files. Inspect symbols, versions, loader origins and transitive TLS/runtime dependencies on each native target. |
+| OS/toolchain libraries | Security/CoreFoundation/AppKit and other linked Apple frameworks/system libraries; Windows Advapi32/Kernel32/Bcrypt; Linux libsecret >= 0.20 and libxcb (linked directly since [[BPR-1024]], and already required by Qt's xcb plugin), with their dependency closure; C/C++/thread runtimes | Distinguish supplied platform prerequisites from bundled files. Inspect symbols, versions, loader origins and transitive TLS/runtime dependencies on each native target. |
 
 **G3:** `_bpr/product-dependency-audit.cmake` is a selected configuration record,
 not an SBOM: it includes build tools and does not enumerate the full static or

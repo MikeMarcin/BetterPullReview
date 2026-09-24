@@ -321,14 +321,14 @@ Prerequisites are CMake 4.4.2, Ninja, a C++23 compiler, Qt 6.8+ with CoreTools
 for the native application, Python 3.10+ for tests, and Git 2.39+ for
 installed-Git contract tests. Clang-format and clang-tidy are required for the
 coding-standard gates; LLVM 22.1.8 is the validated tooling version. On Linux,
-libsecret 0.20+ development metadata is also required.
+libsecret 0.20+ and libxcb development metadata are also required.
 Compatible newer installations are supported.
 
 Dependency discovery is centralized before product targets are declared.
 Qt 6.11.2 is acquired by a pinned provider and resolved in package mode,
 with `BPR_QT_ROOT` and `BPR_QT_PROVIDER=OFF` available to supply it yourself;
-Python, Git, and Linux libsecret use their standard CMake or `pkg-config`
-providers only when their selected graph needs them. SQLite 3.53.4 is
+Python, Git, and Linux libsecret and libxcb use their standard CMake or
+`pkg-config` providers only when their selected graph needs them. SQLite 3.53.4 is
 source-acquired through a verified, download-only CPM 0.43.1 provider and
 built from a controlled two-file staging directory as the existing
 `BetterPullReview::SQLite3` static target. Set standard hints such as

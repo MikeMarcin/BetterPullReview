@@ -193,6 +193,20 @@ function(bpr_configure_dependencies)
                 )
             endif()
             list(APPEND records "LibSecret|PKG_CONFIG|LibSecret::LibSecret")
+
+            # [[BPR-1024]]. The composition's X11 activation host names one
+            # atom on the connection Qt's xcb platform opened. libxcb is
+            # already in the runtime closure of Qt's xcb platform plugin.
+            bpr_require_dependency_target_absent(PkgConfig::BPR_XCB xcb)
+            pkg_check_modules(
+                BPR_XCB
+                REQUIRED
+                IMPORTED_TARGET
+                GLOBAL
+                xcb
+            )
+            bpr_require_dependency_target(PkgConfig::BPR_XCB xcb)
+            list(APPEND records "XCB|PKG_CONFIG|PkgConfig::BPR_XCB")
         endif()
 
         if(BUILD_TESTING)

@@ -85,6 +85,13 @@ if(BPR_BUILD_QT)
         endforeach()
         target_include_directories(better_pull_review_composition SYSTEM PRIVATE ${bpr_qt_private_include_dirs})
     endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # [[BPR-1024]]. On the xcb platform, Qt's focus window follows the
+        # window the X server focused, not an activation request the window
+        # manager may refuse.
+        target_sources(better_pull_review_composition PRIVATE src/xcb_activation_host.cpp)
+        target_link_libraries(better_pull_review_composition PRIVATE PkgConfig::BPR_XCB)
+    endif()
     if(BUILD_TESTING)
         target_compile_definitions(
             better_pull_review_composition

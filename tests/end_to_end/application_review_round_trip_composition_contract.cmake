@@ -180,6 +180,16 @@ endfunction()
 # path changes; the mutation-branch and full-application pins are unchanged.
 # Covers 9d3fb998..the BPR-1045 commit; nothing else touched the pinned scope.
 # Review recorded on BPR-1045.
+# BPR-1024 reseal: on Linux, main.cpp creates one xcb_activation_host right
+# after QApplication, and the composition gains that host
+# (xcb_activation_host.cpp and .hpp, Linux only). On the xcb platform it keeps
+# an EWMH _NET_ACTIVE_WINDOW client message from Qt, unless it names the modal
+# window, so Qt changes its focus window only on the X server's FocusIn. On
+# every other platform it does nothing. It reads one atom and the modal window
+# and writes nothing. No credential, provider, vault, transport or mutation path
+# changes; the mutation-branch and full-application pins are unchanged. Covers
+# b60e04b0..the BPR-1024 commit; nothing else touched the pinned scope. Review
+# recorded on BPR-1024.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -240,6 +250,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
+		"src/xcb_activation_host.cpp"
+		"src/xcb_activation_host.hpp"
         "update_helper_main.cpp"
     )
     set(bpr_production_app_manifest "")
@@ -308,6 +320,8 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/windows_title_row_host.cpp"
 		"src/windows_title_row_host.hpp"
 		"src/worker_executor.cpp"
+		"src/xcb_activation_host.cpp"
+		"src/xcb_activation_host.hpp"
         "update_helper_main.cpp"
     )
     file(GLOB_RECURSE bpr_actual_app_sources
@@ -333,7 +347,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8e5bc591ed293c615ca17897b8fe293e8ee0c92805a5b682823067e77e3deb05"
+        "a61473dd57783648f406d3b044bc98ba74ca5639195dcd45cef77e845b515770"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

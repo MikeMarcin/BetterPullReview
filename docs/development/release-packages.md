@@ -22,7 +22,7 @@ There is no new core SDK or embedding API.
 |---|---|---|
 | macOS | `macos-release`; universal x86_64/arm64, minimum macOS 13; app/ZIP, full release also DMG | Existing Qt/macOS toolchain; local prepare mode needs no Apple credential |
 | Windows 10/11 x64 | `windows-app-release`; WiX 4 per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` | Native MSVC x64 developer environment, Ninja, WiX 4, Python 3.10+, Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
-| Ubuntu 24.04 LTS x86_64 | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret development files |
+| Ubuntu 24.04 LTS x86_64 | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret and libxcb development files |
 | RHEL 10 x86_64 | `linux-package`; RPM and per-user archive | Native RHEL packaging/development tools and the same runtime requirements; CPU floor x86-64-v3 |
 
 Build prerequisites include CMake 4.4.2, Ninja, Python 3.10+ and a C++23

@@ -10,6 +10,8 @@
 - Git 2.39 or newer for installed-Git contract tests
 - Clang-format and clang-tidy 22.1.8 for coding-standard verification
 - On Linux, stable `libsecret-1>=0.20.0` and its development metadata
+- On Linux, libxcb's development metadata (`xcb` in `pkg-config`), for the
+  application's X11 activation host ([[BPR-1024]])
 
 The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
@@ -22,10 +24,11 @@ resolved through its ordinary CMake config package, so discovery does not
 depend on how Qt arrived. `BPR_QT_ROOT` names an existing prefix to use
 instead, and `BPR_QT_PROVIDER=OFF` restores the former requirement that the
 caller install Qt themselves. Python and Git use the
-standard CMake find modules, while Linux libsecret uses `pkg-config`; each is
-discovered only when its selected target graph needs it. The centralized
-provider requires the Qt libraries plus `Qt6::rcc`, `Python3::Interpreter`,
-`Git::Git`, and `LibSecret::LibSecret` before product targets are declared, so
+standard CMake find modules, while Linux libsecret and libxcb use
+`pkg-config`; each is discovered only when its selected target graph needs it.
+The centralized provider requires the Qt libraries plus `Qt6::rcc`,
+`Python3::Interpreter`, `Git::Git`, `LibSecret::LibSecret` and, on Linux,
+`PkgConfig::BPR_XCB` before product targets are declared, so
 adapters and tests never repeat package discovery. Those target names must not
 be predeclared by a parent project: the provider rejects collisions before
 discovery so its target-provenance audit cannot describe an injected target as

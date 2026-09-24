@@ -2701,6 +2701,23 @@ if(WIN32)
     set_property(TEST application_windows_title_row APPEND PROPERTY LABELS "BPR-0653;target-native-windows")
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # [[BPR-1024]]. Which X11 events the activation host keeps from Qt, and that
+    # it does nothing off the xcb platform. The window manager's refusal and
+    # where keys then go are the native WSLg course's.
+    bpr_add_executable(test_better_pull_review_xcb_activation_host_tests xcb_activation_host_tests.cpp)
+    target_link_libraries(test_better_pull_review_xcb_activation_host_tests PRIVATE BetterPullReview::Composition PkgConfig::BPR_XCB)
+    target_compile_features(test_better_pull_review_xcb_activation_host_tests PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_better_pull_review_xcb_activation_host_tests)
+    bpr_enable_warnings(test_better_pull_review_xcb_activation_host_tests)
+    bpr_add_network_isolated_test(NAME application_xcb_activation_host COMMAND test_better_pull_review_xcb_activation_host_tests)
+    set_tests_properties(application_xcb_activation_host PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30
+        PASS_REGULAR_EXPRESSION "xcb-activation-host-tests:pass")
+    set_property(TEST application_xcb_activation_host APPEND PROPERTY LABELS "BPR-1024")
+endif()
+
 if(APPLE)
     # RFC-BPR-0033 B1 and B2, the native half. The owner's attended review of the
     # shipped build found the macOS menu bar emptied by closing the last window,

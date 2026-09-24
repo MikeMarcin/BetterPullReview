@@ -13,6 +13,9 @@
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "src/installed_runtime.hpp"
+#if defined(__linux__)
+	#include "src/xcb_activation_host.hpp"
+#endif
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
@@ -7502,6 +7505,11 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	QApplication qtApplication{ argc, argv };
+#if defined(__linux__)
+	// [[BPR-1024]]. Keys go to the window the X server focused, not to one
+	// whose activation the window manager may have refused.
+	bpr::app::xcb_activation_host activationHost;
+#endif
 	QApplication::setQuitOnLastWindowClosed(false);
 	QCoreApplication::setApplicationName(QStringLiteral("BetterPullReview"));
 	QGuiApplication::setApplicationDisplayName(
