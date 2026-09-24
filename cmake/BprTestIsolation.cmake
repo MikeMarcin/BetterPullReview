@@ -506,6 +506,7 @@ elseif(WIN32)
         PRIVATE
             userenv
             advapi32
+            ole32
     )
     bpr_enable_hardening(tool_better_pull_review_network_sandbox)
     bpr_enable_warnings(tool_better_pull_review_network_sandbox)

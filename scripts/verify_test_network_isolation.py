@@ -73,6 +73,12 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 #   not at heart a lowbox limitation -- it is a fact about the checkout that
 #   would bite any sandbox -- but it is measured here and it is why these rows
 #   cannot be contained.
+# - `service-manager-denied`: the Service Control Manager refuses a lowbox
+#   token. The row runs the AppContainer launcher itself, and a launcher
+#   started inside the container stops at its firewall-service check with
+#   `BPR_NETWORK_ISOLATION_UNAVAILABLE:firewall-service:win32=5`, before it
+#   reaches the profile. Measured on the Windows station on 2026-09-24
+#   ([[BPR-1072]]).
 #
 # The application tests are `dos-volume-name` through one step: the
 # application canonicalises its data root and the catalog walks that root's
@@ -376,6 +382,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "windows_credential_manager_native": "credential-manager",
     "windows_credential_manager_native_cleanup": "credential-manager",
     "github_cli_process_runner": "qprocess-named-pipe",
+    # [[BPR-1072]]. Starts the launcher four at a time to prove its profile step
+    # holds under concurrency. Registered contained on JaegAW 2026-09-24, every
+    # launch stopped at firewall-service:win32=5.
+    "test_network_isolation_concurrent_launch": "service-manager-denied",
 }
 # BPR-0802. The macOS rows that cannot run under the sandbox runner, because
 # they start a sandbox of their own and macOS refuses nested sandbox

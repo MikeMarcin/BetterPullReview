@@ -46,7 +46,7 @@ function(bpr_windows_appcontainer_sid launcher_source output)
             bpr_appcontainer_setup_status
             BPR_APPCONTAINER_SETUP_COMPILED
             SOURCES "${launcher_source}"
-            LINK_LIBRARIES userenv advapi32
+            LINK_LIBRARIES userenv advapi32 ole32
             CXX_STANDARD 23
             CXX_STANDARD_REQUIRED TRUE
             COMPILE_OUTPUT_VARIABLE setup_build_log

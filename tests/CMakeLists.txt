@@ -1014,6 +1014,29 @@ bpr_add_network_isolated_test(
         loopback
         "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
 )
+if(WIN32)
+    # [[BPR-1072]]. Every contained Windows row enters the one AppContainer
+    # profile through the launcher, several at once under `ctest -j`. This row
+    # starts four launchers at the same moment for eight rounds and requires
+    # every child to report the container's token. It runs the launcher itself,
+    # so it cannot run inside the container.
+    bpr_add_network_isolated_test(
+        NAME test_network_isolation_concurrent_launch
+        WINDOWS_UNCONTAINED
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/network_isolation_counterexamples.py"
+            concurrent
+            "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
+            "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
+    )
+    set_tests_properties(
+        test_network_isolation_concurrent_launch
+        PROPERTIES
+            PASS_REGULAR_EXPRESSION "NETWORK_ISOLATION_CONCURRENT_LAUNCHES_CONTAINED:32"
+            TIMEOUT 180
+    )
+endif()
 if(APPLE)
     bpr_add_network_isolated_test(
         NAME test_network_isolation_unrelated

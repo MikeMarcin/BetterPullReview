@@ -586,6 +586,10 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # contain.
                 "child-process-denied",
                 "repository-content-outside-checkout",
+                # [[BPR-1072]]. Measured on the Windows station: a launcher
+                # started inside the container is refused the Service Control
+                # Manager before it reaches the profile.
+                "service-manager-denied",
             },
         )
 

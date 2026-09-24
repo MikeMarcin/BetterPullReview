@@ -10,6 +10,7 @@
 #endif
 #include <windows.h>
 
+#include <combaseapi.h>
 #include <sddl.h>
 #include <userenv.h>
 
@@ -100,31 +101,111 @@ namespace {
 		}
 	}
 
-	/// \brief Return the container SID, creating the profile on first use.
-	/// \details Creation is the idempotent path: an existing profile reports
-	/// ERROR_ALREADY_EXISTS and the same SID is then derived from the name.
-	/// The caller owns the returned SID and releases it with FreeSid.
-	[[nodiscard]] auto ensure_container_sid() -> PSID
+	/// \brief Holds this session's profile lock for its lifetime.
+	/// \details [[BPR-1072]]. CreateAppContainerProfile on a profile that
+	/// exists is not a read. Two calls that overlap undo each other's work:
+	/// they fail with E_UNEXPECTED, ERROR_KEY_DELETED or ERROR_BAD_ENVIRONMENT,
+	/// a launch already past its own profile step fails in CreateProcessW, and
+	/// the profile can be left deleted. So every launcher checks, and creates
+	/// if it must, while it holds one named mutex, and none changes the profile
+	/// while another reads it. A lock that cannot be taken refuses the launch.
+	class profile_lock final
+	{
+	public:
+		profile_lock()
+		{
+			Mutex = ::CreateMutexW(nullptr, FALSE, L"Local\\BprAutomatedTestAppContainerProfile");
+			if (Mutex == nullptr) {
+				fail_win32("profile-lock", ::GetLastError());
+			}
+			// An abandoned lock is taken over: its owner ended while holding
+			// it, and the check below reads the profile afresh either way.
+			const auto waited = ::WaitForSingleObject(Mutex, lock_wait_milliseconds);
+			if (waited != WAIT_OBJECT_0 && waited != WAIT_ABANDONED) {
+				const auto error = waited == WAIT_TIMEOUT ? DWORD{ WAIT_TIMEOUT } : ::GetLastError();
+				static_cast<void>(::CloseHandle(Mutex));
+				fail_win32("profile-lock", error);
+			}
+		}
+		profile_lock(const profile_lock&)                    = delete;
+		profile_lock(profile_lock&&)                         = delete;
+		auto operator=(const profile_lock&) -> profile_lock& = delete;
+		auto operator=(profile_lock&&) -> profile_lock&      = delete;
+		~profile_lock()
+		{
+			static_cast<void>(::ReleaseMutex(Mutex));
+			static_cast<void>(::CloseHandle(Mutex));
+		}
+
+	private:
+		// A launcher holds the lock for a check, or at most one creation.
+		static constexpr DWORD lock_wait_milliseconds = 30'000;
+
+		HANDLE Mutex = nullptr;
+	};
+
+	/// \brief Derive the container SID from its name; the caller frees it.
+	[[nodiscard]] auto derived_container_sid() -> PSID
 	{
 		auto       sid     = PSID{ nullptr };
-		const auto created = ::CreateAppContainerProfile(
-			container_name,
-			container_name,
-			container_description,
-			nullptr,
-			0,
-			&sid);
-		if (SUCCEEDED(created)) {
-			return sid;
-		}
-		if (created != HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS)) {
-			fail_result("profile", created);
-		}
 		const auto derived = ::DeriveAppContainerSidFromAppContainerName(container_name, &sid);
 		if (FAILED(derived)) {
 			fail_result("profile", derived);
 		}
 		return sid;
+	}
+
+	/// \brief Whether the container's profile exists, read without changing it.
+	/// \details The profile's folder path is known only for a profile that is
+	/// registered, and an unregistered one reports ERROR_FILE_NOT_FOUND. Any
+	/// other answer is a failure, not an absence, and refuses the launch.
+	[[nodiscard]] auto profile_exists(const PSID aSid) -> bool
+	{
+		auto text = LPWSTR{ nullptr };
+		if (::ConvertSidToStringSidW(aSid, &text) == FALSE) {
+			fail_win32("profile-sid", ::GetLastError());
+		}
+		auto       folder = PWSTR{ nullptr };
+		const auto found  = ::GetAppContainerFolderPath(text, &folder);
+		static_cast<void>(::LocalFree(text));
+		if (SUCCEEDED(found)) {
+			::CoTaskMemFree(folder);
+			return true;
+		}
+		if (found != HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+			fail_result("profile-check", found);
+		}
+		return false;
+	}
+
+	/// \brief Return the container SID, creating the profile only when it is absent.
+	/// \details Only "exists" and "created" pass; every other outcome refuses
+	/// the launch, so the boundary still fails closed. The caller owns the
+	/// returned SID and releases it with FreeSid.
+	[[nodiscard]] auto ensure_container_sid() -> PSID
+	{
+		const auto lock = profile_lock{ };
+		const auto sid  = derived_container_sid();
+		if (profile_exists(sid)) {
+			return sid;
+		}
+		static_cast<void>(::FreeSid(sid));
+		auto       createdSid = PSID{ nullptr };
+		const auto created    = ::CreateAppContainerProfile(
+			container_name,
+			container_name,
+			container_description,
+			nullptr,
+			0,
+			&createdSid);
+		if (SUCCEEDED(created)) {
+			return createdSid;
+		}
+		// A launcher built before the lock may have created it meanwhile.
+		if (created != HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS)) {
+			fail_result("profile", created);
+		}
+		return derived_container_sid();
 	}
 
 	/// \brief Print the container SID so configure time can grant it filesystem access.

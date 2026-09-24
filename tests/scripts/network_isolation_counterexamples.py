@@ -514,9 +514,86 @@ def child_attempt(backend: str) -> int:
     return 0
 
 
+def contained_attempt(backend: str) -> int:
+    """Report from inside a launch whether this process holds the container.
+
+    [[BPR-1072]]. The child each concurrent launch below starts. Its exit
+    status alone would pass a launcher that ran it uncontained, so it says
+    which token it holds.
+    """
+    if backend != WINDOWS_BACKEND:
+        return 2
+    contained, detail = windows_appcontainer_is_entered()
+    marker = "NETWORK_ISOLATION_CONTAINED" if contained else "NETWORK_ISOLATION_NOT_CONTAINED"
+    print(f"{marker}:{detail}", flush=True)
+    return 0 if contained else 1
+
+
+# [[BPR-1072]]. Four launchers at once for eight rounds. Before the launcher
+# serialized its profile step, four at once lost 87 of 100 launches on the
+# Windows station, and three at once lost a row in half the runs.
+CONCURRENT_WIDTH = 4
+CONCURRENT_ROUNDS = 8
+
+
+def concurrent_attempt(backend: str, launcher: str) -> int:
+    """Start several launchers at the same moment and require every child contained.
+
+    Every contained Windows row enters the one `BprAutomatedTest` profile
+    through the launcher, and under `ctest -j` several enter it at once. Each
+    launch must reach its child, and the child must hold the AppContainer
+    token; a launch the launcher refuses, or one that ran uncontained, fails
+    the row, and the row names what each launch reported.
+    """
+    if backend != WINDOWS_BACKEND:
+        print("NETWORK_ISOLATION_CONCURRENT_UNSUPPORTED", flush=True)
+        return 2
+    command = [launcher, sys.executable, __file__, "contained", backend]
+    launches: list[subprocess.CompletedProcess[str] | BaseException] = []
+    record = threading.Lock()
+    for _ in range(CONCURRENT_ROUNDS):
+        start = threading.Barrier(CONCURRENT_WIDTH)
+
+        def launch() -> None:
+            start.wait()
+            try:
+                outcome: subprocess.CompletedProcess[str] | BaseException = subprocess.run(
+                    command, capture_output=True, text=True, check=False, timeout=60
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                outcome = error
+            with record:
+                launches.append(outcome)
+
+        threads = [threading.Thread(target=launch) for _ in range(CONCURRENT_WIDTH)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    failures: list[str] = []
+    for outcome in launches:
+        if isinstance(outcome, BaseException):
+            failures.append(f"launch-error:{outcome!r}")
+            continue
+        output = outcome.stdout + outcome.stderr
+        refusal = [line for line in output.splitlines() if line.startswith("BPR_NETWORK_ISOLATION_UNAVAILABLE")]
+        if outcome.returncode != 0 or refusal or "NETWORK_ISOLATION_CONTAINED:appcontainer" not in outcome.stdout:
+            failures.append(f"exit={outcome.returncode} " + (" ".join(refusal) or output.strip()[-200:]))
+    if failures:
+        print(f"NETWORK_ISOLATION_CONCURRENT_LAUNCH_FAILED:{len(failures)}/{len(launches)}", flush=True)
+        for failure in failures:
+            print(failure)
+        return 1
+    print(f"NETWORK_ISOLATION_CONCURRENT_LAUNCHES_CONTAINED:{len(launches)}", flush=True)
+    return 0
+
+
 def main() -> int:
     if len(sys.argv) == 4 and sys.argv[1] == "runtime":
         return runtime_attempt(sys.argv[2], sys.argv[3])
+    if len(sys.argv) == 4 and sys.argv[1] == "concurrent":
+        return concurrent_attempt(sys.argv[2], sys.argv[3])
     if len(sys.argv) != 3:
         return 2
     probe, backend = sys.argv[1], sys.argv[2]
@@ -530,6 +607,8 @@ def main() -> int:
         return loopback_attempt()
     if probe == "child":
         return child_attempt(backend)
+    if probe == "contained":
+        return contained_attempt(backend)
     if probe == "unrelated":
         return unrelated_attempt()
     return 2
