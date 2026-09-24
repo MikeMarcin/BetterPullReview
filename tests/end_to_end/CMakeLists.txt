@@ -2582,14 +2582,21 @@ set_tests_properties(application_device_binding_relaunch PROPERTIES ENVIRONMENT 
 
 # [[BPR-0803]]. Choosing GitHub CLI while a device sign-in waits keeps the code
 # beside the GitHub CLI choice; each of the two endings runs to a session and
-# leaves no flow behind.
+# leaves no flow behind. The GitHub CLI way in is composed only on macOS: the
+# composition's discovery is `__APPLE__` code, as the CLI courses of
+# `application_setup_destination_public_path` are. So the row is registered
+# only there; elsewhere the course cannot reach a CLI session, and on Linux it
+# failed at "one discovered account connects at once and signs in". The
+# executable still builds everywhere, so its source stays portable.
 bpr_add_executable(test_device_flow_cli_choice device_flow_cli_choice_tests.cpp)
 target_link_libraries(test_device_flow_cli_choice PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_device_flow_cli_choice PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_device_flow_cli_choice)
 bpr_enable_warnings(test_device_flow_cli_choice)
-bpr_add_network_isolated_test(NAME application_device_flow_cli_choice WINDOWS_UNCONTAINED COMMAND test_device_flow_cli_choice)
-set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_device_flow_cli_choice COMMAND test_device_flow_cli_choice)
+    set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
+endif()
 
 # The same native sink and canary course now run on Windows; no platform privacy waiver.
 bpr_add_executable(test_application_logging application_logging_tests.cpp)
