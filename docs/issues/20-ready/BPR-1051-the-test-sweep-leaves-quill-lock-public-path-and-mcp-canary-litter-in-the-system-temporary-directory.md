@@ -97,7 +97,9 @@ card's evidence does not prove which run made each one.
 - Measure which rows leave each kind of entry, before changing anything.
   - `bpr-public-path-*` and `bpr-mcp-canary-*` follow `TMPDIR`. Point `TMPDIR`
     at a new, empty, owner-private directory for a serial sweep, and read it
-    afterwards.
+    afterwards. This works through ctest on Linux, whose sandbox leaves
+    `TMPDIR` alone, and on Windows. It does not work through ctest on macOS
+    (AC4).
   - Quill's lock ignores `TMPDIR`. Snapshot `/tmp` before and after each row
     on a quiet station, or record the pids the row starts. Then attribute each
     new lock file by its pid.
@@ -132,8 +134,14 @@ card's evidence does not prove which run made each one.
   sweep started, unless this card records why that entry must stay.
 - AC3 Negative control: undoing each fix brings its entry back in the same
   measurement.
-- AC4 macOS: the same measurement over the same rows, with the Quill lock
-  checked in `/tmp`.
+- AC4 macOS: the same measurement over the same rows, made by a direct
+  sandboxed run of each row's command, **not through ctest**. Under ctest,
+  `scripts/run_network_isolated_test.py` points `TMPDIR` at
+  `/tmp/bpr-net-*/fixture`, a mode-`0700` directory that the runner deletes
+  when the row ends, so a ctest run cannot show a leftover. The direct run
+  uses the same sandbox profile, with `TMPDIR` pointed at an empty directory
+  that is kept and read afterwards. The Quill lock is checked in `/tmp`, and
+  the record says whether the sandbox let the process create it.
 - AC5 Windows: the same measurement with `%TEMP%` pointed at an empty
   directory. There is no Quill lock file on Windows.
 - AC6 `application_mcp_context_helper` removes no path it did not create.

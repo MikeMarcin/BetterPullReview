@@ -85,9 +85,12 @@ is pinned.
      `application_profile_management_public_path`'s `shared-parent` section,
      must stay green, either by exempting that row by name with the reason, or
      by making the deliberate line distinguishable. This catches C++, CMake
-     and Python courses alike. It cannot fire on macOS, where the runner's
-     `TMPDIR` is a per-user private directory that recovery accepts. It fires
-     only when the course reaches application startup.
+     and Python courses alike. It cannot fire in a macOS ctest run. There,
+     `scripts/run_network_isolated_test.py` points `TMPDIR` at
+     `/tmp/bpr-net-*/fixture`, a mode-`0700` directory that the runner
+     creates for the row and deletes when the row ends. A bare
+     `QTemporaryDir` made there has a private parent, which recovery
+     accepts. It fires only when the course reaches application startup.
   2. **Fail on the source.** Scan `tests/end_to_end` for an
      `ApplicationDataRoot` that is taken from a `QTemporaryDir`'s path without
      the helper. This fires on every host, before anything runs. It is a text
