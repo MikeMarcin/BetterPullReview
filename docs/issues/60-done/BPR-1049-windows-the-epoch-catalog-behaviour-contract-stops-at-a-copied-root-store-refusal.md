@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1049"
 title: "Windows: sqlite_epoch_catalog_behavior_contract stops at a copied-root store refusal (BPR-0878 item 2), so its later checks never run on Windows"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win dsp-004 Windows sweep (BPR-0878 item 2); BPR-0887's Windows selector on bpr-main-win","found_at":"2b2e5549","reproduced_at":["86b04901","669a5a58"],"related_cards":["BPR-0878","BPR-0887","BPR-0876","BPR-0853"],"run":"bpr-main-win-20260923","reservation":"docs/issues/_reservations/BPR-1049--BPR-1049--4624419c5298.json"}
+acceptance: [{"criterion":"AC1 sqlite_epoch_catalog_behavior_contract passes on Windows, every check after line 1,792 included","outcome":"pass","revision":"a2127e27","evidence":{"kind":"command","detail":"bpr-main-win, build/dev MSVC 19.51 Debug, serial: the row passes in 93.09 s alone and in 102.68 s inside BPR-0887's selector ctest --preset dev -j1 -R \"^(sqlite_|contained_catalog_probe$)\", which passes 20 of 20 at 8393e2ed plus the change (a later reflow of the comment only).","path":"docs/issues/60-done/BPR-1049-windows-the-epoch-catalog-behaviour-contract-stops-at-a-copied-root-store-refusal.md#fixed-in-the-test-the-whole-row-passes-on-windows-bpr-main-win-2026-09-23"}},{"criterion":"AC2 A negative control without the narrowing fails at the same line and by the same name","outcome":"pass","revision":"a2127e27","evidence":{"kind":"command","detail":"With the narrowing compiled out (#if 0, reverted), the row fails at epoch_catalog_behavior_tests.cpp:1792, 'FAIL: a copy of the previous file migrates to v6', as at 86b04901 and 669a5a58.","path":"docs/issues/60-done/BPR-1049-windows-the-epoch-catalog-behaviour-contract-stops-at-a-copied-root-store-refusal.md#fixed-in-the-test-the-whole-row-passes-on-windows-bpr-main-win-2026-09-23"}},{"criterion":"AC3 macOS and Linux are unchanged: the POSIX path of the test does not change","outcome":"pass","revision":"a2127e27","evidence":{"kind":"freeform","detail":"The change is inside #if defined(_WIN32); the POSIX path is byte for byte unchanged, and the row passes there as BPR-0887 records (macOS 18/18, Linux 19/19)."}}]
 ---
 
 # BPR-1049: Windows: sqlite_epoch_catalog_behavior_contract stops at a copied-root store refusal (BPR-0878 item 2), so its later checks never run on Windows
