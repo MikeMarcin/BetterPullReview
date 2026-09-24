@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1045"
 title: "A throw in the entry point's run setup prints STARTUP_FAILED and never exits"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-main-linux, BPR-0882's entry-point-run-setup probe","found_at":"fe2216e3","reproduced_at":["fe2216e3","8e080bbc"],"code_rechecked_at":"78c8ac85","related_cards":["BPR-0882"],"run":"bpr-main-linux-20260923","reservation":"docs/issues/_reservations/BPR-1045--BPR-1045--81a0934d27bc.json"}
+acceptance: [{"criterion":"AC1 A throw in the entry point's run setup exits 1 within a few seconds, prints STARTUP_FAILED on stdout and its STARTUP_FAILURE_SOURCE: line on stderr, and is not killed by a timeout. Shown in a real run.","outcome":"pass","revision":"e02a001e","evidence":{"kind":"command","detail":"bpr-main-linux, GCC 15.2, Qt 6.11.2, build/dev. A temporary probe (reverted byte-for-byte, never committed) made main.cpp's run setup throw after show(); a temporary ctest course ran the shipped --self-test through the network sandbox, offscreen, fresh HOME/XDG/TMPDIR. Before the fix (8957cf6b): STARTUP_FAILED, then killed at 25 s; the one Quit request was refused with delivering=1. With the change later committed as e02a001e: exit 1 in 338 ms, stdout STARTUP_FAILED, stderr STARTUP_FAILURE_SOURCE:entry-point-run-setup: probe: entry, the first poll retry admitted the orderly Quit; with every request refused, exit 1 in 2290 ms through the forced bound. The permanent row application_profile_management_public_path calls desktop->quit(EXIT_FAILURE) from the startup completion; it passes at 78466e81 (same source as e02a001e) and failed after 18.6 s with profile_desktop.cpp at 8957cf6b.","path":"docs/issues/60-done/BPR-1045-a-throw-in-the-entry-point-run-setup-prints-startup-failed-and-never-exits.md#the-fix"}},{"criterion":"AC2 When the orderly quit is admitted it still saves the profile records. The existing profile quit and restart courses still pass.","outcome":"pass","revision":"e02a001e","evidence":{"kind":"command","detail":"A refused Quit with exit code 0 is unchanged; a failure quit prefers the same durable Quit and forces only after 200 refused polls. The probes show the retried Quit admitted on the first poll (orderly), not forced. ctest -j1 offscreen at 8957cf6b plus the change: profile startup, management, multi-window, second-window close, two-account isolation, activation, owner admission, window restart, window layout and review restoration courses 10/10 passed, with core_profile_window, application_profile_management_host and application_profile_startup_admission. At 78466e81 (source of e02a001e): management and window restart courses passed again.","path":"docs/issues/60-done/BPR-1045-a-throw-in-the-entry-point-run-setup-prints-startup-failed-and-never-exits.md#verification-bpr-main-linux"}},{"criterion":"AC3 The AUTOMATED_PROFILE_PRIVATE_FAILED arm is either shown to exit promptly or recorded with the reason it cannot hang.","outcome":"pass","revision":"e02a001e","evidence":{"kind":"command","detail":"The same temporary probe forced the automated-profile check to fail after an accepted start. Before the fix it printed AUTOMATED_PROFILE_PRIVATE_FAILED and was killed at 25 s (refused with delivering=1). With the change it exits 1 in 299 ms through the admitted orderly Quit.","path":"docs/issues/60-done/BPR-1045-a-throw-in-the-entry-point-run-setup-prints-startup-failed-and-never-exits.md#the-fix"}},{"criterion":"Pinned composition code is resealed with a recorded review, and the round-trip and composition contracts pass","outcome":"pass","revision":"e02a001e","evidence":{"kind":"command","detail":"Pins matched at 8595684c (6e76dd7c, 4c203614, a7e2081e). Only the production manifest pin moved, to 8e5bc591; review recorded on the card and in the contract's reseal notes. At 78466e81: application_review_round_trip_composition_contract passed (1.71 s) and application_composition_contract passed (466 s). clang-format 22 clean; git diff --check clean; verify_documentation DOCUMENTATION_OK.","path":"docs/issues/60-done/BPR-1045-a-throw-in-the-entry-point-run-setup-prints-startup-failed-and-never-exits.md#pinned-code-review-bpr-1045-reseal"}}]
 ---
 
 # BPR-1045: A throw in the entry point's run setup prints STARTUP_FAILED and never exits
@@ -249,3 +250,25 @@ ctest --preset windows-dev -R '^application_profile_management_public_path$' --o
 
 Expected: `profile-management-public-path:pass`, with no
 `FAILED: a failure quit made in the startup completion ends the desktop`.
+
+## Result
+
+The change is `e02a001e` on main. It was written and first verified on
+`8957cf6b`, then rebased onto `8595684c` as `78466e81`. A second pull put it
+on top of two commits by others, which touch only documentation (`git diff
+78466e81 e02a001e` lists three Markdown files). The final commit is
+`e02a001e`.
+
+On the rebased tree (`78466e81`) the following ran again and passed:
+`application_composition_contract` (466 s),
+`application_review_round_trip_composition_contract`,
+`application_profile_management_public_path`,
+`application_profile_window_restart_public_path`, `application_public_path`
+and `application_startup_failure_source`. The other AC2 courses passed on
+`8957cf6b` with the same change. The commits that arrived in the rebase do
+not touch the quit path. [[BPR-1033]]'s `9d3fb998` changes only a
+`BPR_BUILD_TESTING` probe in `github_application.cpp`.
+
+The probe runs were made before the bound comment's wording was corrected.
+That change was to a comment only, and the code the probes ran is the code
+committed.
