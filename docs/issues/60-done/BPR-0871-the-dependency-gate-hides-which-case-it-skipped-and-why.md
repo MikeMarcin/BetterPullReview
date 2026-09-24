@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0871"
 title: "dependency_modernization_contract reports a skip without naming the case or the reason"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "win"]
 metadata: {"found_by":"bpr-linux, in two successive full Linux sweeps","found_at":"2b2e5549","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"AC1 The row's output names every skipped case and its reason, shown in a real run","outcome":"pass","revision":"867ed35f","evidence":{"kind":"command","detail":"Linux (bpr-main-linux) at 867ed35f: ctest --preset dev dependency_modernization_contract prints 'SKIPPED: dependency_modernization_tests.DependencyModernizationTests.test_syntax_prefix_installs_one_library_per_configuration: one installed KSyntaxHighlighting configuration, DEBUG, in <dir>: a single-configuration tree has nothing to compare' in console, LastTest.log and JUnit system-out. macOS (bpr-main-mac) at fe2216e3: the same line word for word with the cache's KF6SyntaxHighlighting_DIR.","path":"docs/issues/60-done/BPR-0871-the-dependency-gate-hides-which-case-it-skipped-and-why.md#the-macos-run-bpr-main-mac-mac-batch-3-2026-09-23"}},{"criterion":"AC2 A second skip appearing for a different reason is distinguishable from this one in that output","outcome":"pass","revision":"867ed35f","evidence":{"kind":"command","detail":"Linux at 867ed35f: core-only skips the same case naming 'this tree does not build KSyntaxHighlighting: its cache has no KF6SyntaxHighlighting_DIR', distinct from dev's single-configuration reason; skip_report_contract pins two reasons told apart in one run (9 cases OK under Python 3.13.15 and 3.14.4; 6 of 9 fail with the result class removed).","path":"docs/issues/60-done/BPR-0871-the-dependency-gate-hides-which-case-it-skipped-and-why.md#verification-linux-jaegaw-wsl2-ubuntu-2604-gcc-152-cmake-442-rows-run-under-python-31315"}},{"criterion":"AC3 The row still passes on macOS, Linux and Windows, and still skips rather than fails on a single-configuration tree","outcome":"pass","revision":"867ed35f","evidence":{"kind":"command","detail":"Linux 867ed35f: pass and skip on dev and core-only. macOS fe2216e3 (contains 867ed35f): dependency_modernization_contract pass 75.93 s OK (skipped=1), skip_report_contract pass. Windows 585c8a8f (contains 867ed35f), windows-dev Debug;Release: all three rows pass, dependency row 27/27 ran with no skip, skip_report_contract passes contained.","path":"docs/issues/60-done/BPR-0871-the-dependency-gate-hides-which-case-it-skipped-and-why.md#the-windows-run-bpr-main-win-2026-09-23"}}]
 ---
 
 # BPR-0871: dependency_modernization_contract reports a skip without naming the case or the reason
@@ -309,3 +310,20 @@ Against each expectation:
 
 The Windows observation holds. This note does not move the card. Linux
 finishes it.
+
+## Finished (bpr-main-mac, Mac batch 6, 2026-09-23)
+
+Both owed runs are recorded above, so the card finishes on the three
+stations' observations. No new run was needed: since the macOS run at
+`fe2216e3`, neither `tests/scripts/skip_report.py`,
+`tests/scripts/skip_report_tests.py` nor
+`tests/scripts/dependency_modernization_tests.py` has changed.
+
+| Criterion | Station | Candidate | Observation |
+|---|---|---|---|
+| AC1 | Linux | `867ed35f` | The console, `LastTest.log` and JUnit `system-out` carry the `SKIPPED:` line naming the case and its reason |
+| AC1 | macOS | `fe2216e3` | The same line, with the cache's `KF6SyntaxHighlighting_DIR` |
+| AC2 | Linux | `867ed35f` | `dev` and `core-only` skip the same case for two different named reasons; `skip_report_contract` pins two reasons in one run |
+| AC3 | Linux | `867ed35f` | Passes and skips on `dev` and `core-only` |
+| AC3 | macOS | `fe2216e3` | Passes, `OK (skipped=1)`, the single-configuration skip named |
+| AC3 | Windows | `585c8a8f` | Passes with 27 of 27 cases run, so the multi-configuration case compared DEBUG with RELEASE |
