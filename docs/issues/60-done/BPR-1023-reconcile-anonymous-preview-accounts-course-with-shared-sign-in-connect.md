@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1023"
 title: "Reconcile the anonymous-preview Accounts course with shared sign-in's Connect, and decide whether a refused activation stops a device-capable card's Connect"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"BPR-0940 integration pass, Mac integrator, 2026-09-23","found_at":"f839e26a","related_cards":["BPR-0940","BPR-0915","BPR-0772","BPR-0597"],"suite":"qt_anonymous_public_preview_scale_100/125/200","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-1023-refused-connect-v001","decision":"ad887ef9-fcdf-40f1-8d47-de059fe82203","disposition":"delegated to the implementer with two stated preferences"}}
+acceptance: [{"criterion":"AC1 The decision is recorded with its reason, and the product or the course changes accordingly, with a failing-before control; the reason answers the owner's two stated preferences","outcome":"pass","revision":"b9d6bb26","evidence":{"kind":"command","detail":"Option 1 recorded on the card with its reason against both preferences: every Connect (enterprise, GitHub.com, the GitHub CLI offer) answers to host activation and every Sign in/Begin to the device command, so a control does what its visibility says (least surprising); the CLI offer's reach is identical under both options and the course keeps proving it wherever admitted. Product: workbench_window's Connect gesture checks github_session_panel::connect_enabled() first. Failing-before control: without that check the reconciled course fails at 'every way in on a card, device sign-in included, obeys the host activation command state' (device begins 1 to 2)."}},{"criterion":"AC2 test_accounts_offer_no_public_preview_activation follows the shared sign-in entry path, keeps its exact-profile and no-public-preview checks, and passes at all three scale registrations","outcome":"pass","revision":"b9d6bb26","evidence":{"kind":"command","detail":"qt_anonymous_public_preview_scale_100/125/200 pass on macOS. GitHub.com's Connect chooses exactly profile 1 and begins one device sign-in in the shared dialog for GitHub.com alone, dispatching no activation; enterprise Connect activates exactly 7 and the GitHub CLI offer exactly 9 in the authenticated mode; nothing on the page reads without signing in. Neighbours pass: qt_composed_github, qt_workbench_window, qt_device_authorization, qt_settings_window, qt_home_list and qt_surface_capture_course at every registered scale (26/26), and the setup, CLI and public-preview courses (21/21)."}}]
 ---
 
 # BPR-1023: Reconcile the anonymous-preview Accounts course with shared sign-in's Connect
