@@ -158,6 +158,11 @@ The 09:55 pair is the one this card first reported. The 18:57 and 19:37
 pairs came from later runs of the row on this station that day, made before
 this change.
 
+## Candidate
+
+The change is `84538d65` on main. It touches only the test and this card,
+and the Linux runs above were made on its content before the commit.
+
 ## Acceptance state
 
 - **AC1** (Linux: the row passes, leaves no `bpr-ledger-preflight-*` entry,
