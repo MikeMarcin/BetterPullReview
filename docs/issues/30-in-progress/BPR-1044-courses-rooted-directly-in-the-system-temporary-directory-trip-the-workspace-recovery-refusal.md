@@ -142,3 +142,132 @@ course that sets `ApplicationDataRoot` to its `QTemporaryDir` path.
   records the cause that was measured.
 - AC3 `application_profile_management_public_path` still asserts the
   deliberate refusal and passes on Linux and Windows.
+
+## One helper gives the twelve courses their owned level (bpr-main-linux, 2026-09-23)
+
+Station `bpr-main-linux` (JaegAW: WSL2 Ubuntu 26.04, GCC 15.2, Qt 6.11.2,
+`build/dev` Debug from the `dev` preset, which compiles with `-Werror`),
+claimed at `7cd4ab5d`. The change landed as `3307ccf2`. It was verified on
+`7cd4ab5d` plus the change, and the commits rebased under it touch only
+cards. Every run below was serial and offscreen: `ctest -j1
+-V`, `QT_QPA_PLATFORM=offscreen`, `DISPLAY` and `WAYLAND_DISPLAY` unset, and a
+fresh `HOME` and fresh XDG data, config, cache, state and runtime
+directories, removed afterwards. `TMPDIR` was unset, so every `QTemporaryDir`
+was made in `/tmp`. The logs are under
+`build/logs/bpr-main-linux-20260923/bpr-1044/`. They are station records and
+are not committed.
+
+### Re-check at HEAD
+
+At `7cd4ab5d` the survey's 13 rows all passed, and they printed the line 33
+times, exactly as the survey counted: 7, 8, 3, 3, 2, 2, 2, 1, 1, 1, 1 and 1
+from the twelve rows, and 1 from `application_profile_management_public_path`'s
+`shared-parent` section (`before-7cd4ab5d-rows13.log`).
+
+### The change
+
+**The helper.** `tests/end_to_end/private_data_root.hpp` holds
+`bpr::e2e::private_data_root(const QTemporaryDir&)`. It narrows the
+temporary directory with `make_storage_root_owner_private`, creates
+`<temporary>/data` with `create_storage_root_owner_private`, and returns that
+root, canonical and spelled through `native_filesystem_path`. If the
+directory is invalid or either step is refused, it returns nothing. This is
+the arrangement [[BPR-0874]] and [[BPR-1027]] use. The helper is header-only
+and sits beside `public_path_wait.hpp`. Every course already links the
+SQLite adapter and the application headers through `BetterPullReview::Composition`,
+so no CMake change was needed.
+
+**The courses.** There are 19 call sites in 11 files:
+
+| File | Rows | Sites |
+| --- | --- | ---: |
+| `device_binding_launch_renewal_tests.cpp` | `application_device_binding_launch_renewal` | 1 |
+| `device_binding_restart_tests.cpp` | `application_device_binding_restart` | 1 |
+| `setup_destination_public_path_tests.cpp` | `application_setup_destination_public_path`, `application_selected_file_safety_public_path` (the same executable with `--selected-file-safety`) | 8 |
+| `review_submission_composition_public_path.cpp` | `application_review_submission_composition_public_path` | 1 |
+| `attended_recent_replay_tests.cpp` | `application_attended_recent_replay` | 2 |
+| `profile_startup_public_path_tests.cpp` | `application_profile_startup_public_path` | 1 |
+| `application_logging_tests.cpp` | `application_logging` | 1 |
+| `personal_discovery_public_path_tests.cpp` | `application_personal_discovery_public_path` | 1 |
+| `profile_multi_window_public_path_tests.cpp` | `application_profile_multi_window_public_path` | 1 |
+| `profile_two_account_isolation_public_path_tests.cpp` | `application_profile_two_account_isolation_public_path` | 1 |
+| `release_update_public_path_tests.cpp` | `application_release_update_public_path` | 1 (its `root()`) |
+
+- Each site keeps its existing `expect` message, and a refusal still stops
+  the course at the same step.
+- The review submission course was the one course that did not narrow its
+  root, and it used Qt's spelling (`data.path().toStdString()`). It now uses
+  the helper and prints `review-submission-composition:fail private data root`
+  if the helper refuses.
+- `release_update_public_path`'s `root()` also serves two courses that open
+  update stores without starting the application. Those stores now sit in a
+  `data` child too, which changes nothing they check.
+- Includes the courses no longer use were removed.
+- The application now creates the workspace neighbourhood
+  (`data-agent-workspaces-v1`) inside the temporary directory, so it is
+  removed with it. No run left anything in `/tmp`.
+
+**Left alone.** `application_profile_management_public_path`'s
+`shared-parent` section is unchanged. So are the eight courses that already
+had an owned level, which the survey above lists. They did not print the
+line. Moving them onto the helper would change rows outside this card's
+acceptance, and several of them have Windows arrangements that were measured
+separately ([[BPR-0874]], [[BPR-1027]]).
+
+**No pinned code.** Nothing under `src/` changed, so the round-trip
+contract's pins are untouched and no reseal is needed.
+
+**Windows registration.** All twelve rows are already `WINDOWS_UNCONTAINED`
+and pinned `dos-volume-name` in `scripts/verify_test_network_isolation.py`.
+So narrowing the temporary directory, which needs `WRITE_DAC`, does not meet
+a container. This card adds no pin and changes no registration.
+
+### Verification (Linux)
+
+| Check | Result |
+| --- | --- |
+| `cmake --build --preset dev` | Exit 0, no `warning:` line. It relinked the 11 course executables and nothing else |
+| The 13 rows at the candidate (`after-candidate-1-rows13.log`) | 13/13 passed, in 1.77-28.97 s each. **One** `AGENT_WORKSPACE_RECOVERY_REFUSED` line, from `application_profile_management_public_path`: `/tmp/profile_management_public_path-ClFSvs/shared-parent/BetterPullReview/agent-workspace-ownership-v1:repair-required`. The section still asserts the refusal, and the row passes |
+| Negative control (`negctl-rows13.log`) | The helper returned the narrowed temporary directory itself as the root, with no `data` child. All 33 lines came back, with the same count in each row. So the owned level, not the narrowing, is what removes them. The edit was then undone. The helper's SHA-256 is back to the candidate's (`d43c28be…e824`), and `grep -rc BPR1044_NEGCTL src tests` finds nothing |
+| AC1's sweep: the survey's 164 rows at the candidate (`sweep-candidate.log`) | 162 of 164 passed, in 1,216.86 s. **One** `AGENT_WORKSPACE_RECOVERY_REFUSED` line, from `application_profile_management_public_path`'s `shared-parent` section. The twelve rows pass (1.84-29.00 s). The two failures are the known ones: `application_agent_finding_dif_context_contract` ([[BPR-0966]], `dif-context-evidence failed=dif-comment-ready-after-conversion dif-acknowledge-after-acceptance`) and `application_uiforetw_selected_diff_contract` ([[BPR-1036]], `UIFORETW_CAPTURE_LAYOUT_FAILED:987:842 width_floor=750 height_floor=850`). `application_threaded_reply_contract`, the survey's third failure, now passes (2.82 s, [[BPR-1046]]) |
+| `core_boundary_contract`, `architecture_boundaries`, `architecture_boundary_contract`, `conditional_branch_identifiers`, `conditional_branch_identifier_contract`, `documentation_structure`, `test_network_isolation_manifest` | 7/7 passed |
+| `/usr/bin/clang-format` 22.1.8 on the 12 files | Clean |
+| `_coding-standard/scripts/tidy.py` on the 11 translation units (clang-tidy 21.1.8) | No finding on a changed line or in the helper. The two it reports are older than this card: `dif_runtime.hpp:1` and `std::endl` at `device_binding_launch_renewal_tests.cpp:78` |
+
+### Acceptance state
+
+- **AC1** (on Linux, a serial offscreen sweep of the same rows prints the
+  line only from `profile_management`'s `shared-parent` section, and each of
+  the twelve rows passes): **pass.** The sweep printed the line once, from
+  that section, and each of the twelve rows passed. The negative control
+  shows that the check can fail.
+- **AC2** (on Windows, the registered rows no longer print the line and pass
+  as registered; any new pin records its measured cause): **owed by
+  bpr-main-win.** No pin was added.
+- **AC3** (`profile_management` still asserts the deliberate refusal and
+  passes on Linux and Windows): **Linux passes.** On Windows the
+  `shared-parent` section is compiled out (`#if !defined(_WIN32)`), because
+  it depends on POSIX modes. So Windows can show only that the row passes.
+  **That run is owed by bpr-main-win.**
+
+### Still owed: the Windows run (bpr-main-win)
+
+On a head that contains `3307ccf2`, rebuilt:
+
+```powershell
+cmake --build --preset windows-dev
+ctest --preset windows-dev -j1 -V -R "^(application_device_binding_launch_renewal|application_device_binding_restart|application_setup_destination_public_path|application_review_submission_composition_public_path|application_attended_recent_replay|application_profile_startup_public_path|application_selected_file_safety_public_path|application_logging|application_personal_discovery_public_path|application_profile_multi_window_public_path|application_profile_two_account_isolation_public_path|application_release_update_public_path|application_profile_management_public_path)$"
+```
+
+Expect:
+
+- All 13 rows pass as registered. All of them are uncontained.
+- None of the twelve prints `AGENT_WORKSPACE_RECOVERY_REFUSED`. Record any
+  line with its row and path.
+- `application_profile_management_public_path` passes. Its `shared-parent`
+  section does not run on Windows. Its main root is `<QTemporaryDir>/data`,
+  and that temporary directory is not narrowed. If the row prints the line
+  from its main root, record it. It would be the same cause, in a course this
+  card left alone, and it would need a follow-up card.
+
+When that run is recorded, the card can finish.
