@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0887"
 title: "Nested progress scopes reset the handler to null, silently discarding the store-level step ceiling"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"After a nested execute returns, the outer step ceiling is still installed, proven by a test","outcome":"pass","revision":"7eec1053","evidence":{"kind":"command","detail":"macOS at 7eec1053 (bpr-main-mac), Linux at c127cb38 and Windows at 2532ca6e in sqlite_device_binding_storage, each recorded on the card.","path":"docs/issues/60-done/BPR-0887-nested-progress-scopes-discard-the-store-level-step-ceiling.md#every-nested-scope-hands-the-connection-back-bpr-main-mac-mac-batch-5-2026-09-23"}},{"criterion":"The SQLite contract suite passes on all three platforms","outcome":"pass","revision":"8393e2ed","evidence":{"kind":"command","detail":"macOS passes (bpr-main-mac), Linux 19/19 at c127cb38 (bpr-main-linux), Windows 20/20 at 8393e2ed with BPR-1049's test fix: ctest --preset dev -j1 -R \"^(sqlite_|contained_catalog_probe$)\" on bpr-main-win, sqlite_epoch_catalog_behavior_contract 102.68 s with every check after its old stopping line.","path":"docs/issues/60-done/BPR-0887-nested-progress-scopes-discard-the-store-level-step-ceiling.md#unblocked-windows-passes-20-of-20-bpr-main-win-2026-09-23"}},{"criterion":"The comment at device_binding_store.cpp:55-56 is true again","outcome":"pass","revision":"7eec1053","evidence":{"kind":"freeform","detail":"Recorded on the card by bpr-main-mac: the ceiling now holds for the whole scope and the comment (now lines 55-59) says so."}}]
 ---
 
 # BPR-0887: Nested progress scopes reset the handler to null, silently discarding the store-level step ceiling
