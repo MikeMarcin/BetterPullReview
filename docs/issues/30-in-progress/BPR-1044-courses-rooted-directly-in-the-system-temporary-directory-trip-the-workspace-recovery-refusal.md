@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1044"
 title: "Twelve courses root their data directly in the system temporary directory, so BPR-0817's workspace recovery refuses at every startup"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
