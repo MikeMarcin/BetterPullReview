@@ -142,3 +142,32 @@ only so that it is measured again.
   named the failing operation. A permanent line would need a decision about
   what the adapter may print, and [[BPR-0441]] keeps Git's text out of the
   core.
+
+## AC2 met on the committed fix (bpr-main-win, 2026-09-23)
+
+The runs used `build/windows-dev` (Visual Studio generator, MSVC 19.51, Debug)
+built at `8595684c`, the fix as committed, with no trace in it. Each run was
+its own serial `ctest --preset windows-dev -j1 -V` call. The logs are station
+records under `build/logs/bpr-1040-main-win/ac2/` and
+`build/logs/bpr-1044-main-win/rows13.log`, and are not committed.
+
+| Course | Runs | Result | Epoch lines |
+| --- | --- | --- | --- |
+| `application_release_maintenance_public_path` | 10 | 10 of 10 reach the purge step and stop there, at "native full-profile inventory returns", which is [[BPR-1038]]'s refusal | 0 `EPOCH_CACHE_FAILURE` or `EPOCH_EFFECT_FAILED` |
+| `application_attended_recent_replay` | 6 (5 here, 1 in BPR-1044's run) | 6 of 6 pass | 0 |
+| `application_profile_multi_window_public_path` | 6 (5 here, 1 in BPR-1044's run) | 6 of 6 pass | 0 |
+
+Before the fix, the release maintenance course failed at the epoch in 3 of 7
+runs at `04d22b4a`. The replay course failed there in 1 of 8, and the
+multi-window course in 1 of 3. With the fix, none of 22 runs did.
+
+[[BPR-1038]] has since been fixed as well, and on that candidate the release
+maintenance course passes whole (14.33 s), with no epoch line.
+
+**AC1** is met by the table in the section above: the three failing
+operations and their Windows errors, from reproduced failures. **AC2** is met
+here. **AC3**: every change is inside `Q_OS_WIN` in the Git adapter's Windows
+branches, so macOS and Linux keep their paths. The one `spool_failure` seen in
+eight review-restoration runs before the trace went in did not recur in the 6
+traced runs or the 22 here. It remains unexplained and would name its site
+under the trace that is kept at the station.
