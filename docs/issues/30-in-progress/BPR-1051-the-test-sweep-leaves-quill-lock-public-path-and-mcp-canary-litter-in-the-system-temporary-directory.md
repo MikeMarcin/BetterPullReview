@@ -557,3 +557,111 @@ recorded.
   lock. The sandbox allows the lock. The only thing that stops it is the
   product's setting, and the negative control brings the lock back.
 - **AC5: still owed by bpr-main-win.** The card stays In Progress.
+
+## Windows, AC5: ten of eleven rows measured (bpr-main-win, 2026-09-24)
+
+Station `bpr-main-win`: Windows 11 (10.0.26200), MSVC 19.51, Qt 6.11.2,
+`build/windows-dev` (Visual Studio 18 2026 generator, Debug). The head was
+`bcd57840`, which contains `09f3d48f`. It was reconfigured and rebuilt, with
+exit 0 and no warning or error line. The card's loop ran as a `.ps1` file,
+under a `.cmd` file that loads the compiler environment. Each row had `TEMP`
+and `TMP` pointed at a new, empty directory under the user's `%TEMP%`. After
+the row, the directory was listed recursively and then removed. The logs and
+per-row listings are station records under
+`build/logs/bpr-1051-main-win/` and are not committed.
+
+### Registration on Windows
+
+All 11 rows in the card's Windows list are registered here. The card's list
+leaves out `quill_logging_backpressure`, which is `UNIX`-only. Ten rows are
+`WINDOWS_UNCONTAINED`, so they use the `TEMP` they are given.
+`application_profile_owner_admission_public_path` is contained. Its launcher
+gives it the container's `AC\Temp`, so this measurement cannot see what it
+leaves there. That directory
+(`%LOCALAPPDATA%\Packages\bprautomatedtest\AC\Temp`) was empty after the row.
+
+### Results
+
+| Row | Result | Left in its directory |
+| --- | --- | --- |
+| `rfc0017_public_preview_decision_contract` | Passed, 4.40 s, 44 tests `OK`, in a short directory (below) | nothing |
+| `application_mcp_context_helper` | Passed, 0.28 s (`mcp-context-helper-tests:pass`) | nothing |
+| `application_agent_crash_recovery` | Passed, 52.99 s | nothing |
+| `application_agent_materialization_crash_recovery` | Passed, 43.99 s | nothing |
+| `application_attended_launch_contract` | Passed, 20.52 s (`ATTENDED_LAUNCH_OK`) | nothing |
+| `runtime_process_surface` | Passed, 2.00 s (`RUNTIME_SURFACE_OK`) | nothing |
+| `application_device_binding_relaunch` | Passed, 15.67 s (`DEVICE_BINDING_RELAUNCH_OK`) | nothing |
+| `application_profile_activation_public_path` | **Not run.** Held back until the desktop's foreground is cleared (below) | not measured |
+| `application_profile_owner_admission_public_path` | Failed, 0.21 s, contained: `SEED_REGISTRY_REFUSAL:0`, `FAILED: seed registry`. This is [[BPR-0907]]'s known contained failure | nothing, and the container's `AC\Temp` was empty too |
+| `quill_logging` | Passed, 0.96 s (`quill-logging-tests:pass`) | nothing |
+| `application_logging` | Passed, 7.23 s | nothing |
+
+- **The logging-adapter change passes on Windows.** `quill_logging` and
+  `application_logging` pass. On Windows the Quill lock is a named mutex, so
+  there is no file to look for.
+- **The measurement's own directory name broke one row.** With the card's
+  name, `bpr1051-<guid>`, `rfc0017_public_preview_decision_contract` failed
+  13 of 44 tests. The first failure was
+  `scratch git ['add', '-A'] failed: fatal: unable to stat '…/01-fixture-graphql-refusal.json': Filename too long`,
+  and the rest followed from it
+  (`RFC0017_PUBLIC_PREVIEW_DECISION_REFUSED:head commit could not be read from git`).
+  The reason is the path length:
+  - The name adds 45 characters to `%TEMP%`, which puts the scratch
+    repository's deepest file at 278 characters. That is past `MAX_PATH`.
+  - The row's scratch Git runs with `GIT_CONFIG_GLOBAL` and
+    `GIT_CONFIG_SYSTEM` set to the null device, so the station's
+    `core.longpaths` does not apply there.
+  - As registered, with the ordinary `%TEMP%`, the same file is 233
+    characters, and the row passes 44 of 44 in 4.39 s.
+  - In a short new directory, `%TEMP%\b10513f9` (242 characters), it passes
+    44 of 44 and leaves nothing. That is the row's AC5 measurement.
+  - The failing run also left nothing, because the module's `tearDownModule`
+    removed the template. So on this station the row has about 26 characters
+    of headroom in `%TEMP%`'s length. That limit is reported to the
+    coordinator.
+- **The activation course is held back.** This station had no clearance to
+  use the desktop's foreground while another station's GUI courses were
+  running on it. The course runs offscreen, but its handoff calls
+  `AllowSetForegroundWindow`
+  (`src/adapters/sqlite/src/profile_activation.cpp`). It will be measured
+  with the same loop when the desktop is cleared.
+
+### A Windows-only kind outside the card's five
+
+[[BPR-1050]]'s Windows sweep ran 154 of the 156 `application_` rows with the
+ordinary `%TEMP%`, and the top level of `%TEMP%` was listed before and after.
+The sweep added none of the card's five kinds. It added three entries of
+another kind. Each was then attributed by running its row alone with a new,
+empty `TEMP`:
+
+- `application_attended_recent_replay` leaves two `attended_recent_replay-XXXXXX`
+  directories on every run. It makes four temporary roots, and it starts a
+  desktop application in two of them.
+- `application_personal_discovery_public_path` leaves one
+  `personal_discovery_public_path-XXXXXX` on every run.
+
+Each is the course's own `QTemporaryDir`. Its `data/` holds
+`profile-runtime.lock` and the `state/v1` SQLite stores. Some stores still
+have their `-wal` and `-shm` files. The directory grants only the owner, with
+full control, so its removal was not refused for permission. This suggests that files were
+still open when the directory was due to be removed. Windows cannot delete an
+open file, and POSIX can. That would explain why the Linux per-row
+measurement saw nothing from these rows. The cause was not traced here.
+
+These rows are not among AC1's, and the fix belongs in the two courses'
+teardown, so it is not taken here. It is reported to the coordinator for its
+own card. `%TEMP%` on this station still holds 21 such directories from
+2026-09-23, made by earlier runs, and they are left to the operator. This
+station removed the six its own runs made today, each by its exact name. Two
+batches of three were made at 02:28 to 02:30 and 03:24 to 03:25, local time,
+inside its runs of these rows.
+
+### Acceptance state
+
+- **AC5: open, for one row.** Ten of the eleven Windows rows were measured.
+  None of them leaves anything in its temporary directory. The owner
+  admission row fails in [[BPR-0907]]'s known way, and it is contained. The
+  activation course waits for foreground clearance.
+- AC1 to AC3 and AC6 (Linux) and AC4 (macOS) are unchanged, and each passes.
+  The card stays In Progress until the activation course is measured on
+  Windows.
