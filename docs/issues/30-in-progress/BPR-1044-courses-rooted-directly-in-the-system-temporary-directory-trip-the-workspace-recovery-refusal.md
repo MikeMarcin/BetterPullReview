@@ -326,3 +326,51 @@ course outside the twelve. It is recorded here for whoever takes the
 remaining courses. The gate for bare temporary roots that BPR-1050 is
 reserved for may or may not reach a Python course; that is for its owner to
 say.
+
+## Every criterion has its evidence; the rows again at main (bpr-main-linux, 2026-09-23)
+
+**The Windows record meets AC2 and AC3's Windows half.** `8595684c`
+contains `3307ccf2`. All 13 rows pass as registered, and all 13 are
+uncontained. The line appears 0 times, and no pin or registration was added.
+[[BPR-0817]]'s `14a18b45` compiled the `shared-parent` section out on Windows
+with `#if !defined(_WIN32)`, which is older than this card. This card does not
+touch that course. So on Windows the deliberate assertion never ran, and
+AC3's Windows half can only be that the row passes, which it does. On Linux
+the section runs and asserts the refusal.
+
+**The same 13 rows at main's `b60e04b0` on Linux.** [[BPR-1045]]'s
+`e02a001e` later added a section to `profile_management_public_path_tests.cpp`,
+before the `shared-parent` section. It did not change that section. Main has
+also changed the profile desktop, the application host and the workbench
+drawer since `3307ccf2`. So the rows were run again on this station's own
+`build/dev`: GCC 15.2, Qt 6.11.2, Debug, `-Werror`, current, and `ninja` had
+no work to do. They ran serially and offscreen, with `ctest -j1 -V`,
+`QT_QPA_PLATFORM=offscreen`, `DISPLAY` and `WAYLAND_DISPLAY` unset, and a
+fresh `HOME` and fresh XDG data, config, cache, state and runtime
+directories, which were removed afterwards. 13 of 13 passed, exit 0, in
+2.43 to 28.96 s. The log has **one** `AGENT_WORKSPACE_RECOVERY_REFUSED`
+line, from the deliberate section:
+`/tmp/profile_management_public_path-widEwM/shared-parent/BetterPullReview/agent-workspace-ownership-v1:repair-required`.
+Nothing was left in `/tmp`. The log is a station record,
+`build/logs/bpr-main-linux-20260924/impl/bpr-1044-rows13-b60e04b0.log`, and
+is not committed.
+
+**Acceptance.**
+
+- **AC1: pass on Linux at `3307ccf2`.** In the 164-row sweep, the line came
+  only from the `shared-parent` section, and the twelve rows passed. The
+  negative control brought all 33 lines back. The same holds at `b60e04b0`
+  for the 13 rows.
+- **AC2: pass on Windows at `8595684c`.** 13 of 13 passed uncontained as
+  registered, the line appeared 0 times, and there is no new pin.
+- **AC3: pass.** The deliberate section asserts the refusal on Linux, and
+  the row passes (`3307ccf2`, `b60e04b0`). On Windows the row passes
+  (`8595684c`), and the section has been compiled out there since
+  [[BPR-0817]].
+
+The Python-driven course recorded above, which prints the line on Windows
+from a data root the course does not narrow, is outside the twelve.
+[[BPR-1050]], now Ready, records it in its scope. It does not hold this card
+open.
+
+The card is finished with these records.
