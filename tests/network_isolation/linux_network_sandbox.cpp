@@ -2,6 +2,8 @@
 	#error "The network namespace launcher is Linux-only"
 #endif
 
+#include <algorithm>
+#include <array>
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
@@ -153,6 +155,8 @@ namespace {
 	// [[BPR-0906]]. Removes the row's runtime directory and whatever the row
 	// left in it. A failure is reported rather than turned into a verdict: the
 	// row's result is its child's, and the line names what is left over.
+	// `remove_all` removes a symbolic link, never what it names, so a link the
+	// row planted cannot lead the removal out of this directory ([[BPR-1113]]).
 	void remove_runtime_directory(const std::string& aDirectory)
 	{
 		auto error = std::error_code{ };
@@ -160,6 +164,16 @@ namespace {
 		if (error) {
 			std::fprintf(stderr, "BPR_TEST_RUNTIME_DIRECTORY_LEFT:%s:%s\n", aDirectory.c_str(), error.message().c_str());
 		}
+	}
+
+	// [[BPR-1113]]. Every failure after the runtime directory exists removes
+	// it first. The stage's own `errno` is what the failure reports.
+	[[noreturn]] void fail_removing(const std::string_view aStage, const std::string& aDirectory)
+	{
+		const auto saved = errno;
+		remove_runtime_directory(aDirectory);
+		errno = saved;
+		fail(aStage);
 	}
 
 	// BPR-0890. The supervised child and the signal already passed on to it, in
@@ -184,9 +198,17 @@ namespace {
 		}
 	}
 
-	[[nodiscard]] auto forward_signal(const int aSignal) -> bool
+	// CTest's interruption lands on the launcher rather than on the test, so
+	// these three are passed on. The macOS runner forwards the same three.
+	constexpr auto forwarded_signals = std::array{ SIGINT, SIGTERM, SIGHUP };
+
+	// [[BPR-1113]]. The actions the launcher was given for those three, which
+	// its child gets back: an ignored SIGHUP under `nohup` stays ignored.
+	// `struct` is required: `sigaction` names the function in this scope.
+	using signal_actions = std::array<struct sigaction, forwarded_signals.size()>;
+
+	[[nodiscard]] auto forward_signal(const int aSignal, struct sigaction& aInherited) -> bool
 	{
-		// `struct` is required: `sigaction` names the function in this scope.
 		struct sigaction action{ };
 
 		action.sa_handler = forward_to_child;
@@ -197,7 +219,44 @@ namespace {
 		// handler runs and the wait resumes without relying on the kernel to
 		// restart it.
 		action.sa_flags = 0;
-		return ::sigaction(aSignal, &action, nullptr) == 0;
+		return ::sigaction(aSignal, &action, &aInherited) == 0;
+	}
+
+	[[nodiscard]] auto install_forwarding(signal_actions& aInherited) -> bool
+	{
+		for (std::size_t index = 0; index < forwarded_signals.size(); ++index) {
+			if (!forward_signal(forwarded_signals[index], aInherited[index])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	[[nodiscard]] auto restore_inherited_actions(const signal_actions& aInherited) -> bool
+	{
+		for (std::size_t index = 0; index < forwarded_signals.size(); ++index) {
+			if (::sigaction(forwarded_signals[index], &aInherited[index], nullptr) != 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	[[nodiscard]] auto forwarded_signal_set(sigset_t& aSet) -> bool
+	{
+		return ::sigemptyset(&aSet) == 0 && std::ranges::all_of(forwarded_signals, [&aSet](const int aSignal) { return ::sigaddset(&aSet, aSignal) == 0; });
+	}
+
+	// [[BPR-1113]]. Ends and reaps a child the launcher can no longer
+	// supervise, so that nothing is still writing in the runtime directory
+	// when it is removed.
+	void stop_child(const pid_t aChild)
+	{
+		ChildPid = 0;
+		(void)::kill(aChild, SIGKILL);
+		auto status = 0;
+		while (::waitpid(aChild, &status, 0) < 0 && errno == EINTR) {
+		}
 	}
 
 	// The number `scripts/run_network_isolated_test.py` reports on macOS, so one
@@ -269,6 +328,21 @@ auto main(const int argc, char** const argv) -> int
 	if (std::signal(SIGCHLD, SIG_DFL) == SIG_ERR) {
 		fail("sigchld-default");
 	}
+	// [[BPR-1113]]. The forwarded signals are held from before the runtime
+	// directory exists until there is a child to pass them to, and their
+	// handlers are installed first, while a failure leaves nothing to remove.
+	// Until this card a signal in that stretch ended the launcher with the
+	// directory made and nobody to remove it. A signal held meanwhile is
+	// delivered when the mask is put back below, and reaches the child.
+	auto forwarded        = sigset_t{ };
+	auto inherited        = sigset_t{ };
+	auto inheritedActions = signal_actions{ };
+	if (!forwarded_signal_set(forwarded) || ::sigprocmask(SIG_BLOCK, &forwarded, &inherited) != 0) {
+		fail("signal-mask");
+	}
+	if (!install_forwarding(inheritedActions)) {
+		fail("signal-handlers");
+	}
 	// [[BPR-0906]]. Each row gets a runtime directory of its own, and it is
 	// removed when the row ends. A profile owner binds its activation endpoint
 	// in the user's runtime directory, which outlives every data root that
@@ -285,22 +359,23 @@ auto main(const int argc, char** const argv) -> int
 		fail("runtime-directory");
 	}
 	if (!pin_session_bus() || ::setenv("XDG_RUNTIME_DIR", runtime.c_str(), 1) != 0) {
-		const auto saved = errno;
-		remove_runtime_directory(runtime);
-		errno = saved;
-		fail("runtime-environment");
+		fail_removing("runtime-environment", runtime);
 	}
 	// Nothing has been written to stdout yet, and nothing buffered may be
 	// duplicated into both processes by the fork.
 	std::fflush(stdout);
 	const auto child = ::fork();
 	if (child < 0) {
-		const auto saved = errno;
-		remove_runtime_directory(runtime);
-		errno = saved;
-		fail("fork");
+		fail_removing("fork", runtime);
 	}
 	if (child == 0) {
+		// The child starts with the launcher's handlers and its held signals.
+		// It puts back the actions and then the mask the launcher was given,
+		// so a signal sent to it before the `execvp` meets the action it
+		// always did, and the test starts as it would have without this.
+		if (!restore_inherited_actions(inheritedActions) || ::sigprocmask(SIG_SETMASK, &inherited, nullptr) != 0) {
+			fail("child-signals");
+		}
 		// A launcher killed outright -- which is what CTest's timeout does --
 		// must not leave the test process running. The setting survives the
 		// `execvp` below for every test binary in this tree: it is cleared only
@@ -323,16 +398,20 @@ auto main(const int argc, char** const argv) -> int
 		fail("exec");
 	}
 	ChildPid = child;
-	// CTest's interruption now lands on this process rather than on the test,
-	// so it is passed on. The macOS runner forwards the same three.
-	if (!forward_signal(SIGINT) || !forward_signal(SIGTERM)
-		|| !forward_signal(SIGHUP)) {
-		fail("signal-handlers");
+	// A signal held since before the directory existed is delivered here, and
+	// passed on to the child.
+	if (::sigprocmask(SIG_SETMASK, &inherited, nullptr) != 0) {
+		const auto saved = errno;
+		stop_child(child);
+		errno = saved;
+		fail_removing("signal-mask", runtime);
 	}
 	auto status = 0;
 	while (::waitpid(child, &status, 0) < 0) {
 		if (errno != EINTR) {
-			fail("wait");
+			// No child is left to wait for, and its number may be reused.
+			ChildPid = 0;
+			fail_removing("wait", runtime);
 		}
 	}
 	// The pid is released by that reap, so a signal arriving during the printing

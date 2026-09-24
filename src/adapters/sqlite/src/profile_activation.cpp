@@ -152,6 +152,18 @@ namespace bpr::adapters::sqlite {
 			return std::filesystem::path{ configured };
 		}
 
+		auto endpoint_name(const std::filesystem::path& aRoot) -> std::string
+		{
+			const auto native = aRoot.lexically_normal().string();
+			return "bpr-activate-" + endpoint_digest({ reinterpret_cast<const std::uint8_t*>(native.data()), native.size() }) + ".sock";
+		}
+
+		/// \brief Whether the endpoint's path in this directory, with its terminator, fits `sun_path`.
+		auto endpoint_fits(const std::filesystem::path& aDirectory, const std::string& aName) -> bool
+		{
+			return (aDirectory / aName).string().size() < sizeof(sockaddr_un::sun_path);
+		}
+
 		/// \brief Finds the short per-user runtime directory the rendezvous belongs in.
 		/// \details The candidates are the per-user runtime directories the platforms already
 		/// keep owner-private, which is why the endpoint can leave the data root without losing
@@ -165,11 +177,15 @@ namespace bpr::adapters::sqlite {
 		/// test runner confines sockets to the directory it names there. The variable counts
 		/// only when it names an absolute directory that is itself owner-private, and it earns
 		/// no child. So a value inherited through `sudo` cannot put the endpoint inside another
-		/// user's directory. `/run/user/<uid>` is still probed directly, which covers a system
-		/// that sets no such variable.
-		/// Each candidate is verified owner-private rather than assumed, and a shared candidate
-		/// such as `/tmp` earns one owner-private child instead, verified as a real directory so
-		/// a planted symlink is refused rather than followed. No existing permissions are widened.
+		/// user's directory. Nor does a directory too long for the endpoint to fit `sun_path`
+		/// count ([[BPR-1113]]): it is passed over, and the next candidate holds the endpoint,
+		/// as it did before the variable counted. `/run/user/<uid>` is still probed directly,
+		/// which covers a system that sets no such variable.
+		/// Each candidate is verified owner-private rather than assumed. The variable and the
+		/// top-level candidates are checked through a symbolic link, as the directory it leads
+		/// to. Only the one owner-private child that a shared candidate such as `/tmp` earns is
+		/// verified as a real directory, so a symlink planted in its place is refused rather
+		/// than followed ([[BPR-1113]]). No existing permissions are widened.
 		///
 		/// On macOS the candidate that verifies is `$TMPDIR`, and `dirhelper` age-reaps it daily.
 		/// BPR-0895 measured the reap: it removes a regular file whose birth and access times are
@@ -177,12 +193,12 @@ namespace bpr::adapters::sqlite {
 		/// An owner idle for longer therefore keeps its endpoint's name, but only while the socket
 		/// is all the rendezvous keeps in this directory; `sqlite_profile_activation` holds that.
 		/// A reboot empties the directory, and it ends the owner as well.
-		auto runtime_directory() -> std::optional<std::filesystem::path>
+		auto runtime_directory([[maybe_unused]] const std::string& aEndpointName) -> std::optional<std::filesystem::path>
 		{
 			const auto identity = std::to_string(::geteuid());
 			const auto owned    = "bpr-" + identity;
 	#if defined(__linux__)
-			if (const auto configured = environment_directory("XDG_RUNTIME_DIR"); configured && owner_private_directory(*configured, true)) {
+			if (const auto configured = environment_directory("XDG_RUNTIME_DIR"); configured && endpoint_fits(*configured, aEndpointName) && owner_private_directory(*configured, true)) {
 				return configured;
 			}
 	#endif
@@ -201,12 +217,6 @@ namespace bpr::adapters::sqlite {
 			return std::nullopt;
 		}
 
-		auto endpoint_name(const std::filesystem::path& aRoot) -> std::string
-		{
-			const auto native = aRoot.lexically_normal().string();
-			return "bpr-activate-" + endpoint_digest({ reinterpret_cast<const std::uint8_t*>(native.data()), native.size() }) + ".sock";
-		}
-
 		auto resolve_endpoint(const std::filesystem::path& aRoot)
 			-> std::expected<std::filesystem::path, profile_activation_endpoint_failure>
 		{
@@ -214,15 +224,15 @@ namespace bpr::adapters::sqlite {
 			if (!detail::validate_private_storage_root(aRoot)) {
 				return std::unexpected(profile_activation_endpoint_failure::root_refused);
 			}
-			const auto directory = runtime_directory();
+			const auto name      = endpoint_name(aRoot);
+			const auto directory = runtime_directory(name);
 			if (!directory) {
 				return std::unexpected(profile_activation_endpoint_failure::runtime_directory_absent);
 			}
-			auto path = *directory / endpoint_name(aRoot);
-			if (path.string().size() >= sizeof(sockaddr_un::sun_path)) {
+			if (!endpoint_fits(*directory, name)) {
 				return std::unexpected(profile_activation_endpoint_failure::path_too_long);
 			}
-			return path;
+			return *directory / name;
 		}
 
 		auto endpoint_address(const std::filesystem::path& aPath) -> std::optional<sockaddr_un>

@@ -70,11 +70,18 @@ def owner_private_directory(path, follow_links=True):
     )
 
 
+# The endpoint's name, `bpr-activate-<16 hex>.sock`, and Linux's `sun_path`,
+# which the whole path and its terminator must fit.
+ENDPOINT_NAME_SIZE = len("bpr-activate-") + 16 + len(".sock")
+LINUX_SUN_PATH_SIZE = 108
+
+
 def runtime_directory():
     """[[BPR-0881]]. The same candidate order `profile_activation.cpp` walks.
 
     On Linux an owner-private `$XDG_RUNTIME_DIR` first ([[BPR-0906]]), and it
-    earns no child. Then Linux's `/run/user/<uid>`, then `$TMPDIR`, then `/tmp`;
+    earns no child; one too long for the endpoint to fit is passed over
+    ([[BPR-1113]]). Then Linux's `/run/user/<uid>`, then `$TMPDIR`, then `/tmp`;
     a candidate that is not itself owner-private earns one owner-private
     `bpr-<uid>` child, checked without following links so a planted symlink is
     refused.
@@ -85,6 +92,7 @@ def runtime_directory():
         sys.platform.startswith("linux")
         and runtime
         and runtime.startswith("/")
+        and len(os.path.join(runtime, "n" * ENDPOINT_NAME_SIZE)) < LINUX_SUN_PATH_SIZE
         and owner_private_directory(runtime)
     ):
         return Path(runtime)

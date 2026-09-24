@@ -7,6 +7,7 @@ from pathlib import Path
 import errno
 import os
 import pathlib
+import shutil
 import signal
 import socket
 import stat
@@ -211,11 +212,46 @@ def listening_unix_socket(path: pathlib.Path) -> socket.socket:
     return listener
 
 
+# [[BPR-1113]]. What the runtime child's links lead to, in the stand-in for the
+# user's runtime directory: a file, and a directory holding one. A removal
+# that followed a link out of the row's directory would reach one of them.
+ESCAPE_ENVIRONMENT = "BPR_TEST_RUNTIME_ESCAPE"
+ESCAPE_FILE = "escape-file"
+ESCAPE_DIRECTORY = "escape-directory"
+ESCAPE_KEPT = "kept"
+ESCAPE_TEXT = "outside the row's runtime directory\n"
+
+
+def plant_escape_targets(user: pathlib.Path) -> None:
+    (user / ESCAPE_FILE).write_text(ESCAPE_TEXT, encoding="utf-8")
+    (user / ESCAPE_DIRECTORY).mkdir(mode=0o700)
+    (user / ESCAPE_DIRECTORY / ESCAPE_KEPT).write_text(ESCAPE_TEXT, encoding="utf-8")
+
+
+def escape_target_reached(user: pathlib.Path) -> str | None:
+    """Which escape target is no longer as it was planted, if any."""
+    file = user / ESCAPE_FILE
+    directory = user / ESCAPE_DIRECTORY
+    kept = directory / ESCAPE_KEPT
+    try:
+        if file.is_symlink() or file.read_text(encoding="utf-8") != ESCAPE_TEXT:
+            return ESCAPE_FILE
+        if directory.is_symlink() or sorted(os.listdir(directory)) != [ESCAPE_KEPT]:
+            return ESCAPE_DIRECTORY
+        if kept.read_text(encoding="utf-8") != ESCAPE_TEXT:
+            return f"{ESCAPE_DIRECTORY}/{ESCAPE_KEPT}"
+    except OSError as error:
+        return f"{error.filename}:{error.errno}"
+    return None
+
+
 def runtime_child() -> int:
     """What an owner a row ends with a signal leaves in its runtime directory.
 
     It binds a socket there and never unlinks it, adds a directory of its own,
-    and then dies by SIGKILL, so no cleanup of its own can run.
+    and then dies by SIGKILL, so no cleanup of its own can run. It also plants
+    two links that lead out of the directory ([[BPR-1113]]), one to a file and
+    one to a directory, as a hostile or careless row could.
     """
     runtime = os.environ.get("XDG_RUNTIME_DIR", "")
     print(f"RUNTIME_CHILD_DIRECTORY:{runtime}", flush=True)
@@ -227,6 +263,12 @@ def runtime_child() -> int:
     debris = pathlib.Path(runtime) / "debris"
     debris.mkdir(mode=0o700)
     (debris / "leftover").write_text("leftover\n", encoding="utf-8")
+    escape = pathlib.Path(os.environ[ESCAPE_ENVIRONMENT])
+    (pathlib.Path(runtime) / ESCAPE_FILE).symlink_to(escape / ESCAPE_FILE)
+    (pathlib.Path(runtime) / ESCAPE_DIRECTORY).symlink_to(
+        escape / ESCAPE_DIRECTORY, target_is_directory=True
+    )
+    print(f"RUNTIME_CHILD_ESCAPES:{ESCAPE_FILE},{ESCAPE_DIRECTORY}", flush=True)
     os.kill(os.getpid(), signal.SIGKILL)
     return 1
 
@@ -241,6 +283,7 @@ def nested_run(
     """
     environment = dict(os.environ)
     environment["XDG_RUNTIME_DIR"] = str(user)
+    environment[ESCAPE_ENVIRONMENT] = str(user)
     environment.pop("DBUS_SESSION_BUS_ADDRESS", None)
     if bus is not None:
         environment["DBUS_SESSION_BUS_ADDRESS"] = bus
@@ -259,11 +302,114 @@ def nested_run(
     # exit as well as in the line (`_exit` keeps the low eight bits).
     if lines.get("TEST_RUNNER_CHILD_EXIT") != "-9" or result.returncode != 256 - 9:
         return f"launcher:{result.returncode}:{lines.get('TEST_RUNNER_CHILD_EXIT')}"
+    if lines.get("RUNTIME_CHILD_ESCAPES") != f"{ESCAPE_FILE},{ESCAPE_DIRECTORY}":
+        return f"escapes:{lines.get('RUNTIME_CHILD_ESCAPES')}"
     directory = lines.get("RUNTIME_CHILD_DIRECTORY", "")
     return directory, lines.get("RUNTIME_CHILD_BUS", ""), result.stderr
 
 
-def runtime_attempt(backend: str, launcher: str) -> int:
+# [[BPR-1113]]. The launcher's paths out once its directory exists, each driven
+# by the fault shim. A signal CTest forwards may arrive before the launcher has
+# a child to pass it to; the three it forwards are each tried. A handler that
+# cannot be installed and a wait that fails are the two early failures the
+# review named. Each entry is the shim's fault, the child the launcher runs,
+# and the launcher stage a failure must name, if it fails.
+SLEEPING_CHILD = ("-c", "import time; time.sleep(20)")
+PROMPT_CHILD = ("-c", "pass")
+LEAK_WINDOWS = (
+    (f"signal:{signal.SIGINT.value}", SLEEPING_CHILD, None),
+    (f"signal:{signal.SIGTERM.value}", SLEEPING_CHILD, None),
+    (f"signal:{signal.SIGHUP.value}", SLEEPING_CHILD, None),
+    ("handlers", PROMPT_CHILD, "signal-handlers"),
+    ("wait", PROMPT_CHILD, "wait"),
+)
+
+
+def leak_window_run(
+    launcher: str, shim: str, fault: str, child: tuple[str, ...], stage: str | None
+) -> tuple[str | None, str]:
+    """Run the launcher with one fault: why the run fails the row, if it does, and what it did.
+
+    The directory the launcher made must be gone afterwards. A handler that
+    cannot be installed may stop the launcher before it makes one at all, but
+    a signal or a failed wait comes after the directory exists, so for those
+    the shim must have seen it made, or the fault never reached the window.
+    """
+    with contained_temporary_directory(
+        prefix="bpr-launcher-fault-", parent=str(RUNTIME_PARENT)
+    ) as raw:
+        record = pathlib.Path(raw) / "runtime-directory"
+        environment = dict(os.environ)
+        environment["LD_PRELOAD"] = shim
+        environment["BPR_TEST_LAUNCHER_FAULT"] = fault
+        environment["BPR_TEST_LAUNCHER_FAULT_RECORD"] = str(record)
+        result = subprocess.run(
+            [launcher, sys.executable, *child],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        directory = record.read_text(encoding="utf-8") if record.exists() else ""
+    reported = [
+        line.split(":", 1)[1]
+        for line in result.stdout.splitlines()
+        if line.startswith("TEST_RUNNER_CHILD_EXIT:")
+    ]
+    observed = (
+        f"exit={result.returncode}:child={','.join(reported) or '-'}"
+        f":directory={'made' if directory else 'none'}"
+    )
+    if directory and os.path.lexists(directory):
+        # The row's own leftover, named by the shim: removed by that exact name,
+        # and only when it is the launcher's kind of directory.
+        if row_runtime_directory(directory):
+            shutil.rmtree(directory)
+        return f"left:{directory}", observed
+    if "BPR_TEST_RUNTIME_DIRECTORY_LEFT" in result.stderr:
+        return "removal-failed", observed
+    if not directory and stage != "signal-handlers":
+        return "not-reached", observed
+    if stage is None:
+        # The launcher outlived the signal, passed it on and reported its child.
+        if result.returncode < 0 or not reported:
+            return "signalled", observed
+        if result.returncode == 0:
+            return "reported-clean", observed
+        return None, observed
+    if result.returncode != 125 or f"BPR_NETWORK_ISOLATION_UNAVAILABLE:{stage}:" not in result.stderr:
+        return f"not-reached:{result.stderr.strip()[-200:]}", observed
+    return None, observed
+
+
+def ignored_hangup_reaches_child(launcher: str) -> str | None:
+    """[[BPR-1113]]. A launcher started with SIGHUP ignored, as under `nohup`, hands that on.
+
+    The launcher holds the three signals it forwards and installs its own
+    handlers before it forks, so its child must put back the actions it was
+    given. The child reads its own ignored set from `/proc`.
+    """
+    probe = (
+        "import pathlib\n"
+        "line = next(l for l in pathlib.Path('/proc/self/status').read_text().splitlines()"
+        " if l.startswith('SigIgn:'))\n"
+        "print('RUNTIME_CHILD_SIGHUP_IGNORED:' + str(bool(int(line.split()[1], 16) & 1)))\n"
+    )
+    result = subprocess.run(
+        [launcher, sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+        preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN),
+    )
+    if "RUNTIME_CHILD_SIGHUP_IGNORED:True" not in result.stdout or result.returncode != 0:
+        return f"{result.returncode}:{result.stdout.strip()[-200:]}"
+    return None
+
+
+def runtime_attempt(backend: str, launcher: str, shim: str) -> int:
     """[[BPR-0906]]. Each row gets a runtime directory of its own.
 
     A profile owner binds its activation endpoint in `$XDG_RUNTIME_DIR`, and
@@ -280,6 +426,15 @@ def runtime_attempt(backend: str, launcher: str) -> int:
     live endpoint must still answer, so the cleanup cannot reach a live owner.
     With no bus address set, the child must still be given the stand-in's bus.
     An address that is already set must reach the child unchanged.
+
+    [[BPR-1113]]. The child also plants links that lead out of its directory,
+    to a file and to a directory in the stand-in. Their targets must be as
+    they were planted, so the removal cannot follow a link out. Last, the
+    launcher runs with the fault shim into each of its ways out after the
+    directory exists: a forwarded signal before there is a child, a handler
+    that cannot be installed and a wait that fails. None may leave the
+    directory behind. Holding those signals must not change what the child
+    inherits, so an ignored SIGHUP must still reach it ignored.
     """
     if backend != LINUX_BACKEND:
         print(f"NETWORK_ISOLATION_RUNTIME_NOT_APPLICABLE:{backend}", flush=True)
@@ -296,6 +451,7 @@ def runtime_attempt(backend: str, launcher: str) -> int:
         live = listening_unix_socket(user / "bpr-activate-live.sock")
         live.settimeout(2.0)
         bus_socket = listening_unix_socket(user / "bus")
+        plant_escape_targets(user)
         try:
             before = sorted(os.listdir(user))
             sentinel = "unix:path=/nonexistent/bpr-0906-sentinel-bus"
@@ -315,6 +471,10 @@ def runtime_attempt(backend: str, launcher: str) -> int:
                     return 1
                 if os.path.lexists(directory) or "BPR_TEST_RUNTIME_DIRECTORY_LEFT" in stderr:
                     print(f"NETWORK_ISOLATION_RUNTIME_LEFT:{directory}", flush=True)
+                    return 1
+                reached = escape_target_reached(user)
+                if reached is not None:
+                    print(f"NETWORK_ISOLATION_RUNTIME_ESCAPE_REACHED:{reached}", flush=True)
                     return 1
                 if seen_bus != expected_bus:
                     print(
@@ -337,6 +497,24 @@ def runtime_attempt(backend: str, launcher: str) -> int:
         finally:
             live.close()
             bus_socket.close()
+    hangup = ignored_hangup_reaches_child(launcher)
+    if hangup is not None:
+        print(f"NETWORK_ISOLATION_RUNTIME_SIGHUP_NOT_INHERITED:{hangup}", flush=True)
+        return 1
+    # Every window is tried, so one run names each that fails.
+    failed = False
+    for fault, child, stage in LEAK_WINDOWS:
+        failure, observed = leak_window_run(launcher, shim, fault, child, stage)
+        if failure is not None:
+            print(
+                f"NETWORK_ISOLATION_RUNTIME_WINDOW_LEFT:{fault}:{failure}:{observed}",
+                flush=True,
+            )
+            failed = True
+        else:
+            print(f"NETWORK_ISOLATION_RUNTIME_WINDOW_CLOSED:{fault}:{observed}", flush=True)
+    if failed:
+        return 1
     print("NETWORK_ISOLATION_RUNTIME_PER_ROW", flush=True)
     return 0
 
@@ -590,8 +768,8 @@ def concurrent_attempt(backend: str, launcher: str) -> int:
 
 
 def main() -> int:
-    if len(sys.argv) == 4 and sys.argv[1] == "runtime":
-        return runtime_attempt(sys.argv[2], sys.argv[3])
+    if len(sys.argv) == 5 and sys.argv[1] == "runtime":
+        return runtime_attempt(sys.argv[2], sys.argv[3], sys.argv[4])
     if len(sys.argv) == 4 and sys.argv[1] == "concurrent":
         return concurrent_attempt(sys.argv[2], sys.argv[3])
     if len(sys.argv) != 3:

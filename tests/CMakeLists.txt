@@ -995,11 +995,33 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PROPERTIES
             TIMEOUT 15
     )
+    # [[BPR-1113]]. Preloaded into nested launcher runs by the row below, so
+    # it can reach the launcher's failure paths. It is a test tool only and
+    # is never installed.
+    add_library(
+        better_pull_review_launcher_fault_shim
+        MODULE
+            "${PROJECT_SOURCE_DIR}/tests/network_isolation/linux_launcher_fault_shim.cpp"
+    )
+    target_compile_features(
+        better_pull_review_launcher_fault_shim
+        PRIVATE
+            cxx_std_23
+    )
+    target_link_libraries(
+        better_pull_review_launcher_fault_shim
+        PRIVATE
+            ${CMAKE_DL_LIBS}
+    )
+    bpr_enable_hardening(better_pull_review_launcher_fault_shim)
+    bpr_enable_warnings(better_pull_review_launcher_fault_shim)
     # [[BPR-0906]]. The launcher gives each row its own runtime directory and
     # removes it afterwards, so an owner that a row ends with a signal leaves
     # its activation socket there rather than in the user's /run/user/<uid>.
     # The row runs the launcher once more around such an owner, beside a live
-    # endpoint the cleanup must not reach.
+    # endpoint the cleanup must not reach and links that lead out to it
+    # ([[BPR-1113]]). Then it runs the launcher with the shim above, into
+    # each failure path after the directory exists.
     bpr_add_network_isolated_test(
         NAME test_network_isolation_runtime_directory
         COMMAND
@@ -1008,6 +1030,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             runtime
             "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
             "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
+            "$<TARGET_FILE:better_pull_review_launcher_fault_shim>"
     )
     set_tests_properties(
         test_network_isolation_runtime_directory

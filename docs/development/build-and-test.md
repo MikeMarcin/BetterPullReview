@@ -226,14 +226,37 @@ target-native Linux replay.
 The Linux launcher also gives each test its own mode-0700 runtime directory
 under `/tmp`, names it in `XDG_RUNTIME_DIR`, and removes it when the test
 ends ([[BPR-0906]]). On Linux the product binds its profile activation
-endpoint in `$XDG_RUNTIME_DIR` when that names an owner-private directory, so
-an owner that a test ends with a signal no longer leaves its socket in the
-user's `/run/user/<uid>`. When `DBUS_SESSION_BUS_ADDRESS` is unset, the
-launcher first sets it to the `$XDG_RUNTIME_DIR/bus` socket the test would
-otherwise have found, so the test still reaches the same session bus. A
-launcher killed outright, as by a CTest timeout, leaves its directory in
-`/tmp`. A removal that fails prints `BPR_TEST_RUNTIME_DIRECTORY_LEFT:` and
-does not change the verdict.
+endpoint in `$XDG_RUNTIME_DIR` when that names an owner-private directory
+short enough for the endpoint, so an owner that a test ends with a signal no
+longer leaves its socket in the user's `/run/user/<uid>`. Two launches of one
+profile meet only when they resolve the same directory. A test that starts a
+second launch with a different `XDG_RUNTIME_DIR` gets `owner_busy` instead
+of a handoff ([[BPR-1113]]).
+
+The removal deletes a symbolic link the test left, never what the link
+names. The directory is removed on every way the launcher ends once it has
+made one. That includes a forwarded signal that arrives before there is a
+child to pass it to, and a failure to install the signal handlers or to wait
+for the child ([[BPR-1113]]). `test_network_isolation_runtime_directory`
+holds both: it plants links to a file and a directory outside, and it drives
+each of those failures through a preloaded fault shim. Three ways still leave
+the directory in `/tmp`: a launcher killed outright, as by a CTest timeout,
+because nothing runs in a process killed by SIGKILL; a signal the launcher
+does not forward, such as SIGQUIT; and a crash of the launcher itself. The
+directory then holds only what its test left, and stays until it is removed
+by name or the host clears `/tmp`. A removal that fails prints
+`BPR_TEST_RUNTIME_DIRECTORY_LEFT:` and does not change the verdict.
+
+When `DBUS_SESSION_BUS_ADDRESS` is unset, the launcher first sets it to the
+`$XDG_RUNTIME_DIR/bus` socket the test would otherwise have found, so the
+test still reaches the same session bus. That can be the user's real bus. On
+a host with no bus address but a live `$XDG_RUNTIME_DIR/bus`, the three Linux
+Secret Service rows reach the user's own session bus and its Secret Service,
+just as they do wherever an address is set, and write and delete their
+integration item there ([[BPR-1113]]). To keep them off it, run CTest with a
+fresh `XDG_RUNTIME_DIR` and no bus address, where they find no bus, or inside
+a private session with a test-only keyring, as the Secret Service section
+below describes.
 
 On Windows, the checked-in launcher enters each test into one fixed
 AppContainer with zero capabilities, so the Windows Filtering Platform refuses

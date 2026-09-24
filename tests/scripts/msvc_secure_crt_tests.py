@@ -34,6 +34,9 @@ NOT_BUILT_ON_WINDOWS = frozenset(
         # The Linux automated-test launcher: `#error` off Linux, and Windows
         # builds `windows_network_sandbox.cpp` in its place ([[BPR-0906]]).
         "tests/network_isolation/linux_network_sandbox.cpp",
+        # The Linux launcher's fault shim: `#error` off Linux, and registered
+        # only inside the Linux branch of `tests/CMakeLists.txt` ([[BPR-1113]]).
+        "tests/network_isolation/linux_launcher_fault_shim.cpp",
     }
 )
 

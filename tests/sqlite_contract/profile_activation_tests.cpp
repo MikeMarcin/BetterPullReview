@@ -343,12 +343,8 @@ namespace {
 	}
 
 	#if defined(__linux__)
-	// [[BPR-0906]]. On Linux the endpoint follows `$XDG_RUNTIME_DIR`, so whoever starts the owner
-	// decides where its socket lives; the Linux test launcher gives each row a directory of its own.
-	// The variable counts only when it names an absolute directory that is itself owner-private,
-	// and unlike a shared candidate it earns no `bpr-<uid>` child. Run first, before any thread
-	// exists, because it rewrites the process environment.
-	void test_runtime_directory_follows_a_private_xdg_runtime_dir()
+	/// \brief The `XDG_RUNTIME_DIR` this process inherited, which a course that rewrites it restores.
+	auto inherited_runtime_directory() -> std::optional<std::string>
 	{
 		// Linux-only, but the MSVC gate reads text rather than branches (BPR-0519).
 		#if defined(_MSC_VER)
@@ -359,7 +355,31 @@ namespace {
 		#if defined(_MSC_VER)
 			#pragma warning(pop)
 		#endif
-		const auto restore = inherited != nullptr ? std::optional<std::string>{ inherited } : std::nullopt;
+		return inherited != nullptr ? std::optional<std::string>{ inherited } : std::nullopt;
+	}
+
+	void restore_runtime_directory(const std::optional<std::string>& aInherited)
+	{
+		expect(aInherited ? ::setenv("XDG_RUNTIME_DIR", aInherited->c_str(), 1) == 0 : ::unsetenv("XDG_RUNTIME_DIR") == 0, "restore the inherited runtime directory");
+	}
+
+	/// \brief Where the endpoint resolves when no `XDG_RUNTIME_DIR` is named: the next candidate.
+	auto endpoint_without_xdg_runtime_dir(const std::filesystem::path& aRoot) -> std::filesystem::path
+	{
+		expect(::unsetenv("XDG_RUNTIME_DIR") == 0, "name no runtime directory");
+		const auto endpoint = profile_activation_endpoint(aRoot);
+		expect(endpoint.has_value(), "the endpoint resolves with no XDG_RUNTIME_DIR");
+		return *endpoint;
+	}
+
+	// [[BPR-0906]]. On Linux the endpoint follows `$XDG_RUNTIME_DIR`, so whoever starts the owner
+	// decides where its socket lives; the Linux test launcher gives each row a directory of its own.
+	// The variable counts only when it names an absolute directory that is itself owner-private,
+	// and unlike a shared candidate it earns no `bpr-<uid>` child. Run first, before any thread
+	// exists, because it rewrites the process environment.
+	void test_runtime_directory_follows_a_private_xdg_runtime_dir()
+	{
+		const auto restore = inherited_runtime_directory();
 		auto       pattern = std::string{ "/tmp/bpr-xdg-XXXXXX" };
 		expect(::mkdtemp(pattern.data()) != nullptr, "make a private runtime directory");
 		const std::filesystem::path runtime{ pattern };
@@ -389,10 +409,99 @@ namespace {
 		expect(::setenv("XDG_RUNTIME_DIR", "tmp", 1) == 0, "name a relative runtime directory");
 		expect(!resolvesIn(std::filesystem::path{ "tmp" }), "a relative XDG_RUNTIME_DIR is passed over");
 
-		expect(restore ? ::setenv("XDG_RUNTIME_DIR", restore->c_str(), 1) == 0 : ::unsetenv("XDG_RUNTIME_DIR") == 0, "restore the inherited runtime directory");
+		restore_runtime_directory(restore);
 		std::error_code ignored;
 		std::filesystem::remove_all(runtime, ignored);
 		std::cout << "runtime-directory:xdg-private=followed:xdg-shared=passed-over:xdg-relative=passed-over\n";
+	}
+
+	// [[BPR-1113]]. The endpoint adds a separator and its `bpr-activate-<digest>.sock` name to the
+	// directory, 35 bytes, and the whole path and its terminator must fit Linux's 108-byte
+	// `sun_path`. A private `XDG_RUNTIME_DIR` the endpoint would not fit in is passed over, and
+	// the endpoint resolves where it would with no such variable, as it did before [[BPR-0906]]
+	// made the variable a candidate. The course pins the boundary from both sides: the longest
+	// directory that fits holds a bound endpoint, and one byte more is passed over.
+	void test_runtime_directory_passes_over_an_xdg_runtime_dir_the_endpoint_does_not_fit()
+	{
+		const auto restore = inherited_runtime_directory();
+		auto       pattern = std::string{ "/tmp/bpr-xdg-XXXXXX" };
+		expect(::mkdtemp(pattern.data()) != nullptr, "make a base for long runtime directories");
+		const std::filesystem::path base{ pattern };
+		const scratch_directory     root;
+		const auto                  nameSize = [&root] {
+			const auto endpoint = profile_activation_endpoint(root.Path);
+			expect(endpoint.has_value(), "the inherited runtime directory resolves an endpoint");
+			return endpoint->filename().string().size();
+		}();
+		// One byte for the separator and one for the terminator.
+		const auto longest         = sizeof(sockaddr_un::sun_path) - 2U - nameSize;
+		const auto directoryOfSize = [&base](const std::size_t aSize) {
+			const auto path = base / std::string(aSize - base.string().size() - 1U, 'r');
+			expect(::mkdir(path.c_str(), 0700) == 0 && ::chmod(path.c_str(), 0700) == 0, "make a private runtime directory of an exact length");
+			expect(path.string().size() == aSize, "the runtime directory has the exact length asked for");
+			return path;
+		};
+		const auto fallback = endpoint_without_xdg_runtime_dir(root.Path);
+
+		const auto fitting = directoryOfSize(longest);
+		expect(::setenv("XDG_RUNTIME_DIR", fitting.c_str(), 1) == 0, "name the longest runtime directory the endpoint fits");
+		const auto held = profile_activation_endpoint(root.Path);
+		expect(held.has_value() && held->parent_path() == fitting, "the longest private XDG_RUNTIME_DIR the endpoint fits holds it");
+		expect(held->string().size() + 1U == sizeof(sockaddr_un::sun_path), "that endpoint fills sun_path with its terminator");
+		{
+			auto lease = acquire_profile_runtime_lease(root.Path);
+			expect(lease.has_value(), "longest runtime directory course lease");
+			auto server = make_profile_activation_server(root.Path, profile, *lease);
+			expect(server.has_value(), "an endpoint that fills sun_path binds");
+			expect(std::filesystem::is_socket(*held), "the owner binds its endpoint in the longest runtime directory");
+		}
+
+		const auto tooLong = directoryOfSize(longest + 1U);
+		expect(::setenv("XDG_RUNTIME_DIR", tooLong.c_str(), 1) == 0, "name a runtime directory one byte too long");
+		const auto passedOver = profile_activation_endpoint(root.Path);
+		expect(passedOver.has_value(), "a private XDG_RUNTIME_DIR too long for the endpoint is passed over, not refused");
+		expect(*passedOver == fallback, "a private XDG_RUNTIME_DIR too long for the endpoint yields to the next candidate");
+		expect(std::filesystem::is_empty(tooLong), "a runtime directory too long for the endpoint earns no child");
+
+		restore_runtime_directory(restore);
+		std::error_code ignored;
+		std::filesystem::remove_all(base, ignored);
+		std::cout << "runtime-directory:xdg-" << longest << "-bytes=followed:xdg-" << longest + 1U << "-bytes=passed-over\n";
+	}
+
+	/// \brief The first of a few well-known directories another user owns with mode 0700.
+	/// \details Mode 0700 matters: it is what the product asks of its own directory, so such a
+	/// candidate is refused by its owner alone. The directory's status is only read.
+	auto another_users_private_directory() -> std::optional<std::filesystem::path>
+	{
+		for (const auto* candidate : { "/root", "/var/lib/private" }) {
+			struct stat info{ };
+			if (::stat(candidate, &info) == 0 && S_ISDIR(info.st_mode) && info.st_uid != ::geteuid() && (info.st_mode & 0777U) == 0700U) {
+				return std::filesystem::path{ candidate };
+			}
+		}
+		return std::nullopt;
+	}
+
+	// [[BPR-1113]]. A directory another user owns is passed over as `XDG_RUNTIME_DIR`, even at
+	// mode 0700, so a value inherited through `sudo` cannot put the endpoint in root's directory.
+	// A host with none of the directories this course reads says the case was skipped.
+	void test_runtime_directory_passes_over_another_users_xdg_runtime_dir()
+	{
+		const auto other = another_users_private_directory();
+		if (!other) {
+			std::cout << "runtime-directory:xdg-other-owner=skipped:no mode-0700 directory owned by another user at /root or /var/lib/private\n";
+			return;
+		}
+		const auto              restore = inherited_runtime_directory();
+		const scratch_directory root;
+		const auto              fallback = endpoint_without_xdg_runtime_dir(root.Path);
+		expect(::setenv("XDG_RUNTIME_DIR", other->c_str(), 1) == 0, "name a runtime directory another user owns");
+		const auto endpoint = profile_activation_endpoint(root.Path);
+		expect(endpoint.has_value() && endpoint->parent_path() != *other, "a private directory another user owns is passed over as XDG_RUNTIME_DIR");
+		expect(*endpoint == fallback, "another user's XDG_RUNTIME_DIR yields to the next candidate");
+		restore_runtime_directory(restore);
+		std::cout << "runtime-directory:xdg-other-owner=passed-over:" << other->string() << '\n';
 	}
 	#endif
 #else
@@ -630,6 +739,8 @@ auto main(int aCount, char** aArguments) -> int
 	}
 #if defined(__linux__)
 	test_runtime_directory_follows_a_private_xdg_runtime_dir();
+	test_runtime_directory_passes_over_an_xdg_runtime_dir_the_endpoint_does_not_fit();
+	test_runtime_directory_passes_over_another_users_xdg_runtime_dir();
 #endif
 	test_authority();
 	test_process_handoff();
