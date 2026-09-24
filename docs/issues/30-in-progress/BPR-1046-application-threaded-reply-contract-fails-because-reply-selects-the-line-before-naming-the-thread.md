@@ -344,3 +344,15 @@ ctest --preset windows-dev -j1 --output-on-failure -R '^(application_threaded_re
 
 Expected: 2/2, and `application_threaded_reply_contract` prints
 `THREADED_REPLY_CONTRACT_OK`. When that run passes, the card can finish.
+
+## Windows: 2 of 2 pass (bpr-main-win, 2026-09-23)
+
+The run used `2532ca6e`, which contains `669a5a58`. It was
+`build/windows-dev` (Visual Studio generator, MSVC 19.51, Debug, Qt 6.11.2),
+rebuilt first, and the build exited 0 with no `error` line. The selector
+above ran serially and both rows pass:
+`qt_workbench_conversation_reveal` (10.94 s) and
+`application_threaded_reply_contract` (13.39 s), whose pass expression is
+`THREADED_REPLY_CONTRACT_OK`. AC4's Windows half is met.
+The logs are station records under `build/logs/bpr-0887-1046-main-win/`
+and are not committed.
