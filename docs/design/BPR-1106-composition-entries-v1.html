@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1106: where Compose review and Draft comment or reply sit (v1)</title>
+<style>
+  :root {
+    --ground: #EEF1F4; --paper: #FFFFFF; --ink: #1F2328; --ink-2: #57606A; --ink-3: #8B949E;
+    --rule: #D9DEE5; --rule-2: #C3CAD3; --signal: #2F6FD6; --signal-soft: #DCE8F9; --marker: #B7791F; --marker-soft: #FBF1DC;
+    /* the ledger's bands: the product's own chrome and code colours */
+    --band-strip: #56606C; --band-entry: #E0B15A; --band-ready: #7FB0E8; --band-updates: #8B949E; --band-code: #0D1117; --band-status: #56606C;
+    --ui: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.5 var(--ui); }
+  main { max-width: 1320px; margin: 0 auto; padding: 40px 32px 80px; }
+  h1 { font-size: 28px; line-height: 1.2; font-weight: 650; margin: 0 0 8px; letter-spacing: -.01em; }
+  h2 { font-size: 19px; font-weight: 650; margin: 48px 0 10px; }
+  h3 { font-size: 15px; font-weight: 650; margin: 22px 0 6px; }
+  p, li { max-width: 76ch; }
+  a { color: var(--signal); }
+  code { font: 12.5px var(--mono); background: #E4E8ED; padding: 1px 4px; border-radius: 4px; }
+  .lede { color: var(--ink-2); font-size: 15px; margin: 0 0 18px; }
+  blockquote { margin: 10px 0 0; padding: 8px 14px; border-left: 3px solid var(--signal); background: var(--paper); border-radius: 0 6px 6px 0; max-width: 76ch; }
+  .note { color: var(--ink-2); font-size: 13px; }
+
+  /* the question */
+  .ask { margin: 28px 0 0; padding: 18px 22px 16px; background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--signal); border-radius: 8px; }
+  .ask p { margin: 0 0 8px; font-size: 16px; }
+  .ask ol { margin: 6px 0 4px; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+  .ask li { display: grid; grid-template-columns: 26px 1fr; align-items: baseline; }
+  .ask li b.l { font: 650 15px var(--ui); color: var(--signal); }
+  .ask .proposal { margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+
+  /* at a glance */
+  .glance { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin-top: 14px; }
+  .glance figure { margin: 0; }
+  .glance img { width: 100%; display: block; border-radius: 6px; box-shadow: 0 8px 22px rgba(31,35,40,.18); }
+  .glance figcaption { margin-top: 10px; }
+  .glance figcaption b { display: block; font-size: 15px; }
+  .glance figcaption b span { color: var(--signal); margin-right: 6px; }
+  .glance dl { margin: 6px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; font-size: 12.5px; }
+  .glance dt { color: var(--ink-3); }
+  .glance dd { margin: 0; }
+
+  /* close ups: 1:1 crops of the frames */
+  .closeups { display: grid; gap: 14px; margin-top: 10px; }
+  .closeups figure { margin: 0; }
+  .closeups img { display: block; max-width: 100%; border-radius: 4px; box-shadow: 0 4px 14px rgba(31,35,40,.18); }
+  .closeups figcaption { font-size: 12.5px; color: var(--ink-2); margin-top: 5px; }
+  .closeups figcaption b { color: var(--signal); margin-right: 4px; }
+
+  /* the ledgers: height and width, drawn to scale */
+  .ledgers { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 36px; margin-top: 12px; align-items: start; }
+  .ledger { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px 14px; }
+  .ledger h3 { margin: 0 0 2px; }
+  .ledger .note { margin: 0 0 12px; }
+  .heights { display: grid; grid-template-columns: 46px repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  .ledger h3.then { margin-top: 20px; }
+  .axis { position: relative; height: 213px; border-right: 1px solid var(--rule-2); font-size: 11px; color: var(--ink-3); }
+  .axis span { position: absolute; right: 6px; transform: translateY(-50%); }
+  .col { display: flex; flex-direction: column; }
+  .stack { display: flex; flex-direction: column; height: 213px; border-radius: 3px; overflow: hidden; outline: 1px solid var(--rule-2); }
+  .stack i { display: block; flex: none; }
+  .stack .strip { background: var(--band-strip); }
+  .stack .entry { background: var(--band-entry); }
+  .stack .ready { background: var(--band-ready); }
+  .stack .updates { background: var(--band-updates); }
+  .stack .code { background: var(--band-code); flex: 1; position: relative; }
+  .stack .status { background: var(--band-status); }
+  .stack .code em { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font: 600 13px var(--ui); font-style: normal; color: #E6EDF3; }
+  .col .cap { margin-top: 6px; font-size: 12px; text-align: center; }
+  .col .cap b { color: var(--signal); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; font-size: 12px; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; outline: 1px solid var(--rule-2); }
+  .widths { display: grid; gap: 10px; }
+  .wrow { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12px; }
+  .wrow b { color: var(--signal); }
+  .wbar { position: relative; height: 18px; }
+  .wbar .floor { position: absolute; left: 0; top: 0; bottom: 0; width: 75%; background: #2A3039; border-radius: 3px 0 0 3px; }
+  .wbar .over { position: absolute; top: 0; bottom: 0; left: 75%; background: var(--marker); border-radius: 0 3px 3px 0; }
+  .wbar .edge { position: absolute; left: 75%; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+  .wbar span { position: absolute; top: 50%; transform: translateY(-50%); font-size: 11px; white-space: nowrap; }
+  .wbar .in { left: 8px; color: #E6EDF3; }
+  .wbar .out { left: calc(75% + 8px); color: var(--ink-2); }
+
+  /* costs */
+  table { border-collapse: collapse; width: 100%; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; font-size: 13px; margin-top: 12px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+  tr:last-child td { border-bottom: 0; }
+  thead th { background: #F6F7F9; font-weight: 650; }
+  thead th b { color: var(--signal); margin-right: 4px; }
+  tbody th { font-weight: 600; color: var(--ink-2); width: 150px; }
+  td.good { background: #F2F9F4; }
+  td.cost { background: var(--marker-soft); }
+
+  /* one placement */
+  .placement { margin-top: 52px; padding-top: 22px; border-top: 1px solid var(--rule-2); }
+  .placement header { display: grid; grid-template-columns: 56px 1fr; gap: 6px 14px; align-items: baseline; }
+  .placement header .letter { grid-row: span 2; font: 700 44px/1 var(--ui); color: var(--signal); }
+  .placement header h2 { margin: 0; }
+  .placement header p { margin: 0; color: var(--ink-2); }
+  .placement .body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; margin-top: 16px; align-items: start; }
+  .placement .needs { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; font-size: 13px; }
+  .placement .needs h3 { margin: 0 0 6px; font-size: 13px; }
+  .placement .needs ul { margin: 0; padding-left: 18px; }
+  .placement .needs li + li { margin-top: 4px; }
+  .frames { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; }
+  .frames figure { margin: 0; }
+  .frames img { width: 100%; display: block; border-radius: 4px; box-shadow: 0 4px 12px rgba(31,35,40,.16); }
+  .frames figcaption { font-size: 11.5px; color: var(--ink-2); margin-top: 4px; }
+  .frames .row-label { grid-column: 1 / -1; font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 8px 0 -2px; }
+  .frames .row-label:first-child { margin-top: 0; }
+  .frames .loading { grid-column: span 2; }
+
+  .proposal-block { margin-top: 52px; padding: 20px 24px; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+  .proposal-block h2 { margin-top: 0; }
+  footer { margin-top: 48px; color: var(--ink-2); font-size: 13px; }
+  footer p { max-width: 90ch; }
+
+  @media (max-width: 1100px) {
+    .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ledgers, .placement .body { grid-template-columns: 1fr; }
+    .frames { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Where Compose review and Draft comment or reply sit</h1>
+  <p class="lede">BPR-1106, design round v1, for the owner. Five placements are drawn on the accepted
+  <a href="RFC-BPR-0028-full-review-surface-v1.html">RFC-BPR-0028 full review surface</a>. The current row is
+  placement A, the baseline. Each is drawn at 1280&times;852 and 1920&times;1080, in light and dark, in macOS and
+  Windows chrome, and once more while a pull request loads. That makes 50 frames, rendered headless from
+  <a href="BPR-1106-composition-entries-frames-v1.html">one frames file</a>, so any two frames differ only in the
+  placement.</p>
+
+  <blockquote>We should do a UX design iteration with the /frontend-design skill to figure out where best to put these.
+  For now you can ammend the card but open a follow-up for the ux design.
+  <div class="note">The owner, on BPR-0653-entry-row-v001, attended session cbd48b91, decision 007a6eb5, 2026-09-24.</div></blockquote>
+
+  <section class="ask" aria-label="The question">
+    <p><b>The question, one choice:</b> where do Compose review and Draft comment or reply go?</p>
+    <ol>
+      <li><b class="l">A</b><span>Keep the row as it is, between the strip and the Updates line.</span></li>
+      <li><b class="l">B</b><span>In the strip's review menu: the Private progress button's menu gains a "Your review" section.</span></li>
+      <li><b class="l">C</b><span>At the right end of the Updates line, beside "Comparing"; the loading line moves into the Updates line too.</span></li>
+      <li><b class="l">D</b><span>At the foot of the conversation drawer.</span></li>
+      <li><b class="l">E</b><span>A Compose control in the strip: one click composes a review, and its arrow offers Draft comment or reply.</span></li>
+    </ol>
+    <p class="proposal">Proposed: <b>C</b>. It frees the comparison's 20 to 22 pixels, adds nothing to the Windows strip, and keeps
+    one click to each entry. It also gives the loading line a home that does not push the window down.</p>
+  </section>
+
+  <h2>At a glance</h2>
+  <p class="note">macOS, dark, 1280&times;852. Select a frame for the full-size picture.</p>
+  <div class="glance">
+    <figure><a href="../verification/BPR-1106-composition-entries/A-mac-dark-1280x852.png"><img src="../verification/BPR-1106-composition-entries/A-mac-dark-1280x852.png" alt="A: the current row"></a>
+      <figcaption><b><span>A</span>The row, as built</b>
+        <dl><dt>Height</dt><dd>&minus;22 px macOS, &minus;20 Windows</dd><dt>Strip</dt><dd>+0 px</dd><dt>Clicks</dt><dd>1 and 1</dd></dl></figcaption></figure>
+    <figure><a href="../verification/BPR-1106-composition-entries/B-mac-dark-1280x852.png"><img src="../verification/BPR-1106-composition-entries/B-mac-dark-1280x852.png" alt="B: the strip's review menu, open"></a>
+      <figcaption><b><span>B</span>The strip's review menu</b>
+        <dl><dt>Height</dt><dd>0</dd><dt>Strip</dt><dd>+0 px</dd><dt>Clicks</dt><dd>2 and 2</dd></dl></figcaption></figure>
+    <figure><a href="../verification/BPR-1106-composition-entries/C-mac-dark-1280x852.png"><img src="../verification/BPR-1106-composition-entries/C-mac-dark-1280x852.png" alt="C: the Updates line's right end"></a>
+      <figcaption><b><span>C</span>The Updates line's end</b>
+        <dl><dt>Height</dt><dd>0</dd><dt>Strip</dt><dd>+0 px</dd><dt>Clicks</dt><dd>1 and 1</dd></dl></figcaption></figure>
+    <figure><a href="../verification/BPR-1106-composition-entries/D-mac-dark-1280x852.png"><img src="../verification/BPR-1106-composition-entries/D-mac-dark-1280x852.png" alt="D: the conversation drawer's foot"></a>
+      <figcaption><b><span>D</span>The conversation drawer's foot</b>
+        <dl><dt>Height</dt><dd>0 (36 from the drawer)</dd><dt>Strip</dt><dd>+0 px</dd><dt>Clicks</dt><dd>1 and 1; 2 with the drawer hidden</dd></dl></figcaption></figure>
+    <figure><a href="../verification/BPR-1106-composition-entries/E-mac-dark-1280x852.png"><img src="../verification/BPR-1106-composition-entries/E-mac-dark-1280x852.png" alt="E: a Compose control in the strip"></a>
+      <figcaption><b><span>E</span>A Compose control in the strip</b>
+        <dl><dt>Height</dt><dd>0</dd><dt>Strip</dt><dd>+59 px</dd><dt>Clicks</dt><dd>1 and 2</dd></dl></figcaption></figure>
+  </div>
+
+  <h2>Close up</h2>
+  <p class="note">The same macOS dark frames at full size, cut to where the entries are.</p>
+  <div class="closeups">
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-A-mac-dark.png" alt="A close up: the entry row under the strip"><figcaption><b>A</b> The row between the strip and the Updates line.</figcaption></figure>
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-B-mac-dark.png" alt="B close up: the review menu open"><figcaption><b>B</b> The review menu, open: "Your review" above "Private progress".</figcaption></figure>
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-C-mac-dark.png" alt="C close up: the Updates line's right end"><figcaption><b>C</b> After "Comparing since my last review", past a divider.</figcaption></figure>
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-D-mac-dark.png" alt="D close up: the conversation drawer's foot"><figcaption><b>D</b> The foot of the conversation drawer, bottom right, above the status line.</figcaption></figure>
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-E-mac-dark.png" alt="E close up: the Compose control in the strip"><figcaption><b>E</b> The pen and arrow before Review details. In the mock the identity gives way to make room; in the product its yields decide what goes first.</figcaption></figure>
+  </div>
+  <h3>While a pull request loads</h3>
+  <div class="closeups">
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-A-mac-dark-loading.png" alt="A loading close up"><figcaption><b>A</b> The readiness line, then the entry row, then the Updates line.</figcaption></figure>
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-B-mac-dark-loading.png" alt="B loading close up"><figcaption><b>B</b>, and <b>D</b> and <b>E</b> alike: the readiness line's own row, as today.</figcaption></figure>
+    <figure><img src="../verification/BPR-1106-composition-entries/closeup-C-mac-dark-loading.png" alt="C loading close up"><figcaption><b>C</b> The readiness words in the Updates line's track: no row comes or goes.</figcaption></figure>
+  </div>
+
+  <h2>What each costs, to scale</h2>
+  <div class="ledgers">
+    <div class="ledger">
+      <h3>The window's height, 1280&times;852 on macOS</h3>
+      <p class="note">One pixel here is four in the window. The comparison is what is left after the rows above and below it.</p>
+      <div class="heights">
+        <div class="axis"><span style="top:0">0</span><span style="top:106.5px">426</span><span style="top:213px">852</span></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="entry" style="height:5.5px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>746</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>A</b> 875&permil;</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>768</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>B</b> 901&permil;</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>768</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>C</b> 901&permil;</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>768</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>D</b> 901&permil;</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>768</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>E</b> 901&permil;</div></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--band-strip)"></i>strip 30</span><span><i style="background:var(--band-entry)"></i>entry row 22 (20 on Windows)</span><span><i style="background:var(--band-updates)"></i>Updates line 34</span><span><i style="background:var(--band-code)"></i>comparison</span><span><i style="background:var(--band-status)"></i>status 20</span></div>
+      <h3 class="then">While a pull request loads</h3>
+      <div class="heights">
+        <div class="axis"><span style="top:0">0</span><span style="top:106.5px">426</span><span style="top:213px">852</span></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="ready" style="height:7px"></i><i class="entry" style="height:5.5px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>jumps 28</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>A</b> row above the entries</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="ready" style="height:7px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>jumps 28</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>B</b> its own row</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>no jump</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>C</b> in the Updates line</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="ready" style="height:7px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>jumps 28</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>D</b> its own row</div></div>
+        <div class="col"><div class="stack"><i class="strip" style="height:7.5px"></i><i class="ready" style="height:7px"></i><i class="updates" style="height:8.5px"></i><i class="code"><em>jumps 28</em></i><i class="status" style="height:5px"></i></div><div class="cap"><b>E</b> its own row</div></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--band-ready)"></i>readiness line, about 28</span><span>A "jump" is the window moving up when the line leaves as the comparison becomes ready.</span></div>
+    </div>
+    <div class="ledger">
+      <h3>The Windows strip at its 902-pixel floor</h3>
+      <p class="note">BPR-0653 measured it: every control stays in the strip from 902 pixels, with nothing to spare, after
+      the identity, positions and modality labels have given way. One pixel here is two.</p>
+      <div class="widths">
+        <div class="wrow"><b>A</b><div class="wbar"><i class="floor"></i><i class="edge"></i><span class="in">902, fits</span></div></div>
+        <div class="wrow"><b>B</b><div class="wbar"><i class="floor"></i><i class="edge"></i><span class="in">902, fits: the same 55 px button</span></div></div>
+        <div class="wrow"><b>C</b><div class="wbar"><i class="floor"></i><i class="edge"></i><span class="in">902, fits: nothing added</span></div></div>
+        <div class="wrow"><b>D</b><div class="wbar"><i class="floor"></i><i class="edge"></i><span class="in">902, fits: nothing added</span></div></div>
+        <div class="wrow"><b>E</b><div class="wbar"><i class="floor"></i><i class="over" style="width:4.9%"></i><i class="edge"></i><span class="in">902</span><span class="out" style="left:calc(79.9% + 8px)">+59, past the floor</span></div></div>
+      </div>
+      <p class="note" style="margin-top:12px">E adds one control of the Private progress button's form, 55 pixels measured
+      (BPR-1036's capture), plus 4 of spacing. Either the Windows floor rises to 961, or one more yield is designed. On
+      macOS the strip needs 806 at its 900 floor and E fits.</p>
+      <h3 style="margin-top:18px">The Updates line's track (C only)</h3>
+      <p class="note">On the mock, C's two labelled buttons and divider take 303 pixels of the track at every width:
+      1000 becomes 697 at 1280, and 1640 becomes 1337 at 1920. At the 900 floor about 300 would be left, so there the labels
+      would give way to their icons first and leave about 540.</p>
+    </div>
+  </div>
+
+  <h2>Every cost, side by side</h2>
+  <table>
+    <thead><tr><th></th><th><b>A</b>The row</th><th><b>B</b>Review menu</th><th><b>C</b>Updates line end</th><th><b>D</b>Drawer foot</th><th><b>E</b>Strip control</th></tr></thead>
+    <tbody>
+      <tr><th>Height taken from the comparison</th><td class="cost">22 px on macOS, 20 on Windows and Linux, in every mode (746 of 852, 875&permil;)</td><td class="good">0 (768 of 852, 901&permil;)</td><td class="good">0</td><td class="good">0; the conversation drawer's thread column gives 36</td><td class="good">0</td></tr>
+      <tr><th>Strip width at the Windows 902 floor</th><td class="good">0</td><td class="good">0: same button, same 55 px</td><td class="good">0</td><td class="good">0</td><td class="cost">+59: floor to 961, or a new yield</td></tr>
+      <tr><th>Clicks to Compose review</th><td class="good">1</td><td class="cost">2: open the menu, choose</td><td class="good">1</td><td>1, or 2 with the drawer hidden</td><td class="good">1</td></tr>
+      <tr><th>Clicks to Draft comment or reply</th><td class="good">1</td><td class="cost">2</td><td class="good">1</td><td>1, or 2 with the drawer hidden</td><td class="cost">2: the arrow, then choose</td></tr>
+      <tr><th>Keyboard reach</th><td>Two Tab stops after the Updates line's controls, before the comparison; no shortcut</td><td class="good">Alt+Shift+4 (today's Private progress shortcut), then C or D: two keys from anywhere</td><td>The same Tab stops as A, right after "Comparing"; no shortcut</td><td>Alt+Shift+2 shows the drawer; the two are its last Tab stops</td><td>One Tab stop in the strip, before Review details; no shortcut</td></tr>
+      <tr><th>Where the readiness line goes</th><td>Its own row above the entry row while loading, as today (about 28 px)</td><td>Its own row under the strip while loading, as today</td><td class="good">Inside the Updates line, in the track's place; no row comes or goes</td><td>Its own row under the strip while loading, as today</td><td>Its own row under the strip while loading, as today</td></tr>
+      <tr><th>Seen without looking for it</th><td class="good">Always, as labelled buttons</td><td class="cost">No: behind a check-mark icon</td><td class="good">Always, as labelled buttons</td><td>While the drawer is shown</td><td>An icon, always in view</td></tr>
+    </tbody>
+  </table>
+
+  <!-- A -->
+  <section class="placement" id="A">
+    <header><span class="letter">A</span><h2>The row, as built (the baseline)</h2>
+      <p>Two labelled buttons on a row of their own between the strip and the Updates line: RFC-BPR-0037's entries, where
+      BPR-0929 put them. Plain to find, but the row is mostly empty and costs the comparison 22 pixels on macOS in every
+      mode.</p></header>
+    <div class="body">
+      <div class="frames">
+        <div class="row-label">macOS</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-mac-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-mac-dark-1280x852.png" alt="A, macOS, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-mac-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-mac-light-1280x852.png" alt="A, macOS, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-mac-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-mac-dark-1920x1080.png" alt="A, macOS, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-mac-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-mac-light-1920x1080.png" alt="A, macOS, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">Windows</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-win-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-win-dark-1280x852.png" alt="A, Windows, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-win-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-win-light-1280x852.png" alt="A, Windows, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-win-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-win-dark-1920x1080.png" alt="A, Windows, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/A-win-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-win-light-1920x1080.png" alt="A, Windows, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">While a pull request loads (macOS, 1280&times;852)</div>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/A-mac-dark-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-mac-dark-1280x852-loading.png" alt="A loading, dark"></a><figcaption>Dark: the readiness line, then the entry row</figcaption></figure>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/A-mac-light-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/A-mac-light-1280x852-loading.png" alt="A loading, light"></a><figcaption>Light</figcaption></figure>
+      </div>
+      <aside class="needs"><h3>If chosen</h3><ul>
+        <li>Nothing to build. RFC-BPR-0028 AC-01 already admits the row (the 2026-09-24 amendment).</li>
+        <li>BPR-1036's floor stays at 835/842 of 1000 and BPR-0940's assertion stays.</li>
+        <li>This card records the choice and closes.</li></ul></aside>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="placement" id="B">
+    <header><span class="letter">B</span><h2>The strip's review menu</h2>
+      <p>The Private progress button keeps its place, width and Alt+Shift+4. Its menu gains a "Your review" section above
+      Seen, Read, Accept and Exclude. It costs nothing in height or width. But both entries are two clicks away, behind an
+      icon that says "progress", and composing sits next to private receipts that never leave this computer.</p></header>
+    <div class="body">
+      <div class="frames">
+        <div class="row-label">macOS, menu open</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-mac-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-mac-dark-1280x852.png" alt="B, macOS, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-mac-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-mac-light-1280x852.png" alt="B, macOS, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-mac-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-mac-dark-1920x1080.png" alt="B, macOS, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-mac-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-mac-light-1920x1080.png" alt="B, macOS, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">Windows, menu open</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-win-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-win-dark-1280x852.png" alt="B, Windows, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-win-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-win-light-1280x852.png" alt="B, Windows, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-win-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-win-dark-1920x1080.png" alt="B, Windows, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/B-win-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-win-light-1920x1080.png" alt="B, Windows, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">While a pull request loads (macOS, 1280&times;852)</div>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/B-mac-dark-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-mac-dark-1280x852-loading.png" alt="B loading, dark"></a><figcaption>Dark: the readiness line keeps its own row</figcaption></figure>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/B-mac-light-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/B-mac-light-1280x852-loading.png" alt="B loading, light"></a><figcaption>Light</figcaption></figure>
+      </div>
+      <aside class="needs"><h3>If chosen</h3><ul>
+        <li>The button is renamed for what it now holds: accessible name "Review and private progress". The menu gains two
+          items and a section heading. There is no new command: the two actions exist.</li>
+        <li>The entry row goes. AC-01 and the chrome paragraph lose the row but keep the readiness line.</li>
+        <li>BPR-1036's floor rises by 22 on macOS and 20 on Linux. BPR-0940's window course asserts no entry row.</li></ul></aside>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="placement" id="C">
+    <header><span class="letter">C</span><h2>The Updates line's right end</h2>
+      <p>The two buttons follow "Comparing … &#9662;" after a divider, on the full-width line that already sits above the
+      drawers. The line ends where the review's latest update is, and your review answers that update, so composing sits
+      where the timeline ends. While a pull request loads, the readiness words and their progress bar take the track's
+      place, so no row appears or leaves and nothing below moves.</p></header>
+    <div class="body">
+      <div class="frames">
+        <div class="row-label">macOS</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-mac-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-mac-dark-1280x852.png" alt="C, macOS, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-mac-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-mac-light-1280x852.png" alt="C, macOS, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-mac-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-mac-dark-1920x1080.png" alt="C, macOS, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-mac-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-mac-light-1920x1080.png" alt="C, macOS, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">Windows</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-win-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-win-dark-1280x852.png" alt="C, Windows, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-win-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-win-light-1280x852.png" alt="C, Windows, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-win-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-win-dark-1920x1080.png" alt="C, Windows, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/C-win-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-win-light-1920x1080.png" alt="C, Windows, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">While a pull request loads (macOS, 1280&times;852)</div>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/C-mac-dark-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-mac-dark-1280x852-loading.png" alt="C loading, dark"></a><figcaption>Dark: the readiness words in the track's place</figcaption></figure>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/C-mac-light-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/C-mac-light-1280x852-loading.png" alt="C loading, light"></a><figcaption>Light</figcaption></figure>
+      </div>
+      <aside class="needs"><h3>If chosen</h3><ul>
+        <li>The epoch control gains a trailing place for the two existing actions. It also presents the readiness wording,
+          which the window already composes, in the track's place. Both are Qt presentation; no core state is new.</li>
+        <li>A narrow-width yield: the two labels give way to their icons before the track gets short. The accessible names
+          stay whole.</li>
+        <li>AC-01 and the chrome paragraph go back to "the strip, then the Updates line", with nothing between.</li>
+        <li>BPR-1036's floor rises by 22 and 20. BPR-0940's course asserts the entries inside the line.</li></ul></aside>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="placement" id="D">
+    <header><span class="letter">D</span><h2>The conversation drawer's foot</h2>
+      <p>A bar at the bottom of the conversation drawer, where writing follows reading: Draft comment or reply on the left,
+      Compose review on the right. It takes nothing from the comparison. But it goes when the drawer is hidden, which is
+      the owner's usual way to give the code more width, and the 280-pixel drawer at 1280 leaves room only for text,
+      not icons.</p></header>
+    <div class="body">
+      <div class="frames">
+        <div class="row-label">macOS</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-mac-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-mac-dark-1280x852.png" alt="D, macOS, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-mac-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-mac-light-1280x852.png" alt="D, macOS, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-mac-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-mac-dark-1920x1080.png" alt="D, macOS, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-mac-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-mac-light-1920x1080.png" alt="D, macOS, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">Windows</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-win-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-win-dark-1280x852.png" alt="D, Windows, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-win-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-win-light-1280x852.png" alt="D, Windows, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-win-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-win-dark-1920x1080.png" alt="D, Windows, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/D-win-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-win-light-1920x1080.png" alt="D, Windows, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">While a pull request loads (macOS, 1280&times;852)</div>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/D-mac-dark-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-mac-dark-1280x852-loading.png" alt="D loading, dark"></a><figcaption>Dark: the readiness line keeps its own row</figcaption></figure>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/D-mac-light-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/D-mac-light-1280x852-loading.png" alt="D loading, light"></a><figcaption>Light</figcaption></figure>
+      </div>
+      <aside class="needs"><h3>If chosen</h3><ul>
+        <li>The conversation drawer gains a foot with the two existing actions. Discuss, where the drawer gives way to the
+          main conversation, needs the same foot under its conversation list. That is a second placement to build and to
+          test.</li>
+        <li>With the drawer hidden, the entries are reached by showing it first (Alt+Shift+2). The implementation card
+          decides whether anything else answers that.</li>
+        <li>AC-01 loses the row. BPR-1036's floor rises by 22 and 20.</li></ul></aside>
+    </div>
+  </section>
+
+  <!-- E -->
+  <section class="placement" id="E">
+    <header><span class="letter">E</span><h2>A Compose control in the strip</h2>
+      <p>The layout study's own answer ("Compose review entry in toolbar", RFC-BPR-0037). One control, pen and arrow, in the
+      strip's right group: a click composes, and the arrow offers Draft comment or reply. It takes no height, but it is
+      the one placement that costs the Windows strip width. There the strip already fits its floor with nothing to spare.</p></header>
+    <div class="body">
+      <div class="frames">
+        <div class="row-label">macOS</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-mac-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-mac-dark-1280x852.png" alt="E, macOS, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-mac-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-mac-light-1280x852.png" alt="E, macOS, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-mac-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-mac-dark-1920x1080.png" alt="E, macOS, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-mac-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-mac-light-1920x1080.png" alt="E, macOS, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">Windows</div>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-win-dark-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-win-dark-1280x852.png" alt="E, Windows, dark, 1280 by 852"></a><figcaption>Dark, 1280&times;852: the identity has already given way</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-win-light-1280x852.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-win-light-1280x852.png" alt="E, Windows, light, 1280 by 852"></a><figcaption>Light, 1280&times;852</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-win-dark-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-win-dark-1920x1080.png" alt="E, Windows, dark, 1920 by 1080"></a><figcaption>Dark, 1920&times;1080</figcaption></figure>
+        <figure><a href="../verification/BPR-1106-composition-entries/E-win-light-1920x1080.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-win-light-1920x1080.png" alt="E, Windows, light, 1920 by 1080"></a><figcaption>Light, 1920&times;1080</figcaption></figure>
+        <div class="row-label">While a pull request loads (macOS, 1280&times;852)</div>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/E-mac-dark-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-mac-dark-1280x852-loading.png" alt="E loading, dark"></a><figcaption>Dark: the readiness line keeps its own row</figcaption></figure>
+        <figure class="loading"><a href="../verification/BPR-1106-composition-entries/E-mac-light-1280x852-loading.png"><img loading="lazy" src="../verification/BPR-1106-composition-entries/E-mac-light-1280x852-loading.png" alt="E loading, light"></a><figcaption>Light</figcaption></figure>
+      </div>
+      <aside class="needs"><h3>If chosen</h3><ul>
+        <li>A new strip control: a split tool button over the two existing actions.</li>
+        <li>On Windows, 59 more pixels at the floor. Either the floor rises from 902 to 961, or a new yield is designed.
+          Either way BPR-0653's width sweep runs again.</li>
+        <li>AC-01 loses the row. BPR-1036's floor rises by 22 and 20.</li></ul></aside>
+    </div>
+  </section>
+
+  <section class="proposal-block">
+    <h2>Why C is proposed</h2>
+    <ul>
+      <li><b>It gives the comparison its pixels back</b> (22 on macOS, 20 elsewhere, in every mode) and puts nothing in the
+        Windows strip, which has no room.</li>
+      <li><b>It keeps one click to each entry, with labels always in view.</b> Among A's virtues, only these two could be
+        kept for free.</li>
+      <li><b>It settles the loading line too.</b> Today a 28-pixel row comes and goes above the chrome while a pull request
+        loads. In C the words sit in the line's empty track, so the window does not jump when loading ends.</li>
+      <li><b>Its cost is the Updates line's track:</b> 303 pixels of it at every width, which at 1280 still leaves 697.
+        At the narrowest windows the labels give way to icons.</li>
+    </ul>
+    <p class="note">Runner-up: D, if composing should sit with the conversation. Its gap is the hidden drawer. B is the
+    cheapest to build but hides both entries. E is the familiar toolbar answer, but it spends width the Windows strip does
+    not have.</p>
+  </section>
+
+  <footer>
+    <h2>How the frames were made</h2>
+    <p>Every frame is <a href="BPR-1106-composition-entries-frames-v1.html">the frames file</a> with query parameters for
+    placement, appearance, platform, size and state. It uses the accepted surface's tokens as they are. Headless Chrome
+    rendered each one at exactly its window size with device scale 1, and each was then reduced to a 256-colour PNG. The
+    frames were looked at, not only written.</p>
+    <p>The heights are exact for the mock and match the product's row heights: 22 on macOS and 20 on Windows, measured by
+    BPR-1036 and BPR-0653. The Windows floor numbers are BPR-0653's measurements of the product, not the mock's. On this
+    Mac the Windows frames fall back to the Mac's type, so their widths are indicative. At 1280 the Windows frames take the
+    compact modality labels, the yield the product takes first.</p>
+    <p>Out of scope here: shortcuts for the two actions, and showing whether a draft is kept. Either can be added to any
+    placement on its implementation card.</p>
+  </footer>
+</main>
+</body>
+</html>
