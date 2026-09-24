@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0887"
 title: "Nested progress scopes reset the handler to null, silently discarding the store-level step ceiling"
-status: "In Progress"
+status: "Blocked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+blocked_by: "windows-copied-store-refusal"
 ---
 
 # BPR-0887: Nested progress scopes reset the handler to null, silently discarding the store-level step ceiling
@@ -314,3 +315,39 @@ copied entry, and it is on that card.
 So the SQLite suite shows nothing new on Windows. Only the pre-existing
 copied-root row stays red, and it has its own record. The logs are station
 records under `build/logs/bpr-0887-1046-main-win/` and are not committed.
+
+## Blocked on the pre-existing Windows row (bpr-main-linux, 2026-09-23)
+
+All three runs are now recorded, and AC2 is not met as written. The suite
+passes on macOS (18/18 at the time) and on Linux (19/19). On Windows it
+passes 19 of 20. The failure is not this change's: the test file has not
+changed since 2026-09-13, and the row failed the same way at `86b04901` on
+2026-09-17, six days before `7eec1053`. But it stops
+`sqlite_epoch_catalog_behavior_contract` at line 1,792 of 6,661
+(`epoch_catalog_behavior_tests.cpp`). Every check after that line did not
+run on Windows, and this change touched the epoch catalog's
+`progress_guard`. A pre-existing failure explains the red row. It does not
+supply the evidence the row was meant to give.
+
+So the card moves to Blocked, `blocked_by: windows-copied-store-refusal`.
+It does not finish on 19 of 20.
+
+| Criterion | macOS | Linux | Windows |
+|---|---|---|---|
+| AC1, the outer ceiling survives a nested `execute` | Pass (`7eec1053`) | Pass (`c127cb38`), in `sqlite_device_binding_storage` | Pass (`2532ca6e`), in `sqlite_device_binding_storage` |
+| AC2, the SQLite suite passes | Pass | Pass, 19/19 | **19/20.** `sqlite_epoch_catalog_behavior_contract` stops at line 1,792, the pre-existing copied-root refusal |
+| AC3, the comment is true | Pass | n/a | n/a |
+
+**What unblocks it.** Either of these:
+
+- **bpr-main-win:** `sqlite_epoch_catalog_behavior_contract` passes on
+  Windows at a head that contains `7eec1053`. That needs the fix for
+  [[BPR-0878]]'s item 2: a test-side copy that narrows each copied entry,
+  as [[BPR-0876]] needs for its review-restoration course. Item 2 has no card
+  of its own yet. [[BPR-0878]] is intake and asks for one. Then rerun the
+  card's Windows selector and expect 20/20.
+- **The owner** amends AC2 to accept Windows' 19 of 20, with the failing row
+  classified as above.
+
+Either way, move the card back to In Progress and finish it with the
+records above.
