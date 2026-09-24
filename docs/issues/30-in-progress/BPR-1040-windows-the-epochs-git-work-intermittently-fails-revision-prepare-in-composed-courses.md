@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1040"
 title: "Windows: the epoch's Git subprocess intermittently fails revision-prepare in composed courses"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
