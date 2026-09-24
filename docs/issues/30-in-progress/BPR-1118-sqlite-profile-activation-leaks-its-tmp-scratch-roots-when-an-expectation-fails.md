@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1118"
 title: "sqlite_profile_activation leaks /tmp/bpr-act-* and /tmp/bpr-xdg-* when an expectation fails, because expect calls std::exit"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
