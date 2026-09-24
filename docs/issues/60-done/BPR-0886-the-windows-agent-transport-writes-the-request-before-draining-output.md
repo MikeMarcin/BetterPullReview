@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0886"
 title: "Windows: the agent transport writes the whole request before draining any child output, so a chatty child stalls to timeout"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable agent partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"A child that emits more than the pipe buffer before reading its input completes, proven by a contract row on Windows","outcome":"pass","revision":"552a3d44","evidence":{"kind":"command","detail":"bpr-main-win, build/dev MSVC 19.51 Debug, contained as registered: qt_agent_launch_canary passes (108.12 s) with test_output_before_input_does_not_stall_the_request, where the canary writes 64 KiB to stderr before reading a 13,048-byte request (12 KiB draft) for codex_jsonl_exec, claude_stream_json and external_terminal; each run succeeds under 10 s of a 20 s timeout, keeps the 64 KiB stderr whole, and the child's reported length and FNV-1a digest match the request. Negative control: the same row against the transport as at 585d8846 ends at the timeout, 'BPR-0886 protocol 1: request 13048 bytes, outcome 6, 20012 ms', FAILED: a child that writes before it reads its request completes.","path":"docs/issues/60-done/BPR-0886-the-windows-agent-transport-writes-the-request-before-draining-output.md#reproduced-fixed-and-proven-on-windows-bpr-main-win-2026-09-23"}},{"criterion":"The card records whether any shipped agent was affected","outcome":"pass","revision":"552a3d44","evidence":{"kind":"freeform","detail":"Recorded as not established: codex.exe and claude.exe are installed on the station, but running either is a live agent run, which the station does not make. The card states that the transport no longer depends on the answer: a child may write up to the loop's ceilings before reading."}},{"criterion":"macOS and Linux agent behaviour is unchanged","outcome":"pass","revision":"552a3d44","evidence":{"kind":"freeform","detail":"The transport change is in windows_agent_process.cpp, compiled only on Windows; the POSIX QProcess transport is untouched and already services both directions while writing. The new canary switch and test run on every platform and are expected to pass there; bpr-main-mac and bpr-main-linux are asked to run qt_agent_launch_canary in their next sweeps."}}]
 ---
 
 # BPR-0886: Windows: the agent transport writes the whole request before draining any child output, so a chatty child stalls to timeout
