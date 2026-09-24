@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1045"
 title: "A throw in the entry point's run setup prints STARTUP_FAILED and never exits"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
