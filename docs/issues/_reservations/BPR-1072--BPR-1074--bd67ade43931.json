@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1072",
+    "BPR-1073",
+    "BPR-1074"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows station findings: AppContainer E_UNEXPECTED race; window rows read link map too early; direct launch unresponsive after first paint",
+  "created": "2026-09-24T04:37:53.387757+00:00",
+  "base": "3234b8abd04ec278bad8fd53749f8032245f1929"
+}
