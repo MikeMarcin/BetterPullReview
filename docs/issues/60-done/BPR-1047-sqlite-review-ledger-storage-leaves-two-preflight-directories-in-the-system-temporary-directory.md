@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1047"
 title: "sqlite_review_ledger_storage leaves two bpr-ledger-preflight-* directories in the system temporary directory after every run"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-main-linux, BPR-0883's runs","confirmed_at":"78c8ac85","introduced_by":"38c10c33 (BPR-0250)","related_cards":["BPR-0250","BPR-0883"],"run":"bpr-main-linux-20260923","reservation":"docs/issues/_reservations/BPR-1046--BPR-1047--4cc848046b0e.json"}
+acceptance: [{"criterion":"AC1 On Linux, with TMPDIR pointed at an empty directory, sqlite_review_ledger_storage passes and leaves no bpr-ledger-preflight-* entry, and still asserts the refusal and the surviving sentinel","outcome":"pass","revision":"84538d65","evidence":{"kind":"command","detail":"bpr-main-linux, build/dev, ctest -j1 with a fresh owner-private TMPDIR: passed in 1.03 s and TMPDIR was empty, also with a trailing '/'; all 19 tests/sqlite_contract rows in one TMPDIR left it empty.","path":"docs/issues/60-done/BPR-1047-sqlite-review-ledger-storage-leaves-two-preflight-directories-in-the-system-temporary-directory.md#linux-run-bpr-main-linux-2026-09-23"}},{"criterion":"AC2 A negative control proves the check can fail: with the new removal taken out, the same run leaves the two directories again","outcome":"pass","revision":"84538d65","evidence":{"kind":"command","detail":"Linux: with the call replaced by static_cast<void>(&remove_retained_preflight_root) the row passed and left both directories in their original shapes. macOS repeated the control through the direct sandboxed run and saw the same two directories.","path":"docs/issues/60-done/BPR-1047-sqlite-review-ledger-storage-leaves-two-preflight-directories-in-the-system-temporary-directory.md#linux-run-bpr-main-linux-2026-09-23"}},{"criterion":"AC3 On macOS and Windows the row passes and leaves no bpr-ledger-preflight-* entry in the temporary directory","outcome":"pass","revision":"8e49aae7 (macOS); b6a31cff (Windows)","evidence":{"kind":"command","detail":"macOS (bpr-main-mac): the direct sandbox-exec run of the row's executable with a kept TMPDIR passed and left it empty; its negative control left both directories, so the route can fail (the ctest route cannot on macOS and is not counted). Windows (bpr-main-win): uncontained row, TMP/TEMP pointed at a fresh directory, ctest passed in 2.57 s and the directory was empty afterwards.","path":"docs/issues/60-done/BPR-1047-sqlite-review-ledger-storage-leaves-two-preflight-directories-in-the-system-temporary-directory.md#closed-ac3-is-met-on-macos-and-windows-bpr-main-linux-2026-09-24"}}]
 ---
 
 # BPR-1047: sqlite_review_ledger_storage leaves two bpr-ledger-preflight-* directories in the system temporary directory after every run
