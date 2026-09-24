@@ -222,3 +222,20 @@ ctest --preset dev --output-on-failure -R '^(sqlite_profile_activation|msvc_secu
   recorded.
 - **AC5: pending.** The macOS and Windows runs above are owed. The card stays
   In Progress on this station's claim until they are supplied.
+
+## macOS station, 2026-09-24 (bpr-main-mac): the owed macOS run passes
+
+Run at `9e36f157`, which contains `bb1e93f7`, with a clean tree, on Apple
+clang 16, arm64, macOS 26.6.2.
+
+- `cmake --build --preset dev --target test_profile_activation` exits 0. It
+  rebuilds `profile_activation_tests.cpp` and links it, with no warning.
+- `ctest --preset dev --output-on-failure -R
+  '^(sqlite_profile_activation|msvc_secure_crt_contract)$'`: 2 of 2 pass.
+  `msvc_secure_crt_contract` takes 0.44 s and `sqlite_profile_activation`
+  4.57 s.
+- No `bpr-act-*` or `bpr-xdg-*` root is left in `/tmp` or `$TMPDIR` after the
+  run. There were none before it.
+
+**AC5, macOS half: pass.** The Windows run is still owed. This station leaves
+the card where it is, In Progress on the Linux station's claim.
