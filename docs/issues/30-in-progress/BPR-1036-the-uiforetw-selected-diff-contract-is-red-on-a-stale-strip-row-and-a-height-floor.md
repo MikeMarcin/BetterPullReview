@@ -161,5 +161,293 @@ the reveal refusals and `UIFORETW_FOCUSED_LAYOUT_STALLED`.
 | Linux, BPR-0864 known-red check | `3dca2d7a` candidate | Fail: same two lines | `build/r2-logs/bpr0864-known-red-candidate.log` |
 | macOS, BPR-0863 | `1dfe0600` | Fail: `23=refreshQueueAction`, `985:835` | `build/bpr0863-mac-uiforetw.log` (bpr-main-mac) |
 | Linux, this card | `4a4c1e40` | Fail: `actions=28`, `987:842`, 2.02 s | `build/r2-logs/bpr1036-uiforetw-head-4a4c1e40.log` |
+| Linux, this card, HEAD | `c127cb38` | Fail: `actions=28`, `987:842`, 2.08 s | `build/r2-logs/bpr1036-uiforetw-head-c127cb38.log` |
+| Linux, candidate | `c127cb38` + candidate | Fail at the layout floor only, naming the entry row; 2.05 s | `build/r2-logs/bpr1036-c2-rows.log` |
+| Linux, candidate, entry row hidden (diagnostic) | `c127cb38` + candidate + break 100 | Pass, 862/1000 in all four profiles, 20.90 s and 15.55 s | `build/r2-logs/bpr1036-diag-break100.log`, `…-break100-rerun.log` |
 
 Logs without a station name are on bpr-main-linux. None are committed.
+
+## Diagnosis and candidate (bpr-main-linux, 2026-09-23)
+
+Station bpr-main-linux: WSL2 Ubuntu, GCC 15.2, Qt 6.11.2, offscreen with the
+basic Windows style. Every run used a fresh `HOME` and fresh XDG roots, with
+`DISPLAY` and `WAYLAND_DISPLAY` unset. The base is `c127cb38` (this card's
+claim, on `669a5a58`).
+
+### Cause 1: the strip row
+
+The exact row now carries `window->queue_refresh_action()` at 23, straight
+after `github_refresh_action()`, and everything after it moves along by one.
+That is 28 actions off Windows. On Windows the same `lead` and `trailing`
+offsets make 30, and `workbenchCaptionButtonsAction` is still the last one, at
+`named(28)`, index 29. The row is still asserted whole, in order and exactly,
+and hidden actions are not skipped. The `[[BPR-0859]]` comment no longer gives
+a count; a `[[BPR-1036]]` paragraph says why the hidden action is in the row.
+With the candidate, the capture prints no `UIFORETW_NAVIGATION_ROW_UNEXPECTED`
+line, and the diagnostic run below records `navigation_row_exact_order: true`
+in all four profiles. Against HEAD's expectation of 27, the same window prints
+`actions=28` (`bpr1036-uiforetw-head-c127cb38.log`). That is the negative
+control.
+
+### Cause 2: what took the height
+
+`UIFORETW_CAPTURE_LAYOUT_FAILED` now prints the window, the menu bar, the
+strip, the epoch line, the comparison and the status bar, as `y+height` or
+`hidden`/`absent`. After that it prints every shown widget stacked above or
+below the comparison's branch, at every level up to the window (`stack=`).
+Then comes the height no stacked row accounts for (`unstacked=`: margins and
+spacing), the widgets beside the comparison (`beside=`), and the modality facts.
+At the candidate:
+
+```text
+UIFORETW_CAPTURE_LAYOUT_FAILED:987:842 width_floor=750 height_floor=850
+window=1280x1000 menu_bar=0+19 strip=19+30 epoch_line=69+50
+comparison=0,139 1264x842 status_bar=981+19
+stack=workbenchMenuBar@0+19,workbenchPrimaryToolbar@19+30,composeReviewActionButton@49+20,composeInlineDraftActionButton@49+20,epochComparisonControl@69+50,diffWorkbenchStatus@119+14,QStatusBar@981+19
+unstacked=6 beside=diffSharedScrollBar@1264+16 modality=Review host_modality=Review centre=comparison …
+```
+
+The rows add up to the window: 19 + 30 + 20 + 50 + 14 + 6 + 842 + 19 = 1000.
+
+**What took the height is RFC-BPR-0037's composition entry row**: Compose
+review and Draft comment or reply, from `cc038748` ([[BPR-0929]]). The review
+surface inserts it above the epoch line (`review->insertLayout(1, …)`), and it
+is 20 px at y 49. It is the only row in the stack that is new in
+`271bb452..dec43dda`:
+
+- `cc038748` is in `dec43dda` and not in `271bb452`.
+- The menu bar (`f1ca3058`, [[BPR-0457]]), the full-width epoch line
+  (`4ebb0009`, [[BPR-0737]]) and the comparison's status line (`da39b3ad`)
+  are all ancestors of `271bb452`.
+- [[BPR-0795]]'s readiness line is in the range too, but it is hidden here.
+
+It is the same row that [[BPR-0653]] and [[BPR-1021]] found between the strip
+and the epoch line on Windows (`composeReviewActionButton@30+20`).
+
+**Counterfactual.** A diagnostic build hid only those two buttons; it is not
+committed. With the candidate otherwise unchanged, the comparison was 862/1000
+in all four profiles and the whole row passed: 20.90 s, and 15.55 s on the
+rerun. `capture-facts.json` for light is kept as
+`build/r2-logs/bpr1036-diag-break100-light-capture-facts.json`.
+
+So the entry row is the whole of the Linux height regression, and together
+with the strip row it is the whole failure on Linux.
+
+**Limit.** `271bb452` was not rebuilt here. It predates the Qt 6.11.2 pin
+(`92c4e159`), and this station caches only 6.11.2. The 862 is measured at
+HEAD with the row removed, not at `271bb452`. BPR-0875's pass log from
+`271bb452` is on bpr-linux.
+
+**AC2's broken run.** A second diagnostic build kept the entry row hidden and
+forced BPR-0795's readiness line on (break 101). It failed with its own name:
+`…:987:836 … stack=…,reviewReadiness@49+26,epochComparisonControl@75+50,…`
+(`build/r2-logs/bpr1036-diag-break101.log`). The line names whichever row
+takes the room.
+
+### Product or floor: the owner's call, already asked on BPR-0653
+
+The floor is not stale, so this card does not lower it:
+
+- 850/1000 of the window's height is the owner's space budget from
+  [[BPR-0246]]: "every surface other than the two code panes and their gutter
+  is on a strict space budget in the review state", and "the focused state must
+  not reserve large persistent regions for any non-diff surface".
+- The course script asserts the same 850 on its own
+  (`comparison_height LESS 850`).
+- Lowering it would admit the entry row by the back door.
+
+This card does not move the entries either:
+
+- Where they belong is already the owner's pending decision, ask 3 on
+  [[BPR-0653]] (restated at `919e2154`, and tracked for [[BPR-1021]]).
+  Either RFC-BPR-0028 AC-01 and the chrome paragraph are amended to admit the
+  review surface's entry row, or the two entries move out of it, for example
+  into the strip's review controls menu.
+- RFC-BPR-0037's own layout study put the Compose review entry "in toolbar"
+  (`conversation-surface-layout-study.md`).
+- The owner accepted the Compose pages natively (`rfc0037-compose-pages`),
+  but that accept did not place the entry row.
+- Moving the entries here would answer that question without the owner, in
+  code the Mac integrator is currently correcting for RFC-BPR-0037.
+
+Each answer settles this card:
+
+- **The entries move out of the row.** The floor stays at 850. Re-run this
+  row on Linux and macOS; on Linux it is expected to pass at 862.
+- **AC-01 is amended to admit the row.** The owner's BPR-0246 budget then
+  admits it too. This card takes the floor from the measured stacks: 842 on
+  Linux, plus the macOS figure. It records the amendment here, changes the
+  floor in both the capture and the course script, and adds the entry row
+  to `docs/ux/workbench-specification.md`'s primary layout.
+
+So the card is Blocked on `owner-entry-row-placement` until BPR-0653's ask 3
+is answered. **When the owner is asked, tell them this answer also decides
+this card's floor.** No attended session was started and no owner question
+was put by this dispatch.
+
+### Cause 3: the waits
+
+`awaiting_observation`, both gesture-qualified caps and the six silent
+`512U` caps now return through BPR-1037's shared `keep_waiting`. That is
+BPR-0864's shape: `wait(term, facts)` and `advance(phase)`, 5 s of wall clock
+with a floor of 16 calls, and the `course_modality_facts` tail. `advance` is
+the only thing that restarts the clock, and every phase change now goes
+through it. The probe state gains a `detail::fixture_probe_wait`.
+
+A publication wait takes its term from whether the drawer's selection
+registered: `…_SELECTION_STALLED` if it did not, `…_PUBLICATION_STALLED` if
+it did. Every diff term prints the same facts:
+
+- the path;
+- the file selections, or the intent dispatches, against their expected
+  counts;
+- the current row;
+- begins, publications against the expected count, and failures;
+- the last publication's path and both blobs against the expected blobs;
+- whether the comparison holds a result, and whether that result is the
+  publication's;
+- the diff and epoch jobs.
+
+The change-group walk's cap and its refusal now fail as
+`UIFORETW_RC_CHANGE_WALK_EXHAUSTED` and `…_REFUSED`. Both print how far the
+walk went, the group count, the target and selected group indexes, and Next
+change's enablement. The tick-bounded, already-named waits are unchanged:
+`UIFORETW_REVIEW_PANES_HIDDEN`, both `…_ROLE_PAINT_STALLED`, the reveal
+refusals and `UIFORETW_FOCUSED_LAYOUT_STALLED`.
+
+Each term fired in its own deliberately broken run of the full course. The
+diagnostic patch (`build/r2-logs/bpr1036-diagnostic-patch.py`, selected by
+`BPR1036_BREAK`) was applied, built, run, and reverted. None of the logs holds
+`RUN_BUDGET_EXPIRED`.
+
+| Break | What was broken | Term | Waited | Run elapsed |
+|---|---|---|---|---|
+| 1 | the handoff never reaches `WorkbenchHost->observe` | `UIFORETW_OBSERVATION_STALLED` | 5001 ms | 14.9 s |
+| 2 | the Resource.h drawer selection is never made | `UIFORETW_RESOURCE_SELECTION_STALLED` | 5000 ms | 7.7 s |
+| 3 | Resource.h's first publication is dropped | `UIFORETW_RESOURCE_PUBLICATION_STALLED` | 5009 ms | 6.4 s |
+| 4 | published, never computed | `UIFORETW_RESOURCE_BLOBS_STALLED` | 5003 ms | 6.4 s |
+| 5 | Next file is never triggered | `UIFORETW_SUPPORT_PUBLICATION_STALLED` | 5009 ms | 6.4 s |
+| 6 | Support.cpp published, never computed | `UIFORETW_SUPPORT_RESULT_STALLED` | 5007 ms | 6.4 s |
+| 7 | Previous file is never triggered | `UIFORETW_RESOURCE_RETURN_PUBLICATION_STALLED` | 5004 ms | 6.4 s |
+| 8 | the return publication, never computed | `UIFORETW_RESOURCE_RETURN_BLOBS_STALLED` | 5006 ms | 6.3 s |
+| 9 | the .rc drawer selection is never made | `UIFORETW_RC_SELECTION_STALLED` | 5000 ms | 6.3 s |
+| 10 | the .rc publication is dropped | `UIFORETW_RC_PUBLICATION_STALLED` | 5002 ms | 6.2 s |
+| 11 | the .rc published, never computed | `UIFORETW_RC_BLOBS_STALLED` | 5005 ms | 6.3 s |
+| 12 | forced: the walk entered and never stepped | `UIFORETW_RC_CHANGE_WALK_EXHAUSTED` (walked=8, groups=6) | — | 1.5 s |
+| 13 | forced: the walk's step refused | `UIFORETW_RC_CHANGE_WALK_REFUSED` | — | 1.4 s |
+
+Logs: `build/r2-logs/bpr1036-diag-break{1..13}.log`.
+
+### Pinned-code review and reseal
+
+This is the implementer's review of the pinned diff, recorded as the
+contract's reseal notes require. It is not an independent review.
+
+The only pinned file changed is `src/app/src/github_application.cpp`: the
+full-application digest and the production manifest. `git log
+669a5a58..c127cb38 -- src/app/` is empty, so the reviewed range is exactly
+this change.
+
+Every hunk is in a `BPR_BUILD_TESTING` region:
+
+- the two Qt includes, which move into the testing-only include block;
+- the UIforETW probe state;
+- the new `report_capture_layout` and its two floor constants, in the
+  fixture-access anonymous namespace;
+- `exercise_uiforetw_selected_diff`;
+- `capture_uiforetw_selected_diff_evidence`.
+
+The edits read window, host, diff-host, epoch and fixture state. They write
+only to standard output and standard error. Every product action the probe
+and the capture take is unchanged: the modality press, both drawer
+selections, Next and Previous file, Next and Previous change, the walk, the
+drawer toggles and the grabs. The floors are unchanged at 750 and 850. No
+product, credential, provider, vault, transport or mutation path changes. The
+mutation-branch pin is unchanged at `a7e2081e…d1e8a`.
+
+New values:
+
+- full application
+  `53da7b64776c4452b834b016e8e41adbfc0053410fe594445e6e15c91b399d2a`;
+- production manifest
+  `a9239f72bca76c6823a0d90a3423072bfc2a1616670f968def39acc53fe8e82a`.
+
+Both were computed by replicating the contract's LF-normalised SHA-256. The
+same computation reproduces the previous pins from `c127cb38`'s tree. Before
+the reseal, the contract failed on the drifted full digest
+(`bpr1036-roundtrip-unsealed.log`). That is the negative control.
+
+**Documentation impact: none.** The change is test-only diagnostics.
+`src/app/AGENTS.md` already requires a waiting stage to name its condition.
+The layout rule and the floors are unchanged, so
+`docs/ux/workbench-specification.md` is unchanged. It changes only if the
+owner amends AC-01, as described above.
+
+### Verification at the candidate (bpr-main-linux)
+
+Every command ran with `QT_QPA_PLATFORM=offscreen`, a fresh `HOME` and fresh
+XDG roots, and no display. The build is
+`cmake --build --preset dev --target app_better_pull_review`.
+
+| Check | Result | Log |
+|---|---|---|
+| `ctest --preset dev -R '^application_uiforetw_selected_diff_contract$'` | **Fail, as expected until the owner decides:** no row line; `UIFORETW_CAPTURE_LAYOUT_FAILED:987:842` naming the entry row; 2.14 s | `bpr1036-c2-final-rows.log` |
+| the same row, entry row hidden (diagnostic break 100) | Pass, 862/1000, all four profiles | `bpr1036-diag-break100{,-rerun}.log` |
+| the same row, breaks 1–13 (diagnostic) | each fails by its own term at 5.0 s, or at once for the walk; no `RUN_BUDGET_EXPIRED` | `bpr1036-diag-break{1..13}.log` |
+| HEAD's probe (`c127cb38`) with break 2 (diagnostic) | `RUN_BUDGET_EXPIRED:elapsed_ms=40019 … stage=2`, 40.48 s, no term | `bpr1036-headcontrol-break2.log` |
+| `application_review_round_trip_composition_contract` | Pass, 1.68 s (resealed); failed on the full digest before the reseal | `bpr1036-c2-final-rows.log`, `bpr1036-roundtrip-unsealed.log` |
+| `application_composition_contract` (the tests-off Release graph and its forbidden bytes) | Pass, 537.55 s (its timeout is 600 s) | `bpr1036-composition-contract-c2.log` |
+| `application_workbench_composition_contract`, `application_github_public_path_uiforetw_74` | Pass, 3.11 s and 1.29 s | `bpr1036-c2-final-rows.log` |
+| `architecture_boundaries`, `test_network_isolation_manifest` | Pass | `bpr1036-c2-boundaries.log` |
+| `_coding-standard/scripts/tidy.py --paths src/app/src/github_application.cpp` | `clang-tidy passed.` (6 m 21 s) | `bpr1036-tidy-c2.log` |
+| `_coding-standard/scripts/format_check.py --clang-format /usr/bin/clang-format` (22.1.8), `git diff --check` | Pass | `bpr1036-format-c2.log` |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | `bpr1036-docgate-*.log` |
+
+The diagnostic builds were reverted. The candidate's full digest was checked
+against the new pin before the final build. The final rows ran on that
+build.
+
+### Acceptance state
+
+- **AC1** (the row passes on Linux and macOS, with the strip row asserted
+  exactly, in order): **pending**. The strip row passes on Linux. The layout
+  floor waits on the owner's entry-row decision above. With the entry row
+  gone, the whole row passes on Linux. macOS has not run.
+- **AC2** (a too-short comparison names what took the height; the card
+  records what took it and whether the floor or the product changed):
+  **naming and record pass on Linux**, from the candidate's own failure and
+  break 101. **Floor or product: pending**, on the owner's answer.
+- **AC3** (no wait reaches `RUN_BUDGET_EXPIRED` before naming why; each new
+  term fires with its own facts): **pass on Linux**. There are thirteen breaks,
+  one per term; 12 and 13 are forced checks. The same gesture break against
+  HEAD's probe expires the budget.
+- **AC4** (the round-trip contract passes with the resealed pins, and
+  `application_composition_contract` passes): **pass on Linux**.
+- **Windows** stays [[BPR-1033]]'s. The only Windows-specific edit is the
+  offset: the caption buttons are `named(28)`, index 29, the last of 30. This
+  station cannot compile the `_WIN32` branch. The Windows capture still stops
+  first at `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, before the row check.
+
+### Evidence still owed
+
+1. **The owner's answer to [[BPR-0653]]'s ask 3.** It decides the floor, as
+   set out above. Relay it with that ask; this card asks no separate question.
+2. **macOS (bpr-main-mac), at the candidate:**
+   `ctest --preset dev -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure`.
+   - Expected: no `UIFORETW_NAVIGATION_ROW_UNEXPECTED`. The UIforETW row fails
+     only at `UIFORETW_CAPTURE_LAYOUT_FAILED:985:<h>`, and its `stack=` names
+     the macOS rows, `composeReviewActionButton` among them (the menu bar
+     should read `hidden` or be absent, being merged into the system bar).
+   - The round-trip row passes. Record `<h>` and the stack here; if AC-01 is
+     amended, the macOS floor is taken from it.
+   - If the owner moves the entries instead, the row is expected to pass at
+     850.
+3. **Windows (bpr-main-win):** any
+   `cmake --build --preset dev --target app_better_pull_review` at the
+   candidate, to compile the `_WIN32` branch. Then
+   `ctest --preset dev -R '^application_uiforetw_selected_diff_contract$'`.
+   The expected result is unchanged: BPR-1033's
+   `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, with no new Windows-only failure.
+4. **After the answer, on Linux and macOS:** re-run
+   `application_uiforetw_selected_diff_contract`, expecting a pass, plus the
+   round-trip contract if the pinned file changes again.

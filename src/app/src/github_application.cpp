@@ -45,6 +45,8 @@
 	#include "github_read_contract.hpp"
 	#include "github_wire_transport.hpp"
 	#include "review_submission_fixture.hpp"
+	#include <QMenuBar>
+	#include <QStatusBar>
 	#include <glaze/json.hpp>
 	#include <map>
 #endif
@@ -12891,7 +12893,13 @@ namespace bpr::app {
 			std::size_t                                   SelectedDiffFailures     = 0U;
 			std::size_t                                   IntentDispatches         = 0U;
 			std::size_t                                   ChangeDispatches         = 0U;
-			std::size_t                                   Waits                    = 0U;
+			/// \brief [[BPR-0859]]. Ticks of the waits this probe bounds by
+			/// count and names itself: the panes, the role paint, the change
+			/// walk and the focused layout.
+			std::size_t Waits = 0U;
+			/// \brief [[BPR-1036]]. The current phase's bounded wait for an
+			/// effect: the observation, a selection's publication and its blobs.
+			detail::fixture_probe_wait Wait;
 			/// \brief [[BPR-0859]]. Whether the reveal this phase waited for landed.
 			///
 			/// \details Kept so the wait for the product's own scroll and the
@@ -17250,6 +17258,100 @@ namespace bpr::app {
 				aProfile.variant());
 		}
 
+		/// \brief [[BPR-1036]]. The capture's layout floors, in thousandths of
+		/// the window the comparison must take.
+		inline constexpr int uiforetw_capture_width_floor  = 750;
+		inline constexpr int uiforetw_capture_height_floor = 850;
+
+		/// \brief [[BPR-1036]]. Names what shares the capture window with the
+		/// comparison when the comparison is under a layout floor.
+		///
+		/// \details The failure line used to give two ratios and no widgets, so
+		/// what took the room was a guess. This prints the window and the rows
+		/// the specification stacks around the comparison -- the menu bar, the
+		/// strip, the epoch line and the status bar -- as `y+height`, or why
+		/// one takes no room. Then, at every level from the comparison up to
+		/// the window, each shown widget that sits above or below the
+		/// comparison's branch (`stack=`) or beside it (`beside=`), so a row
+		/// the specification does not name is named too. `unstacked` is the
+		/// height neither the comparison nor a stacked row accounts for:
+		/// layout margins and spacing.
+		void report_capture_layout(
+			QTextStream&                aStream,
+			const qt::workbench_window& aWindow,
+			const QWidget&              aComparison)
+		{
+			const auto inWindow = [&aWindow](const QWidget& aWidget) {
+				return QRect{ aWidget.mapTo(&aWindow, QPoint{ 0, 0 }), aWidget.size() };
+			};
+			const auto row = [&inWindow](const QWidget* const aWidget) {
+				if (aWidget == nullptr) {
+					return QStringLiteral("absent");
+				}
+				if (!aWidget->isVisible()) {
+					return QStringLiteral("hidden");
+				}
+				const auto rect = inWindow(*aWidget);
+				return QStringLiteral("%1+%2").arg(rect.top()).arg(rect.height());
+			};
+			const auto name = [](const QWidget& aWidget) {
+				return aWidget.objectName().isEmpty()
+					? QString::fromLatin1(aWidget.metaObject()->className())
+					: aWidget.objectName();
+			};
+			auto stacked = std::vector<std::pair<QRect, QString>>{ };
+			auto beside  = std::vector<std::pair<QRect, QString>>{ };
+			for (const auto* branch = &aComparison;
+				 branch != &aWindow && branch->parentWidget() != nullptr;
+				 branch = branch->parentWidget()) {
+				const auto along = inWindow(*branch);
+				for (const auto* const sibling :
+					 branch->parentWidget()->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+					if (sibling == branch || sibling->isWindow() || !sibling->isVisible()) {
+						continue;
+					}
+					const auto rect = inWindow(*sibling);
+					const auto rows = rect.top() <= along.bottom() && along.top() <= rect.bottom();
+					const auto columns
+						= rect.left() <= along.right() && along.left() <= rect.right();
+					if (columns && !rows) {
+						stacked.emplace_back(rect, name(*sibling));
+					} else if (rows && !columns) {
+						beside.emplace_back(rect, name(*sibling));
+					}
+				}
+			}
+			std::ranges::sort(stacked, { }, [](const auto& aEntry) { return aEntry.first.top(); });
+			std::ranges::sort(beside, { }, [](const auto& aEntry) { return aEntry.first.left(); });
+			// Widgets that share a row, such as two buttons side by side, take
+			// its height once.
+			const auto comparison = inWindow(aComparison);
+			auto       unstacked  = aWindow.height() - comparison.height();
+			auto       covered    = std::numeric_limits<int>::min();
+			auto       stackText  = QStringList{ };
+			for (const auto& [rect, widget] : stacked) {
+				unstacked -= std::max(0, rect.bottom() - std::max(rect.top() - 1, covered));
+				covered = std::max(covered, rect.bottom());
+				stackText.append(QStringLiteral("%1@%2+%3").arg(widget).arg(rect.top()).arg(rect.height()));
+			}
+			auto besideText = QStringList{ };
+			for (const auto& [rect, widget] : beside) {
+				besideText.append(QStringLiteral("%1@%2+%3").arg(widget).arg(rect.left()).arg(rect.width()));
+			}
+			aStream << " width_floor=" << uiforetw_capture_width_floor
+					<< " height_floor=" << uiforetw_capture_height_floor
+					<< " window=" << aWindow.width() << 'x' << aWindow.height()
+					<< " menu_bar=" << row(aWindow.menu_bar())
+					<< " strip=" << row(aWindow.primary_toolbar())
+					<< " epoch_line=" << row(aWindow.epoch_selectors())
+					<< " comparison=" << comparison.left() << ',' << comparison.top() << ' '
+					<< comparison.width() << 'x' << comparison.height()
+					<< " status_bar=" << row(aWindow.statusBar())
+					<< " stack=" << (stackText.isEmpty() ? QStringLiteral("none") : stackText.join(QLatin1Char{ ',' }))
+					<< " unstacked=" << unstacked
+					<< " beside=" << (besideText.isEmpty() ? QStringLiteral("none") : besideText.join(QLatin1Char{ ',' }));
+		}
+
 		[[nodiscard]] auto intraline_roles_visible(
 			const qt::diff_workbench&     aWorkbench,
 			const qt::appearance_profile& aProfile,
@@ -18121,6 +18223,79 @@ namespace bpr::app {
 			&& fixture.HeadOneOid == uiforetw_head_oid
 			&& fixture.HeadTwoOid.empty();
 
+		// [[BPR-1036]]. Every phase that waits for an effect it does not
+		// control waits through the shared bounded wait ([[BPR-0864]],
+		// [[BPR-1037]]): five seconds with a floor of sixteen calls, then a
+		// term naming the condition, the inputs it depends on and the
+		// modality facts. `advance` is the only thing that restarts it. The
+		// waits this probe already bounded by ticks and named -- the panes,
+		// the reveals, the role paint and the focused layout -- keep their
+		// bounds.
+		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
+			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
+		};
+		const auto advance = [&probe](const state_type::phase aPhase) {
+			enter_phase(probe.Phase, probe.Wait, aPhase);
+			return result::pending;
+		};
+		const auto present = [](const bool aPresent) {
+			return aPresent ? "present" : "absent";
+		};
+		const auto truth = [](const bool aValue) {
+			return aValue ? "true" : "false";
+		};
+		const auto text = [](const std::string_view aValue) {
+			return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size()));
+		};
+		const auto blobText = [](const std::optional<core::git_blob_oid>& aOid) {
+			if (!aOid.has_value()) {
+				return QStringLiteral("absent");
+			}
+			const auto hex = core::canonical_hex(*aOid);
+			return QString::fromLatin1(hex.view().data(), static_cast<qsizetype>(hex.view().size()));
+		};
+		// What a file's selection, its publication and the comparison showing
+		// it depend on. The baselines the gesture is counted against print only
+		// in the phase that made that gesture.
+		const auto diffFacts = [&](const std::string_view aPath, const std::string_view aBaseBlob, const std::string_view aHeadBlob) {
+			return [&, aPath, aBaseBlob, aHeadBlob](QTextStream& aStream) {
+				const auto        work    = diff_work_evidence(aApplication);
+				const auto&       last    = implementation->LastSelectedDiff;
+				const auto* const current = workbench != nullptr ? workbench->current_result().get() : nullptr;
+				aStream << "path=" << text(aPath)
+						<< " file_selections=" << static_cast<qulonglong>(window->statistics().FileSelections);
+				if (probe.Phase == state_type::phase::awaiting_resource_diff
+					|| probe.Phase == state_type::phase::awaiting_rc_diff) {
+					aStream << " expected_file_selections=" << static_cast<qulonglong>(probe.WindowStatistics.FileSelections) + 1U;
+				} else {
+					aStream << " intent_dispatches=" << static_cast<qulonglong>(implementation->WorkbenchIntentDispatches)
+							<< " expected_intent_dispatches=" << static_cast<qulonglong>(probe.IntentDispatches) + 1U;
+				}
+				aStream << " current_row=" << (view != nullptr ? view->currentIndex().row() : -1)
+						<< " selected_diff_begins=" << static_cast<qulonglong>(implementation->SelectedDiffBegins)
+						<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
+						<< " expected_selected_diff_publications=" << static_cast<qulonglong>(probe.SelectedDiffPublications) + 1U
+						<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures)
+						<< " last_selected_diff="
+						<< (last.has_value() ? QString::fromStdString(last->Request.File.PresentationPath) : QStringLiteral("absent"))
+						<< " last_left_blob=" << (last.has_value() ? blobText(last->Key.LeftBlob) : QStringLiteral("absent"))
+						<< " expected_left_blob=" << text(aBaseBlob)
+						<< " last_right_blob=" << (last.has_value() ? blobText(last->Key.RightBlob) : QStringLiteral("absent"))
+						<< " expected_right_blob=" << text(aHeadBlob)
+						<< " comparison_result=" << present(current != nullptr)
+						<< " comparison_current=" << truth(current != nullptr && last.has_value() && current->Alignment.Key == last->Key)
+						<< " diff_jobs=" << static_cast<qulonglong>(work.OutstandingJobs)
+						<< " diff_pending=" << truth(work.Pending)
+						<< " diff_quiescent=" << truth(work.Quiescent)
+						<< " epoch_jobs=" << static_cast<qulonglong>(work.EpochOutstandingJobs);
+			};
+		};
+		const auto resourceFacts = diffFacts(uiforetw_resource_path, uiforetw_resource_base_blob, uiforetw_resource_head_blob);
+		const auto rcFacts       = diffFacts(uiforetw_rc_path, uiforetw_rc_base_blob, uiforetw_rc_head_blob);
+		// The support file's blobs are not this course's to pin: it is the
+		// file next-file lands on, and only its path is asserted.
+		const auto supportFacts = diffFacts(uiforetw_support_path, "unpinned", "unpinned");
+
 		if (probe.Phase == state_type::phase::awaiting_observation) {
 			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
 			const auto  resource = drawer_row(*window, uiforetw_resource_path);
@@ -18129,7 +18304,20 @@ namespace bpr::app {
 				|| implementation->WorkbenchHost->outstanding_requests() != 0U
 				|| !implementation->WorkbenchHost->state().Navigation.has_value()
 				|| !resource.isValid() || !rc.isValid() || view == nullptr) {
-				return result::pending;
+				// [[BPR-1036]]. The accepted pull request reaches the workbench
+				// host as an observation, and its files reach the drawer rows
+				// both gestures below select.
+				return wait("UIFORETW_OBSERVATION_STALLED", [&](QTextStream& aStream) {
+					aStream << "snapshot=" << present(snapshot.has_value())
+							<< " snapshot_files=" << static_cast<qulonglong>(snapshot.has_value() ? snapshot->Files.size() : 0U)
+							<< " window_read_quiescent=" << truth(implementation->WindowRead->is_quiescent())
+							<< " navigation=" << present(implementation->WorkbenchHost->state().Navigation.has_value())
+							<< " actionable=" << static_cast<qulonglong>(implementation->WorkbenchHost->actionable().size())
+							<< " files_view=" << present(view != nullptr)
+							<< " drawer_rows=" << (view != nullptr && view->model() != nullptr ? view->model()->rowCount() : 0)
+							<< " resource_row=" << present(resource.isValid())
+							<< " rc_row=" << present(rc.isValid());
+				});
 			}
 			if (!probe.Evidence.ExactCommitPair) {
 				return fail();
@@ -18148,8 +18336,7 @@ namespace bpr::app {
 			// first, through the strip; the course states Review and enters it
 			// through the step every course shares ([[BPR-0863]]).
 			probe.Waits = 0U;
-			probe.Phase = state_type::phase::awaiting_review_modality;
-			return result::pending;
+			return advance(state_type::phase::awaiting_review_modality);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_review_modality) {
@@ -18190,8 +18377,7 @@ namespace bpr::app {
 				return fail();
 			}
 			view->setCurrentIndex(resourceRow);
-			probe.Phase = state_type::phase::awaiting_resource_diff;
-			return result::pending;
+			return advance(state_type::phase::awaiting_resource_diff);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_resource_diff) {
@@ -18204,10 +18390,13 @@ namespace bpr::app {
 			}
 			if (implementation->SelectedDiffPublications
 				== probe.SelectedDiffPublications) {
-				if (++probe.Waits > 512U && probe.Evidence.ResourceGesture) {
-					return fail();
-				}
-				return result::pending;
+				// [[BPR-1036]]. Bounded whether or not the drawer's selection
+				// registered: a gesture that never lands is named rather than
+				// waited on until the run budget expires.
+				return wait(
+					probe.Evidence.ResourceGesture ? "UIFORETW_RESOURCE_PUBLICATION_STALLED"
+												   : "UIFORETW_RESOURCE_SELECTION_STALLED",
+					resourceFacts);
 			}
 			const auto resourcePublication
 				= implementation->SelectedDiffPublications
@@ -18220,19 +18409,13 @@ namespace bpr::app {
 					uiforetw_resource_head_blob)) {
 				return fail();
 			}
-			if (!probe.Evidence.ResourcePublication) {
-				probe.Evidence.ResourcePublication = true;
-				probe.Waits                        = 0U;
-			}
+			probe.Evidence.ResourcePublication = true;
 			if (!selected_diff_matches(
 					*implementation,
 					uiforetw_resource_path,
 					uiforetw_resource_base_blob,
 					uiforetw_resource_head_blob)) {
-				if (++probe.Waits > 512U) {
-					return fail();
-				}
-				return result::pending;
+				return wait("UIFORETW_RESOURCE_BLOBS_STALLED", resourceFacts);
 			}
 			// [[BPR-0859]]. Reset once, on the tick the blobs first match.
 			// Resetting on every tick made the role-paint cap below
@@ -18296,8 +18479,7 @@ namespace bpr::app {
 			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
 			probe.Waits                = 0U;
 			nextFile->trigger();
-			probe.Phase = state_type::phase::awaiting_support_diff;
-			return result::pending;
+			return advance(state_type::phase::awaiting_support_diff);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_support_diff) {
@@ -18306,10 +18488,7 @@ namespace bpr::app {
 			}
 			if (implementation->SelectedDiffPublications
 				== probe.SelectedDiffPublications) {
-				if (++probe.Waits > 512U) {
-					return fail();
-				}
-				return result::pending;
+				return wait("UIFORETW_SUPPORT_PUBLICATION_STALLED", supportFacts);
 			}
 			const auto exactPublication
 				= implementation->SelectedDiffPublications
@@ -18324,10 +18503,7 @@ namespace bpr::app {
 				&& workbench->current_result()->Alignment.Key
 					== implementation->LastSelectedDiff->Key;
 			if (!exactSupport) {
-				if (++probe.Waits > 512U) {
-					return fail();
-				}
-				return result::pending;
+				return wait("UIFORETW_SUPPORT_RESULT_STALLED", supportFacts);
 			}
 			probe.Evidence.NextFileNavigation
 				= implementation->WorkbenchIntentDispatches
@@ -18343,8 +18519,7 @@ namespace bpr::app {
 			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
 			probe.Waits                = 0U;
 			previousFile->trigger();
-			probe.Phase = state_type::phase::awaiting_resource_return;
-			return result::pending;
+			return advance(state_type::phase::awaiting_resource_return);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_resource_return) {
@@ -18353,10 +18528,7 @@ namespace bpr::app {
 			}
 			if (implementation->SelectedDiffPublications
 				== probe.SelectedDiffPublications) {
-				if (++probe.Waits > 512U) {
-					return fail();
-				}
-				return result::pending;
+				return wait("UIFORETW_RESOURCE_RETURN_PUBLICATION_STALLED", resourceFacts);
 			}
 			if (implementation->SelectedDiffPublications
 					!= probe.SelectedDiffPublications + 1U
@@ -18370,10 +18542,7 @@ namespace bpr::app {
 					uiforetw_resource_path,
 					uiforetw_resource_base_blob,
 					uiforetw_resource_head_blob)) {
-				if (++probe.Waits > 512U) {
-					return fail();
-				}
-				return result::pending;
+				return wait("UIFORETW_RESOURCE_RETURN_BLOBS_STALLED", resourceFacts);
 			}
 			probe.Evidence.PreviousFileNavigation
 				= implementation->WorkbenchIntentDispatches
@@ -18389,8 +18558,7 @@ namespace bpr::app {
 			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
 			probe.Waits                = 0U;
 			view->setCurrentIndex(rc);
-			probe.Phase = state_type::phase::awaiting_rc_diff;
-			return result::pending;
+			return advance(state_type::phase::awaiting_rc_diff);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_rc_diff) {
@@ -18402,10 +18570,10 @@ namespace bpr::app {
 			}
 			if (implementation->SelectedDiffPublications
 				== probe.SelectedDiffPublications) {
-				if (++probe.Waits > 512U && probe.Evidence.RcGesture) {
-					return fail();
-				}
-				return result::pending;
+				return wait(
+					probe.Evidence.RcGesture ? "UIFORETW_RC_PUBLICATION_STALLED"
+											 : "UIFORETW_RC_SELECTION_STALLED",
+					rcFacts);
 			}
 			const auto rcPublication = implementation->SelectedDiffPublications
 				== probe.SelectedDiffPublications + 1U;
@@ -18417,19 +18585,13 @@ namespace bpr::app {
 					uiforetw_rc_head_blob)) {
 				return fail();
 			}
-			if (!probe.Evidence.RcPublication) {
-				probe.Evidence.RcPublication = true;
-				probe.Waits                  = 0U;
-			}
+			probe.Evidence.RcPublication = true;
 			if (!selected_diff_matches(
 					*implementation,
 					uiforetw_rc_path,
 					uiforetw_rc_base_blob,
 					uiforetw_rc_head_blob)) {
-				if (++probe.Waits > 512U) {
-					return fail();
-				}
-				return result::pending;
+				return wait("UIFORETW_RC_BLOBS_STALLED", rcFacts);
 			}
 			if (!probe.Evidence.RcExactBlobs) {
 				probe.Evidence.RcExactBlobs = true;
@@ -18475,13 +18637,36 @@ namespace bpr::app {
 			}
 			if (!workbench->selection().has_value()
 				|| workbench->selection()->Group != pairOne->Group) {
-				if (probe.Waits++ > computed.Alignment.Groups.size()) {
+				// [[BPR-1036]]. The walk to the first pair's group is bounded by
+				// the groups there are, and either end of it names itself with
+				// where it stands: how far it walked, and which group is selected
+				// against the one it is walking to.
+				const auto walkFailed = [&](const char* const aTerm) {
+					const auto groupIndex = [&computed](const auto& aGroup) {
+						const auto found = std::ranges::find(computed.Alignment.Groups, aGroup, &core::change_group::Id);
+						return found == computed.Alignment.Groups.end()
+							? qlonglong{ -1 }
+							: static_cast<qlonglong>(std::distance(computed.Alignment.Groups.begin(), found));
+					};
+					const auto selection = workbench->selection();
+					QTextStream{ stderr }
+						<< aTerm << ":walked=" << static_cast<qulonglong>(probe.Waits)
+						<< " groups=" << static_cast<qulonglong>(computed.Alignment.Groups.size())
+						<< " target_group=" << groupIndex(*pairOne->Group)
+						<< " selection=" << present(selection.has_value())
+						<< " selected_group="
+						<< (selection.has_value() && selection->Group.has_value() ? groupIndex(*selection->Group) : qlonglong{ -1 })
+						<< " next_change_enabled=" << truth(window->next_change_action() != nullptr && window->next_change_action()->isEnabled())
+						<< ' ' << course_modality_facts(aApplication) << '\n';
 					return fail();
+				};
+				if (probe.Waits++ > computed.Alignment.Groups.size()) {
+					return walkFailed("UIFORETW_RC_CHANGE_WALK_EXHAUSTED");
 				}
 				if (!workbench->navigate_change(
 						core::change_navigation_direction::next,
 						core::change_navigation_policy::stop)) {
-					return fail();
+					return walkFailed("UIFORETW_RC_CHANGE_WALK_REFUSED");
 				}
 				return result::pending;
 			}
@@ -18600,8 +18785,7 @@ namespace bpr::app {
 				return fail();
 			}
 			probe.Waits = 0U;
-			probe.Phase = state_type::phase::awaiting_focused_layout;
-			return result::pending;
+			return advance(state_type::phase::awaiting_focused_layout);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_focused_layout) {
@@ -18933,8 +19117,8 @@ namespace bpr::app {
 		// [[BPR-0646]]. RFC-BPR-0028's strip, left to right: the platform
 		// inset, Home, repositories, files, the identity, a rule, the change pair with its position, the file pair
 		// with its position, a spacer, the modality control, a spacer, the
-		// review details and private progress controls, refresh, comments, a
-		// rule, account, settings.
+		// review details and private progress controls, refresh, Home's
+		// discovery refresh, comments, a rule, account, settings.
 		const auto widgetActionNamed
 			= [&toolbarActions](const std::size_t aIndex, const char* const aName) {
 				  return aIndex < static_cast<std::size_t>(toolbarActions.size())
@@ -18942,9 +19126,13 @@ namespace bpr::app {
 					  == QLatin1String{ aName };
 			  };
 		// [[BPR-0859]]. Home's Group, State headers and Filter controls joined
-		// the same strip when Home became a list of state panels, so the exact
-		// row is twenty-seven actions off Windows and those three sit between
-		// the review controls and refresh.
+		// the same strip when Home became a list of state panels, and those
+		// three sit between the review controls and refresh.
+		//
+		// [[BPR-1036]]. [[BPR-0990]]'s discovery refresh, Home's own, follows
+		// the pull request's refresh, so the exact row is twenty-eight actions
+		// off Windows. It is hidden outside Home, and a hidden action is still
+		// one of the strip's actions: the row pins order, not what is shown.
 		//
 		// [[BPR-0653]]. On Windows the strip is the title row, so it carries
 		// two more actions: a compact menu control takes index 1, right after
@@ -18967,7 +19155,7 @@ namespace bpr::app {
 							   const qsizetype aIndex, const char* const aName) {
 			return widgetActionNamed(static_cast<std::size_t>(aIndex + lead), aName);
 		};
-		const auto exactRowOrder = toolbarActions.size() == 27 + lead + trailing
+		const auto exactRowOrder = toolbarActions.size() == 28 + lead + trailing
 			&& widgetActionNamed(0U, "workbenchStripInsetAction")
 	#if defined(_WIN32)
 			&& widgetActionNamed(1U, "workbenchStripMenuAction")
@@ -18994,18 +19182,19 @@ namespace bpr::app {
 			&& named(20, "homeStateHeadersAction")
 			&& named(21, "homeFilterAction")
 			&& toolbarActions[at(22)] == window->github_refresh_action()
-			&& toolbarActions[at(23)] == conversationsAction
-			&& named(24, "workbenchStripRightDividerAction")
-			&& toolbarActions[at(25)] == window->account_action()
-			&& toolbarActions[at(26)] == window->settings_action()
+			&& toolbarActions[at(23)] == window->queue_refresh_action()
+			&& toolbarActions[at(24)] == conversationsAction
+			&& named(25, "workbenchStripRightDividerAction")
+			&& toolbarActions[at(26)] == window->account_action()
+			&& toolbarActions[at(27)] == window->settings_action()
 	#if defined(_WIN32)
-			&& named(27, "workbenchCaptionButtonsAction")
+			&& named(28, "workbenchCaptionButtonsAction")
 	#endif
 			;
 		if (!exactRowOrder) {
 			// [[BPR-0859]]. An exact strip order that no longer holds names the
 			// row it did find, so the difference is read from the run rather
-			// than from twenty-four conjuncts in a debugger.
+			// than from some thirty conjuncts in a debugger.
 			auto stream = QTextStream{ stderr };
 			stream << "UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions="
 				   << toolbarActions.size() << '\n';
@@ -19056,10 +19245,14 @@ namespace bpr::app {
 			/ std::max(1, window->width());
 		const auto heightRatio = (1'000 * comparisonRect.height())
 			/ std::max(1, window->height());
-		if (widthRatio < 750 || heightRatio < 850) {
-			QTextStream{ stderr }
-				<< "UIFORETW_CAPTURE_LAYOUT_FAILED:" << widthRatio << ':'
-				<< heightRatio << '\n';
+		if (widthRatio < uiforetw_capture_width_floor
+			|| heightRatio < uiforetw_capture_height_floor) {
+			// [[BPR-1036]]. Name what took the room, not only how much is left.
+			auto stream = QTextStream{ stderr };
+			stream << "UIFORETW_CAPTURE_LAYOUT_FAILED:" << widthRatio << ':'
+				   << heightRatio;
+			report_capture_layout(stream, *window, *comparisonSurface);
+			stream << ' ' << course_modality_facts(aApplication) << '\n';
 			return false;
 		}
 

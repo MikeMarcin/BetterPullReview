@@ -150,6 +150,17 @@ endfunction()
 # provider, vault, transport or mutation path changes; the mutation-branch pin
 # is unchanged. Covers a782886d..the BPR-1046 commit. Review recorded on
 # BPR-1046.
+# BPR-1036 reseal: the BPR_BUILD_TESTING UIforETW selected-diff probe waits
+# for its observation and each selection's publication and blobs through the
+# shared bounded wait (keep_waiting, enter_phase), naming each stall; its change
+# walk names its two failures; its capture asserts the strip row with Home's
+# discovery refresh in it and, under the layout floor, names every row that
+# shares the window. Two Qt includes move into the testing-only block. The
+# probe reads window, host and fixture state and writes only to standard
+# streams; every product action it takes is unchanged. No credential,
+# provider, vault, transport or mutation path changes; the mutation-branch pin
+# is unchanged. Covers 669a5a58..the BPR-1036 commit. Review recorded on
+# BPR-1036.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -168,7 +179,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0eccd8109e01a2b9a5e3b1b9698d77f5ea2f5a66f60bbe8e29cd997ffc344470"
+		"53da7b64776c4452b834b016e8e41adbfc0053410fe594445e6e15c91b399d2a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -303,7 +314,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "52f6a64716e5d97f986382685d33503668973d5892cde12d2f491f490edaf62a"
+        "a9239f72bca76c6823a0d90a3423072bfc2a1616670f968def39acc53fe8e82a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
