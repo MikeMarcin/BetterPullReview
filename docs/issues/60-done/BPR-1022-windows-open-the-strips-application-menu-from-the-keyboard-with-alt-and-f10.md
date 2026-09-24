@@ -345,7 +345,10 @@ one of those hooks rewrites the Alt. Alt alone passes through as `VK_MENU`,
 same injection on this desktop opened the system menu on Alt+Space, before
 this card's change. The rewriting started later. That is the owner's desktop
 environment and not the product, because the application never received the
-Alt. Nothing was done to find or stop the hook.
+Alt. Nothing was done to find or stop the hook. A seventh run, at `21332605`
+at 06:46Z, after bpr-main-linux's WSLg course had released the desktop, gave
+the same results. The raw input sink again recorded a virtual-key-0 key in
+place of the Alt of every chord.
 
 Wanted when the chords reach applications again (for example, when a
 `keybd_event` Alt+Space opens the system menu of any application): the
