@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0883"
 title: "Five durable stores bypass the private-store open helper and drop their validated directory handles"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
 metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"874dc0ae","remaining":"Windows AC2 run","mac_confirmed_at":"0ca739b2","related_cards":["BPR-0806","BPR-0813","BPR-0841","BPR-1044"]}
+acceptance: [{"criterion":"Every durable store opens through the private helper, or carries a recorded exception with its reason","outcome":"pass","revision":"874dc0ae","evidence":{"kind":"command","detail":"Met in 874dc0ae on every platform (bpr-main-linux): the five stores open through open_private_store_database; the epoch catalog's own hardened open is the one recorded exception. Linux 21/21 and 39/39 rows; macOS 7/7 at 0ca739b2; Windows windows-dev full MSVC build and 8/8 rows at 0615cc67.","path":"docs/issues/60-done/BPR-0883-five-durable-stores-bypass-the-private-store-open-helper.md#what-changed-874dc0ae"}},{"criterion":"A profile root outside the Windows code page opens the review ledger and the recovery journal","outcome":"pass","revision":"0615cc67","evidence":{"kind":"command","detail":"bpr-main-win, windows-dev (MSVC 19.51 Debug) built in full at 0615cc67 with no error or warning: sqlite_private_store_open, uncontained as registered, prints non-ansi-root:<store>:opened=1 for all twelve factories (review-ledger and review-mutation-recovery among them) under a root with U+65E5 U+672C U+8A9E U+1F600, then non-ansi-root:pass, the five Windows courses and private-store-open-tests:pass. Negative control: with the fifteen src files at 874dc0ae^ the same contract fails after device-bindings with 'No mapping for the Unicode character exists in the target multi-byte code page.' (path.string()).","path":"docs/issues/60-done/BPR-0883-five-durable-stores-bypass-the-private-store-open-helper.md#the-windows-half-ac2-shown-with-its-negative-control-bpr-main-win-2026-09-23"}},{"criterion":"A POSIX contract pins 0600 on every private store file, and fails if one is created at the default mode","outcome":"pass","revision":"874dc0ae","evidence":{"kind":"command","detail":"owner-only passes on Linux at 874dc0ae and on macOS at 0ca739b2 (33 files, all 600); its negative control with SQLite built at 0644 fails on exactly the five pre-fix stores (bpr-main-linux).","path":"docs/issues/60-done/BPR-0883-five-durable-stores-bypass-the-private-store-open-helper.md#the-macos-half-bpr-main-mac-mac-batch-5-2026-09-23"}}]
 ---
 
 # BPR-0883: Five durable stores bypass the private-store open helper and drop their validated directory handles
@@ -261,3 +262,57 @@ one-minute load was 23.6 at the start.
 
 **AC3 on macOS: confirmed.** The contract pins `0600` for every file here,
 as it does on Linux. Only the Windows run for AC2 remains.
+
+## The Windows half: AC2 shown, with its negative control (bpr-main-win, 2026-09-23)
+
+**MSVC compiles it.** `build/windows-dev` (Visual Studio generator, MSVC
+19.51, Debug, Qt 6.11.2) was built in full at `0615cc67`, which contains
+`874dc0ae`. The build exited 0, with no `error` and no `warning C` line.
+That covers the restructured contract and the five stores.
+
+**`sqlite_private_store_open` passes**, uncontained as registered: its
+command carries no sandbox prefix, and its label is
+`bpr_windows_uncontained`. It took 0.38 s, with
+`ctest --preset windows-dev -R "^sqlite_private_store_open$" -V`:
+
+- `private-store-open:non-ansi-root:<store>:opened=1` for all twelve
+  factories, in this order: `profile-registry`, `window-restoration`,
+  `device-bindings`, `appearance-settings`, `workbench-settings`,
+  `review-queue`, `review-ledger`, `review-mutation-recovery`,
+  `review-submission-recovery`, `release-update`, `update-draft-recovery`,
+  `epoch-catalog`. Then `private-store-open:non-ansi-root:pass`.
+- The five Windows courses, as before: `symbolic-link:restored=1:loaded=0`,
+  `hard-link:restored=0:loaded=0`, `exception-releases-file:renamed=1`,
+  `admission-retry:refused=1:retried=1` and `lone-surrogate-root:loaded=0`.
+  Then `private-store-open-tests:pass`.
+
+So a root named `bpr-0883-` plus U+65E5 U+672C U+8A9E and U+1F600, which no
+Windows ANSI code page can spell, opens every store, including the review
+ledger and the recovery journal. That is **AC2**.
+
+**The storage contracts.** The six storage contracts
+(`sqlite_(appearance_settings|workbench_settings|queue_enrollment|review_ledger|review_mutation_recovery|review_submission_recovery)_storage`)
+and `test_network_isolation_manifest` pass, 7 of 7, serially.
+
+**Negative control: the new contract against the stores before the fix.**
+The fifteen `src` files `874dc0ae` changed were checked out at `874dc0ae^`,
+leaving the new contract in place. `test_private_store_open` was rebuilt in
+`windows-dev` and run. It fails at the first store that bypassed the helper,
+the one this card predicted:
+
+```text
+private-store-open:non-ansi-root:profile-registry:opened=1
+private-store-open:non-ansi-root:window-restoration:opened=1
+private-store-open:non-ansi-root:device-bindings:opened=1
+FAILED: No mapping for the Unicode character exists in the target multi-byte code page.
+```
+
+That failure is `path.string()` refusing to spell the root in the ANSI code
+page, as `appearance-settings` opened it before `874dc0ae`. The card's
+original claim therefore holds on the only platform that can observe it. The
+sources were restored, and the target was rebuilt and passes again. The logs
+are station records under `build/logs/bpr-0883-main-win/` and are not
+committed.
+
+All three criteria are met. AC1 and AC3 were met on Linux and macOS, and
+AC2 is now met on Windows.
