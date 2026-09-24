@@ -257,3 +257,54 @@ ctest --test-dir <build> --output-on-failure -R "^(sqlite_device_binding_storage
   `is_quiescent()` reachable, shown by a test that injects the throw:
   **Linux pass at `02e3d59d`.** The code is platform-neutral, and the Windows
   and macOS runs of `application_github_host` confirm it.
+
+### Windows: five of six pass; the sixth fails contained, for BPR-0876's reason (bpr-main-win, 2026-09-23)
+
+**What was run.** The source is `78c8ac85`, which contains `02e3d59d`. The
+checkout was at `2a30d786`, which is that tree plus a local card claim, so
+the sources are identical. The build is `build/windows-dev` (Visual Studio
+generator, MSVC 19.51, Debug, Qt 6.11.2), rebuilt incrementally first. It
+exited 0 with no `error` line. The owed selector ran serially and verbose,
+with `ctest --preset windows-dev -j1 --output-on-failure -V -R` over the six
+rows.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | Passed, 0.10 s (`application github host tests passed`) |
+| `sqlite_private_store_open` | Passed, 0.38 s |
+| `sqlite_device_binding_storage` | Passed, 3.57 s (`device-binding-storage-tests:pass`) |
+| `application_device_binding_restart` | Passed, 40.31 s |
+| `application_device_binding_launch_renewal` | Passed, 38.41 s |
+| `application_device_binding_relaunch` | **Failed**, 0.36 s: `seed failed (1)`, `SEED_STARTUP_PROFILE_REFUSAL:registry_unavailable`, `FAILED(seed): application startup succeeds` |
+
+**The lock lines.** `sqlite_device_binding_storage` prints only
+`device-binding-storage-tests:pass`. Its three contention checks print
+nothing of their own when they hold. Each check asserts `unavailable`, and
+any `corrupt` would have stopped the contract with its own `FAILED:` line. So
+on Windows's `LockFileEx` lock layer, all three read `unavailable` and never
+`corrupt`:
+
+- a busy migration under a second connection's `BEGIN IMMEDIATE`;
+- a locked first read under `BEGIN EXCLUSIVE`;
+- a writer racing the store's snapshot.
+
+The row's 3.57 s agrees with the busy migration waiting out its
+2-second timeout.
+
+**The admission-retry line.** `sqlite_private_store_open` still prints
+`private-store-open:admission-retry:refused=1:retried=1`, together with
+`non-ansi-root:pass` and `private-store-open-tests:pass`.
+
+**The failing row.** `application_device_binding_relaunch` runs contained on
+Windows, as registered, and there its seed is refused. That is
+[[BPR-0876]]'s recorded contained failure for this course, and it happens
+before any device-binding load, so it says nothing about this card's change.
+Run uncontained, the same course passes every step on this station today:
+[[BPR-1039]]'s closed-connection change passes it 3 of 3, and its runs are
+recorded there. It was not re-run here, because the owed run was the
+registered selector.
+
+The logs are station records under `build/logs/bpr-0884-main-win/` and are
+not committed. The card stays in Ready: Windows owes nothing more on the
+five rows that exercise this change, and the owner may want to review the
+diff first.
