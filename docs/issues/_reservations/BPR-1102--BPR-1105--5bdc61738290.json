@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1102",
+    "BPR-1103",
+    "BPR-1104",
+    "BPR-1105"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows segment 5 findings",
+  "created": "2026-09-24T10:44:20.270164+00:00",
+  "base": "93b3c53e964ea1ff29306a5b293699c37bf89f26"
+}
