@@ -878,3 +878,49 @@ waits for a tests-disabled `app-release` bundle built on JaegAW at or after
 and 4 wait on that capture. Criterion 3 stays pending on the Windows window
 rows recorded above. The card stays parked on human-review, now for this one
 ask.
+
+## The capture bundle was not built, 2026-09-24 (bpr-main-win)
+
+The coordinator asked the Windows station to build the tests-disabled
+`app-release` bundle for ask 1. The build was to be at or after `e08a0409`,
+using the `windows-app-release` preset. First, the station was to judge from
+[[BPR-1110]] whether Defender would quarantine the bundle, and not build it
+if so. **It was not built.** Nothing was launched, and no image or digest
+exists for the capture.
+
+Why, from BPR-1110's findings:
+
+- **The one recorded first launch of such an image was quarantined.** That
+  was the tests-disabled Release image at `2d3bdbdf`, on 2026-09-22.
+  Defender's cloud sent a signature made for that file about three seconds
+  after the launch. Defender quarantined both copies with it, while a course
+  was driving the window.
+- **The file itself was not what changed.** The file had sat on disk for three
+  minutes undetected. Structurally identical siblings, BPR-0014 M8 and M9,
+  were never flagged, and as far as recorded they were never launched. So
+  building the bundle would very likely pass. Launching it, which is step 1
+  of the capture, is the moment the same machine-learning verdict is likely
+  to come.
+- **A fresh build keeps the profile the verdict rests on.** It is unsigned,
+  has no version information and no reputation, carries 3.6 MB of
+  near-random resource data, and imports credential, ACL and process calls.
+  Nothing has changed since then that would lower the score.
+- **A launch here would be a substitute for the owner's decision.** The
+  likely outcome is a new Severe detection on the owner's machine in the
+  middle of the capture. The owner asked to understand the detection before
+  deciding anything about it: [[BPR-0974]] withheld a fresh tests-disabled
+  image for that reason.
+
+What would let ask 1 go ahead. These are the owner's choices, with BPR-0974's
+disposition:
+
+- signing the Windows image;
+- authorizing a fresh tests-disabled build and its launch, accepting that
+  Defender may quarantine it mid-capture;
+- a false-positive submission;
+- amending criterion 4 so the capture may use the tests-enabled Debug build.
+  That build draws the same title row through the same host code, and has
+  never been flagged on this host.
+
+Until then, criteria 2 and 4 stay pending, and the card stays parked on
+human-review.
