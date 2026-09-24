@@ -290,3 +290,62 @@ exact-artifact qualification. The project `publish-release` skill preserves a
 separate explicit user request before tag/push/release creation. Neither its
 existence nor BPR-0908's skipped-notarization run satisfies this card; retain
 the full supported matrix and SBOM/license/privacy/hardening obligations.
+
+## M9 Windows licensing-v002 decision finalization (main, 2026-09-24)
+
+The carried-forward Windows question was answered in attended session
+`cbd48b91000b00f1e72e1ad62c7c384c`. It was re-presented unchanged in packet
+[owner-decisions-20260924-v001](../../verification/reviews/owner-decisions-20260924-v001/operator-packet.md)
+beside that day's other asks. The session was handed back at sequence 589.
+The owner saved a human **accept**, decision
+`afa8af40-56ea-4c19-aaed-4f48ebde1218`, at event 588 (2026-09-24T19:17:39Z),
+with an empty note. It applies only to `rfc0014-m9-windows-licensing-v002`:
+
+- fingerprint `e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74`;
+- revision `producer-67f5e514-win-b34099e6-source-11babc5f`;
+- producer `67f5e51407a883e4469cee6008048a001f7c13b3`;
+- manifest [rfc0014-m9-windows-licensing-v002](../../verification/reviews/rfc0014-m9-windows-licensing-v002/manifest.json).
+
+**Accepted.** The owner/legal criterion is accepted for this exact Qt 6.11.2
+Windows inventory only. The question asked whether the distribution terms and
+the corresponding-source, build and relink obligations were approved,
+including equivalent recipient access and retention. That covers:
+
+- the separate version-bound corresponding-source asset;
+- the installed reference, digest and notices;
+- equivalent recipient access, including offline and corporate copies and a
+  fallback;
+- indefinite retention while matching binaries are distributed;
+- the build, Qt replacement and relinking instructions in `SOURCE-OFFERS.txt`.
+
+The empty note supplies no further legal opinion or authority.
+
+**The bytes are unchanged.** The protected payload
+`build/releases/m9-qt6112-windows-67f5e514` still matches the reviewed digests
+on this Mac:
+
+- MSI `0174d9ce46537601ffca81295eed3bcea31c7fc5666e35613b8e4d6810178ef6`;
+- SPDX `b34099e6a7e957dc64916a649c2c036ce16ad26dcf0e1c9507b05a7fa979494b`;
+- corresponding source `11babc5ff5cc7865344835685223d4757bddfa433a4517d56fe9975f39436b3b`.
+
+The candidate's protection is kept, as for the earlier licensing decisions.
+
+**Not approved by this decision:** vulnerabilities, security, signatures,
+native behaviour and publication. The prospective v0.1.3 source URL is still
+unpublished. Recipient access and retention stay distribution obligations,
+distinct from any observed distribution.
+
+With the macOS licensing-v003 accept, both current inventories now have their
+owner/legal decision, and AC1's licensing half is decided for these exact
+bytes. AC1's independent signature verification and the other criteria are
+not. **The card stays Blocked on `release-security-inputs`**. These are still
+open:
+
+- the raw Grype failures (32 macOS / 30 Windows) and their security-owner
+  disposition;
+- independent trust verification;
+- native, privacy and hardening evidence.
+
+No signing, notarization, tag, push, upload or publication was performed or
+authorized. The [successor ledger](../../verification/RFC-BPR-0038.md#human-review-and-protections)
+records the same decision.

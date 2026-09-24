@@ -48,5 +48,7 @@ the declared Ubuntu 24.04/RHEL 10 environments. The
 [M8 ledger](../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
 retains the observed fixes and exact limitations. The
 [successor ledger](../verification/RFC-BPR-0038.md) preserves Qt 6.11.2,
-separate source assets, raw 32/30 Grype failures and the unanswered Windows
-licensing-v002 question at cursor 478. No release approval is implied.
+separate source assets and raw 32/30 Grype failures. The Windows
+licensing-v002 question, unanswered at cursor 478, was accepted for its exact
+inventory on 2026-09-24 (decision `afa8af40`, hand-back 589). No release
+approval is implied.

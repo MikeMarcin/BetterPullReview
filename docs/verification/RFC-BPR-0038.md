@@ -101,8 +101,8 @@ local ad-hoc seal pass without claiming independent trust.
 
 ## Human review and protections
 
-Session `cbd48b91000b00f1e72e1ad62c7c384c`, hand-back cursor 478,
-host/server stopped. Existing eight protections and all candidate bytes remain.
+Session `cbd48b91000b00f1e72e1ad62c7c384c`, hand-back cursor 478
+(later hand-back 589 on 2026-09-24), host/server stopped. Existing eight protections and all candidate bytes remain.
 No new decision or review server is created by r4.
 
 - Original M8 source/map and maintenance accepts remain at producer
@@ -115,11 +115,18 @@ No new decision or review server is created by r4.
   fingerprint `fd1f44666e40b376bcb426d8ddec6e6067cfcdfaa284d93b7b72e8c210d2236a`.
   Only the exact Qt 6.11.2 inventory/source/build/relink/distribution criterion
   is accepted. Empty raw note supplies no further legal/security opinion.
-- Windows `rfc0014-m9-windows-licensing-v002` remains unanswered:
-  fingerprint `e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74`,
-  producer `67f5e51407a883e4469cee6008048a001f7c13b3`.
-  Retain its manifest and protected payload. Resume through attended-review in
-  a fresh authorized review assignment; no stale localhost URL is presented.
+- Windows `rfc0014-m9-windows-licensing-v002` was unanswered at hand-back 478
+  and is **accepted** on 2026-09-24: decision
+  `afa8af40-56ea-4c19-aaed-4f48ebde1218`, event 588, hand-back 589, empty note,
+  carried forward unchanged in
+  [owner-decisions-20260924-v001](reviews/owner-decisions-20260924-v001/operator-packet.md).
+  Fingerprint `e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74`,
+  producer `67f5e51407a883e4469cee6008048a001f7c13b3`; MSI, SPDX and
+  separate-source digests re-verified unchanged. Only the exact Qt 6.11.2
+  Windows inventory/source/build/relink/distribution criterion is accepted,
+  not security, vulnerability, signature, native or publication approval. Its
+  manifest and protected payload are retained, and the session's server is
+  stopped. [[BPR-0962]] records it.
 
 ## Continuation
 
