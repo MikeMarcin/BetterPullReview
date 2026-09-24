@@ -1222,7 +1222,10 @@ namespace bpr::adapters::github::detail {
 		// Each of the three is optional and checked. Nothing else is admitted.
 		[[nodiscard]] auto has_file_fixture_keys(const fixture_json_object& aObject) -> bool
 		{
-			constexpr auto allowed = std::array<std::string_view, 8U>{
+			// Static: MSVC can materialize a constexpr local afresh for each use
+			// inside the lambda, so `find` and `end()` would name two arrays and
+			// its checked iterators abort on the comparison.
+			static constexpr auto allowed = std::array<std::string_view, 8U>{
 				"additions",
 				"changes",
 				"deletions",
@@ -1233,7 +1236,7 @@ namespace bpr::adapters::github::detail {
 				"status",
 			};
 			return has_required_fixture_keys(aObject, { "additions", "deletions", "filename", "status" })
-				&& std::ranges::all_of(sorted_keys(aObject), [&allowed](const std::string& aKey) {
+				&& std::ranges::all_of(sorted_keys(aObject), [](const std::string& aKey) {
 					   return std::ranges::find(allowed, aKey) != allowed.end();
 				   });
 		}
