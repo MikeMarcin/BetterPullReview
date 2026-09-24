@@ -1,5 +1,7 @@
 #include "review_ledger_database.hpp"
 
+#include "storage_internal.hpp"
+
 #include <sqlite3.h>
 
 #include <algorithm>
@@ -16,6 +18,31 @@
 namespace bpr::adapters::sqlite::detail {
 	namespace {
 		constexpr std::int32_t LedgerApplicationId = 0x42505244;
+
+		constexpr auto OpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+			| SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_EXRESCODE;
+
+		/// \brief One of SQLite's sibling files, `-wal` or `-shm`, of `aPath`.
+		///
+		/// \details Appended to the path itself. A narrow `path.string()` is the
+		/// ANSI code page on Windows, which cannot spell a root outside it and
+		/// throws there ([[BPR-0883]]).
+		[[nodiscard]] auto sibling(
+			const std::filesystem::path& aPath, const char* const aSuffix)
+			-> std::filesystem::path
+		{
+			auto result = aPath;
+			result += aSuffix;
+			return result;
+		}
+
+		/// \brief The UTF-8 name SQLite takes on every platform.
+		[[nodiscard]] auto sqlite_filename(const std::filesystem::path& aPath)
+			-> std::string
+		{
+			const auto encoded = aPath.u8string();
+			return std::string{ reinterpret_cast<const char*>(encoded.data()), encoded.size() };
+		}
 
 #if defined(BPR_SQLITE_TESTING)
 		using preflight_test_hook                 = void (*)(const std::filesystem::path&);
@@ -672,9 +699,9 @@ namespace bpr::adapters::sqlite::detail {
 		{
 			const auto main = capture_preflight_file(aPath);
 			const auto wal
-				= capture_preflight_file(aPath.string() + "-wal");
+				= capture_preflight_file(sibling(aPath, "-wal"));
 			const auto shm
-				= capture_preflight_file(aPath.string() + "-shm");
+				= capture_preflight_file(sibling(aPath, "-shm"));
 			if (!main || !wal || !shm) {
 				return std::unexpected(failure::unavailable);
 			}
@@ -985,11 +1012,11 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (validation) {
 				validation = write_preflight_file(
-					clone.string() + "-wal", before->Wal);
+					sibling(clone, "-wal"), before->Wal);
 			}
 			if (validation) {
 				validation = retain_preflight_file(
-					clone.string() + "-wal",
+					sibling(clone, "-wal"),
 					directory->authority("wal"),
 					before->Wal);
 			}
@@ -997,7 +1024,7 @@ namespace bpr::adapters::sqlite::detail {
 			::sqlite3* database = nullptr;
 			auto       code     = SQLITE_ERROR;
 			if (validation) {
-				const auto native = clone.string();
+				const auto native = sqlite_filename(clone);
 				code              = ::sqlite3_open_v2(
 					native.c_str(),
 					&database,
@@ -1053,6 +1080,25 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(validation.error());
 			}
 			return *before;
+		}
+
+		/// \brief Validates an existing ledger on a copy, then confirms that the
+		/// file itself did not change meanwhile.
+		[[nodiscard]] auto preflight_unchanged(const std::filesystem::path& aPath)
+			-> std::expected<void, failure>
+		{
+			const auto preflight = preflight_existing_schema(aPath);
+			if (!preflight) {
+				return std::unexpected(preflight.error());
+			}
+#if defined(BPR_SQLITE_TESTING)
+			run_test_hook(PreflightBoundaryHook, aPath);
+#endif
+			const auto current = capture_preflight_ledger(aPath);
+			if (!current || *current != *preflight) {
+				return std::unexpected(failure::unavailable);
+			}
+			return { };
 		}
 	} // namespace
 
@@ -1117,32 +1163,54 @@ namespace bpr::adapters::sqlite::detail {
 		if (!sqlite_runtime_ready()) {
 			return std::unexpected(failure::unavailable);
 		}
-		const auto preflight = preflight_existing_schema(aPath);
-		if (!preflight) {
-			return std::unexpected(preflight.error());
-		}
-#if defined(BPR_SQLITE_TESTING)
-		run_test_hook(PreflightBoundaryHook, aPath);
-#endif
-		const auto current = capture_preflight_ledger(aPath);
-		if (!current || *current != *preflight) {
-			return std::unexpected(failure::unavailable);
+		if (auto unchanged = preflight_unchanged(aPath); !unchanged) {
+			return std::unexpected(unchanged.error());
 		}
 
 		::sqlite3* database = nullptr;
 		const auto native   = aPath.string();
 		const auto code     = ::sqlite3_open_v2(
-			native.c_str(),
-			&database,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
-				| SQLITE_OPEN_EXRESCODE,
-			nullptr);
+			native.c_str(), &database, OpenFlags, nullptr);
 		auto owned = review_ledger_database{ database };
 		if (code != SQLITE_OK || database == nullptr) {
 			return std::unexpected(catalog_failure_from_sqlite_result(code));
 		}
+		return adopt(std::move(owned), std::move(aStop));
+	}
 
-		const auto configured = configure_connection(database);
+	auto review_ledger_database::open(
+		state_directory&       aDirectory,
+		const std::string_view aName,
+		std::stop_token        aStop)
+		-> std::expected<review_ledger_database, failure>
+	{
+		if (!sqlite_runtime_ready()) {
+			return std::unexpected(failure::unavailable);
+		}
+		// Admitted before the preflight copies it, so a link or a file that is
+		// not private is refused before any byte of it is read.
+		if (auto admitted = admit_private_store_file(aDirectory, aName); !admitted) {
+			return std::unexpected(private_store_database_failure(admitted.error()));
+		}
+		const auto path = aDirectory.path()
+			/ std::filesystem::path{ std::u8string{ aName.begin(), aName.end() } };
+		if (auto unchanged = preflight_unchanged(path); !unchanged) {
+			return std::unexpected(unchanged.error());
+		}
+		auto opened = open_private_store_database(
+			aDirectory, aName, OpenFlags | SQLITE_OPEN_NOFOLLOW);
+		if (!opened) {
+			return std::unexpected(private_store_database_failure(opened.error()));
+		}
+		return adopt(review_ledger_database{ *opened }, std::move(aStop));
+	}
+
+	auto review_ledger_database::adopt(
+		review_ledger_database aOwned, std::stop_token aStop)
+		-> std::expected<review_ledger_database, failure>
+	{
+		auto* const database   = aOwned.Handle;
+		const auto  configured = configure_connection(database);
 		if (!configured) {
 			return std::unexpected(configured.error());
 		}
@@ -1153,7 +1221,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (auto validated = validate(database); !validated) {
 			return std::unexpected(validated.error());
 		}
-		return owned;
+		return aOwned;
 	}
 
 	auto review_ledger_database::scope_id(const review_scope& aScope)

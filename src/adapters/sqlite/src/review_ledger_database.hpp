@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_SQLITE_SRC_REVIEW_LEDGER_DATABASE_HPP
 
 #include "sqlite_connection.hpp"
+#include "state_directory.hpp"
 
 #include "bpr/application/review_ledger_port.hpp"
 
@@ -62,15 +63,33 @@ namespace bpr::adapters::sqlite::detail {
 			-> review_ledger_database&;
 		~review_ledger_database();
 
-		/// \brief Opens or creates the ledger at one path.
+		/// \brief Opens or creates a ledger file by path, for the schema contract.
 		///
 		/// \details A database written by a newer build fails closed with
 		/// `schema_mismatch` rather than being opened and partially understood.
 		/// Migration is forward-only: there is no downgrade path, because a
 		/// downgrade would have to discard data the newer version added.
+		///
+		/// Applies no private-store policy: the file is neither admitted nor
+		/// restricted. The durable store opens through the state-directory
+		/// overload.
 		[[nodiscard]] static auto open(
 			const std::filesystem::path& aPath,
 			std::stop_token              aStop)
+			-> std::expected<review_ledger_database, failure>;
+
+		/// \brief Opens or creates the durable ledger `aName` under the held `state/v1`.
+		///
+		/// \details The same schema preflight and forward-only migration as the
+		/// path overload. The file is admitted before the preflight copies it,
+		/// and opened through `open_private_store_database` ([[BPR-0883]]): by
+		/// its UTF-8 name, restricted to its owner and, on Windows, bound to the
+		/// handle SQLite holds. The caller keeps `aDirectory` for as long as the
+		/// database is open.
+		[[nodiscard]] static auto open(
+			state_directory& aDirectory,
+			std::string_view aName,
+			std::stop_token  aStop)
 			-> std::expected<review_ledger_database, failure>;
 
 		[[nodiscard]] auto handle() const noexcept -> ::sqlite3*;
@@ -146,6 +165,10 @@ namespace bpr::adapters::sqlite::detail {
 
 	private:
 		explicit review_ledger_database(::sqlite3* aHandle) noexcept;
+
+		/// \brief Configures, establishes and validates a connection this owns.
+		[[nodiscard]] static auto adopt(review_ledger_database aOwned, std::stop_token aStop)
+			-> std::expected<review_ledger_database, failure>;
 
 		::sqlite3* Handle = nullptr;
 	};

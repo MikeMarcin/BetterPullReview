@@ -200,16 +200,19 @@ namespace bpr::adapters::sqlite {
 						application::queue_store_failure::unavailable);
 				}
 				auto opened = detail::queue_enrollment_database::open(
-					directory->path() / QueueStoreName,
-					aStop);
+					*directory, QueueStoreName, aStop);
 				if (!opened) {
 					return std::unexpected(translate(opened.error()));
 				}
+				Directory.emplace(std::move(*directory));
 				Database.emplace(std::move(*opened));
 				return { };
 			}
 
-			std::filesystem::path                            StorageRoot;
+			std::filesystem::path StorageRoot;
+			// [[BPR-0883]]. Held for as long as the database is open, as
+			// `state_directory.hpp` promises. Declared first, released last.
+			std::optional<detail::state_directory>           Directory;
 			std::optional<detail::queue_enrollment_database> Database;
 		};
 	} // namespace

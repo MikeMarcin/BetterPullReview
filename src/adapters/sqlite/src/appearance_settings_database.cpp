@@ -1,5 +1,7 @@
 #include "appearance_settings_database.hpp"
 
+#include "storage_internal.hpp"
+
 #include "bpr/core/theme_exchange.hpp"
 
 #include <sqlite3.h>
@@ -20,6 +22,9 @@ namespace bpr::adapters::sqlite::detail {
 		// fails at the identity check rather than at the first query for a
 		// table that is not there.
 		constexpr std::int32_t AppearanceApplicationId = 0x42505241;
+
+		constexpr auto OpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+			| SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_EXRESCODE;
 
 		/// \brief The statements that build schema version 3.
 		///
@@ -1137,16 +1142,34 @@ namespace bpr::adapters::sqlite::detail {
 		::sqlite3* database = nullptr;
 		const auto native   = aPath.string();
 		const auto code     = ::sqlite3_open_v2(
-			native.c_str(),
-			&database,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
-				| SQLITE_OPEN_EXRESCODE,
-			nullptr);
+			native.c_str(), &database, OpenFlags, nullptr);
 		auto owned = appearance_settings_database{ database };
 		if (code != SQLITE_OK || database == nullptr) {
 			return std::unexpected(catalog_failure_from_sqlite_result(code));
 		}
+		return adopt(std::move(owned), std::move(aStop));
+	}
 
+	auto appearance_settings_database::open(
+		state_directory& aDirectory, const std::string_view aName, std::stop_token aStop)
+		-> std::expected<appearance_settings_database, failure>
+	{
+		if (!sqlite_runtime_ready()) {
+			return std::unexpected(failure::unavailable);
+		}
+		auto opened = open_private_store_database(
+			aDirectory, aName, OpenFlags | SQLITE_OPEN_NOFOLLOW);
+		if (!opened) {
+			return std::unexpected(private_store_database_failure(opened.error()));
+		}
+		return adopt(appearance_settings_database{ *opened }, std::move(aStop));
+	}
+
+	auto appearance_settings_database::adopt(
+		appearance_settings_database aOwned, std::stop_token aStop)
+		-> std::expected<appearance_settings_database, failure>
+	{
+		auto* const database = aOwned.Handle;
 		if (auto configured = configure_connection(database); !configured) {
 			return std::unexpected(configured.error());
 		}
@@ -1156,7 +1179,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (auto validated = validate(database); !validated) {
 			return std::unexpected(validated.error());
 		}
-		return owned;
+		return aOwned;
 	}
 
 	auto appearance_settings_database::handle() const noexcept -> ::sqlite3*

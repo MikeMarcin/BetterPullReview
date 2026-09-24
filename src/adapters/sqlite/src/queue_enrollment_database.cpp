@@ -1,5 +1,7 @@
 #include "queue_enrollment_database.hpp"
 
+#include "storage_internal.hpp"
+
 #include <sqlite3.h>
 
 #include <array>
@@ -14,6 +16,9 @@ namespace bpr::adapters::sqlite::detail {
 		// at the other's file fails at the identity check rather than at the
 		// first query for a table that is not there.
 		constexpr std::int32_t QueueApplicationId = 0x42505251;
+
+		constexpr auto OpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+			| SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_EXRESCODE;
 
 		/// \brief The statements that build schema version 1.
 		///
@@ -656,16 +661,34 @@ namespace bpr::adapters::sqlite::detail {
 		::sqlite3* database = nullptr;
 		const auto native   = aPath.string();
 		const auto code     = ::sqlite3_open_v2(
-			native.c_str(),
-			&database,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
-				| SQLITE_OPEN_EXRESCODE,
-			nullptr);
+			native.c_str(), &database, OpenFlags, nullptr);
 		auto owned = queue_enrollment_database{ database };
 		if (code != SQLITE_OK || database == nullptr) {
 			return std::unexpected(catalog_failure_from_sqlite_result(code));
 		}
+		return adopt(std::move(owned), std::move(aStop));
+	}
 
+	auto queue_enrollment_database::open(
+		state_directory& aDirectory, const std::string_view aName, std::stop_token aStop)
+		-> std::expected<queue_enrollment_database, failure>
+	{
+		if (!sqlite_runtime_ready()) {
+			return std::unexpected(failure::unavailable);
+		}
+		auto opened = open_private_store_database(
+			aDirectory, aName, OpenFlags | SQLITE_OPEN_NOFOLLOW);
+		if (!opened) {
+			return std::unexpected(private_store_database_failure(opened.error()));
+		}
+		return adopt(queue_enrollment_database{ *opened }, std::move(aStop));
+	}
+
+	auto queue_enrollment_database::adopt(
+		queue_enrollment_database aOwned, std::stop_token aStop)
+		-> std::expected<queue_enrollment_database, failure>
+	{
+		auto* const database = aOwned.Handle;
 		if (auto preflight = preflight_existing_database(database); !preflight) {
 			return std::unexpected(preflight.error());
 		}
@@ -678,7 +701,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (auto validated = validate(database); !validated) {
 			return std::unexpected(validated.error());
 		}
-		return owned;
+		return aOwned;
 	}
 
 	auto queue_enrollment_database::handle() const noexcept -> ::sqlite3*

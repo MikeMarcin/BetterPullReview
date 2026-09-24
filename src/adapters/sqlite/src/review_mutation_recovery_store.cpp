@@ -3,6 +3,7 @@
 
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
+#include "storage_internal.hpp"
 
 #include "bpr/core/sha256.hpp"
 
@@ -115,6 +116,19 @@ namespace bpr::adapters::sqlite {
 				? application::review_mutation_recovery_failure::integrity_failure
 				: application::review_mutation_recovery_failure::unavailable;
 		}
+
+		/// \brief The recovery journal, open and scoped, with the `state/v1` it
+		/// was opened under.
+		///
+		/// \details [[BPR-0883]]. The directory is held for as long as the
+		/// connection is open, as `state_directory.hpp` promises; the store
+		/// that takes the journal closes the connection.
+		struct recovery_journal final
+		{
+			detail::state_directory Directory;
+			::sqlite3*              Database = nullptr;
+			std::int64_t            Scope    = 0;
+		};
 
 		[[nodiscard]] auto valid_server_comment_id(
 			const std::string_view aValue) noexcept -> bool
@@ -333,9 +347,10 @@ namespace bpr::adapters::sqlite {
 			: public application::review_mutation_recovery_port
 		{
 		public:
-			recovery_store(::sqlite3* aDatabase, const std::int64_t aScope) noexcept
-				: Database{ aDatabase }
-				, Scope{ aScope }
+			explicit recovery_store(recovery_journal aJournal) noexcept
+				: Directory{ std::move(aJournal.Directory) }
+				, Database{ aJournal.Database }
+				, Scope{ aJournal.Scope }
 			{
 			}
 
@@ -691,9 +706,10 @@ namespace bpr::adapters::sqlite {
 					: std::unexpected(failure::integrity_failure);
 			}
 
-			::sqlite3*   Database = nullptr;
-			std::int64_t Scope    = 0;
-			std::mutex   Mutex;
+			detail::state_directory Directory;
+			::sqlite3*              Database = nullptr;
+			std::int64_t            Scope    = 0;
+			std::mutex              Mutex;
 		};
 
 		class submission_writer
@@ -885,9 +901,10 @@ namespace bpr::adapters::sqlite {
 			using record  = application::review_submission_recovery_record;
 
 		public:
-			submission_store(::sqlite3* aDatabase, std::int64_t aScope, review_mutation_recovery_configuration aConfiguration)
-				: Database{ aDatabase }
-				, Scope{ aScope }
+			submission_store(recovery_journal aJournal, review_mutation_recovery_configuration aConfiguration)
+				: Directory{ std::move(aJournal.Directory) }
+				, Database{ aJournal.Database }
+				, Scope{ aJournal.Scope }
 				, Configuration{ std::move(aConfiguration) }
 			{ }
 			~submission_store() override { static_cast<void>(::sqlite3_close_v2(Database)); }
@@ -1117,6 +1134,7 @@ namespace bpr::adapters::sqlite {
 				}
 				return std::optional{ std::move(value) };
 			}
+			detail::state_directory                      Directory;
 			::sqlite3*                                   Database;
 			std::int64_t                                 Scope;
 			const review_mutation_recovery_configuration Configuration;
@@ -1213,6 +1231,57 @@ namespace bpr::adapters::sqlite {
 			return result > 0 ? std::expected<std::int64_t, detail::failure>{ result }
 							  : std::unexpected(detail::failure::integrity_failure);
 		}
+
+		/// \brief Opens, migrates and scopes the recovery journal both stores share.
+		///
+		/// \details [[BPR-0883]]. Through `open_private_store_database`: the
+		/// file is admitted, opened by its UTF-8 name, restricted to its owner
+		/// and, on Windows, bound to the handle SQLite holds. A narrow
+		/// `path.string()` is the ANSI code page on Windows, which cannot spell
+		/// a profile root outside it.
+		[[nodiscard]] auto open_recovery_journal(
+			const review_mutation_recovery_configuration& aConfiguration)
+			-> std::expected<recovery_journal, application::review_mutation_recovery_failure>
+		{
+			using failure = application::review_mutation_recovery_failure;
+			if (aConfiguration.StorageRoot.empty() || aConfiguration.Host.empty()
+				|| aConfiguration.Account.empty() || aConfiguration.Repository.empty()
+				|| aConfiguration.PullRequest <= 0) {
+				return std::unexpected(failure::unavailable);
+			}
+			auto directory = detail::open_state_directory(aConfiguration.StorageRoot);
+			if (!directory || !detail::sqlite_runtime_ready()) {
+				return std::unexpected(failure::unavailable);
+			}
+			auto opened = detail::open_private_store_database(
+				*directory,
+				RecoveryName,
+				SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
+					| SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_EXRESCODE);
+			if (!opened) {
+				return std::unexpected(failure::unavailable);
+			}
+			auto* const database = *opened;
+			const auto  close    = [database] { static_cast<void>(::sqlite3_close_v2(database)); };
+			if (auto configured = detail::configure_connection(database); !configured) {
+				close();
+				return std::unexpected(translate(configured.error()));
+			}
+			if (auto schema = establish(database); !schema) {
+				close();
+				return std::unexpected(translate(schema.error()));
+			}
+			auto scope = scope_id(database, aConfiguration);
+			if (!scope) {
+				close();
+				return std::unexpected(translate(scope.error()));
+			}
+			return recovery_journal{
+				.Directory = std::move(*directory),
+				.Database  = database,
+				.Scope     = *scope,
+			};
+		}
 	} // namespace
 
 	auto make_review_mutation_recovery_store(
@@ -1221,46 +1290,12 @@ namespace bpr::adapters::sqlite {
 			std::unique_ptr<application::review_mutation_recovery_port>,
 			application::review_mutation_recovery_failure>
 	{
-		using failure = application::review_mutation_recovery_failure;
-		if (aConfiguration.StorageRoot.empty() || aConfiguration.Host.empty()
-			|| aConfiguration.Account.empty() || aConfiguration.Repository.empty()
-			|| aConfiguration.PullRequest <= 0) {
-			return std::unexpected(failure::unavailable);
-		}
-		auto directory = detail::open_state_directory(aConfiguration.StorageRoot);
-		if (!directory || !detail::sqlite_runtime_ready()) {
-			return std::unexpected(failure::unavailable);
-		}
-		::sqlite3* database = nullptr;
-		const auto path     = (directory->path() / RecoveryName).string();
-		const auto code     = ::sqlite3_open_v2(
-			path.c_str(),
-			&database,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
-				| SQLITE_OPEN_EXRESCODE,
-			nullptr);
-		if (code != SQLITE_OK || database == nullptr) {
-			if (database != nullptr) {
-				static_cast<void>(::sqlite3_close_v2(database));
-			}
-			return std::unexpected(failure::unavailable);
-		}
-		auto close = [&] { static_cast<void>(::sqlite3_close_v2(database)); };
-		if (auto configured = detail::configure_connection(database); !configured) {
-			close();
-			return std::unexpected(translate(configured.error()));
-		}
-		if (auto schema = establish(database); !schema) {
-			close();
-			return std::unexpected(translate(schema.error()));
-		}
-		auto scope = scope_id(database, aConfiguration);
-		if (!scope) {
-			close();
-			return std::unexpected(translate(scope.error()));
+		auto journal = open_recovery_journal(aConfiguration);
+		if (!journal) {
+			return std::unexpected(journal.error());
 		}
 		return std::unique_ptr<application::review_mutation_recovery_port>{
-			new recovery_store{ database, *scope }
+			new recovery_store{ std::move(*journal) }
 		};
 	}
 	auto make_review_submission_recovery_store(
@@ -1269,46 +1304,12 @@ namespace bpr::adapters::sqlite {
 			std::unique_ptr<application::review_submission_recovery_port>,
 			application::review_mutation_recovery_failure>
 	{
-		using failure = application::review_mutation_recovery_failure;
-		if (aConfiguration.StorageRoot.empty() || aConfiguration.Host.empty()
-			|| aConfiguration.Account.empty() || aConfiguration.Repository.empty()
-			|| aConfiguration.PullRequest <= 0) {
-			return std::unexpected(failure::unavailable);
-		}
-		auto directory = detail::open_state_directory(aConfiguration.StorageRoot);
-		if (!directory || !detail::sqlite_runtime_ready()) {
-			return std::unexpected(failure::unavailable);
-		}
-		::sqlite3* database = nullptr;
-		const auto path     = (directory->path() / RecoveryName).string();
-		const auto code     = ::sqlite3_open_v2(
-			path.c_str(),
-			&database,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
-				| SQLITE_OPEN_EXRESCODE,
-			nullptr);
-		if (code != SQLITE_OK || database == nullptr) {
-			if (database != nullptr) {
-				static_cast<void>(::sqlite3_close_v2(database));
-			}
-			return std::unexpected(failure::unavailable);
-		}
-		auto close = [&] { static_cast<void>(::sqlite3_close_v2(database)); };
-		if (auto configured = detail::configure_connection(database); !configured) {
-			close();
-			return std::unexpected(translate(configured.error()));
-		}
-		if (auto schema = establish(database); !schema) {
-			close();
-			return std::unexpected(translate(schema.error()));
-		}
-		auto scope = scope_id(database, aConfiguration);
-		if (!scope) {
-			close();
-			return std::unexpected(translate(scope.error()));
+		auto journal = open_recovery_journal(aConfiguration);
+		if (!journal) {
+			return std::unexpected(journal.error());
 		}
 		return std::unique_ptr<application::review_submission_recovery_port>{
-			new submission_store{ database, *scope, aConfiguration }
+			new submission_store{ std::move(*journal), aConfiguration }
 		};
 	}
 } // namespace bpr::adapters::sqlite

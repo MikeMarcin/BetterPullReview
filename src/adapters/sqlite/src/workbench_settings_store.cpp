@@ -38,9 +38,10 @@ namespace bpr::adapters::sqlite {
 			: public application::workbench_settings_port
 		{
 		public:
-			explicit sqlite_workbench_settings_store(
-				detail::workbench_settings_database aDatabase, core::bpr_window_id aWindow) noexcept
-				: Database{ std::move(aDatabase) }
+			sqlite_workbench_settings_store(
+				detail::state_directory aDirectory, detail::workbench_settings_database aDatabase, core::bpr_window_id aWindow) noexcept
+				: Directory{ std::move(aDirectory) }
+				, Database{ std::move(aDatabase) }
 				, Window{ aWindow }
 			{
 			}
@@ -122,6 +123,9 @@ namespace bpr::adapters::sqlite {
 			}
 
 		private:
+			// [[BPR-0883]]. Held for as long as the database is open, as
+			// `state_directory.hpp` promises. Declared first, released last.
+			detail::state_directory             Directory;
 			detail::workbench_settings_database Database;
 			core::bpr_window_id                 Window;
 			std::mutex                          Mutex;
@@ -147,14 +151,13 @@ namespace bpr::adapters::sqlite {
 		}
 
 		auto opened = detail::workbench_settings_database::open(
-			directory->path() / SettingsName,
-			std::move(aStop));
+			*directory, SettingsName, std::move(aStop));
 		if (!opened) {
 			return std::unexpected(translate(opened.error()));
 		}
 
 		return std::make_unique<sqlite_workbench_settings_store>(
-			std::move(*opened), aConfiguration.Window);
+			std::move(*directory), std::move(*opened), aConfiguration.Window);
 	}
 	auto make_workbench_settings_store(const workbench_settings_configuration& aConfiguration, std::stop_token aStop)
 		-> std::expected<std::unique_ptr<application::workbench_settings_port>, application::workbench_settings_failure>

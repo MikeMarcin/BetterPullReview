@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_SQLITE_SRC_QUEUE_ENROLLMENT_DATABASE_HPP
 
 #include "sqlite_connection.hpp"
+#include "state_directory.hpp"
 
 #include "bpr/application/review_queue_enrollment.hpp"
 
@@ -11,6 +12,7 @@
 #include <span>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct sqlite3;
@@ -45,9 +47,21 @@ namespace bpr::adapters::sqlite::detail {
 			-> queue_enrollment_database&;
 		~queue_enrollment_database();
 
-		/// \brief Opens or creates the store at one path.
+		/// \brief Opens or creates a database file by path, for the schema contract.
+		/// \details Applies no private-store policy: the file is neither
+		/// admitted nor restricted. The durable store opens through the
+		/// state-directory overload.
 		[[nodiscard]] static auto open(
 			const std::filesystem::path& aPath, std::stop_token aStop)
+			-> std::expected<queue_enrollment_database, failure>;
+
+		/// \brief Opens or creates the durable store file `aName` under the held `state/v1`.
+		/// \details Through `open_private_store_database` ([[BPR-0883]]): the
+		/// file is admitted, opened by its UTF-8 name, restricted to its owner
+		/// and, on Windows, bound to the handle SQLite holds. The caller keeps
+		/// `aDirectory` for as long as the database is open.
+		[[nodiscard]] static auto open(
+			state_directory& aDirectory, std::string_view aName, std::stop_token aStop)
 			-> std::expected<queue_enrollment_database, failure>;
 
 		[[nodiscard]] auto handle() const noexcept -> ::sqlite3*;
@@ -108,6 +122,10 @@ namespace bpr::adapters::sqlite::detail {
 
 	private:
 		explicit queue_enrollment_database(::sqlite3* aHandle) noexcept;
+
+		/// \brief Preflights, configures, establishes and validates a connection this owns.
+		[[nodiscard]] static auto adopt(queue_enrollment_database aOwned, std::stop_token aStop)
+			-> std::expected<queue_enrollment_database, failure>;
 
 		::sqlite3* Handle = nullptr;
 	};

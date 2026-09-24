@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_SQLITE_SRC_STORAGE_INTERNAL_HPP
 #define BPR_SRC_ADAPTERS_SQLITE_SRC_STORAGE_INTERNAL_HPP
 
+#include "../../native/storage_failure.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "state_directory.hpp"
 
@@ -41,5 +42,11 @@ namespace bpr::adapters::sqlite::detail {
 	/// owns; on failure nothing is left open.
 	[[nodiscard]] auto open_private_store_database(state_directory& aDirectory, std::string_view aName, int aFlags)
 		-> std::expected<::sqlite3*, state_directory_failure>;
+	/// \brief The database failure for a refused `open_private_store_database`.
+	/// \details For the stores whose own vocabulary is the database's ([[BPR-0883]]):
+	/// a refused file stays `invalid_permissions`, a name that cannot be spelled
+	/// stays `invalid_path`, and anything else is `unavailable`.
+	[[nodiscard]] auto private_store_database_failure(state_directory_failure aFailure) noexcept
+		-> native_storage::failure;
 }
 #endif

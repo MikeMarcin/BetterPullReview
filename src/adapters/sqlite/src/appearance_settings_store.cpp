@@ -35,9 +35,11 @@ namespace bpr::adapters::sqlite {
 			: public application::appearance_settings_port
 		{
 		public:
-			explicit sqlite_appearance_settings_store(
+			sqlite_appearance_settings_store(
+				detail::state_directory              aDirectory,
 				detail::appearance_settings_database aDatabase) noexcept
-				: Database{ std::move(aDatabase) }
+				: Directory{ std::move(aDirectory) }
+				, Database{ std::move(aDatabase) }
 			{
 			}
 
@@ -67,6 +69,9 @@ namespace bpr::adapters::sqlite {
 			}
 
 		private:
+			// [[BPR-0883]]. Held for as long as the database is open, as
+			// `state_directory.hpp` promises. Declared first, released last.
+			detail::state_directory              Directory;
 			detail::appearance_settings_database Database;
 		};
 	} // namespace
@@ -87,13 +92,12 @@ namespace bpr::adapters::sqlite {
 		}
 
 		auto opened = detail::appearance_settings_database::open(
-			directory->path() / SettingsName,
-			std::move(aStop));
+			*directory, SettingsName, std::move(aStop));
 		if (!opened) {
 			return std::unexpected(translate(opened.error()));
 		}
 
 		return std::make_unique<sqlite_appearance_settings_store>(
-			std::move(*opened));
+			std::move(*directory), std::move(*opened));
 	}
 } // namespace bpr::adapters::sqlite

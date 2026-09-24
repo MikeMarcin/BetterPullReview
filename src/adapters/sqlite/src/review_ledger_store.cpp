@@ -59,9 +59,11 @@ namespace bpr::adapters::sqlite {
 		{
 		public:
 			sqlite_review_ledger_store(
+				detail::state_directory        aDirectory,
 				detail::review_ledger_database aDatabase,
 				const std::int64_t             aScope) noexcept
-				: Database{ std::move(aDatabase) }
+				: Directory{ std::move(aDirectory) }
+				, Database{ std::move(aDatabase) }
 				, Scope{ aScope }
 			{
 			}
@@ -221,6 +223,9 @@ namespace bpr::adapters::sqlite {
 			}
 
 		private:
+			// [[BPR-0883]]. Held for as long as the database is open, as
+			// `state_directory.hpp` promises. Declared first, released last.
+			detail::state_directory        Directory;
 			detail::review_ledger_database Database;
 			std::int64_t                   Scope = 0;
 		};
@@ -243,8 +248,7 @@ namespace bpr::adapters::sqlite {
 		}
 
 		auto opened = detail::review_ledger_database::open(
-			directory->path() / LedgerName,
-			std::move(aStop));
+			*directory, LedgerName, std::move(aStop));
 		if (!opened) {
 			return std::unexpected(translate(opened.error()));
 		}
@@ -260,6 +264,7 @@ namespace bpr::adapters::sqlite {
 		}
 
 		return std::make_unique<sqlite_review_ledger_store>(
+			std::move(*directory),
 			std::move(*opened),
 			*scope);
 	}

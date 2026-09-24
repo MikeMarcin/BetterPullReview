@@ -3989,6 +3989,11 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(state_directory_failure::invalid_path);
 		}
 	}
+
+	auto private_store_database_failure(const state_directory_failure aFailure) noexcept -> failure
+	{
+		return as_catalog_failure(aFailure);
+	}
 } // namespace bpr::adapters::sqlite::detail
 
 namespace bpr::adapters::sqlite {
