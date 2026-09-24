@@ -7,7 +7,9 @@ from pathlib import Path
 import errno
 import os
 import pathlib
+import signal
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -177,6 +179,165 @@ def identity_attempt(backend: str) -> int:
                 )
                 return 1
     print(f"NETWORK_ISOLATION_IDENTITY_PRESERVED:{os.geteuid()}", flush=True)
+    return 0
+
+
+RUNTIME_PARENT = pathlib.Path("/tmp")
+RUNTIME_PREFIX = "bpr-run-"
+
+
+def row_runtime_directory(value: str) -> bool:
+    """A directory the Linux launcher made for one row: `/tmp/bpr-run-*`, 0700."""
+    path = pathlib.Path(value)
+    if not value or not path.is_absolute():
+        return False
+    if path.parent != RUNTIME_PARENT or not path.name.startswith(RUNTIME_PREFIX):
+        return False
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    return (
+        stat.S_ISDIR(info.st_mode)
+        and info.st_uid == os.geteuid()
+        and stat.S_IMODE(info.st_mode) == 0o700
+    )
+
+
+def listening_unix_socket(path: pathlib.Path) -> socket.socket:
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(path))
+    listener.listen(1)
+    return listener
+
+
+def runtime_child() -> int:
+    """What an owner a row ends with a signal leaves in its runtime directory.
+
+    It binds a socket there and never unlinks it, adds a directory of its own,
+    and then dies by SIGKILL, so no cleanup of its own can run.
+    """
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+    print(f"RUNTIME_CHILD_DIRECTORY:{runtime}", flush=True)
+    print(
+        f"RUNTIME_CHILD_BUS:{os.environ.get('DBUS_SESSION_BUS_ADDRESS', '-')}",
+        flush=True,
+    )
+    listening_unix_socket(pathlib.Path(runtime) / "bpr-activate-leftover.sock")
+    debris = pathlib.Path(runtime) / "debris"
+    debris.mkdir(mode=0o700)
+    (debris / "leftover").write_text("leftover\n", encoding="utf-8")
+    os.kill(os.getpid(), signal.SIGKILL)
+    return 1
+
+
+def nested_run(
+    launcher: str, user: pathlib.Path, bus: str | None
+) -> tuple[str, str, str] | str:
+    """Run the launcher around `runtime_child`, with `user` as its runtime directory.
+
+    Returns the child's directory, the bus address it saw and the launcher's
+    standard error, or the reason the run is not the one expected.
+    """
+    environment = dict(os.environ)
+    environment["XDG_RUNTIME_DIR"] = str(user)
+    environment.pop("DBUS_SESSION_BUS_ADDRESS", None)
+    if bus is not None:
+        environment["DBUS_SESSION_BUS_ADDRESS"] = bus
+    result = subprocess.run(
+        [launcher, sys.executable, __file__, "runtime-child", LINUX_BACKEND],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    lines = dict(
+        line.split(":", 1) for line in result.stdout.splitlines() if ":" in line
+    )
+    # The launcher states the child's status, and a SIGKILL is -9 on its own
+    # exit as well as in the line (`_exit` keeps the low eight bits).
+    if lines.get("TEST_RUNNER_CHILD_EXIT") != "-9" or result.returncode != 256 - 9:
+        return f"launcher:{result.returncode}:{lines.get('TEST_RUNNER_CHILD_EXIT')}"
+    directory = lines.get("RUNTIME_CHILD_DIRECTORY", "")
+    return directory, lines.get("RUNTIME_CHILD_BUS", ""), result.stderr
+
+
+def runtime_attempt(backend: str, launcher: str) -> int:
+    """[[BPR-0906]]. Each row gets a runtime directory of its own.
+
+    A profile owner binds its activation endpoint in `$XDG_RUNTIME_DIR`, and
+    only the owner's destructor unlinks it. A row that ended an owner with a
+    signal therefore left the socket in the user's `/run/user/<uid>`, where
+    nothing removes it. The launcher now names a fresh mode-0700 directory for
+    each row and removes it when the row ends.
+
+    This row's own directory is checked first. Then the launcher runs again
+    from here, around a child that leaves a socket and a directory behind and
+    dies by SIGKILL. A stand-in for the user's runtime directory holds a live
+    endpoint and a session bus socket. The child must get a directory of its
+    own, which must be gone afterwards. The stand-in must be unchanged and its
+    live endpoint must still answer, so the cleanup cannot reach a live owner.
+    With no bus address set, the child must still be given the stand-in's bus.
+    An address that is already set must reach the child unchanged.
+    """
+    if backend != LINUX_BACKEND:
+        print(f"NETWORK_ISOLATION_RUNTIME_NOT_APPLICABLE:{backend}", flush=True)
+        return 1
+    own = os.environ.get("XDG_RUNTIME_DIR", "")
+    if not row_runtime_directory(own):
+        print(f"NETWORK_ISOLATION_RUNTIME_NOT_PER_ROW:{own}", flush=True)
+        return 1
+    with contained_temporary_directory(
+        prefix="bpr-user-runtime-", parent=str(RUNTIME_PARENT)
+    ) as raw:
+        user = pathlib.Path(raw)
+        user.chmod(0o700)
+        live = listening_unix_socket(user / "bpr-activate-live.sock")
+        live.settimeout(2.0)
+        bus_socket = listening_unix_socket(user / "bus")
+        try:
+            before = sorted(os.listdir(user))
+            sentinel = "unix:path=/nonexistent/bpr-0906-sentinel-bus"
+            for bus, expected_bus in (
+                (None, f"unix:path={user / 'bus'}"),
+                (sentinel, sentinel),
+            ):
+                outcome = nested_run(launcher, user, bus)
+                if isinstance(outcome, str):
+                    print(f"NETWORK_ISOLATION_RUNTIME_RUN_FAILED:{outcome}", flush=True)
+                    return 1
+                directory, seen_bus, stderr = outcome
+                if directory == str(user) or not directory.startswith(
+                    str(RUNTIME_PARENT / RUNTIME_PREFIX)
+                ):
+                    print(f"NETWORK_ISOLATION_RUNTIME_SHARED:{directory}", flush=True)
+                    return 1
+                if os.path.lexists(directory) or "BPR_TEST_RUNTIME_DIRECTORY_LEFT" in stderr:
+                    print(f"NETWORK_ISOLATION_RUNTIME_LEFT:{directory}", flush=True)
+                    return 1
+                if seen_bus != expected_bus:
+                    print(
+                        f"NETWORK_ISOLATION_RUNTIME_BUS_CHANGED:{seen_bus}:{expected_bus}",
+                        flush=True,
+                    )
+                    return 1
+                after = sorted(os.listdir(user))
+                if after != before:
+                    print(
+                        f"NETWORK_ISOLATION_RUNTIME_USER_CHANGED:{before}:{after}",
+                        flush=True,
+                    )
+                    return 1
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(2.0)
+                    client.connect(str(user / "bpr-activate-live.sock"))
+                    connection, _ = live.accept()
+                    connection.close()
+        finally:
+            live.close()
+            bus_socket.close()
+    print("NETWORK_ISOLATION_RUNTIME_PER_ROW", flush=True)
     return 0
 
 
@@ -354,9 +515,13 @@ def child_attempt(backend: str) -> int:
 
 
 def main() -> int:
+    if len(sys.argv) == 4 and sys.argv[1] == "runtime":
+        return runtime_attempt(sys.argv[2], sys.argv[3])
     if len(sys.argv) != 3:
         return 2
     probe, backend = sys.argv[1], sys.argv[2]
+    if probe == "runtime-child":
+        return runtime_child()
     if probe == "external":
         return external_attempt(backend)
     if probe == "identity":

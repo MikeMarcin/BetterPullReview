@@ -20,7 +20,8 @@ namespace bpr::adapters::sqlite {
 	};
 	/// \brief Resolves the rendezvous endpoint both launches of a profile derive from its root.
 	/// \details The endpoint is a rendezvous, not durable state. On POSIX it lives in the short
-	/// per-user runtime directory (Linux's `/run/user/<uid>`, else `$TMPDIR`, which is what
+	/// per-user runtime directory (Linux's `$XDG_RUNTIME_DIR` when it names an owner-private
+	/// directory ([[BPR-0906]]), else Linux's `/run/user/<uid>`, else `$TMPDIR`, which is what
 	/// macOS gives each user, else an owner-private child of `/tmp`) under a name digested from
 	/// the canonical root. Beside the data root it could not fit: a real macOS profile root
 	/// spends 108 of Darwin's 104 `sun_path` bytes ([[BPR-0881]]). The runtime directory is

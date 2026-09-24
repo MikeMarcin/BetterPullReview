@@ -1,5 +1,12 @@
 # BPR-0906 Linux measurement: which owner-exit paths unlink the activation endpoint
 
+**Later: the Linux fix.** This file measured the problem and chose no fix. The
+fix came later, on `main`, and [[BPR-0906]] records it. On Linux the product
+now binds in `$XDG_RUNTIME_DIR` when that names an owner-private directory.
+The Linux test launcher gives each row its own such directory and removes it
+afterwards. The exit paths below are unchanged: an owner ended by a signal
+still leaves its socket, but now it leaves it in the row's directory.
+
 ## Current frontier
 
 - **Binding.** Run `run-20260916-stations`, dispatch `dsp-007` (station

@@ -31,6 +31,9 @@ NOT_BUILT_ON_WINDOWS = frozenset(
     {
         "tests/github_contract/linux_secret_service_native_tests.cpp",
         "tests/github_contract/macos_keychain_native_tests.cpp",
+        # The Linux automated-test launcher: `#error` off Linux, and Windows
+        # builds `windows_network_sandbox.cpp` in its place ([[BPR-0906]]).
+        "tests/network_isolation/linux_network_sandbox.cpp",
     }
 )
 

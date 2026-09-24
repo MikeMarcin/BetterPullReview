@@ -8,6 +8,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -340,6 +341,60 @@ namespace {
 		}
 		expect(added, "binding adds the endpoint socket to the runtime directory");
 	}
+
+	#if defined(__linux__)
+	// [[BPR-0906]]. On Linux the endpoint follows `$XDG_RUNTIME_DIR`, so whoever starts the owner
+	// decides where its socket lives; the Linux test launcher gives each row a directory of its own.
+	// The variable counts only when it names an absolute directory that is itself owner-private,
+	// and unlike a shared candidate it earns no `bpr-<uid>` child. Run first, before any thread
+	// exists, because it rewrites the process environment.
+	void test_runtime_directory_follows_a_private_xdg_runtime_dir()
+	{
+		// Linux-only, but the MSVC gate reads text rather than branches (BPR-0519).
+		#if defined(_MSC_VER)
+			#pragma warning(push)
+			#pragma warning(disable : 4996)
+		#endif
+		const auto* inherited = std::getenv("XDG_RUNTIME_DIR");
+		#if defined(_MSC_VER)
+			#pragma warning(pop)
+		#endif
+		const auto restore = inherited != nullptr ? std::optional<std::string>{ inherited } : std::nullopt;
+		auto       pattern = std::string{ "/tmp/bpr-xdg-XXXXXX" };
+		expect(::mkdtemp(pattern.data()) != nullptr, "make a private runtime directory");
+		const std::filesystem::path runtime{ pattern };
+		const auto                  child = runtime / ("bpr-" + std::to_string(::geteuid()));
+		const scratch_directory     root;
+		const auto                  resolvesIn = [&root](const std::filesystem::path& aDirectory) {
+			const auto endpoint = profile_activation_endpoint(root.Path);
+			return endpoint.has_value() && endpoint->parent_path() == aDirectory;
+		};
+
+		expect(::setenv("XDG_RUNTIME_DIR", runtime.c_str(), 1) == 0, "name a private runtime directory");
+		expect(resolvesIn(runtime), "a private XDG_RUNTIME_DIR holds the endpoint");
+		{
+			auto lease = acquire_profile_runtime_lease(root.Path);
+			expect(lease.has_value(), "runtime directory course lease");
+			auto server = make_profile_activation_server(root.Path, profile, *lease);
+			expect(server.has_value(), "runtime directory course binds");
+			expect(std::filesystem::is_socket(runtime / profile_activation_endpoint(root.Path)->filename()), "the owner binds its endpoint in XDG_RUNTIME_DIR");
+		}
+		expect(std::filesystem::is_empty(runtime), "the drained owner leaves XDG_RUNTIME_DIR as it found it");
+
+		expect(::chmod(runtime.c_str(), 0755) == 0, "widen the runtime directory");
+		expect(!resolvesIn(runtime), "a shared XDG_RUNTIME_DIR is passed over");
+		expect(!std::filesystem::exists(child), "a shared XDG_RUNTIME_DIR earns no child");
+		expect(::chmod(runtime.c_str(), 0700) == 0, "narrow the runtime directory again");
+
+		expect(::setenv("XDG_RUNTIME_DIR", "tmp", 1) == 0, "name a relative runtime directory");
+		expect(!resolvesIn(std::filesystem::path{ "tmp" }), "a relative XDG_RUNTIME_DIR is passed over");
+
+		expect(restore ? ::setenv("XDG_RUNTIME_DIR", restore->c_str(), 1) == 0 : ::unsetenv("XDG_RUNTIME_DIR") == 0, "restore the inherited runtime directory");
+		std::error_code ignored;
+		std::filesystem::remove_all(runtime, ignored);
+		std::cout << "runtime-directory:xdg-private=followed:xdg-shared=passed-over:xdg-relative=passed-over\n";
+	}
+	#endif
 #else
 	// [[BPR-0979]]. The Windows contract mirrors the POSIX one over the named
 	// pipe: authority, real independent client processes, hostile framing and a
@@ -573,6 +628,9 @@ auto main(int aCount, char** aArguments) -> int
 		const std::string_view expected{ aArguments[4] };
 		return ((expected == "queued" && result && *result == outcome::queued) || (expected == "refused" && result && *result == outcome::refused) || (expected == "indeterminate" && !result && result.error() == outcome::indeterminate)) ? 0 : 1;
 	}
+#if defined(__linux__)
+	test_runtime_directory_follows_a_private_xdg_runtime_dir();
+#endif
 	test_authority();
 	test_process_handoff();
 	test_hostile_framing();

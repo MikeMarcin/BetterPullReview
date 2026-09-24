@@ -155,16 +155,18 @@ namespace bpr::adapters::sqlite {
 		/// \brief Finds the short per-user runtime directory the rendezvous belongs in.
 		/// \details The candidates are the per-user runtime directories the platforms already
 		/// keep owner-private, which is why the endpoint can leave the data root without losing
-		/// an ownership guarantee: Linux's `/run/user/<uid>` first, then `$TMPDIR`, which is what
-		/// macOS gives each user. Linux also names that directory in an environment variable.
-		/// This adapter once could not read it at all, because the boundary rule reserved the
-		/// name itself to the GitHub CLI transport; BPR-0894 narrowed that rule to what it meant
-		/// -- the transport owns *constructing* a child's environment, not the act of reading a
-		/// variable to find a directory -- so the read is now permitted here. The standard
-		/// location is still probed directly, because probing verifies ownership rather than
-		/// trusting a value and works on a system that sets no such variable. Adopting the
-		/// variable as a further candidate is deliberate future work and is recorded on
-		/// BPR-0894; until then a system that puts the directory elsewhere falls through.
+		/// an ownership guarantee: Linux's `$XDG_RUNTIME_DIR`, then `/run/user/<uid>`, then
+		/// `$TMPDIR`, which is what macOS gives each user. BPR-0894 made the variable readable
+		/// here: the transport owns *constructing* a child's environment, not the act of reading
+		/// a variable to find a directory. [[BPR-0906]] adopted it, so that whoever starts the
+		/// process decides where its endpoint lives. A Linux test launcher gives each row its
+		/// own directory, and a row that kills its owner leaves nothing behind in the user's.
+		/// The variable is read on Linux only: macOS gives the same role to `$TMPDIR`, and its
+		/// test runner confines sockets to the directory it names there. The variable counts
+		/// only when it names an absolute directory that is itself owner-private, and it earns
+		/// no child. So a value inherited through `sudo` cannot put the endpoint inside another
+		/// user's directory. `/run/user/<uid>` is still probed directly, which covers a system
+		/// that sets no such variable.
 		/// Each candidate is verified owner-private rather than assumed, and a shared candidate
 		/// such as `/tmp` earns one owner-private child instead, verified as a real directory so
 		/// a planted symlink is refused rather than followed. No existing permissions are widened.
@@ -179,6 +181,11 @@ namespace bpr::adapters::sqlite {
 		{
 			const auto identity = std::to_string(::geteuid());
 			const auto owned    = "bpr-" + identity;
+	#if defined(__linux__)
+			if (const auto configured = environment_directory("XDG_RUNTIME_DIR"); configured && owner_private_directory(*configured, true)) {
+				return configured;
+			}
+	#endif
 			for (const auto& candidate : { std::optional<std::filesystem::path>{ std::filesystem::path{ "/run/user" } / identity }, environment_directory("TMPDIR"), std::optional<std::filesystem::path>{ "/tmp" } }) {
 				if (!candidate) {
 					continue;

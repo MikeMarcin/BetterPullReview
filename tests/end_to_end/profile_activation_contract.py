@@ -73,11 +73,21 @@ def owner_private_directory(path, follow_links=True):
 def runtime_directory():
     """[[BPR-0881]]. The same candidate order `profile_activation.cpp` walks.
 
-    Linux's `/run/user/<uid>` first, then `$TMPDIR`, then `/tmp`; a candidate
-    that is not itself owner-private earns one owner-private `bpr-<uid>` child,
-    checked without following links so a planted symlink is refused.
+    On Linux an owner-private `$XDG_RUNTIME_DIR` first ([[BPR-0906]]), and it
+    earns no child. Then Linux's `/run/user/<uid>`, then `$TMPDIR`, then `/tmp`;
+    a candidate that is not itself owner-private earns one owner-private
+    `bpr-<uid>` child, checked without following links so a planted symlink is
+    refused.
     """
     identity = str(os.geteuid())
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if (
+        sys.platform.startswith("linux")
+        and runtime
+        and runtime.startswith("/")
+        and owner_private_directory(runtime)
+    ):
+        return Path(runtime)
     configured = os.environ.get("TMPDIR")
     candidates = [Path("/run/user") / identity]
     if configured and configured.startswith("/"):

@@ -220,6 +220,18 @@ only the invoking identity, brings up only `lo`, and fails the test before
 `exec` when any step is unavailable. This implementation still requires
 target-native Linux replay.
 
+The Linux launcher also gives each test its own mode-0700 runtime directory
+under `/tmp`, names it in `XDG_RUNTIME_DIR`, and removes it when the test
+ends ([[BPR-0906]]). On Linux the product binds its profile activation
+endpoint in `$XDG_RUNTIME_DIR` when that names an owner-private directory, so
+an owner that a test ends with a signal no longer leaves its socket in the
+user's `/run/user/<uid>`. When `DBUS_SESSION_BUS_ADDRESS` is unset, the
+launcher first sets it to the `$XDG_RUNTIME_DIR/bus` socket the test would
+otherwise have found, so the test still reaches the same session bus. A
+launcher killed outright, as by a CTest timeout, leaves its directory in
+`/tmp`. A removal that fails prints `BPR_TEST_RUNTIME_DIRECTORY_LEFT:` and
+does not change the verdict.
+
 On Windows, the checked-in launcher enters each test into one fixed
 AppContainer with zero capabilities, so the Windows Filtering Platform refuses
 every external connection and every descendant inherits the container token;

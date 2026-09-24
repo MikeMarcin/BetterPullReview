@@ -5,8 +5,10 @@
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <filesystem>
 #include <net/if.h>
 #include <sched.h>
 #include <string>
@@ -14,8 +16,10 @@
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <system_error>
 #include <unistd.h>
 
 namespace {
@@ -101,6 +105,61 @@ namespace {
 			aStage.data(),
 			std::strerror(errno));
 		::_exit(125);
+	}
+
+	// [[BPR-0906]]. A path as the value of a D-Bus address. The D-Bus
+	// specification passes its optionally-escaped bytes through and writes
+	// every other byte as `%xx`.
+	[[nodiscard]] auto bus_address_value(const std::string_view aPath) -> std::string
+	{
+		constexpr auto plain  = std::string_view{ "-_/.\\*" };
+		constexpr auto digits = std::string_view{ "0123456789abcdef" };
+		auto           value  = std::string{ };
+		for (const auto character : aPath) {
+			const auto byte = static_cast<unsigned char>(character);
+			if ((byte >= '0' && byte <= '9') || (byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') || plain.find(character) != std::string_view::npos) {
+				value.push_back(character);
+				continue;
+			}
+			value.push_back('%');
+			value.push_back(digits[byte >> 4U]);
+			value.push_back(digits[byte & 0x0FU]);
+		}
+		return value;
+	}
+
+	// [[BPR-0906]]. With no bus address set, a D-Bus client finds the session
+	// bus at `$XDG_RUNTIME_DIR/bus`, and the row is about to get a runtime
+	// directory of its own. So the address the row would have found is written
+	// out first, under the test GIO applies to that fallback: a socket this
+	// user owns. Nothing is written when an address is already set or when
+	// there is no such socket. Either way the row reaches the same bus as
+	// before, or none, as before.
+	[[nodiscard]] auto pin_session_bus() -> bool
+	{
+		const auto* runtime = std::getenv("XDG_RUNTIME_DIR");
+		if (std::getenv("DBUS_SESSION_BUS_ADDRESS") != nullptr || runtime == nullptr || runtime[0] != '/') {
+			return true;
+		}
+		const auto  bus = std::string{ runtime } + "/bus";
+		struct stat info{ };
+		if (::stat(bus.c_str(), &info) != 0 || !S_ISSOCK(info.st_mode) || info.st_uid != ::geteuid()) {
+			return true;
+		}
+		const auto address = "unix:path=" + bus_address_value(bus);
+		return ::setenv("DBUS_SESSION_BUS_ADDRESS", address.c_str(), 1) == 0;
+	}
+
+	// [[BPR-0906]]. Removes the row's runtime directory and whatever the row
+	// left in it. A failure is reported rather than turned into a verdict: the
+	// row's result is its child's, and the line names what is left over.
+	void remove_runtime_directory(const std::string& aDirectory)
+	{
+		auto error = std::error_code{ };
+		std::filesystem::remove_all(aDirectory, error);
+		if (error) {
+			std::fprintf(stderr, "BPR_TEST_RUNTIME_DIRECTORY_LEFT:%s:%s\n", aDirectory.c_str(), error.message().c_str());
+		}
 	}
 
 	// BPR-0890. The supervised child and the signal already passed on to it, in
@@ -210,11 +269,35 @@ auto main(const int argc, char** const argv) -> int
 	if (std::signal(SIGCHLD, SIG_DFL) == SIG_ERR) {
 		fail("sigchld-default");
 	}
+	// [[BPR-0906]]. Each row gets a runtime directory of its own, and it is
+	// removed when the row ends. A profile owner binds its activation endpoint
+	// in the user's runtime directory, which outlives every data root that
+	// names one. A row that ends its owner with a signal leaves that socket
+	// behind for good, because only the owner's destructor unlinks it; a
+	// station's `/run/user/<uid>` had collected 56. The product reads
+	// `$XDG_RUNTIME_DIR` first on Linux, so pointing it here contains them, as
+	// the macOS runner's `TMPDIR` does there. `mkdtemp` creates the directory
+	// mode 0700, which is what the product verifies, and `/tmp` keeps an
+	// endpoint well inside `sun_path`. A launcher killed outright - a CTest
+	// timeout - leaves this directory in `/tmp`, not in the user's.
+	auto runtime = std::string{ "/tmp/bpr-run-XXXXXX" };
+	if (::mkdtemp(runtime.data()) == nullptr) {
+		fail("runtime-directory");
+	}
+	if (!pin_session_bus() || ::setenv("XDG_RUNTIME_DIR", runtime.c_str(), 1) != 0) {
+		const auto saved = errno;
+		remove_runtime_directory(runtime);
+		errno = saved;
+		fail("runtime-environment");
+	}
 	// Nothing has been written to stdout yet, and nothing buffered may be
 	// duplicated into both processes by the fork.
 	std::fflush(stdout);
 	const auto child = ::fork();
 	if (child < 0) {
+		const auto saved = errno;
+		remove_runtime_directory(runtime);
+		errno = saved;
 		fail("fork");
 	}
 	if (child == 0) {
@@ -256,7 +339,8 @@ auto main(const int argc, char** const argv) -> int
 	// below must no longer be forwarded to it: the number could by then name a
 	// different process. The macOS runner guards the same window by asking
 	// `child.poll()` before it signals.
-	ChildPid  = 0;
+	ChildPid = 0;
+	remove_runtime_directory(runtime);
 	auto code = child_exit_code(status);
 	if (ForwardedSignal != 0 && code == 0) {
 		// As the macOS runner does: a child that was signalled and still
