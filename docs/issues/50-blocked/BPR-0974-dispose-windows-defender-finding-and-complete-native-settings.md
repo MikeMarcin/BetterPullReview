@@ -207,3 +207,11 @@ found, as one question. Every prohibition above still applies:
 
 [[BPR-0653]]'s Windows capture needs the same kind of tests-disabled image and
 waits in the session; it is not this card's question.
+
+## BPR-1110 reported, 2026-09-24
+
+The explanation the owner asked for is on [[BPR-1110]]: a cloud-delivered
+machine-learning verdict on the image's first launch, against a file
+structurally identical to an unflagged sibling. The card ends with the
+reversible options the disposition question can offer. This card stays
+**Blocked** on `security-owner-disposition` until the owner is asked again.
