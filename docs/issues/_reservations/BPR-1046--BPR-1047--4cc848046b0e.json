@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1046",
+    "BPR-1047"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "bpr-main-linux: application_threaded_reply_contract fails at HEAD with THREADED_REPLY_FAILED phase=1; sqlite_review_ledger_storage leaves two bpr-ledger-preflight-* temporary directories after every run",
+  "created": "2026-09-24T00:38:44.170713+00:00",
+  "base": "0615cc677d4415f08007385293d32ed260f9cb72"
+}
