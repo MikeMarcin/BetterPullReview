@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0906"
 title: "The relocated activation endpoint leaves stale sockets in the shared per-user runtime directory"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
