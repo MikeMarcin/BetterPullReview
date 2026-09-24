@@ -1,0 +1,238 @@
+{
+ "schema": "bpr.attended_consumption_checkpoint",
+ "schema_version": 1,
+ "date": "2026-09-24",
+ "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+ "packet": "docs/verification/reviews/owner-decisions-20260924-v001/operator-packet.md",
+ "events_consumed": {
+  "after": 566,
+  "decisions": "567-588",
+  "handed_back": 589
+ },
+ "cursor_after_consumption": 610,
+ "server": {
+  "pid": 66010,
+  "state": "stopped with the attended-review stop command after consumption; only the not-ready BPR-0653-windows-capture-v001 remains"
+ },
+ "protections": {
+  "released": "the 21 decided candidates of this packet, by resume-development --candidate (events 590-610)",
+  "kept": [
+   "rfc0014-m9-windows-licensing-v002",
+   "rfc0014-m9-licensing-v001",
+   "rfc0014-m9-licensing-v002",
+   "rfc0014-m9-licensing-v003",
+   "BPR-0755-neutral-identity-v001",
+   "BPR-0958-initial-load-recovery-v002",
+   "BPR-0958-maintenance-clarity-v001",
+   "BPR-0958-native-diff-v001"
+  ]
+ },
+ "verdicts": [
+  {
+   "candidate": "BPR-0644-grant-policy-v001",
+   "decision": "3c46d164",
+   "outcome": "select: keep the material, fail visibly, retry next launch",
+   "card": "BPR-0644",
+   "action": "Parked to Ready; criterion 2 amended; policy criterion added",
+   "commit": "c2401e8a"
+  },
+  {
+   "candidate": "BPR-1023-refused-connect-v001",
+   "decision": "ad887ef9",
+   "outcome": "select: both options; decision delegated to the implementer",
+   "card": "BPR-1023",
+   "action": "Backlog to Ready; AC1 bound to the owner's two preferences",
+   "commit": "c2401e8a"
+  },
+  {
+   "candidate": "BPR-0653-entry-row-v001",
+   "decision": "007a6eb5",
+   "outcome": "select: amend AC-01 and the chrome paragraph",
+   "card": "BPR-0653, BPR-1036, BPR-1033, BPR-1021, BPR-1106",
+   "action": "RFC-BPR-0028 AC-01 and chrome amended; BPR-0653 criterion 1 amended and passes; BPR-1036 Blocked to Ready; BPR-1106 opened",
+   "commit": "79637ec1"
+  },
+  {
+   "candidate": "BPR-0653-private-qt-api-v001",
+   "decision": "8dde5e4d",
+   "outcome": "accept",
+   "card": "BPR-0653",
+   "action": "recorded; card stays parked for the capture",
+   "commit": "79637ec1"
+  },
+  {
+   "candidate": "BPR-0746-disposition-v001",
+   "decision": "14327a18",
+   "outcome": "select: withdraw AC1 and AC2 by amendment",
+   "card": "BPR-0746",
+   "action": "finished Done by amendment",
+   "commit": "59c6d743"
+  },
+  {
+   "candidate": "BPR-0803-cli-during-device-flow-v001",
+   "decision": "dbae079d",
+   "outcome": "select: keep the code on screen beside the CLI choice",
+   "card": "BPR-0803",
+   "action": "Backlog to Ready; acceptance restated",
+   "commit": "c2401e8a"
+  },
+  {
+   "candidate": "BPR-0825-descriptor-home-v001",
+   "decision": "12977aca",
+   "outcome": "select: (c) neutral header-only target",
+   "card": "BPR-0825",
+   "action": "Parked to Ready",
+   "commit": "c2401e8a"
+  },
+  {
+   "candidate": "BPR-0884-independent-review-v001",
+   "decision": "8e1858ab",
+   "outcome": "select: yes, rfc-reviewer-critical",
+   "card": "BPR-0884",
+   "action": "recorded; stays Ready until the review",
+   "commit": "c2401e8a"
+  },
+  {
+   "candidate": "BPR-0897-observed-mutation-intent-v001",
+   "decision": "e1d2139c",
+   "outcome": "select: yes, as designed",
+   "card": "BPR-0897, BPR-0879",
+   "action": "Parked to Ready (composition comment left); BPR-0879 residual updated",
+   "commit": "c2401e8a"
+  },
+  {
+   "candidate": "BPR-0906-independent-review-v001",
+   "decision": "96421f40",
+   "outcome": "select: yes, rfc-reviewer-critical",
+   "card": "BPR-0906",
+   "action": "recorded post-close",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-0974-defender-disposition-v001",
+   "decision": "3482f766",
+   "outcome": "reject: Explain why this is being triggered.",
+   "card": "BPR-0974, BPR-1110",
+   "action": "stays Blocked, depends on BPR-1110",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-0975-wslg-activation-v001",
+   "decision": "35aa7cb0",
+   "outcome": "reject: find why WSLg refuses activation and fix it",
+   "card": "BPR-0975",
+   "action": "Blocked to Ready",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-0986-hunk-header-roles-v001",
+   "decision": "e16dfcbf",
+   "outcome": "select: (a) C5 47 to 45",
+   "card": "BPR-0986",
+   "action": "RFC-BPR-0034 C5 amended; AC1 amended",
+   "commit": "c138a203"
+  },
+  {
+   "candidate": "BPR-0986-rendered-panes-v001",
+   "decision": "6b7243c3",
+   "outcome": "reject: Sublime Text white-space model with settings",
+   "card": "BPR-0986, BPR-1107",
+   "action": "BPR-0986 Parked to Ready, owner criterion split; BPR-1107 opened with the reference image",
+   "commit": "c138a203"
+  },
+  {
+   "candidate": "BPR-1020-uncontained-pins-v001",
+   "decision": "dcc2b167",
+   "outcome": "select: revert the four pins",
+   "card": "BPR-1020, BPR-1108",
+   "action": "BPR-1108 opened",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-1022-alt-chord-hook-v001",
+   "decision": "7876410c",
+   "outcome": "select: identify read-only",
+   "card": "BPR-1022, BPR-1109",
+   "action": "BPR-1109 opened",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-1024-upstream-qt-report-v001",
+   "decision": "2cc0e7d1",
+   "outcome": "select: no report",
+   "card": "BPR-1024",
+   "action": "recorded post-close",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-1038-purge-policy-v001",
+   "decision": "8254f48b",
+   "outcome": "accept",
+   "card": "BPR-1038",
+   "action": "recorded post-close",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-1048-independent-review-v001",
+   "decision": "e2321e81",
+   "outcome": "select: yes, rfc-reviewer-critical",
+   "card": "BPR-1048",
+   "action": "recorded post-close",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "BPR-1104-independent-review-v001",
+   "decision": "ae582fb8",
+   "outcome": "select: yes, rfc-reviewer-critical",
+   "card": "BPR-1104",
+   "action": "recorded post-close",
+   "commit": "c287ce28"
+  },
+  {
+   "candidate": "RFC-0039-0051-start-v001",
+   "decision": "1d9104f8",
+   "outcome": "select: not yet",
+   "card": "docs/rfcs/README.md",
+   "action": "recorded in the RFC index",
+   "commit": "79637ec1"
+  },
+  {
+   "candidate": "rfc0014-m9-windows-licensing-v002",
+   "decision": "afa8af40",
+   "outcome": "accept",
+   "card": "BPR-0962",
+   "action": "recorded; digests re-verified; stays Blocked",
+   "commit": "2efe43c8"
+  }
+ ],
+ "board_upkeep": [
+  {
+   "cards": [
+    "BPR-0720",
+    "BPR-0738"
+   ],
+   "action": "accepted criteria recorded; parked on immutable-review-link because moving them would edit protected v005/v009 packet links",
+   "commit": "b31d2689"
+  }
+ ],
+ "allocation": {
+  "ids": [
+   "BPR-1106",
+   "BPR-1107",
+   "BPR-1108",
+   "BPR-1109",
+   "BPR-1110"
+  ],
+  "commit": "0379ebb7"
+ },
+ "pending": {
+  "BPR-0653-windows-capture-v001": "waiting; needs a tests-disabled app-release build on JaegAW at or after e08a0409",
+  "independent_reviews": [
+   "BPR-0884 at 02e3d59d",
+   "BPR-0906 at 03117e63",
+   "BPR-1048 at a670fd95",
+   "BPR-1104 at 51784082"
+  ],
+  "tool_feedback": "attended-review: a multiple-choice candidate should always allow a write-in answer (owner note on BPR-1023-refused-connect-v001)"
+ }
+}
