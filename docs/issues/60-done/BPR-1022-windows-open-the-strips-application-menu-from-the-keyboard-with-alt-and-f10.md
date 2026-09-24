@@ -350,3 +350,49 @@ Alt. Nothing was done to find or stop the hook.
 Wanted when the chords reach applications again (for example, when a
 `keybd_event` Alt+Space opens the system menu of any application): the
 Alt+Space, Alt+F, Alt+Up and Alt+F4 rows of this drive.
+
+## Post-close: AC4 on Linux at `b5cb3b43` (bpr-main-linux, 2026-09-23)
+
+**AC4 now holds on Linux, by a run, as it does on macOS.** Linux keeps its
+menu bar row, and its window, title-row and focus-order rows pass.
+
+The run is at `b5cb3b43`, in a separate verification clone with a clean
+tree. That revision contains `785a6828` and [[BPR-1046]]'s `669a5a58`, so
+these are the Linux rows at the same content as the macOS run, not at the
+merge commit itself. JaegAW: WSL2 Ubuntu 26.04, GCC 15.2, Qt 6.11.2,
+`build/dev` (Debug) from the `dev` preset, which compiles with `-Werror`. The
+build log has no `warning:` line, so the added `#include <QWindow>`, the
+change's one product line outside `#if defined(_WIN32)`, compiles here with
+warnings as errors. The rows ran serially and offscreen:
+`ctest --preset dev -j1 -V`, with `QT_QPA_PLATFORM=offscreen` and with
+`DISPLAY` and `WAYLAND_DISPLAY` unset. When the batch of runs began, the
+station was loaded by a parallel build (load average 9.7). At the batch's end
+the load average was 2.5.
+
+These passed 9 of 9, exit 0, contained as registered:
+
+| Rows | Time |
+| --- | --- |
+| `qt_workbench_title_row_scale_100/125/200` | 4.05 / 8.25 / 11.02 s |
+| `qt_workbench_focus_order_scale_100/125/200` | 0.20 / 0.23 / 0.26 s |
+| `qt_composed_github_scale_100` | 9.49 s |
+| `application_workbench_composition_contract` | 23.78 s (`WORKBENCH_COMPOSITION_CONTRACT_OK`) |
+| `application_profile_second_window_close_public_path` | 1.90 s (5 rounds) |
+
+That batch did not include the window rows that AC4 names. They were run
+afterwards on this station's own `build/dev`, at main's `b60e04b0`, with the
+same compiler and flags. The build was current, and `ninja` had no work to
+do. That is later than [[BPR-1074]]'s `0bc65b0c`, which changed the
+workbench drawer and `workbench_window_tests.cpp`. The rows ran serially and
+offscreen, as above, with a fresh `HOME` and fresh XDG data, config, cache,
+state and runtime directories, which were removed afterwards.
+`qt_workbench_window_scale_100/125/200` passed 3 of 3, exit 0, in 21.61,
+22.93 and 23.88 s.
+
+`qt_workbench_strip_menu` and `application_windows_title_row` are registered
+only on Windows (`if(WIN32)` in `tests/adapters_qt/CMakeLists.txt` and
+`tests/end_to_end/CMakeLists.txt`), and neither exists in the Linux build.
+The console logs are station records under
+`build/logs/bpr-main-linux-20260923/bpr-1038-1022-0886-linux/bpr-1022-rows.log`
+and `build/logs/bpr-main-linux-20260924/impl/bpr-1022-window-rows-b60e04b0.log`,
+and are not committed. The acceptance record above is unchanged.
