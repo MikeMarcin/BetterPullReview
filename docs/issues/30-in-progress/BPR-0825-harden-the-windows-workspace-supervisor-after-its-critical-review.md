@@ -463,3 +463,61 @@ between `f6d38c58` and `877e3d60`. Apple clang, arm64, macOS 26.6.
 
 **macOS: pass.** The Linux runs are still owed. This station leaves the
 card where it is, In Progress on the Windows station's claim.
+
+## Linux station, 2026-09-24 (bpr-main-linux): the owed Linux runs pass
+
+WSL2 Ubuntu 26.04, GCC 15.2, Qt 6.11.2, CMake 4.4.2, `build/dev` (Debug).
+Every row ran through `ctest`, offscreen, with `DISPLAY` unset. Two trees
+were used, and both contain `bc6328ff`.
+
+- **A clean reconfigure and build**, in the verification clone
+  `/home/mmarcin/bpr-verify-batch2` at `0d93311e`. `build/dev` was removed
+  first.
+  - `cmake --preset dev` exits 0. The log ends at "Build files have been
+    written" and holds no `CMake Error`.
+  - `cmake --build --preset dev` exits 0: 1391 steps, and no `warning:` line
+    in the build log.
+  - 460 of the 462 `compile_commands.json` entries carry `-Werror`. The two
+    without it are the vendored `sqlite3.c` amalgamation and `quill_log.cpp`,
+    whose logging adapter has never called `bpr_enable_warnings`. Neither
+    printed a warning.
+- **The new target on Linux.** `better_pull_review_platform` configures as
+  the header-only `INTERFACE` target that `src/platform/CMakeLists.txt`
+  defines. Its include directory reaches 71 of the 462 compile units, and
+  they build clean.
+- **The boundary and storage rows**, in the same clone, `-j1`: 20 of 20 pass.
+  - `architecture_boundaries` 13.89 s and `architecture_boundary_contract`
+    168.47 s.
+  - `sqlite_epoch_catalog_behavior_contract` 120.28 s. The other 17 `sqlite_*`
+    rows pass: `sqlite_anonymous_epoch_authority`,
+    `sqlite_appearance_settings_storage`, `sqlite_device_binding_storage`,
+    `sqlite_epoch_catalog_storage_contract`, `sqlite_private_store_open`,
+    `sqlite_profile_activation`, `sqlite_profile_registry_storage`,
+    `sqlite_profile_runtime_lease`, `sqlite_profile_storage_root`,
+    `sqlite_queue_enrollment_storage`, `sqlite_release_maintenance_files`,
+    `sqlite_review_ledger_storage`, `sqlite_review_mutation_recovery_storage`,
+    `sqlite_review_submission_recovery_storage`,
+    `sqlite_storage_root_contract`,
+    `sqlite_window_review_restoration_storage` and
+    `sqlite_workbench_settings_storage`.
+  - The load average was 19.1 at the start, from the build, and 1.1 at the
+    end.
+- **The card's other six rows**, in the station checkout. It was built
+  incrementally at `c1a0c662` (704 steps, no warning), whose `src/`, `cmake/`
+  and `tests/` are the same as `920f85bc`'s. They ran `-j1`, with fresh
+  absolute XDG roots and no session bus address: 6 of 6 pass.
+  - `qt_agent_launch_canary` 65.37 s, `agent_parent_death` 21.31 s,
+    `git_process_contract` 9.55 s, `agent_workspace_ownership` 1.99 s.
+  - `application_agent_crash_recovery` 27.98 s and
+    `application_agent_materialization_crash_recovery` 11.08 s.
+  - The run added no `bpr-` entry to `/run/user/1000`, by a read-only
+    listing, and left no `/tmp/bpr-run-*`.
+
+The logs are station records under `build/logs/bpr-0825-linux/` and are not
+committed: `bpr-0825-configure.log`, `bpr-0825-build.log`,
+`bpr-0825-ctest.log` and `bpr-0825-bpr0622-courses.log`.
+
+**Linux: pass.** All eight of the card's rows, and the storage rows, pass on
+Linux. With the macOS runs above, the portable-source criterion has its runs
+from both stations. This station leaves the card where it is, In Progress on
+the Windows station's claim; finishing it is that station's.
