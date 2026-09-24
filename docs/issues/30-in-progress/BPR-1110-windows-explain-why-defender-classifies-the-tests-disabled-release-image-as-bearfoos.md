@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1110"
 title: "Windows: explain why Defender classifies the tests-disabled Release image as Trojan:Win32/Bearfoos.A!ml"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
