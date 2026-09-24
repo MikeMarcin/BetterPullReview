@@ -167,8 +167,10 @@ Two changes beyond moving to the helper:
 - **A failed round trip releases the decision gate.** The first run of the
   lost-effect break stalled by name at 5.0 s and then hung. The gate was
   still holding the lost publication, so shutdown waited for it. The run
-  budget does not apply during shutdown, so the harness killed the process
-  at 70 s and the verdict never printed. The round trip's `fail()` now calls
+  budget does not apply during shutdown, so the run ended at the contract's
+  70 s timeout with the verdict unprinted. That timeout killed only the
+  `cmake -E env` wrapper. The application was orphaned and kept running
+  until this station stopped it by hand 48 minutes later. The round trip's `fail()` now calls
   `release()`, which is idempotent and posts whatever it held. The same
   break then ended in 17 s with `PUBLIC_PATH_FAILED` and
   `REVIEW_ROUND_TRIP_COMPOSITION_FAILED`. This also covers the phase's
