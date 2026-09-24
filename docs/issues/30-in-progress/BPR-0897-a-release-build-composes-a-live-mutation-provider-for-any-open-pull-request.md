@@ -124,3 +124,40 @@ Acceptance, as it now stands:
 The dsp-007 fact still stands: a reply cannot be submitted through the live
 session until [[BPR-0896]]'s reconciliation is rebuilt. That limits what the
 answer exposes today; it does not change the answer.
+
+## Resolution, 2026-09-24 (Mac batch 7)
+
+The intent is now written next to the composition. A comment directly above
+`select_observed_review_mutation` in `src/app/src/github_application.cpp`
+says that composing the live mutation provider for whichever pull request is
+open, in a non-attended release build, is the intended product behaviour. It
+cites this card, the date and decision `e1d2139c`, says that neither a gate
+until [[BPR-0641]] nor a designation step was chosen, names what the function
+does check (the snapshot names the handed-off pull request, still open, at
+the handed-off base and head), and contrasts the designated lane's two gates
+(`designated_live_mutation_gate` before launch, and
+`select_designated_review_mutation`'s compile-time identity). No code changes.
+
+`github_application.cpp` is pinned by
+`application_review_round_trip_composition_contract`, so the pins are
+resealed in the same commit with a `BPR-0897 reseal` note. Nothing else
+touched `src/app` since the last reseal (`4248720b`):
+
+- whole file `4cbedb68e21fe49f76fcfd9edc2d1d3e7f2ed7421b9bcc95eb14b0af31a9736d`;
+- manifest `efce74e1587536e09b79bdf596a75213176eedba7df503776f8698e5d126d237`;
+- mutation branch unchanged (`a7e2081e…`), because the comment sits outside
+  the production mutation branch.
+
+Verification on macOS 26.6.2 arm64, `build/dev`:
+
+- `application_review_round_trip_composition_contract` and
+  `application_composition_contract` pass with the new pins.
+- Negative control: the contract run against the pre-comment source fails
+  with "full LF-normalized github_application.cpp digest drifted", expected
+  `4cbedb68…`, found `6e76dd7c…`.
+- clang-format 23.1.1 reports nothing on the file. The change is a comment, so
+  tidy has nothing to check.
+
+All three acceptance bullets are met: the answer is recorded (owner decision
+section), the intent is next to the composition (this commit), no guard card
+follows from answer 1, and [[BPR-0879]]'s residual already points here.

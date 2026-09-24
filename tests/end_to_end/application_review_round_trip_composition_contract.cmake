@@ -200,6 +200,12 @@ endfunction()
 # vault, transport or mutation path changes; the mutation-branch and
 # full-application pins are unchanged. Covers 59915464..the BPR-1102 commit;
 # nothing else touched the pinned scope. Review recorded on BPR-1102.
+# BPR-0897 reseal: a comment above select_observed_review_mutation in
+# github_application.cpp records the owner's 2026-09-24 intent that a
+# non-attended release build composes the live mutation provider for the open
+# pull request, and contrasts it with the designated lane's two gates. No code
+# changes; the mutation-branch pin is unchanged. Covers 4248720b..the BPR-0897
+# commit; nothing else touched the pinned scope. Review recorded on BPR-0897.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -218,7 +224,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6e76dd7cc8a87e45e59541648a1fe99e9e3c45eaf73d8e1af8d5a678d847fb10"
+		"4cbedb68e21fe49f76fcfd9edc2d1d3e7f2ed7421b9bcc95eb14b0af31a9736d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -357,7 +363,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5f829027587e2ad4ce663e1135279c7aebac50cffb4646bfdf7014a72afc2ed9"
+        "efce74e1587536e09b79bdf596a75213176eedba7df503776f8698e5d126d237"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

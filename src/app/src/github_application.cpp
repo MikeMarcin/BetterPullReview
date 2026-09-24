@@ -493,6 +493,19 @@ namespace bpr::app {
 			return selection;
 		}
 
+		// [[BPR-0897]]. In a non-attended release build this composes the live
+		// mutation provider for whichever pull request is open, and that is the
+		// intended product behaviour: a review tool that cannot publish to the
+		// pull request in front of the reviewer is not a review tool. The owner
+		// recorded the intent on 2026-09-24 (decision e1d2139c) and chose neither
+		// a gate until [[BPR-0641]] opens inline publication nor a per-repository
+		// designation step. So only the observed identity is checked here: the
+		// snapshot names the handed-off pull request, still open, at the
+		// handed-off base and head. Contrast the attended designated-live lane,
+		// which is gated twice: designated_live_mutation_gate proves the pull
+		// request field by field before launch, and
+		// select_designated_review_mutation above refuses unless every identity
+		// equals a compile-time constant.
 		[[nodiscard]] auto select_observed_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff,
 			const application::github_pull_request_snapshot&  aSnapshot)
