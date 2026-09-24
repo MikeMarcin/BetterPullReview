@@ -389,3 +389,37 @@ So on Linux no other row prints the refusal, and adding the entry to every row
 turned none of them red. The log is
 `build/logs/bpr-main-linux-20260924/bpr-1051/full-sweep-09f3d48f.log`, a
 station record that is not committed.
+
+## macOS, AC5 (bpr-main-mac, 2026-09-24)
+
+Station `bpr-main-mac`: macOS 26.6.2 on Apple Silicon, Apple clang 21.0.0,
+Qt 6.11.2, `build/dev` Debug. The head was `bcd57840`, which contains
+`ff9bc9e2` and [[BPR-1051]]'s `09f3d48f`. `cmake --preset dev` and
+`cmake --build --preset dev` both exited 0, and the build printed no
+`warning:` line. The macOS commands above ran as written, serially and
+contained as registered, from 09:05:25Z to 09:23:52Z. The logs are station
+records under `build/logs/bpr-1050-1051-1073-1074-mac/` and are not
+committed.
+
+| Check | Result |
+| --- | --- |
+| `test_network_isolation_structure_contract`, `test_network_isolation_manifest` | 2 of 2 passed. The manifest printed `TEST_NETWORK_ISOLATION_OK:configured=438:registrations=396:backend=macos-sandbox-exec` |
+| `application_profile_management_public_path` as configured here (`ctest --show-only=json-v1`) | It carries the `bpr_expects_workspace_recovery_refusal` label and the two verdict entries, `PUBLIC_PATH_FAILED` and `TEST_RUNNER_CHILD_EXIT_FAILED`. The `shared-parent` section is compiled on macOS, so this is the configuration the seam should produce here |
+| `tests/scripts/verify_test_network_isolation_tests.py` | 65 tests, OK, and none skipped. The macOS-only test that Linux skipped ran here and passed |
+| The table's rows. All 32 are registered on macOS | 31 of 32 passed, in 1,021.88 s. The one failure is `application_agent_finding_dif_context_contract`, and it failed only in [[BPR-0966]]'s known way: `dif-context-evidence failed=dif-comment-ready-after-conversion dif-acknowledge-after-acceptance`, then `TEST_RUNNER_CHILD_EXIT_FAILED:1`. Twenty-nine rows took 0.78 to 26.82 s, and the two crash-recovery rows took 47.19 and 40.41 s. The restoration course took 555.07 s. Its earlier macOS runs on this station took 563 to 589 s, and its timeout is 1,800 s |
+| Refusal lines in the table's log | **One**, from profile management's `shared-parent` section: `AGENT_WORKSPACE_RECOVERY_REFUSED:/private/tmp/bpr-net-9zju583v/fixture/profile_management_public_path-eXtnim/shared-parent/BetterPullReview/agent-workspace-ownership-v1:repair-required`. The row passed on its label. No other row printed the line |
+| The restoration course | Its driver relayed all 34 phase lines, and none of them was a refusal line |
+
+**What the macOS run shows about the gate.** The refusal is live on macOS.
+Recovery refuses the `shared-parent` section's `0775` parent here too, and
+the line reaches CTest. The gate's entry is on every other row here, and the
+manifest gate checks it. So a macOS row that printed the line would fail on it.
+The hazard the gate is for cannot produce the line here, as recorded above. A
+bare `QTemporaryDir` made under the runner's private `TMPDIR` has a private
+parent, and recovery accepts it.
+
+**AC5: pass on macOS.** Every row in the table is registered here, and each
+one passed apart from the known red `dif_context` row, which failed only in
+its known way. The gate passed. The card already records that the gate's
+form cannot fire for a bare temporary root under a macOS ctest run. The card
+stays In Progress for AC4, which is owed by bpr-main-win.
