@@ -158,8 +158,9 @@ card's evidence does not prove which run made each one.
 ## One sweep's litter, observed (bpr-main-linux, 2026-09-24)
 
 While verifying [[BPR-1048]], this station listed the top level of `/tmp`
-before and after its own runs. No other test process ran on the station in
-that time. These are observations, not AC1's measurement. The listings are
+before and after its own runs. Another session's tests on this station had
+finished by 21:42. None was seen running during these runs, and every new
+entry is dated inside them. These are observations, not AC1's measurement. The listings are
 station records under `build/logs/bpr-main-linux-20260924/bpr-1048/`
 (`tmp-*.txt`) and are not committed.
 
