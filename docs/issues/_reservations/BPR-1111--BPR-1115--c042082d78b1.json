@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1111",
+    "BPR-1112",
+    "BPR-1113",
+    "BPR-1114",
+    "BPR-1115"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "follow-ups from the 2026-09-24 independent reviews of BPR-0884, BPR-0906, BPR-1048 and BPR-1104",
+  "created": "2026-09-24T20:01:04.811395+00:00",
+  "base": "657ca3bbf7dcb861294e40e5e6f56f0d738dcc9f"
+}
