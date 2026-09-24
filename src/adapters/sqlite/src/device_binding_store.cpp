@@ -214,8 +214,9 @@ namespace bpr::adapters::sqlite {
 				}
 				Directory.emplace(std::move(*directory));
 				// [[BPR-0841]]. Refusing to admit the file is not corruption: the
-				// next call retries, as it did before the shared open helper. Only a
-				// failure once the file was admitted latches the store.
+				// next call retries, as it did before the shared open helper. Once
+				// the file was admitted, a refused open latches the store, and so
+				// does a verdict on its content ([[BPR-0884]]).
 				if (!detail::admit_private_store_file(*Directory, "device-bindings.sqlite3")) {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
@@ -224,21 +225,67 @@ namespace bpr::adapters::sqlite {
 					Failed = true;
 					return std::unexpected(device_binding_failure::unavailable);
 				}
-				Database               = *opened;
-				const auto readScope   = binding_read_scope{ Database, aStop };
-				auto       established = establish(aStop);
-				Failed                 = !established.has_value();
-				if (!established && aStop.stop_requested()) {
+				Database         = *opened;
+				auto established = [this, &aStop] {
+					const auto readScope = binding_read_scope{ Database, aStop };
+					return establish(aStop);
+				}();
+				if (established) {
+					return { };
+				}
+				// [[BPR-0884]]. Cancellation and contention are not corruption. The
+				// connection closes either way, and only a `corrupt` verdict latches.
+				// Anything else leaves the next call to establish again from the start,
+				// rereading and rechecking the whole file, so a retry can never skip a
+				// check that the failed attempt would have made.
+				const auto cancelled = aStop.stop_requested();
+				Failed               = !cancelled && established.error() == device_binding_failure::corrupt;
+				sqlite3_close_v2(Database);
+				Database = nullptr;
+				if (cancelled) {
 					return std::unexpected(device_binding_failure::cancelled);
 				}
 				return established;
 			}
+			enum class catalog_kind { fresh,
+									  legacy,
+									  current };
+			// `corrupt` means the admitted file was read and judged. The judgement
+			// reads inside one transaction, so after its first read holds a snapshot
+			// no read can meet another connection's lock or see another writer's
+			// commit. A failed first read, a failed configuration and a failed
+			// migration are contention or environment and report `unavailable`.
 			auto establish(std::stop_token aStop) -> device_binding_result
 			{
-				auto version  = detail::scalar_integer(Database, "PRAGMA user_version");
+				if (!detail::execute(Database, "BEGIN", aStop)) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				const auto kind = inspect(aStop);
+				static_cast<void>(detail::execute(Database, "ROLLBACK"));
+				if (!kind) {
+					return std::unexpected(kind.error());
+				}
+				if (!detail::configure_connection(Database)) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				// The migration's inputs were judged above, and a failed one rolls back.
+				if (*kind != catalog_kind::current && !migrate(*kind == catalog_kind::legacy, aStop)) {
+					static_cast<void>(detail::execute(Database, "ROLLBACK"));
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				auto rows = read_rows(aStop);
+				return rows ? device_binding_result{ } : device_binding_result{ std::unexpected(rows.error()) };
+			}
+			auto inspect(std::stop_token aStop) -> std::expected<catalog_kind, device_binding_failure>
+			{
+				auto version = detail::scalar_integer(Database, "PRAGMA user_version");
+				if (!version) {
+					// SQLite's own finding that this is not a database is a verdict.
+					return std::unexpected(version.error() == detail::failure::integrity_failure ? device_binding_failure::corrupt : device_binding_failure::unavailable);
+				}
 				auto identity = detail::scalar_integer(Database, "PRAGMA application_id");
 				auto count    = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema");
-				if (!version || !identity || !count) {
+				if (!identity || !count) {
 					return corrupt();
 				}
 				const auto fresh  = *version == 0 && *identity == 0 && *count == 0;
@@ -249,47 +296,42 @@ namespace bpr::adapters::sqlite {
 				if (legacy && BprProfile != core::default_bpr_profile_id) {
 					return corrupt();
 				}
-				if (!fresh) {
-					auto schema    = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='device_binding' AND type='table'");
-					auto objects   = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
-					auto integrity = detail::scalar_text(Database, "PRAGMA quick_check");
-					if (!schema || *schema != (legacy ? LegacySchema : std::string_view{ Schema }) || !objects || *objects != (legacy ? 1 : 2) || !integrity || *integrity != "ok") {
-						return corrupt();
-					}
-					if (!legacy) {
-						auto scopeSchema = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='binding_scope' AND type='table'");
-						auto scope       = detail::scalar_text(Database, "SELECT profile FROM binding_scope");
-						auto scopes      = detail::scalar_integer(Database, "SELECT count(*) FROM binding_scope");
-						if (!scopeSchema || *scopeSchema != ScopeSchema || !scope || *scope != std::to_string(BprProfile.value()) || !scopes || *scopes != 1) {
-							return corrupt();
-						}
-					}
-					if (!read_rows(aStop, legacy)) {
-						return corrupt();
-					}
+				if (fresh) {
+					return catalog_kind::fresh;
 				}
-				if (!detail::configure_connection(Database)) {
-					return std::unexpected(device_binding_failure::unavailable);
+				auto schema    = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='device_binding' AND type='table'");
+				auto objects   = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
+				auto integrity = detail::scalar_text(Database, "PRAGMA quick_check");
+				if (!schema || *schema != (legacy ? LegacySchema : std::string_view{ Schema }) || !objects || *objects != (legacy ? 1 : 2) || !integrity || *integrity != "ok") {
+					return corrupt();
 				}
-				if (fresh || legacy) {
-					auto succeeded = detail::execute(Database, "BEGIN IMMEDIATE", aStop).has_value();
-					if (succeeded && legacy) {
-						succeeded = detail::execute(Database, "ALTER TABLE device_binding RENAME TO legacy_binding", aStop).has_value();
-					}
-					succeeded = succeeded && detail::execute(Database, Schema, aStop) && detail::execute(Database, ScopeSchema, aStop)
-						&& detail::execute(Database, "INSERT INTO binding_scope VALUES('" + std::to_string(BprProfile.value()) + "')", aStop);
-					if (succeeded && legacy) {
-						succeeded = detail::execute(Database, "INSERT INTO device_binding SELECT *, '1' FROM legacy_binding", aStop)
-							&& detail::execute(Database, "DROP TABLE legacy_binding", aStop);
-					}
-					if (!succeeded || !read_rows(aStop) || !detail::execute(Database, "PRAGMA application_id=1112560194", aStop)
-						|| !detail::execute(Database, "PRAGMA user_version=2", aStop) || !detail::execute(Database, "COMMIT", aStop)) {
-						static_cast<void>(detail::execute(Database, "ROLLBACK"));
+				if (!legacy) {
+					auto scopeSchema = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='binding_scope' AND type='table'");
+					auto scope       = detail::scalar_text(Database, "SELECT profile FROM binding_scope");
+					auto scopes      = detail::scalar_integer(Database, "SELECT count(*) FROM binding_scope");
+					if (!scopeSchema || *scopeSchema != ScopeSchema || !scope || *scope != std::to_string(BprProfile.value()) || !scopes || *scopes != 1) {
 						return corrupt();
 					}
 				}
-				auto rows = read_rows(aStop);
-				return rows ? device_binding_result{ } : device_binding_result{ std::unexpected(rows.error()) };
+				if (!read_rows(aStop, legacy)) {
+					return corrupt();
+				}
+				return legacy ? catalog_kind::legacy : catalog_kind::current;
+			}
+			auto migrate(const bool aLegacy, std::stop_token aStop) -> bool
+			{
+				auto succeeded = detail::execute(Database, "BEGIN IMMEDIATE", aStop).has_value();
+				if (succeeded && aLegacy) {
+					succeeded = detail::execute(Database, "ALTER TABLE device_binding RENAME TO legacy_binding", aStop).has_value();
+				}
+				succeeded = succeeded && detail::execute(Database, Schema, aStop) && detail::execute(Database, ScopeSchema, aStop)
+					&& detail::execute(Database, "INSERT INTO binding_scope VALUES('" + std::to_string(BprProfile.value()) + "')", aStop);
+				if (succeeded && aLegacy) {
+					succeeded = detail::execute(Database, "INSERT INTO device_binding SELECT *, '1' FROM legacy_binding", aStop)
+						&& detail::execute(Database, "DROP TABLE legacy_binding", aStop);
+				}
+				return succeeded && read_rows(aStop) && detail::execute(Database, "PRAGMA application_id=1112560194", aStop)
+					&& detail::execute(Database, "PRAGMA user_version=2", aStop) && detail::execute(Database, "COMMIT", aStop);
 			}
 			std::filesystem::path                  Root;
 			const core::bpr_profile_id             BprProfile;

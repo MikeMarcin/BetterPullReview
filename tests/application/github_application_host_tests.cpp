@@ -9,6 +9,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <set>
 #include <span>
 #include <stdexcept>
@@ -5469,6 +5470,84 @@ namespace {
 			expect(fixture.Host.is_quiescent(), "cancelled save and protected tombstone fully drain");
 		}
 	}
+
+	// [[BPR-0884]]. An executor that can refuse a post. A refusal retains
+	// nothing, as both executor contracts require of a post that throws.
+	class refusable_executor final : public application::decision_executor, public application::effect_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override
+		{
+			if (Refuse) {
+				throw std::runtime_error{ "refused post" };
+			}
+			Inner.post(std::move(aTask));
+		}
+		application::manual_executor Inner;
+		bool                         Refuse = false;
+	};
+	// A refused effect post leaves the job to report `unavailable` through the
+	// decision lane. When that post is refused too, the lane must stay drainable.
+	void test_device_binding_persistence_stays_drainable_when_its_posts_are_refused()
+	{
+		using result = application::device_binding_load_result;
+		binding_store                           store;
+		refusable_executor                      effects;
+		refusable_executor                      lane;
+		application::device_binding_persistence persistence{ store, effects, lane };
+		const auto                              refuse = [&](const bool aRefuse) {
+			effects.Refuse = aRefuse;
+			lane.Refuse    = aRefuse;
+		};
+		const auto refused = [&persistence](std::optional<result>& aResult) {
+			try {
+				persistence.load([&aResult](result aLoaded) { aResult = std::move(aLoaded); });
+			} catch (const std::runtime_error&) {
+				return true;
+			}
+			return false;
+		};
+
+		// Admission: neither the effect nor its failure terminal can be posted.
+		std::optional<result> withdrawn;
+		refuse(true);
+		expect(refused(withdrawn) && persistence.is_quiescent(), "a request whose effect and terminal are both refused is withdrawn, and the caller sees the refusal");
+		refuse(false);
+		std::optional<result> next;
+		expect(!refused(next), "the next request is admitted");
+		effects.Inner.drain();
+		lane.Inner.drain();
+		expect(!withdrawn && next && next->has_value() && persistence.is_quiescent(), "a withdrawn request has no terminal, and the next one is served");
+
+		// A queued successor: the lane turn that finishes its predecessor can
+		// post neither the successor's effect nor its terminal.
+		std::optional<result> first;
+		std::optional<result> second;
+		expect(!refused(first) && !refused(second), "two requests are queued");
+		effects.Inner.drain();
+		refuse(true);
+		auto escaped = false;
+		try {
+			lane.Inner.drain();
+		} catch (...) {
+			escaped = true;
+		}
+		expect(!escaped && first && first->has_value() && second && !second->has_value() && second->error() == application::device_binding_failure::unavailable,
+			   "the successor reports unavailable in the same lane turn, after its predecessor");
+		expect(persistence.is_quiescent() && std::ranges::count(store.Operations, "load") == 2, "the successor never reached the store, and the lane is quiescent");
+		refuse(false);
+		std::optional<result> after;
+		expect(!refused(after), "a request after the stranded successor is admitted");
+		effects.Inner.drain();
+		lane.Inner.drain();
+		expect(after && after->has_value() && persistence.is_quiescent(), "the lane serves the request after the stranded successor");
+
+		// A closing refusal whose own terminal cannot be posted is not left pending.
+		persistence.cancel_pending();
+		lane.Refuse = true;
+		std::optional<result> closing;
+		expect(refused(closing) && !closing && persistence.is_quiescent(), "a refusal whose terminal is refused leaves nothing pending");
+	}
 	void test_restore_device_profile_exact_predicate_cancels_before_authentication()
 	{
 		using status                                     = application::device_profile_restore_status;
@@ -6565,6 +6644,7 @@ auto main() -> int
 	test_restore_device_profile_superseded_load_terminates_without_resuming();
 	test_restored_binding_is_validated_before_resume();
 	test_device_binding_persistence_barriers();
+	test_device_binding_persistence_stays_drainable_when_its_posts_are_refused();
 	test_binding_load_cancellation_and_stale_terminal();
 	test_setup_authentication_preserves_review_until_exact_acceptance();
 	test_setup_acceptance_reuses_validated_bootstrap();

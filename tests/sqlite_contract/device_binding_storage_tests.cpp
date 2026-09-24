@@ -15,6 +15,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace {
 	using namespace bpr;
@@ -133,12 +134,17 @@ namespace {
 		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(preflight_observer::install)) == SQLITE_OK, "observe preflight connection locally");
 		std::stop_source stop;
 		preflight_observer::Stop = &stop;
-		const auto cancelled     = adapters::sqlite::make_device_binding_store(aRoot)->load(stop.get_token());
+		auto       store         = adapters::sqlite::make_device_binding_store(aRoot);
+		const auto cancelled     = store->load(stop.get_token());
 		preflight_observer::Stop = nullptr;
 		expect(!cancelled && cancelled.error() == application::device_binding_failure::cancelled && stop.stop_requested(), "cancellation during current-schema quick_check refuses explicitly");
 		expect(preflight_observer::LengthLimit == (1'048'576) && preflight_observer::QuickSteps <= 256, "preflight has 1MiB bound and interrupts quick_check within a bounded short instruction budget");
 		expect(database_bytes(aRoot) == bytes, "cancelled preflight leaves database bytes unchanged");
 		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(preflight_observer::install)) == 1, "remove preflight observer");
+		// [[BPR-0884]]. Cancellation is not corruption. Only a second call on the
+		// same store can show whether the first one latched it.
+		expect(store->load({ }).has_value(), "a cancelled open leaves the same store usable on its next call");
+		store.reset();
 		for (const auto legacyVersion : { false, true }) {
 			const auto hostileRoot = aRoot / (legacyVersion ? "hostile-legacy" : "hostile-current");
 			if (legacyVersion) {
@@ -190,13 +196,15 @@ namespace {
 		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(migration_interruption::install)) == SQLITE_OK, "register migration interruption");
 		std::stop_source stop;
 		migration_interruption::Stop = &stop;
-		expect(!adapters::sqlite::make_device_binding_store(legacyRoot)->load(stop.get_token()) && stop.stop_requested(), "interrupt Default adoption after row copy begins");
+		// [[BPR-0884]]. The interrupted store is the one that retries.
+		auto       adopted = adapters::sqlite::make_device_binding_store(legacyRoot);
+		const auto stopped = adopted->load(stop.get_token());
+		expect(!stopped && stopped.error() == application::device_binding_failure::cancelled && stop.stop_requested(), "interrupt Default adoption after row copy begins");
 		migration_interruption::Stop = nullptr;
 		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(migration_interruption::install)) == 1, "remove migration interruption");
 		expect(version(legacyRoot) == 1, "interrupted migration rolls back schema version");
-		auto       adopted = adapters::sqlite::make_device_binding_store(legacyRoot);
-		const auto rows    = adopted->load({ });
-		expect(rows && rows->size() == 1U && rows->front() == record() && version(legacyRoot) == 2, "restart adopts legacy row exactly into Default schema2");
+		const auto rows = adopted->load({ });
+		expect(rows && rows->size() == 1U && rows->front() == record() && version(legacyRoot) == 2, "the interrupted store adopts the legacy row exactly into Default schema2 on its next call");
 		expect(adopted->erase(record().Authority, { }).has_value(), "adopted authority tombstones exactly");
 		adopted.reset();
 		expect(adapters::sqlite::make_device_binding_store(legacyRoot)->load({ })->front().Tombstone, "adopted tombstone survives restart");
@@ -210,6 +218,104 @@ namespace {
 		const auto malformedBytes = database_bytes(malformedRoot);
 		expect(!adapters::sqlite::make_device_binding_store(malformedRoot)->load({ }) && version(malformedRoot) == 1, "malformed legacy row refuses without migration");
 		expect(database_bytes(malformedRoot) == malformedBytes, "malformed refusal leaves legacy database bytes unchanged");
+	}
+
+	// [[BPR-0884]]. Another connection holding the file is contention, not
+	// corruption, so the same store opens once the hold ends. A verdict on the
+	// admitted file's content is different: it latches for the store's lifetime.
+	auto hold(const std::filesystem::path& aRoot, const char* aBegin) -> sqlite3*
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open((aRoot / "state/v1/device-bindings.sqlite3").string().c_str(), &database) == SQLITE_OK, "open a second connection to hold the store");
+		expect(sqlite3_exec(database, aBegin, nullptr, nullptr, nullptr) == SQLITE_OK, "the second connection takes its lock");
+		return database;
+	}
+	void release(sqlite3* aDatabase)
+	{
+		expect(sqlite3_exec(aDatabase, "ROLLBACK", nullptr, nullptr, nullptr) == SQLITE_OK, "the second connection releases its lock");
+		sqlite3_close(aDatabase);
+	}
+	// Another connection tries to commit between the store's first and third reads.
+	struct intervening_writer
+	{
+		static inline const std::filesystem::path* Root    = nullptr;
+		static inline int                          Written = SQLITE_OK;
+		static auto                                trace(unsigned int, void*, void* aStatement, void*) -> int
+		{
+			const auto* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(aStatement));
+			if (Root != nullptr && sql != nullptr && std::string_view{ sql } == "SELECT count(*) FROM sqlite_schema") {
+				const auto* root   = std::exchange(Root, nullptr);
+				sqlite3*    writer = nullptr;
+				Written            = sqlite3_open((*root / "state/v1/device-bindings.sqlite3").string().c_str(), &writer);
+				if (Written == SQLITE_OK) {
+					Written = sqlite3_exec(writer, "CREATE TABLE intruder(value TEXT)", nullptr, nullptr, nullptr);
+				}
+				sqlite3_close(writer);
+			}
+			return 0;
+		}
+		static auto install(sqlite3* aDatabase, char**, const sqlite3_api_routines*) -> int
+		{
+			return sqlite3_trace_v2(aDatabase, SQLITE_TRACE_STMT, trace, nullptr);
+		}
+	};
+	void contention_and_corruption(const std::filesystem::path& aRoot)
+	{
+		using application::device_binding_failure;
+		// A writer holds a legacy file the store must migrate: the store's
+		// BEGIN IMMEDIATE waits out the busy timeout and fails.
+		const auto migrating = aRoot / "contended-migration";
+		legacy(migrating);
+		{
+			auto       store   = adapters::sqlite::make_device_binding_store(migrating);
+			auto*      writer  = hold(migrating, "BEGIN IMMEDIATE");
+			const auto blocked = store->load({ });
+			release(writer);
+			expect(!blocked && blocked.error() == device_binding_failure::unavailable && version(migrating) == 1, "a busy migration is unavailable, not corrupt, and changes nothing");
+			const auto rows = store->load({ });
+			expect(rows && rows->size() == 1U && rows->front() == record() && version(migrating) == 2, "the same store migrates once the writer is gone");
+		}
+		// A rollback-journal file under an exclusive lock refuses even the
+		// store's first read.
+		const auto reading = aRoot / "contended-read";
+		std::filesystem::create_directory(reading);
+		expect(adapters::sqlite::make_storage_root_owner_private(reading), "fixture root is owner-private under the canonical storage policy");
+		seed(reading);
+		mutate(reading, "PRAGMA journal_mode=DELETE");
+		{
+			auto       store   = adapters::sqlite::make_device_binding_store(reading);
+			auto*      writer  = hold(reading, "BEGIN EXCLUSIVE");
+			const auto blocked = store->load({ });
+			release(writer);
+			expect(!blocked && blocked.error() == device_binding_failure::unavailable, "a locked first read is unavailable, not corrupt");
+			const auto rows = store->load({ });
+			expect(rows && rows->size() == 1U && rows->front() == record(), "the same store reads once the lock is gone");
+		}
+		// The judgement reads one snapshot. A writer that committed between two of
+		// its reads would otherwise make a fresh file look like a corrupt one.
+		const auto racing = aRoot / "racing";
+		std::filesystem::create_directory(racing);
+		expect(adapters::sqlite::make_storage_root_owner_private(racing), "fixture root is owner-private under the canonical storage policy");
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(intervening_writer::install)) == SQLITE_OK, "register the intervening writer");
+		intervening_writer::Root = &racing;
+		const auto raced         = adapters::sqlite::make_device_binding_store(racing)->load({ });
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(intervening_writer::install)) == 1, "remove the intervening writer");
+		expect(intervening_writer::Root == nullptr && intervening_writer::Written == SQLITE_BUSY, "no writer can commit while the store is judging the file");
+		expect(raced && raced->empty() && version(racing) == 2, "the store judges and creates the fresh file it read");
+		// An unknown schema object is a verdict on the file. Repairing the file
+		// does not reopen a store that has already refused it.
+		const auto latched = aRoot / "latched";
+		std::filesystem::create_directory(latched);
+		expect(adapters::sqlite::make_storage_root_owner_private(latched), "fixture root is owner-private under the canonical storage policy");
+		seed(latched);
+		mutate(latched, "CREATE TABLE extra(value TEXT)");
+		auto       store   = adapters::sqlite::make_device_binding_store(latched);
+		const auto refused = store->load({ });
+		expect(!refused && refused.error() == device_binding_failure::corrupt, "an unknown schema object is corrupt");
+		mutate(latched, "DROP TABLE extra");
+		const auto again = store->load({ });
+		expect(!again && again.error() == device_binding_failure::corrupt && !store->erase(record().Authority, { }), "a corrupt verdict latches the store for its lifetime");
+		expect(adapters::sqlite::make_device_binding_store(latched)->load({ }).has_value(), "the repaired file is valid, so the refusal above is the latch");
 	}
 
 	// [[BPR-0887]]. SQLite keeps one progress handler per connection. A nested
@@ -304,6 +410,7 @@ int main()
 #endif
 	bounded_preflight(root);
 	scoped_storage_and_migration(root);
+	contention_and_corruption(root);
 	mutate(root, "CREATE TABLE extra(value TEXT)");
 	expect(!adapters::sqlite::make_device_binding_store(root)->load({ }), "unknown schema object refuses whole catalog");
 	mutate(root, "DROP TABLE extra; PRAGMA ignore_check_constraints=ON; UPDATE device_binding SET access_expiry=issued");

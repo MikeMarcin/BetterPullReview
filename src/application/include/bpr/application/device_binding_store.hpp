@@ -62,6 +62,9 @@ namespace bpr::application {
 
 	/// \brief Serializes bounded metadata effects and returns their terminals to the decision lane.
 	/// \details Keep all ports alive until quiescent. Calls and callbacks are decision-lane confined.
+	/// Every admitted request has exactly one terminal. A request whose effect cannot be posted
+	/// reports `unavailable`. A call throws only when the decision lane refused that terminal
+	/// too; the request was then not admitted, no terminal follows, and the lane stays drainable.
 	class device_binding_persistence final
 	{
 	public:

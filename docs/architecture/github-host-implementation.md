@@ -1383,6 +1383,20 @@ writes `state/v1/device-bindings.sqlite3` through the lazy SQLite adapter. This
 store contains no token bytes. Schema, record and capacity validation refuse
 unknown or malformed data.
 
+Only a verdict on the file latches the store. The store reads the admitted file
+inside one transaction, so a verdict comes from one snapshot. A file judged
+corrupt refuses every later call for the life of the store. Three failures are
+not verdicts, and none of them latches: cancellation, a lock held by another
+connection, and a failed configuration or migration. Each closes the
+connection and reports `cancelled` or `unavailable`, and the next call admits,
+opens and judges the file again ([[BPR-0884]]).
+
+Every metadata request the lane admits has exactly one terminal. A request
+whose effect cannot be posted reports `unavailable`. If the decision lane
+refuses that terminal too, a new request is withdrawn and the call throws. A
+queued request instead gets its terminal in the lane turn that finished the
+request before it.
+
 Startup loads only the compiled native GitHub.com device profile after both
 hosts exist. `resume_profile` validates its current profile contract, retrieves
 the exact vault item and checks authenticated `/user` identity before accepting

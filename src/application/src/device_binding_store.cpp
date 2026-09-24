@@ -98,15 +98,28 @@ namespace bpr::application {
 			if (Requests.size() >= maximum_device_bindings || (Closing && !std::holds_alternative<erase_request>(aRequest))) {
 				auto failure = failure_for(aRequest, Closing ? device_binding_failure::cancelled : device_binding_failure::capacity);
 				++PendingRefusals;
-				Decisions.post([self = shared_from_this(), request = std::move(aRequest), outcome = std::move(failure)]() mutable {
-					complete(std::move(request), std::move(outcome));
-					--self->PendingRefusals;
-				});
+				try {
+					Decisions.post([self = shared_from_this(), request = std::move(aRequest), outcome = std::move(failure)]() mutable {
+						complete(std::move(request), std::move(outcome));
+						--self->PendingRefusals;
+					});
+				} catch (...) {
+					--PendingRefusals;
+					throw;
+				}
 				return;
 			}
 			Requests.push_back(job{ std::move(aRequest), { } });
 			if (Requests.size() == 1U) {
-				submit();
+				try {
+					submit();
+				} catch (...) {
+					// [[BPR-0884]]. Neither the effect nor its terminal was posted. The
+					// request is withdrawn and the caller sees the refusal, the same
+					// boundary an effect executor gives by throwing before it retains.
+					Requests.pop_back();
+					throw;
+				}
 			}
 		}
 		auto perform(const job& aJob) -> result
@@ -142,21 +155,36 @@ namespace bpr::application {
 		void finish(result aResult)
 		{
 			++ActiveCompletions;
-			auto request = std::move(Requests.front().Request);
-			Requests.pop_front();
-			// Start queued effects before invoking a callback that may enqueue again.
-			if (!Requests.empty()) {
-				submit();
+			for (;;) {
+				auto request = std::move(Requests.front().Request);
+				Requests.pop_front();
+				// Start queued effects before invoking a callback that may enqueue again.
+				auto started = true;
+				if (!Requests.empty()) {
+					try {
+						submit();
+					} catch (...) {
+						started = false;
+					}
+				}
+				complete(std::move(request), std::move(aResult));
+				if (started) {
+					break;
+				}
+				// [[BPR-0884]]. Neither the successor's effect nor its terminal was
+				// posted. This is already its lane, so its terminal is delivered here,
+				// after its predecessor's, and the job after it is started in turn.
+				aResult = failure_for(Requests.front().Request, device_binding_failure::unavailable);
 			}
-			complete(std::move(request), std::move(aResult));
 			--ActiveCompletions;
 		}
+		// Posts the front job's effect or, failing that, its `unavailable` terminal.
+		// Throws only when neither was posted, and then nothing was retained.
 		void submit()
 		{
 			auto self = shared_from_this();
-			auto job  = Requests.front();
 			try {
-				Effects.post([self, work = std::move(job)] {
+				Effects.post([self, work = Requests.front()] {
 					auto result = failure_for(work.Request, device_binding_failure::unavailable);
 					try {
 						result = self->perform(work);
