@@ -378,6 +378,13 @@ tombstones before it spends. A restored session whose refresh slot is missing
 is still signed out and erased. All three follow from the owner's rule but are
 outside this card's launch scope.
 
+**Since built (Mac batch 8, `b71456a1`).** [[BPR-1116]] applies the rule to
+all three. An accepted session's renewal that gives up ends the session
+visibly and keeps the grant. The in-process rotation writes no tombstone. A
+restored session whose refresh slot is missing stays signed in and says it
+does not renew itself. This card's pending account-mismatch question is
+unchanged.
+
 ## Linux at `45191097` (bpr-main-linux, 2026-09-24)
 
 **The keep-grant policy's courses pass on Linux, and so do the pins

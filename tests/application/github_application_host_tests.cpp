@@ -6525,7 +6525,7 @@ namespace {
 	// keeps it, and only Sign out or a new sign-in removes it.
 	void test_an_accepted_renewal_that_gives_up_keeps_the_grant()
 	{
-		const auto reason_of = [](const core::github_failure aFailure) {
+		const auto reasonOf = [](const core::github_failure aFailure) {
 			switch (aFailure) {
 			case core::github_failure::network:
 				return core::github_reason_code::network_unavailable;
@@ -6560,7 +6560,7 @@ namespace {
 				expect(fixture.Vault.Deletes.empty() && fixture.Vault.RefreshDeletes.empty() && !store.Rows.front().Tombstone
 						   && std::ranges::count(store.Operations, "erase") == 0,
 					   name + ": and keeps the grant: no tombstone, and neither slot is erased");
-				expect(fixture.Projections.kept_grant_reason() == std::optional{ reason_of(failure) }, name + ": the failure says the grant was kept, with the renewal's own reason");
+				expect(fixture.Projections.kept_grant_reason() == std::optional{ reasonOf(failure) }, name + ": the failure says the grant was kept, with the renewal's own reason");
 				if (failure == core::github_failure::authentication) {
 					// A refused grant needs signing in again; Sign out removes it.
 					fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
