@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1039"
 title: "Windows: two course cleanups fail with WinError 32 because an application store file is still held when the temporary helper removes the root"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
