@@ -1058,22 +1058,60 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         test_better_pull_review_linux_secret_service_native_tests
     )
 
+    # [[BPR-1117]]. The native rows write, replace and delete an item in the
+    # collection the `default` alias names, so they refuse every session bus
+    # that is not designated for tests. Each runs through the harness, which
+    # starts a private dbus-daemon and a test-only gnome-keyring, designates
+    # that bus, and stops both by exact PID when the row ends. No row reaches a
+    # bus the harness did not start, and none needs a desktop session.
+    set(
+        bpr_linux_secret_service_private_session
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/linux_secret_service_private_session.py"
+    )
+    set(
+        bpr_linux_secret_service_native_executable
+        "$<TARGET_FILE:test_better_pull_review_linux_secret_service_native_tests>"
+    )
     bpr_add_network_isolated_test(
         NAME linux_secret_service_native_setup
         COMMAND
-            test_better_pull_review_linux_secret_service_native_tests
+            ${bpr_linux_secret_service_private_session}
+            --
+            ${bpr_linux_secret_service_native_executable}
             --fixture-setup
     )
     bpr_add_network_isolated_test(
         NAME linux_secret_service_native
         COMMAND
-            test_better_pull_review_linux_secret_service_native_tests
+            ${bpr_linux_secret_service_private_session}
+            --
+            ${bpr_linux_secret_service_native_executable}
     )
     bpr_add_network_isolated_test(
         NAME linux_secret_service_native_cleanup
         COMMAND
-            test_better_pull_review_linux_secret_service_native_tests
+            ${bpr_linux_secret_service_private_session}
+            --
+            ${bpr_linux_secret_service_native_executable}
             --fixture-cleanup
+    )
+    # [[BPR-1117]]. Pins the refusals: a missing, malformed or stale
+    # designation, and a bus other than the designated one by address or by
+    # runtime directory, each end the executable with its named line before
+    # any vault call. The control's buses carry no keyring.
+    bpr_add_network_isolated_test(
+        NAME linux_secret_service_refusal_control
+        COMMAND
+            ${bpr_linux_secret_service_private_session}
+            --refusal-control
+            --
+            ${bpr_linux_secret_service_native_executable}
+    )
+    set_tests_properties(
+        linux_secret_service_refusal_control
+        PROPERTIES
+            TIMEOUT 60
     )
     set_tests_properties(
         linux_secret_service_native_setup

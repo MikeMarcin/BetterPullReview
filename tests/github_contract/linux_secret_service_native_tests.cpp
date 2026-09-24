@@ -7,6 +7,8 @@
 
 #include "bpr/application/manual_executor.hpp"
 
+#include <gio/gio.h>
+
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -1281,6 +1283,90 @@ namespace {
 		return std::string{ value };
 	}
 
+	// [[BPR-1117]]. The only session bus these rows may use. They write, replace and delete an
+	// item in the collection the `default` alias names, and on a bus nobody chose for them that
+	// is the user's own keyring. So they run only on a bus designated for tests:
+	// `BPR_DESIGNATED_TEST_SESSION_BUS` names one daemon's exact address, its `unix:path=` and
+	// its `guid=`, and `DBUS_SESSION_BUS_ADDRESS` must be exactly that address. The harness,
+	// `tests/scripts/linux_secret_service_private_session.py`, sets both for the private daemon
+	// it starts. An operator may set both for a bus they control. The address checks come before
+	// any connection is made. The GUID check is made on the connection the vault then uses, so a
+	// path that another daemon now serves is refused too.
+	inline constexpr std::string_view designated_bus_variable = "BPR_DESIGNATED_TEST_SESSION_BUS";
+
+	/// \brief The server GUID a designation names.
+	/// \returns Nothing unless the designation is exactly one
+	/// `unix:path=<absolute path>,guid=<32 lowercase hex digits>` address, the form
+	/// `dbus-daemon --print-address` writes for a path socket.
+	[[nodiscard]] auto designated_guid(const std::string_view aDesignation)
+		-> std::optional<std::string>
+	{
+		constexpr std::string_view transport = "unix:path=";
+		constexpr std::string_view guidKey   = ",guid=";
+		constexpr std::size_t      guidSize  = 32U;
+		const auto                 guidAt    = aDesignation.rfind(guidKey);
+		if (!aDesignation.starts_with(transport) || guidAt == std::string_view::npos) {
+			return std::nullopt;
+		}
+		const auto path     = aDesignation.substr(transport.size(), guidAt - transport.size());
+		const auto guid     = aDesignation.substr(guidAt + guidKey.size());
+		const auto hexDigit = [](const char aCharacter) {
+			return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f');
+		};
+		if (
+			path.empty() || path.front() != '/'
+			|| path.find_first_of(",;") != std::string_view::npos
+			|| guid.size() != guidSize || !std::ranges::all_of(guid, hexDigit)) {
+			return std::nullopt;
+		}
+		return std::string{ guid };
+	}
+
+	/// \brief Why the session bus is refused, or nothing when it is the designated one.
+	/// \details On success the connection stays referenced for the life of the process, so the
+	/// vault's proxies are built on the very connection whose server was checked.
+	[[nodiscard]] auto session_bus_refusal() -> std::optional<std::string_view>
+	{
+		const auto designation = environment_value(designated_bus_variable);
+		if (!designation.has_value()) {
+			return "undesignated";
+		}
+		const auto guid = designated_guid(*designation);
+		if (!guid.has_value()) {
+			return "designation-malformed";
+		}
+		if (environment_value("DBUS_SESSION_BUS_ADDRESS") != designation) {
+			return "not-designated";
+		}
+		GError* error = nullptr;
+		auto*   bus   = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &error);
+		if (bus == nullptr) {
+			g_clear_error(&error);
+			return "bus-unreachable";
+		}
+		const auto* actual = g_dbus_connection_get_guid(bus);
+		if (actual == nullptr || *guid != actual) {
+			g_object_unref(bus);
+			return "bus-identity-mismatch";
+		}
+		return std::nullopt;
+	}
+
+	/// \brief Whether any route names a session bus: an address, a runtime directory whose `bus`
+	/// a client would try, or a display that autolaunch would ask.
+	[[nodiscard]] auto session_bus_named() -> bool
+	{
+		return std::ranges::any_of(
+			std::array{ "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "DISPLAY" },
+			[](const char* aVariable) { return std::getenv(aVariable) != nullptr; });
+	}
+
+	void report_bus_refusal(const std::string_view aReason)
+	{
+		static_cast<void>(write_category(
+			std::string{ "linux-secret-service-bus:refused:" }.append(aReason).append("\n")));
+	}
+
 	[[nodiscard]] auto make_child_environment(
 		const std::filesystem::path& aRoot)
 		-> std::optional<std::vector<std::string>>
@@ -1303,6 +1389,11 @@ namespace {
 		if (const auto runtime = environment_value("XDG_RUNTIME_DIR");
 			runtime.has_value()) {
 			environment.push_back("XDG_RUNTIME_DIR=" + *runtime);
+		}
+		// [[BPR-1117]]. The child checks the bus for itself before it touches the vault.
+		if (const auto designation = environment_value(designated_bus_variable);
+			designation.has_value()) {
+			environment.push_back(std::string{ designated_bus_variable } + "=" + *designation);
 		}
 		std::ranges::sort(environment);
 		return environment;
@@ -1768,6 +1859,27 @@ auto main(const int argument_count, char* arguments[]) -> int
 	static_cast<void>(std::signal(SIGPIPE, SIG_IGN));
 	if (
 		argument_count == 2
+		&& std::string_view{ arguments[1] } == "--expect-unavailable") {
+		// [[BPR-1117]]. This mode must find no bus at all, so it refuses while any route names one.
+		// Before, it checked only the address, and a runtime directory holding the user's `bus`
+		// still reached the user's keyring.
+		if (session_bus_named()) {
+			report_bus_refusal("session-bus-named");
+			return EXIT_FAILURE;
+		}
+		return expected_failure_mode(
+			application::github_credential_vault_failure::unavailable,
+			"linux-secret-service-unavailable:pass\n",
+			"linux-secret-service-unavailable:fail\n");
+	}
+	// [[BPR-1117]]. Every other mode, the native child included, reaches the Secret Service on the
+	// session bus, so every other mode refuses a bus that is not the designated one.
+	if (const auto refusal = session_bus_refusal(); refusal.has_value()) {
+		report_bus_refusal(*refusal);
+		return EXIT_FAILURE;
+	}
+	if (
+		argument_count == 2
 		&& std::string_view{ arguments[1] } == "--native-child") {
 		return native_child();
 	}
@@ -1780,20 +1892,6 @@ auto main(const int argument_count, char* arguments[]) -> int
 		argument_count == 2
 		&& std::string_view{ arguments[1] } == "--fixture-cleanup") {
 		return fixture_mode(false);
-	}
-	if (
-		argument_count == 2
-		&& std::string_view{ arguments[1] } == "--expect-unavailable") {
-		const auto noExplicitSessionBus = std::getenv("DBUS_SESSION_BUS_ADDRESS") == nullptr;
-		if (!noExplicitSessionBus) {
-			static_cast<void>(write_category(
-				"linux-secret-service-unavailable:fail\n"));
-			return EXIT_FAILURE;
-		}
-		return expected_failure_mode(
-			application::github_credential_vault_failure::unavailable,
-			"linux-secret-service-unavailable:pass\n",
-			"linux-secret-service-unavailable:fail\n");
 	}
 	if (
 		argument_count == 2

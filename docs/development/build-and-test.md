@@ -249,14 +249,14 @@ by name or the host clears `/tmp`. A removal that fails prints
 
 When `DBUS_SESSION_BUS_ADDRESS` is unset, the launcher first sets it to the
 `$XDG_RUNTIME_DIR/bus` socket the test would otherwise have found, so the
-test still reaches the same session bus. That can be the user's real bus. On
-a host with no bus address but a live `$XDG_RUNTIME_DIR/bus`, the three Linux
-Secret Service rows reach the user's own session bus and its Secret Service,
-just as they do wherever an address is set, and write and delete their
-integration item there ([[BPR-1113]]). To keep them off it, run CTest with a
-fresh `XDG_RUNTIME_DIR` and no bus address, where they find no bus, or inside
-a private session with a test-only keyring, as the Secret Service section
-below describes.
+test still reaches the same session bus. That can be the user's real bus.
+
+The Linux Secret Service rows do not take that bus, or any bus the shell
+names ([[BPR-1117]]). They refuse every session bus that is not designated
+for tests, and each runs on a private bus with a test-only keyring that its
+harness starts. The Secret Service section below says how. Before that card,
+they reached the user's own Secret Service wherever an address was set or
+pinned, and wrote and deleted their integration item there ([[BPR-1113]]).
 
 On Windows, the checked-in launcher enters each test into one fixed
 AppContainer with zero capabilities, so the Windows Filtering Platform refuses
@@ -1431,22 +1431,81 @@ cmake --build build/dev --target \
   test_better_pull_review_linux_secret_service_contract_tests \
   test_better_pull_review_linux_secret_service_native_tests
 ctest --test-dir build/dev --output-on-failure \
-  -R '^linux_secret_service_(contract|native|native_setup|native_cleanup)$'
+  -R '^linux_secret_service_(contract|native|native_setup|native_cleanup|refusal_control)$'
 ```
 
-Run the resource-locked setup/lifecycle/cleanup sequence only inside a
-designated desktop D-Bus session with a Secret Service implementation and an
-unlocked default collection. A controlled Xvfb, D-Bus, and test-only
-gnome-keyring session under a dedicated user is suitable. Never place the
-keyring password or a credential canary in arguments, environment, command
-output, or checked-in configuration. The fixture uses only the disjoint
-integration-test schema and confirms exact cleanup.
+The native rows write, replace and delete their integration item in the
+collection the `default` alias names, so they run only on a session bus
+designated for tests ([[BPR-1117]]). Every mode of the native executable
+except `--expect-unavailable` checks this first. It refuses with
+`linux-secret-service-bus:refused:<reason>` and a failing exit, before any
+Secret Service call, unless all of these hold:
+
+- `BPR_DESIGNATED_TEST_SESSION_BUS` names exactly one
+  `unix:path=<absolute path>,guid=<32 hex digits>` address, the form
+  `dbus-daemon --print-address` writes;
+- `DBUS_SESSION_BUS_ADDRESS` is exactly that address;
+- the server the connection reaches reports that GUID.
+
+The reasons are `undesignated`, `designation-malformed`, `not-designated`,
+`bus-unreachable` and `bus-identity-mismatch`. A bus the launcher pinned from
+`$XDG_RUNTIME_DIR/bus`, or the user's own session bus, is never the
+designated one.
+
+Each registered native row runs through
+`tests/scripts/linux_secret_service_private_session.py`. That harness:
+
+- starts a private `dbus-daemon` on a path socket in an owner-private
+  temporary root. Its configuration names no service directory, so it
+  activates nothing;
+- starts a test-only `gnome-keyring-daemon` in the foreground on that bus,
+  under fresh directories, unlocked from standard input with a random
+  password that is never printed or stored;
+- waits until the `default` alias names an unlocked collection;
+- runs the row with that bus designated;
+- stops the keyring and the bus by the exact process it started, and removes
+  the root.
+
+The rows therefore need no desktop session and never touch the user's
+keyring. They need `dbus-daemon`, `dbus-send` and `gnome-keyring-daemon` in
+`/usr/bin` or `/bin`. Without them a row fails with
+`linux-secret-service-private-session:unavailable:<tool>-missing`. Each row
+has its own keyring, so the setup and cleanup rows cannot meet an item
+another run left. The native row's own exact post-test absence check is what
+proves cleanup. A harness killed outright takes both daemons with it
+(`PR_SET_PDEATHSIG`), but leaves its `/tmp/bpr-secret-service-*` root for
+removal by name.
+
+`linux_secret_service_refusal_control` pins the refusals. It starts a
+designated bus and a second one, with no keyring on either. It then requires
+the native executable to refuse:
+
+- the second bus, named by address or found through a runtime directory;
+- a missing designation;
+- a designation without its GUID;
+- the designated path with another server's GUID;
+- `--expect-unavailable` while a runtime directory holds a bus.
+
+It also requires the designated bus to reach the vault.
+
+To designate a controlled session explicitly, set both variables to the
+address its `dbus-daemon` printed. An example is a dedicated user's Xvfb,
+D-Bus and test-only gnome-keyring session in a VM. Never designate a bus
+whose keyring holds anything real. Never place the keyring password or a
+credential canary in arguments, environment, command output, or checked-in
+configuration. The fixture uses only the disjoint integration-test schema and
+confirms exact cleanup.
 
 The unavailable, locked, and dependency-level redirection cases are
-controlled direct checks rather than registered CTest cases. Run the first
-outside a desktop session with no session-bus address, the second in a fresh
-test session whose real default collection is locked, and the third while an
-ordinary canonical Secret Service remains available:
+controlled direct checks rather than registered CTest cases.
+
+- `--expect-unavailable` must find no bus at all. It refuses with
+  `session-bus-named` while `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR` or
+  `DISPLAY` is set, because each is a route to a session bus.
+- The other two need a designated bus. Run the second on a designated test
+  session whose default collection is locked. Run the third while a
+  designated test session's ordinary canonical Secret Service remains
+  available.
 
 ```sh
 bpr_linux_vault_test=build/dev/tests/github_contract/\
@@ -1462,8 +1521,13 @@ env \
   -u SECRET_SERVICE_BUS_NAME \
   "${bpr_linux_vault_test}" --expect-unavailable
 
-"${bpr_linux_vault_test}" --expect-locked
+# The address the designated test session's dbus-daemon printed, guid= included.
+DBUS_SESSION_BUS_ADDRESS="${bpr_test_bus}" \
+BPR_DESIGNATED_TEST_SESSION_BUS="${bpr_test_bus}" \
+  "${bpr_linux_vault_test}" --expect-locked
 
+DBUS_SESSION_BUS_ADDRESS="${bpr_test_bus}" \
+BPR_DESIGNATED_TEST_SESSION_BUS="${bpr_test_bus}" \
 SECRET_SERVICE_BUS_NAME=org.betterpullreview.Hostile.Secret \
   "${bpr_linux_vault_test}" \
   --expect-bus-redirect-rejected

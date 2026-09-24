@@ -293,8 +293,16 @@ dependency provider builds only the configurations the tree selects
 
 ## Linux hosts: the Secret Service `login` collection must be unlocked
 
-The `linux_secret_service_native*` fixtures and every RFC-BPR-0016 vault row
-on Linux talk to the real `org.freedesktop.secrets` service and target the
+The `linux_secret_service_native*` rows no longer need this. Since
+[[BPR-1117]] each runs on a private bus with a test-only keyring that its
+harness starts, and refuses the host's own session bus
+(`docs/development/build-and-test.md`, the Linux Secret Service section).
+Nothing below should be done for them. What follows was recorded for them
+and for the RFC-BPR-0016 vault rows, and that card changed nothing for the
+latter.
+
+Every RFC-BPR-0016 vault row on Linux talks to the real
+`org.freedesktop.secrets` service and targets the
 collection the `default` alias names — the `login` collection. The vault
 refuses to prompt by construction, so a locked collection makes those rows
 fail with `github_credential_vault_failure::locked` and nothing on the host
