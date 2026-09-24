@@ -418,3 +418,48 @@ ctest --preset dev --output-on-failure -R '^(agent_workspace_ownership|git_proce
 - **The BPR-0622 Windows courses: pass**, 6 of 6 at the final tree.
 - **macOS and Linux: pending**, for the runs above. The card stays In
   Progress until those stations supply them. Only then can it finish.
+
+## macOS station, 2026-09-24 (bpr-main-mac): the owed macOS runs pass
+
+Run at `f6d38c58`, which contains `bc6328ff`, with a clean tree. Nothing
+under `src/`, `cmake/` or `tests/` changed between the two, and nothing
+between `f6d38c58` and `877e3d60`. Apple clang, arm64, macOS 26.6.
+
+- **Reconfigure and build.** `cmake --preset dev` exits 0 and
+  `cmake --build --preset dev` exits 0: 311 build steps, no warning in the
+  build log.
+- **The card's eight rows** (the command above): 8 of 8 pass, 400 s.
+  `architecture_boundaries` 18.6 s, `architecture_boundary_contract` 97.0 s,
+  `qt_agent_launch_canary` 72.6 s, `agent_parent_death` 24.6 s,
+  `git_process_contract` 97.3 s, `agent_workspace_ownership` 2.4 s,
+  `application_agent_crash_recovery` 45.7 s,
+  `application_agent_materialization_crash_recovery` 41.9 s.
+- **The storage rows.** `ctest --preset dev --output-on-failure -R '^sqlite_'`,
+  run in parallel: 18 of 18 pass, 40.9 s. The rows are
+  `sqlite_anonymous_epoch_authority`, `sqlite_appearance_settings_storage`,
+  `sqlite_device_binding_storage`, `sqlite_epoch_catalog_behavior_contract`,
+  `sqlite_epoch_catalog_storage_contract`, `sqlite_private_store_open`,
+  `sqlite_profile_activation`, `sqlite_profile_registry_storage`,
+  `sqlite_profile_runtime_lease`, `sqlite_profile_storage_root`,
+  `sqlite_queue_enrollment_storage`, `sqlite_release_maintenance_files`,
+  `sqlite_review_ledger_storage`, `sqlite_review_mutation_recovery_storage`,
+  `sqlite_review_submission_recovery_storage`, `sqlite_storage_root_contract`,
+  `sqlite_window_review_restoration_storage` and
+  `sqlite_workbench_settings_storage`.
+- **The new target on macOS.**
+  - `better_pull_review_platform` configures as the header-only `INTERFACE`
+    target. Its include directory reaches 73 of the 606 macOS compile units:
+    the SQLite adapter's, and the agent adapter's and supervisor's, which link
+    it. All 73 build without a warning.
+  - No macOS object includes `bpr/platform/windows_private_object.hpp`
+    (`ninja -t deps`). Its only includers are the Windows-only
+    `windows_private_storage.hpp` and `windows_workspace_guard.hpp`.
+  - To show the header compiles on macOS anyway, a one-line unit that includes
+    it was compiled alone with `sqlite_connection.cpp`'s dev compile line
+    (`-std=c++23 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion
+    -Wshadow`) plus `-fsyntax-only -Werror`. It exits 0. On macOS the header is
+    its include guard and nothing else: all of its content is inside
+    `#if defined(_WIN32)`.
+
+**macOS: pass.** The Linux runs are still owed. This station leaves the
+card where it is, In Progress on the Windows station's claim.
