@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1105"
 title: "Windows (low): rfc0017_public_preview_decision_contract's scratch repository overruns MAX_PATH when %TEMP% is about 26 characters longer"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
