@@ -244,3 +244,24 @@ working tree, `gate-push.sh --check-boundaries-only 0ba63b0a^ 0ba63b0a`
 decided that `src/` was touched, built, and refused with
 `BOUNDARY GATE FAILED`. Both rows failed, the first on
 `maximum_agent_stderr_bytes`. The file was then restored.
+
+## Post-close: Linux after the correction, at `59915464` (bpr-main-linux, 2026-09-23)
+
+`59915464` contains `628b64d0`, whose read-ahead limits live in the shared
+protocol loop, which Linux compiles too. `build/dev` was rebuilt: GCC 15.2,
+`-Werror`, no `warning:` line. The rows ran serially and offscreen, with
+fresh `HOME` and XDG roots, and passed:
+
+| Row | Time |
+| --- | --- |
+| `architecture_boundaries` | 11.10 s |
+| `architecture_boundary_contract` | 156.01 s |
+| `application_agent_protocol_loop` | 0.01 s |
+| `qt_agent_launch_canary` | 67.68 s |
+
+The case's three protocols read
+`request 13048 bytes, outcome 0, 228 ms`, `13159 bytes, 0, 269 ms` and
+`13055 bytes, 0, 45 ms`. So the correction also holds on the POSIX
+transport. The log is a station record,
+`build/logs/bpr-main-linux-20260924/impl/rows-59915464.log`, and is not
+committed. The acceptance record above is unchanged.

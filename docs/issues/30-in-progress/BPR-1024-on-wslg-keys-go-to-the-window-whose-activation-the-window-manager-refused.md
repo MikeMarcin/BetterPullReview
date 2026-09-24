@@ -275,3 +275,24 @@ open:
 - **AC4: pending, with the runs.** Fresh mode-0700 XDG and TMP roots, the
   station lease and the live-state guard. No display, security or
   foreground-lock setting changes.
+
+### Where it landed (bpr-main-linux, 2026-09-23)
+
+The tools are `7d1ad629` on main, and the host is `59915464`. The push
+rebased both over bpr-main-win's `628b64d0` and `c920c776`. Those change the
+agent adapter and [[BPR-0886]]'s card, and nothing in the pinned scope.
+
+At `59915464`, `build/dev` was rebuilt, with no `warning:` line. The
+following rows then passed, serially and offscreen, with fresh `HOME` and
+XDG roots (`rows-59915464.log`):
+
+- `architecture_boundaries`, 11.10 s. It has been green again since
+  `628b64d0`, and it stays green with this change.
+- `architecture_boundary_contract`, 156.01 s.
+- `application_review_round_trip_composition_contract`.
+- `application_xcb_activation_host`.
+- `application_agent_protocol_loop`.
+- `qt_agent_launch_canary`.
+
+The WSLg runs take `59915464` as the candidate. Its parent, `7d1ad629`, is
+the negative control for AC3.
