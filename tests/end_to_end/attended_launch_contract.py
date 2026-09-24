@@ -20,6 +20,11 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# [[BPR-1050]]. The data root's descriptor, and the contained temporary root.
+from bpr_narrow_owner_private import make_root_private  # noqa: E402
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+
 BINARY = Path(sys.argv[1]).resolve()
 
 # Comfortably past the budget the fixture courses run under, so a scheduled run
@@ -120,39 +125,53 @@ def test_it_refuses_to_share_the_wheel() -> None:
 
 
 def test_it_outlives_the_automated_budget() -> None:
-    process = subprocess.Popen(
-        [
-            str(BINARY),
-            "--github-fixture",
-            "github-com",
-            "--attended-launch",
-            "--automated-run-budget-ms",
-            str(BUDGET_MS),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=environment(),
-    )
-    try:
-        deadline = time.monotonic() + OUTLIVE_SECONDS
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                break
-            time.sleep(0.25)
-        expect(
-            process.poll() is None,
-            "the attended launch is still running after the automated budget "
-            "would have driven a scheduled run to shutdown",
+    # [[BPR-1051]]. This course ends the application with a signal, so nothing
+    # the application removes at its own exit is removed. Left to itself, the
+    # fixture made a `bpr-public-path-*` data root in the temporary directory,
+    # and every run left one. The course names a root it owns instead, one
+    # owned level down ([[BPR-1050]]), and removes it after the process ends.
+    with contained_temporary_directory(prefix="bpr-attended-launch-") as temporary:
+        parent = Path(temporary).resolve()
+        make_root_private(parent)
+        root = parent / "data"
+        make_root_private(root)
+        process = subprocess.Popen(
+            [
+                str(BINARY),
+                "--github-fixture",
+                "github-com",
+                "--attended-launch",
+                "--epoch-fixture-root",
+                str(root),
+                "--epoch-fixture-phase",
+                "single",
+                "--automated-run-budget-ms",
+                str(BUDGET_MS),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=environment(),
         )
-    finally:
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=30)
+        try:
+            deadline = time.monotonic() + OUTLIVE_SECONDS
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    break
+                time.sleep(0.25)
+            expect(
+                process.poll() is None,
+                "the attended launch is still running after the automated budget "
+                "would have driven a scheduled run to shutdown",
+            )
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=30)
 
 
 def main() -> int:

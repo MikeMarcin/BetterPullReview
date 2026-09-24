@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -224,16 +225,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     extra_args = host_extra_args()
     failures: List[Path] = []
-    for path in files:
-        cmd = [clang_tidy, str(path), "-p", str(build_root), *extra_args]
-        if args.warnings_as_errors:
-            cmd.append("--warnings-as-errors=*")
-        if args.fix:
-            cmd.append("--fix")
-        print("+", " ".join(cmd))
-        completed = subprocess.run(cmd, cwd=str(root))
-        if completed.returncode != 0:
-            failures.append(path)
+    try:
+        for path in files:
+            cmd = [clang_tidy, str(path), "-p", str(build_root), *extra_args]
+            if args.warnings_as_errors:
+                cmd.append("--warnings-as-errors=*")
+            if args.fix:
+                cmd.append("--fix")
+            print("+", " ".join(cmd))
+            completed = subprocess.run(cmd, cwd=str(root))
+            if completed.returncode != 0:
+                failures.append(path)
+    finally:
+        # BPR-1051. The rewritten database is this run's own directory, and
+        # nothing else removes it: every run that stripped a flag left one
+        # `bpr-tidy-db-*` in the temporary directory.
+        if rewritten is not None:
+            shutil.rmtree(rewritten)
 
     if failures:
         print("clang-tidy reported violations or tool failures:", file=sys.stderr)

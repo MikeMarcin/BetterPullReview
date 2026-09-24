@@ -11,8 +11,12 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <string>
 #include <thread>
 #include <vector>
+#if !defined(_WIN32)
+	#include <unistd.h>
+#endif
 namespace {
 	void expect(bool aCondition, const char* aMessage)
 	{
@@ -53,6 +57,12 @@ int main(int aArgc, char** aArgv)
 		adapters::logging::quill_log log{ root };
 		expect(log.status() == status::available, "available local sink");
 		expect(log.record({ }) == status::available, "accepted startup");
+#if !defined(_WIN32)
+		// [[BPR-1051]]. Quill's singleton check creates this file when the
+		// backend starts, and only a clean stop removes it, so a killed process
+		// left it behind. The adapter turns the check off.
+		expect(!std::filesystem::exists("/tmp/QuillBackendLock" + std::to_string(::getpid())), "a running backend creates no Quill lock file in /tmp");
+#endif
 		auto hostile            = application::diagnostic_event{ };
 		hostile.Summary.Text[0] = '\n';
 		hostile.Summary.Size    = 1;

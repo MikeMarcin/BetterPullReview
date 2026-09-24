@@ -10,13 +10,14 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -75,22 +76,76 @@ namespace {
 		return value == nullptr ? std::string{ } : std::string{ value };
 	}
 
+	/// \brief The canary's scratch directory, which this process creates and
+	/// removes.
+	///
+	/// \details [[BPR-1051]]. The name is random and the directory is created
+	/// exclusively, so it belongs to this run. A name that already exists is
+	/// passed over and never removed: two runs that start in the same second
+	/// used to delete each other's scratch. On POSIX it is owner-private; on
+	/// Windows it keeps the per-user temporary directory's entries. `main`
+	/// removes it before it reports a pass. A failed `expect` leaves through
+	/// `std::exit`, which runs this function-local static's destructor, so a
+	/// failing run removes it too. Only a run that is killed leaves it.
+	class canary_scratch final
+	{
+	public:
+		canary_scratch()
+		{
+			const auto parent = std::filesystem::temp_directory_path();
+			auto       random = std::random_device{ };
+			for (auto attempt = 0; attempt < 16 && Root.empty(); ++attempt) {
+				const auto      name      = (static_cast<std::uint64_t>(random()) << 32U) | random();
+				const auto      candidate = parent / ("bpr-mcp-canary-" + std::to_string(name));
+				std::error_code filesystemError;
+				if (std::filesystem::create_directory(candidate, filesystemError)) {
+					Root = candidate;
+				}
+			}
+			expect(!Root.empty(), "the canary creates its own scratch directory");
+#if !defined(_WIN32)
+			std::error_code filesystemError;
+			std::filesystem::permissions(Root, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, filesystemError);
+			if (filesystemError) {
+				static_cast<void>(remove());
+			}
+			expect(!filesystemError, "the canary's scratch directory is owner-private");
+#endif
+		}
+		~canary_scratch() { static_cast<void>(remove()); }
+		canary_scratch(const canary_scratch&)                    = delete;
+		auto operator=(const canary_scratch&) -> canary_scratch& = delete;
+
+		[[nodiscard]] auto root() const -> const std::filesystem::path& { return Root; }
+
+		/// \returns Whether the directory this process created is gone.
+		[[nodiscard]] auto remove() noexcept -> bool
+		{
+			if (Root.empty()) {
+				return true;
+			}
+			std::error_code filesystemError;
+			std::filesystem::remove_all(Root, filesystemError);
+			if (filesystemError || std::filesystem::exists(Root, filesystemError)) {
+				return false;
+			}
+			Root.clear();
+			return true;
+		}
+
+	private:
+		std::filesystem::path Root;
+	};
+
+	[[nodiscard]] auto scratch() -> canary_scratch&
+	{
+		static auto directory = canary_scratch{ };
+		return directory;
+	}
+
 	[[nodiscard]] auto scratch_root() -> const std::filesystem::path&
 	{
-		static const auto root = [] {
-			const auto path = std::filesystem::temp_directory_path()
-				/ ("bpr-mcp-canary-"
-				   + std::to_string(
-					   static_cast<std::uint64_t>(std::time(nullptr))));
-			std::error_code filesystemError;
-			std::filesystem::remove_all(path, filesystemError);
-			expect(
-				std::filesystem::create_directories(path, filesystemError)
-					&& !filesystemError,
-				"the canary owns a private scratch directory");
-			return path;
-		}();
-		return root;
+		return scratch().root();
 	}
 
 	[[nodiscard]] auto scratch_path(const std::string& aName)
@@ -824,6 +879,7 @@ auto main() -> int
 	test_head_movement_makes_the_pinned_snapshot_stale();
 	test_advertised_tools_equal_the_closed_source_enumeration();
 	test_the_stdio_protocol_answers_only_its_declared_methods();
+	expect(scratch().remove(), "the canary removes the scratch directory it created");
 	std::cout << "mcp-context-helper-tests:pass\n";
 	return EXIT_SUCCESS;
 }

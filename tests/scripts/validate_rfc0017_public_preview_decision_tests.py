@@ -281,6 +281,17 @@ def template_root() -> Path:
     return _TEMPLATE_ROOT
 
 
+def tearDownModule() -> None:
+    """[[BPR-1051]]. The template is shared by every test, so it is removed
+    once, after the last one. Nothing removed it before, and every run left a
+    `bpr*` directory holding `template/` in the temporary directory."""
+    global _TEMPLATE, _TEMPLATE_ROOT
+    if _TEMPLATE is not None:
+        _TEMPLATE.cleanup()
+    _TEMPLATE = None
+    _TEMPLATE_ROOT = None
+
+
 def tree_state(root: Path) -> dict[str, str]:
     state: dict[str, str] = {}
     for path in sorted(root.rglob("*")):

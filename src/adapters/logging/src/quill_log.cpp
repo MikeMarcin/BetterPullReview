@@ -194,6 +194,14 @@ namespace bpr::adapters::logging {
 					options.transit_event_buffer_initial_capacity = 32;
 					options.transit_events_soft_limit             = 128;
 					options.transit_events_hard_limit             = 128;
+					// [[BPR-1051]]. Quill's singleton check detects Quill compiled
+					// into two binary modules of one process. Here Quill is compiled
+					// into this one translation unit of a static library, and the
+					// project builds no shared or module library, so the check
+					// cannot fire. On Linux and macOS its only effect was
+					// `/tmp/QuillBackendLock<pid>`, which only a clean backend stop
+					// removes, so every process that was killed or crashed left one.
+					options.check_backend_singleton_instance = false;
 					// Backend failures cannot be attributed to one sink. File/cap
 					// failures remain in capped_sink's own status instead.
 					options.error_notifier = [status](const std::string& aMessage) {
