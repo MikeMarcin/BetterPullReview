@@ -14,11 +14,11 @@ has exited.
 import argparse
 import os
 from pathlib import Path
-import sqlite3
 import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from bpr_store_connection import store_connection  # noqa: E402
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
 from scripts.contained_temporary_support import (  # noqa: E402
     contained_temporary_directory,
@@ -32,7 +32,7 @@ def binding_rows(root):
     stores = list(root.rglob("device-bindings.sqlite3"))
     if len(stores) != 1:
         raise SystemExit(f"expected one device binding store, found {len(stores)}")
-    with sqlite3.connect(f"file:{stores[0]}?mode=ro", uri=True) as connection:
+    with store_connection(f"file:{stores[0]}?mode=ro", uri=True) as connection:
         return connection.execute("SELECT profile,tombstone FROM device_binding").fetchall()
 
 

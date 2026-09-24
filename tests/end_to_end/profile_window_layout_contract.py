@@ -2,13 +2,13 @@
 import argparse
 import os
 from pathlib import Path
-import sqlite3
 import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
 from bpr_narrow_owner_private import make_root_private  # noqa: E402
+from bpr_store_connection import store_connection  # noqa: E402
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
@@ -37,7 +37,7 @@ def main():
         settings = root / "state/v1/workbench-settings.sqlite3"
         if not settings.is_file():
             raise SystemExit("actual Default layout store was not created")
-        with sqlite3.connect(settings) as database:
+        with store_connection(settings) as database:
             rows = database.execute("SELECT window_id, files_width FROM window_layout").fetchall()
             if dict(rows) != {str(first): width_a, str(second): width_b}:
                 raise SystemExit(f"chosen layout rows disagree: {rows}")
@@ -62,7 +62,7 @@ def main():
             # Simulate interrupted post-Close cleanup: this ID is absent from the registry.
             database.execute("INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane) SELECT '18446744073709551614',files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane FROM window_layout WHERE window_id=?", (str(first),))
         run("restore")
-        with sqlite3.connect(settings) as database:
+        with store_connection(settings) as database:
             rows = database.execute("SELECT window_id, files_width FROM window_layout").fetchall()
             if dict(rows) != {str(second): width_b}:
                 raise SystemExit(f"explicit Close/orphan reconciliation changed the wrong rows: {rows}")
@@ -73,15 +73,15 @@ def main():
                 raise SystemExit("window gestures changed profile defaults or behaviour")
         run("verify")
         registry = root / "state/v1/profile-registry.sqlite3"
-        with sqlite3.connect(registry) as database:
+        with store_connection(registry) as database:
             high_water = database.execute("SELECT last_window_id FROM profile_registry_meta").fetchone()
-        with sqlite3.connect(settings) as database:
+        with store_connection(settings) as database:
             database.execute("PRAGMA user_version=999")
         run("broken")
-        with sqlite3.connect(registry) as database:
+        with store_connection(registry) as database:
             if database.execute("SELECT last_window_id FROM profile_registry_meta").fetchone() != high_water:
                 raise SystemExit("optional layout failure reset or advanced the allocator")
-        with sqlite3.connect(settings) as database:
+        with store_connection(settings) as database:
             if database.execute("PRAGMA user_version").fetchone() != (999,):
                 raise SystemExit("future optional layout schema was silently reset")
     print("PROFILE_WINDOW_LAYOUT_OK")

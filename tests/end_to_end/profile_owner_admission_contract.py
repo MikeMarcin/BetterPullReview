@@ -3,7 +3,6 @@ import argparse
 import contextlib
 import os
 from pathlib import Path
-import sqlite3
 import stat
 import subprocess
 import sys
@@ -12,6 +11,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
 from bpr_narrow_owner_private import make_root_private  # noqa: E402
+from bpr_store_connection import store_connection  # noqa: E402
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
@@ -42,7 +42,7 @@ def private_fixture_parent():
 
 
 def windows(root, profile):
-    with sqlite3.connect(root / "state/v1/profile-registry.sqlite3") as connection:
+    with store_connection(root / "state/v1/profile-registry.sqlite3") as connection:
         return connection.execute(
             "SELECT window_id,generation,ordinal FROM profile_registry_windows "
             "WHERE profile_id=? ORDER BY ordinal", (str(profile),)

@@ -3,11 +3,11 @@ import argparse
 import os
 from pathlib import Path
 import shutil
-import sqlite3
 import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from bpr_store_connection import store_connection  # noqa: E402
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
@@ -41,18 +41,18 @@ def database(root):
 
 
 def records(root):
-    with sqlite3.connect(database(root)) as connection:
+    with store_connection(database(root)) as connection:
         return connection.execute("SELECT window_id,mode,hostname,owner,repository,number FROM restoration_records ORDER BY window_id").fetchall()
 
 
 def positions(root):
-    with sqlite3.connect(database(root)) as connection:
+    with store_connection(database(root)) as connection:
         return connection.execute("SELECT window_id,position FROM restoration_records ORDER BY window_id").fetchall()
 
 
 def recent(root):
     """[[BPR-0733]]. The per-profile recently viewed list, most recent first."""
-    with sqlite3.connect(database(root)) as connection:
+    with store_connection(database(root)) as connection:
         return connection.execute("SELECT ordinal,number FROM recent_reviews ORDER BY ordinal").fetchall()
 
 
@@ -106,7 +106,7 @@ def main():
             if phase == "corrupt":
                 database(course).write_bytes(b"not a sqlite database")
             elif phase != "missing-grant":
-                with sqlite3.connect(database(course)) as connection:
+                with store_connection(database(course)) as connection:
                     if phase == "missing-server":
                         connection.execute("UPDATE restoration_records SET hostname='missing.example.com'")
                     elif phase == "future":
@@ -137,7 +137,7 @@ def main():
         run(arguments.application, "anonymous-seed", anonymous)
         capability = root / "capability"
         shutil.copytree(anonymous, capability)
-        with sqlite3.connect(database(capability)) as connection:
+        with store_connection(database(capability)) as connection:
             connection.execute("UPDATE restoration_records SET hostname='ghe.example.invalid'")
         unavailable = records(capability)
         run(arguments.application, "capability", capability)
