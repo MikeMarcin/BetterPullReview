@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0892"
 title: "The files page cap does not account for the patch payload GitHub always sends, and no fixture carries one"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
