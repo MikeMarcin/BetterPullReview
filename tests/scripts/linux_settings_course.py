@@ -6,7 +6,8 @@ and TMP roots; XCB and AT-SPI are enabled for that child only, and HOME is not
 overridden. `linux_settings_inventory.py` then drives the full course by
 default, bounded to 180 seconds. `--inventory-only` and
 `--bound-refused-activation` are weaker diagnoses, never window-lifetime
-acceptance. The application must exit 0 after the course's native Quit. Run it
+acceptance. `--keys-follow-x11` (BPR-1024) is the refused-activation course
+in which a sibling that already holds X11 focus gets its keys directly. The application must exit 0 after the course's native Quit. Run it
 with the system `/usr/bin/python3`, which has PyGObject.
 
 The capture records the source revision, the build's cache settings and exact
@@ -67,7 +68,8 @@ def build_binding(build_dir, revision):
                 main_compile_command=main["command"], first_party_error_demotions=sorted(set(flags)))
 
 
-def course(build_dir, revision, work_root, output, inventory_only, focus_surface, bound_refused_activation):
+def course(build_dir, revision, work_root, output, inventory_only, focus_surface, bound_refused_activation,
+           keys_follow_x11=False):
     require(not output.exists(), "capture output already exists")
     executable = build_dir / "src" / "app" / "better_pull_review"
     build = build_binding(build_dir, revision)
@@ -100,6 +102,8 @@ def course(build_dir, revision, work_root, output, inventory_only, focus_surface
         observer.append("--inventory-only")
     if bound_refused_activation:
         observer.append("--bound-refused-activation")
+    if keys_follow_x11:
+        observer.append("--keys-follow-x11")
     observer_exit = None
     with (root / "app.log").open("w") as log:
         process = subprocess.Popen([str(executable)], env=environment, stdout=log, stderr=subprocess.STDOUT)
@@ -136,9 +140,15 @@ if __name__ == "__main__":
     parser.add_argument("--bound-refused-activation", action="store_true",
                         help="Diagnosis, not acceptance: continue past a window manager that refuses the application's "
                              "own activation request")
+    parser.add_argument("--keys-follow-x11", action="store_true",
+                        help="BPR-1024: the refused-activation course without a focus-in on the refused window when "
+                             "the next target already holds X11 focus")
     arguments = parser.parse_args()
     passed = course(arguments.build_dir.resolve(), arguments.revision, arguments.work_root.resolve(), arguments.output,
-                    arguments.inventory_only, arguments.focus_surface, arguments.bound_refused_activation)
-    kind = "inventory-only" if arguments.inventory_only else "full-refused-activation-bounded" if arguments.bound_refused_activation else "full"
+                    arguments.inventory_only, arguments.focus_surface, arguments.bound_refused_activation,
+                    arguments.keys_follow_x11)
+    kind = ("inventory-only" if arguments.inventory_only
+            else "full-refused-activation-bounded" if arguments.bound_refused_activation
+            else "full-refused-activation-keys-follow-x11" if arguments.keys_follow_x11 else "full")
     print(f"LINUX_SETTINGS_COURSE_{'PASS' if passed else 'FAIL'}:{kind}", flush=True)
     sys.exit(0 if passed else 1)

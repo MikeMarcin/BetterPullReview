@@ -16,6 +16,13 @@ manager does not honour it, Qt routes keys to the requested window while X11
 focus stays elsewhere. The full course fails on such a refusal.
 `--bound-refused-activation` is a diagnosis, never acceptance: it records each
 refusal, moves native focus through the surface and continues.
+
+`--keys-follow-x11` (BPR-1024) bounds the same refusals, with one difference.
+When the refused window is not the next target, and the target already holds
+X11 focus, the observer sends the target its keys without first giving the
+refused window a real focus-in. So it passes only when the application sends
+keys to the window that holds X11 focus, as it does once it no longer applies
+its own refused request.
 """
 from __future__ import annotations
 
@@ -132,8 +139,10 @@ class X11:
         self.activations = []
         self.watching = False
         self.bound_refused_activation = False
+        self.keys_follow_x11 = False
         self.claim = None
         self.refusals = []
+        self.unhopped = []
         self.x = c.CDLL("libX11.so.6")
         self.xtest = c.CDLL("libXtst.so.6")
         signatures = {
@@ -222,12 +231,13 @@ class X11:
         check = self.property(self.root, "_NET_SUPPORTING_WM_CHECK")
         return self.property(check[0], "_NET_WM_NAME") if check else ""
 
-    def watch_activation_requests(self, bound_refused_activation=False):
+    def watch_activation_requests(self, bound_refused_activation=False, keys_follow_x11=False):
         # Qt asks an EWMH window manager to activate a window with a
         # _NET_ACTIVE_WINDOW client message to the root; any client that
         # selects StructureNotify on the root also receives it.
         self.watching = True
-        self.bound_refused_activation = bound_refused_activation
+        self.bound_refused_activation = bound_refused_activation or keys_follow_x11
+        self.keys_follow_x11 = keys_follow_x11
         self.x.XSelectInput.argtypes = [c.c_void_p, c.c_ulong, c.c_long]
         self.x.XPending.argtypes = [c.c_void_p]
         self.x.XNextEvent.argtypes = [c.c_void_p, c.c_void_p]
@@ -275,7 +285,10 @@ class X11:
             require(self.bound_refused_activation and self.rail is not None,
                     f"The window manager refused the application's own activation request: {event}")
             if self.focused() == window and refused in self.windows():
-                self.rail.activate(self, refused)  # A real FocusIn there, then on the target below.
+                if self.keys_follow_x11:
+                    self.unhopped.append(event)  # The target's keys go where X11 focus already is.
+                else:
+                    self.rail.activate(self, refused)  # A real FocusIn there, then on the target below.
             self.claim = None
         if self.focused() == window:
             return
@@ -364,12 +377,14 @@ def native_platform():
 
 
 def course(pid, executable, revision, output, inventory_only=False, focus_surface="x11", context=None,
-           bound_refused_activation=False):
+           bound_refused_activation=False, keys_follow_x11=False):
     require(Path(f"/proc/{pid}/exe").resolve() == executable.resolve(), "PID executable mismatch")
     require(not output.exists(), "Capture output already exists")
-    require(not (inventory_only and bound_refused_activation), "Choose one weaker course")
+    require(not (inventory_only and (bound_refused_activation or keys_follow_x11)), "Choose one weaker course")
+    require(not (bound_refused_activation and keys_follow_x11), "Choose one refused-activation course")
     observed_image = str(Path(f"/proc/{pid}/exe").resolve())
-    kind = "inventory-only" if inventory_only else "full-refused-activation-bounded" if bound_refused_activation else "full"
+    kind = ("inventory-only" if inventory_only else "full-refused-activation-bounded" if bound_refused_activation
+            else "full-refused-activation-keys-follow-x11" if keys_follow_x11 else "full")
     desktop = Atspi.get_desktop(0)
     selected = []
     def find_application():
@@ -379,7 +394,7 @@ def course(pid, executable, revision, output, inventory_only=False, focus_surfac
     app = selected[0]
     x = X11(pid, WslgRail(os.environ.get("WSL_DISTRO_NAME", "")) if focus_surface == "wslg-rail" else None)
     window_manager = x.window_manager()
-    x.watch_activation_requests(bound_refused_activation)
+    x.watch_activation_requests(bound_refused_activation, keys_follow_x11)
     checks, pages = [], []
 
     def record(status, failure=None):
@@ -388,14 +403,15 @@ def course(pid, executable, revision, output, inventory_only=False, focus_surfac
                     platform=native_platform(), source="AT-SPI accessibility and X11/XTest native gestures",
                     course=kind, status=status, failure=failure,
                     observed=dict(pid=pid, image=observed_image, window_manager=window_manager, focus_surface=focus_surface,
-                                  focus_activations=x.activations, refused_activations=x.refusals),
+                                  focus_activations=x.activations, refused_activations=x.refusals,
+                                  keys_followed_x11=x.unhopped),
                     context=context or {},
                     categories=categories, native_checks=checks, pages=pages)
         output.write_text(json.dumps(data, indent=2) + "\n")
 
     categories = ["General", "Accounts & hosts", "Reviews & queue", "Appearance", "Notifications", "Agents & context", "Storage & privacy"]
     try:
-        drive(app, x, pid, inventory_only, bound_refused_activation, categories, checks, pages)
+        drive(app, x, pid, inventory_only, bound_refused_activation or keys_follow_x11, categories, checks, pages)
     except Exception as failure:
         record("failed", f"{type(failure).__name__}: {failure}")
         x.x.XCloseDisplay(x.display)
@@ -473,6 +489,9 @@ def drive(app, x, pid, inventory_only, bound_refused_activation, categories, che
         x.close_window(first)
         wait("Sibling retirement lost Settings", lambda: len(workbenches()) == 1 and len(settings()) == 1, state)
         checks.append("same-profile-sibling-menu-shortcut-and-retirement")
+        if x.unhopped:
+            # BPR-1024: a refused request did not take the sibling's keys.
+            checks.append("refused-activation-keys-follow-x11")
     for index, category in enumerate(categories):
         window = settings()[0]
         x.focus(x.window(window.get_name()))
@@ -525,7 +544,10 @@ if __name__ == "__main__":
     parser.add_argument("--bound-refused-activation", action="store_true",
                         help="Diagnosis, not acceptance: continue past a window manager that refuses the application's "
                              "own activation request, recording the refusal and focusing through the surface")
+    parser.add_argument("--keys-follow-x11", action="store_true",
+                        help="BPR-1024: as --bound-refused-activation, but a target that already holds X11 focus gets "
+                             "its keys without a focus-in on the refused window first")
     arguments = parser.parse_args()
     course(arguments.pid, arguments.executable, arguments.revision, arguments.output, arguments.inventory_only,
            arguments.focus_surface, json.loads(arguments.context.read_text()) if arguments.context else None,
-           arguments.bound_refused_activation)
+           arguments.bound_refused_activation, arguments.keys_follow_x11)

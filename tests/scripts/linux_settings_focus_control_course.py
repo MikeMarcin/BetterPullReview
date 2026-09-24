@@ -17,6 +17,16 @@ provider or storage is used. For each control:
 The exit status is 0 only when steps 2 and 3 pass for the Qt control. The
 same owned-PID, exact-image and target-focus checks as the Settings course
 apply; the observer refuses a window its PID does not own.
+
+`--refused-activation` (BPR-1024) adds a step to each Qt control before step 1.
+While B holds X11 focus, the control's window A calls `activateWindow()`, on
+a command sent to its standard input. The step records the `_NET_ACTIVE_WINDOW`
+requests seen on the root, where X11 focus is afterwards and which window Qt
+treats as focused. It then sends one key where X11 focus is, and records the
+window Qt delivered it to. The Qt control runs twice: as it is, and with
+`--consume-activation-echo`, which drops Qt's own `_NET_ACTIVE_WINDOW` message
+before Qt handles it. The step is an observation and does not change the exit
+status. A capture with it uses schema v3.
 """
 from __future__ import annotations
 
@@ -104,7 +114,59 @@ def native_focus(x, target, sibling):
     return passed, f"focus={x.focused()} target={target} sibling={sibling} sibling_owned={sibling in owned} sibling_WM_STATE={state}"
 
 
-def run_control(label, image, title, root, focus_surface):
+def control_lines(log_path):
+    return log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+
+
+def await_line(log_path, prefix, after):
+    """The rest of the first line after index `after` that starts with `prefix`, or None."""
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        line = next((line for line in control_lines(log_path)[after:] if line.startswith(prefix)), None)
+        if line is not None:
+            return line[len(prefix):]
+        time.sleep(0.05)
+    return None
+
+
+def command(process, log_path, text, reply):
+    """Send one command to the control and return its reply line, if it gives one."""
+    mark = len(control_lines(log_path))
+    process.stdin.write(f"{text}\n".encode())
+    process.stdin.flush()
+    return await_line(log_path, reply, mark)
+
+
+def refused_activation(x, process, log_path, first, second):
+    """While B holds X11 focus, A asks to be activated; one key then goes where X11 focus is."""
+    names = {first: "A", second: "B"}
+    start = len(control_lines(log_path))
+    x.watch_activation_requests()
+    x.activation_requests()
+    before = x.focused()
+    requested = command(process, log_path, "activate A", "ACTIVATE_REQUESTED:")
+    time.sleep(1.0)
+    requests = [dict(window=names.get(request["window"], request["window"]), source=request["source"])
+                for request in x.activation_requests()]
+    after = x.focused()
+    qt_focus = command(process, log_path, "focus", "QT_FOCUS_WINDOW:")
+    key = None
+    if after in names:
+        mark = len(control_lines(log_path))
+        x.key(0x6b)  # "k", to the window that holds X11 focus
+        key = await_line(log_path, "KEY:", mark)
+    x.x.XSelectInput(x.display, x.root, 0)
+    x.x.XSync(x.display, 0)
+    x.watching, x.claim = False, None
+    received = key.split(":", 1)[0] if key else None
+    refused = before == second and after == second
+    return dict(xids=dict(A=first, B=second), x11_focus_before=names.get(before, before), requested=requested,
+                activation_requests=requests, x11_focus_after=names.get(after, after), refused=refused,
+                qt_focus=qt_focus, key_sent_to=names.get(after, after), key_received_by=received,
+                diverged=refused and received == "A", control_log=control_lines(log_path)[start:])
+
+
+def run_control(label, image, title, root, focus_surface, arguments=(), refused=False):
     environment = os.environ.copy()
     environment["QT_QPA_PLATFORM"] = "xcb"
     for key in ("DATA", "CONFIG", "CACHE", "STATE"):
@@ -114,8 +176,11 @@ def run_control(label, image, title, root, focus_surface):
     environment["TMPDIR"] = str(root / "tmp")
     results = dict(image_sha256=digest(image))
     x = None
-    with (root / "control.log").open("w") as log:
-        process = subprocess.Popen([str(image)], env=environment, stdout=log, stderr=subprocess.STDOUT)
+    log_path = root / "control.log"
+    with log_path.open("w") as log:
+        process = subprocess.Popen([str(image), *(("--commands",) if refused else ()), *arguments], env=environment,
+                                   stdin=subprocess.PIPE if refused else subprocess.DEVNULL, stdout=log,
+                                   stderr=subprocess.STDOUT)
         try:
             observer.require(Path(f"/proc/{process.pid}/exe").resolve() == image.resolve(), "PID executable mismatch")
             results["pid"] = process.pid
@@ -131,6 +196,14 @@ def run_control(label, image, title, root, focus_surface):
             while x.focused() != second and time.monotonic() < deadline:
                 time.sleep(0.05)
             results["initial_focus"] = "B" if x.focused() == second else x.focused()
+            if refused:
+                step = results["refused_activation"] = refused_activation(x, process, log_path, first, second)
+                outcome = "DIVERGED" if step["diverged"] else "FOLLOWED_X11" if step["refused"] else "NOT_REFUSED"
+                print(f"{label}_REFUSED_ACTIVATION:{outcome} requests={step['activation_requests']} "
+                      f"x11_focus={step['x11_focus_after']} qt_focus={step['qt_focus']} "
+                      f"key_sent_to={step['key_sent_to']} key_received_by={step['key_received_by']}", flush=True)
+                if x.focused() != second:  # A window manager that honoured it: start step 1 from B again.
+                    x.focus(second)
             results["x11_only"] = x11_only_focus(x, first, second)
             print(f"{label}_X11_ONLY_FOCUS:{'PASS' if results['x11_only']['passed'] else 'FAIL'} "
                   f"{results['x11_only']['set_input_focus']} {results['x11_only']['net_active_window']}", flush=True)
@@ -157,6 +230,8 @@ def run_control(label, image, title, root, focus_surface):
             print(f"{label}_NATIVE_CLOSE_EXIT:{results['exit']}", flush=True)
             results["focus_activations"] = x.activations
         finally:
+            if process.stdin is not None:
+                process.stdin.close()
             if x is not None:
                 x.x.XCloseDisplay(x.display)
             if process.poll() is None:
@@ -182,27 +257,34 @@ def window_manager():
         x.x.XCloseDisplay(x.display)
 
 
-def run(qt_root, work_root, output, focus_surface):
+def run(qt_root, work_root, output, focus_surface, refused=False):
     observer.require(not output.exists(), "Capture output already exists")
     root = make_contained_temporary_directory(prefix="focus-control-", parent=work_root)
     qt_image, xlib_image = root / "qt-focus-control", root / "xlib-focus-control"
     subprocess.run(["g++", "-std=c++20", "-fPIC", str(QT_SOURCE), f"-I{qt_root}/include", f"-I{qt_root}/include/QtCore",
                     f"-I{qt_root}/include/QtGui", f"-I{qt_root}/include/QtWidgets", f"-L{qt_root}/lib",
-                    f"-Wl,-rpath,{qt_root}/lib", "-lQt6Widgets", "-lQt6Gui", "-lQt6Core", "-o", str(qt_image)], check=True)
+                    f"-Wl,-rpath,{qt_root}/lib", "-lQt6Widgets", "-lQt6Gui", "-lQt6Core", "-lxcb", "-o", str(qt_image)],
+                   check=True)
     subprocess.run(["g++", "-std=c++20", str(XLIB_SOURCE), "-lX11", "-o", str(xlib_image)], check=True)
-    for name in ("qt", "xlib"):
+    names = ("qt", "qt-consume", "xlib") if refused else ("qt", "xlib")
+    for name in names:
         (root / name).mkdir(mode=0o700)
-    qt = run_control("BARE_QT", qt_image, "BPR0018 native focus control ", root / "qt", focus_surface)
-    xlib = run_control("BARE_XLIB", xlib_image, "BPR0975 Xlib focus control ", root / "xlib", focus_surface)
+    title = "BPR0018 native focus control "
+    controls = dict(qt=run_control("BARE_QT", qt_image, title, root / "qt", focus_surface, refused=refused))
+    if refused:
+        controls["qt_consume"] = run_control("BARE_QT_CONSUME", qt_image, title, root / "qt-consume", focus_surface,
+                                             ("--consume-activation-echo",), refused=True)
+    controls["xlib"] = run_control("BARE_XLIB", xlib_image, "BPR0975 Xlib focus control ", root / "xlib", focus_surface)
+    qt = controls["qt"]
     wslg = Path("/mnt/wslg/versions.txt")
-    data = dict(schema="bpr.settings-focus-control.v2",
+    data = dict(schema="bpr.settings-focus-control.v3" if refused else "bpr.settings-focus-control.v2",
                 sources=dict(qt=digest(QT_SOURCE), xlib=digest(XLIB_SOURCE)),
                 compiler=subprocess.run(["g++", "--version"], capture_output=True, text=True).stdout.splitlines()[0],
                 qt_root=str(qt_root), qt_sha256={name: digest(qt_root / name) for name in QT_LIBRARIES},
                 platform=observer.native_platform(), kernel=platform.release(),
                 wslg=wslg.read_text().splitlines()[0] if wslg.exists() else None,
                 display=os.environ.get("DISPLAY"), window_manager=window_manager(), focus_surface=focus_surface,
-                owned_root=str(root), controls=dict(qt=qt, xlib=xlib))
+                owned_root=str(root), controls=controls)
     output.write_text(json.dumps(data, indent=2) + "\n")
     return qt["two_window"]["passed"] and qt["post_close"]["passed"] and qt["exit"] == 0
 
@@ -214,6 +296,9 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True, help="New JSON capture")
     parser.add_argument("--focus-surface", choices=("x11", "wslg-rail"),
                         default="wslg-rail" if os.environ.get("WSL_DISTRO_NAME") else "x11")
+    parser.add_argument("--refused-activation", action="store_true",
+                        help="BPR-1024: ask A to activate while B holds X11 focus, then see where a key sent to B goes")
     arguments = parser.parse_args()
-    passed = run(arguments.qt_root.resolve(), arguments.work_root.resolve(), arguments.output, arguments.focus_surface)
+    passed = run(arguments.qt_root.resolve(), arguments.work_root.resolve(), arguments.output, arguments.focus_surface,
+                 arguments.refused_activation)
     sys.exit(0 if passed else 1)
