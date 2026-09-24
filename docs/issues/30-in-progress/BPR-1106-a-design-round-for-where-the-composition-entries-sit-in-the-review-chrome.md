@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1106"
 title: "A design round for where the composition entries sit in the review chrome"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
