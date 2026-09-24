@@ -276,8 +276,9 @@ marks follow whatever font is in effect.
 
   `application_large_review_history`, run beside a build on the same
   machine, failed its 100 ms input-pulse bound once (a 1026 ms pulse in
-  epoch refresh 6). Every refresh stayed inside its 12 s budget. It is rerun
-  serially at the committed candidate below.
+  epoch refresh 6). Every refresh stayed inside its 12 s budget. The serial
+  reruns are recorded under "application_large_review_history, rerun alone"
+  below.
 - clang-format 23.1.1 passes every touched file. The project tidy script's two
   findings on new lines were fixed: string concatenation in the version-8
   migration, and a lambda name in the painter test. What remains is
@@ -302,3 +303,26 @@ Show the design page with the panes rendered on the build.
    is Under the selection (Sublime's own). **Do you accept these six choices
    with Under the selection as the default?** (The alternative default worth
    naming is Trailing.)
+
+## application_large_review_history, rerun alone (2026-09-24, bpr-main-mac)
+
+Run at `a7dd1cd2`, whose product source is `f6d38c58`'s: nothing under `src/`
+or `tests/` changed between them. The build was current, and nothing else was
+running except the editor's background indexer (load average 2.9 to 3.8).
+
+- **First run: failed** its 100 ms pulse bound, in one refresh out of 31.
+  `epoch_refresh_8`'s largest gap was 143.0 ms, and that refresh took 9.8 s
+  against 8.3 to 8.7 s for the rest. The other 30 refreshes' largest gaps
+  have a median of 68.4 ms and a maximum of 71.4 ms. Every refresh stayed
+  inside 12 s.
+- **Second run, straight after: passed**, 318 s. The 31 refreshes' largest
+  gaps have a median of 68.2 ms and a maximum of 72.4 ms. The refreshes took
+  8.5 to 8.7 s, and the source selections' largest gap was 34.2 ms.
+
+The refresh gaps are where [[BPR-1043]] left them (median 68.8 ms, maximum
+75.3 ms), so the white-space drawing adds nothing measurable. A single
+refresh 1.2 s slower than the rest, with one long gap, looks like the
+process being descheduled rather than work the refresh does. It did not
+recur. The row is a sampled Debug observation, and one outlier in 31 is not
+a regression. It is recorded here and not carded.
+
