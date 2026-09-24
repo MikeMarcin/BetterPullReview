@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1036"
 title: "application_uiforetw_selected_diff_contract is red at HEAD: its exact strip row predates BPR-0990's refreshQueueAction, and the comparison is 842/1000 of the window height against an 850 floor"
-status: "In Progress"
+status: "Blocked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
-metadata: {"found_by":"bpr-main-linux, BPR-0863's baseline run","found_at":"dec43dda","reproduced_at":["b93adf45","3dca2d7a","1dfe0600 (macOS)","4a4c1e40"],"last_green_linux":"271bb452 (BPR-0875's twelve-course run)","folded_from":["BPR-0864"],"related_cards":["BPR-0859","BPR-0863","BPR-0864","BPR-0990","BPR-1033","BPR-1037"],"reservation":"docs/issues/_reservations/BPR-1036--BPR-1036--0e7760d6ea6e.json"}
+metadata: {"found_by":"bpr-main-linux, BPR-0863's baseline run","found_at":"dec43dda","reproduced_at":["b93adf45","3dca2d7a","1dfe0600 (macOS)","4a4c1e40","c127cb38"],"last_green_linux":"271bb452 (BPR-0875's twelve-course run)","folded_from":["BPR-0864"],"related_cards":["BPR-0859","BPR-0863","BPR-0864","BPR-0990","BPR-1033","BPR-1037","BPR-0246","BPR-0653","BPR-0929","BPR-1021"],"reservation":"docs/issues/_reservations/BPR-1036--BPR-1036--0e7760d6ea6e.json","candidate":"3d941d47","height_cause":"RFC-BPR-0037 composition entry row (cc038748, BPR-0929), 20 px between the strip and the epoch line; hidden, the comparison is 862/1000","blocked_detail":"The height floor waits on the owner answer to BPR-0653 ask 3 (RFC-BPR-0028 AC-01: admit the entry row, or move the entries); the 850 floor is the owner BPR-0246 budget"}
+acceptance: [{"criterion":"AC1 application_uiforetw_selected_diff_contract passes on Linux and macOS, with the strip row still asserted exactly, in order","outcome":"pending","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: the exact row holds refreshQueueAction at 23 and prints no UIFORETW_NAVIGATION_ROW_UNEXPECTED; the row still fails at UIFORETW_CAPTURE_LAYOUT_FAILED:987:842 on RFC-BPR-0037's composition entry row, which waits on the owner's answer to BPR-0653 ask 3. With only that row hidden (diagnostic build) the whole row passes, 862/1000 in all four profiles. macOS not run."}},{"criterion":"AC2 A too-short comparison fails with a line that names the widgets taking the height; the card records what took it and whether the floor or the product changed","outcome":"pending","revision":"3d941d47","evidence":{"kind":"observation","detail":"Linux: the candidate's own failure names composeReviewActionButton/composeInlineDraftActionButton@49+20 with the full stack, and break 101 names reviewReadiness@49+26. What took the height is recorded (cc038748's entry row, the only new row in 271bb452..dec43dda). Floor or product: pending the owner's AC-01 answer; the floor is unchanged at 850."}},{"criterion":"AC3 None of the probe's waits can reach RUN_BUDGET_EXPIRED before naming why; each new term fires with its own facts","outcome":"pass","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: thirteen diagnostic breaks, one per term, each failed by its own term (eleven at 5.0 s through the shared keep_waiting, the two walk terms at once), none with RUN_BUDGET_EXPIRED. HEAD's probe with the same gesture break expired the 40 s budget with only stage=2. Logs build/r2-logs/bpr1036-diag-break{1..13}.log, bpr1036-headcontrol-break2.log."}},{"criterion":"AC4 The round-trip contract passes with the resealed pins, and application_composition_contract passes","outcome":"pass","revision":"3d941d47","evidence":{"kind":"command","detail":"Linux: application_review_round_trip_composition_contract passes (1.68 s) with the pins resealed over 669a5a58..3d941d47 and failed on the drifted digest before; application_composition_contract passes (537.55 s). macOS round-trip run owed."}}]
+blocked_by: "owner-entry-row-placement"
 ---
 
 # BPR-1036: application_uiforetw_selected_diff_contract is red at HEAD: its exact strip row predates BPR-0990's refreshQueueAction, and the comparison is 842/1000 of the window height against an 850 floor
@@ -428,11 +430,18 @@ build.
   station cannot compile the `_WIN32` branch. The Windows capture still stops
   first at `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, before the row check.
 
+### On main
+
+The candidate is `3d941d47` on `main`: the change, the reseal and this record.
+It was rebased onto `239f3861`, which changed only another card, so its source
+is the tree every check above ran against. The card is Blocked on
+`owner-entry-row-placement`.
+
 ### Evidence still owed
 
 1. **The owner's answer to [[BPR-0653]]'s ask 3.** It decides the floor, as
    set out above. Relay it with that ask; this card asks no separate question.
-2. **macOS (bpr-main-mac), at the candidate:**
+2. **macOS (bpr-main-mac), at `3d941d47` or later:**
    `ctest --preset dev -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure`.
    - Expected: no `UIFORETW_NAVIGATION_ROW_UNEXPECTED`. The UIforETW row fails
      only at `UIFORETW_CAPTURE_LAYOUT_FAILED:985:<h>`, and its `stack=` names
@@ -443,8 +452,8 @@ build.
    - If the owner moves the entries instead, the row is expected to pass at
      850.
 3. **Windows (bpr-main-win):** any
-   `cmake --build --preset dev --target app_better_pull_review` at the
-   candidate, to compile the `_WIN32` branch. Then
+   `cmake --build --preset dev --target app_better_pull_review` at
+   `3d941d47` or later, to compile the `_WIN32` branch. Then
    `ctest --preset dev -R '^application_uiforetw_selected_diff_contract$'`.
    The expected result is unchanged: BPR-1033's
    `UIFORETW_CAPTURE_FIRST_TARGET_FAILED`, with no new Windows-only failure.
