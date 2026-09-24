@@ -211,3 +211,29 @@ preflight root it caused the product to keep: <error>`. Record that as a
 finding, not as a pass.
 
 When both runs are recorded, the card can finish.
+
+## Windows: the row passes and leaves nothing (bpr-main-win, 2026-09-23)
+
+The run used `b6a31cff`, which contains `84538d65`. `build/windows-dev`
+(Visual Studio generator, MSVC 19.51, Debug) rebuilt
+`test_better_pull_review_sqlite_review_ledger_tests` at that head. From a
+`.cmd`, `TMP` and `TEMP` were pointed at a fresh empty directory,
+`C:\Users\mikem\bpr-main-helpers\tmp-1047-a`, and then
+`ctest --preset windows-dev -j1 -V -R "^sqlite_review_ledger_storage$"` ran.
+The logs are station records under `build/logs/bpr-1047-main-win/` and are
+not committed.
+
+- `sqlite_review_ledger_storage` **passed** in 2.57 s
+  (`review-ledger-storage-tests:pass`). There was no
+  `FAILED: the test removes the preflight root…` line, so no product handle
+  was still held.
+- **The directory was empty afterwards.** A recursive listing printed
+  nothing, and the directory was then removed.
+- **Before and after, on the same station.** The user `%TEMP%` holds 77
+  `bpr-ledger-preflight-*` directories from earlier runs, in pairs, one pair
+  per run. Today's pairs are at 17:59, 19:51 and 20:49. The 20:49 pair came
+  from BPR-0887's SQLite selector at `8393e2ed`, before this card's change.
+  No pair is dated to this run. The old ones are left in place; they are
+  litter from runs before the fix, not this run's.
+
+**AC3 on Windows: pass.** The macOS run is the one still owed.
