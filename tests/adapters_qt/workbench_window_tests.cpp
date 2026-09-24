@@ -6204,6 +6204,125 @@ namespace {
 		window.hide();
 	}
 
+	// [[BPR-1046]]. Reply names its thread only once the thread's own line is
+	// selected, which is what composes the draft that answers it. While that
+	// file's comparison is still loading, the reply waits for it. A comparison
+	// of any other file refuses it, and nothing is left waiting after that.
+	void test_a_reply_waits_for_its_threads_own_comparison()
+	{
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 5"), std::string{ "line 5" }.size(), "changed line 5");
+		const auto threadFile = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		const auto otherFile  = computed_comparison(text, laterText, 0U, core::file_identity_of("src/other.cpp"));
+		// As the composition does: it places the endpoints when it asks for a
+		// comparison, and again once the comparison arrives.
+		const auto request = [](qt::workbench_window& aWindow, const core::computed_file_diff& aDiff) {
+			aWindow.set_conversation_endpoint_placement(false, true);
+			aWindow.comparison_surface()->set_loading(request_context(aDiff));
+			process_events();
+		};
+		const auto publish = [&request](qt::workbench_window& aWindow, const core::computed_file_diff& aDiff) {
+			request(aWindow, aDiff);
+			aWindow.comparison_surface()->publish(bpr::qt::test::prepare_publication({
+				.Context = request_context(aDiff),
+				.Result  = std::make_shared<const core::computed_file_diff>(aDiff),
+			}));
+			aWindow.set_conversation_endpoint_placement(false, true);
+			process_events();
+		};
+		const auto arrive = [](qt::workbench_window& aWindow, const core::computed_file_diff& aDiff) {
+			aWindow.comparison_surface()->publish(bpr::qt::test::prepare_publication({
+				.Context = request_context(aDiff),
+				.Result  = std::make_shared<const core::computed_file_diff>(aDiff),
+			}));
+			aWindow.set_conversation_endpoint_placement(false, true);
+			process_events();
+		};
+		struct dispatched
+		{
+			std::string                             Thread;
+			std::optional<core::semantic_selection> Selection;
+		};
+		const auto course = [&](const bool aThreadFileArrives) {
+			qt::workbench_window window;
+			window.resize(1'600, 820);
+			window.show();
+			process_events();
+			auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+			opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+										   core::workbench_drawer_state::expanded);
+			window.publish(opened);
+			process_events();
+			auto replies = std::vector<dispatched>{ };
+			window.set_review_reply_dispatch([&window, &replies](const std::string& aIdentity) {
+				replies.push_back({ .Thread = aIdentity, .Selection = window.comparison_surface()->selection() });
+			});
+			window.conversation_panel()->adopt(
+				{ application::github_conversation_projection{
+					  .Id                 = "review-thread:late",
+					  .Kind               = application::github_conversation_kind::review_thread,
+					  .Path               = "src/file.cpp",
+					  .Line               = 22U,
+					  .DiffSide           = application::github_conversation_diff_side::right,
+					  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+				  application::github_conversation_projection{
+					  .Id          = "review-comment:late-1",
+					  .ParentId    = "review-thread:late",
+					  .Kind        = application::github_conversation_kind::review_comment,
+					  .AuthorLogin = "someone",
+					  .Body        = "a post",
+					  .Path        = "src/file.cpp" } },
+				QStringLiteral("one conversation"));
+			// The thread's file has been asked for and has not arrived.
+			request(window, threadFile);
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			const auto& cards = window.conversation_panel()->cards()->cards();
+			const auto  card  = std::ranges::find(cards, std::string{ "review-thread:late" }, &qt::thread_card::Id);
+			expect(card != cards.end(), "the loading thread's card is in the feed");
+			const auto reply = std::ranges::find(card->Actions, qt::card_action::reply,
+												 &std::pair<qt::card_action, QRect>::first);
+			expect(reply != card->Actions.end(), "the card offers Reply while its comparison loads");
+			const auto point = reply->second.center()
+				- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
+			auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
+									  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &press);
+			process_events();
+			expect(replies.empty()
+					   && !window.conversation_panel()->notice_label()->text().contains(
+						   QStringLiteral("Open this thread in code")),
+				   "Reply waits while its thread's own comparison loads: nothing is named and nothing refused");
+			if (aThreadFileArrives) {
+				arrive(window, threadFile);
+				expect(replies.size() == 1U && replies.front().Thread == "review-thread:late"
+						   && replies.front().Selection.has_value()
+						   && replies.front().Selection->PreferredLine.Side == core::diff_side::right
+						   && replies.front().Selection->PreferredLine.Line == 21U,
+					   "when the thread's comparison arrives its line is selected first, then the thread is named");
+				expect(!window.conversation_panel()->notice_label()->text().contains(
+						   QStringLiteral("Open this thread in code")),
+					   "a reply that completes shows no refusal");
+			} else {
+				publish(window, otherFile);
+				expect(replies.empty()
+						   && window.conversation_panel()->notice_label()->text().contains(
+							   QStringLiteral("Open this thread in code")),
+					   "a comparison of another file refuses the waiting reply with the notice");
+				publish(window, threadFile);
+				expect(replies.empty(),
+					   "a refused reply leaves nothing waiting: the thread's own comparison arriving later names nothing");
+			}
+			window.hide();
+		};
+		course(true);
+		course(false);
+	}
+
 	void test_read_state_reaches_the_gutter_and_the_strip()
 	{
 		qt::workbench_window window;
@@ -9090,6 +9209,7 @@ auto main(int argc, char** argv) -> int
 		test_refresh_gap_retains_only_visual_conversation_scope();
 		test_refresh_without_a_selection_shows_review_wide_roots();
 		test_discuss_uses_main_content_and_open_in_code_returns_to_read();
+		test_a_reply_waits_for_its_threads_own_comparison();
 		test_defect_queue_navigation_and_semantic_dispatch();
 		std::cout << "workbench-conversation-reveal:pass\n";
 		return EXIT_SUCCESS;
@@ -9154,6 +9274,7 @@ auto main(int argc, char** argv) -> int
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
 	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
+	test_a_reply_waits_for_its_threads_own_comparison();
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();

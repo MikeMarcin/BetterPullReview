@@ -1062,6 +1062,17 @@ namespace bpr::qt {
 		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
 		/// it would, so the draft a card starts anchors on the thread's line.
 		[[nodiscard]] auto select_thread_line(const std::string& aIdentity) -> bool;
+		/// [[BPR-1046]]. Whether the comparison of a current thread's own file
+		/// has been asked for and has not arrived, so its line cannot be
+		/// selected yet but will be.
+		[[nodiscard]] auto thread_comparison_loading(const std::string& aIdentity) const -> bool;
+		/// [[BPR-1046]]. Selects a thread's line and only then names the thread
+		/// to the composition, so the draft on that line answers it; refuses
+		/// with a notice when the line cannot be selected.
+		void begin_thread_reply(const std::string& aIdentity);
+		/// [[BPR-1046]]. Completes or refuses a reply that waited for its
+		/// thread's comparison, once a comparison has arrived.
+		void resume_deferred_reply();
 		// [[BPR-0661]]. The preference rows and what honours them.
 		void               build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
 		void               apply_behaviour_controls();
@@ -1412,9 +1423,12 @@ namespace bpr::qt {
 		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
 		workbench_saved_server_dispatch       SavedServerDispatch;
 		workbench_review_reply_dispatch       ReviewReplyDispatch;
-		workbench_thread_resolution_dispatch  ThreadResolutionDispatch;
-		bool                                  ProviderResolvesThreads = false;
-		core::github_capabilities             Capabilities;
+		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
+		/// loading; the next comparison to arrive completes or refuses it.
+		std::optional<std::string>           DeferredReply;
+		workbench_thread_resolution_dispatch ThreadResolutionDispatch;
+		bool                                 ProviderResolvesThreads = false;
+		core::github_capabilities            Capabilities;
 		// [[BPR-0661]].
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;

@@ -142,6 +142,14 @@ endfunction()
 # credential, provider, vault, transport or mutation path changes in either;
 # the mutation-branch pin is unchanged. Covers 8e080bbc..the BPR-1037 commit.
 # Review recorded on BPR-1037.
+# BPR-1046 reseal: begin_review_reply names a thread only on a drafting draft
+# anchored at that thread's own line (draft_on_thread_line), describes the
+# reply label only after the draft carries the thread, and PendingReplyThread
+# is gone, so no later draft can take a thread named for another. The draft
+# command it issues is the same edit with ChangeReplyTarget. No credential,
+# provider, vault, transport or mutation path changes; the mutation-branch pin
+# is unchanged. Covers a782886d..the BPR-1046 commit. Review recorded on
+# BPR-1046.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -160,7 +168,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a2652cb333e767df38a883be27c9caeb3281a293b3f2ba38fe59244dbf050653"
+		"0eccd8109e01a2b9a5e3b1b9698d77f5ea2f5a66f60bbe8e29cd997ffc344470"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -295,7 +303,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "aab9148a88b57f9f29fd4fbb4f6c00b93a7903936617394c0a53f770113d497c"
+        "52f6a64716e5d97f986382685d33503668973d5892cde12d2f491f490edaf62a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

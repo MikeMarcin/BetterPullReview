@@ -1273,6 +1273,9 @@ namespace bpr::qt {
 		}
 		ConversationPanel->cards()->set_action_dispatch(
 			[this](const card_action aAction, const std::string& aIdentity) {
+				// [[BPR-1046]]. A reply still waiting for its comparison is
+				// given up by any later card gesture.
+				DeferredReply.reset();
 				switch (aAction) {
 				case card_action::comment_here: {
 					// A comment on the thread's line: the thread becomes
@@ -1335,22 +1338,21 @@ namespace bpr::qt {
 					break;
 				}
 				case card_action::reply: {
-					// [[BPR-0649]], [[BPR-0657]]. The feed's Reply: the thread
-					// is named to the composition first, so the draft that
-					// follows the selection answers it; then the thread becomes
-					// current and the draft editor takes focus.
+					// [[BPR-0649]], [[BPR-0657]], [[BPR-1046]]. The feed's Reply:
+					// the thread becomes current and its line is selected, which
+					// composes the draft on that line; only then is the thread
+					// named, so that draft answers it and no draft on another
+					// line can. While the thread's own file is still loading,
+					// the reply waits for its comparison instead of refusing.
 					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
 					if (index.isValid()) {
 						ConversationPanel->choose(index);
 					}
-					if (select_thread_line(aIdentity) && ReviewReplyDispatch
-						&& ReviewEditor != nullptr) {
-						ReviewReplyDispatch(aIdentity);
-						open_review_composition(true);
-					} else {
-						ConversationPanel->present_notice(
-							tr("Open this thread in code before replying."));
+					if (thread_comparison_loading(aIdentity)) {
+						DeferredReply = aIdentity;
+						break;
 					}
+					begin_thread_reply(aIdentity);
 					break;
 				}
 				case card_action::open_in_code: {
@@ -5159,6 +5161,49 @@ namespace bpr::qt {
 		return ComparisonSurface->select_conversation_line(*side, static_cast<std::uint32_t>(oneBased - 1U));
 	}
 
+	auto workbench_window::thread_comparison_loading(const std::string& aIdentity) const -> bool
+	{
+		if (ConversationPanel == nullptr || ComparisonSurface == nullptr
+			|| ComparisonSurface->current_result() != nullptr) {
+			return false;
+		}
+		auto root = ConversationPanel->model()->index_for_id(aIdentity);
+		while (root.isValid() && root.parent().isValid()) {
+			root = root.parent();
+		}
+		const auto context = ComparisonSurface->current_context();
+		const auto path    = root.isValid()
+			? root.data(github_conversation_model::path_role).toString()
+			: QString{ };
+		return root.isValid()
+			&& root.data(github_conversation_model::anchor_availability_role).toInt()
+			== static_cast<int>(application::github_conversation_anchor_availability::current)
+			&& context.has_value() && !path.isEmpty()
+			&& context->Key.File == core::file_identity_of(path.toStdString());
+	}
+
+	void workbench_window::begin_thread_reply(const std::string& aIdentity)
+	{
+		if (select_thread_line(aIdentity) && ReviewReplyDispatch && ReviewEditor != nullptr) {
+			ReviewReplyDispatch(aIdentity);
+			open_review_composition(true);
+			return;
+		}
+		ConversationPanel->present_notice(tr("Open this thread in code before replying."));
+	}
+
+	void workbench_window::resume_deferred_reply()
+	{
+		// The first comparison to arrive decides: the thread's own completes
+		// the reply, any other refuses it, and nothing waits past it.
+		if (!DeferredReply.has_value() || ComparisonSurface == nullptr
+			|| ComparisonSurface->current_result() == nullptr) {
+			return;
+		}
+		const auto identity = std::exchange(DeferredReply, std::nullopt);
+		begin_thread_reply(*identity);
+	}
+
 	void workbench_window::set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch)
 	{
 		ReviewReplyDispatch = std::move(aDispatch);
@@ -7913,6 +7958,10 @@ namespace bpr::qt {
 		ApplyingConversationAnchor = false;
 		synchronize_selected_conversation(chosen_conversation());
 		update_defect_surface();
+		// [[BPR-1046]]. The composition places the endpoints once a
+		// comparison has arrived, which is when a waiting reply can select
+		// its thread's line.
+		resume_deferred_reply();
 	}
 
 	auto workbench_window::detail_pane() const noexcept -> QPlainTextEdit*

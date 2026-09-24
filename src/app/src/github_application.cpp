@@ -8708,21 +8708,54 @@ namespace bpr::app {
 			return grant;
 		}
 
-		// [[BPR-0657]]. A card's Reply names the thread the next draft
-		// answers: a draft already composing on the thread's line answers it
-		// at once; otherwise the draft the selection creates does. The thread
-		// identity the cards carry is the projection's prefixed one; the
-		// provider's is what the proposal names.
+		// [[BPR-1046]]. Whether a draft sits on the accepted thread's own line,
+		// which is where the window selects before it names the thread.
+		[[nodiscard]] auto draft_on_thread_line(
+			const core::review_comment_draft& aDraft,
+			const std::string_view            aIdentity) const -> bool
+		{
+			const auto* const thread = accepted_thread(aIdentity);
+			if (thread == nullptr || thread->Outdated || !thread->Line.has_value() || *thread->Line == 0U) {
+				return false;
+			}
+			const auto side = thread->DiffSide == application::github_diff_side::left
+				? std::optional{ core::diff_side::left }
+				: thread->DiffSide == application::github_diff_side::right
+				? std::optional{ core::diff_side::right }
+				: std::nullopt;
+			return side.has_value() && aDraft.Anchor.Side == *side
+				&& aDraft.Anchor.Line == *thread->Line - 1U;
+		}
+
+		// [[BPR-0657]], [[BPR-1046]]. A card's Reply names the thread the draft
+		// on the thread's line answers. The window selects that line first,
+		// which composes the draft, and names the thread only then. A draft on
+		// any other line is left alone, and nothing is held for a later draft:
+		// a thread held that way was answered by whichever draft came next,
+		// wherever it was anchored. The thread identity the cards carry is the
+		// projection's prefixed one; the provider's is what the proposal names.
 		void begin_review_reply(const std::string& aIdentity)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
-			if (Closing || Window == nullptr || !aIdentity.starts_with(prefix)) {
+			if (Closing || Window == nullptr || !SharedDrafts || !aIdentity.starts_with(prefix)
+				|| !ReviewDraft.has_value()
+				|| ReviewDraft->State != core::review_draft_state::drafting
+				|| !draft_on_thread_line(*ReviewDraft, aIdentity)) {
 				return;
 			}
 			auto thread = std::string{ aIdentity.substr(prefix.size()) };
 			if (thread.empty()) {
 				return;
 			}
+			// [[BPR-0822]]. Name the nested type: GCC 15 destroys a braced aggregate
+			// member twice when a later member initializer throws.
+			auto outcome = SharedDrafts->apply(DraftConsumer, { .Command = core::review_draft_command{ .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
+			if (outcome.Failure || !outcome.Accepted) {
+				return;
+			}
+			accept_shared_draft(*outcome.Accepted);
+			// The label is described once the draft carries the thread, so it
+			// never names a reply the draft does not make.
 			auto author = QString{ };
 			if (auto* const model = Window->conversation_model(); model != nullptr) {
 				const auto index = model->index_for_id(aIdentity);
@@ -8735,22 +8768,6 @@ namespace bpr::app {
 					author.isEmpty() ? QStringLiteral("Replying in this thread")
 									 : QStringLiteral("Replying to %1's thread").arg(author));
 			}
-			if (ReviewDraft.has_value()
-				&& ReviewDraft->State == core::review_draft_state::drafting) {
-				if (!SharedDrafts) {
-					return;
-				}
-				// [[BPR-0822]]. Name the nested type: GCC 15 destroys a braced aggregate
-				// member twice when a later member initializer throws.
-				auto outcome = SharedDrafts->apply(DraftConsumer, { .Command = core::review_draft_command{ .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
-				if (outcome.Failure || !outcome.Accepted) {
-					return;
-				}
-				accept_shared_draft(*outcome.Accepted);
-				PendingReplyThread.reset();
-				return;
-			}
-			PendingReplyThread = std::move(thread);
 		}
 
 		void dispatch_review_draft(core::revisioned_review_draft_command aRevisionedCommand)
@@ -8993,11 +9010,10 @@ namespace bpr::app {
 			if (!SharedDrafts) {
 				return;
 			}
-			const auto created = SharedDrafts->select(DraftConsumer, aSelection.PreferredLine, PendingReplyThread);
+			const auto created = SharedDrafts->select(DraftConsumer, aSelection.PreferredLine);
 			if (!created.Accepted || (created.Failure && created.Failure != application::shared_draft_failure::conflict)) {
 				return;
 			}
-			PendingReplyThread.reset();
 			accept_shared_draft(*created.Accepted);
 			refresh_agent_private_context_choices();
 		}
@@ -13097,7 +13113,6 @@ namespace bpr::app {
 		std::optional<designated_review_mutation_selection>           InlineReviewBinding;
 		decltype(github_profile_runtime::AttendedReviewMutationMode)& AttendedReviewMutationMode = Profile->AttendedReviewMutationMode;
 		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
-		std::optional<std::string> PendingReplyThread;
 		/// [[BPR-0657]]. The thread resolution in flight and what came of them.
 		std::optional<application::review_mutation_request_context> PendingThreadResolution;
 		std::size_t                                                 ThreadResolutionGestures    = 0U;
