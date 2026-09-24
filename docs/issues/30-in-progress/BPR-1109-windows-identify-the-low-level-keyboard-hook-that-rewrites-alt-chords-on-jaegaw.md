@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1109"
 title: "Windows: identify, read-only, the low-level keyboard hook that rewrites the Alt of every Alt chord on JaegAW"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
