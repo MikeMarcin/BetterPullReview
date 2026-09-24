@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
-metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"02e3d59d","remaining":"Windows and macOS runs of the device-binding selector; independent review of the persistence and concurrency change","related_cards":["BPR-0541","BPR-0644","BPR-0841","BPR-0883","BPR-0887"]}
+metadata: {"found_by":"r5 whole-project critical review, Claude/fable sqlite partition","found_at":"20418bfe","run":"run-20260916-stations","dispatch":"dsp-005","linux_done_at":"02e3d59d","remaining":"independent review of the persistence and concurrency change (02e3d59d), pending the owner's decision; Linux, macOS and Windows runs are recorded","related_cards":["BPR-0541","BPR-0644","BPR-0841","BPR-0883","BPR-0887"]}
 ---
 
 # BPR-0884: The device binding store latches corrupt for the process lifetime, including on cancellation
@@ -347,3 +347,50 @@ end.
 
 The card stays in Ready, waiting on the Windows relaunch question and any
 review, as the Windows section says.
+
+### Windows: all six pass as registered; the relaunch question is closed (bpr-main-win, 2026-09-24)
+
+The Windows run above left one row open. `application_device_binding_relaunch`
+was contained then, and its seed was refused. [[BPR-0876]] has since
+registered it `WINDOWS_UNCONTAINED`, pinned `dos-volume-name` (`56f7a836`,
+after that run). So the owed selector was run again, as registered.
+
+**What was run.** The head is `bcd57840`, which contains `02e3d59d`.
+`src/adapters/sqlite/src/device_binding_store.cpp` and
+`src/application/src/device_binding_store.cpp` are unchanged since the first
+Windows run's source, `78c8ac85`. The build is `build/windows-dev` (Visual
+Studio generator, MSVC 19.51, Debug, Qt 6.11.2), reconfigured and rebuilt at
+this head. It exited 0 with no warning or error line. The command was
+`ctest --preset windows-dev -j1 --output-on-failure -V -R "^(sqlite_device_binding_storage|sqlite_private_store_open|application_github_host|application_device_binding_restart|application_device_binding_launch_renewal|application_device_binding_relaunch)$"`,
+run through a `.cmd` file. The log is
+`build/logs/bpr-0884-main-win/rerun-rows.log`, a station record that is not
+committed.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | Passed, 0.09 s (`application github host tests passed`) |
+| `sqlite_private_store_open` | Passed, 0.41 s. It prints `private-store-open:admission-retry:refused=1:retried=1`, `non-ansi-root:pass` and `private-store-open-tests:pass` |
+| `sqlite_device_binding_storage` | Passed, 3.41 s (`device-binding-storage-tests:pass`) |
+| `application_device_binding_restart` | Passed, 37.48 s |
+| `application_device_binding_launch_renewal` | Passed, 30.06 s |
+| `application_device_binding_relaunch` | Passed, 15.57 s (`DEVICE_BINDING_RELAUNCH_OK`). It is uncontained as registered: its test command is the Python driver itself, not `better_pull_review_network_sandbox.exe` |
+
+6 of 6 passed, and ctest exited 0. The log has no `corrupt` line. As before,
+the three contention checks print nothing of their own when they hold. So
+they read `unavailable`, never `corrupt`, on `LockFileEx`.
+
+**The Windows record is now complete for every criterion that needs a run.**
+
+- *A cancelled or busy open leaves the store usable on the next call:* pass on
+  Windows, at `78c8ac85` and again at `bcd57840`.
+- *A genuine post-admission corruption still latches, and that is still
+  pinned:* pass on Windows. It is the same `sqlite_device_binding_storage`
+  binary.
+- *A fallback `post` that throws leaves the queue drainable:* pass on Windows
+  (`application_github_host`).
+- *The relaunch course:* it passes as registered. It was never evidence
+  against this change, because its contained failure came before any
+  device-binding load.
+
+This note does not move the card. What remains is the independent review of
+`02e3d59d`, which is waiting on the owner's decision.
