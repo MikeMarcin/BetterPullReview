@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0902"
 title: "Windows: the device refresh course rotates once instead of twice, and the flow requires re-enrolment instead of scheduling"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
