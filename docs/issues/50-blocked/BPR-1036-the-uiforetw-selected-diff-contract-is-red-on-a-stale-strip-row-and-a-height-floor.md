@@ -497,3 +497,66 @@ station yet. Its AC1, naming which of the nine clauses fails, is still open,
 and this run adds nothing there beyond confirming the stop at this head. The
 logs are station records under `build/logs/bpr-1036-main-win/` and are not
 committed.
+
+## macOS: the strip row holds; the row stops only at the height floor, 835/1000 (bpr-main-mac, Mac batch 6, 2026-09-23)
+
+This is owed item 2. The source is `8595684c`, which contains `3d941d47`. The
+checkout held one more local commit that changes only RFC and card documents,
+so the built tree is `8595684c`'s. Apple Silicon, AppleClang, Qt 6.11.2,
+`build/dev` Debug, rebuilt incrementally first (exit 0, no `warning:` or
+`error:` line). The command was the one the card names, with `-V`:
+`ctest --preset dev -V -R '^(application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract)$' --output-on-failure`.
+
+| Row | Result |
+|---|---|
+| `application_uiforetw_selected_diff_contract` | **Failed as expected**, 14.60 s, at the height floor only |
+| `application_review_round_trip_composition_contract` | Passed, 12.02 s, `REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK` |
+
+The UIforETW row prints every marker from `UIFORETW_RESOURCE_GESTURE_OK` to
+`UIFORETW_SELECTED_DIFF_TRACE_OK`, then `UIFORETW_SELECTED_DIFF_EVIDENCE_FAILED`
+and this, as its only failure line:
+
+```text
+UIFORETW_CAPTURE_LAYOUT_FAILED:985:835 width_floor=750 height_floor=850
+window=1280x1000 menu_bar=0+20 strip=20+30 epoch_line=72+50
+comparison=0,143 1262x835 status_bar=978+22
+stack=workbenchMenuBar@0+20,workbenchPrimaryToolbar@20+30,composeReviewActionButton@50+22,composeInlineDraftActionButton@50+22,epochComparisonControl@72+50,diffWorkbenchStatus@122+15,QStatusBar@978+22
+unstacked=6 beside=diffSharedScrollBar@1262+18 modality=Review
+```
+
+Against the expectations in owed item 2:
+
+- **No `UIFORETW_NAVIGATION_ROW_UNEXPECTED`.** Met. The log has no
+  `UIFORETW_NAVIGATION_ROW` line at all, so the 28-entry row matched exactly,
+  with `refreshQueueAction` in place.
+- **The row fails only at `UIFORETW_CAPTURE_LAYOUT_FAILED:985:<h>`, and
+  `stack=` names the macOS rows, `composeReviewActionButton` among them.**
+  Met, with `<h>` = **835**. The rows add up to the window:
+  20 + 30 + 22 + 50 + 15 + 6 + 835 + 22 = 1000. The entry row is 22 px here,
+  against 20 on Linux.
+- **The menu bar should read `hidden` or be absent.** **Not met, and the
+  expectation was wrong for this row.** It reads `menu_bar=0+20` and
+  `workbenchMenuBar@0+20` is in the stack. The row runs under
+  `QT_QPA_PLATFORM=offscreen` on macOS as on Linux (the log's
+  `GITHUB_FIXTURE_QT_PLATFORM:offscreen`), and the offscreen platform has no
+  native menu bar to merge into, so Qt lays the bar out inside the window.
+  On the Cocoa platform the bar would move to the system bar; this row never
+  runs there.
+- **The round-trip row passes.** Met.
+
+**For the floor decision.** macOS's comparison is 835/1000. That is 7 px
+shorter than Linux's 842, because four rows are taller here: the menu bar
+(+1), the entry row (+2), the status line (+1) and the status bar (+3).
+With the entry row hidden, the
+same arithmetic gives 835 + 22 = 857/1000, so moving the entries would pass
+the 850 floor on macOS too, by 7 px. This was worked out from the stack and
+was not run. If AC-01 is amended instead, 835 is the macOS reading. It
+matches `1dfe0600`'s `985:835`, so the macOS height has not moved since
+BPR-0863 measured it.
+
+The same row also failed in this station's full sweep at `239f3861`, which
+is before `3d941d47`, with the old `UIFORETW_NAVIGATION_ROW_UNEXPECTED:actions=28`
+and `985:835` ([sweep record](../../verification/sweep-2026-09-23-mac.md)).
+The log is `bpr1036-mac-rows.log` in this station's scratch directory, and
+it is not committed. This note does not move the card, which stays Blocked
+on the owner's entry-row answer.
