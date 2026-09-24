@@ -138,7 +138,7 @@ is pinned.
 ## Evidence
 
 - BPR-1044's survey and change, with its Linux and Windows runs:
-  [BPR-1044](../30-in-progress/BPR-1044-courses-rooted-directly-in-the-system-temporary-directory-trip-the-workspace-recovery-refusal.md),
+  [BPR-1044](../60-done/BPR-1044-courses-rooted-directly-in-the-system-temporary-directory-trip-the-workspace-recovery-refusal.md),
   sections "Survey" and "One helper gives the twelve courses their owned
   level". The eight copies are listed there as "No C++ course that already
   keeps its root one owned level down printed it".
