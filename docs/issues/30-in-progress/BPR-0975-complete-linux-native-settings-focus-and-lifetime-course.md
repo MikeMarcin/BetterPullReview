@@ -12,6 +12,48 @@ metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revisio
 
 # Complete Linux native Settings focus and window-lifetime course
 
+## In progress, 2026-09-24: why WSLg refuses (bpr-main-linux checkpoint)
+
+Claimed at `87ef6dfe`. The source reading is done; the runtime probe waits for
+a Windows-side desktop hold. Nothing has been shown on the WSLg desktop yet.
+
+What the pinned sources say (weston-mirror `04d436c7`, the WSLg 1.0.73.2
+build; Qt `v6.11.2`):
+
+- The X11 window manager never acts on an activation request. Its
+  `weston_wm_handle_client_message` (`xwayland/window-manager.c` 2217–2247)
+  dispatches only `_NET_WM_MOVERESIZE`, `_NET_WM_STATE`, `WL_SURFACE_ID` and
+  `WM_CHANGE_STATE`. There is no source-indication or timestamp check to
+  satisfy: `_NET_WM_USER_TIME` is interned (2776) and never read, and the
+  window manager's interface to the shell
+  (`xwayland/xwayland-internal-interface.h` 36–69) has no activation entry.
+- The RAIL shell activates a surface only when it maps (`rdprail-shell/shell.c`
+  `map`, 2587–2622), on a pointer or touch press (3969–3995), when Windows
+  activates its RAIL window (`shell_backend_request_window_activate`,
+  3998–4029, from `libweston/backend-rdp/rdprail.c` 281–320), and when the
+  focused surface goes away (`focus_state_surface_destroy`, 919–960). No
+  client request reaches `activate()`.
+- Wayland offers no route either. `xdg_activation_v1` appears nowhere in
+  weston-mirror, and Qt's `QWaylandXdgSurface::requestActivate`
+  (`qwaylandxdgshell.cpp` 579–617) does nothing without it.
+- Qt's X11 request is already the one EWMH asks for: source 1, the time of the
+  triggering event, the current active window, and `_NET_WM_USER_TIME`
+  updated first (`qxcbwindow.cpp` 1462–1513).
+- Neither the weston-mirror `working` branch (`7fbf6931`) nor upstream Weston
+  `main` (`fce7c48a`) handles `_NET_ACTIVE_WINDOW` or implements
+  xdg-activation. microsoft/wslg#1022 (Emacs `other-frame`, open since 2023)
+  is the same defect. No WSLg or Weston setting touches it
+  (`compositor/main.c` 2831–2898, `rdprail-shell/shell.c` 728–846).
+
+Probe tooling, `d24223f2`: `tests/scripts/linux_xlib_activation_probe.cpp`
+and `tests/scripts/wslg_activation_probe_course.py` try each request an X11 or
+Wayland client can make. Its mechanics were checked against a private headless
+X server. The harness clone `/home/mmarcin/bpr0975-native/source` is at
+`d24223f2`, and `hold-bpr-0975-diag.sh` there runs the probe once under the
+lease and the guard.
+
+Next: run that in a granted hold, then record the result and the decision.
+
 ## Owner direction, 2026-09-24: find out why WSLg refuses it, and fix it (attended session cbd48b91)
 
 Source: attended session `cbd48b91000b00f1e72e1ad62c7c384c`, packet
