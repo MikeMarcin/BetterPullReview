@@ -189,9 +189,10 @@ revision. This station did not run them there.
   with the GitHub adapter set back to `45191097` and that target rebuilt, it
   fails at the same line. It is [[BPR-0803]]'s course, which is `mac`-only.
   On other platforms `cli_read_offered_here()` is false in a testing build,
-  so the one-account ending cannot sign in on Windows. It is reported for a
-  card of its own. Both of its failing runs left a temporary directory, and
-  both were removed by exact name.
+  so the one-account ending cannot sign in on Windows. While this card was
+  being verified, `89907c1f` registered the course on macOS only, so the row
+  no longer runs here and needs no card of its own. Both of its failing runs
+  left a temporary directory, and both were removed by exact name.
 
 After the spool row was added, the tree was rebuilt:
 
