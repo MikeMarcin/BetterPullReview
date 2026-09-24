@@ -413,4 +413,18 @@ namespace bpr::adapters::agent::detail {
 	{
 		return protocol_loop{ aRequest, aSink, aTransport }.run();
 	}
+
+	auto agent_protocol_read_ahead_limit(const agent_protocol_stream aStream) noexcept
+		-> std::size_t
+	{
+		// Standard output's ceiling is the one the decoder the loop drives
+		// applies to the whole stream; standard error's is drain_standard_error's.
+		switch (aStream) {
+		case agent_protocol_stream::standard_output:
+			return application::maximum_agent_stdout_bytes + 1U;
+		case agent_protocol_stream::standard_error:
+			return application::maximum_agent_stderr_bytes + 1U;
+		}
+		return 0U;
+	}
 } // namespace bpr::adapters::agent::detail

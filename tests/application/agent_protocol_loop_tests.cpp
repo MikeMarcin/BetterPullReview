@@ -417,6 +417,14 @@ namespace {
 			"stderr stops at its exact ceiling and its first cause wins");
 		expect_single_termination(
 			stderrOverflow, "oversized stderr terminates once");
+		// [[BPR-0886]]. A transport that reads ahead of the loop keeps one byte
+		// past each ceiling, so the loop still meets its own refusal.
+		expect(
+			agent_protocol_read_ahead_limit(agent_protocol_stream::standard_error)
+					== application::maximum_agent_stderr_bytes + 1U
+				&& agent_protocol_read_ahead_limit(agent_protocol_stream::standard_output)
+					== application::maximum_agent_stdout_bytes + 1U,
+			"the loop's read-ahead limits are one past its ceilings");
 
 		for (const auto useError : { false, true }) {
 			auto  failed = fake_transport{ };

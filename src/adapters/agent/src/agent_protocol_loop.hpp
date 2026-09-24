@@ -49,6 +49,23 @@ namespace bpr::adapters::agent::detail {
 		bool                       ExitedNormally = true;
 	};
 
+	/// \brief One of the child's output streams, as the loop reads it.
+	enum class agent_protocol_stream : std::uint8_t {
+		standard_output,
+		standard_error,
+	};
+
+	/// \brief How many bytes of \p aStream a transport may read ahead of the loop.
+	///
+	/// \details [[BPR-0886]]. A transport that reads the child's output while
+	/// it writes the request keeps those bytes for the loop to read later. It
+	/// keeps at most one byte past the ceiling the loop applies to that
+	/// stream: enough for the loop to meet its own refusal, and no more. The
+	/// ceilings belong to the loop, so a transport asks for them here rather
+	/// than naming them.
+	[[nodiscard]] auto agent_protocol_read_ahead_limit(agent_protocol_stream aStream) noexcept
+		-> std::size_t;
+
 	/// \brief Narrow platform transport used by the shared agent protocol loop.
 	///
 	/// \details Implementations retain ownership of native process, pipe,

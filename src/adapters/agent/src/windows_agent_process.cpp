@@ -631,12 +631,18 @@ namespace bpr::adapters::agent::detail {
 				// reading its input, and a request larger than the input pipe
 				// then waits on it for good. The child's output is read into
 				// order-keeping buffers while the request is written, as the
-				// POSIX transport's QProcess reads while it writes.
+				// POSIX transport reads while it writes.
 				return write_all(Input.get(), Process, aBytes, Deadline, Cancelled, [this] {
 					park_available(
-						Output.get(), OutputBatchRemaining, ParkedOutput, application::maximum_agent_stdout_bytes + 1U);
+						Output.get(),
+						OutputBatchRemaining,
+						ParkedOutput,
+						agent_protocol_read_ahead_limit(agent_protocol_stream::standard_output));
 					park_available(
-						Error.get(), ErrorBatchRemaining, ParkedError, application::maximum_agent_stderr_bytes + 1U);
+						Error.get(),
+						ErrorBatchRemaining,
+						ParkedError,
+						agent_protocol_read_ahead_limit(agent_protocol_stream::standard_error));
 				});
 			}
 
