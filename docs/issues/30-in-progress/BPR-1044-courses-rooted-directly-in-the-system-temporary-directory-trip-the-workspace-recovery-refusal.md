@@ -271,3 +271,58 @@ Expect:
   card left alone, and it would need a follow-up card.
 
 When that run is recorded, the card can finish.
+
+## Windows: 13 of 13 pass, and none prints the line (bpr-main-win, 2026-09-23)
+
+The run used `8595684c`, which contains `3307ccf2`, with a clean tree.
+`build/windows-dev` (Visual Studio generator, MSVC 19.51, Debug, Qt 6.11.2)
+was rebuilt first, and the build exited 0 with no `error` or `warning` line.
+Then the card's selector ran:
+`ctest --preset windows-dev -j1 -V -R "^(application_device_binding_launch_renewal|…|application_profile_management_public_path)$"`.
+The logs are station records under `build/logs/bpr-1044-main-win/` and are
+not committed.
+
+| Row | Result |
+| --- | --- |
+| `application_device_binding_restart` | Passed, 38.37 s |
+| `application_device_binding_launch_renewal` | Passed, 31.03 s |
+| `application_logging` | Passed, 7.34 s |
+| `application_review_submission_composition_public_path` | Passed, 9.69 s |
+| `application_setup_destination_public_path` | Passed, 14.07 s |
+| `application_selected_file_safety_public_path` | Passed, 19.94 s |
+| `application_attended_recent_replay` | Passed, 25.73 s |
+| `application_profile_startup_public_path` | Passed, 9.41 s |
+| `application_profile_management_public_path` | Passed, 14.18 s |
+| `application_release_update_public_path` | Passed, 7.22 s |
+| `application_profile_multi_window_public_path` | Passed, 48.23 s |
+| `application_personal_discovery_public_path` | Passed, 10.58 s |
+| `application_profile_two_account_isolation_public_path` | Passed, 20.76 s |
+
+- **All 13 pass as registered**, all uncontained
+  (`bpr_windows_uncontained = 256.54 sec*proc (13 tests)`). No row was
+  re-registered and no pin was added.
+- **`AGENT_WORKSPACE_RECOVERY_REFUSED` appears 0 times** in the whole verbose
+  log, so none of the twelve prints it. `application_profile_management_public_path`
+  prints nothing from its main root either. Its `shared-parent` section is
+  compiled out on Windows, so the row can only show that it passes, and it
+  does.
+- The only epoch lines are `application_logging`'s deliberate
+  `EPOCH_CACHE_FAILURE:2:` and `EPOCH_EFFECT_FAILED:revision-prepare:0`, which
+  that course provokes and passes on.
+
+**AC2 on Windows: pass. AC3 on Windows: the row passes; the deliberate
+section cannot run there.** The card's owner decides whether it can finish.
+
+**The same line in a course this card left alone.** While measuring
+[[BPR-1040]], this station saw
+`AGENT_WORKSPACE_RECOVERY_REFUSED:…\Temp\bpr-0709-restart-<id>\<phase>\agent-workspace-ownership-v1:repair-required`
+from `application_profile_window_review_restoration_public_path`. That course
+is Python-driven. Each data root is a child of the course's own temporary
+directory, which its `os.chmod(root, 0o700)` does not narrow on Windows. The
+line appeared in the output of runs that failed for another reason, and the
+course prints the application's stderr only when a phase fails, so whether
+passing runs print it too is not known. It looks like this card's cause in a
+course outside the twelve. It is recorded here for whoever takes the
+remaining courses. The gate for bare temporary roots that BPR-1050 is
+reserved for may or may not reach a Python course; that is for its owner to
+say.
