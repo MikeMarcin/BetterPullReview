@@ -132,6 +132,22 @@ namespace {
 		return output;
 	}
 
+	/// \brief FNV-1a, 64-bit, as sixteen lower-case hex digits.
+	[[nodiscard]] auto fnv1a_hex(const std::string_view aValue) -> std::string
+	{
+		constexpr std::string_view digits = "0123456789abcdef";
+		auto                       hash   = std::uint64_t{ 14'695'981'039'346'656'037ULL };
+		for (const auto character : aValue) {
+			hash ^= static_cast<unsigned char>(character);
+			hash *= 1'099'511'628'211ULL;
+		}
+		auto output = std::string(16U, '0');
+		for (auto index = std::size_t{ 0U }; index < output.size(); ++index) {
+			output[output.size() - 1U - index] = digits[(hash >> (index * 4U)) & 0x0FU];
+		}
+		return output;
+	}
+
 	void write_partial(const std::string& aFrame)
 	{
 		for (auto offset = std::size_t{ 0U }; offset < aFrame.size(); offset += 3U) {
@@ -592,6 +608,13 @@ auto main(int argc, char** argv) -> int
 		findings_transcript(protocol, findingsSession);
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-0886]]. More than a pipe holds, written to stderr before the
+	// request is read. A parent that writes its whole request before draining
+	// anything waits on this child while this child waits on it.
+	if (has_argument(argc, argv, "--stderr-before-input")) {
+		std::cerr << std::string(64U * 1024U, 'e');
+		std::cerr.flush();
+	}
 	const auto input = read_input(
 		protocol, has_argument(argc, argv, "--preemptive-app-server"));
 	// Deliberately not `write_partial` and deliberately ahead of
@@ -608,6 +631,17 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	begin_output(protocol);
+	// [[BPR-0886]]. This switch's request is larger than a pipe holds, and the
+	// paced writer below sends three bytes a millisecond, so echoing it, and
+	// its hex, would take the run to its timeout by itself. Its length and
+	// digest say the child received every byte, in order.
+	if (has_argument(argc, argv, "--stderr-before-input")) {
+		emit(protocol, "stdin-bytes\t" + std::to_string(input.size()));
+		emit(protocol, "stdin-fnv1a\t" + fnv1a_hex(input));
+		emit(protocol, "canary-complete");
+		finish_output(protocol, "completed", std::string{ });
+		return EXIT_SUCCESS;
+	}
 	// Stops after a valid prefix. Every frame written decodes, so the drain
 	// records nothing and the trailing decode is the first and only refusal.
 	if (has_argument(argc, argv, "--truncated-exchange")) {

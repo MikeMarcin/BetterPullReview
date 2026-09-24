@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <ranges>
@@ -326,12 +327,16 @@ namespace bpr::adapters::agent::detail {
 			return AssignProcessToJobObject(aJob, aProcess) != FALSE;
 		}
 
+		/// \brief Writes aBytes to the child's input, servicing aWhileWriting
+		/// between polls until every byte is taken, the deadline passes, the
+		/// run is cancelled or the child exits.
 		[[nodiscard]] auto write_all(
-			const HANDLE              aPipe,
-			const HANDLE              aProcess,
-			const std::string_view    aBytes,
-			const clock::time_point   aDeadline,
-			const cancellation_probe& aCancelled) -> agent_protocol_write_status
+			const HANDLE                 aPipe,
+			const HANDLE                 aProcess,
+			const std::string_view       aBytes,
+			const clock::time_point      aDeadline,
+			const cancellation_probe&    aCancelled,
+			const std::function<void()>& aWhileWriting) -> agent_protocol_write_status
 		{
 			auto completed = std::atomic_bool{ false };
 			auto succeeded = std::atomic_bool{ false };
@@ -374,6 +379,7 @@ namespace bpr::adapters::agent::detail {
 					interrupted = agent_protocol_write_status::process_exited;
 					break;
 				}
+				aWhileWriting();
 				static_cast<void>(WaitForSingleObject(
 					writer.native_handle(),
 					static_cast<DWORD>(io_poll_interval.count())));
@@ -440,6 +446,85 @@ namespace bpr::adapters::agent::detail {
 				.Status        = agent_protocol_pipe_read_status::data,
 				.Count         = static_cast<std::size_t>(read),
 				.BatchComplete = aBatchRemaining == 0U,
+			};
+		}
+
+		/// \brief Child output read while a request was being written.
+		///
+		/// \details [[BPR-0886]]. Kept in order and served before whatever the
+		/// pipe still holds, so the protocol loop reads exactly the bytes the
+		/// child wrote, only later.
+		struct parked_output
+		{
+			std::string Bytes;
+			std::size_t Offset = 0U;
+
+			[[nodiscard]] auto pending() const noexcept -> std::size_t
+			{
+				return Bytes.size() - Offset;
+			}
+		};
+
+		/// \brief Moves what aPipe holds now into aParked, up to aCeiling parked
+		/// bytes, without blocking.
+		///
+		/// \details A batch the protocol loop has already begun on this pipe is
+		/// left for it to finish, so no byte is read twice or out of order. The
+		/// ceiling is one past the loop's own, so a child that writes too much
+		/// before reading still meets the loop's refusal.
+		void park_available(
+			const HANDLE      aPipe,
+			const std::size_t aBatchRemaining,
+			parked_output&    aParked,
+			const std::size_t aCeiling)
+		{
+			if (aBatchRemaining != 0U) {
+				return;
+			}
+			while (aParked.pending() < aCeiling) {
+				auto available = DWORD{ 0U };
+				if (
+					PeekNamedPipe(aPipe, nullptr, 0U, nullptr, &available, nullptr) == FALSE
+					|| available == 0U) {
+					return;
+				}
+				const auto requested = static_cast<DWORD>(std::min({
+					static_cast<std::size_t>(available),
+					aCeiling - aParked.pending(),
+					std::size_t{ 64U * 1024U },
+				}));
+				const auto start     = aParked.Bytes.size();
+				aParked.Bytes.resize(start + requested);
+				auto read = DWORD{ 0U };
+				if (
+					ReadFile(aPipe, aParked.Bytes.data() + start, requested, &read, nullptr) == FALSE
+					|| read == 0U) {
+					aParked.Bytes.resize(start);
+					return;
+				}
+				aParked.Bytes.resize(start + read);
+			}
+		}
+
+		/// \brief Serves parked bytes, as one batch, before the pipe's own.
+		[[nodiscard]] auto read_parked(parked_output& aParked, const std::span<char> aBuffer)
+			-> std::optional<agent_protocol_pipe_read_result>
+		{
+			if (aParked.pending() == 0U) {
+				return std::nullopt;
+			}
+			const auto count = std::min(aBuffer.size(), aParked.pending());
+			std::copy_n(aParked.Bytes.data() + aParked.Offset, count, aBuffer.data());
+			aParked.Offset += count;
+			const auto complete = aParked.pending() == 0U;
+			if (complete) {
+				aParked.Bytes.clear();
+				aParked.Offset = 0U;
+			}
+			return agent_protocol_pipe_read_result{
+				.Status        = agent_protocol_pipe_read_status::data,
+				.Count         = count,
+				.BatchComplete = complete,
 			};
 		}
 
@@ -541,8 +626,18 @@ namespace bpr::adapters::agent::detail {
 			[[nodiscard]] auto write(const std::string_view aBytes)
 				-> agent_protocol_write_status override
 			{
-				return write_all(
-					Input.get(), Process, aBytes, Deadline, Cancelled);
+				// [[BPR-0886]]. A child may write before it reads. The pipes hold
+				// a few kilobytes, so a child whose output fills its pipe stops
+				// reading its input, and a request larger than the input pipe
+				// then waits on it for good. The child's output is read into
+				// order-keeping buffers while the request is written, as the
+				// POSIX transport's QProcess reads while it writes.
+				return write_all(Input.get(), Process, aBytes, Deadline, Cancelled, [this] {
+					park_available(
+						Output.get(), OutputBatchRemaining, ParkedOutput, application::maximum_agent_stdout_bytes + 1U);
+					park_available(
+						Error.get(), ErrorBatchRemaining, ParkedError, application::maximum_agent_stderr_bytes + 1U);
+				});
 			}
 
 			void close_input() noexcept override
@@ -553,12 +648,18 @@ namespace bpr::adapters::agent::detail {
 			[[nodiscard]] auto read_standard_output(std::span<char> aBuffer)
 				-> agent_protocol_pipe_read_result override
 			{
+				if (auto parked = read_parked(ParkedOutput, aBuffer)) {
+					return *parked;
+				}
 				return read_available(Output.get(), OutputBatchRemaining, aBuffer);
 			}
 
 			[[nodiscard]] auto read_standard_error(std::span<char> aBuffer)
 				-> agent_protocol_pipe_read_result override
 			{
+				if (auto parked = read_parked(ParkedError, aBuffer)) {
+					return *parked;
+				}
 				return read_available(Error.get(), ErrorBatchRemaining, aBuffer);
 			}
 
@@ -609,6 +710,8 @@ namespace bpr::adapters::agent::detail {
 			unique_handle*            SupervisorOwner      = nullptr;
 			std::size_t               OutputBatchRemaining = 0U;
 			std::size_t               ErrorBatchRemaining  = 0U;
+			parked_output             ParkedOutput;
+			parked_output             ParkedError;
 		};
 		[[nodiscard]] auto supervisor_executable() -> std::wstring
 		{

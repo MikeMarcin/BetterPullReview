@@ -97,7 +97,7 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto supplement() -> core::agent_context_supplement
+	[[nodiscard]] auto supplement(const std::string_view aLargeDraft = { }) -> core::agent_context_supplement
 	{
 		const auto comparison = identity<core::file_comparison_digest>(5U);
 		const auto anchor     = core::source_line_ref{
@@ -182,15 +182,33 @@ namespace {
 			},
 		});
 		expect(built.has_value(), "the hostile fixture supplement builds");
-		return *built;
+		auto result = *built;
+		if (!aLargeDraft.empty()) {
+			// [[BPR-0886]]. A draft is the one part of the request a reviewer
+			// can make large, so it is what makes this request larger than a
+			// pipe holds.
+			auto large = core::build_agent_supplement({
+				.ApplicationSession = core::application_session_id{ 11U },
+				.Session            = session(),
+				.PullRequestUrl     = "https://github.example/octo/app/pull/30",
+				.PreviousUpload     = commit(3U),
+				.LastReviewedHead   = commit(4U),
+				.SelectedDrafts     = {
+					{ .Anchor = anchor, .Text = std::string{ aLargeDraft } },
+				},
+			});
+			expect(large.has_value(), "the supplement with a large draft builds");
+			result = *large;
+		}
+		return result;
 	}
 
-	[[nodiscard]] auto request(const core::agent_protocol aProtocol)
+	[[nodiscard]] auto request(const core::agent_protocol aProtocol, const std::string_view aLargeDraft = { })
 		-> application::agent_launch_request
 	{
 		auto built = application::build_agent_launch(
 			canary_profile(aProtocol),
-			supplement(),
+			supplement(aLargeDraft),
 			[](const std::string& aName) -> std::optional<std::string> {
 				return qEnvironmentVariableIsSet(aName.c_str())
 					? std::optional{
@@ -214,6 +232,23 @@ namespace {
 			}
 		}
 		return values;
+	}
+
+	/// \brief FNV-1a, 64-bit, as sixteen lower-case hex digits: the canary's
+	/// own digest of what it read.
+	[[nodiscard]] auto fnv1a_hex(const std::string_view aValue) -> std::string
+	{
+		constexpr std::string_view digits = "0123456789abcdef";
+		auto                       hash   = std::uint64_t{ 14'695'981'039'346'656'037ULL };
+		for (const auto character : aValue) {
+			hash ^= static_cast<unsigned char>(character);
+			hash *= 1'099'511'628'211ULL;
+		}
+		auto output = std::string(16U, '0');
+		for (auto index = std::size_t{ 0U }; index < output.size(); ++index) {
+			output[output.size() - 1U - index] = digits[(hash >> (index * 4U)) & 0x0FU];
+		}
+		return output;
 	}
 
 	void plant_parent_secrets()
@@ -283,6 +318,45 @@ namespace {
 						&& result.Events[index].Sequence == index,
 					"every streamed frame carries exact ordered session identity");
 			}
+		}
+	}
+
+	// [[BPR-0886]]. A child that writes more than a pipe holds to stderr
+	// before it reads its request, given a request larger than a pipe holds.
+	// A parent that writes the whole request before draining anything waits
+	// on the child while the child waits on it, and the run ends at its
+	// timeout. The parent has to service the child's output while it writes.
+	void test_output_before_input_does_not_stall_the_request()
+	{
+		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
+		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
+		const auto draft = std::string(12U * 1024U, 'd');
+		for (const auto protocol : {
+				 core::agent_protocol::codex_jsonl_exec,
+				 core::agent_protocol::claude_stream_json,
+				 core::agent_protocol::external_terminal,
+			 }) {
+			auto launched = request(protocol, draft);
+			expect(launched.Input.size() > 12U * 1024U && launched.Input.find(draft) != std::string::npos,
+				   "the request carries the large draft and is larger than a pipe holds");
+			launched.Arguments.emplace_back("--stderr-before-input");
+			auto timer = QElapsedTimer{ };
+			timer.start();
+			auto       launcher = adapters::agent::agent_process_launcher{ };
+			const auto result   = launcher.run(launched, 20'000, { });
+			const auto elapsed  = timer.elapsed();
+			std::cout << "BPR-0886 protocol " << static_cast<int>(protocol) << ": request " << launched.Input.size()
+					  << " bytes, outcome " << static_cast<int>(result.Outcome) << ", " << elapsed << " ms\n";
+			expect(result.Outcome == application::agent_run_outcome::success && result.ExitCode == 0,
+				   "a child that writes before it reads its request completes");
+			expect(elapsed < 10'000, "it completes well inside its timeout rather than at it");
+			expect(result.StandardError == std::string(64U * 1024U, 'e'),
+				   "everything the child wrote before reading is kept, in order");
+			// The canary reports a length and a digest rather than echoing the
+			// request, whose paced echo alone would outlast the timeout.
+			expect(event_values(result, "stdin-bytes") == std::vector{ std::to_string(launched.Input.size()) }
+					   && event_values(result, "stdin-fnv1a") == std::vector{ fnv1a_hex(launched.Input) },
+				   "the child received the whole request, byte for byte");
 		}
 	}
 
@@ -1007,6 +1081,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
+	test_output_before_input_does_not_stall_the_request();
 	test_real_child_receives_no_parent_credential_or_context_in_argv();
 	test_independent_agent_identity_alone_controls_canary_authority();
 	test_every_terminal_condition_is_typed_and_failed_runs_publish_no_result();
