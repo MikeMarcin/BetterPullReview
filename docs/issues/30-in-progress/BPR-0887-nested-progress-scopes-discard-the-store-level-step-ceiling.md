@@ -284,3 +284,33 @@ Expected: 20 rows pass. They are the 19 above plus
 `sqlite_appcontainer_private_descriptor`. This corrects the list in "Still
 needed" above, which predates `874dc0ae`. When that run passes, the card can
 finish.
+
+## Windows: 19 of 20 pass; the twentieth fails as it did before this change (bpr-main-win, 2026-09-23)
+
+The run used `2532ca6e`, which contains `669a5a58` and this change. It was
+`build/windows-dev` (Visual Studio generator, MSVC 19.51, Debug, Qt 6.11.2),
+rebuilt first, and the build exited 0 with no `error` line. The selector
+`ctest --preset windows-dev -j1 --output-on-failure -R
+'^(sqlite_|contained_catalog_probe$)'` matched 20 rows, and 19 pass. Among
+them are `sqlite_device_binding_storage` (3.37 s), the Windows-only
+`sqlite_appcontainer_private_descriptor` (0.20 s), `sqlite_private_store_open`
+(0.47 s) and `contained_catalog_probe` (0.04 s). This is the 20-row list the
+Linux section above expects.
+
+The one failure is `sqlite_epoch_catalog_behavior_contract`:
+`FAIL: a copy of the previous file migrates to v6`
+(`tests/sqlite_contract/epoch_catalog_behavior_tests.cpp:1792`). It is not
+this change's failure. It is the same line the `dsp-007` Windows sweep
+recorded at `86b04901` on 2026-09-17
+(`docs/verification/dsp7-windows-full-sweep.md`), and [[BPR-0878]] item 2
+carries it. The test copies a data root with
+`std::filesystem::copy(..., recursive)` and opens the copy. On Windows every
+copied directory and file inherits its new parent's entries, not the
+explicit owner-private descriptor the stores write, and the catalog refuses
+it. [[BPR-0876]]'s review-restoration course met the same thing with a Python
+copy, measured with `icacls`. That fix is a test-side copy that narrows each
+copied entry, and it is on that card.
+
+So the SQLite suite shows nothing new on Windows. Only the pre-existing
+copied-root row stays red, and it has its own record. The logs are station
+records under `build/logs/bpr-0887-1046-main-win/` and are not committed.
