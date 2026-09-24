@@ -201,3 +201,29 @@ follow the finish:
 - **Linux (bpr-main-linux):** `cmake --build --preset dev && ctest --test-dir build/dev -j1 --output-on-failure -R '^(github_contract_fixture_security|github_recorded_fixture_contract|github_read_contract|github_paged_read|application_github_public_path_uiforetw_74)$'`
 - **Windows (bpr-main-win):** `cmake --build --preset windows-dev && ctest --preset windows-dev -j1 --output-on-failure -R '^(github_contract_fixture_security|github_recorded_fixture_contract|github_read_contract|github_paged_read|application_github_public_path_uiforetw_74)$'`.
   Whichever of these rows are registered there.
+
+## Post-close: Windows, and an MSVC-only abort fixed (bpr-main-win, 2026-09-23)
+
+**The abort.** On Windows, `has_file_fixture_keys` aborted every Debug
+process that validated a recorded files page. The message was
+`array iterators incompatible` (`0xC0000409`). It was found through
+[[BPR-1039]]: at `f7e93488`, the profile window layout course's seed
+stopped 3 of 3 with that message. A temporary CRT report hook printed the
+stack, and it ends at `github_read_contract.cpp` in the lambda at
+`std::ranges::find(allowed, aKey) != allowed.end()`. `allowed` was a
+`constexpr` local `std::array`. MSVC may materialize such a local afresh for
+each use inside a lambda, so `find` and `end()` named two arrays. Its checked
+iterators then refused the comparison. GCC and Clang do not check this,
+which is why macOS and Linux never saw it. `e2ea86ad` makes the array
+`static constexpr`, so there is one object, and drops the capture. After
+it, the layout course passes 3 of 3, uncontained, and so do the
+activation, window-restart and launch-renewal courses.
+
+**The owed Windows run.** At `dd4377bf`, which contains `f3d19c2a` and
+`e2ea86ad`, `build/windows-dev` (Visual Studio generator, MSVC 19.51, Debug,
+Qt 6.11.2) was rebuilt, and the build exited 0. All five rows are
+registered there, and all five pass, serially:
+`github_recorded_fixture_contract` (0.19 s), `github_contract_fixture_security`
+(2.32 s), `github_read_contract` (0.30 s), `github_paged_read` (6.30 s) and
+`application_github_public_path_uiforetw_74` (7.05 s). The logs are station
+records under `build/logs/bpr-0892-main-win/` and are not committed.
