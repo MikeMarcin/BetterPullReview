@@ -214,3 +214,112 @@ about 5.5 s (6,753 threads), which is already counted in the 20 seconds.
   changed.
 - **AC3.** This record is the report to the owner. What to do about the hook
   is the owner's decision.
+
+## The probe, 2026-09-24T21:48Z and 21:49Z (bpr-main-win, cleared foreground): the rewriting is not seen
+
+The coordinator announced and cleared the probe, twice, with synthetic keys
+only. This was after the Linux station's WSLg probe had ended at 20:44:34Z.
+
+- **Before each run,** the foreground was Windows Terminal (pid 23164, class
+  `CASCADIA_HOSTING_WINDOW_CLASS`). No `msrdc.exe` had a window.
+- **After each run,** the foreground was unchanged.
+- No pointer moved, and no window was activated.
+- Nothing was stopped, unloaded or reconfigured.
+
+Logs, not committed: `build/logs/bpr-1109-main-win/probe-{1,2}.txt` and the
+`*-foreground.txt` files.
+
+### The symptom, observed (facts)
+
+Both runs sent five `Alt`+`0x97` chords (`0x97` is an unassigned virtual
+key). Every one reached raw input as a normal Alt chord:
+
+```
+vk=0x12 make=0x38 down msg=0x104
+vk=0x97 make=0x00 down msg=0x104
+vk=0x97 make=0x00 up   msg=0x105
+vk=0x12 make=0x38 up   msg=0x101
+```
+
+The Alt arrives as `VK_MENU`, and the chord key as `WM_SYSKEYDOWN`. There is
+no `vk=0x00` key. The BPR-1022 r4–r7 sinks, at 05:20Z–06:46Z, recorded
+`vk=0x00` in place of the Alt, and the letter as a plain `WM_KEYDOWN`. The
+same sink, the same `keybd_event` injection and the same Alt scan code
+(`0x38`) now show no rewriting.
+
+So the symptom is **not** unchanged, and the card's premise has moved. Two
+readings fit, and these runs cannot tell them apart:
+
+1. **The hook is gone.** Whatever installed it has exited or stopped
+   rewriting since 06:46Z.
+2. **The hook is key-selective.** It rewrites only chords with keys it acts
+   on. BPR-1022 tried Space, F, Up and F4, and never an unassigned key.
+
+Reading 2 needs a hook that holds the Alt until the next key arrives. The r7
+timings allow that. They do not prove it.
+
+The process that restarted in between is the Claude desktop app, restarted
+by its update at 19:55:56Z. Its native binding imports `SetWindowsHookExW`.
+Every other hook-capable candidate in the survey table was still running
+with the same pid and start time:
+
+- `msrdc` 37336;
+- `codex-computer-use-swift` 21016;
+- `NVIDIA Overlay` 10740;
+- `Everything` 28156.
+
+So under reading 1, the likeliest owner is the earlier Claude desktop
+instance, not `msrdc`. That is inference: its exit time and hooks are not
+recorded.
+
+### The thread attribution (inconclusive)
+
+Each run tapped `0x97` 100 times into the foreground Terminal. That woke
+hundreds of threads well beyond one wake-up per event:
+
+- the kernel's `System` threads;
+- the Terminal, `dwm` and `explorer`;
+- WSL's `vmmemWSL`;
+- Defender.
+
+So a count of about 200 does not single out a low-level hook thread. Among
+the hook-capable candidates, several rose again in both runs by far more than
+their idle count, and raw input or window traffic could account for any of
+them:
+
+| Thread | Probe 1 | Probe 2 |
+|---|---|---|
+| NVIDIA Overlay 10740/9516 | +2327 | +1854 |
+| `msrdc` 37336/36784 | +1099 | +795 |
+| `codex-computer-use-swift` 21016/38168 | +472 | +349 |
+
+Everything 28156 rose by about +220 on two threads in probe 1 only.
+
+The method cannot separate a hook thread from a raw-input sink or a window
+thread. It names no owner.
+
+### Where the criteria stand
+
+- **AC1: pending.** No owner can be named with confidence. The remaining
+  candidates are:
+  - the earlier Claude desktop instance, which exited at about 19:55Z (if
+    the hook is gone);
+  - `msrdc` 37336, the NVIDIA overlay, OpenAI's computer-use runtime, or
+    Everything (if the hook is key-selective).
+- **AC2: not met as written.** Nothing was stopped or changed. But the
+  symptom was not observed unchanged. It is absent for `Alt`+`0x97` at both
+  the start and the end of this run.
+- **AC3.** Reported here. The owner decides.
+
+**One run would settle it.** Drive [[BPR-1022]]'s real-key rows (Alt+Space,
+Alt+F, Alt+Up) with the application in front, as that card's post-close run.
+That needs its own foreground window.
+
+- If those chords now reach the application, the hook is gone. BPR-1022's
+  wanted rows pass, and this card can close as "no longer present;
+  last-seen window 06:46Z–21:48Z".
+- If they still fail, the hook is key-selective. The same sink with those
+  keys then gives the next attribution step.
+
+Those keys were not sent here: into the owner's Terminal they would open its
+system menu, type into a shell or close it.
