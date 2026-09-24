@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1023"
 title: "Reconcile the anonymous-preview Accounts course with shared sign-in's Connect, and decide whether a refused activation stops a device-capable card's Connect"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
