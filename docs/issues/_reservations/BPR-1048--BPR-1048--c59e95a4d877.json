@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1048"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "bpr-main-linux: Four host call sites (persist_settled_device_binding, start_delete, prepare_device_rotation, launch-restore erase) leave OutstandingBindings counted when the lane refuses both executors",
+  "created": "2026-09-24T01:21:39.843998+00:00",
+  "base": "f7e93488c90177e55e36ae2c0e6c5589e7f83ef0"
+}
