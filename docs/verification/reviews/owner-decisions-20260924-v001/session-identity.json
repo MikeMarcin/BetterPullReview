@@ -1,0 +1,431 @@
+{
+  "schema": "bpr.attended_review_identity",
+  "schema_version": 1,
+  "head": "86cd8227",
+  "source_commit": "86cd8227",
+  "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+  "sequence_after_preparation": 566,
+  "state": ".mask/attended-review/session.json (checkout session; not committed)",
+  "owner_request": "if there are questions to answer or reviews to do then prepare an attended review session",
+  "page": {
+    "path": "offline-package/index.html",
+    "digest": "sha256:438f554d26af3ae6e1ff11e301945da137eed3c1a6f1eefb62c3c5264f110aab",
+    "generated_at": "2026-09-24T17:30:02.694633+00:00",
+    "note": "The review.html asset with the status --full snapshot at sequence 566, limited to this packet's 22 candidates and the pending rfc0014-m9-windows-licensing-v002. The session's 39 earlier decided candidates are left out: most are no longer protected, and the intake refuses a set that carries a decision for an unprotected candidate."
+  },
+  "candidates": [
+    {
+      "id": "BPR-0653-entry-row-v001",
+      "revision": "38cc26d7 (ask restated at 919e2154)",
+      "fingerprint": "308902012d73bb4ce5f8c6cc34e2215412c11b4db78f9e3f36867b84b03bd5bd",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md",
+        "docs/issues/50-blocked/BPR-1036-the-uiforetw-selected-diff-contract-is-red-on-a-stale-strip-row-and-a-height-floor.md",
+        "docs/issues/30-in-progress/BPR-1033-windows-uiforetw-selected-diff-capture-fails-without-naming-its-condition.md",
+        "docs/issues/10-backlog/BPR-1021-close-rfc-0028.md"
+      ],
+      "commits": [
+        "38cc26d7",
+        "919e2154",
+        "cc038748",
+        "f839e26a",
+        "3d941d47"
+      ],
+      "options": [
+        "Amend RFC-BPR-0028 AC-01 and the chrome paragraph to admit the entry rows between the strip and the epoch line",
+        "Keep AC-01: move the two entries (for example into the strip's review controls menu) and return the epoch line to the first row under the strip"
+      ]
+    },
+    {
+      "id": "BPR-0653-private-qt-api-v001",
+      "revision": "53d229d7 (Qt 6.11.2 recheck at 4380f310)",
+      "fingerprint": "da03ec26c9e97d7d0bce478b6f0d449cf50eb29bd53e40ba833dc92e15ffc4f6",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md"
+      ],
+      "commits": [
+        "53d229d7",
+        "4380f310",
+        "92c4e159"
+      ],
+      "outcome": "accept or reject"
+    },
+    {
+      "id": "BPR-0653-windows-capture-v001",
+      "revision": "unprepared: needs a JaegAW tests-disabled app-release build at or after e08a0409",
+      "fingerprint": "2dfdbc0c7fca03312367004d17ade499cd84b0e0dcef32c461755eb0f21101a9",
+      "phase": "waiting",
+      "protected": false,
+      "cards": [
+        "docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md"
+      ],
+      "commits": [
+        "e08a0409",
+        "53d229d7"
+      ],
+      "outcome": "accept or reject"
+    },
+    {
+      "id": "BPR-0986-hunk-header-roles-v001",
+      "revision": "55e9405f",
+      "fingerprint": "096742605f2dc16aa11dd193782fc3f43177ca05486aebdc203ebdf32a189fc6",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/40-parked/BPR-0986-paint-the-hunk-header-and-current-line-roles-in-the-review-panes.md"
+      ],
+      "commits": [
+        "55e9405f"
+      ],
+      "options": [
+        "(a) Stop offering them: amend RFC-BPR-0034 C5 from 47 roles to 45; the theme documents keep both roles",
+        "(b) Keep offering them with a note that the review window does not show them yet",
+        "(c) Take their retirement to RFC-BPR-0006"
+      ]
+    },
+    {
+      "id": "BPR-0986-rendered-panes-v001",
+      "revision": "55e9405f",
+      "fingerprint": "5b87471b0f5c99118b0b5c1721dc39d86970da9cce202262b01690fe5462fc38",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/40-parked/BPR-0986-paint-the-hunk-header-and-current-line-roles-in-the-review-panes.md"
+      ],
+      "commits": [
+        "55e9405f"
+      ],
+      "outcome": "accept or reject"
+    },
+    {
+      "id": "BPR-0975-wslg-activation-v001",
+      "revision": "b651554f",
+      "fingerprint": "292bd12e75136fc9805567a7f39df44282428049d462d2d0aa7480844841ebc7",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/50-blocked/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md",
+        "docs/issues/60-done/BPR-1024-on-wslg-keys-go-to-the-window-whose-activation-the-window-manager-refused.md"
+      ],
+      "commits": [
+        "b651554f",
+        "59915464"
+      ],
+      "options": [
+        "(a) I will supply a real Linux desktop (GNOME or KDE, for example Ubuntu 24.04) that honours EWMH activation; run the unchanged full course there",
+        "(b) Amend: record WSLg's refused application activation as a documented Linux/WSLg platform difference, with the diagnosis as the evidence for the other steps"
+      ]
+    },
+    {
+      "id": "BPR-1023-refused-connect-v001",
+      "revision": "f839e26a",
+      "fingerprint": "7cd1b578adcc87a34e33dd097a00c622d7539550d8d8e8f110b635f3e682b9c7",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/10-backlog/BPR-1023-reconcile-anonymous-preview-accounts-course-with-shared-sign-in-connect.md"
+      ],
+      "commits": [
+        "f839e26a",
+        "cbd50b74"
+      ],
+      "options": [
+        "1. Refuse it: a device-capable card's Connect does nothing while its Connect is not admitted, like the enterprise card and the GitHub CLI offer",
+        "2. Allow it: device begin is the core's separate command and governs this path; the course asserts the device command's state instead"
+      ]
+    },
+    {
+      "id": "BPR-0974-defender-disposition-v001",
+      "revision": "Defender threat 2147731250 on source 2d3bdbdf, rechecked read-only 2026-09-23",
+      "fingerprint": "7f01c8b71436292b56b11dc5f7464570bb29971c835db8fa10d1c69a0bb914e4",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/50-blocked/BPR-0974-dispose-windows-defender-finding-and-complete-native-settings.md"
+      ],
+      "commits": [
+        "2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273"
+      ],
+      "options": [
+        "1. Authorize a fresh tests-disabled Release image at a named main commit, built in a new task root and scanned on demand; if Defender does not detect it, run that exact digest for AC2 and AC3",
+        "2. Authorize a false-positive submission of the quarantined sample to Microsoft",
+        "3. Defer the disposition to RFC-0038's release-security qualification (BPR-0960/BPR-0962) and keep BPR-0974 Blocked"
+      ]
+    },
+    {
+      "id": "BPR-1020-uncontained-pins-v001",
+      "revision": "41bb3229",
+      "fingerprint": "b070e2e137acaa5b7ec410fb7946bc4a593ac4f2c044b66dc8dc3ad3ca9a8793",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/60-done/BPR-1020-the-windows-isolation-manifest-gate-carries-eleven-unpinned-uncontained-rows.md"
+      ],
+      "commits": [
+        "41bb3229",
+        "38cc26d7"
+      ],
+      "options": [
+        "Keep the four pins",
+        "Revert the four pins and leave those rows unpinned, as BPR-0812 did"
+      ]
+    },
+    {
+      "id": "BPR-1038-purge-policy-v001",
+      "revision": "fe7dad99",
+      "fingerprint": "80702460641ca463735c82fa2269a774ecdbd23feaad0caa702f1513baca060d",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/60-done/BPR-1038-windows-purge-profile-refuses-once-the-git-isolation-exists.md"
+      ],
+      "commits": [
+        "fe7dad99"
+      ],
+      "outcome": "accept or reject"
+    },
+    {
+      "id": "BPR-0884-independent-review-v001",
+      "revision": "02e3d59d",
+      "fingerprint": "cf1da6043c880a6ed2c8400622ed4a2d7028c442d9850f814d387e9d7b3d88d2",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/20-ready/BPR-0884-the-device-binding-store-latches-corrupt-for-the-process-lifetime.md"
+      ],
+      "commits": [
+        "02e3d59d",
+        "76a0ecdd"
+      ],
+      "options": [
+        "Yes: run an independent read-only review of 02e3d59d",
+        "No: finish BPR-0884 without one"
+      ]
+    },
+    {
+      "id": "BPR-0906-independent-review-v001",
+      "revision": "03117e63",
+      "fingerprint": "b1a8c022171fa36cc8576c8a99ffc183b23416176aeaec60100874f803241132",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/60-done/BPR-0906-the-relocated-activation-endpoint-accumulates-stale-sockets.md"
+      ],
+      "commits": [
+        "03117e63",
+        "9b1fb505"
+      ],
+      "options": [
+        "Yes: run an independent read-only review of 03117e63",
+        "No: leave BPR-0906 without one"
+      ]
+    },
+    {
+      "id": "BPR-1048-independent-review-v001",
+      "revision": "a670fd95",
+      "fingerprint": "cc1d00f909b03ca95046fc6b86724e0b764ea56ad6a60374f234291ab9dc8d3d",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/60-done/BPR-1048-four-host-call-sites-leave-outstanding-bindings-counted-when-the-lane-refuses-both-executors.md"
+      ],
+      "commits": [
+        "a670fd95",
+        "4a6885ee"
+      ],
+      "options": [
+        "Yes: run an independent read-only review of a670fd95",
+        "No: leave BPR-1048 without one"
+      ]
+    },
+    {
+      "id": "BPR-1104-independent-review-v001",
+      "revision": "51784082",
+      "fingerprint": "d557512cdcda2d926ca676bf4ca0f47d4b467536668e6ea1af78d67872d3d8e5",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/60-done/BPR-1104-windows-the-review-restoration-course-still-stops-at-a-spool-failure-after-bpr-1040.md"
+      ],
+      "commits": [
+        "51784082",
+        "e2dc8f82"
+      ],
+      "options": [
+        "Yes: run an independent read-only review of 51784082",
+        "No: leave BPR-1104 without one"
+      ]
+    },
+    {
+      "id": "BPR-1024-upstream-qt-report-v001",
+      "revision": "59915464 (capture 2026-09-24T06:41Z)",
+      "fingerprint": "356ad0f5ed43e2d2e858056c80b202673a88335b0e4805a32b9b88e3932142b7",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/60-done/BPR-1024-on-wslg-keys-go-to-the-window-whose-activation-the-window-manager-refused.md"
+      ],
+      "commits": [
+        "59915464",
+        "fe52afb2"
+      ],
+      "options": [
+        "Yes: prepare the report text for me to file",
+        "No: do not prepare or file one"
+      ]
+    },
+    {
+      "id": "BPR-1022-alt-chord-hook-v001",
+      "revision": "3db65162 (seventh real-key run at 21332605)",
+      "fingerprint": "d6d74c7b49ef50049a94fe6b7892f6ffa71044fe3b97e6aa46a78e9c7aaf4e8d",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/60-done/BPR-1022-windows-open-the-strips-application-menu-from-the-keyboard-with-alt-and-f10.md"
+      ],
+      "commits": [
+        "3db65162",
+        "21332605"
+      ],
+      "options": [
+        "I know what installed it (named in the note); ignore it",
+        "I do not know what it is; ignore it",
+        "I do not know what it is; have the Windows station identify it read-only, without stopping or changing it"
+      ]
+    },
+    {
+      "id": "RFC-0039-0051-start-v001",
+      "revision": "docs/rfcs/README.md at 86cd8227",
+      "fingerprint": "93f76b4dbaff3d03dc6090ae2d75441d41eb4ea04f5307aa13db95235d813e1a",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/rfcs/README.md"
+      ],
+      "commits": [
+        "86cd8227"
+      ],
+      "options": [
+        "Start now: RFC-0039 first, then the packs in canonical order through RFC-0051",
+        "Not yet: finish RFC-0028 to RFC-0038 first"
+      ]
+    },
+    {
+      "id": "BPR-0746-disposition-v001",
+      "revision": "Blocked on owner-declined-probe since 2026-09-12; board at 86cd8227",
+      "fingerprint": "80dab9c8690b5402f112b876fe389f240129ddde46233281fb7283005c6ae3ed",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/50-blocked/BPR-0746-the-resize-cursor-is-not-delivered-over-the-seam-on-the-signed-bundle.md",
+        "docs/issues/10-backlog/BPR-1021-close-rfc-0028.md"
+      ],
+      "commits": [
+        "86cd8227"
+      ],
+      "options": [
+        "Amend: withdraw BPR-0746 AC1 and AC2 as unobtainable (recorded as an amendment, not a pass) so it can be Done and RFC-0028 can close",
+        "Keep BPR-0746 Blocked; RFC-0028's closeout keeps waiting on it"
+      ]
+    },
+    {
+      "id": "BPR-0644-grant-policy-v001",
+      "revision": "75fab2d4",
+      "fingerprint": "0416486e86fae1564a9b09ded7619d9e692b240179ade102a270183c6237af28",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md",
+        "docs/issues/20-ready/BPR-0884-the-device-binding-store-latches-corrupt-for-the-process-lifetime.md"
+      ],
+      "commits": [
+        "75fab2d448fd6b4d2b092ed0385db435de446520"
+      ],
+      "options": [
+        "Keep fail-closed: such a launch erases the grant (today's behaviour, BPR-0541)",
+        "Keep the material: fail visibly and retry at the next launch"
+      ]
+    },
+    {
+      "id": "BPR-0897-observed-mutation-intent-v001",
+      "revision": "5c8ee790 (dsp-006; fact added in dsp-007)",
+      "fingerprint": "f222c2b932c81553a284e8f23ce4e624edd77fb1ae524df05ab1c380048c43a1",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/40-parked/BPR-0897-a-release-build-composes-a-live-mutation-provider-for-any-open-pull-request.md"
+      ],
+      "commits": [
+        "5c8ee790"
+      ],
+      "options": [
+        "1. Yes, as designed: record the intent next to the composition",
+        "2. Yes, but not yet: gate it like the attended lane until BPR-0641 opens it",
+        "3. Only for repositories the person has explicitly designated"
+      ]
+    },
+    {
+      "id": "BPR-0825-descriptor-home-v001",
+      "revision": "902cda35",
+      "fingerprint": "8e0eeaec7f612bc9287c069293f277d6a665420022cdfc7834c29b4cbcbfe1a0",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/40-parked/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md"
+      ],
+      "commits": [
+        "902cda35"
+      ],
+      "options": [
+        "(a) The Git adapter calls a new public SQLite validator",
+        "(b) The SQLite adapter includes the agent adapter's header",
+        "(c) A new neutral header-only target that both adapters include, with a new architecture-boundary owner (recommended)"
+      ]
+    },
+    {
+      "id": "BPR-0803-cli-during-device-flow-v001",
+      "revision": "9f06d5b1 (re-observed 2026-09-22)",
+      "fingerprint": "f2843e831d6d6e842349f1435ebb28385ded6e4e97305673243c96c5c47b3d0b",
+      "phase": "ready",
+      "protected": true,
+      "cards": [
+        "docs/issues/10-backlog/BPR-0803-the-github-cli-way-in-is-unreachable-from-inside-the-device-sign-in.md"
+      ],
+      "commits": [
+        "9f06d5b1"
+      ],
+      "options": [
+        "Cancel the device flow first; its code goes away because the flow ended",
+        "Keep the code on screen beside the CLI choice until the reviewer ends one of them"
+      ]
+    }
+  ],
+  "carried_forward": [
+    {
+      "id": "rfc0014-m9-windows-licensing-v002",
+      "revision": "producer-67f5e514-win-b34099e6-source-11babc5f",
+      "fingerprint": "e19c8c7713cd7b79f80ea5a21fe557690d71289677cbd6a61d07fdd749b00a74",
+      "phase": "ready",
+      "protected": true,
+      "manifest": "docs/verification/reviews/rfc0014-m9-windows-licensing-v002/manifest.json",
+      "note": "Prepared at sequence 476 and unanswered at hand-back 478; unchanged here."
+    }
+  ],
+  "not_prepared": {
+    "BPR-0653-windows-capture-v001": "Waiting: needs a tests-disabled app-release bundle on JaegAW at or after e08a0409, which this Mac preparation cannot build or verify (guard log .mask/attended-review/prepare-7dbba8f1a924f9ba.log)."
+  },
+  "not_asked": {
+    "BPR-0735": "Owner declined the editor observation (2026-09-12, mandate r18); the card says not to repeat the ask.",
+    "BPR-0746-probe": "The cursor probe itself is not re-asked; only the disposition amendment is.",
+    "BPR-0153": "Owner-deferred under amendment r4; needs an unfamiliar collaborator, defect and disposable PR named by the owner before any packet.",
+    "BPR-0641": "Owner-deferred under amendment r4; its read-only private-PR smoke needs a current tests-disabled Mac build and a live session when scheduled.",
+    "BPR-0143/BPR-0144/BPR-0169": "Parked on awaiting-live-github, not a human decision.",
+    "BPR-0720/BPR-0738": "Their one attended criterion was accepted as BPR-0744-directive-ranges (decision 4f1d1354, 2026-09-12); only board upkeep remains.",
+    "BPR-0958..BPR-0962, BPR-0911": "Blocked on native environments or release-security inputs, not a question.",
+    "BPR-1036/BPR-1033": "Settled by BPR-0653-entry-row-v001; they ask no separate question."
+  }
+}
