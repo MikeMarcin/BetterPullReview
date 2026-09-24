@@ -1,5 +1,6 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
+#include "windows_sharing_retry.hpp"
 #include <glaze/json.hpp>
 
 #include <QByteArray>
@@ -341,16 +342,21 @@ namespace bpr::adapters::git {
 					&& static_cast<std::uint64_t>(information.st_size)
 					== aExpectedBytes;
 #elif defined(Q_OS_WIN)
-				Handle = CreateFileW(
-					aPath.c_str(),
-					GENERIC_READ,
-					0U,
-					nullptr,
-					OPEN_EXISTING,
-					FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT
-						| FILE_FLAG_SEQUENTIAL_SCAN,
-					nullptr);
-				if (Handle == INVALID_HANDLE_VALUE) {
+				// [[BPR-1040]]. Opened with no sharing, so a scanner still reading
+				// the spool this adapter just wrote refuses it for a moment.
+				const auto opened = detail::retry_while_held([&]() -> DWORD {
+					Handle = CreateFileW(
+						aPath.c_str(),
+						GENERIC_READ,
+						0U,
+						nullptr,
+						OPEN_EXISTING,
+						FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT
+							| FILE_FLAG_SEQUENTIAL_SCAN,
+						nullptr);
+					return Handle != INVALID_HANDLE_VALUE ? ERROR_SUCCESS : GetLastError();
+				});
+				if (opened != ERROR_SUCCESS) {
 					return false;
 				}
 				FILE_ATTRIBUTE_TAG_INFO    tag{ };

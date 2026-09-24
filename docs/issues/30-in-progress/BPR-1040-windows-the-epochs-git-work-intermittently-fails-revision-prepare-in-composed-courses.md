@@ -81,3 +81,64 @@ failure on purpose, so it is not counted here.
   `application_attended_recent_replay` and
   `application_profile_multi_window_public_path` (N ≥ 5 each).
 - AC3 macOS and Linux keep their paths, or any shared change is run there.
+
+## Named: a just-written spool is briefly held; a bounded retry lands (bpr-main-win, 2026-09-23)
+
+Run `bpr-main-win-20260923`, `build/dev` (MSVC 19.51 Debug, Qt 6.11.2),
+serial and offscreen, at `585d8846` plus this change. Microsoft Defender
+real-time protection is on, as it is by default. The logs are station records
+under `build/logs/bpr-1040-main-win/` and are not committed.
+
+**The course that reproduces it.** With [[BPR-0876]]'s copied roots fixed,
+`application_profile_window_review_restoration_public_path`, run uncontained,
+failed at the epoch in about 18 of 19 runs. A station wrapper kept every data
+root's `diagnostics.log`. Reverted traces then named the failing operation. In
+each case it was a pack spool file that the adapter had written moments
+before (AC1):
+
+| Where | What the diagnostics or the trace showed |
+| --- | --- |
+| Publishing the received spool: `.pack.receiving` renamed to `.pack.part` (`publish_spool`) | `op=epoch outcome=failed epoch_stage=protocol_acquire failure=pack_sink pack_failure=storage`, 3 of 5 kept runs |
+| Removing the completed spool after staging: `remove_exact_private_file` renames it to a quarantine name first | `BPR1040_RENAME rename_no_replace error=32` ("being used by another process") on `incoming\v1\<hash>.pack.part`. The Restart Manager listed **no** holder (`BPR1040_HOLDERS count=0`), and the same rename **succeeded 50 ms later**. The epoch reported `EPOCH_CACHE_FAILURE:7` (`spool_failure`) |
+| Opening the completed spool exclusively to feed it to Git as standard input (`private_input_file::open`, `share 0`) | Git's run failed before it started, as the card's `revision-prepare:6` after cache `10`. Same shape: a sharing refusal on a file just written. The trace log for this one was not kept |
+
+A holder that the Restart Manager cannot name, that lets go within tens of
+milliseconds, and that appears only on files just written, looks like a
+real-time scanner reading each new file. No product process held these files.
+
+**The fix, in the layer that owns it.** `windows_sharing_retry.hpp` adds
+`detail::retry_while_held`. It repeats one Windows file operation while the
+error is `ERROR_SHARING_VIOLATION`, `ERROR_LOCK_VIOLATION` or
+`ERROR_ACCESS_DENIED`. The retry is named and bounded: eight waits from 5 ms,
+doubling, about 1.3 s in all. Then it returns the last error, so the caller
+fails exactly as before. Three call sites use it: the no-replace move behind
+`publish_spool` and `rename_no_replace` (`move_file_no_replace` in
+`installed_git_cache.cpp`), and the exclusive open in `private_input_file`
+(`installed_git_process.cpp`). All of it is inside `Q_OS_WIN`.
+
+**Measured after the fix,** same course, same wrapper:
+
+| Runs | Passed | Stopped at the epoch | Stopped elsewhere |
+| --- | --- | --- | --- |
+| 8 at the candidate | 6 | 1: `EPOCH_CACHE_FAILURE:7`, `revision_prepare failure=spool_failure`, before the trace below was in | 1: "durable record equals actual accepted public reading", no epoch line, under heavy concurrent load from other rows |
+
+Against about 18 of 19 before, that is the named cause gone. One
+`spool_failure` in eight remains unexplained. The build now running the AC2
+courses carries a reverted trace on every `spool_failure` return and on each
+step of `remove_exact_private_file`, so its next occurrence names its site.
+The "durable record" stop is not an epoch failure, and it is recorded here
+only so that it is measured again.
+
+### Still open
+
+- **AC2.** `application_release_maintenance_public_path` must reach its purge
+  step without an epoch failure in N of N runs (N ≥ 10), and
+  `application_attended_recent_replay` and
+  `application_profile_multi_window_public_path` must do the same (N ≥ 5
+  each). Those runs are next on this station.
+- **AC3.** Every change is inside `Q_OS_WIN`, so macOS and Linux keep their
+  paths.
+- Scope's permanent testing-build diagnostic is not added. The traces above
+  named the failing operation. A permanent line would need a decision about
+  what the adapter may print, and [[BPR-0441]] keeps Git's text out of the
+  core.

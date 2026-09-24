@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 
 #include "bpr/adapters/git/installed_git_process.hpp"
+#include "windows_sharing_retry.hpp"
 
 // The cache manifest discriminates the access mode, and `epoch_model.hpp`
 // declares that enumeration without its enumerators. This is the header that
@@ -2144,6 +2145,21 @@ namespace bpr::adapters::git {
 			const std::filesystem::path& aDestination,
 			std::error_code&             aError) noexcept -> bool;
 
+#if defined(Q_OS_WIN)
+		/// \brief `MoveFileExW` without replacement, repeated while another
+		/// handle briefly holds the file ([[BPR-1040]], `retry_while_held`).
+		[[nodiscard]] auto move_file_no_replace(
+			const std::filesystem::path& aSource,
+			const std::filesystem::path& aDestination) -> DWORD
+		{
+			return detail::retry_while_held([&]() -> DWORD {
+				return MoveFileExW(aSource.c_str(), aDestination.c_str(), MOVEFILE_WRITE_THROUGH) != 0
+					? ERROR_SUCCESS
+					: GetLastError();
+			});
+		}
+#endif
+
 		struct spool_publish_result
 		{
 			bool Success        = false;
@@ -2178,12 +2194,7 @@ namespace bpr::adapters::git {
 				.CompletedOwned = true,
 			};
 #elif defined(Q_OS_WIN)
-			if (
-				MoveFileExW(
-					aReceiving.c_str(),
-					aCompleted.c_str(),
-					MOVEFILE_WRITE_THROUGH)
-				== 0) {
+			if (move_file_no_replace(aReceiving, aCompleted) != ERROR_SUCCESS) {
 				return { };
 			}
 			return {
@@ -2557,18 +2568,11 @@ namespace bpr::adapters::git {
 			aError = std::error_code{ errno, std::generic_category() };
 			return false;
 #elif defined(Q_OS_WIN)
-			if (
-				MoveFileExW(
-					aSource.c_str(),
-					aDestination.c_str(),
-					MOVEFILE_WRITE_THROUGH)
-				!= 0) {
+			const auto moved = move_file_no_replace(aSource, aDestination);
+			if (moved == ERROR_SUCCESS) {
 				return true;
 			}
-			aError = std::error_code{
-				static_cast<int>(GetLastError()),
-				std::system_category()
-			};
+			aError = std::error_code{ static_cast<int>(moved), std::system_category() };
 			return false;
 #else
 			static_cast<void>(aSource);
