@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1116"
 title: "An in-process renewal that gives up, or a restored session whose refresh slot is missing, still erases the remembered grant"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
