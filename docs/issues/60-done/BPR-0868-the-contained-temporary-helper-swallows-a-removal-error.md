@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0868"
 title: "The contained temporary helper swallows a removal error that tempfile would have raised"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-0876"]
 priority: "P3"
 platforms: ["win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-sweep-fixes review of BPR-0854 item 1","found_at":"e84eaba2","run":"run-20260916-stations","dispatch":"dsp-005"}
+acceptance: [{"criterion":"A removal error is either raised or reported by name, and the card records which and why","outcome":"pass","revision":"e9c9d5c6","evidence":{"kind":"command","detail":"Landed in e9c9d5c6: the helper prints 'contained temporary: could not remove <path>: <error>' to stderr and raises RemovalFailed (an OSError); the card records both and why. contained_temporary_support_contract and contained_temporary_usage_contract pass (bpr-main-mac, re-checked at 7fc4f6ab).","path":"docs/issues/60-done/BPR-0868-the-contained-temporary-helper-swallows-a-removal-error.md#settled-raised-and-reported-dsp-006-macos"}},{"criterion":"No caller depends on silent tolerance, or the ones that do say so at the call site","outcome":"pass","revision":"e9c9d5c6","evidence":{"kind":"command","detail":"All 56 first-party callers audited by AST; five catch an escaping OSError and each reports and exits non-zero; no tolerance knob was needed.","path":"docs/issues/60-done/BPR-0868-the-contained-temporary-helper-swallows-a-removal-error.md#no-caller-depended-on-the-silent-tolerance"}},{"criterion":"The five Windows contained courses from BPR-0854 item 1 run without leaking a directory, and a deliberately held handle is shown to be reported","outcome":"pass","revision":"db0de168","evidence":{"kind":"command","detail":"bpr-main-win at db0de168, build/dev MSVC 19.51 Debug, one serial ctest call over the five courses as registered: relaunch, restart, layout and review restoration pass (uncontained since BPR-0876); owner admission, still contained, fails at its seed (SEED_REGISTRY_REFUSAL:0, BPR-0907) and its AC/Temp/own-<id> root is removed. Before/after listings of bpr-* roots in the user %TEMP% (574 = 574, same names) and in the container's AC/Temp (0 = 0) are identical, and no course printed 'could not remove'. The reported handle was shown on a real leak by bpr-win (RemovalFailed naming AC/Temp/bpr-0644-relaunch-<id>/application, WinError 5).","path":"docs/issues/60-done/BPR-0868-the-contained-temporary-helper-swallows-a-removal-error.md#the-five-courses-run-on-windows-without-leaking-a-directory-bpr-main-win-2026-09-23"}}]
 ---
 
 # BPR-0868: The contained temporary helper swallows a removal error that tempfile would have raised
