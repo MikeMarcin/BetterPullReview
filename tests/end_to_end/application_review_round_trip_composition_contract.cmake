@@ -129,6 +129,19 @@ endfunction()
 # transport or mutation path changes; the mutation-branch pin is unchanged.
 # Covers 3dca2d7a..the BPR-0882 commit; nothing else touched the pinned scope.
 # Review recorded on BPR-0882.
+# BPR-1037 reseal: the appearance theme, review ledger, round trip and defect
+# probes, and the workbench probe, wait through one shared bounded wait in the
+# BPR_BUILD_TESTING fixture-access region (keep_waiting, enter_phase,
+# detail::fixture_probe_wait). Each waiting phase names its own stall, and a
+# failed round trip releases the decision gate it held. The probes read
+# window, host and fixture state and write only to standard output; every
+# product action they take is unchanged. The range also holds 3727a762
+# (BPR-0902), which moved the manifest pin without resealing it: main.cpp
+# reads one more fixture counter inside BPR_BUILD_TESTING and prints
+# DEVICE_FLOW_REFRESH_RETRIEVES after the refresh course's verdict. No
+# credential, provider, vault, transport or mutation path changes in either;
+# the mutation-branch pin is unchanged. Covers 8e080bbc..the BPR-1037 commit.
+# Review recorded on BPR-1037.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -147,7 +160,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"213a8d12b5e2b8dce5afd3049991804ed7e2d9c16868043f5e2b7b965b008d67"
+		"a2652cb333e767df38a883be27c9caeb3281a293b3f2ba38fe59244dbf050653"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -282,7 +295,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "63055ca794d71617e48c1f579c7ee76b8ba64b372680b813601cd193a3a686ca"
+        "aab9148a88b57f9f29fd4fbb4f6c00b93a7903936617394c0a53f770113d497c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

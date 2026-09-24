@@ -777,6 +777,20 @@ namespace bpr::app::detail {
 		std::size_t                                          Waits = 0U;
 	};
 
+	/// \brief [[BPR-0864]], [[BPR-1037]]. The clock and count of one fixture
+	/// probe phase's bounded wait.
+	///
+	/// \details A probe's state owns one. The fixture-access region starts it
+	/// at the phase's first wait, counts each call, and after about five
+	/// seconds and at least sixteen calls fails the phase by name. Only a phase
+	/// change clears it, never a tick, so a wait cannot restart itself and never
+	/// reach its bound ([[BPR-0859]]).
+	struct fixture_probe_wait
+	{
+		std::optional<std::chrono::steady_clock::time_point> Since;
+		std::size_t                                          Calls = 0U;
+	};
+
 	/// \brief Reports existing diff-host work without copying the accepted review.
 	struct diff_work_fixture_evidence
 	{

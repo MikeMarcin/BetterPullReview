@@ -12760,6 +12760,7 @@ namespace bpr::app {
 		struct appearance_theme_probe_state
 		{
 			enum class phase {
+				awaiting_comparison,
 				awaiting_stable_comparison,
 				awaiting_manual_preview,
 				awaiting_preview_adoption,
@@ -12778,7 +12779,9 @@ namespace bpr::app {
 				failed,
 			};
 
-			phase                            Phase = phase::awaiting_stable_comparison;
+			phase Phase = phase::awaiting_comparison;
+			/// \brief [[BPR-1037]]. The current phase's bounded wait.
+			detail::fixture_probe_wait       Wait;
 			std::string                      Path;
 			application::appearance_settings BeforeSettings;
 			core::appearance_palette         BeforePalette{ };
@@ -12836,16 +12839,9 @@ namespace bpr::app {
 			std::size_t                                   WidthDispatches          = 0U;
 			std::size_t                                   Invalidations            = 0U;
 			std::size_t                                   PersistedLayouts         = 0U;
-			/// \brief [[BPR-0864]]. Calls the current phase has spent waiting.
-			std::size_t Waits = 0U;
-			/// \brief [[BPR-0864]]. When the current phase first waited; empty
-			/// until it does.
-			///
-			/// \details Both are cleared only when the phase changes, never on a
-			/// tick, so a wait cannot restart itself and never reach its bound
-			/// ([[BPR-0859]]).
-			std::optional<std::chrono::steady_clock::time_point> WaitingSince;
-			std::uint32_t                                        InitialFilesWidth = 0U;
+			/// \brief [[BPR-0864]], [[BPR-1037]]. The current phase's bounded wait.
+			detail::fixture_probe_wait Wait;
+			std::uint32_t              InitialFilesWidth = 0U;
 			/// \brief [[BPR-0860]]. The files width the handle drag asked for.
 			///
 			/// \details Kept so a stalled store can say what it asked for beside
@@ -12932,7 +12928,9 @@ namespace bpr::app {
 				failed,
 			};
 
-			phase                                   Phase = phase::awaiting_observation;
+			phase Phase = phase::awaiting_observation;
+			/// \brief [[BPR-1037]]. The current phase's bounded wait.
+			detail::fixture_probe_wait              Wait;
 			detail::review_ledger_composition_probe Course
 				= detail::review_ledger_composition_probe::seed;
 			detail::review_ledger_composition_probe_evidence Evidence;
@@ -12957,9 +12955,11 @@ namespace bpr::app {
 
 			detail::review_round_trip_composition_probe_evidence Evidence;
 			phase                                                Phase = phase::awaiting_editor;
-			std::optional<core::semantic_selection>              PublishingSelection;
-			std::optional<core::semantic_selection>              DeferredSelection;
-			std::optional<core::review_comment_draft>            PublishingDraft;
+			/// \brief [[BPR-1037]]. The current phase's bounded wait.
+			detail::fixture_probe_wait                Wait;
+			std::optional<core::semantic_selection>   PublishingSelection;
+			std::optional<core::semantic_selection>   DeferredSelection;
+			std::optional<core::review_comment_draft> PublishingDraft;
 		};
 		std::optional<review_round_trip_composition_probe_state>
 			ReviewRoundTripCompositionProbe;
@@ -12995,7 +12995,9 @@ namespace bpr::app {
 			detail::defect_composition_probe_evidence Evidence;
 			detail::defect_composition_probe          Course
 				= detail::defect_composition_probe::seed;
-			phase                        Phase = phase::awaiting_ready;
+			phase Phase = phase::awaiting_ready;
+			/// \brief [[BPR-1037]]. The current phase's bounded wait.
+			detail::fixture_probe_wait   Wait;
 			core::file_comparison_digest BeforeComparison;
 			int                          ReverseLeftRow              = -1;
 			int                          ReverseRightRow             = -1;
@@ -15326,6 +15328,74 @@ namespace bpr::app {
 			== before.Typography.Code.Font.Family;
 	}
 
+	namespace {
+		/// \brief [[BPR-0860]], [[BPR-0864]], [[BPR-1037]]. How long one phase
+		/// of a fixture probe may wait for an effect it does not control.
+		///
+		/// \details Every probe phase that waits is bounded by this, so a stall
+		/// names the condition it was waiting for rather than expiring the whole
+		/// run budget on a stage number. Five seconds is far longer than any
+		/// course's effects take on a loaded machine -- an observation, a file
+		/// selection, a selected diff through the Git and cache actors, a
+		/// store, a preview, a publication or an epoch change -- and every
+		/// phase is reached well inside its run budget. The bound is time
+		/// rather than ticks for the reason the run budget is: the event loop
+		/// stretches under load exactly when the clock does not. The floor of
+		/// calls keeps one long tick from reading as a stall, as the shared
+		/// modality step's does ([[BPR-0863]]).
+		inline constexpr auto        fixture_probe_wait_cap   = std::chrono::milliseconds{ 5'000 };
+		inline constexpr std::size_t fixture_probe_wait_floor = 16U;
+
+		/// \brief [[BPR-0864]], [[BPR-1037]]. Counts one call of a probe phase
+		/// that is still waiting.
+		///
+		/// \details A refusal on one tick means "not yet" (`src/app/AGENTS.md`),
+		/// so a phase keeps waiting until its bound. Then this prints one line,
+		/// `TERM:waited_ms=... wait_cap_ms=5000 waits=... <facts> <modality facts>`.
+		/// `aFacts` writes the inputs to the condition the phase waits on. The
+		/// line ends with the modality facts every course's failure ends with
+		/// ([[BPR-0863]]), which include the host's outstanding requests.
+		///
+		/// \returns Whether the phase may keep waiting. `false` means it
+		/// stalled, and the caller fails the probe.
+		template <typename TFacts>
+		[[nodiscard]] auto keep_waiting(
+			const github_application&   aApplication,
+			detail::fixture_probe_wait& aWait,
+			const char* const           aTerm,
+			const TFacts&               aFacts) -> bool
+		{
+			const auto now = std::chrono::steady_clock::now();
+			if (!aWait.Since.has_value()) {
+				aWait.Since = now;
+			}
+			++aWait.Calls;
+			const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(now - *aWait.Since);
+			if (waited < fixture_probe_wait_cap || aWait.Calls < fixture_probe_wait_floor) {
+				return true;
+			}
+			auto stream = QTextStream{ stdout };
+			stream << aTerm << ":waited_ms=" << static_cast<qlonglong>(waited.count())
+				   << " wait_cap_ms=" << static_cast<qlonglong>(fixture_probe_wait_cap.count())
+				   << " waits=" << static_cast<qulonglong>(aWait.Calls) << ' ';
+			aFacts(stream);
+			stream << ' ' << detail::github_application_fixture_access::course_modality_facts(aApplication) << '\n';
+			stream.flush();
+			return false;
+		}
+
+		/// \brief [[BPR-0864]], [[BPR-1037]]. Moves a probe to another phase.
+		///
+		/// \details The only thing that restarts a phase's wait, so a wait
+		/// cannot restart itself on a tick ([[BPR-0859]]).
+		template <typename TPhase>
+		void enter_phase(TPhase& aPhase, detail::fixture_probe_wait& aWait, const TPhase aNext) noexcept
+		{
+			aPhase = aNext;
+			aWait  = { };
+		}
+	} // namespace
+
 	auto detail::github_application_fixture_access::
 		exercise_appearance_theme_customization(
 			github_application&    aApplication,
@@ -15344,54 +15414,23 @@ namespace bpr::app {
 		if (panel == nullptr || workbench == nullptr) {
 			return result::failed;
 		}
-		if (workbench->current_result() == nullptr
-			|| !workbench->current_context().has_value()
-			|| !workbench->selection().has_value()
-			|| !workbench->token_spans(core::diff_side::left)
-			|| !workbench->token_spans(core::diff_side::right)
-			|| implementation->AppearanceHost->outstanding_requests() != 0U) {
-			return result::pending;
-		}
 		const auto reportStage = [](const char* const aStage) {
 			QTextStream stream{ stdout };
 			stream << "APPEARANCE_THEME_PROBE_STAGE:" << aStage << '\n';
 			stream.flush();
 		};
 
+		using state_type = github_application::implementation::appearance_theme_probe_state;
 		if (!implementation->AppearanceThemeProbe.has_value()) {
-			implementation->AppearanceThemeProbe
-				= github_application::implementation::appearance_theme_probe_state{
-					  .Path              = std::string{ aThemePath },
-					  .BeforeSettings    = implementation->AppearanceHost->settings(),
-					  .BeforePalette     = implementation->AppearanceProfile->palette(),
-					  .NativeObservation = github_application::implementation::
-						  native_appearance_observation(),
-					  .Result            = workbench->current_result(),
-					  .Context           = workbench->current_context(),
-					  .Selection         = workbench->selection(),
-					  .LeftSpans         = workbench->token_spans(core::diff_side::left),
-					  .RightSpans        = workbench->token_spans(core::diff_side::right),
-					  .Statistics        = workbench->statistics(),
-					  .Position          = workbench->scroll_controller()->position(),
-					  .ProfileGeneration = implementation->AppearanceProfile->generation(),
-					  .ClassificationSubmissions
-					  = implementation->AppearanceHost->classification_submissions(),
-					  .PersistedSettings
-					  = implementation->AppearanceHost->persisted_settings(),
-				  };
-			return result::pending;
+			implementation->AppearanceThemeProbe.emplace();
+			implementation->AppearanceThemeProbe->Path = std::string{ aThemePath };
 		}
 
 		auto& probe = *implementation->AppearanceThemeProbe;
-		if (probe.Path != aThemePath
-			|| probe.Phase
-				== github_application::implementation::appearance_theme_probe_state::
-					phase::failed) {
+		if (probe.Path != aThemePath || probe.Phase == state_type::phase::failed) {
 			return result::failed;
 		}
-		if (probe.Phase
-			== github_application::implementation::appearance_theme_probe_state::
-				phase::passed) {
+		if (probe.Phase == state_type::phase::passed) {
 			return result::passed;
 		}
 
@@ -15435,11 +15474,128 @@ namespace bpr::app {
 				appearance_theme_probe_state::phase::failed;
 			return result::failed;
 		};
+		// [[BPR-1037]]. Every phase that waits is bounded and names what it
+		// was waiting for; see `keep_waiting`.
+		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
+			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
+		};
+		const auto present = [](const bool aPresent) {
+			return aPresent ? "present" : "absent";
+		};
+		const auto truth = [](const bool aValue) {
+			return aValue ? "true" : "false";
+		};
+		const auto phaseName = [](const state_type::phase aPhase) {
+			switch (aPhase) {
+			case state_type::phase::awaiting_comparison:
+				return "awaiting_comparison";
+			case state_type::phase::awaiting_stable_comparison:
+				return "awaiting_stable_comparison";
+			case state_type::phase::awaiting_manual_preview:
+				return "awaiting_manual_preview";
+			case state_type::phase::awaiting_preview_adoption:
+				return "awaiting_preview_adoption";
+			case state_type::phase::awaiting_preview_restoration:
+				return "awaiting_preview_restoration";
+			case state_type::phase::awaiting_first_preview:
+				return "awaiting_first_preview";
+			case state_type::phase::awaiting_second_preview:
+				return "awaiting_second_preview";
+			case state_type::phase::awaiting_store:
+				return "awaiting_store";
+			case state_type::phase::awaiting_stored_preview:
+				return "awaiting_stored_preview";
+			case state_type::phase::awaiting_stored_preview_adoption:
+				return "awaiting_stored_preview_adoption";
+			case state_type::phase::awaiting_stored_preview_restoration:
+				return "awaiting_stored_preview_restoration";
+			case state_type::phase::awaiting_equal_stored_preview:
+				return "awaiting_equal_stored_preview";
+			case state_type::phase::awaiting_equal_stored_commit:
+				return "awaiting_equal_stored_commit";
+			case state_type::phase::awaiting_export:
+				return "awaiting_export";
+			case state_type::phase::awaiting_export_refusal:
+				return "awaiting_export_refusal";
+			case state_type::phase::passed:
+				return "passed";
+			case state_type::phase::failed:
+				return "failed";
+			}
+			return "unknown";
+		};
+		// What an imported theme's preview depends on.
+		const auto previewFacts = [&](QTextStream& aStream) {
+			aStream << "previewing=" << truth(implementation->AppearanceProfile->previewing_palette())
+					<< " panel_preview=" << present(panel->preview_palette().has_value())
+					<< " profile_generation=" << static_cast<qulonglong>(implementation->AppearanceProfile->generation())
+					<< " baseline_generation=" << static_cast<qulonglong>(probe.ProfileGeneration)
+					<< " status=\"" << panel->status_text() << '"';
+		};
+
+		// Every phase reads the comparison and its spans, and none may run while
+		// the appearance host has a request outstanding.
+		if (workbench->current_result() == nullptr
+			|| !workbench->current_context().has_value()
+			|| !workbench->selection().has_value()
+			|| !workbench->token_spans(core::diff_side::left)
+			|| !workbench->token_spans(core::diff_side::right)
+			|| implementation->AppearanceHost->outstanding_requests() != 0U) {
+			return wait("APPEARANCE_THEME_COMPARISON_STALLED", [&](QTextStream& aStream) {
+				aStream << "phase=" << phaseName(probe.Phase)
+						<< " comparison_result=" << present(workbench->current_result() != nullptr)
+						<< " comparison_context=" << present(workbench->current_context().has_value())
+						<< " comparison_selection=" << present(workbench->selection().has_value())
+						<< " left_spans=" << present(static_cast<bool>(workbench->token_spans(core::diff_side::left)))
+						<< " right_spans=" << present(static_cast<bool>(workbench->token_spans(core::diff_side::right)))
+						<< " appearance_outstanding=" << static_cast<qulonglong>(implementation->AppearanceHost->outstanding_requests());
+			});
+		}
+
+		// The baselines every later phase compares against are taken the first
+		// time the comparison is ready.
+		if (probe.Phase == state_type::phase::awaiting_comparison) {
+			probe.BeforeSettings    = implementation->AppearanceHost->settings();
+			probe.BeforePalette     = implementation->AppearanceProfile->palette();
+			probe.NativeObservation = github_application::implementation::
+				native_appearance_observation();
+			probe.Result            = workbench->current_result();
+			probe.Context           = workbench->current_context();
+			probe.Selection         = workbench->selection();
+			probe.LeftSpans         = workbench->token_spans(core::diff_side::left);
+			probe.RightSpans        = workbench->token_spans(core::diff_side::right);
+			probe.Statistics        = workbench->statistics();
+			probe.Position          = workbench->scroll_controller()->position();
+			probe.ProfileGeneration = implementation->AppearanceProfile->generation();
+			probe.ClassificationSubmissions
+				= implementation->AppearanceHost->classification_submissions();
+			probe.PersistedSettings
+				= implementation->AppearanceHost->persisted_settings();
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_stable_comparison);
+			return result::pending;
+		}
 
 		if (probe.Phase
 			== github_application::implementation::appearance_theme_probe_state::
 				phase::awaiting_stable_comparison) {
 			if (!unchanged()) {
+				// Which of the comparison's facts moved since the last call,
+				// in the order APPEARANCE_THEME_PROBE_IDENTITY_FACTS uses.
+				const auto statistics = workbench->statistics();
+				const auto same       = std::array{
+					workbench->current_result() == probe.Result,
+					workbench->current_context() == probe.Context,
+					workbench->selection() == probe.Selection,
+					workbench->scroll_controller()->position() == probe.Position,
+					workbench->token_spans(core::diff_side::left) == probe.LeftSpans,
+					workbench->token_spans(core::diff_side::right) == probe.RightSpans,
+					statistics.GeometryRebuilds == probe.Statistics.GeometryRebuilds,
+					statistics.SemanticIndexAdoptions == probe.Statistics.SemanticIndexAdoptions,
+					statistics.SelectionChanges == probe.Statistics.SelectionChanges,
+					statistics.TokenSpanAdoptions == probe.Statistics.TokenSpanAdoptions,
+					implementation->AppearanceHost->classification_submissions()
+						== probe.ClassificationSubmissions,
+				};
 				probe.Result     = workbench->current_result();
 				probe.Context    = workbench->current_context();
 				probe.Selection  = workbench->selection();
@@ -15449,7 +15605,12 @@ namespace bpr::app {
 				probe.Position   = workbench->scroll_controller()->position();
 				probe.ClassificationSubmissions
 					= implementation->AppearanceHost->classification_submissions();
-				return result::pending;
+				return wait("APPEARANCE_THEME_STABLE_COMPARISON_STALLED", [same](QTextStream& aStream) {
+					aStream << "unchanged=";
+					for (const auto fact : same) {
+						aStream << (fact ? '1' : '0');
+					}
+				});
 			}
 			const auto role       = core::appearance_role::diff_added_background;
 			probe.ManualCandidate = probe.BeforePalette;
@@ -15467,8 +15628,7 @@ namespace bpr::app {
 			if (implementation->AppearanceProfile->generation() != probe.ProfileGeneration) {
 				return fail();
 			}
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_manual_preview;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_manual_preview);
 			reportStage("manual-preview-requested");
 			return result::pending;
 		}
@@ -15515,8 +15675,7 @@ namespace bpr::app {
 				: core::os_color_scheme::dark;
 			implementation->AppearanceHost->observe(alternateObservation);
 			implementation->AppearanceProfile->observe(alternateObservation);
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_preview_adoption;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_preview_adoption);
 			reportStage("unrelated-adoption-requested");
 			return result::pending;
 		}
@@ -15553,8 +15712,7 @@ namespace bpr::app {
 			}
 			implementation->AppearanceHost->observe(probe.NativeObservation);
 			implementation->AppearanceProfile->observe(probe.NativeObservation);
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_preview_restoration;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_preview_restoration);
 			reportStage("native-observation-restored");
 			return result::pending;
 		}
@@ -15631,8 +15789,7 @@ namespace bpr::app {
 			probe.Statistics = workbench->statistics();
 			probe.ProfileGeneration
 				= implementation->AppearanceProfile->generation();
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_first_preview;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_first_preview);
 			panel->request_theme_import(QString::fromStdString(probe.Path));
 			reportStage("import-requested");
 			return result::pending;
@@ -15642,10 +15799,11 @@ namespace bpr::app {
 			== github_application::implementation::appearance_theme_probe_state::
 				phase::awaiting_first_preview) {
 			if (!implementation->AppearanceProfile->previewing_palette()) {
-				return panel->status_text().contains(QStringLiteral("refused"), Qt::CaseInsensitive)
-						|| panel->status_text().contains(QStringLiteral("failed"), Qt::CaseInsensitive)
-					? fail()
-					: result::pending;
+				if (panel->status_text().contains(QStringLiteral("refused"), Qt::CaseInsensitive)
+					|| panel->status_text().contains(QStringLiteral("failed"), Qt::CaseInsensitive)) {
+					return fail();
+				}
+				return wait("APPEARANCE_THEME_FIRST_PREVIEW_STALLED", previewFacts);
 			}
 			if (!panel->preview_palette().has_value()) {
 				return fail();
@@ -15692,8 +15850,7 @@ namespace bpr::app {
 				|| !unchanged()) {
 				return fail();
 			}
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_second_preview;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_second_preview);
 			panel->request_theme_import(QString::fromStdString(probe.Path));
 			reportStage("second-import-requested");
 			return result::pending;
@@ -15703,7 +15860,7 @@ namespace bpr::app {
 			== github_application::implementation::appearance_theme_probe_state::
 				phase::awaiting_second_preview) {
 			if (!implementation->AppearanceProfile->previewing_palette()) {
-				return result::pending;
+				return wait("APPEARANCE_THEME_SECOND_PREVIEW_STALLED", previewFacts);
 			}
 			if (!panel->preview_palette().has_value()
 				|| *panel->preview_palette() != probe.Candidate
@@ -15729,8 +15886,7 @@ namespace bpr::app {
 				|| !unchanged()) {
 				return fail();
 			}
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_store;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_store);
 			return result::pending;
 		}
 
@@ -15739,7 +15895,13 @@ namespace bpr::app {
 				phase::awaiting_store) {
 			if (implementation->AppearanceHost->persisted_settings()
 				== probe.PersistedSettings) {
-				return result::pending;
+				return wait("APPEARANCE_THEME_STORE_STALLED", [&](QTextStream& aStream) {
+					aStream << "persisted_settings=" << static_cast<qulonglong>(implementation->AppearanceHost->persisted_settings())
+							<< " expected_persisted_settings=" << static_cast<qulonglong>(probe.PersistedSettings) + 1U
+							<< " stored=" << truth(application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Stored)
+							<< " previewing=" << truth(implementation->AppearanceProfile->previewing_palette())
+							<< " panel_preview=" << present(panel->preview_palette().has_value());
+				});
 			}
 			if (implementation->AppearanceHost->persisted_settings()
 					!= probe.PersistedSettings + 1U
@@ -15754,8 +15916,7 @@ namespace bpr::app {
 			auto&      color      = probe.StoredCandidate[core::index_of(role)];
 			color.Blue            = color.Blue == 0U ? 1U : 0U;
 			pick_colour(*panel, role, { }, qt::to_presentation_color(color));
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_stored_preview;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_stored_preview);
 			reportStage("stored-palette-preview-requested");
 			return result::pending;
 		}
@@ -15782,8 +15943,7 @@ namespace bpr::app {
 				: core::os_color_scheme::dark;
 			implementation->AppearanceHost->observe(alternateObservation);
 			implementation->AppearanceProfile->observe(alternateObservation);
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_stored_preview_adoption;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_stored_preview_adoption);
 			reportStage("stored-palette-adoption-requested");
 			return result::pending;
 		}
@@ -15820,8 +15980,7 @@ namespace bpr::app {
 			}
 			implementation->AppearanceHost->observe(probe.NativeObservation);
 			implementation->AppearanceProfile->observe(probe.NativeObservation);
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_stored_preview_restoration;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_stored_preview_restoration);
 			reportStage("stored-palette-observation-restored");
 			return result::pending;
 		}
@@ -15859,8 +16018,7 @@ namespace bpr::app {
 				return fail();
 			}
 			reportStage("stored-palette-preview-cancelled");
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_equal_stored_preview;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_equal_stored_preview);
 			panel->request_theme_import(QString::fromStdString(probe.Path));
 			reportStage("equal-stored-import-requested");
 			return result::pending;
@@ -15882,8 +16040,7 @@ namespace bpr::app {
 				return fail();
 			}
 			panel->keep_changes_button()->click();
-			probe.Phase = github_application::implementation::
-				appearance_theme_probe_state::phase::awaiting_equal_stored_commit;
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_equal_stored_commit);
 			reportStage("equal-stored-commit-dispatched");
 			return result::pending;
 		}
@@ -15914,7 +16071,7 @@ namespace bpr::app {
 		}
 		using phase = github_application::implementation::appearance_theme_probe_state::phase;
 		if (probe.Phase == phase::awaiting_equal_stored_commit) {
-			probe.Phase = phase::awaiting_export;
+			enter_phase(probe.Phase, probe.Wait, phase::awaiting_export);
 			panel->request_theme_export(QString::fromStdString(probe.Path + ".exported.bprtheme"));
 			return result::pending;
 		}
@@ -15922,7 +16079,7 @@ namespace bpr::app {
 			if (!panel->status_text().startsWith(QStringLiteral("Saved theme exported."))) {
 				return fail();
 			}
-			probe.Phase = phase::awaiting_export_refusal;
+			enter_phase(probe.Phase, probe.Wait, phase::awaiting_export_refusal);
 			// The existing source's parent directory is a nonregular destination.
 			panel->request_theme_export(QFileInfo{ QString::fromStdString(probe.Path) }.absolutePath());
 			return result::pending;
@@ -15934,25 +16091,6 @@ namespace bpr::app {
 		probe.Phase = phase::passed;
 		reportStage("equal-stored-commit-acknowledged");
 		return result::passed;
-	}
-
-	namespace {
-		/// \brief [[BPR-0860]], [[BPR-0864]]. How long one phase of the workbench
-		/// composition course may wait for an effect it does not control.
-		///
-		/// \details Every phase that waits is bounded by this, so a stall names
-		/// the condition it was waiting for rather than expiring the whole run
-		/// budget on a stage number. Five seconds is far longer than any of the
-		/// course's effects take on a loaded machine -- an observation, a file
-		/// selection, a selected diff through the Git and cache actors, a change
-		/// dispatch, a drawer width store, an invalidation or a failed read --
-		/// and a phase is reached well inside the forty-second budget. The bound
-		/// is time rather than ticks for the reason the run budget is: the event
-		/// loop stretches under load exactly when the clock does not. The floor
-		/// of calls keeps one long tick from reading as a stall, as the shared
-		/// modality step's does ([[BPR-0863]]).
-		inline constexpr auto        workbench_composition_wait       = std::chrono::milliseconds{ 5'000 };
-		inline constexpr std::size_t workbench_composition_wait_floor = 16U;
 	}
 
 	auto detail::github_application_fixture_access::exercise_workbench_composition(
@@ -15984,45 +16122,14 @@ namespace bpr::app {
 			probe.Phase = state_type::phase::failed;
 			return result::failed;
 		};
-		// [[BPR-0860]], [[BPR-0864]]. A bounded wait that gives up names the
-		// condition it was waiting for and prints what that condition depends
-		// on, so the stall is read from the run's own output. Before this, a
-		// phase whose effect never arrived simply ran until the forty-second
-		// run budget expired, which named a stage number and nothing else.
-		// `aFacts` writes the phase's own facts; the line then ends with the
-		// modality facts every course's failure ends with ([[BPR-0863]]): the
-		// modality, what it withholds, both sides of each drawer, the drawer
-		// controls, outstanding host requests and the splitter sizes.
-		const auto stall = [&](const char* const aTerm, const std::chrono::milliseconds aWaited, const auto& aFacts) {
-			auto stream = QTextStream{ stdout };
-			stream << aTerm << ":waited_ms=" << static_cast<qlonglong>(aWaited.count())
-				   << " wait_cap_ms=" << static_cast<qlonglong>(workbench_composition_wait.count())
-				   << " waits=" << static_cast<qulonglong>(probe.Waits) << ' ';
-			aFacts(stream);
-			stream << ' ' << course_modality_facts(aApplication) << '\n';
-			stream.flush();
-			return fail();
-		};
-		// Every phase waits through this. A refusal on one tick means "not yet"
-		// (`src/app/AGENTS.md`), so the phase keeps waiting until its bound and
-		// only then stalls by name.
+		// [[BPR-0860]], [[BPR-0864]]. Every phase that waits does so through
+		// the shared bounded wait, which names the condition and prints what it
+		// depends on when it gives up ([[BPR-1037]]).
 		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
-			const auto now = std::chrono::steady_clock::now();
-			if (!probe.WaitingSince.has_value()) {
-				probe.WaitingSince = now;
-			}
-			++probe.Waits;
-			const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(now - *probe.WaitingSince);
-			if (waited < workbench_composition_wait || probe.Waits < workbench_composition_wait_floor) {
-				return result::pending;
-			}
-			return stall(aTerm, waited, aFacts);
+			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
 		};
-		// Moving to a phase is the only thing that restarts its wait.
 		const auto advance = [&probe](const state_type::phase aPhase) {
-			probe.Phase = aPhase;
-			probe.Waits = 0U;
-			probe.WaitingSince.reset();
+			enter_phase(probe.Phase, probe.Wait, aPhase);
 			return result::pending;
 		};
 		const auto present = [](const bool aPresent) {
@@ -19403,13 +19510,47 @@ namespace bpr::app {
 			probe.Phase = state_type::phase::failed;
 			return result::failed;
 		};
+		// [[BPR-1037]]. Every phase that waits is bounded and names what it
+		// was waiting for; see `keep_waiting`.
+		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
+			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
+		};
+		const auto advance = [&probe](const state_type::phase aPhase) {
+			enter_phase(probe.Phase, probe.Wait, aPhase);
+			return result::pending;
+		};
+		const auto present = [](const bool aPresent) {
+			return aPresent ? "present" : "absent";
+		};
+		const auto truth = [](const bool aValue) {
+			return aValue ? "true" : "false";
+		};
+		// What the ledger's own counters say, for the phases that wait on it.
+		const auto ledgerFacts = [&](QTextStream& aStream) {
+			const auto statistics = ledger->statistics();
+			aStream << "ledger_commands=" << static_cast<qulonglong>(statistics.Commands)
+					<< " ledger_persistence_requests=" << static_cast<qulonglong>(statistics.PersistenceRequests)
+					<< " ledger_completions=" << static_cast<qulonglong>(statistics.Completions)
+					<< " ledger_store_failures=" << static_cast<qulonglong>(statistics.StoreFailures)
+					<< " ledger_material_observations=" << static_cast<qulonglong>(statistics.MaterialObservations);
+		};
 
 		if (probe.Phase == state_type::phase::awaiting_observation) {
 			const auto& handoff  = *implementation->LastAcceptedHandoff;
 			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
 			if (!snapshot.has_value() || host->outstanding_requests() != 0U
 				|| host->actionable().empty()) {
-				return result::pending;
+				// The accepted pull request's files reach the workbench host as
+				// an observation, and the ledger's gestures need one of them.
+				return wait("REVIEW_LEDGER_OBSERVATION_STALLED", [&](QTextStream& aStream) {
+					aStream << "snapshot=" << present(snapshot.has_value())
+							<< " snapshot_files=" << static_cast<qulonglong>(snapshot.has_value() ? snapshot->Files.size() : 0U)
+							<< " window_read_quiescent=" << truth(implementation->WindowRead->is_quiescent())
+							<< " actionable=" << static_cast<qulonglong>(host->actionable().size())
+							<< " navigation=" << present(host->state().Navigation.has_value())
+							<< ' ';
+					ledgerFacts(aStream);
+				});
 			}
 			probe.Evidence.ExactAuthority
 				= implementation->ReviewLedgerAuthority
@@ -19428,15 +19569,28 @@ namespace bpr::app {
 				return fail();
 			}
 			view->setCurrentIndex(view->model()->index(0, 0));
-			probe.Phase = state_type::phase::awaiting_diff;
-			return result::pending;
+			return advance(state_type::phase::awaiting_diff);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_diff) {
 			const auto* const comparison = window->comparison_surface();
 			if (comparison == nullptr || comparison->current_result() == nullptr
 				|| !implementation->LastSelectedDiff.has_value()) {
-				return result::pending;
+				// The file gesture's diff is computed through the Git and cache
+				// actors and published to the comparison.
+				return wait("REVIEW_LEDGER_SELECTED_DIFF_STALLED", [&](QTextStream& aStream) {
+					const auto work = diff_work_evidence(aApplication);
+					aStream << "file_selections=" << static_cast<qulonglong>(window->statistics().FileSelections)
+							<< " selected_diff_begins=" << static_cast<qulonglong>(implementation->SelectedDiffBegins)
+							<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
+							<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures)
+							<< " last_selected_diff=" << present(implementation->LastSelectedDiff.has_value())
+							<< " comparison_result=" << present(comparison != nullptr && comparison->current_result() != nullptr)
+							<< " host_selected=" << present(host->selected().has_value())
+							<< " diff_jobs=" << static_cast<qulonglong>(work.OutstandingJobs)
+							<< " diff_pending=" << truth(work.Pending)
+							<< " epoch_jobs=" << static_cast<qulonglong>(work.EpochOutstandingJobs);
+				});
 			}
 			const auto& selected   = *implementation->LastSelectedDiff;
 			const auto  material   = core::comparison_digest(selected.Key);
@@ -19625,13 +19779,19 @@ namespace bpr::app {
 				|| !probe.Evidence.PrivateRecords) {
 				return fail();
 			}
-			probe.Phase = state_type::phase::awaiting_actionability;
-			return result::pending;
+			return advance(state_type::phase::awaiting_actionability);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_actionability) {
 			if (host->outstanding_requests() != 0U) {
-				return result::pending;
+				// The gestures' persistence and the actionability it projects
+				// reach the host as requests; the tail prints how many remain.
+				return wait("REVIEW_LEDGER_ACTIONABILITY_STALLED", [&](QTextStream& aStream) {
+					aStream << "actionable=" << static_cast<qulonglong>(host->actionable().size())
+							<< " host_selected=" << present(host->selected().has_value())
+							<< ' ';
+					ledgerFacts(aStream);
+				});
 			}
 			const auto&       actionable        = host->actionable();
 			const auto* const comparison        = window->comparison_surface();
@@ -19654,8 +19814,7 @@ namespace bpr::app {
 					})) {
 					return fail();
 				}
-				probe.Phase = state_type::phase::awaiting_material_actionability;
-				return result::pending;
+				return advance(state_type::phase::awaiting_material_actionability);
 			}
 			probe.Evidence.ActionabilityProjection = actionable.size() == 1U
 				&& actionable.front() == probe.File && selectionRetained;
@@ -19668,7 +19827,16 @@ namespace bpr::app {
 
 		if (probe.Phase == state_type::phase::awaiting_material_actionability) {
 			if (host->outstanding_requests() != 0U) {
-				return result::pending;
+				// The new material's observation makes the file actionable
+				// again through the host.
+				return wait("REVIEW_LEDGER_MATERIAL_ACTIONABILITY_STALLED", [&](QTextStream& aStream) {
+					const auto& receipt = ledger->retained();
+					aStream << "actionable=" << static_cast<qulonglong>(host->actionable().size())
+							<< " host_selected=" << present(host->selected().has_value())
+							<< " receipt_material_reopened=" << truth(receipt.Material == probe.ReopenedMaterial)
+							<< ' ';
+					ledgerFacts(aStream);
+				});
 			}
 			const auto& actionable = host->actionable();
 			const auto& receipt    = ledger->retained();
@@ -19726,6 +19894,75 @@ namespace bpr::app {
 		if (probe.Phase == state_type::phase::passed) {
 			return result::passed;
 		}
+		// [[BPR-1037]]. A failure gives back the decision gate the course may
+		// be holding. A held gate keeps the lost publication outstanding, so
+		// the run's shutdown would wait for it until the harness killed the
+		// process, and the verdict would never print.
+		const auto fail = [&probe, implementation] {
+			probe.Phase = state_type::phase::failed;
+			if (implementation->ReviewMutationDecisionGate != nullptr) {
+				implementation->ReviewMutationDecisionGate->release();
+			}
+			return result::failed;
+		};
+		// [[BPR-1037]]. Every phase that waits is bounded and names what it
+		// was waiting for; see `keep_waiting`.
+		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
+			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
+		};
+		const auto advance = [&probe](const state_type::phase aPhase) {
+			enter_phase(probe.Phase, probe.Wait, aPhase);
+			return result::pending;
+		};
+		const auto present = [](const bool aPresent) {
+			return aPresent ? "present" : "absent";
+		};
+		const auto draftState = [implementation] {
+			if (!implementation->ReviewDraft.has_value()) {
+				return QStringLiteral("absent");
+			}
+			const auto state = core::name(implementation->ReviewDraft->State);
+			return QString::fromUtf8(state.data(), static_cast<qsizetype>(state.size()));
+		};
+		const auto phaseName = [](const state_type::phase aPhase) {
+			switch (aPhase) {
+			case state_type::phase::awaiting_editor:
+				return "awaiting_editor";
+			case state_type::phase::awaiting_stale_refusal:
+				return "awaiting_stale_refusal";
+			case state_type::phase::awaiting_lost_effect:
+				return "awaiting_lost_effect";
+			case state_type::phase::awaiting_deferred_terminal:
+				return "awaiting_deferred_terminal";
+			case state_type::phase::awaiting_retry:
+				return "awaiting_retry";
+			case state_type::phase::passed:
+				return "passed";
+			case state_type::phase::failed:
+				return "failed";
+			}
+			return "unknown";
+		};
+		// The file gesture composes the editor's draft once the selected
+		// diff is published; every phase needs both.
+		const auto draftFacts = [&](QTextStream& aStream) {
+			const auto* const view = implementation->Window == nullptr || implementation->Window->files_drawer() == nullptr
+				? nullptr
+				: implementation->Window->files_drawer()->contents_view();
+			aStream << "phase=" << phaseName(probe.Phase)
+					<< " fixture=" << present(implementation->Fixture != nullptr)
+					<< " window=" << present(implementation->Window != nullptr)
+					<< " workbench_host=" << present(implementation->WorkbenchHost != nullptr)
+					<< " mutation_host=" << present(implementation->ReviewMutationHost != nullptr)
+					<< " review_draft=" << draftState()
+					<< " accepted_handoff=" << present(implementation->LastAcceptedHandoff.has_value())
+					<< " last_selected_diff=" << present(implementation->LastSelectedDiff.has_value())
+					<< " review_editor=" << present(implementation->Window != nullptr && implementation->Window->review_editor() != nullptr)
+					<< " file_rows=" << (view == nullptr || view->model() == nullptr ? 0 : view->model()->rowCount())
+					<< " current_row=" << (view == nullptr ? -1 : view->currentIndex().row())
+					<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
+					<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures);
+		};
 		if (implementation->Fixture != nullptr && implementation->Window != nullptr
 			&& implementation->WorkbenchHost != nullptr
 			&& implementation->ReviewMutationHost != nullptr
@@ -19737,7 +19974,7 @@ namespace bpr::app {
 				&& !view->currentIndex().isValid()) {
 				view->setCurrentIndex(view->model()->index(0, 0));
 			}
-			return result::pending;
+			return wait("REVIEW_ROUND_TRIP_DRAFT_STALLED", draftFacts);
 		}
 		if (implementation->Fixture == nullptr || implementation->Window == nullptr
 			|| implementation->ReviewMutationHost == nullptr
@@ -19745,12 +19982,8 @@ namespace bpr::app {
 			|| !implementation->LastAcceptedHandoff.has_value()
 			|| !implementation->LastSelectedDiff.has_value()
 			|| implementation->Window->review_editor() == nullptr) {
-			return result::pending;
+			return wait("REVIEW_ROUND_TRIP_DRAFT_STALLED", draftFacts);
 		}
-		const auto fail = [&probe] {
-			probe.Phase = state_type::phase::failed;
-			return result::failed;
-		};
 		auto* const editor     = implementation->Window->review_editor();
 		const auto  designated = github_application::implementation::review_mutation_target(
 			*implementation->LastAcceptedHandoff);
@@ -19789,10 +20022,26 @@ namespace bpr::app {
 			return true;
 		};
 
+		// The draft is anchored where the comparison's selection is, and the
+		// course needs it on the right side.
+		const auto selectionFacts = [&](QTextStream& aStream) {
+			const auto* const comparison = implementation->Window->comparison_surface();
+			const auto        selection  = comparison == nullptr ? std::optional<core::semantic_selection>{ } : comparison->selection();
+			aStream << "comparison=" << present(comparison != nullptr)
+					<< " selection=" << present(selection.has_value())
+					<< " selection_side="
+					<< (!selection.has_value()                                        ? "none"
+							: selection->PreferredLine.Side == core::diff_side::right ? "right"
+																					  : "left")
+					<< " right_pane=" << present(comparison != nullptr && comparison->right_pane() != nullptr)
+					<< " shown_draft=" << present(editor->shown_draft().has_value())
+					<< " review_draft=" << draftState();
+		};
+
 		if (probe.Phase == state_type::phase::awaiting_editor) {
 			auto* const comparison = implementation->Window->comparison_surface();
 			if (comparison == nullptr || !comparison->selection().has_value()) {
-				return result::pending;
+				return wait("REVIEW_ROUND_TRIP_EDITOR_SELECTION_STALLED", selectionFacts);
 			}
 			if (comparison->selection()->PreferredLine.Side
 				!= core::diff_side::right) {
@@ -19819,7 +20068,7 @@ namespace bpr::app {
 				};
 				QCoreApplication::sendEvent(pane->viewport(), &press);
 				QCoreApplication::sendEvent(pane->viewport(), &release);
-				return result::pending;
+				return wait("REVIEW_ROUND_TRIP_EDITOR_SELECTION_STALLED", selectionFacts);
 			}
 			probe.Evidence.ExactDesignatedTarget
 				= implementation->ReviewMutationHost->designated() == designated;
@@ -19885,8 +20134,7 @@ namespace bpr::app {
 			moved.ExpectedHead = *secondHead;
 			implementation->Fixture->report_review_mutation_target(moved);
 			editor->publish_action()->trigger();
-			probe.Phase = state_type::phase::awaiting_stale_refusal;
-			return result::pending;
+			return advance(state_type::phase::awaiting_stale_refusal);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_stale_refusal) {
@@ -19910,8 +20158,7 @@ namespace bpr::app {
 			implementation->Fixture->report_review_mutation_target(designated);
 			implementation->ReviewMutationDecisionGate->hold();
 			editor->publish_action()->trigger();
-			probe.Phase = state_type::phase::awaiting_lost_effect;
-			return result::pending;
+			return advance(state_type::phase::awaiting_lost_effect);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_lost_effect) {
@@ -19919,7 +20166,20 @@ namespace bpr::app {
 			if (!lost.LostResult || lost.StoredComments != 1U
 				|| implementation->ReviewMutationDecisionGate == nullptr
 				|| implementation->ReviewMutationDecisionGate->pending() == 0U) {
-				return result::pending;
+				// The provider stores the comment and loses its answer, and the
+				// held decision gate keeps the terminal back.
+				return wait("REVIEW_ROUND_TRIP_LOST_EFFECT_STALLED", [&](QTextStream& aStream) {
+					const auto* const gate = implementation->ReviewMutationDecisionGate.get();
+					aStream << "lost_result=" << (lost.LostResult ? "true" : "false")
+							<< " stored_comments=" << static_cast<qulonglong>(lost.StoredComments)
+							<< " expected_stored_comments=1"
+							<< " submissions=" << static_cast<qulonglong>(lost.Submissions)
+							<< " decision_gate=" << present(gate != nullptr)
+							<< " gate_pending=" << static_cast<qulonglong>(gate == nullptr ? 0U : gate->pending())
+							<< " review_draft=" << draftState()
+							<< " pending_mutation=" << present(implementation->PendingReviewMutation.has_value())
+							<< " mutation_outstanding=" << static_cast<qulonglong>(implementation->ReviewMutationHost->outstanding_requests());
+				});
 			}
 			if (!probe.PublishingSelection.has_value()
 				|| !implementation->PendingReviewMutation.has_value()
@@ -19983,14 +20243,28 @@ namespace bpr::app {
 				return fail();
 			}
 			implementation->ReviewMutationDecisionGate->release();
-			probe.Phase = state_type::phase::awaiting_deferred_terminal;
-			return result::pending;
+			return advance(state_type::phase::awaiting_deferred_terminal);
 		}
 
 		if (implementation->ReviewMutationHost->outstanding_requests() != 0U
 			|| implementation->ReviewDraft->State
 				== core::review_draft_state::publishing) {
-			return result::pending;
+			// The released or retried publication reaches its terminal.
+			return wait(probe.Phase == state_type::phase::awaiting_retry
+							? "REVIEW_ROUND_TRIP_RETRY_STALLED"
+							: "REVIEW_ROUND_TRIP_DEFERRED_TERMINAL_STALLED",
+						[&](QTextStream& aStream) {
+							const auto provider   = implementation->Fixture->review_mutation_evidence();
+							const auto statistics = implementation->ReviewMutationHost->statistics();
+							aStream << "phase=" << phaseName(probe.Phase)
+									<< " mutation_outstanding=" << static_cast<qulonglong>(implementation->ReviewMutationHost->outstanding_requests())
+									<< " review_draft=" << draftState()
+									<< " pending_mutation=" << present(implementation->PendingReviewMutation.has_value())
+									<< " effects_queued=" << static_cast<qulonglong>(statistics.EffectsQueued)
+									<< " terminals_published=" << static_cast<qulonglong>(statistics.TerminalsPublished)
+									<< " submissions=" << static_cast<qulonglong>(provider.Submissions)
+									<< " stored_comments=" << static_cast<qulonglong>(provider.StoredComments);
+						});
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_deferred_terminal) {
@@ -20068,8 +20342,7 @@ namespace bpr::app {
 				return fail();
 			}
 			editor->publish_action()->trigger();
-			probe.Phase = state_type::phase::awaiting_retry;
-			return result::pending;
+			return advance(state_type::phase::awaiting_retry);
 		}
 
 		const auto provider            = implementation->Fixture->review_mutation_evidence();
@@ -20471,17 +20744,61 @@ namespace bpr::app {
 			== github_application::implementation::defect_composition_probe_state::phase::passed) {
 			return result::passed;
 		}
+		using state_type = github_application::implementation::defect_composition_probe_state;
+		const auto fail  = [&probe] {
+			probe.Phase = github_application::implementation::defect_composition_probe_state::phase::failed;
+			return result::failed;
+		};
+		// [[BPR-1037]]. Every phase that waits is bounded and names what it
+		// was waiting for; see `keep_waiting`.
+		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
+			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
+		};
+		const auto advance = [&probe](const state_type::phase aPhase) {
+			enter_phase(probe.Phase, probe.Wait, aPhase);
+			return result::pending;
+		};
+		const auto present = [](const bool aPresent) {
+			return aPresent ? "present" : "absent";
+		};
+		const auto truth = [](const bool aValue) {
+			return aValue ? "true" : "false";
+		};
+		const auto phaseName = [](const state_type::phase aPhase) {
+			switch (aPhase) {
+			case state_type::phase::awaiting_ready:
+				return "awaiting_ready";
+			case state_type::phase::awaiting_diff:
+				return "awaiting_diff";
+			case state_type::phase::awaiting_reverse_right:
+				return "awaiting_reverse_right";
+			case state_type::phase::awaiting_epoch_change:
+				return "awaiting_epoch_change";
+			case state_type::phase::awaiting_shared_ready:
+				return "awaiting_shared_ready";
+			case state_type::phase::passed:
+				return "passed";
+			case state_type::phase::failed:
+				return "failed";
+			}
+			return "unknown";
+		};
 		if (implementation->Fixture == nullptr || implementation->Window == nullptr
 			|| implementation->Host == nullptr
 			|| implementation->ReviewLedgerHost == nullptr
 			|| implementation->ReviewMutationHost == nullptr
 			|| implementation->Window->defect_card() == nullptr) {
-			return result::pending;
+			// The course drives the composed window, ledger and mutation host.
+			return wait("DEFECT_COMPOSITION_STALLED", [&](QTextStream& aStream) {
+				aStream << "phase=" << phaseName(probe.Phase)
+						<< " fixture=" << present(implementation->Fixture != nullptr)
+						<< " window=" << present(implementation->Window != nullptr)
+						<< " host=" << present(implementation->Host != nullptr)
+						<< " ledger_host=" << present(implementation->ReviewLedgerHost != nullptr)
+						<< " mutation_host=" << present(implementation->ReviewMutationHost != nullptr)
+						<< " defect_card=" << present(implementation->Window != nullptr && implementation->Window->defect_card() != nullptr);
+			});
 		}
-		const auto fail = [&probe] {
-			probe.Phase = github_application::implementation::defect_composition_probe_state::phase::failed;
-			return result::failed;
-		};
 		auto* const window               = implementation->Window.get();
 		const auto  firstIdentity        = std::string{ "review-thread:PRRT_fixture_1" };
 		const auto  secondIdentity       = std::string{ "review-thread:PRRT_fixture_3" };
@@ -20520,7 +20837,16 @@ namespace bpr::app {
 			const auto* const first  = findDefect(firstDefectIdentity);
 			const auto* const second = findDefect(secondDefectIdentity);
 			if (first == nullptr || second == nullptr) {
-				return result::pending;
+				// The seed course's two defects come back from the ledger.
+				return wait("DEFECT_REOPEN_STALLED", [&](QTextStream& aStream) {
+					const auto statistics = implementation->ReviewLedgerHost->statistics();
+					aStream << "durable_defects=" << static_cast<qulonglong>(implementation->DurableDefects.size())
+							<< " first=" << present(first != nullptr)
+							<< " second=" << present(second != nullptr)
+							<< " ledger_private_loads=" << static_cast<qulonglong>(statistics.PrivateLoads)
+							<< " ledger_private_writes=" << static_cast<qulonglong>(statistics.PrivateWrites)
+							<< " shown_defects=" << static_cast<qulonglong>(window->defect_count());
+				});
 			}
 			probe.Evidence.ExactThreads = anchorMatchesThread(first, firstIdentity)
 				&& anchorMatchesThread(second, secondIdentity);
@@ -20566,7 +20892,13 @@ namespace bpr::app {
 			== github_application::implementation::defect_composition_probe_state::phase::awaiting_shared_ready) {
 			auto* const editor = window->review_editor();
 			if (editor == nullptr || !editor->shown_draft().has_value()) {
-				return result::pending;
+				// The shared follow-up needs a draft shown in the editor.
+				return wait("DEFECT_SHARED_READY_STALLED", [&](QTextStream& aStream) {
+					aStream << "review_editor=" << present(editor != nullptr)
+							<< " shown_draft=" << present(editor != nullptr && editor->shown_draft().has_value())
+							<< " review_draft=" << present(implementation->ReviewDraft.has_value())
+							<< " submissions=" << static_cast<qulonglong>(implementation->Fixture->review_mutation_evidence().Submissions);
+				});
 			}
 			probe.Evidence.SharedActionSeparate
 				= implementation->Fixture->review_mutation_evidence().Submissions == 0U;
@@ -20588,7 +20920,14 @@ namespace bpr::app {
 		if (!model->index_for_id(firstIdentity).isValid()
 			|| !model->index_for_id(secondIdentity).isValid()
 			|| !model->index_for_id(fileIdentity).isValid()) {
-			return result::pending;
+			// The three fixture conversations reach the conversation model.
+			return wait("DEFECT_CONVERSATIONS_STALLED", [&](QTextStream& aStream) {
+				aStream << "phase=" << phaseName(probe.Phase)
+						<< " first_conversation=" << present(model->index_for_id(firstIdentity).isValid())
+						<< " second_conversation=" << present(model->index_for_id(secondIdentity).isValid())
+						<< " file_conversation=" << present(model->index_for_id(fileIdentity).isValid())
+						<< " conversation_rows=" << model->rowCount();
+			});
 		}
 		const auto selectConversation = [window, model, view](
 											const std::string_view aIdentity) {
@@ -20612,19 +20951,36 @@ namespace bpr::app {
 				|| implementation->WorkbenchHost->actionable().empty()
 				|| files == nullptr || files->model() == nullptr
 				|| files->model()->rowCount() == 0) {
-				return result::pending;
+				// The workbench host observes the pull request's files and
+				// the drawer lists them.
+				return wait("DEFECT_READY_STALLED", [&](QTextStream& aStream) {
+					aStream << "workbench_host=" << present(implementation->WorkbenchHost != nullptr)
+							<< " actionable=" << static_cast<qulonglong>(implementation->WorkbenchHost == nullptr ? 0U : implementation->WorkbenchHost->actionable().size())
+							<< " files_view=" << present(files != nullptr)
+							<< " file_rows=" << (files == nullptr || files->model() == nullptr ? 0 : files->model()->rowCount());
+				});
 			}
 			files->setCurrentIndex(files->model()->index(0, 0));
-			probe.Phase = github_application::implementation::
-				defect_composition_probe_state::phase::awaiting_diff;
-			return result::pending;
+			return advance(state_type::phase::awaiting_diff);
 		}
 
 		if (probe.Phase
 			== github_application::implementation::defect_composition_probe_state::phase::awaiting_diff) {
 			if (!implementation->SelectedDiffPublication.has_value()
 				|| window->comparison_surface()->current_result() == nullptr) {
-				return result::pending;
+				// The file gesture's diff is computed through the Git and cache
+				// actors and published to the comparison.
+				return wait("DEFECT_SELECTED_DIFF_STALLED", [&](QTextStream& aStream) {
+					const auto work = diff_work_evidence(aApplication);
+					aStream << "selected_diff_publication=" << present(implementation->SelectedDiffPublication.has_value())
+							<< " comparison_result=" << present(window->comparison_surface()->current_result() != nullptr)
+							<< " selected_diff_begins=" << static_cast<qulonglong>(implementation->SelectedDiffBegins)
+							<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
+							<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures)
+							<< " diff_jobs=" << static_cast<qulonglong>(work.OutstandingJobs)
+							<< " diff_pending=" << truth(work.Pending)
+							<< " epoch_jobs=" << static_cast<qulonglong>(work.EpochOutstandingJobs);
+				});
 			}
 			if (!selectConversation(firstIdentity)
 				|| !window->classify_defect_action()->isEnabled()) {
@@ -20675,10 +21031,21 @@ namespace bpr::app {
 			probe.ReverseRightRow             = leftRow;
 			probe.RefuseCorrelatedPersistence = true;
 			control->left_selector()->setCurrentIndex(rightRow);
-			probe.Phase = github_application::implementation::
-				defect_composition_probe_state::phase::awaiting_reverse_right;
-			return result::pending;
+			return advance(state_type::phase::awaiting_reverse_right);
 		}
+
+		// What reversing the comparison depends on: the epoch core's status
+		// and both selectors against the rows the course asked for.
+		const auto epochFacts = [&](QTextStream& aStream) {
+			auto* const control = window->epoch_selectors();
+			aStream << "epoch_host=" << present(implementation->EpochHost != nullptr)
+					<< " epoch_status=" << (implementation->EpochHost == nullptr ? -1 : static_cast<int>(implementation->EpochHost->state().Status))
+					<< " resolving=" << truth(implementation->EpochHost != nullptr && implementation->EpochHost->state().Status == core::epoch_status::resolving)
+					<< " left_row=" << control->left_selector()->currentIndex()
+					<< " expected_left_row=" << probe.ReverseLeftRow
+					<< " right_row=" << control->right_selector()->currentIndex()
+					<< " expected_right_row=" << probe.ReverseRightRow;
+		};
 
 		if (probe.Phase
 			== github_application::implementation::defect_composition_probe_state::phase::awaiting_reverse_right) {
@@ -20693,22 +21060,37 @@ namespace bpr::app {
 			if (implementation->EpochHost == nullptr
 				|| implementation->EpochHost->state().Status
 					== core::epoch_status::resolving) {
-				return result::pending;
+				return wait("DEFECT_REVERSE_RIGHT_STALLED", epochFacts);
 			}
 			if (control->left_selector()->currentIndex() != probe.ReverseLeftRow) {
 				control->left_selector()->setCurrentIndex(probe.ReverseLeftRow);
-				return result::pending;
+				return wait("DEFECT_REVERSE_RIGHT_STALLED", epochFacts);
 			}
 			control->right_selector()->setCurrentIndex(probe.ReverseRightRow);
-			probe.Phase = github_application::implementation::
-				defect_composition_probe_state::phase::awaiting_epoch_change;
-			return result::pending;
+			return advance(state_type::phase::awaiting_epoch_change);
 		}
 
+		// The reversed comparison is published and reaches the surface.
+		const auto epochChangeFacts = [&](QTextStream& aStream) {
+			const auto& shown = window->comparison_surface()->current_result();
+			aStream << "selected_diff_publication=" << present(implementation->SelectedDiffPublication.has_value())
+					<< " comparison_changed="
+					<< truth(implementation->SelectedDiffPublication.has_value()
+							 && core::comparison_digest(implementation->SelectedDiffPublication->Key) != probe.BeforeComparison)
+					<< " comparison_result=" << present(shown != nullptr)
+					<< " result_matches_publication="
+					<< truth(shown != nullptr && implementation->SelectedDiffPublication.has_value()
+							 && shown->Alignment.Digest == core::comparison_digest(implementation->SelectedDiffPublication->Key))
+					<< " selected_diff_publications=" << static_cast<qulonglong>(implementation->SelectedDiffPublications)
+					<< " selected_diff_failures=" << static_cast<qulonglong>(implementation->SelectedDiffFailures)
+					<< " refused_persistence_attempts=" << static_cast<qulonglong>(probe.RefusedPersistenceAttempts)
+					<< ' ';
+			epochFacts(aStream);
+		};
 		if (!implementation->SelectedDiffPublication.has_value()
 			|| core::comparison_digest(implementation->SelectedDiffPublication->Key)
 				== probe.BeforeComparison) {
-			return result::pending;
+			return wait("DEFECT_EPOCH_CHANGE_STALLED", epochChangeFacts);
 		}
 		const auto& reversedResult
 			= window->comparison_surface()->current_result();
@@ -20716,7 +21098,7 @@ namespace bpr::app {
 			|| reversedResult->Alignment.Digest
 				!= core::comparison_digest(
 					implementation->SelectedDiffPublication->Key)) {
-			return result::pending;
+			return wait("DEFECT_EPOCH_CHANGE_STALLED", epochChangeFacts);
 		}
 		if (!selectConversation(firstIdentity)) {
 			return fail();
@@ -20800,9 +21182,7 @@ namespace bpr::app {
 		}
 		probe.Evidence.MultiDefectNavigation
 			= card->shown_defect().has_value() && card->shown_defect()->Id != before;
-		probe.Phase = github_application::implementation::
-			defect_composition_probe_state::phase::awaiting_shared_ready;
-		return result::pending;
+		return advance(state_type::phase::awaiting_shared_ready);
 	}
 
 	auto detail::github_application_fixture_access::defect_composition_evidence(
