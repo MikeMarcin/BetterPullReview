@@ -1,0 +1,721 @@
+{
+  "schema": "bpr.wslg-activation-probe.v1",
+  "revision": "d24223f2c5b0b268dff346e852853ba3f6188699",
+  "tools_dirty": [],
+  "sources": {
+    "linux_xlib_activation_probe.cpp": "9973eed38654ed9e7f4a1bd3e87577f3073d0bf474ef2c31695538f51c524c35",
+    "linux_settings_focus_control.cpp": "24abf73eb687265922ddcfde605b51d3a66a158fe5735092e3d9d34a86ba4b14",
+    "wslg_activation_probe_course.py": "cc3faf25c54610304b8e74e1ecd760568658c07f9754851a0ba17839198baf8f",
+    "linux_settings_inventory.py": "186a35d5e2bc5b94e4f4c09bec548b6ac3018cb6c546d018abd3d685f750f464",
+    "wslg_rail_activate.ps1": "aff5211fe1de395b3ca1c00d3f5e5ddb4d60eefb3123cbb1beef40db6115b70c"
+  },
+  "compiler": "g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "qt_root": "/home/mmarcin/bpr0975-native/cache/bprqt/6.11.2/6.11.2/gcc_64",
+  "qt_sha256": {
+    "lib/libQt6Core.so.6": "23651543e0ff970f1d21b2abc1250221f0dd854fe68e3027462925532afbe22b",
+    "lib/libQt6Gui.so.6": "c1797794be8cfd5e64e324c5068ff9f32bd54fda21af1a637c087550ebae73a0",
+    "lib/libQt6Widgets.so.6": "0cb5f5ab05e519487b0900a4592351a54420fe703a29bb929e06220a2fc2b616",
+    "lib/libQt6XcbQpa.so.6": "0e582e1461f9fe9fa208d83ff09edab901dcd3ba2702e047f458f72f00f9a9f5",
+    "plugins/platforms/libqxcb.so": "83981915129d4143e1a93d0bc8d190cf430f4f4bed37bfea544244eff18baf2f",
+    "lib/libQt6WaylandClient.so.6": "a2628e71258b5fda3bc4fd920541a34298137fd2d46f447e65cc0d52e0bf4f64",
+    "plugins/platforms/libqwayland.so": "7a2a9a11ca1718666c6982af0cccfe31297bde4bf38acac129c6be4c6b056aae"
+  },
+  "environment": {
+    "platform": "Ubuntu 26.04 LTS WSL2 x86_64, native WSLg X11/XCB",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2",
+    "wslg": [
+      "WSLg ( x86_64 ): 1.0.73.2",
+      "Built at: Mon May 18 22:31:53 UTC 2026",
+      "Azure Linux: VERSION=\"3.0.20260510\"",
+      "DirectX-Headers:",
+      "mesa:",
+      "pulseaudio: c33051f2296af748ac5cd13e51abfac4d129e4c7",
+      "FreeRDP: c4030980b29322a9cb2190711a5fadeeeb8b6a33",
+      "weston: 04d436c7d9a0cd55fa64b6612c7fa678d6fcd077"
+    ],
+    "display": ":0",
+    "wayland_display": "wayland-0",
+    "x11_window_manager": {
+      "name": "Weston WM",
+      "net_supported": [
+        "_NET_ACTIVE_WINDOW",
+        "_NET_FRAME_EXTENTS",
+        "_NET_WM_MOVERESIZE",
+        "_NET_WM_STATE",
+        "_NET_WM_STATE_FULLSCREEN",
+        "_NET_WM_STATE_MAXIMIZED_HORZ",
+        "_NET_WM_STATE_MAXIMIZED_VERT"
+      ],
+      "advertises_net_active_window": true
+    },
+    "wayland": {
+      "socket": "/run/user/1000/wayland-0",
+      "interfaces": [
+        "weston_rdprail_shell",
+        "weston_screenshooter",
+        "wl_compositor",
+        "wl_data_device_manager",
+        "wl_output",
+        "wl_seat",
+        "wl_shell",
+        "wl_shm",
+        "wl_subcompositor",
+        "wp_presentation",
+        "wp_viewporter",
+        "xdg_wm_base",
+        "zwp_input_method_v1",
+        "zwp_input_panel_v1",
+        "zwp_input_timestamps_manager_v1",
+        "zwp_pointer_constraints_v1",
+        "zwp_relative_pointer_manager_v1",
+        "zwp_text_input_manager_v1",
+        "zxdg_output_manager_v1",
+        "zxdg_shell_v6"
+      ],
+      "xdg_activation_v1": false,
+      "globals": [
+        {
+          "name": 1,
+          "interface": "wl_compositor",
+          "version": 4
+        },
+        {
+          "name": 2,
+          "interface": "wl_subcompositor",
+          "version": 1
+        },
+        {
+          "name": 3,
+          "interface": "wp_viewporter",
+          "version": 1
+        },
+        {
+          "name": 4,
+          "interface": "zxdg_output_manager_v1",
+          "version": 2
+        },
+        {
+          "name": 5,
+          "interface": "wp_presentation",
+          "version": 1
+        },
+        {
+          "name": 6,
+          "interface": "zwp_relative_pointer_manager_v1",
+          "version": 1
+        },
+        {
+          "name": 7,
+          "interface": "zwp_pointer_constraints_v1",
+          "version": 1
+        },
+        {
+          "name": 8,
+          "interface": "zwp_input_timestamps_manager_v1",
+          "version": 1
+        },
+        {
+          "name": 9,
+          "interface": "wl_data_device_manager",
+          "version": 3
+        },
+        {
+          "name": 10,
+          "interface": "wl_shm",
+          "version": 1
+        },
+        {
+          "name": 11,
+          "interface": "wl_output",
+          "version": 3
+        },
+        {
+          "name": 12,
+          "interface": "zwp_input_panel_v1",
+          "version": 1
+        },
+        {
+          "name": 13,
+          "interface": "zwp_text_input_manager_v1",
+          "version": 1
+        },
+        {
+          "name": 14,
+          "interface": "xdg_wm_base",
+          "version": 1
+        },
+        {
+          "name": 15,
+          "interface": "zxdg_shell_v6",
+          "version": 1
+        },
+        {
+          "name": 16,
+          "interface": "wl_shell",
+          "version": 1
+        },
+        {
+          "name": 17,
+          "interface": "weston_rdprail_shell",
+          "version": 1
+        },
+        {
+          "name": 18,
+          "interface": "weston_screenshooter",
+          "version": 1
+        },
+        {
+          "name": 19,
+          "interface": "wl_seat",
+          "version": 7
+        },
+        {
+          "name": 20,
+          "interface": "zwp_input_method_v1",
+          "version": 1
+        }
+      ]
+    }
+  },
+  "focus_surface": "wslg-rail",
+  "owned_root": "/home/mmarcin/bpr0975-native/runs/activation-probe-o7vcogti",
+  "controls": {
+    "xlib": {
+      "image_sha256": "e10159b7ab7f3a1fab912c8cb00e1caead4207106e1628670a18d25d3cbcbbed",
+      "steps": {
+        "net-active-source1-current-time": {
+          "commands": [
+            "net-active A 1 0"
+          ],
+          "key": "581256997",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "net-active:A:source=1:time=0:current=B"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581256997",
+            "SENT:net-active:A:source=1:time=0:current=B"
+          ]
+        },
+        "net-active-source1-user-time": {
+          "commands": [
+            "net-active A 1 user"
+          ],
+          "key": "581259089",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "net-active:A:source=1:time=581259089:current=B"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581259089",
+            "SENT:net-active:A:source=1:time=581259089:current=B"
+          ]
+        },
+        "net-active-source1-server-time": {
+          "commands": [
+            "net-active A 1 server"
+          ],
+          "key": "581261110",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "net-active:A:source=1:time=581261669:current=B"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581261110",
+            "SENT:net-active:A:source=1:time=581261669:current=B"
+          ]
+        },
+        "net-active-source2-user-time": {
+          "commands": [
+            "net-active A 2 user"
+          ],
+          "key": "581263133",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "net-active:A:source=2:time=581263133:current=B"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581263133",
+            "SENT:net-active:A:source=2:time=581263133:current=B"
+          ]
+        },
+        "net-active-source2-server-time": {
+          "commands": [
+            "net-active A 2 server"
+          ],
+          "key": "581265160",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "net-active:A:source=2:time=581265737:current=B"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581265160",
+            "SENT:net-active:A:source=2:time=581265737:current=B"
+          ]
+        },
+        "net-active-source0-current-time": {
+          "commands": [
+            "net-active A 0 0"
+          ],
+          "key": "581267243",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "net-active:A:source=0:time=0:current=B"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581267243",
+            "SENT:net-active:A:source=0:time=0:current=B"
+          ]
+        },
+        "set-input-focus-server-time": {
+          "commands": [
+            "set-focus A server"
+          ],
+          "key": "581269267",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "set-focus:A:time=581269820"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581269267",
+            "SENT:set-focus:A:time=581269820",
+            "FOCUS_OUT:B:mode=0:detail=3",
+            "FOCUS_IN:A:mode=0:detail=3",
+            "FOCUS_OUT:A:mode=0:detail=3",
+            "FOCUS_IN:B:mode=0:detail=3"
+          ]
+        },
+        "raise-then-net-active-source1-user-time": {
+          "commands": [
+            "raise A",
+            "net-active A 1 user"
+          ],
+          "key": "581271287",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "raise:A",
+            "net-active:A:source=1:time=581271287:current=B"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 6622704,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:581271287",
+            "SENT:raise:A",
+            "SENT:net-active:A:source=1:time=581271287:current=B"
+          ]
+        },
+        "unmap-then-map": {
+          "commands": [
+            "remap A"
+          ],
+          "key": "581273351",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 6622704,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0975 activation probe B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "remap:A:unmapped=1:mapped=1"
+          ],
+          "x11_focus_after": "A",
+          "root_net_active_window": [
+            "A"
+          ],
+          "foreground_after": {
+            "handle": 1180762,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0975 activation probe A (Ubuntu)",
+            "process": "msrdc",
+            "owned": "A"
+          },
+          "granted": true,
+          "log": [
+            "KEY:B:581273351",
+            "UNMAPPED:A",
+            "MAPPED:A",
+            "SENT:remap:A:unmapped=1:mapped=1",
+            "FOCUS_OUT:B:mode=0:detail=3",
+            "FOCUS_IN:A:mode=0:detail=3"
+          ]
+        }
+      },
+      "pid": 983397,
+      "xids": {
+        "A": 6291457,
+        "B": 6291458
+      },
+      "initial_focus": 0,
+      "initial_focus_on_b": true,
+      "exit": 0,
+      "focus_activations": [],
+      "final_exit": 0
+    },
+    "qt_xcb": {
+      "image_sha256": "0c4d31b90e6c103d522af53989465e95767921e05bfd5ee4b3596fabbcf33833",
+      "steps": {
+        "qt-activate-window": {
+          "commands": [
+            "activate A"
+          ],
+          "key": "k",
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 22548000,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0018 native focus control B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "A"
+          ],
+          "x11_focus_after": "B",
+          "root_net_active_window": [
+            "B"
+          ],
+          "foreground_after": {
+            "handle": 22548000,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0018 native focus control B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "KEY:B:k",
+            "ACTIVATE_REQUESTED:A",
+            "QT_FOCUS_CHANGED:A"
+          ],
+          "activation_requests": [
+            {
+              "window": "A",
+              "source": 1,
+              "time": 581275477,
+              "current": "B"
+            }
+          ],
+          "qt_focus": "A"
+        },
+        "qt-hide-show-activate-window": {
+          "commands": [
+            "remap A"
+          ],
+          "key": null,
+          "before": {
+            "x11_focus": "B",
+            "foreground": {
+              "handle": 22548000,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0018 native focus control B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "replies": [
+            "A"
+          ],
+          "x11_focus_after": "A",
+          "root_net_active_window": [
+            "A"
+          ],
+          "foreground_after": {
+            "handle": 1377370,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0018 native focus control A (Ubuntu)",
+            "process": "msrdc",
+            "owned": "A"
+          },
+          "granted": true,
+          "log": [
+            "KEY:A:k",
+            "REMAP_REQUESTED:A"
+          ],
+          "activation_requests": [
+            {
+              "window": "A",
+              "source": 1,
+              "time": 581283169,
+              "current": "A"
+            }
+          ],
+          "qt_focus": "A"
+        }
+      },
+      "pid": 983457,
+      "platform": "xcb",
+      "xids": {
+        "A": 8388615,
+        "B": 8388622
+      },
+      "initial_focus_on_b": true,
+      "exit": 0,
+      "focus_activations": [],
+      "final_exit": 0
+    },
+    "qt_wayland": {
+      "image_sha256": "0c4d31b90e6c103d522af53989465e95767921e05bfd5ee4b3596fabbcf33833",
+      "steps": {
+        "wayland-activate-window": {
+          "command": "activate A",
+          "reply": "A",
+          "before": {
+            "qt_focus": "B",
+            "foreground": {
+              "handle": 6688240,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0018 native focus control B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "qt_focus_after": "B",
+          "foreground_after": {
+            "handle": 6688240,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0018 native focus control B (Ubuntu)",
+            "process": "msrdc",
+            "owned": "B"
+          },
+          "granted": false,
+          "log": [
+            "QT_FOCUS_WINDOW:B",
+            "ACTIVATE_REQUESTED:A",
+            "QT_FOCUS_WINDOW:B",
+            "QT_FOCUS_WINDOW:B",
+            "QT_FOCUS_WINDOW:B",
+            "QT_FOCUS_WINDOW:B",
+            "QT_FOCUS_WINDOW:B"
+          ]
+        },
+        "wayland-hide-show-activate-window": {
+          "command": "remap A",
+          "reply": "A",
+          "before": {
+            "qt_focus": "B",
+            "foreground": {
+              "handle": 6688240,
+              "class": "RAIL_WINDOW",
+              "title": "BPR0018 native focus control B (Ubuntu)",
+              "process": "msrdc",
+              "owned": "B"
+            }
+          },
+          "qt_focus_after": "A",
+          "foreground_after": {
+            "handle": 2426574,
+            "class": "RAIL_WINDOW",
+            "title": "BPR0018 native focus control A (Ubuntu)",
+            "process": "msrdc",
+            "owned": "A"
+          },
+          "granted": true,
+          "log": [
+            "QT_FOCUS_WINDOW:B",
+            "REMAP_REQUESTED:A",
+            "QT_FOCUS_CHANGED:A",
+            "QT_FOCUS_WINDOW:A"
+          ]
+        }
+      },
+      "pid": 983471,
+      "platform": "wayland",
+      "initial_qt_focus": "B",
+      "exit": 0,
+      "final_exit": 0,
+      "log_tail": [
+        "PLATFORM:wayland",
+        "QT_FOCUS_CHANGED:B",
+        "QT_FOCUS_WINDOW:B",
+        "QT_FOCUS_WINDOW:B",
+        "ACTIVATE_REQUESTED:A",
+        "QT_FOCUS_WINDOW:B",
+        "QT_FOCUS_WINDOW:B",
+        "QT_FOCUS_WINDOW:B",
+        "QT_FOCUS_WINDOW:B",
+        "QT_FOCUS_WINDOW:B",
+        "QT_FOCUS_WINDOW:B",
+        "REMAP_REQUESTED:A",
+        "QT_FOCUS_CHANGED:A",
+        "QT_FOCUS_WINDOW:A"
+      ]
+    }
+  },
+  "weston_log_owned_lines": [
+    "[13:44:20.438] Client: ClientGetAppidReq: pid:983457 appId:qt-focus-control WindowId:0x1be",
+    "[13:44:20.449] Client: ClientGetAppidReq: pid:983457 appId:qt-focus-control WindowId:0x1bf",
+    "[13:44:28.218] Client: ClientGetAppidReq: pid:983457 appId:qt-focus-control WindowId:0x1c0"
+  ]
+}

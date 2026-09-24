@@ -2,57 +2,104 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0975"
 title: "Complete Linux native Settings focus and window-lifetime course"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: ["BPR-0731"]
 priority: "P2"
 platforms: ["linux"]
 metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961","BPR-1024"],"station":"bpr-main-linux","candidate":"b651554ff50bdde1c5a41fd9a77f6c0e075b16c8","evidence":"docs/verification/BPR-0975-linux-native-settings.md","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0975-wslg-activation-v001","decision":"35aa7cb0-1d37-4588-b8ad-3cdf2764a9e4","outcome":"reject","direction":"find why GUI activation does not work on WSLg and fix it"}}
+parked_on: "human-review"
 ---
 
 # Complete Linux native Settings focus and window-lifetime course
 
-## In progress, 2026-09-24: why WSLg refuses (bpr-main-linux checkpoint)
+## Diagnosis, 2026-09-24: WSLg has no activation path to use; the owner decides between two options
 
-Claimed at `87ef6dfe`. The source reading is done; the runtime probe waits for
-a Windows-side desktop hold. Nothing has been shown on the WSLg desktop yet.
+Station `bpr-main-linux`, claimed at `87ef6dfe`. The diagnosis is in the
+evidence note, section
+[Why WSLg refuses activation](../../verification/BPR-0975-linux-native-settings.md#why-wslg-refuses-activation-2026-09-24),
+and its capture is
+[`wslg-activation-probe-d24223f2.json`](../../verification/BPR-0975-linux-native-settings/wslg-activation-probe-d24223f2.json).
+The probe ran in one desktop hold that bpr-main-win acknowledged: settle from
+2026-09-24T20:41:58Z, run 20:43:58–20:44:34Z. The guard passed with 8/8 live
+files unchanged, and every control exited 0.
 
-What the pinned sources say (weston-mirror `04d436c7`, the WSLg 1.0.73.2
-build; Qt `v6.11.2`):
+**Why.** WSLg's compositor (weston-mirror `04d436c7`, WSLg 1.0.73.2) never
+activates a window because an application asked. Its X11 window manager drops
+`_NET_ACTIVE_WINDOW` unread (`xwayland/window-manager.c` 2217–2247), whatever
+the source indication or timestamp. It also sets X11 focus back when a client
+moves it (2606–2631). The compositor offers no `xdg_activation_v1` to Wayland
+clients. Its shell activates a mapped window only on a click, or when Windows
+activates the window's RAIL window (`rdprail-shell/shell.c` 3969–4029). It
+also activates a window when it maps (2587–2622), and it focuses the top window
+when the focused one goes away (919–960). Qt's request is already the one EWMH
+asks for (`qxcbwindow.cpp` 1462–1513). No setting changes this, and neither
+weston-mirror `working` nor upstream Weston `main` is different.
+microsoft/wslg#1022 reports the same defect.
 
-- The X11 window manager never acts on an activation request. Its
-  `weston_wm_handle_client_message` (`xwayland/window-manager.c` 2217–2247)
-  dispatches only `_NET_WM_MOVERESIZE`, `_NET_WM_STATE`, `WL_SURFACE_ID` and
-  `WM_CHANGE_STATE`. There is no source-indication or timestamp check to
-  satisfy: `_NET_WM_USER_TIME` is interned (2776) and never read, and the
-  window manager's interface to the shell
-  (`xwayland/xwayland-internal-interface.h` 36–69) has no activation entry.
-- The RAIL shell activates a surface only when it maps (`rdprail-shell/shell.c`
-  `map`, 2587–2622), on a pointer or touch press (3969–3995), when Windows
-  activates its RAIL window (`shell_backend_request_window_activate`,
-  3998–4029, from `libweston/backend-rdp/rdprail.c` 281–320), and when the
-  focused surface goes away (`focus_state_surface_destroy`, 919–960). No
-  client request reaches `activate()`.
-- Wayland offers no route either. `xdg_activation_v1` appears nowhere in
-  weston-mirror, and Qt's `QWaylandXdgSurface::requestActivate`
-  (`qwaylandxdgshell.cpp` 579–617) does nothing without it.
-- Qt's X11 request is already the one EWMH asks for: source 1, the time of the
-  triggering event, the current active window, and `_NET_WM_USER_TIME`
-  updated first (`qxcbwindow.cpp` 1462–1513).
-- Neither the weston-mirror `working` branch (`7fbf6931`) nor upstream Weston
-  `main` (`fce7c48a`) handles `_NET_ACTIVE_WINDOW` or implements
-  xdg-activation. microsoft/wslg#1022 (Emacs `other-frame`, open since 2023)
-  is the same defect. No WSLg or Weston setting touches it
-  (`compositor/main.c` 2831–2898, `rdprail-shell/shell.c` 728–846).
+**Probe results.** B held focus and had just received a key, and A asked for
+activation each time.
 
-Probe tooling, `d24223f2`: `tests/scripts/linux_xlib_activation_probe.cpp`
-and `tests/scripts/wslg_activation_probe_course.py` try each request an X11 or
-Wayland client can make. Its mechanics were checked against a private headless
-X server. The harness clone `/home/mmarcin/bpr0975-native/source` is at
-`d24223f2`, and `hold-bpr-0975-diag.sh` there runs the probe once under the
-lease and the guard.
+- **Refused, with no focus event on X11** (Xlib control): `_NET_ACTIVE_WINDOW`
+  with source 0, 1 or 2 and any timestamp (no time, the key's time set as
+  `_NET_WM_USER_TIME`, or a fresh server time), and `XRaiseWindow` followed by
+  the request.
+- **Undone** (Xlib control): `XSetInputFocus` gave FocusIn(A), then
+  FocusIn(B) again.
+- **Refused, bare Qt control:** `activateWindow()`, both on xcb and on
+  Wayland.
+- **Granted, the only way:** unmapping and mapping A again moved X11 or Qt
+  focus to A, and the Windows foreground followed, in the Xlib control, in
+  Qt on xcb and in Qt on Wayland.
 
-Next: run that in a granted hold, then record the result and the decision.
+Windows is not what blocks it. The Windows foreground followed the compositor
+each time the compositor activated a window, with no RAIL activation by the
+observer.
+
+So no supported activation request works here, and there is no product fix
+that uses one. Switching the application to Wayland would not help. The
+upstream change that would fix it, in microsoft/weston-mirror and upstream
+Weston, is written out in the evidence note, under
+[The upstream change that would fix it](../../verification/BPR-0975-linux-native-settings.md#the-upstream-change-that-would-fix-it).
+In short: handle `_NET_ACTIVE_WINDOW` in the X11 window manager, pass it to
+the shell through a new activation entry, and grant it under a
+focus-stealing rule; and add `xdg_activation_v1` to the RAIL shell. Nothing
+has been filed.
+
+### Decision for the owner
+
+AC2 cannot pass on WSLg as the product and WSLg stand. Choose one:
+
+- **A. A WSLg-only workaround in the product.** It is not an activation
+  request. It relies on WSLg activating a window when it is mapped.
+  - When Ctrl-comma or the menu reuses a visible Settings window that is not
+    active, the product would hide and show it before raising it.
+    - Windows would destroy the Settings window and create it again: its
+      taskbar button would blink, and the window would flicker.
+    - The Qt window and its X11 identity would not change.
+  - Settings would also return focus, when it closes, to the workbench that
+    last opened or reused it. WSLg focuses that workbench anyway, because it
+    is the top window left. Today the product asks for the first opener,
+    which WSLg refuses when a sibling was used later.
+  - Both changes would be limited to xcb under WSLg. The composition would
+    detect WSLg; if that touches pinned composition code, the pins are
+    resealed and the review recorded here.
+  - Expected, not yet shown: the full default course would then pass. That
+    takes an implementation, the focused Settings suites, and another desktop
+    hold for AC2, AC3 and AC4.
+- **B. No product change; wait for WSLg.** The card goes to Blocked until a
+  WSLg release ships the upstream change above.
+  - AC2 stays failing on WSLg until then.
+  - Whether to file the change with microsoft/wslg or microsoft/weston-mirror
+    (for example on #1022) is the owner's call. The change text is ready.
+  - The earlier alternatives, another Linux desktop or an amendment, were
+    rejected on 2026-09-24. B leaves the card waiting unless one of them is
+    reconsidered.
+
+A and B can be combined: make the workaround now and also report the upstream
+change. Nothing is implemented until the owner chooses. The card is Parked on
+`human-review` until then; AC1 to AC4 are unchanged, and nothing here is
+accepted.
 
 ## Owner direction, 2026-09-24: find out why WSLg refuses it, and fix it (attended session cbd48b91)
 
