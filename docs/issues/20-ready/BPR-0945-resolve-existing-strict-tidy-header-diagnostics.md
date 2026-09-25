@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0945"
 title: "Resolve existing strict tidy diagnostics in shared Qt and Home headers"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: P2
-metadata: {"origin":"r23 focused integration","scope":"Unchanged shared-header diagnostics, outside BPR-0941..0943","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency"}
+metadata: {"origin":"r23 focused integration","scope":"Unchanged shared-header diagnostics, outside BPR-0941..0943","origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred follow-up; not an RFC0013 closeout dependency","milestone_plan":{"id":"bpr0945-tidy-headers","path":"docs/rfcs/plans/bpr0945-tidy-headers/milestone-plan.json"}}
 ---
 
 # Resolve existing strict tidy diagnostics in shared headers
