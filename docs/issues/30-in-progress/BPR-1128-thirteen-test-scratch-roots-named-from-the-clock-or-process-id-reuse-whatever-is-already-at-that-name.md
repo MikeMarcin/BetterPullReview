@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1128"
 title: "Thirteen test scratch roots named from the clock or process id reuse whatever is already at that name, and an agent-canary marker is removed before it is made"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
