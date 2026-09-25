@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0904"
 title: "The mutation fixtures' transport ignores method and path, so no row can fail a wrong request URL"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
