@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1195"
+  ],
+  "reserve_for": "native-menu-resident-fix",
+  "purpose": "resident menu parity after RFC-0052 tabs",
+  "created": "2026-09-25T13:41:04.080130+00:00",
+  "base": "7e89f5c2c9f5b3d299e20268d57ee122a26ecf7d"
+}

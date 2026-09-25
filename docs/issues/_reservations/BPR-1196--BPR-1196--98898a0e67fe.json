@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1196"
+  ],
+  "reserve_for": "bpr1132-cache-identity",
+  "purpose": "first-tab comparison regression in cache-byte course",
+  "created": "2026-09-25T13:41:08.378594+00:00",
+  "base": "7e89f5c2c9f5b3d299e20268d57ee122a26ecf7d"
+}
