@@ -3136,8 +3136,10 @@ namespace {
 		workbench.set_loading(request);
 		workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
 		settle_geometry(workbench);
-		const auto selection = workbench.selection();
-		const auto index     = workbench.current_semantic_index();
+		const auto  selection     = workbench.selection();
+		const auto  index         = workbench.current_semantic_index();
+		auto* const hiddenUnified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+		expect(hiddenUnified && hiddenUnified->document()->isEmpty(), "two-pane publication does not construct a hidden third source document");
 		workbench.set_one_pane_enabled(true);
 		process_events();
 		auto* const unified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
@@ -3286,6 +3288,7 @@ namespace {
 		workbench.set_one_pane_enabled(false);
 		settle_geometry(workbench);
 		expect(workbench.selection() == selectedDeletion, "two-pane restoration keeps the same change ordinal");
+		expect(unified->document()->isEmpty() && map->visible_links().empty(), "leaving one pane releases its source and line geometry");
 		workbench.set_one_pane_enabled(true);
 		process_events();
 		workbench.shared_scrollbar()->setValue(50);

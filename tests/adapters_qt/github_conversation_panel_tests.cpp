@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -744,6 +745,66 @@ namespace {
 		expect(larger.height() > longText.height(), "a larger font is measured afresh");
 	}
 
+	class observed_detail_delegate final : public QStyledItemDelegate
+	{
+	public:
+		observed_detail_delegate(QAbstractItemDelegate& aDelegate, QObject* aParent)
+			: QStyledItemDelegate{ aParent }
+			, Delegate{ aDelegate }
+		{ }
+		auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
+		{
+			auto rootIndex = aIndex;
+			while (rootIndex.parent().isValid()) {
+				rootIndex = rootIndex.parent();
+			}
+			Roots.insert(rootIndex.data(qt::github_conversation_model::identity_role).toString());
+			return Delegate.sizeHint(aOption, aIndex);
+		}
+		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+		{
+			Delegate.paint(aPainter, aOption, aIndex);
+		}
+		mutable std::set<QString> Roots;
+
+	private:
+		QAbstractItemDelegate& Delegate;
+	};
+
+	void test_initial_detail_measures_only_selected_thread()
+	{
+		qt::github_conversation_panel panel;
+		panel.resize(420, 520);
+		panel.show();
+		process_events();
+		auto* view     = panel.view();
+		auto* observed = new observed_detail_delegate{ *view->itemDelegate(), view };
+		view->setItemDelegate(observed);
+		auto conversations = std::vector<conversation>{ };
+		for (auto ordinal = 0; ordinal < 1000; ++ordinal) {
+			const auto id = "thread-" + std::to_string(ordinal);
+			conversations.push_back(root(id, "src/file.cpp"));
+			conversations.push_back(reply("post-" + std::to_string(ordinal), id));
+		}
+		panel.adopt(conversations, QStringLiteral("available"));
+		process_events();
+		expect(observed->Roots == std::set<QString>{ QStringLiteral("thread-0") },
+			   "initial detail measures only the selected thread, never the entire review");
+		expect(panel.model()->rowCount() == 1000, "every conversation remains in the incremental model");
+		panel.choose(panel.model()->index_for_id("post-999"));
+		process_events();
+		expect(observed->Roots == std::set<QString>{ QStringLiteral("thread-0"), QStringLiteral("thread-999") },
+			   "selecting the last thread measures that thread and preserves access to its post");
+		expect(panel.model()->id_for_index(view->currentIndex()) == "post-999", "last post remains exactly selected");
+		conversations.insert(conversations.begin(), root("new-root", "src/another.cpp"));
+		panel.adopt(conversations, QStringLiteral("available"));
+		process_events();
+		expect(observed->Roots == std::set<QString>{ QStringLiteral("thread-0"), QStringLiteral("thread-999") }
+				   && panel.model()->id_for_index(view->currentIndex()) == "post-999"
+				   && panel.model()->statistics().ModelResets == 0U,
+			   "incremental insertion preserves selected detail without measuring the new hidden root or resetting the model");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -751,6 +812,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
+	test_initial_detail_measures_only_selected_thread();
 	test_replies_are_a_flat_feed_under_their_root();
 	test_discuss_widens_into_list_map_and_feed();
 	test_anchoring_keeps_one_file();

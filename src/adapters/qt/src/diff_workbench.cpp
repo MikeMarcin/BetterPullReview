@@ -2019,6 +2019,7 @@ namespace bpr::qt {
 			}
 		}
 		OnePaneEnabled = aEnabled;
+		rebuild_unified_document();
 		Comparison->setVisible(!aEnabled);
 		SharedScroll->setVisible(!aEnabled);
 		UnifiedMap->setVisible(aEnabled);
@@ -2049,7 +2050,9 @@ namespace bpr::qt {
 		projection.Groups.clear();
 		projection.BaseRows.clear();
 		projection.HeadRows.clear();
-		if (!CurrentResult) {
+		// The inactive presentation owns no source document. Build its rows only
+		// when chosen, after preserving the exact reading anchor above.
+		if (!CurrentResult || !OnePaneEnabled) {
 			Unified->clear();
 			UnifiedMap->set_links({ }, std::nullopt, { });
 			return;
@@ -2149,7 +2152,7 @@ namespace bpr::qt {
 
 	void diff_workbench::update_unified_paint()
 	{
-		if (!Unified || !CurrentResult) {
+		if (!Unified || !CurrentResult || !OnePaneEnabled) {
 			return;
 		}
 		const auto  visible      = paintable_line_bounds(*Unified);

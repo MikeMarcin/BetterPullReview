@@ -570,8 +570,8 @@ namespace bpr::qt {
 		if (Discuss) {
 			DiscussSelection = Model->id_for_index(View->currentIndex());
 		}
-		refresh_body(admitted);
 		if (!DetailDirty && DetailRoot == rootId && DetailAdmitted == admitted) {
+			refresh_body(admitted);
 			return;
 		}
 		if (DetailDirty) {
@@ -587,9 +587,10 @@ namespace bpr::qt {
 				View->setRowHidden(root.row(), { }, !admitted);
 			}
 		}
-		DetailDirty        = false;
-		DetailAdmitted     = admitted;
-		DetailRoot         = rootId;
+		DetailDirty    = false;
+		DetailAdmitted = admitted;
+		DetailRoot     = rootId;
+		refresh_body(admitted);
 		auto       thread  = std::vector<application::github_conversation_projection>{ };
 		const auto collect = [&](const QModelIndex& aIndex, auto& aSelf) -> void {
 			const auto found = ShownPositions.find(Model->id_for_index(aIndex));
@@ -716,26 +717,22 @@ namespace bpr::qt {
 		const QSignalBlocker selectionBlocker{ View->selectionModel() };
 		Model->apply(Shown);
 		HasThreads = !Shown.empty();
-		show_loaded_page();
-		View->doItemsLayout();
-		if (!selected.empty()) {
-			const auto restored = Model->index_for_id(selected);
-			if (restored.isValid()) {
-				// Blocked, because restoring a selection is not the reviewer
-				// making one, and anything listening should not be told it was.
-				const QSignalBlocker blocker{ View->selectionModel() };
-				View->setCurrentIndex(restored);
-			}
+		// Select without QAbstractItemView's implicit scroll/layout. The detail
+		// must hide unrelated roots before any native layout measures them.
+		auto restored = Model->index_for_id(selected);
+		if (!restored.isValid()) {
+			restored = View->currentIndex();
 		}
-		if (!View->currentIndex().isValid() && Model->rowCount() > 0) {
-			const QSignalBlocker blocker{ View->selectionModel() };
-			View->setCurrentIndex(Model->index(0, 0));
+		if (!restored.isValid() && Model->rowCount() > 0) {
+			restored       = Model->index(0, 0);
 			DefaultCurrent = true;
 		}
+		View->selectionModel()->setCurrentIndex(restored, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 		// Set explicitly rather than through the signal, which the restore
 		// above deliberately blocks: the map has to end an adopt showing the
 		// branch the reviewer was reading, not the one before the refresh.
 		synchronize_map_focus();
+		show_loaded_page();
 		if (ExpandOnNextProjection && !Shown.empty()) {
 			View->expandAll();
 			ExpandOnNextProjection = false;

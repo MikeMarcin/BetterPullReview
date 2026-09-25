@@ -458,6 +458,9 @@ namespace bpr::e2e::large_review {
 	void verify_large(qt::diff_workbench& aSurface, const fixture_manifest& aManifest)
 	{
 		require(selected(aSurface, QStringLiteral("large/comparison.cpp")), "large comparison identity");
+		const auto* unified = aSurface.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+		require(aSurface.one_pane_enabled() || (unified && unified->document()->isEmpty()),
+				"two-pane comparison constructed a hidden third source document");
 		const auto& result = *aSurface.current_result();
 		const auto  found  = std::ranges::find(aManifest.files, std::string{ "large/comparison.cpp" }, &fixture_file::path);
 		require(found != aManifest.files.end(), "large file manifest identity");
@@ -977,6 +980,13 @@ namespace bpr::e2e::large_review {
 		phase("large_file_selection", 2'500.0);
 		phase("binary_fallback_render", 1'250.0);
 		phase("large_source_revisit_render", 1'000.0);
+		// The hidden-source publication repair brings these complete intervals
+		// within the original input target. Initial review acceptance still has
+		// a separately reported gap and is not accepted by these source gates.
+		for (const auto* name : { "large_file_selection", "large_source_revisit_render" }) {
+			const auto found = std::ranges::find(aReport.Phases, name, &phase_measurement::Name);
+			record(std::string{ name } + "_input_gap", found->MaxPulseIntervalMs, aReport.InputIntervalLimitMs);
+		}
 		phase("rapid_selection_supersession", 10'000.0);
 		record("supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
 		for (const auto* name : { "read_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "appearance_settings_open", "theme_light", "theme_dark" }) {
