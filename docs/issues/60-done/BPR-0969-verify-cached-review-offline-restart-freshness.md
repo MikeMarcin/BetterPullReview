@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0969"
 title: "Verify cached-review offline and restart freshness"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","milestone_plan":{"id":"bpr0969-offline-inventory","path":"docs/rfcs/plans/bpr0969-offline-inventory/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"b3197149a74bbb8030a3d4a534e956b11a64ed9f","evidence":{"kind":"observation","detail":"Prior real-composition inventory, unavailable versus empty, retained epoch/source/metadata distinctions; docs/verification/BPR-0969-offline-inventory-2026-09-25.md."}},{"criterion":"AC2","outcome":"pass","revision":"5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7","evidence":{"kind":"observation","detail":"Actual Mac safe-fixture restarts/network loss/reconnect with exact account/repository/base/head isolation, missing source and unknown freshness; current-process independent authentication required. docs/verification/BPR-0969-cached-review-2026-09-25.md."}},{"criterion":"AC3","outcome":"pass","revision":"5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7","evidence":{"kind":"observation","detail":"Integrated durable conversations and exact retained source across core/host/SQLite/Qt; rendered candidate and owning-layer cancellation/stale-session/negative controls. Unsupported disconnected startup, old retained pairs, binary/nonUTF8/over-limit data and platform/native limits explicitly retained. docs/verification/BPR-0969-cached-review-2026-09-25.md."}}]
 ---
 
 # Verify cached-review offline and restart freshness
@@ -107,3 +108,27 @@ catalogue identity as present account authority. Complete changed-revision recov
 without silently presenting historical content as current. Preserve unavailable
 versus observed-empty data and reconnect to server truth. No disconnected
 authentication, native/human acceptance or full cached-review mode is claimed.
+
+## Integrated acceptance — 2026-09-25
+
+The same implementer completed the remaining supported current-process authenticated
+course under `r4-full-remaining-acceptance-20260925`, source `5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7`.
+The [integrated evidence](../../verification/BPR-0969-cached-review-2026-09-25.md)
+binds durable metadata, file catalogue, general comments, review summaries, threads
+and exact retained source across network loss, actual restarts and reconnection.
+Owning-layer and composed controls cover account/profile/repository/revision
+isolation, legacy/corrupt/excessive data, missing Git packs and anchors, cancellation,
+stale sessions, unknown freshness and replacement by server truth. Historical
+source never creates a live snapshot, epoch, comparison, receipt or mutation lease.
+
+AC1's prior inventory remains valid; AC2/AC3's supported course is complete.
+Unsupported cases remain explicit as AC3 requires: fully disconnected startup
+without independently accepted account identity; cached pairs differing from the
+latest available retained epoch; missing, binary, non-UTF8 or over-limit source;
+current conversation actions and participant/check/progress data. Current account
+authority cannot come from stored credentials, Recent or cache content. There is
+no new offline identity policy, native/human or Windows/Linux acceptance claim.
+No explicit human criterion is attached to this card. The
+[full milestone handoff](../../rfcs/plans/bpr0969-offline-inventory/full-acceptance-handoff.json)
+records exact tests, remaining policy/platform limits, command quiescence and writer
+release. This is the integrated milestone result, not another partial continuation.

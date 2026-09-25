@@ -217,17 +217,23 @@ on its serial worker and the core admits a cached observation only after a
 current authenticated read fails for transport loss. The same atomic historical
 record optionally retains a bounded changed-file catalogue with current/previous
 paths and provider change kinds/counts at those exact accepted base/head IDs.
-Qt labels freshness unknown, renders those rows without source navigation and
-keeps source/current-conversation actions/progress unavailable. A subsequent
-optional collection in the same record retains bounded historical thread roots
-and replies, rendered as plain read-only text with unknown freshness and inert
-anchor observations. General comments and review summaries remain unavailable.
-Missing, legacy or excessive collections remain distinct from observed empty. It receives no current snapshot, epoch or
-mutation authority. An offline startup still cannot authenticate the
-account or expose its cache. The [GitHub host contract](github-host-implementation.md)
-describes this boundary; the
-[durable overview evidence](../verification/BPR-0969-durable-overview-2026-09-25.md)
-leaves full offline review and disconnected authentication pending.
+Qt labels freshness unknown and preserves unavailable versus observed-empty
+collections. The same atomic observation retains bounded historical thread roots
+and replies, general comments and review summaries. Plain-text readers expose
+prior review state and inert anchors without granting current conversation,
+epoch, receipt or mutation authority.
+
+Cached file activation uses a separate historical source port after the core
+rechecks the current authenticated account, destination and request generation.
+The epoch host opens only existing catalogue scopes, requires the exact retained
+base/head pair, and reads bounded blobs on the profile's existing Git actor.
+It neither ingests epochs nor obtains a live comparison. Missing material and
+unsupported source are explicit. A fresh server observation removes all cached
+readers. Startup with `/user` unreachable still cannot authenticate an account
+or expose authenticated cache content. The
+[GitHub host contract](github-host-implementation.md) describes these boundaries;
+[BPR-0969 integrated evidence](../verification/BPR-0969-cached-review-2026-09-25.md)
+records the supported Mac fixture course and the unsupported cases.
 
 [[BPR-1131]] adds RFC-BPR-0052's document tabs to the same authority. The
 core's `document_tabs_state` holds one window's tabs for the pull request it

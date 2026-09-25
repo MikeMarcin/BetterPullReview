@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "b3197149a74bbb8030a3d4a534e956b11a64ed9f",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Prior real-composition inventory, unavailable versus empty, retained epoch/source/metadata distinctions; docs/verification/BPR-0969-offline-inventory-2026-09-25.md."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Actual Mac safe-fixture restarts/network loss/reconnect with exact account/repository/base/head isolation, missing source and unknown freshness; current-process independent authentication required. docs/verification/BPR-0969-cached-review-2026-09-25.md."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Integrated durable conversations and exact retained source across core/host/SQLite/Qt; rendered candidate and owning-layer cancellation/stale-session/negative controls. Unsupported disconnected startup, old retained pairs, binary/nonUTF8/over-limit data and platform/native limits explicitly retained. docs/verification/BPR-0969-cached-review-2026-09-25.md."
+      }
+    }
+  ]
+}

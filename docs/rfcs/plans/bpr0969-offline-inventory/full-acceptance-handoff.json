@@ -1,0 +1,149 @@
+{
+  "schema": "bpr0969.full-acceptance-handoff.v1",
+  "assignment": "/root/bpr0969_conversations",
+  "mandate_revision": "r4-full-remaining-acceptance-20260925",
+  "strategy": "coordinator-implementer",
+  "recipe_revision": "2",
+  "milestone": "durable-cached-overview",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "source_candidate": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
+  "status": "Full supported AC2/AC3 verified at committed source candidate; card/checkpoint documentary closure in progress.",
+  "inherited_preflight": {
+    "status": "incomplete",
+    "reason": "state.drift",
+    "host_load": "not_verified"
+  },
+  "changed_paths": [
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+    "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/sqlite/src/cached_review_overview_store.cpp",
+    "src/adapters/sqlite/src/epoch_catalog.cpp",
+    "src/app/src/github_application.cpp",
+    "src/application/include/bpr/application/epoch_application_host.hpp",
+    "src/application/include/bpr/application/epoch_catalog_port.hpp",
+    "src/application/include/bpr/application/github_projection.hpp",
+    "src/application/include/bpr/application/github_window_read_host.hpp",
+    "src/application/src/epoch_application_host.cpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/core/include/bpr/core/cached_review_overview.hpp",
+    "src/core/src/cached_review_overview.cpp",
+    "tests/adapters_qt/pull_request_overview_page_tests.cpp",
+    "tests/application/epoch_application_host_tests.cpp",
+    "tests/application/github_window_read_host_tests.cpp",
+    "tests/core/github_window_read_tests.cpp",
+    "tests/end_to_end/offline_inventory_contract.py",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp",
+    "tests/sqlite_contract/cached_review_overview_storage_tests.cpp",
+    "tests/sqlite_contract/epoch_catalog_storage_tests.cpp",
+    "src/application/include/bpr/application/cached_review_source_port.hpp"
+  ],
+  "limitations": [
+    "Current-process independently accepted authenticated account required. Fully disconnected startup refuses cache access.",
+    "Latest retained exact base/head only; older mismatched pair unavailable.",
+    "Source max256KiB per endpoint; binary/non-UTF8/missing material unavailable or unsupported.",
+    "No historical snapshot/epoch/live-comparison/receipt/mutation authority.",
+    "Windows/Linux and human/native GUI acceptance unverified; no explicit human criterion on this card."
+  ],
+  "verification": {
+    "failing_before": {
+      "result": "failed as intended: durable general-comment/review-summary assertion at actual restart-read",
+      "seconds": 20.2,
+      "log": "build/bpr0969-conversations/full-failing-before.log"
+    },
+    "integrated": {
+      "result": "8/8 passed",
+      "seconds": 132.48,
+      "offline_restart_seconds": 59.89,
+      "account_isolation_seconds": 68.56,
+      "log": "build/bpr0969-conversations/full-integration-tests.log"
+    },
+    "refinement": {
+      "result": "7/7 passed",
+      "seconds": 64.99,
+      "offline_restart_seconds": 61.15,
+      "log": "build/bpr0969-conversations/refined-tests.log"
+    },
+    "core_only": {
+      "result": "3/3 passed: core policy and both architecture gates",
+      "seconds": 127.7,
+      "log": "build/bpr0969-conversations/full-core-tests.log"
+    },
+    "format": "22 C++ files passed clang-format 23.1.1; git diff --check passed",
+    "tidy": "Five changed core/host/SQLite units checked; epoch parameter naming corrected and focused rerun passed. Other four passed initial strict run; non-user warnings suppressed.",
+    "documentation": "DOCUMENTATION_OK before card closure; unchanged 64-test verifier regression evidence reused from thread candidate.",
+    "self_review": "Reviewed atomic revision/availability encoding, exact current-reader admission, cancellation/identity retirement, existing-only catalogue paths, physical shared-actor cache reuse, no live authority minting, endpoint and payload bounds, inert rendering and reconnect clearing. Corrected sibling-window application-session overrestriction. No independent review claim.",
+    "exact_candidate": {
+      "candidate": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
+      "result": "7/7 passed; eight actual processes and six exact fixture lines at each endpoint",
+      "seconds": 64.35,
+      "offline_restart_seconds": 60.93,
+      "log": "build/bpr0969-conversations/committed-tests.log"
+    }
+  },
+  "ownership": "active",
+  "commands": {
+    "reproduce_focused": "ctest --preset dev -R '^(application_offline_inventory|application_recent_account_isolation|application_epoch_host|sqlite_epoch_catalog_storage_contract|application_github_window_read_host|sqlite_cached_review_overview|core_github_window_read|qt_pull_request_overview_page)$' --output-on-failure",
+    "build": "cmake --build --preset dev --target test_offline_inventory_public_path test_better_pull_review_application_github_window_read_host_tests test_better_pull_review_application_epoch_host_tests test_better_pull_review_sqlite_storage_contract_tests test_cached_review_overview_storage test_better_pull_review_github_window_read_tests test_better_pull_review_qt_pull_request_overview_page_tests",
+    "documentation": "python3 scripts/verify_documentation.py --root .",
+    "quiescence": "All implementation builds, tests, tidy and architecture commands collected; final documentary closure remains."
+  },
+  "protected": "RFC0052 candidate/session/server/waiter unchanged. No live/private target/remote mutation/push/release/delegation/new attended session.",
+  "next_action": "Collect final candidate gates, finish card with exact acceptance records, bind milestone checkpoint, release writer to coordinator.",
+  "review_handoff": {
+    "new_session": false,
+    "reason": "No explicit human criterion; rendered Mac offscreen evidence and automation fulfill visual requirement. New attended session unauthorized."
+  },
+  "source_sha256": {
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp": "c510e5ac753c30081bbc83b9ece3873f79a88a340a70b685e5a620eceb586202",
+    "src/adapters/qt/src/pull_request_overview_page.cpp": "954be3e141b2d0594d0a4db1ca0e9eaa93d3dcfb8ca78c4bcf5485864bec1c05",
+    "src/adapters/qt/src/workbench_window.cpp": "59d2543c219674cfa0f62a2927592f8083f0e60d3c07cad1ac8d6cf62c850178",
+    "src/adapters/sqlite/src/cached_review_overview_store.cpp": "7232d12d69b6b747fb82009b6ad79475759fadf2dbd5c0ed1262d5d8197f6278",
+    "src/adapters/sqlite/src/epoch_catalog.cpp": "7ea1ada933922f31a0e7db548c7ae07578338371293edb95b5361ea31e8b56a0",
+    "src/app/src/github_application.cpp": "6629b4ce0591d8fbdcbff8256ee0bbf497e66228f28f907617116d62de3771bb",
+    "src/application/include/bpr/application/epoch_application_host.hpp": "d29a45f244f515410c350f3d6e15ccb88405cc83923180725a375527c487ef2e",
+    "src/application/include/bpr/application/epoch_catalog_port.hpp": "7452d17057b2ff7a88548f2987c14c3d8b1dbd00a752e17c72087205d4f344a8",
+    "src/application/include/bpr/application/github_projection.hpp": "52ea2243178e1be80097c947052a715cfe2531d749d19293c01cbcccc29375a4",
+    "src/application/include/bpr/application/github_window_read_host.hpp": "f776e1ae645c37b114e75358f3d266d77f047cbafb61f30a6611017dd71b1111",
+    "src/application/src/epoch_application_host.cpp": "b810423b9c589bf1fef6537e0ba2e73b28594894a776c6d1ca49a33df6b5be03",
+    "src/application/src/github_window_read_host.cpp": "9e2665f7cbf13c39108f424c7881a9b0f866feb4394f52d89b71a01f012ebf34",
+    "src/core/include/bpr/core/cached_review_overview.hpp": "2cedef887a29829028168415b23de111dddf4ef04b350e1b60b99e787e013468",
+    "src/core/src/cached_review_overview.cpp": "c98412b38a43abd9e02c1f5492572dfe348f6c7c7f4bcb7f99d07e05e41f9a7c",
+    "tests/adapters_qt/pull_request_overview_page_tests.cpp": "45e5eaa630458ce8e1ce414fffa4427a0bac4a2c5400f042ce0573c8c8ee0690",
+    "tests/application/epoch_application_host_tests.cpp": "80a13a4ed18664e6b916791f015e59285c178343561ce52ecffdcb1f54c59cdd",
+    "tests/application/github_window_read_host_tests.cpp": "b8fa22f12882497e01f8eea737c2f9ebae893c8dac7d15f64cd0c023bc5193de",
+    "tests/core/github_window_read_tests.cpp": "03f3938a52d5594a34b0c565a73f7cd8b6f9d28c899864372c4e504fbade2f22",
+    "tests/end_to_end/offline_inventory_contract.py": "ee7e1d95bf7b82373953199e7ce392056d91ae042f7d10c57add6ffa6b150b7c",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp": "af604a04ef9350ede89df763171ecd785f344dff4e41fdd599349813b02fec64",
+    "tests/sqlite_contract/cached_review_overview_storage_tests.cpp": "7f8dd8554ec12fda365ad56d90067079a284953405bc8438d9fe855a50937455",
+    "tests/sqlite_contract/epoch_catalog_storage_tests.cpp": "2ec49b5e67d708db5416300727f427a93f55859baa03a14566f7ae523ea1261b",
+    "src/application/include/bpr/application/cached_review_source_port.hpp": "abae8f905d1ce27f371abb254f2b5d3235760dc1035ffbdf907c01fa77604a7f"
+  },
+  "executable": {
+    "path": "build/dev/tests/end_to_end/offline_inventory_public_path",
+    "sha256": "34bde3aa37b5f7e9eaa515dab953d661d0a58484b7ffeae6cd29e8b4bcf080c1"
+  },
+  "rendered": {
+    "build/bpr0969-conversations/full-renders/restart-read-offline.png": "6efab1854ad9831c275317537b935da4a9035cb72c86e3c37d4a5aa64a50ffb1",
+    "build/bpr0969-conversations/full-renders/restart-catalogue-offline.png": "6efab1854ad9831c275317537b935da4a9035cb72c86e3c37d4a5aa64a50ffb1",
+    "build/bpr0969-conversations/full-renders/restart-legacy-offline.png": "6042ebdbd24f5f0755925cd72905904be9066462d7005bc1825a68ded41fb2d7",
+    "build/bpr0969-conversations/full-renders/restart-mismatched-source.png": "532e847d798f0b20c29caf283027e364fd2c9419dc2b767a80f2e0e35d63a2d6",
+    "build/bpr0969-conversations/full-renders/restart-corrupt-offline.png": "d22bd522bd861c2d7851391c9acea6e8d9ba443510fb4b49447031559c49f454",
+    "build/bpr0969-conversations/full-renders/identity-second-account-offline.png": "7ac6f39553fada141c01dc2f10c9494dbc5ad40001e4c0837fce65a77902e0c5",
+    "build/bpr0969-conversations/full-renders/identity-legacy.png": "f7bdfec30a8c036805a9bcd224bc6014a66f5b612c2c50bf7f436daba797a2ea",
+    "build/bpr0969-conversations/full-renders/failed-refresh.png": "9b1568e97b17becf820d5893bfe032237c58c497afd753bf80fe462e8fa4171c",
+    "build/bpr0969-conversations/full-renders/restart-offline.png": "9c4a748e0e2e02d48cd8d40cc54e1b1fafba0f8deb2446d3b1b769fd31e26cb8",
+    "build/bpr0969-conversations/full-renders/restart-missing-source.png": "2142d0e8b6e26ef1a239ee5b34391a27b9e97c323c8d9e944f8591a3a3faa06e",
+    "build/bpr0969-conversations/full-renders/refresh-reconnected.png": "9a5cd2cf6236506afb750d1bb998ed23b31caf18d095e389689a8f7924741238",
+    "build/bpr0969-conversations/full-renders/identity-other-account.png": "349df5ca886146fa337eb8f34c438943ebbb6fb106fdfa3cfa7b71df4614edbf",
+    "build/bpr0969-conversations/full-renders/other-repository-offline.png": "4eb912880fc454289240ac6b74327eb5dedb07c47541bf1b6a54d7227ed6d3b0",
+    "build/bpr0969-conversations/full-renders/online-seed.png": "886817e27b32d8c60b4ec480abc0e4d455ebe51c5342fb208c70a406ae8efe7f",
+    "build/bpr0969-conversations/full-renders/restart-reconnected.png": "74ab571ac5f637006f830c29dac9007aa0f57e9f0428896308c6d13bfc083d8f"
+  },
+  "accepted_scope": "Card AC1 inventory reused; integrated AC2/AC3 complete for independently accepted current authenticated accounts, with unsupported cases explicitly retained under AC3.",
+  "disconnected_identity_policy": {
+    "existing_decision": "Current-process independently accepted authenticated identity is required; unreachable /user refuses cached access.",
+    "future_decision_if_extension_requested": "Which local identity/credential proof, revocation model, account selection and disclosure rules may authorize cached authenticated content without current server identity? Cached credential metadata, Recent, Git or overview alone remain forbidden.",
+    "blocking_current_scope": false
+  }
+}

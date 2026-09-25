@@ -1738,19 +1738,18 @@ Original payloads remain readable with the catalogue unavailable; new empty
 catalogues explicitly say zero files observed. The SQL table/schema version and
 key encoding stay unchanged. An older reader refuses the new trailing payload;
 it does not reinterpret it. Unknown extensions and corrupt records fail closed.
-Qt presents historical rows in the Overview table with source activation disabled
-and hides unavailable conversation/progress columns. Source and current
-review state still say unavailable. It creates no accepted snapshot, epoch
+Qt presents historical rows in the Overview table and hides unavailable
+conversation/progress columns. Source activation uses the separate historical
+reader described below; current review state remains unavailable. It creates no accepted snapshot, epoch
 handoff, markdown-link or mutation authority. Reopening online obtains a new
 server observation, clears cached revision descriptions and restores current
 columns and file activation. Ten records share the profile; each payload is
-bounded to 560 KiB, the body to 256 KiB, and the database to 2048 pages. Version,
+bounded to 704 KiB, the body to 256 KiB, and the database to 2048 pages. Version,
 schema, record bounds and SHA-256 integrity are checked before content is returned.
 Profile purge includes this store and its SQLite sidecars. This is historical
 metadata after current-process authentication; startup with `/user` unreachable
-still exposes no authenticated cache. Full offline account admission and durable
-source composition and general-comment/review-summary snapshots remain open in
-[BPR-0969](../issues/30-in-progress/BPR-0969-verify-cached-review-offline-restart-freshness.md).
+still exposes no authenticated cache. Full offline account admission remains unsupported by the current policy in
+[BPR-0969](../issues/60-done/BPR-0969-verify-cached-review-offline-restart-freshness.md).
 
 The subsequent thread-history continuation adds a version-three payload
 extension to this same atomic observation. It preserves complete review-thread
@@ -1774,10 +1773,51 @@ freshness, prior resolution wording and inert anchor observations. Links and
 anchors grant no navigation; the live conversation model, reply/resolve actions,
 receipt state, epoch handoff and mutation lease remain unavailable. Missing and
 empty collections have different headings. A newly accepted server read removes
-all historical text and labels. General comments, review summaries, disconnected
-authentication and retained source composition are still pending. The
+all historical text and labels. The
 [thread-history evidence](../verification/BPR-0969-thread-history-2026-09-25.md)
 records the bounded Mac fixture claim and its limits.
+
+The integrated BPR-0969 outcome adds version-four optional general-comment and
+review-summary collections to the same atomic payload. Each collection has at
+most 256 unique IDs and a conservative 64 KiB total encoded budget; the complete
+collection is omitted when over budget. Reviews retain their observed state and
+optional review commit. Old payloads have unavailable collections, whereas a
+completed accepted empty endpoint remains observed empty. Text is literal and
+review states use historical wording. No summary grants current approval or
+permission. The store still holds at most ten records under its 2048-page ceiling.
+
+A cached file gesture enters `cached_review_source_port`, independently of the
+live selected-diff port. The window host retains the admitted record and original
+failed-open context. Core policy rechecks the current authenticated identity,
+account, repository destination, request generation and catalogue membership at
+ingress and completion. Opening another review, cancelling, retiring the identity
+or shutting down stops the read; stale completions drain without publication.
+The source port cannot manufacture an accepted snapshot or epoch handoff.
+
+The epoch host opens the exact existing catalogue with `ExistingOnly`, which
+refuses absent, retired, rehydration-required or inactive scopes and cannot
+allocate/reactivate them. Its snapshot must match the catalogue binding and the
+latest retained epoch's exact base/head and available anchors. The shared profile
+Git actor serializes lookups with existing epoch work; a historical read never
+replaces a sibling's cache session. Exact base uses the retained previous path
+when present; exact head uses the current path. Blob materialization is bounded
+to 256 KiB per endpoint. Missing paths differ from empty blobs; missing objects,
+binary or oversized data and invalid UTF-8 receive explicit unavailable/unsupported
+presentation. No network fetch, catalogue recovery, revision increment, epoch
+ingestion or mutation authority results from this path.
+
+The source reader expands within Overview, names the exact base/head and unknown
+freshness, and returns to the cached overview without entering the live source
+workbench. It reads the base and head themselves, not a recomputed merge-base
+comparison. Source for an older cached pair that differs from the latest retained
+epoch is conservatively unavailable; there is no fallback to a nearby pair.
+Reconnection adopts server truth and clears all historical text. Fully disconnected
+startup still requires an independently established account identity; credentials,
+Recent rows and cached data cannot supply it under current policy. Extending that
+policy would require a separately authorized product decision. The
+[integrated evidence](../verification/BPR-0969-cached-review-2026-09-25.md) records
+actual restart, missing-pack, mismatched-pair, account-switch and owning-layer
+negative controls, with no native/human or Windows/Linux claim.
 
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's
