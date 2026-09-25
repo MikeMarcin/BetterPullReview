@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0971"
 title: "Audit pathological diagnostic privacy and backpressure"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
