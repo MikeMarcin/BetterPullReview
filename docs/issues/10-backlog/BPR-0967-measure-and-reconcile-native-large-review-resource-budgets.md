@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -236,3 +236,37 @@ workload and actual launch/metadata/native-frame observation boundaries.
 The [startup handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-startup.json)
 preserves the pending obligations and quiescent return. BPR-0967 stays unfinished;
 Windows/Linux are deferred and RFC0052's protected review is untouched.
+
+## Mac queued input and close during outstanding work — 2026-09-25
+
+The bounded active-work successor at benchmark candidate
+`31a33afb903e7ca9ed539591552269ec948b98f5` adds a safe network-denied composed
+course through the visible Files tree in Flat order. All 31 queued keys are
+posted with outstanding diff work; **16/31** still observe a pending diff job
+at event delivery, and **15/31** observe zero. Samples do not establish continuous
+worker occupancy. The final exact file remains held through all work, with
+source-change observations plus complete line/blob/authority/anchor checks.
+
+All eight local timing gates pass: maximum queue-to-delivery **4.113 ms**,
+queue-to-verified-selection **21.516 ms**, and complete active-selection input
+interval **26.270 ms**, all against **100 ms**. Public window close starts with
+one outstanding diff and one epoch job, dispatches in **9.466 ms** and reaches
+whole-application quiescence in **16.671 ms**. That aggregate drain is not an
+isolated cancellation acknowledgement. Cache release and exact retained
+Git/catalog identities pass; existing limits remain unchanged. The new 100 ms
+local close-drain bound is justified by two 16.6–16.8 ms preliminary observations.
+
+The [active-work evidence](../../verification/BPR-0967-mac-active-work-2026-09-25.md)
+records timing boundaries, the initial hidden-list harness mistake, two clean
+negative controls and the **6/6 focused pass in 86.42 s**. No product code or
+performance policy changes. The final active and responsiveness courses retain
+initial-load misses of **108.424500/110.075125 ms**. The earlier **108.139042 ms**
+miss remains preserved and unsolved.
+
+AC3 remains partial: continuous activity, isolated cancellation latency and
+other background-work stages are unproved; launch, separate metadata/native
+first frame, generated/pathological fallback, peak live heap and deferred
+Windows/Linux measurements remain open. No new human/native-style/independent
+or release acceptance is supplied. RFC0052's protected review is untouched.
+The [active-work handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-active-work.json)
+returns the candidate and exact remaining obligations. BPR-0967 remains unfinished.

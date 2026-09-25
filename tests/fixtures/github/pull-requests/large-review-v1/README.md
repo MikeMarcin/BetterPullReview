@@ -154,3 +154,31 @@ but starts its first timer after `QApplication` construction. Neither its
 process launch or native compositor presentation. First provisional metadata
 is also distinct from the later metadata/Git-ready aggregate and currently has
 no separate benchmark clock. Those budgets remain pending.
+
+## Mac queued input and close during outstanding work
+
+`application_large_review_active_work` uses the visible Files tree in Flat
+order. It posts 31 Down keys while moving through cold synthetic source files,
+records admitted diff work both at queue insertion and at event-filter delivery,
+and checks each selected path on the next timer tick. Counts at insertion can
+differ from counts at delivery. Host outstanding work includes admitted jobs
+through decision delivery, deferred ingress and local terminals; these samples
+do not prove continuous worker or CPU occupancy.
+
+The final file stays selected through all outstanding work. Source-change
+observers begin at that final key's actual delivery and reject stale publication;
+the terminal checks every source line, blob and comparison/authority anchor.
+A subsequent cold-file request triggers a public window close only after the
+course observes both pending diff state and outstanding work. Close-to-quiescence
+includes whole-application shutdown; it does not isolate stop-token acknowledgement
+or prove that a worker was still executing at the instant of close. The course
+also checks cache release and unchanged exact retained Git/catalog anchors.
+
+Eight local regression gates retain the 100 ms input target, the existing
+10-second rapid-selection/1.25-second final-drain bounds, and a 100 ms
+close-to-quiescence bound derived from 16.568/16.837 ms M4 Pro observations.
+`InputBudgetFailures` still lists any phase that misses 100 ms, including initial
+metadata/Git load. The [active-work evidence](../../../../../docs/verification/BPR-0967-mac-active-work-2026-09-25.md)
+keeps each timing boundary, exact candidate, negative controls and unobserved
+work categories distinct. It supplies no OS input, compositor, native-style,
+all-background-work, Windows/Linux or full-card acceptance.

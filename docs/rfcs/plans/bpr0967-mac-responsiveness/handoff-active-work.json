@@ -1,0 +1,300 @@
+{
+  "schema": "bpr0967.mac-active-work-handoff.v1",
+  "assignment": "/root/bpr0967_active_work; bounded Mac active-work input and cancellation observations plus demonstrated repairs only",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "owner": "/root/bpr0967_active_work",
+  "status": "Bounded partial evidence milestone complete; no product repair; full BPR-0967 remains Backlog. Explicit coordinator permission accepts benchmark-only partial evidence while preserving occupancy/cancellation-ack limits.",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0967-active-work",
+  "branch": "main",
+  "baseline": "b104c7bcf02dd1c0f3eaf4506a1f9a83faac8bcb",
+  "source_candidate": "31a33afb903e7ca9ed539591552269ec948b98f5",
+  "checkpoint_revision": "31a33afb903e7ca9ed539591552269ec948b98f5",
+  "documentation_commit": "The explicit documentation-only commit containing this handoff records final tracker and verification state; source candidate and executable remain as above.",
+  "completed_commits": [
+    "a06e3e6a",
+    "d855f1ab5fd37bf8c7d5d65ebf172a316c496919",
+    "31a33afb903e7ca9ed539591552269ec948b98f5"
+  ],
+  "selection": "coordinator-implementer recipe revision 2; native Codex rfc-implementer leaf; no delegation",
+  "setup": {
+    "banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+    "host_load": "not_verified",
+    "inherited_preflight": "Prior handoffs record MASK readiness drift/artifact.corrupt and workflow not_declared; this slice supplies no skill repair or independent observed-serving claim."
+  },
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "memory_bytes": 51539607552,
+    "logical_processors": 14,
+    "os": "macOS 26.6.2",
+    "os_build": "25G83",
+    "architecture": "arm64",
+    "configuration": "Debug",
+    "qt": "6.11.2",
+    "platform": "offscreen",
+    "style": "fusion",
+    "width": 1600,
+    "height": 1000,
+    "device_pixel_ratio": 1
+  },
+  "executable": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/better_pull_review_large_review",
+    "sha256": "4145c13a30de4f9bd66a3102ef9dd7dbc89879e0f6dce1b6303d868f79490fcd",
+    "benchmark_source_sha256": "708fac63101f6bec50c5dbb17e0db6670dc59dc379201fd0942812c1d17440c7"
+  },
+  "verification": {
+    "final_focus": "6/6 pass in 86.42 s: network-isolation manifest 6.29 s, ordinary benchmark 22.91 s, timing control 0.77 s, responsiveness 23.79 s, active work 18.72 s, loaded close 13.92 s.",
+    "final_active": {
+      "queued_keys": 31,
+      "posted_with_diff_work": 31,
+      "delivered_with_pending_diff_work": 16,
+      "delivered_without_diff_work": 15,
+      "source_observations": 8,
+      "close_diff_jobs": 1,
+      "close_epoch_jobs": 1,
+      "close_dispatch_ms": 9.466333,
+      "close_quiescence_ms": 16.670792,
+      "budgets": [
+        {
+          "Name": "active_selection_input_gap",
+          "MeasuredMs": 26.270459,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "active_close_input_gap",
+          "MeasuredMs": 26.2725,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "active_queued_key_delivery",
+          "MeasuredMs": 4.112625,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "active_queued_key_applied",
+          "MeasuredMs": 21.51625,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "active_close_dispatch",
+          "MeasuredMs": 9.466333,
+          "LimitMs": 100,
+          "Passed": true
+        },
+        {
+          "Name": "active_selection_completion",
+          "MeasuredMs": 4551.101584,
+          "LimitMs": 10000,
+          "Passed": true
+        },
+        {
+          "Name": "active_supersession_final_drain",
+          "MeasuredMs": 957.060791,
+          "LimitMs": 1250,
+          "Passed": true
+        },
+        {
+          "Name": "active_close_quiescence",
+          "MeasuredMs": 16.670792,
+          "LimitMs": 100,
+          "Passed": true
+        }
+      ],
+      "preclose_cache_entries": 2,
+      "preclose_cache_bytes": 3521024,
+      "exact_final_source": true,
+      "retained_epoch_unchanged": true,
+      "close_quiescent_and_cache_empty": true
+    },
+    "initial_load": "Baseline 113.072 ms, first corrected 108.067167 ms, gated 107.003958 ms, final active 108.424500 ms and final responsiveness 110.075125 ms all exceed 100 ms. Prior 108.139042 ms is preserved and unsolved.",
+    "controls": "Wrong-key final control changes Down press to Shift against exact candidate source: exit 1 in 15.18 s, queued key did not select the exact next file; partial report retained. Public-close bypass changes window.close to direct begin_shutdown against the same source: exit 1 in 19.80 s, active close retained jobs/cache/window or cleanup failure; partial report retained. Both edits removed.",
+    "exploratory_failures": "Initial hidden-list visibility predicate timed out in 91.56 s; a one-second process sample perturbed its timing; corrected to the actual visible tree and Flat selector. First wrong-key control exposed callback-throw abort (-6); failure paths now return from the Qt loop and produce a partial report before ordinary exception handling. These are harness findings, not product defects.",
+    "loaded_close": "All exact source/epoch/cache ownership assertions pass; lifetime-peak footprint growth 133,923,056 bytes under the unchanged 167,772,160-byte bound, released diff/index owners and destroyed window/documents.",
+    "reused": "Previous history, 64-entry / 64 MiB eviction/revisit, resource/prune/delete and other peak evidence reused at exact historical candidates. No product source, host semantics or old threshold changed.",
+    "documentation": "DOCUMENTATION_OK; 64/64 regression tests pass in 1.895 s (expected negative fixtures print ERROR lines). Scoped board valid with 1,186 cards. git diff --check passes.",
+    "self_review": "Checked visible-tree delivery, sample semantics, actual final-gesture stale guard, conservative next-tick latency, exact source/key/anchors, normal control failures, public close-to-quiescence and exact storage preservation. Split active close into its own helper. No independent/native-style/human acceptance claimed.",
+    "checkpoint": "Shared consistency checker returns action=stop and engineering_acceptance=not-evaluated. Full-card obligation remains pending; partial evidence does not close BPR-0967."
+  },
+  "evidence": "docs/verification/BPR-0967-mac-active-work-2026-09-25.md",
+  "evidence_files": {
+    "build/bpr0967-active-work/baseline.json": {
+      "sha256": "c60d1ace01aa82ae0332372f5adf807ded56fc84533a1b950aef0a3558032b24"
+    },
+    "build/bpr0967-active-work/baseline.log": {
+      "sha256": "7d1e33d30eff0877571299ef44c2f72e6c50d6f2d4203a6c3bef3f51577cfaa1"
+    },
+    "build/bpr0967-active-work/build-close-control-final.log": {
+      "sha256": "645be4a5cb3395a1f2983300ae85a9e18f32923bfac64496507a36fd731b3d9e"
+    },
+    "build/bpr0967-active-work/build-close-control.log": {
+      "sha256": "645be4a5cb3395a1f2983300ae85a9e18f32923bfac64496507a36fd731b3d9e"
+    },
+    "build/bpr0967-active-work/build-final.log": {
+      "sha256": "645be4a5cb3395a1f2983300ae85a9e18f32923bfac64496507a36fd731b3d9e"
+    },
+    "build/bpr0967-active-work/build-first.log": {
+      "sha256": "8d3f32415bd3e075d3d67947fc76aecca3e1fce919c9c5a1a88310603fc9ed33"
+    },
+    "build/bpr0967-active-work/build-gated.log": {
+      "sha256": "645be4a5cb3395a1f2983300ae85a9e18f32923bfac64496507a36fd731b3d9e"
+    },
+    "build/bpr0967-active-work/build-key-control-clean.log": {
+      "sha256": "645be4a5cb3395a1f2983300ae85a9e18f32923bfac64496507a36fd731b3d9e"
+    },
+    "build/bpr0967-active-work/build-key-control.log": {
+      "sha256": "645be4a5cb3395a1f2983300ae85a9e18f32923bfac64496507a36fd731b3d9e"
+    },
+    "build/bpr0967-active-work/build-second.log": {
+      "sha256": "645be4a5cb3395a1f2983300ae85a9e18f32923bfac64496507a36fd731b3d9e"
+    },
+    "build/bpr0967-active-work/close-control-final-partial.json": {
+      "sha256": "04585f876c3302593186cd7ec7a534abc418272c7063b398d53ca3da6c3f4625"
+    },
+    "build/bpr0967-active-work/close-control-final.log": {
+      "sha256": "38ce0d32362175fb3e07f4f3116708bdaa04c3ec3a7440c35a85d73a09f2edff"
+    },
+    "build/bpr0967-active-work/close-control.log": {
+      "sha256": "850f657de29ecb3d0b293bc2599974633098d963ac0e1f47384ec476db1316b7"
+    },
+    "build/bpr0967-active-work/controls.json": {
+      "sha256": "912fe5e2ccb4db0c0dbb8cdbdb782354af9f807aacb82a1cbcfa12b1ff46b85d"
+    },
+    "build/bpr0967-active-work/course-first.log": {
+      "sha256": "1714580d3f8fbc324d7e8404730b61a576ec71a6ff076bd082a8631a7ed8b1e2"
+    },
+    "build/bpr0967-active-work/course-gated.log": {
+      "sha256": "b078839e67b742a711f68efea539face7abddab01033b8d1a56b1bb5370af03e"
+    },
+    "build/bpr0967-active-work/course-second.log": {
+      "sha256": "2f66b9f1bb4cf36633c2097d09c68277eb0f60d4485456a7e1fb0042678597ba"
+    },
+    "build/bpr0967-active-work/documentation-draft.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    "build/bpr0967-active-work/documentation-tests.log": {
+      "sha256": "97990aea5d24fb05ecb77ea8952d5655cab39813d3c752572183413ed6e4e3cc"
+    },
+    "build/bpr0967-active-work/final-active-work.json": {
+      "sha256": "b09deed843590f283386388b7246b17cd33e802df9c9221ec3aec7c0d08f6a10"
+    },
+    "build/bpr0967-active-work/final-courses.log": {
+      "sha256": "fbe2b0aeb7009e7713adf3becf862057cd0085eabcbb480bba30d9a25e13632f"
+    },
+    "build/bpr0967-active-work/final-loaded-close.json": {
+      "sha256": "e91081935544ea6104bc66717b8bbe642da477a1f8bbccab0c0755f53aff199e"
+    },
+    "build/bpr0967-active-work/final-responsiveness.json": {
+      "sha256": "a0c91d2d6d08e6ec74c194b3d8188bf62c67212d211ea9a9428e42eff5f8fc44"
+    },
+    "build/bpr0967-active-work/first-partial.json": {
+      "sha256": "9176e82af9d64955572ac8ad26ca3076a4b594f7c570449200acb67aa135fdf1"
+    },
+    "build/bpr0967-active-work/first-sample.txt": {
+      "sha256": "b1724f26650c2b2c9af802c04774d5b1aa2577ac003b906376fa0349bc538a7b"
+    },
+    "build/bpr0967-active-work/key-control-clean-partial.json": {
+      "sha256": "181f27c3e05a4fd64f6e84a94bf5e3e6dab7c80cc5ffa4ed7cbece5718b9358b"
+    },
+    "build/bpr0967-active-work/key-control-clean.log": {
+      "sha256": "6318f7f0882e79bbf2b87830f007afb0525f5bc1425ec8c780bc4be8c1b0bc15"
+    },
+    "build/bpr0967-active-work/key-control.log": {
+      "sha256": "1e535270d28bc415e3fcf0a85ddbb7331fe94669376e3ca20bf9bf4f0cd9c6ee"
+    },
+    "build/bpr0967-active-work/measured-first.json": {
+      "sha256": "3c062de9ceada3a19a2ce34483c35f05b3f76eaa810c2e27c65ce5624387e1f4"
+    },
+    "build/bpr0967-active-work/measured-gated.json": {
+      "sha256": "264430c325ab09a38b8ff35fa797302f3f3a1b70dae1e85b4d22a8d151f510ec"
+    },
+    "build/bpr0967-active-work/sample-command.log": {
+      "sha256": "ac3970664381a45c84fb1c3d103d88c169ce544c1ebcd634a5554e9cb11bd686"
+    },
+    "build/bpr0967-active-work/documentation-final.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    "build/bpr0967-active-work/board-final.json": {
+      "sha256": "82406923ea19134e6ba9d5a52df2f855ccc6fe638465e7bf6bd3c4f1a4df8e24"
+    }
+  },
+  "changed_paths": [
+    "tests/end_to_end/large_review_benchmark.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/fixtures/github/pull-requests/large-review-v1/README.md",
+    "docs/issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/verification/BPR-0967-mac-active-work-2026-09-25.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/MILESTONES.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/plan-amendment-active-work.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint-active-work.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/observation-active-work.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result-active-work.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff-active-work.json"
+  ],
+  "commands": {
+    "active": [],
+    "review_server": null,
+    "collected_exec_sessions": [
+      63029,
+      25153,
+      80044,
+      47308,
+      53952,
+      13075,
+      67755,
+      38489,
+      15775,
+      4492,
+      8738,
+      68629,
+      33409,
+      88585,
+      70147
+    ],
+    "verification_commands": [
+      "caffeinate -i -s ctest --preset dev -R ^application_large_review_responsiveness$ --output-on-failure",
+      "cmake --build --preset dev --target bench_better_pull_review_large_review",
+      "caffeinate -i -s ctest --preset dev -R '^(application_large_review_(active_work|timing_control|responsiveness|benchmark|loaded_close)|test_network_isolation_manifest)$' -V",
+      "python3 _coding-standard/scripts/format_check.py --root . tests/end_to_end/large_review_benchmark.cpp",
+      "python3 scripts/verify_documentation.py --root .",
+      "python3 tests/scripts/verify_documentation_tests.py",
+      "issue_board.py --repo-root . validate --include BPR-0967 --json",
+      "milestone_checkpoint.py check --execution quiescent",
+      "git diff --check"
+    ],
+    "cleanup": "Each network runner owns and removes its private temporary root including the aborted control child. Temporary benchmark mutations restored byte-exactly before commit. Task-owned source snapshot and plan proposal removed after evidence publication; ignored reports/logs/captures/stack sample retained. No broad temp cleanup."
+  },
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected": "Coordinator-owned RFC0052 14-question session, candidate, state, server and waiter untouched."
+  },
+  "ownership": {
+    "main_writer": "Released to coordinator on final return after explicit documentation commit.",
+    "other_worktrees": "All 23 other registered worktrees preserved with unchanged recorded heads; none created, deleted or edited.",
+    "remote": "No push, live account, private-target access, remote mutation or release.",
+    "commands": "All task-owned command/build/CTest/sample/caffeinate processes collected; final documentation/checkpoint gates collected before return. No review server."
+  },
+  "pending_obligations": [
+    "Initial-load input target remains 100 ms; predecessor 108.139042ms and final active 108.424500ms/final responsiveness 110.075125ms remain failures, not solved.",
+    "Continuous worker/CPU occupancy and isolated cancellation acknowledgement/latency are unobserved; host outstanding counters include work through decision delivery. Only 16/31 keys retain pending diff work at delivery;15/31 see zero.",
+    "Other active Git/network/syntax/persistence/AI stages and long-running large-file semantic compute cancellation remain unobserved.",
+    "True process/QApplication launch, separate provisional/accepted metadata and native first frame remain pending per startup inventory.",
+    "Generated/pathological fallback and peak live heap remain pending.",
+    "Windows/Linux stations explicitly deferred; full BPR-0967 remains Backlog. Required human/native/independent acceptance is not inferred."
+  ],
+  "next_action": "Coordinator may integrate/push explicit commits. Select a separate bounded remaining Mac obligation or initial-load analysis; preserve the 100 ms target and unobserved worker/cancellation stages. Windows/Linux remain deferred; no full-card closure.",
+  "checkpoint": "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint-active-work.json",
+  "observation": "docs/rfcs/plans/bpr0967-mac-responsiveness/observation-active-work.json",
+  "check_result": "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result-active-work.json"
+}
