@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1129",
+    "BPR-1130",
+    "BPR-1131",
+    "BPR-1132",
+    "BPR-1133",
+    "BPR-1134",
+    "BPR-1135"
+  ],
+  "reserve_for": "rfc-bpr-0052-scaffolding",
+  "purpose": "RFC-BPR-0052, the review workbench scaffolding the owner decided on BPR-1106 (2026-09-24): six slices and the closeout",
+  "created": "2026-09-25T04:21:30.813484+00:00",
+  "base": "91f193a5d181f20b314e86e9559b72596267f1f9"
+}
