@@ -26,10 +26,13 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QEvent>
 #include <QItemSelectionModel>
 #include <QLineEdit>
 #include <QListView>
+#include <QObject>
 #include <QPlainTextEdit>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QThread>
@@ -37,6 +40,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -64,6 +68,40 @@ namespace {
 	constexpr std::string_view agent_claim
 		= "BPR_FINDING_CLAIM_0504 the retry budget is not reported to the caller";
 	constexpr auto contextual_cue_cooldown_ms = 2'100UL;
+
+	/// \brief Records the visible sprite's paint events inside event-loop delivery.
+	/// \details A start and a terminal can both land before the next wait predicate.
+	/// Observing paints retains a short cue without delaying the agent or the UI.
+	class dif_paint_observation final : public QObject
+	{
+	public:
+		explicit dif_paint_observation(qt::dif_widget& aDif)
+			: Dif{ aDif }
+		{
+			Dif.installEventFilter(this);
+		}
+
+		auto saw(qt::dif_clip_id aClip) const -> bool
+		{
+			return Painted[qt::dif_index(aClip)];
+		}
+
+	protected:
+		auto eventFilter(QObject* aObject, QEvent* aEvent) -> bool override
+		{
+			if (aObject == &Dif && aEvent->type() == QEvent::Paint && Dif.isVisible()) {
+				const auto clip = Dif.current_frame().Clip;
+				if (clip < Painted.size()) {
+					Painted[clip] = true;
+				}
+			}
+			return false;
+		}
+
+	private:
+		qt::dif_widget&      Dif;
+		std::array<bool, 10> Painted{ };
+	};
 
 	template <typename Predicate>
 	[[nodiscard]] auto wait_until_reporting(
@@ -419,6 +457,7 @@ auto main(int argc, char** argv) -> int
 
 	qt::dif_widget* dif           = nullptr;
 	auto            difComparison = false;
+	auto            difPaints     = std::unique_ptr<dif_paint_observation>{ };
 	if (course == "dif-context") {
 		window.adopt_dif(core::resolve_dif(
 			{ .Visibility = core::dif_visibility::shown,
@@ -455,6 +494,7 @@ auto main(int argc, char** argv) -> int
 			== qt::dif_index(qt::dif_clip_id::compare_glance);
 		QThread::msleep(contextual_cue_cooldown_ms);
 		QApplication::processEvents();
+		difPaints = std::make_unique<dif_paint_observation>(*dif);
 	}
 
 	const auto codexIndex = panel->profile_selector()->findData(
@@ -463,6 +503,17 @@ auto main(int argc, char** argv) -> int
 		return fail(*application, "codex-profile");
 	}
 	panel->profile_selector()->setCurrentIndex(codexIndex);
+	if (dif != nullptr) {
+		// [[BPR-0966]]. isVisible() alone admits a sprite entirely outside
+		// this scroll viewport. Observe the cue only after exposing its slot.
+		window.findings_tab_scroll()->ensureWidgetVisible(dif);
+		auto exposure = wait_terms{ };
+		if (!wait_until_reporting(exposure, [dif](wait_terms& aTerms) {
+				return aTerms.require("dif-in-viewport", !dif->visibleRegion().isEmpty());
+			})) {
+			return fail(*application, "dif-exposure", exposure.render());
+		}
+	}
 	// BPR-0533. The workshop course starts its turn from the comment-workshop
 	// control instead of the launch panel, and from nowhere else: the press is
 	// the only gesture it makes, so every process, workspace, and delivery
@@ -489,16 +540,10 @@ auto main(int argc, char** argv) -> int
 		panel->start_button()->click();
 	}
 
-	auto delivered      = wait_terms{ };
-	auto difSawConsider = false;
+	auto delivered = wait_terms{ };
 	if (!wait_until_reporting(
 			delivered,
-			[&application, dif, &difSawConsider](wait_terms& aTerms) {
-				if (dif != nullptr
-					&& dif->current_frame().Clip
-						== qt::dif_index(qt::dif_clip_id::consider)) {
-					difSawConsider = true;
-				}
+			[&application](wait_terms& aTerms) {
 				const auto invocation = app::detail::
 					github_application_fixture_access::agent_invocation_evidence(
 						*application);
@@ -525,6 +570,8 @@ auto main(int argc, char** argv) -> int
 		return fail(*application, "agent-run", delivered.render());
 	}
 	QApplication::processEvents();
+	const auto difSawConsider = difPaints != nullptr
+		&& difPaints->saw(qt::dif_clip_id::consider);
 	const auto difAttention = dif != nullptr
 		&& dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::attention);
 
@@ -602,6 +649,7 @@ auto main(int argc, char** argv) -> int
 
 	// The conversion gesture, on the composed queue, against the finding the
 	// run delivered. Nothing is published by it and nothing can be.
+	const auto draftBeforeConversion = editor->shown_draft();
 	if (queue != nullptr && queue->finding_count() != 0U) {
 		auto* const convert
 			= queue->action(qt::finding_queue_action::convert_to_draft_comment);
@@ -617,6 +665,14 @@ auto main(int argc, char** argv) -> int
 	const auto difCommentReady = dif != nullptr
 		&& dif->current_frame().Clip
 			== qt::dif_index(qt::dif_clip_id::comment_ready);
+	const auto proposalMatchesDraft = draftBeforeConversion.has_value()
+		&& editor->shown_proposal().has_value()
+		&& editor->shown_proposal()->Draft == draftBeforeConversion->Id
+		&& editor->shown_draft() == draftBeforeConversion;
+	const auto proposalEditorVisible        = editor->isVisible();
+	const auto proposalAiSlotVisible        = window.dif_ai_slot()->isVisible();
+	const auto proposalDifVisible           = dif != nullptr && dif->isVisible();
+	const auto draftIntentsBeforeAcceptance = editor->statistics().DraftIntents;
 
 	if (course == "workshop-press" && editor->clarify_action() != nullptr) {
 		// Answered, so the offer is open again. A control that stayed shut
@@ -641,6 +697,14 @@ auto main(int argc, char** argv) -> int
 	const auto difAcknowledge = dif != nullptr
 		&& dif->current_frame().Clip
 			== qt::dif_index(qt::dif_clip_id::acknowledge);
+	const auto acceptedMatchesDraft = draftBeforeConversion.has_value()
+		&& editor->shown_draft().has_value()
+		&& editor->shown_draft()->Id == draftBeforeConversion->Id;
+	const auto acceptedEditorVisible   = editor->isVisible();
+	const auto acceptedAiSlotVisible   = window.dif_ai_slot()->isVisible();
+	const auto acceptedDifVisible      = dif != nullptr && dif->isVisible();
+	const auto acceptanceEmitsOneDraft = editor->statistics().DraftIntents
+		== draftIntentsBeforeAcceptance + 1U;
 	// BPR-0538. Two more stages, on the press course only, and both driven
 	// through the same composed graph: the turn that answers nothing, and the
 	// turn that belongs to somebody else.
@@ -788,6 +852,10 @@ auto main(int argc, char** argv) -> int
 		contract.require("dif-attention-after-delivery", difAttention);
 		contract.require("dif-comment-ready-after-conversion", difCommentReady);
 		contract.require("dif-acknowledge-after-acceptance", difAcknowledge);
+		contract.require("proposal-preserves-exact-draft", proposalMatchesDraft);
+		contract.require("acceptance-preserves-draft-id", acceptedMatchesDraft);
+		contract.require("acceptance-emits-one-draft", acceptanceEmitsOneDraft);
+		contract.require("one-retained-dif-widget", window.dif() == dif && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1);
 		contract.require("delivery-queued-is-one", afterDelivery.QueuedFindings == 1U);
 		contract.require(
 			"queued-claim-is-agent-claim",
@@ -805,6 +873,15 @@ auto main(int argc, char** argv) -> int
 					  << difAttention << ':' << difCommentReady << ':'
 					  << difAcknowledge << ':' << afterDelivery.QueuedFindings
 					  << ':' << mutation.Submissions << '\n';
+			std::fprintf(stderr,
+						 "agent-finding-dif-workshop-visibility:proposal-editor=%d proposal-ai-slot=%d proposal-dif=%d "
+						 "accepted-editor=%d accepted-ai-slot=%d accepted-dif=%d "
+						 "painted-consider=%d painted-ready=%d painted-acknowledge=%d\n",
+						 proposalEditorVisible, proposalAiSlotVisible, proposalDifVisible,
+						 acceptedEditorVisible, acceptedAiSlotVisible, acceptedDifVisible,
+						 difPaints->saw(qt::dif_clip_id::consider),
+						 difPaints->saw(qt::dif_clip_id::comment_ready),
+						 difPaints->saw(qt::dif_clip_id::acknowledge));
 		}
 		if (!shutdown(*application) || !passed) {
 			return EXIT_FAILURE;
