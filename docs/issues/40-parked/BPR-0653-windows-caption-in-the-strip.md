@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1 RFC-BPR-0028 AC-01, as amended by the owner on 2026-09-24, on Windows at 1280x852 and 1920x1080: the chrome above the comparison is the strip, the review surface's entry rows and the epoch line, and the strip is the row the caption buttons sit in","outcome":"pass","revision":"38cc26d7","evidence":{"kind":"command","detail":"Criterion amended, not reworded to fit: the owner's verdict in attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0653-entry-row-v001, fingerprint 308902012d73bb4ce5f8c6cc34e2215412c11b4db78f9e3f36867b84b03bd5bd, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, actor human, 2026-09-24T18:54:09Z, selected 'Amend RFC-BPR-0028 AC-01 and the chrome paragraph to admit the entry rows between the strip and the epoch line'. Against the amended words: ctest --preset dev -R application_windows_title_row on the real windows platform (Qt 6.11.2, 150% scale) passes at f62b745d, at 53d229d7 and on main at 38cc26d7, printing title-row:1280x852:ok and title-row:1920x1080:ok: no title bar, the strip first and as wide as the window with the caption buttons in it (46 px, row height, close ending the row), the client area directly beneath the strip with no menu bar row, and between the strip and the epoch line only composeReviewActionButton@30+20 and composeInlineDraftActionButton@30+20, the composition entry row the amendment admits. It passes again in BPR-1028's popup() form at 2a5580d6 (product source of e08a0409), 1.96 s. The portable form is asserted by qt_workbench_window_scale_* since BPR-0940 (f839e26a).","path":"docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md#owner-decisions-2026-09-24-attended-session-cbd48b91"}},{"criterion":"AC2 Snap layouts appear on hovering the maximise button; dragging empty strip space moves the window; double-click maximises and restores","outcome":"pending","revision":"53d229d7","evidence":{"kind":"command","detail":"application_windows_title_row passes: a posted WM_NCLBUTTONDBLCLK on bare strip surface maximises with the strip at the work area's top and restores the same rectangle; bare strip surface answers HTCAPTION and maximise HTMAXBUTTON, restored and maximised, at 1280x852 and 1920x1080; minimised while maximised and restored from the taskbar it returns maximised and then restores the original rectangle. The snap layout flyout and the dragged window are the platform's responses to those codes; observing them needs a real pointer on the owner's desktop, which this unattended dispatch did not move, so they ride criterion 4's attended capture (steps 3 and 4)."}},{"criterion":"AC3 The Windows station's focused Qt selectors and the manifest gate pass; the new uncontained registration, if any, is pinned by name in the same commit","outcome":"pending","revision":"fb4357b1","evidence":{"kind":"command","detail":"At f62b745d, 14 of 19 focused selectors pass, including application_windows_title_row, the new contained qt_workbench_title_row_scale_{100,125,200} and qt_workbench_focus_order_scale_{100,125,200}; no uncontained registration is added. Re-run on main (38cc26d7, and fb4357b1 for the non-foreground set): application_windows_title_row, qt_workbench_title_row_scale_{100,125,200}, qt_workbench_focus_order_scale_{100,125,200}, test_network_isolation_manifest (green since BPR-1020), test_network_isolation_structure_contract, architecture_boundaries, core_dependency_boundary, application_review_round_trip_composition_contract, application_diff_workbench_public_path, qt_home_list_scale_100 and qt_review_queue pass. Red on main, none of it this card's: qt_workbench_window_scale_{100,125,200} now pass BPR-0940's epoch-row assertion and abort later in test_discuss_uses_main_content_and_open_in_code_returns_to_read on an MSVC debug-iterator assertion ('can't dereference invalidated vector iterator'; qt_workbench_conversation_reveal aborts identically; a card is requested); qt_composed_github_scale_100 passes BPR-0940's former stop and fails at BPR-0869's fixed-pitch device code row. Logs: build/logs/bpr-0653-main-win/ on the Windows station."}},{"criterion":"AC4 Attended capture on the Windows station showing the strip with the caption buttons and the snap layout flyout","outcome":"pending","revision":"53d229d7","evidence":{"kind":"observation","detail":"Not taken; it needs the owner. Steps 1 to 6 of the card's 'Attended capture (criterion 4)' on JaegAW at 100% and 150% from a tests-disabled app-release bundle built at the candidate; step 7 (minimise from maximised) is now covered by application_windows_title_row. No attended or wizard session was started by this dispatch."}}]
+acceptance: [{"criterion":"AC1 RFC-BPR-0028 AC-01, as amended by the owner on 2026-09-24, on Windows at 1280x852 and 1920x1080: the chrome above the comparison is the strip, the review surface's entry rows and the epoch line, and the strip is the row the caption buttons sit in","outcome":"pass","revision":"38cc26d7","evidence":{"kind":"command","detail":"Criterion amended, not reworded to fit: the owner's verdict in attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0653-entry-row-v001, fingerprint 308902012d73bb4ce5f8c6cc34e2215412c11b4db78f9e3f36867b84b03bd5bd, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, actor human, 2026-09-24T18:54:09Z, selected 'Amend RFC-BPR-0028 AC-01 and the chrome paragraph to admit the entry rows between the strip and the epoch line'. Against the amended words: ctest --preset dev -R application_windows_title_row on the real windows platform (Qt 6.11.2, 150% scale) passes at f62b745d, at 53d229d7 and on main at 38cc26d7, printing title-row:1280x852:ok and title-row:1920x1080:ok: no title bar, the strip first and as wide as the window with the caption buttons in it (46 px, row height, close ending the row), the client area directly beneath the strip with no menu bar row, and between the strip and the epoch line only composeReviewActionButton@30+20 and composeInlineDraftActionButton@30+20, the composition entry row the amendment admits. It passes again in BPR-1028's popup() form at 2a5580d6 (product source of e08a0409), 1.96 s. The portable form is asserted by qt_workbench_window_scale_* since BPR-0940 (f839e26a).","path":"docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md#owner-decisions-2026-09-24-attended-session-cbd48b91"}},{"criterion":"AC2 Snap layouts appear on hovering the maximise button; dragging empty strip space moves the window; double-click maximises and restores","outcome":"pending","revision":"727ad9d7","evidence":{"kind":"observation","detail":"150% accepted by the owner; 100% owed. Attended session df5859c784ba447497026d6cd81af810, candidate BPR-0653-windows-capture-150-v001, revision 727ad9d7 (the station's capture of image 6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4, source 85e522d8), fingerprint b086dd44326bf32cef5d0703988972e3cd5839786c5cc2434ae66c009e39e775, decision 1aba8610-6768-408a-a0a1-e1613c62c89f, actor human, 2026-09-25T05:07:37Z, selected 'Accept the Windows caption and strip visuals as captured at 150%', no note. At DPI 144 the accepted capture shows the snap layouts flyout on hovering Maximize; a real-pointer (SendInput) drag of empty strip space moving the window by exactly the pointer's travel, (+160, +120) physical pixels in capture.json; and a double-click on empty strip space restoring the maximized window to the same frame. The maximizing double-click is application_windows_title_row's evidence (WM_NCLBUTTONDBLCLK on bare strip surface maximises on the real platform, at 53d229d7 and since), and the question named it as not pictured. The snap and drag observations ride criterion 4's capture, which this card binds at 100% and 150%: the same observations at 100% display scale are owed, and no owner amendment waives them.","path":"docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md#the-owners-verdict-on-the-150-capture-2026-09-25-main-mac"}},{"criterion":"AC3 The Windows station's focused Qt selectors and the manifest gate pass; the new uncontained registration, if any, is pinned by name in the same commit","outcome":"pending","revision":"fb4357b1","evidence":{"kind":"command","detail":"At f62b745d, 14 of 19 focused selectors pass, including application_windows_title_row, the new contained qt_workbench_title_row_scale_{100,125,200} and qt_workbench_focus_order_scale_{100,125,200}; no uncontained registration is added. Re-run on main (38cc26d7, and fb4357b1 for the non-foreground set): application_windows_title_row, qt_workbench_title_row_scale_{100,125,200}, qt_workbench_focus_order_scale_{100,125,200}, test_network_isolation_manifest (green since BPR-1020), test_network_isolation_structure_contract, architecture_boundaries, core_dependency_boundary, application_review_round_trip_composition_contract, application_diff_workbench_public_path, qt_home_list_scale_100 and qt_review_queue pass. Red on main, none of it this card's: qt_workbench_window_scale_{100,125,200} now pass BPR-0940's epoch-row assertion and abort later in test_discuss_uses_main_content_and_open_in_code_returns_to_read on an MSVC debug-iterator assertion ('can't dereference invalidated vector iterator'; qt_workbench_conversation_reveal aborts identically; a card is requested); qt_composed_github_scale_100 passes BPR-0940's former stop and fails at BPR-0869's fixed-pitch device code row. Logs: build/logs/bpr-0653-main-win/ on the Windows station. 2026-09-25 (main, Mac, bookkeeping; nothing run): both reds above are fixed. BPR-1029 (8edd961a): qt_workbench_window_scale_{100,125,200} and qt_workbench_conversation_reveal pass on the Windows station. BPR-0869 (1eab866e): qt_composed_github_scale_{100,125,200} pass on Windows. BPR-1022's Windows run (recorded on that card at 02905c77) passes application_windows_title_row, qt_workbench_title_row_scale_*, qt_workbench_focus_order_scale_* and qt_composed_github_scale_100. The window rows have not run on Windows since workbench_window.cpp changed after 8edd961a (785a6828, BPR-1022, among others), and no single Windows pass covers this criterion's selectors and the manifest gate. Owed: one unattended station pass of them and test_network_isolation_manifest at one current main revision."}},{"criterion":"AC4 Attended capture on the Windows station showing the strip with the caption buttons and the snap layout flyout","outcome":"pending","revision":"727ad9d7","evidence":{"kind":"observation","detail":"150% taken and accepted by the owner; 100% owed. The station captured the strip as the title row with Minimize, Maximize and Close at rest, hovered and pressed, and the snap layouts flyout, in one launch of image 6aa27c8d…98ac4 (bundle ca3bc2b1…8f91, source 85e522d8) at DPI 144, 2026-09-25T04:29:54Z to 04:30:23Z: docs/verification/BPR-0653-2026-09-25, commit 727ad9d7, 39 images each hashing to capture.json. The owner accepted it in attended session df5859c784ba447497026d6cd81af810, decision 1aba8610-6768-408a-a0a1-e1613c62c89f, fingerprint b086dd44326bf32cef5d0703988972e3cd5839786c5cc2434ae66c009e39e775, 2026-09-25T05:07:37Z, actor human, no note. The accept covers that capture at 150% only, with the limits its question stated: driven by windows_caption_capture.ps1, not by a person; the window on Home, signed out; edge snap, the 1920x1080 maximized size and the maximizing double-click not pictured. Owed: the same capture at 100% display scale, which needs the owner to change the display scale on JaegAW, and the owner's review of it. The question told the owner that 100% stays owed whatever the answer, and the verdict amends nothing.","path":"docs/issues/40-parked/BPR-0653-windows-caption-in-the-strip.md#the-owners-verdict-on-the-150-capture-2026-09-25-main-mac"}}]
 ---
 
 # Windows: the strip as the title row
@@ -1125,3 +1125,106 @@ scoped attended session. No earlier item is on the page.
 Unless the owner amends the criteria, **100% stays owed**. An accept covers
 150% on this exact capture only. Criteria 2 and 4 stay pending until the verdict is recorded
 here. Criterion 3 is unchanged. The card stays parked on human-review.
+
+## The owner's verdict on the 150% capture, 2026-09-25 (main, Mac)
+
+Source: attended session `df5859c784ba447497026d6cd81af810`, state
+`/Users/jaeger/.mask/attended-review/owner-decisions-20260925-bpr0653-v001`
+(external, not committed), packet
+[owner-decisions-20260925-bpr0653-v001](../../verification/reviews/owner-decisions-20260925-bpr0653-v001/operator-packet.md).
+The owner handed back at sequence 6. The helper's `status --after 4` reads
+the verdict back as below: sequence 5 is the decision and sequence 6 the
+hand-back, with nothing left pending.
+
+- Candidate `BPR-0653-windows-capture-150-v001`, revision `727ad9d7`: the
+  station's capture of image `6aa27c8d…98ac4`, bundle `ca3bc2b1…8f91`, source
+  `85e522d8`.
+- Fingerprint
+  `b086dd44326bf32cef5d0703988972e3cd5839786c5cc2434ae66c009e39e775`, the one
+  prepared at sequence 4, so the verdict is bound to exactly what was shown.
+- Decision `1aba8610-6768-408a-a0a1-e1613c62c89f`, saved
+  2026-09-25T05:07:37Z, `actor: human`. **Selected**, verbatim:
+
+  > Accept the Windows caption and strip visuals as captured at 150%
+
+  The note is empty.
+
+### What the verdict covers
+
+**Criterion 4.** The 150% half is taken and accepted. The capture shows the
+strip as the title row, with Minimize, Maximize and Close at rest, hovered and
+pressed, and the snap layouts flyout, at DPI 144. The accept covers that
+capture only, with the limits its question stated:
+
+- the station drove it with `windows_caption_capture.ps1`, not a person;
+- the window was on Home, signed out;
+- edge snap, the 1920x1080 maximized size and the maximizing double-click are
+  not pictured.
+
+**Criterion 2.** At 150% each of its clauses is now observed:
+
+- the snap layouts flyout on hovering Maximize (accepted);
+- a real-pointer drag of empty strip space moving the window by the pointer's
+  travel, (+160, +120) physical pixels, in `capture.json` (accepted);
+- a double-click on empty strip space restoring the same frame (accepted);
+- the maximizing double-click, from `application_windows_title_row` on the
+  real platform.
+
+The verdict amends nothing.
+
+### Why the card does not finish with 100% as a residual
+
+No criterion and no owner amendment allows it:
+
+- The card binds criterion 4's capture at **100% and 150%**. That is in the
+  criterion's recorded evidence, in "Attended capture (criterion 4)" and in
+  "What the owner must do". Criterion 2's snap and drag observations ride
+  that capture.
+- The question told the owner, before the answer, that 100% "stays owed on the
+  card whatever the answer". The preparation section above says the same:
+  unless the owner amends the criteria, 100% stays owed.
+- The verdict accepts "as captured at 150%", with no note. It does not amend
+  the criteria.
+
+So criteria 2 and 4 stay `pending`, each with its 150% half accepted.
+
+**Criterion 3 is also still pending.** Both reds it recorded are fixed:
+
+- [[BPR-1029]] (`8edd961a`): the window rows and
+  `qt_workbench_conversation_reveal` pass on the Windows station.
+- [[BPR-0869]] (`1eab866e`): the composed rows pass on Windows.
+
+`workbench_window.cpp` has changed since those rows last passed on Windows
+(`785a6828`, [[BPR-1022]], among others). No single Windows pass covers the
+criterion's selectors together with the manifest gate.
+
+### The session is closed
+
+- **The host is stopped.** `stop` returned `{"stopped": true}`, and PID
+  75589 is gone.
+- **The protection is released.** `resume-development --candidate
+  BPR-0653-windows-capture-150-v001` released it at sequence 7. The decision
+  stays on the candidate, and `conflicts` over the capture folder, the packet,
+  this card and [[BPR-1021]] is empty.
+- **The packet is unchanged.** Its bytes are what the owner was shown, as with
+  the earlier packets.
+
+### What remains, exactly
+
+1. **The capture at 100% display scale** (criteria 2 and 4):
+   - **Owner first.** Set JaegAW's display scale to 100%. It is a system
+     setting, so the station does not change it.
+   - **Then the station.** Run `windows_caption_capture.ps1` at DPI 96. Use
+     the same image, `6aa27c8d…98ac4` with bundle `ca3bc2b1…8f91`, so that
+     both halves picture the one title row the owner accepted at 150%. Each
+     launch is its own Defender check: if one is flagged, the capture stops
+     and the detection goes on [[BPR-0974]].
+   - **Then the owner** reviews that capture.
+2. **Criterion 3.** One unattended station pass at a single current main
+   revision. It runs the selectors this criterion names and
+   `test_network_isolation_manifest`, and needs no owner.
+
+The card stays parked on human-review, now for the 100% capture only.
+Criterion 3's station pass is independent unattended work. Only the owner can
+shorten this, by amending criteria 2 and 4 to the accepted 150% capture. No
+such amendment has been made.
