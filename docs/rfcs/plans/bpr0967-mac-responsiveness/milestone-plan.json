@@ -9,8 +9,8 @@
   "coverage": "complete",
   "milestones": [
     {
-      "id": "mac-startup-inventory",
-      "outcome": "Establish whether the safe large-review fixture can measure true Mac process/QApplication-to-first-visible-frame launch and separate first metadata/render; deliver exact measurements or an evidenced bounded inventory when the public launch or observation boundary is unavailable.",
+      "id": "mac-active-work",
+      "outcome": "Measure Mac input and cancellation while real composed large-review work is outstanding; repair only demonstrated failures and retain explicit partial coverage when continuous activity or other work categories remain unobserved.",
       "work": [
         {
           "issue": "BPR-0967"
@@ -27,9 +27,12 @@
         "Inventory actual process, QApplication, composition, fixture-connect, metadata, Git-ready and rendered-frame boundaries on the exact safe Mac candidate.",
         "Exercise the shipped public fixture selection and a supported fixture control under enforced network denial; do not add a production fixture or substitute QWidget capture for compositor presentation.",
         "If true launch is safely observable, record exact hardware/toolkit/candidate and justified launch/metadata/render budgets; otherwise record the demonstrated limitation, keep these criteria pending and stop at the assigned partial boundary.",
-        "Preserve the 100 ms input target, prior exact source/cache/history and lifetime-peak evidence, protected RFC0052 session, all other worktrees and every outstanding platform or acceptance obligation."
+        "Preserve the 100 ms input target, prior exact source/cache/history and lifetime-peak evidence, protected RFC0052 session, all other worktrees and every outstanding platform or acceptance obligation.",
+        "Exercise public input and supersession or cancellation during observed outstanding work in the safe network-isolated Mac composition, recording precise endpoints and sampled job identities/counts without inferring continuous CPU occupancy.",
+        "Preserve exact source, authority, anchors, epoch and cache assertions; any repair has a failing-before control and focused verification against the exact candidate.",
+        "Justify any new completion bounds from measured work while keeping the 100 ms input target and prior 108.139 ms initial-load miss explicit; finish independent unattended work and report remaining active-work coverage honestly."
       ],
-      "boundary": "Coordinator assignment /root/bpr0967_startup; mandate r4-standalone-mac-20260925; baseline 6c2d531c63b55626bfaebde3876f3ac67904989a on main. Source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-startup. Prior exits 1-6 retain their candidate-specific handoffs and remain historical evidence, not new engineering scope. Measure true launch and separate metadata/render only when safely reachable; coordinator clarification permits stopping after demonstrated public fixture refusal and inventory, with no new production fixture or compositor inference. Network-isolated Mac fixtures only; no delegation, push, live account, remote mutation, release or Claude Code. Windows/Linux explicitly deferred. Coordinator-owned RFC0052 14-question session, candidate, state, server and waiter protected. BPR-0967 remains unfinished."
+      "boundary": "Coordinator assignment /root/bpr0967_active_work; mandate r4-standalone-mac-20260925; baseline b104c7bcf02dd1c0f3eaf4506a1f9a83faac8bcb on main. Source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-active-work. Prior exits 1-10 preserve historical candidate-specific evidence and unfinished obligations, not a request to repeat prior slices. Own active-work input/cancellation measurements and demonstrated repairs only. A bounded partial result is permitted when full active-work coverage cannot honestly be observed. No threshold relaxation or claim that the 108.139 ms initial-load miss is solved. No delegation, push, live accounts, remote mutation, release or Claude Code. Windows/Linux deferred. Preserve RFC0052 protected 14-question review and all other worktrees."
     }
   ],
   "unplanned_work": []

@@ -1,0 +1,13 @@
+{
+  "state": "amendment-checked",
+  "reason": "Coordinator assigned quiescent active-work successor",
+  "source_basis": "/root/bpr0967_active_work; r4-standalone-mac-20260925; b104c7bc",
+  "before_fingerprint": "sha256:8a796835fe5f816e2532979b50542fde1c7bd65d501488e2b9a3ce7b3fc54254",
+  "after_fingerprint": "sha256:920d2b2b3b6b316dbf4f2fc8f81fa9dc6d645f70105ec899ebf41bb32c4a9595",
+  "affected_milestones": [
+    "mac-active-work",
+    "mac-startup-inventory"
+  ],
+  "writer_reconciliation": "Startup writer and commands released per handoff-startup; only /root/bpr0967_active_work owns main; RFC0052 protected review untouched",
+  "semantic_coverage": "unknown"
+}
