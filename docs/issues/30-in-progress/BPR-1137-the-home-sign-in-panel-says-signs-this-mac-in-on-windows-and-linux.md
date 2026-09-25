@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1137"
 title: "The home sign-in panel says 'signs this Mac in' on Windows and Linux"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
