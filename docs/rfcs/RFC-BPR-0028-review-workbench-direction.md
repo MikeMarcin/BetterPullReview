@@ -33,11 +33,12 @@ things that held it open:
 - **[[BPR-0746]] is Done** by an owner amendment that withdraws its
   unobtainable AC1 and AC2. The amendment is recorded as an amendment, not as
   a pass.
-- **[[BPR-0653]]**, the Windows title row, is still parked on human-review, now
-  for one ask only: its attended capture on the Windows station (snap layouts,
-  a drag, the look of the caption buttons), from a tests-disabled build at or
-  after `e08a0409`. The owner accepted Qt's private Windows native interface,
-  and its criterion 1 passes under the amended AC-01.
+- **[[BPR-0653]]**, the Windows title row, is still parked on human-review.
+  On 2026-09-25 the owner accepted the station's Windows capture at 150%
+  (decision `1aba8610`). The capture at 100% display scale is still owed, and
+  so is one Windows station pass for its criterion 3; [[BPR-1021]] lists what
+  blocks the closeout. The owner accepted Qt's private Windows native
+  interface, and its criterion 1 passes under the amended AC-01.
 
 ## Current attended pointer, 2026-09-12 (d30)
 
