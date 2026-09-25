@@ -148,6 +148,12 @@ reviewer's probe showed that ordinary lock holders cannot reach either path.
 The residual is [[BPR-1111]]. See "Independent review (2026-09-24)",
 finding 1.
 
+**Since closed (2026-09-24).** [[BPR-1111]] classifies every read at
+`f9c42297`, not only the first: only SQLite's corruption findings and the read
+scope's limits are verdicts. quick_check's report of a page it could not read
+is judged by its result code, and every read the judgement makes is inside its
+snapshot.
+
 ### How this relates to BPR-0541 and BPR-0644
 
 **[[BPR-0541]].** Its fail-closed rule is that a store or vault failure
