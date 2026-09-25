@@ -624,7 +624,7 @@ station record, not committed:
 `build/logs/bpr-main-linux-20260924/batch7-linux/closeout-1107-0644-rows.log`,
 with `build-dev-85e522d8.log`.
 
-## Post-close: Windows at `2ff7e20c` and `f2ca7bea` (bpr-main-win, 2026-09-25)
+## Post-close: Windows at `2ff7e20c` and `1b914abd` (bpr-main-win, 2026-09-25)
 
 **The Windows rerun owed above passes, 3 of 3.** Nothing else is owed from
 Windows. The Windows note above, at `3f8f954d`, predates `518fcc37`.
@@ -639,11 +639,11 @@ contained or Windows-uncontained as registered, serially
 | --- | --- | --- |
 | `github_provider` | `2ff7e20c`, which contains `518fcc37` | pass, 23.30 s |
 | `application_device_binding_launch_renewal` | `2ff7e20c` | pass, 113.09 s, uncontained as registered, inside its 180 s bound. That compares with 86 s here before the account-mismatch phases, and about 85 s on macOS |
-| `application_github_host` | `f2ca7bea` ([[BPR-1124]]) | pass, 0.11 s |
+| `application_github_host` | `1b914abd` ([[BPR-1124]]) | pass, 0.11 s |
 
 `application_github_host` could not pass in a Windows Debug build before
 BPR-1124: [[BPR-1112]]'s allocation sweeps ended it in `std::terminate`
-before this card's cases ran. At `f2ca7bea` the sweeps say they did not run
+before this card's cases ran. At `1b914abd` the sweeps say they did not run
 in a checked build, and every other case runs, this card's
 `test_restored_binding_launch_failures_keep_the_grant` and
 `test_restore_device_profile_renews_an_access_expired_grant_before_its_session`

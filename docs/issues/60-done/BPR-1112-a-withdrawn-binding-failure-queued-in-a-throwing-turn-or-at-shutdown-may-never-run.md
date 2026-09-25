@@ -352,7 +352,7 @@ under `build/logs/batch8-main-win/`, and are not committed: `wdev-build-a8c36152
 ## Post-close: Windows after [[BPR-1124]] (bpr-main-win, 2026-09-25)
 
 **`application_github_host` passes on Windows in Debug and in Release.**
-BPR-1124 (`f2ca7bea`) keeps this card's two sweeps out of a checked MSVC
+BPR-1124 (`1b914abd`) keeps this card's two sweeps out of a checked MSVC
 build, where the standard library allocates inside `noexcept` moves. Its
 card has the reasoning and the controls.
 

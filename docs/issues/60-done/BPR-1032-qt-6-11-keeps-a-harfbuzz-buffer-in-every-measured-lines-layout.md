@@ -257,7 +257,7 @@ Windows, and not on macOS or Linux, is not diagnosed here.
 
 ## Post-close: the Windows stop resolved by [[BPR-1123]] (bpr-main-win, 2026-09-25)
 
-The follow-up the note above asked for is [[BPR-1123]], Done at `63c2b6b5`.
+The follow-up the note above asked for is [[BPR-1123]], Done at `cb3bff3f`.
 The bar never stopped short of a measured end. Its jump was made before the
 measured axis existed, and was dropped. Since this card, every re-measure
 shaped every line again, and Windows Debug links Qt's debug libraries, so the

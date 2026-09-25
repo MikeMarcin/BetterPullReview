@@ -347,14 +347,14 @@ their rows pass. So does the syntax contract's. No root is left. The
 Windows run, which also compiles the helper's Windows branch there, is
 still owed.
 
-## Windows at `83e4ab72` (bpr-main-win, 2026-09-25): the helper compiles; the two rows inside the AppContainer are refused access to their own root
+## Windows at `79a96104` (bpr-main-win, 2026-09-25): the helper compiles; the two rows inside the AppContainer are refused access to their own root
 
 **MSVC compiles `scratch_root.hpp`'s Windows branch, and four of the six rows
 pass. The two rows that run inside the AppContainer fail:** each is denied
 access to the new root it just made there.
 
-The run was in the station's main checkout at `83e4ab72`, which contains
-`ad117024`. The tree held bpr-main-win's uncommitted [[BPR-1123]],
+The run was in the station's main checkout at `79a96104`, which contains
+`ad117024`, with bpr-main-win's card claims on top. The tree held bpr-main-win's uncommitted [[BPR-1123]],
 [[BPR-1124]] and [[BPR-1125]] edits, none of which these six rows build or
 read. Windows 11 25H2, MSVC 19.51, Qt 6.11.2.
 
