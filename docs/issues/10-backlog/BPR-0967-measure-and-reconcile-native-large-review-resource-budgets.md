@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -119,3 +119,32 @@ The counter bounds unsampled physical-footprint peaks on this Mac, but it does
 not time their phases or measure peak live heap. The remaining AC3 platforms
 and responsiveness dimensions above are still unobserved; this card stays
 Backlog.
+
+## Mac complete-phase responsiveness — 2026-09-25
+
+The standalone continuation at code `9d1cfa62` corrects two timing blind spots:
+synchronous-ready work and the interval after the final timer now contribute
+to the phase maximum. A controlled pair of 120 ms stalls failed before the
+repair (reported as 0 and 5.788 ms) and passes afterward. It adds a Mac public
+course for rendered drawer toggles, persisted light/dark changes, binary fallback
+and exact large-source recovery, with 18 justified fixture completion/dispatch
+limits and an explicit `InputBudgetFailures` list. The
+[responsiveness evidence](../../verification/BPR-0967-mac-responsiveness-2026-09-25.md)
+binds the hardware, course, limits and direct observations; the
+[handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff.json) records checks,
+ownership and continuation.
+
+AC3 remains partial. The exact-candidate course still exceeds the unchanged
+100 ms target during metadata/Git load (223.799 ms), first large-source
+selection/render (109.703 ms), and large-source revisit/render (110.688 ms).
+The remaining completion/dispatch limits pass; that does not accept those
+input failures. The final ordinary, unavailable/approximate, history and
+loaded-close results remain separately identified in the handoff. AC1/AC2's
+prior native attribution and four-course peak evidence are reused unchanged.
+
+Next work is to attribute and repair those three full-phase gaps and expand
+true process/Qt startup, separate initial-metadata, active-work input/cancellation,
+generated/pathological fallback and peak-live-heap coverage. Windows/Linux
+stations are explicitly deferred. No native-style, human, independent, package
+or release acceptance is supplied, and RFC0052's protected review is untouched.
+The card stays unfinished after this bounded Mac slice.

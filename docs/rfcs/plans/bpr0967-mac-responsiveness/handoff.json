@@ -1,0 +1,118 @@
+{
+  "schema": "bpr0967.mac-responsiveness-handoff.v1",
+  "assignment": "BPR-0967 standalone Mac responsiveness/resource-budget continuation",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "owner": "/root/bpr0967_implementer_resume",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0967-responsiveness",
+  "branch": "main",
+  "baseline": "aba15afe8238a9dc33a07915eb83fb24b3153762",
+  "code_candidate": "9d1cfa620cad31219c0a65e8eda442d2672ef74e",
+  "status": "Bounded Mac slice complete; BPR-0967 Backlog and full milestone/card acceptance pending.",
+  "selection": "coordinator-implementer recipe revision 2; native Codex leaf, no delegation",
+  "setup": {
+    "observed": "Native Codex rfc-implementer dispatch with gpt-6-astra / xhigh banner",
+    "preflight": "Coordinator reports state=incomplete, state.drift; MASK readiness=drifted artifact.corrupt, workflow=not_declared, host_load=not_verified. No MASK repair or observed-loading claim inferred from config."
+  },
+  "commands": {
+    "active": [],
+    "completed": "All task-owned build, test, documentation and measurement commands collected; no background command or review server handed off. Two exploratory visibility-predicate runs terminated and corrected; their runner-owned temporary roots were cleaned.",
+    "review_server": null,
+    "collected_exec_sessions": [
+      22135,
+      99970,
+      78765,
+      73656,
+      79987,
+      16348,
+      27409,
+      8960,
+      43336,
+      40716,
+      4521,
+      58140,
+      3985
+    ],
+    "verification_commands": [
+      "cmake --build --preset dev --target bench_better_pull_review_large_review",
+      "ctest --preset dev -R '^(application_large_review_(timing_control|responsiveness|benchmark|history|loaded_close)|application_(unavailable|approximate)_diff_public_path|test_network_isolation_manifest)$' --output-on-failure",
+      "python3 _coding-standard/scripts/format_check.py --root . tests/end_to_end/large_review_benchmark.cpp",
+      "python3 scripts/verify_documentation.py --root .",
+      "python3 tests/scripts/verify_documentation_tests.py",
+      "issue_board.py validate --include BPR-0967 --json",
+      "git diff --check"
+    ]
+  },
+  "next_action": "Coordinator receives writer ownership. Separately assign attribution/repair of the three remaining full-phase stalls and remaining Mac dimensions; Windows/Linux stations remain explicitly deferred. No push performed.",
+  "pending_obligations": [
+    "100 ms input target fails metadata/load, first large source and large-source revisit",
+    "Full active-work input/cancellation coverage and true process/QApplication-to-first-frame launch",
+    "Separate first metadata, generated/pathological fallback and peak live heap measurements",
+    "Windows/Linux native measurements explicitly deferred"
+  ],
+  "review_handoff": {
+    "new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected": "Coordinator's RFC0052 attended session and candidate untouched; no attended tool, state or server used."
+  },
+  "evidence": "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+  "completed_commits": [
+    "d6ca9fe6",
+    "7ae7fa16",
+    "9d1cfa62"
+  ],
+  "changed_paths": [
+    "tests/end_to_end/large_review_benchmark.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/fixtures/github/pull-requests/large-review-v1/README.md",
+    "docs/issues/10-backlog/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/MILESTONES.md",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/source.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/strategy-selection.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/checkpoint.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/observation.json",
+    "docs/rfcs/plans/bpr0967-mac-responsiveness/check-result.json"
+  ],
+  "report_digests": {
+    "build/dev/tests/end_to_end/large-review-measurement.json": "e48e3cf8b5c546298b7760754156933cfe1519e77085ac877ba7c685cb248e04",
+    "build/dev/tests/end_to_end/large-review-loaded-close.json": "92bc1df2d5e06c5a071e160c80ff04d0b09a261a60fab199d54952f6943f64af",
+    "build/dev/tests/end_to_end/large-review-responsiveness.json": "23a94557142bcd5aab6d9ad23b512e3e8701048211a20cb96b2c95f22eb0521e",
+    "build/dev/tests/end_to_end/unavailable-diff-measurement.json": "8cbc11bf2f44abbf3ac59825212f82c33a0e4a0a12aaa451df67798f41a23f28",
+    "build/dev/tests/end_to_end/approximate-diff-measurement.json": "ad6a8aac5fb31a595b34161178bdcbb41a76397019c37aae66b8fbae5de32a04",
+    "build/dev/tests/end_to_end/large-review-history.json": "c25c3c63a44e1a16c3dc912772689e1610d488c2565560dead80fce01bc2ba93",
+    "build/bpr0967-responsiveness/timing-control-before.log": "e12accae9ab5e5ffb3c1239675de46bd1da83851fda39387a169ac73a852e8c2",
+    "build/bpr0967-responsiveness/final-courses.log": "89e30a36da3f76dc1c9541c15a47e714a26fda56d1f3e7920a63cae11b12c527"
+  },
+  "verification": {
+    "timing_control": "Failing-before: 120 ms synchronous/terminal stalls reported as 0 and 5.788 ms; repaired exact-candidate observations are 121.507 and 125.026 ms; control passes.",
+    "responsiveness": "18/18 bounded completion/dispatch limits pass; InputBudgetFailures retains 223.799, 109.703 and 110.688 ms full-phase gaps.",
+    "loaded_close": "Pass; lifetime footprint growth 138.344 MiB against unchanged 160 MiB; shutdown releases diff/index, destruction releases window/documents, retained Git/catalog storage unchanged.",
+    "documentation": "verify_documentation.py DOCUMENTATION_OK; verify_documentation_tests.py 64/64 pass; scoped issue_board validation passes (1186 cards); final post-bookkeeping structure/diff checks recorded before documentation commit.",
+    "format": "Selected C++ format check passes with clang-format 23.1.1.",
+    "self_review": "Inspected timing boundary, complete-sample/pulse distinction, context-bound callbacks, ownership, public gestures, exact source/anchor recovery, rule/limit scope and rendered Files/dark/binary captures. No production sources changed.",
+    "independence": "No independent review claimed or required for this harness/documentation slice.",
+    "ctest": "8/8 pass at 9d1cfa620cad31219c0a65e8eda442d2672ef74e in 406.43 seconds. History 309.88 s; responsiveness 23.91 s; ordinary 23.18 s; loaded-close 13.91 s; unavailable 15.24 s; approximate 13.28 s; timing control 0.81 s; isolation manifest 6.21 s.",
+    "history": "32 observed and 32 retained epochs verified; zero model resets; refresh maximum full interval 70.653 ms, maximum completion 8731.370 ms, source selection maximum 973.947 ms. Initial metadata load still appears in InputBudgetFailures.",
+    "source_candidate_scope": "All final executable checks bind code candidate 9d1cfa62. Later commits contain board/evidence/checkpoint/fixture README changes only; no rebuilt or untested product candidate is substituted."
+  },
+  "ownership": {
+    "main_writer": "This implementer only until final return; coordinator explicitly released edits.",
+    "other_worktrees": "23 other registered worktrees preserved, including prior bpr0967-mac-budgets and protected rfc0052-m3. Their contents and branches were not edited.",
+    "delegation": "No subagents or external model launcher.",
+    "live_effects": "No live account, network access, remote mutation, package or release operation.",
+    "cleanup": "Python network-isolation runner owns and removes each temporary fixture root, including deliberately terminated exploratory children. Ignored build reports/logs retained for reproducibility; no temporary worktree or review server created.",
+    "command_state": "Final process inventory contains no task-owned benchmark/CTest/build process. Main writer released on final return; all other worktrees and coordinator review server preserved."
+  },
+  "executable_sha256": "778f8a92f6f72fe95f15d6862ed79bb59a25441191c7556ea40567cdb2f8bad6",
+  "bookkeeping": "Shared move/claim used. Initial lowercase lane selector refused without edits; Ready preparation committed before claim because link repair left the RFC ledger dirty. No finish-to-Done claim was made: full AC3 is pending; shared move returns the card to Backlog.",
+  "checkpoint_note": "Binding refreshed after evidence append and return to Backlog; AC1-AC3 text and mandate unchanged. Observation/check-result were evaluated at exact code candidate 9d1cfa62 with the final documentation content. The following explicit documentation-only commit preserves this point-in-time checkpoint."
+}

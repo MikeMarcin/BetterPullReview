@@ -1,0 +1,112 @@
+{
+  "run_id": "bpr0967-20260925",
+  "segment_id": "mac-responsiveness",
+  "mandate_revision": "r4-standalone-mac-20260925",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr0967-mac-responsiveness",
+    "plan_path": "docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json",
+    "milestone_id": "mac-responsiveness",
+    "definition_fingerprint": "sha256:68762e6f3f3eb10186f61b774b70bebf9bd3acd8a069f5a80107e56f9112afcc",
+    "obligations": [
+      {
+        "id": "BPR-0967:*",
+        "source": "BPR-0967",
+        "selector": null,
+        "source_fingerprint": "sha256:43209c5c9ca920e30da5e96a825f2e0d67c6fb311c3970075dc6278b25f2de1b"
+      }
+    ],
+    "obligation_fingerprint": "sha256:649570b7e69d23bd1f76d7d783caf8feb0a2645fb318967c9f34b835f1debbd2",
+    "exit_criteria": [
+      {
+        "id": "mac-responsiveness:exit:1",
+        "text": "Phase timing includes synchronous-ready work and the final event-loop gap, with a failing-before control for both blind spots."
+      },
+      {
+        "id": "mac-responsiveness:exit:2",
+        "text": "The real network-isolated Mac composition measures visible large-file navigation, drawer, theme and fallback interactions while preserving exact source and cache assertions."
+      },
+      {
+        "id": "mac-responsiveness:exit:3",
+        "text": "An exact-candidate report distinguishes measured results, enforceable justified budgets, known input-budget failures and unmeasured platforms or launch/active-work gaps; BPR-0967 remains open when broader acceptance is missing."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "mac-responsiveness",
+  "disposition": "continue-milestone",
+  "candidate_revision": "9d1cfa620cad31219c0a65e8eda442d2672ef74e",
+  "handoff_ref": "docs/rfcs/plans/bpr0967-mac-responsiveness/handoff.json",
+  "required_pending": [
+    "100 ms input target fails metadata/load, first large source and large-source revisit",
+    "Full active-work input/cancellation coverage and true process/QApplication-to-first-frame launch",
+    "Separate first metadata, generated/pathological fallback and peak live heap measurements",
+    "Windows/Linux native measurements explicitly deferred"
+  ],
+  "evidence_refs": [
+    "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-0967:*",
+      "outcome": "pending",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-responsiveness:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-responsiveness:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "mac-responsiveness:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "pending-obligation",
+    "detail": "The assigned bounded Mac measurement slice and upkeep are complete. Return to coordinator for separately assigned three-stall repairs and remaining Mac measurements; whole BPR-0967 acceptance and Windows/Linux remain pending."
+  },
+  "ownership": "quiescent"
+}

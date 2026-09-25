@@ -111,3 +111,23 @@ BPR-0631 establishes these inputs and provider-boundary checks. BPR-0632 owns
 32 actual application refreshes, retained epoch/catalog identity, historical
 selection and measured UI behavior. Having these inputs does not itself prove
 many-epoch application acceptance or a performance budget.
+
+## Complete-phase Mac responsiveness
+
+BPR-0967 adds `application_large_review_timing_control`, which demonstrates
+that synchronous-ready and terminal work count toward the maximum event-loop
+interval, and the Mac-only `application_large_review_responsiveness` course.
+The latter measures composition-to-Home rendering, the visible first large
+source, Files/Conversations toggles, persisted light/dark themes, binary
+fallback, exact source recovery and existing navigation/supersession inputs.
+PNG encoding and file writes happen outside the measured phases.
+
+The report's `CompletionBudgets` holds measured values, limits and verdicts for
+18 local fixture completion/dispatch boundaries. `InputBudgetFailures` separately
+names every completed phase exceeding the retained 100 ms input target; a
+successful measurement course does not accept those failures. `ActionMs` and
+`FinalIntervalMs` explain the maximum, while P95 uses delivered timer callbacks
+only. The [Mac evidence](../../../../../docs/verification/BPR-0967-mac-responsiveness-2026-09-25.md)
+records hardware, exact candidate, observations and the remaining gaps.
+Composition startup excludes process and `QApplication` launch, rendering is an
+explicit widget capture, and other platforms remain unmeasured.
