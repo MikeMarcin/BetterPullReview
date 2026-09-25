@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0966"
 title: "Reconcile Dif workshop cues with the dedicated composition page"
-status: "In Progress"
+status: "Blocked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"origin_rfc":"RFC-BPR-0031","related_rfc":"RFC-BPR-0037","found_by":"BPR-0507 owner-amended closeout","mandate_revision":"r4","found_at":"9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d","scope":"Standalone later-UI contract follow-up; no RFC0012 product criterion is waived and no completed RFC0031 acceptance is rewritten","milestone_plan":{"id":"bpr0966-dif-cues","path":"docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json"}}
+blocked_by: "owner-dif-workshop-placement"
 ---
 
 # Reconcile Dif workshop cues with the dedicated composition page
@@ -105,3 +106,34 @@ For AC2 and AC3: when this card reconciles the workshop cues, the consider
 assertion should either record the clip when Dif shows it, rather than sample
 it, or be named as a timing-dependent observation. Its Windows outcome is
 wanted in AC3's run at the exact candidate.
+
+## Isolated Mac follow-up (2026-09-25)
+
+Under the coordinator's unattended Mac assignment, candidate
+`12ea8646b9175a32abfa396eb502a2c09007c088` corrects the course's observation:
+the Findings viewport now exposes Dif before a passive Paint-event observer
+records consider. `isVisible()` had admitted a completely clipped sprite.
+The focused failing-before probe records an empty visible region and no consider
+paint; exposing the existing slot makes the region nonempty and records the cue.
+
+The candidate retains the original two failing workshop assertions. Actual
+proposal and acceptance show the editor while both Dif and the AI slot are hidden.
+The exact original draft, retained draft ID, one acceptance command, single
+sprite, proposed/accepted bytes and zero-publication checks pass. Router, editor,
+ordinary finding composition and workshop courses pass; the Dif course fails
+only ready/acknowledge. Full commands, identities and limitations are in
+[the scoped evidence](../../rfcs/plans/bpr0966-dif-cues/evidence.md).
+
+**Owner decision required for AC1:** On Compose, should the one Dif widget move
+to a visible workshop slot, use the corner coordinated with BPR-0800, or remain
+absent with an explicit amendment to RFC0031 B7's ordinary workshop
+acknowledgment requirement? The choice must establish whether ready and
+acknowledge remain required there. Accepted RFC0037 composition placement does
+not resolve this. BPR-0800 reserves the slot/corner decision before code; no
+product placement or historical RFC0031 acceptance was changed.
+
+AC2 is partial, and AC3 retains the failed Dif course. Windows verification is
+explicitly deferred by the user's direction conveyed in this assignment; the
+earlier Windows results and follow-up obligation above remain intact. No new
+native or human verdict was obtained. There is no new visual candidate ready
+for attendance before the owner contract decision.
