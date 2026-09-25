@@ -584,7 +584,7 @@ log is a station record, not committed:
 `build/logs/bpr-main-linux-20260924/batch7-linux/closeout-1107-0644-rows.log`,
 with `build-dev-85e522d8.log`.
 
-## Post-close: Windows at `2ff7e20c` and `cb3bff3f` (bpr-main-win, 2026-09-25)
+## Post-close: Windows at `2ff7e20c` and `fbab68c9` (bpr-main-win, 2026-09-25)
 
 **The Windows rerun owed above passes, and the three workbench rows that
 failed on Windows now pass.** Nothing else is owed from Windows. The Windows
@@ -599,9 +599,9 @@ offscreen. Each row ran contained as registered, serially
 | `qt_code_sample_painter` | `2ff7e20c`, which contains `c0268e85` | pass, 0.23 s. It includes `test_the_owners_example_draws_a_tab_as_a_line_alone` |
 | `qt_type_preview` | `2ff7e20c` | pass, 0.39 s |
 | `qt_appearance_settings_panel` | `2ff7e20c` | pass, 4.06 s |
-| `qt_diff_workbench_scale_100` | `cb3bff3f` ([[BPR-1123]]) | pass, 15.90 s |
-| `qt_diff_workbench_scale_125` | `cb3bff3f` | pass, 16.82 s |
-| `qt_diff_workbench_scale_200` | `cb3bff3f` | pass, 17.92 s |
+| `qt_diff_workbench_scale_100` | `fbab68c9` ([[BPR-1123]]) | pass, 15.90 s |
+| `qt_diff_workbench_scale_125` | `fbab68c9` | pass, 16.82 s |
+| `qt_diff_workbench_scale_200` | `fbab68c9` | pass, 17.92 s |
 
 **The workbench rows.** They failed at `3f8f954d` on [[BPR-1032]]'s
 measurement, before any white-space check ran. BPR-1123 found why. Since
