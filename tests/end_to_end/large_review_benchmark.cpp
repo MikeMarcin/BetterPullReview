@@ -48,6 +48,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <map>
@@ -105,14 +106,62 @@ namespace bpr::e2e::large_review {
 		double      MeasuredMs = 0, LimitMs = 0;
 		bool        Passed = false;
 	};
+	struct active_input_measurement
+	{
+		std::string Path;
+		double      PostedAtMs = 0, DeliveredAfterMs = 0, AppliedAfterMs = 0;
+		std::size_t DiffAtPost = 0, DiffAtDelivery = 0, EpochAtDelivery = 0, WorkbenchAtDelivery = 0;
+		bool        PendingAtDelivery = false, Delivered = false, Applied = false;
+	};
+
+	// Observe the queued event before the visible file tree handles it. Host counters cover
+	// admitted work through decision delivery, not continuous worker occupancy.
+	class active_input_observer final : public QObject
+	{
+	public:
+		active_input_observer(app::github_application& aApplication, std::vector<active_input_measurement>& aInputs, std::function<void(const active_input_measurement&)> aOnDelivery)
+			: Application{ aApplication }
+			, Inputs{ aInputs }
+			, OnDelivery{ std::move(aOnDelivery) }
+		{ }
+		QElapsedTimer Clock;
+		bool          Armed = false;
+
+	protected:
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
+		{
+			if (Armed && aEvent->type() == QEvent::KeyPress) {
+				auto&      input          = Inputs.back();
+				const auto work           = access::diff_work_evidence(Application);
+				input.DeliveredAfterMs    = static_cast<double>(Clock.nsecsElapsed()) / 1'000'000.0;
+				input.DiffAtDelivery      = work.OutstandingJobs;
+				input.EpochAtDelivery     = work.EpochOutstandingJobs;
+				input.WorkbenchAtDelivery = work.WorkbenchOutstandingRequests;
+				input.PendingAtDelivery   = work.Pending;
+				input.Delivered           = true;
+				Armed                     = false;
+				OnDelivery(input);
+			}
+			return QObject::eventFilter(aWatched, aEvent);
+		}
+
+	private:
+		app::github_application&                             Application;
+		std::vector<active_input_measurement>&               Inputs;
+		std::function<void(const active_input_measurement&)> OnDelivery;
+	};
 
 	struct benchmark_report
 	{
-		std::string Schema               = "bpr.large-review-measurement.v1";
-		bool        ResourceCourse       = false;
-		bool        ResponsivenessCourse = false, StartupRendered = false;
-		double      CompositionStartupMs = 0, MaxWheelEventMs = 0;
-		std::size_t InteractionFrames = 0;
+		std::string                           Schema               = "bpr.large-review-measurement.v1";
+		bool                                  ResourceCourse       = false;
+		bool                                  ResponsivenessCourse = false, StartupRendered = false;
+		bool                                  ActiveWorkCourse = false, ActiveFinalHeldExact = false, ActiveCloseDrained = false;
+		std::vector<active_input_measurement> ActiveInputs;
+		std::size_t                           ActiveSourceObservations = 0, ActiveCloseDiffJobs = 0, ActiveCloseEpochJobs = 0;
+		double                                ActiveCloseDispatchMs = 0, ActiveCloseDrainMs = 0;
+		double                                CompositionStartupMs = 0, MaxWheelEventMs = 0;
+		std::size_t                           InteractionFrames = 0;
 		// The inherited 100 ms target is evaluated for every complete phase.
 		// A successful measurement course is not acceptance of these failures.
 		double                      InputIntervalLimitMs = 100.0;
@@ -194,7 +243,7 @@ namespace bpr::e2e::large_review {
 		std::size_t                    PeakConversationRootsDuringSelections = 0;
 		std::uint64_t                  DiffCacheBytes                        = 0;
 		bool                           ExactLargeSource = false, ExactFinalSource = false, Rendered = false, ShutdownComplete = false;
-		std::string                    TimingScope = "Debug/local observation; 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled, not continuous CPU occupancy. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. No cross-platform latency budget.";
+		std::string                    TimingScope = "Debug/local observation; 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled admitted work through decision delivery (including deferred ingress/local terminals), not continuous worker or CPU occupancy. Active-work keys record queue-to-event-filter delivery and queue-to-next-tick verified selection; no OS delivery clock or isolated cancellation acknowledgement is observed. Active close measures the public close through whole-application quiescence, not stop-token acknowledgement. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. No cross-platform latency budget.";
 	};
 
 	void require(bool aCondition, const char* aReason)
@@ -1028,6 +1077,39 @@ namespace bpr::e2e::large_review {
 		require(std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac fixture responsiveness completion budget exceeded");
 	}
 
+	void verify_active_work_budgets(benchmark_report& aReport)
+	{
+		if (!aReport.ActiveWorkCourse) {
+			return;
+		}
+		require(aReport.ActiveInputs.size() == 31U
+					&& std::ranges::all_of(aReport.ActiveInputs, [](const auto& aInput) { return aInput.Delivered && aInput.Applied; })
+					&& std::ranges::any_of(aReport.ActiveInputs, [](const auto& aInput) { return aInput.DiffAtPost != 0U && aInput.DiffAtDelivery != 0U && aInput.PendingAtDelivery; })
+					&& aReport.ActiveCloseDiffJobs != 0U && aReport.ActiveFinalHeldExact && aReport.ActiveCloseDrained,
+				"active-work course lacks delivered input or public close during observed pending work");
+		const auto record = [&](const std::string& aName, double aMeasured, double aLimit) {
+			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit });
+		};
+		const auto phase = [&](const char* aName) -> const phase_measurement& {
+			const auto found = std::ranges::find(aReport.Phases, aName, &phase_measurement::Name);
+			require(found != aReport.Phases.end(), "active-work phase missing");
+			return *found;
+		};
+		const auto& inputs = phase("active_queued_selection_supersession");
+		record("active_selection_input_gap", inputs.MaxPulseIntervalMs, aReport.InputIntervalLimitMs);
+		record("active_close_input_gap", phase("active_window_close").MaxPulseIntervalMs, aReport.InputIntervalLimitMs);
+		record("active_queued_key_delivery", std::ranges::max(aReport.ActiveInputs, { }, &active_input_measurement::DeliveredAfterMs).DeliveredAfterMs, aReport.InputIntervalLimitMs);
+		record("active_queued_key_applied", std::ranges::max(aReport.ActiveInputs, { }, &active_input_measurement::AppliedAfterMs).AppliedAfterMs, aReport.InputIntervalLimitMs);
+		record("active_close_dispatch", aReport.ActiveCloseDispatchMs, aReport.InputIntervalLimitMs);
+		// Reuse the existing M4 Pro/Debug rapid-selection and final-drain limits.
+		// Close-to-quiescence measured 16.568 ms on that station: a 100 ms local
+		// regression bound leaves headroom without claiming a universal I/O bound.
+		record("active_selection_completion", inputs.ElapsedMs, 10'000.0);
+		record("active_supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
+		record("active_close_quiescence", aReport.ActiveCloseDrainMs, 100.0);
+		require(std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac active-work input or drain budget exceeded");
+	}
+
 	void run_responsiveness_interactions(app::github_application& aApplication, const fixture_manifest& aManifest,
 										 benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
 	{
@@ -1087,6 +1169,177 @@ namespace bpr::e2e::large_review {
 		require(surface.current_result()->Alignment.Key == comparison, "fallback recovery changed exact anchors");
 	}
 
+	void close_active_work(app::github_application& aApplication, const fixture_manifest& aManifest,
+						   const core::file_comparison_key& aComparison, benchmark_report& aReport, QElapsedTimer& aBudget)
+	{
+		auto&      window = aApplication.window();
+		QObject    lifetime;
+		const auto target = core::review_epoch_id{ aComparison.LeftAnchor.Authority, aComparison.LeftAnchor.Incarnation, aComparison.LeftAnchor.Epoch };
+		QObject::connect(qApp, &QGuiApplication::lastWindowClosed, &lifetime, [&] { aReport.WindowCloseObserved = true; aApplication.begin_shutdown(); });
+		QElapsedTimer close, admission;
+		bool          admissionFailed = false;
+		QTimer        closeWhenPending;
+		closeWhenPending.setInterval(1);
+		QObject::connect(&closeWhenPending, &QTimer::timeout, &lifetime, [&] {
+			if (admission.elapsed() >= 2'000) {
+				admissionFailed = true;
+				closeWhenPending.stop();
+				return;
+			}
+			const auto work = access::diff_work_evidence(aApplication);
+			if (work.OutstandingJobs == 0U || !work.Pending) {
+				return;
+			}
+			aReport.ActiveCloseDiffJobs  = work.OutstandingJobs;
+			aReport.ActiveCloseEpochJobs = work.EpochOutstandingJobs;
+			closeWhenPending.stop();
+			close.start();
+			window.close();
+			aReport.ActiveCloseDispatchMs = static_cast<double>(close.nsecsElapsed()) / 1'000'000.0;
+		});
+		require(measure_wait(aApplication, aBudget, aReport, "active_window_close", [&] {
+			admission.start(); select_file(window, source_path(200)); closeWhenPending.start(); }, [&] { return admissionFailed || aApplication.status().ShutdownComplete; }), "active close failed to drain");
+		require(!admissionFailed && close.isValid(), "active close did not observe outstanding cold-file work");
+		aReport.ActiveCloseDrainMs = static_cast<double>(close.nsecsElapsed()) / 1'000'000.0;
+		const auto closed          = access::diff_work_evidence(aApplication);
+		aReport.ActiveCloseDrained = aReport.WindowCloseObserved && !window.isVisible() && closed.Quiescent && !closed.Pending
+			&& closed.OutstandingJobs == 0U && closed.WorkbenchOutstandingRequests == 0U && closed.EpochOutstandingJobs == 0U
+			&& closed.CacheEntries == 0U && closed.CacheBytes == 0U && !aApplication.status().ShutdownCleanupFailed;
+		require(aReport.ActiveCloseDrained, "active close retained jobs, cache, window or cleanup failure");
+		const auto retained                = access::maintenance_evidence(aApplication, target, aComparison);
+		aReport.ClosePreservedEpochStorage = retained.PruneIntentDispatchCount == 0U && retained.DeleteIntentDispatchCount == 0U
+			&& retained.RepositoryPresent && retained.TargetBaseRefPresent && retained.TargetHeadRefPresent
+			&& retained.TargetBaseRefOid == aManifest.base && retained.TargetBaseCatalogOid == aManifest.base
+			&& retained.TargetHeadRefOid == aManifest.heads.back() && retained.TargetHeadCatalogOid == retained.TargetHeadRefOid;
+		require(aReport.ClosePreservedEpochStorage, "active close changed exact retained Git/catalog anchors");
+	}
+
+	void run_active_work(app::github_application& aApplication, const fixture_manifest& aManifest,
+						 benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+	{
+		auto& window  = aApplication.window();
+		auto& surface = *window.comparison_surface();
+		require(measure_wait(aApplication, aBudget, aReport, "active_files_drawer", [&] {
+			if (!window.files_drawer_toggle_action()->isChecked()) { window.files_drawer_toggle_action()->trigger(); } }, [&] { return window.files_tree()->isVisible() && quiet(aApplication); }), "active-work drawer unavailable");
+		auto* view  = window.files_tree();
+		auto* order = window.findChild<QComboBox*>(QStringLiteral("filesOrderSelector"));
+		require(order && order->isVisible(), "visible file-order selector unavailable");
+		order->setCurrentIndex(order->findData(static_cast<int>(qt::files_order::flat)));
+		view->setFocus();
+		const auto finalPath = source_path(31);
+		const auto found     = std::ranges::find(aManifest.files, finalPath.toStdString(), &fixture_file::path);
+		require(found != aManifest.files.end(), "active-work final file absent from manifest");
+		auto expected           = surface.current_result()->Alignment.Key;
+		expected.File           = core::file_identity_of(finalPath.toStdString());
+		expected.LeftBlob       = core::parse_git_blob_oid(found->base.oid);
+		expected.RightBlob      = core::parse_git_blob_oid(found->head.oid);
+		bool       holdingFinal = false, stale = false;
+		QObject    lifetime;
+		const auto observe = [&](QTextDocument* aDocument, const QString& aFirst) {
+			if (holdingFinal) {
+				++aReport.ActiveSourceObservations;
+				stale = stale || (surface.current_result() && surface.current_result()->Alignment.Key != expected)
+					|| (!aDocument->isEmpty() && aDocument->firstBlock().text() != aFirst);
+			}
+		};
+		QObject::connect(surface.left_pane()->document(), &QTextDocument::contentsChanged, &lifetime, [&] { observe(surface.left_pane()->document(), QStringLiteral("int fixture_0031 = 0;")); });
+		QObject::connect(surface.right_pane()->document(), &QTextDocument::contentsChanged, &lifetime, [&] { observe(surface.right_pane()->document(), QStringLiteral("int fixture_0031 = 1;")); });
+		active_input_observer observer{ aApplication, aReport.ActiveInputs, [&](const auto& aInput) {
+										   // Prior work may finish between posting and delivery. The actual
+										   // final gesture, not its queue insertion, starts stale-source checks.
+										   holdingFinal = aInput.Path == finalPath.toStdString();
+									   } };
+		view->installEventFilter(&observer);
+		QElapsedTimer course, drain;
+		QTimer        selections;
+		selections.setTimerType(Qt::PreciseTimer);
+		selections.setInterval(1);
+		int         next          = 0;
+		bool        awaitingInput = false;
+		QString     requested;
+		const char* inputFailure = nullptr;
+		const auto  failInput    = [&](const char* aReason) { inputFailure = aReason; selections.stop(); };
+		QObject::connect(&selections, &QTimer::timeout, &lifetime, [&] {
+			if (awaitingInput) {
+				if (observer.Clock.elapsed() >= 1'000) {
+					failInput("queued active-work input was not applied within watchdog");
+					return;
+				}
+				auto& input = aReport.ActiveInputs.back();
+				if (!input.Delivered) {
+					return;
+				}
+				input.Applied        = view->currentIndex().data(qt::files_tree_model::path_role).toString() == requested;
+				input.AppliedAfterMs = static_cast<double>(observer.Clock.nsecsElapsed()) / 1'000'000.0;
+				if (!input.Applied) {
+					failInput("queued key did not select the exact next file");
+					return;
+				}
+				awaitingInput = false;
+				++next;
+			}
+			if (next == 32) {
+				selections.stop();
+				return;
+			}
+			const auto work = access::diff_work_evidence(aApplication);
+			if (!requested.isEmpty() && work.OutstandingJobs == 0U && !selected(surface, requested)) {
+				return;
+			}
+			if (work.OutstandingJobs > application::diff_host_limits{ }.OutstandingJobs) {
+				failInput("active-work diff admission bound exceeded");
+				return;
+			}
+			aReport.SelectionsWithOutstandingDiff += work.OutstandingJobs != 0U ? 1U : 0U;
+			requested = source_path(next);
+			++aReport.RapidSelections;
+			if (next == 0) {
+				select_file(window, requested);
+				++next;
+				return;
+			}
+			if (view->model()->index(view->currentIndex().row() + 1, 0).data(qt::files_tree_model::path_role).toString() != requested) {
+				failInput("fixture drawer order cannot deliver exact Down key target");
+				return;
+			}
+			aReport.ActiveInputs.push_back({ .Path = requested.toStdString(), .PostedAtMs = static_cast<double>(course.nsecsElapsed()) / 1'000'000.0, .DiffAtPost = work.OutstandingJobs });
+			observer.Clock.start();
+			observer.Armed = true;
+			awaitingInput  = true;
+			if (next == 31) {
+				drain.start();
+			}
+			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier });
+			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyRelease, Qt::Key_Down, Qt::NoModifier });
+		});
+		require(measure_wait(aApplication, aBudget, aReport, "active_queued_selection_supersession", [&] { course.start(); selections.start(); }, [&] { return inputFailure || stale || (next == 32 && selected(surface, finalPath) && quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U); }), "active-work supersession timed out");
+		selections.stop();
+		require(inputFailure == nullptr, inputFailure);
+		aReport.SupersessionDrainMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
+		require(!stale && aReport.ActiveSourceObservations != 0U && surface.current_result()->Alignment.Key == expected,
+				"stale source or authority adopted while final keyboard target was held");
+		for (int line = 0; line < 8; ++line) {
+			const auto common = QStringLiteral("// synthetic source 0031 line %1").arg(line + 1);
+			require(surface.left_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0031 = 0;") : common)
+						&& surface.right_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0031 = 1;") : common),
+					"active-work final source differs from fixture");
+		}
+		require(surface.left_pane()->blockCount() == 9 && surface.right_pane()->blockCount() == 9
+					&& surface.left_pane()->document()->lastBlock().text().isEmpty() && surface.right_pane()->document()->lastBlock().text().isEmpty(),
+				"active-work final source length differs from fixture");
+		aReport.ActiveFinalHeldExact = true;
+		aReport.ExactFinalSource     = true;
+		holdingFinal                 = false;
+		require(window.grab().save(QString::fromLocal8Bit(aImage) + QStringLiteral(".active-final.png")), "active-work final window capture failed");
+		const auto cache         = access::diff_work_evidence(aApplication);
+		aReport.DiffCacheEntries = cache.CacheEntries;
+		aReport.DiffCacheBytes   = cache.CacheBytes;
+		require(cache.FixtureDiffHelperInvocations == 0U && cache.CacheEntries <= application::diff_host_limits{ }.CacheEntries
+					&& cache.CacheBytes <= application::diff_host_limits{ }.CacheBytes,
+				"active-work bypassed the composed path or exceeded cache bounds");
+		close_active_work(aApplication, aManifest, expected, aReport, aBudget);
+	}
+
 	auto run_benchmark(QApplication& qtApplication, int argc, char** argv) -> int
 	{
 		if (argc == 5 && std::string_view{ argv[4] } == "--history-session-race") {
@@ -1096,7 +1349,7 @@ namespace bpr::e2e::large_review {
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -1122,6 +1375,7 @@ namespace bpr::e2e::large_review {
 		const auto& dataRoot = *privateRoot;
 
 		benchmark_report report;
+		report.ActiveWorkCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--active-work";
 		report.ResponsivenessCourse                                        = argc == 5 && std::string_view{ argv[4] } == "--responsiveness";
 		report.UnavailableCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
 		report.ApproximateCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--approximate";
@@ -1422,7 +1676,9 @@ namespace bpr::e2e::large_review {
 				if (report.ResponsivenessCourse) {
 					run_responsiveness_interactions(*application, manifest, report, budget, argv[3]);
 				}
-				if (!report.ResourceCourse) {
+				if (report.ActiveWorkCourse) {
+					run_active_work(*application, manifest, report, budget, argv[3]);
+				} else if (!report.ResourceCourse) {
 					auto* conversationModel = window.conversation_model();
 					QObject::connect(conversationModel, &QAbstractItemModel::rowsInserted, &window,
 									 [&report, conversationModel] {
@@ -1458,9 +1714,11 @@ namespace bpr::e2e::large_review {
 					report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
 					require(report.ExactFinalSource, "stale source adopted after supersession");
 				}
-				const auto work         = access::diff_work_evidence(*application);
-				report.DiffCacheEntries = work.CacheEntries;
-				report.DiffCacheBytes   = work.CacheBytes;
+				const auto work = access::diff_work_evidence(*application);
+				if (!report.ActiveWorkCourse) {
+					report.DiffCacheEntries = work.CacheEntries;
+					report.DiffCacheBytes   = work.CacheBytes;
+				}
 				require(work.FixtureDiffHelperInvocations == 0U, "fixture diff bypass was used");
 			}
 			if (report.ResourceCourse && !report.LoadedCloseCourse) {
@@ -1576,21 +1834,23 @@ namespace bpr::e2e::large_review {
 				}
 			}
 			verify_responsiveness_budgets(report);
+			verify_active_work_budgets(report);
 			auto encoded = glz::write_json(report);
 			require(encoded.has_value(), "measurement serialization");
 			std::ofstream output{ argv[2], std::ios::binary };
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
-			std::cout << (report.ResponsivenessCourse ? "LARGE_REVIEW_RESPONSIVENESS_MEASURED\n" : report.FirstTabCourse ? "FIRST_TAB_COMPARISON_OK\n"
-							  : report.CacheByteCourse                                                                   ? "LARGE_REVIEW_CACHE_BYTES_OK\n"
-							  : report.CacheEntryCourse                                                                  ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n"
-							  : report.LoadedCloseCourse                                                                 ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"
-							  : report.HistoryCourse                                                                     ? "LARGE_REVIEW_HISTORY_OK\n"
-							  : report.ResourceCourse                                                                    ? "LARGE_REVIEW_RESOURCES_OK\n"
-							  : report.UnavailableCourse                                                                 ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
-							  : report.ApproximateCourse                                                                 ? "APPROXIMATE_DIFF_COMPOSED_OK\n"
-																														 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
+			std::cout << (report.ActiveWorkCourse ? "LARGE_REVIEW_ACTIVE_WORK_MEASURED\n" : report.ResponsivenessCourse ? "LARGE_REVIEW_RESPONSIVENESS_MEASURED\n"
+							  : report.FirstTabCourse                                                                   ? "FIRST_TAB_COMPARISON_OK\n"
+							  : report.CacheByteCourse                                                                  ? "LARGE_REVIEW_CACHE_BYTES_OK\n"
+							  : report.CacheEntryCourse                                                                 ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n"
+							  : report.LoadedCloseCourse                                                                ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"
+							  : report.HistoryCourse                                                                    ? "LARGE_REVIEW_HISTORY_OK\n"
+							  : report.ResourceCourse                                                                   ? "LARGE_REVIEW_RESOURCES_OK\n"
+							  : report.UnavailableCourse                                                                ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
+							  : report.ApproximateCourse                                                                ? "APPROXIMATE_DIFF_COMPOSED_OK\n"
+																														: "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {

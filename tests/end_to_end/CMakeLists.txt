@@ -1188,6 +1188,16 @@ if(APPLE)
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESPONSIVENESS_MEASURED")
     bpr_add_network_isolated_test(
+        NAME application_large_review_active_work
+        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+            $<TARGET_FILE:Git::Git>
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-active-work.json"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-active-work.png"
+            --active-work)
+    set_tests_properties(application_large_review_active_work PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_ACTIVE_WORK_MEASURED")
+    bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
