@@ -1,5 +1,6 @@
 #include "bpr/app/github_application.hpp"
 
+#include "../support/test_expectation.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
@@ -17,18 +18,8 @@
 #include <utility>
 
 namespace {
-	[[noreturn]] void fail(const std::string_view aMessage)
-	{
-		std::cerr << "FAILED: " << aMessage << '\n';
-		std::exit(EXIT_FAILURE);
-	}
-
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			fail(aMessage);
-		}
-	}
+	using bpr::tests::expect;
+	using bpr::tests::fail;
 
 	// Starts the application with no fixture over a private canonical data
 	// root and hands it to `aInspect`. The startup handle and the data root
@@ -155,7 +146,7 @@ namespace {
 }
 
 auto main(int argc, char** argv) -> int
-{
+try {
 	// [[BPR-0802]]. Every composition this process starts is inside the
 	// automated test boundary, whatever its environment. The CTest row already
 	// carries the marker from the registration seam; setting it here as well,
@@ -166,11 +157,13 @@ auto main(int argc, char** argv) -> int
 		fail("the automated-test boundary marker can be set");
 	}
 	const QApplication qtApplication{ argc, argv };
-	// The boundary check runs first: each test exits the process on its first
+	// The boundary check runs first: each test ends the run on its first
 	// failure, and the safety property should not wait behind the destructor.
 	test_an_in_process_composition_is_inside_the_boundary();
 	std::cout << "github-application-boundary-tests:pass\n";
 	test_a_tick_armed_before_destruction_reaches_nothing();
 	std::cout << "github-application-liveness-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

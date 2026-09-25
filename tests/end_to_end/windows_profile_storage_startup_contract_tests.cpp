@@ -7,6 +7,7 @@
 // is admitted on the Windows private-object rules and refused when it is not
 // private.
 #include "../../src/adapters/sqlite/src/storage_internal.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -34,13 +35,7 @@
 namespace {
 	using namespace bpr;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_root final
 	{
@@ -50,7 +45,10 @@ namespace {
 			const auto name = "bpr-0806-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
 			Path            = std::filesystem::canonical(std::filesystem::temp_directory_path()) / name;
 			expect(std::filesystem::create_directory(Path), "scratch root is created");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			expect(adapters::sqlite::make_storage_root_owner_private(Path), "scratch root is owner-private");
+			made.release();
 		}
 		~scratch_root()
 		{
@@ -167,10 +165,12 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 	conversion_happens_where_the_path_leaves_qt();
 	the_root_validator_stays_strict();
 	an_existing_registry_file_is_admitted_only_while_private();
 	std::cout << "windows-profile-storage-startup-contract:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

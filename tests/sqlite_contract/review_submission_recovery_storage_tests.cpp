@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include <sqlite3.h>
@@ -12,13 +13,7 @@
 
 namespace {
 	using namespace bpr;
-	void expect(bool aCondition, std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
 	{
 		auto bytes = std::array<std::uint8_t, 32>{ };
@@ -71,7 +66,10 @@ namespace {
 		temporary_directory()
 		{
 			expect(std::filesystem::create_directory(Path), "temporary root created");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			expect(adapters::sqlite::make_storage_root_owner_private(Path), "temporary root private");
+			made.release();
 		}
 		~temporary_directory()
 		{
@@ -197,10 +195,12 @@ namespace {
 	}
 }
 auto main() -> int
-{
+try {
 	test_storage_round_trip();
 	test_integrity_and_schema();
 	test_capacity_and_baseline_validation();
 	std::cout << "review-submission-recovery-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

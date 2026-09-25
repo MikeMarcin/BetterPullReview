@@ -1,4 +1,5 @@
 #include "../../src/adapters/update/src/release_update_transaction.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/update/release_update_installation.hpp"
 
 #include <QCoreApplication>
@@ -17,13 +18,7 @@ namespace {
 	using boundary    = adapters::update::detail::install_boundary;
 	using transaction = adapters::update::detail::install_transaction;
 	using lease       = adapters::update::release_update_installation;
-	void expect(bool aValue, const char* aMessage)
-	{
-		if (!aValue) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void write(const fs::path& aPath, const std::string& aBytes)
 	{
 		fs::create_directories(aPath.parent_path());
@@ -341,7 +336,7 @@ namespace {
 	}
 }
 auto main(int argc, char** argv) -> int
-{
+try {
 	QCoreApplication application{ argc, argv };
 	if (argc == 7 && std::string_view{ argv[1] } == "--native-prepare") {
 		return native_prepare(argv);
@@ -380,4 +375,7 @@ auto main(int argc, char** argv) -> int
 	cleanup_preserves_foreign_entries();
 	separate_process_quiescence();
 	std::cout << "release-update-transaction:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

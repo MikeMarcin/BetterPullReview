@@ -17,6 +17,7 @@
 // 3. (POSIX) Every store file is owner-only. The course runs under umask 0,
 //    so only the stores themselves can narrow what SQLite creates, and it
 //    fails for any store file created at SQLite's own default mode (0644).
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
@@ -60,13 +61,7 @@ namespace {
 	using namespace bpr;
 	namespace testing = adapters::sqlite::detail::testing;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_root final
 	{
@@ -76,7 +71,10 @@ namespace {
 			aName += "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
 			Path = std::filesystem::canonical(std::filesystem::temp_directory_path()) / aName;
 			std::filesystem::create_directory(Path);
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			expect(adapters::sqlite::make_storage_root_owner_private(Path), "scratch root is owner-private");
+			made.release();
 		}
 		~scratch_root()
 		{
@@ -518,7 +516,6 @@ try {
 #endif
 	std::cout << "private-store-open-tests:pass\n";
 	return EXIT_SUCCESS;
-} catch (const std::exception& error) {
-	std::cerr << "FAILED: " << error.what() << '\n';
-	return EXIT_FAILURE;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

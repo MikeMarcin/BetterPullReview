@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "gh_cli_transport.hpp"
 #include "github_paged_read.hpp"
@@ -37,13 +38,7 @@ namespace {
 	static_assert(
 		std::is_base_of_v<github_wire_transport_port, gh_cli_transport>);
 
-	auto expect(const bool aCondition, const std::string_view aMessage) -> void
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	[[nodiscard]] auto gh_arguments(const github_cli_process_request& aRequest)
 		-> std::vector<std::string>
@@ -118,6 +113,8 @@ namespace {
 				Root.clear();
 			}
 			expect(!Root.empty(), "isolated temporary root is allocated");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Root };
 
 			ExecutableDirectory  = Root / "real";
 			AliasDirectory       = Root / "alias";
@@ -163,6 +160,7 @@ namespace {
 				Alias,
 				symlinkError);
 			HasExecutableSymlink = !symlinkError;
+			made.release();
 		}
 
 		temporary_layout(const temporary_layout&)                    = delete;
@@ -1751,7 +1749,7 @@ namespace {
 }
 
 auto main() -> int
-{
+try {
 	test_cli_mutation_session_recovery();
 	test_mutation_closed_shapes_and_ambiguous_results();
 	test_configuration_is_canonical_typed_and_closed();
@@ -1767,4 +1765,6 @@ auto main() -> int
 	test_nonzero_graphql_errors();
 	test_realistic_headers_project_provider_metadata();
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

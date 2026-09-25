@@ -19,6 +19,7 @@
 // it. Both paths that reach it run here: a restored access slot, and a launch
 // renewal's rotated grant. They also use a data root and a vault of their own.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/server_card.hpp"
@@ -51,13 +52,7 @@ namespace {
 	constexpr std::int64_t access_lifetime_seconds  = 28'800;
 	constexpr std::int64_t refresh_lifetime_seconds = 15'897'600;
 
-	void expect(bool aCondition, std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void wait_for(const std::function<bool()>& aCondition, std::string_view aMessage, const qint64 aTimeoutMs = 15000)
 	{
 		QElapsedTimer elapsed;
@@ -338,7 +333,7 @@ namespace {
 }
 
 int main(int aArgc, char** aArgv)
-{
+try {
 	QApplication  qt{ aArgc, aArgv };
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private temporary application root");
@@ -491,4 +486,7 @@ int main(int aArgc, char** aArgv)
 	in_process_renewals(options);
 	account_mismatch(options);
 	std::cout << "device-binding-launch-renewal-tests:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

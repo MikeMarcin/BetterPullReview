@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -57,13 +58,7 @@
 namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
-	void expect(const bool aCondition, const char* aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
 	{
 		auto elapsed = QElapsedTimer{ };
@@ -1374,7 +1369,7 @@ namespace {
 #endif
 }
 int main(int aArgc, char** aArgv)
-{
+try {
 	QApplication application{ aArgc, aArgv };
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--selected-file-safety")) {
 		run_folder_selection_course();
@@ -1401,4 +1396,6 @@ int main(int aArgc, char** aArgv)
 #endif
 	std::cout << "setup-destination-public-path:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

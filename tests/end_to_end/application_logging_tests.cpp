@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "private_data_root.hpp"
 #include <QAction>
@@ -19,13 +20,7 @@
 #include <string>
 #include <utility>
 namespace {
-	void expect(bool aCondition, const char* aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << aMessage << '\n';
-			std::exit(1);
-		}
-	}
+	using bpr::tests::expect;
 	void wait_for(const std::function<bool()>& aCondition)
 	{
 		QElapsedTimer elapsed;
@@ -38,7 +33,7 @@ namespace {
 	}
 }
 int main(int aArgc, char** aArgv)
-{
+try {
 	QApplication  qt{ aArgc, aArgv };
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private test root");
@@ -104,4 +99,7 @@ int main(int aArgc, char** aArgv)
 	expect(!leaf.empty() && folded(text).find(leaf) == std::string::npos, "logs exclude the data root however it is spelled");
 	expect(text.find("review-repository") == std::string::npos, "logs exclude the repository's own name");
 	std::cout << "application-logging-tests:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

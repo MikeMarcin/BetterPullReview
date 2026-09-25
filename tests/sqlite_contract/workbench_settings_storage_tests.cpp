@@ -1,4 +1,5 @@
 #include "../../src/adapters/sqlite/src/workbench_settings_database.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 
@@ -20,13 +21,7 @@ namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::sqlite::detail;
 
-	auto expect(const bool aCondition, const std::string_view aMessage) -> void
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_directory final
 	{
@@ -1499,7 +1494,7 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authoritative_window_retention();
 	test_native_geometry_is_window_local_and_migrates_from_eight();
@@ -1525,4 +1520,6 @@ auto main() -> int
 	test_the_schema_stores_no_review_content();
 	std::cout << "workbench-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

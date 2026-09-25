@@ -6,6 +6,7 @@
 // public mode and a nonzero one only under the authenticated mode, so no zero
 // identity is ever a sentinel; and a version this build cannot read is refused
 // rather than repaired, migrated, or recreated.
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
 #include "epoch_catalog_legacy_fixture.hpp"
@@ -38,13 +39,7 @@ namespace {
 	constexpr std::uint64_t PullRequest     = 0x1102030405060707ULL;
 	constexpr std::uint64_t Session         = 0x1102030405060708ULL;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	template <typename Value>
 	void expect_failure(
@@ -78,10 +73,13 @@ namespace {
 				auto            candidate = base / name;
 				std::error_code error;
 				if (std::filesystem::create_directory(candidate, error)) {
+					// [[BPR-1121]]. Removed again if the rest of construction fails.
+					auto made = bpr::tests::scratch_guard{ candidate };
 					expect(
 						test_platform::make_owner_private(candidate, true),
 						"temporary root becomes owner-private");
 					Path = std::filesystem::canonical(candidate);
+					made.release();
 					return;
 				}
 				expect(
@@ -136,6 +134,8 @@ namespace {
 		~direct_database()
 		{
 			if (Handle != nullptr) {
+				// [[BPR-1121]]. A destructor must not throw, so a failure here exits.
+				const bpr::tests::exit_on_failure inDestructor;
 				expect(
 					::sqlite3_close_v2(Handle) == SQLITE_OK,
 					"direct SQLite inspection closes cleanly");
@@ -153,7 +153,7 @@ namespace {
 				::sqlite3_free(message);
 				std::cerr << "FAIL: SQLite execution: " << detail << '\n'
 						  << text << '\n';
-				std::exit(EXIT_FAILURE);
+				bpr::tests::fail();
 			}
 		}
 
@@ -757,7 +757,7 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 	migration_contract();
 	interrupted_migration_contract();
 	version_two_migration_rollback_contract();
@@ -767,4 +767,6 @@ auto main() -> int
 	anonymous_restart_contract();
 	std::cout << "sqlite-anonymous-epoch-authority-tests:pass\n";
 	return 0;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

@@ -1,6 +1,7 @@
 /// \file
 /// \brief Hostile real-process coverage for agent protocol and teardown policy.
 
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/application/agent_launch.hpp"
 
@@ -38,13 +39,7 @@
 namespace {
 	using namespace bpr;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	template <typename Identity>
 	[[nodiscard]] constexpr auto identity(const std::uint8_t aSeed) -> Identity
@@ -375,6 +370,9 @@ namespace {
 			std::filesystem::create_directory(workingDirectory, filesystemError)
 				&& !filesystemError,
 			"the canary receives a dedicated accepted working directory");
+		// [[BPR-1121]]. Owned from here, so a failure below removes it.
+		const bpr::tests::scratch_guard ownedWorkingDirectory{ workingDirectory };
+
 		launched.WorkingDirectory = workingDirectory.string();
 		auto       launcher       = adapters::agent::agent_process_launcher{ };
 		const auto result         = launcher.run(launched, 20'000);
@@ -684,6 +682,9 @@ namespace {
 				   std::chrono::steady_clock::now().time_since_epoch().count()));
 		std::error_code ignored;
 		std::filesystem::remove(marker, ignored);
+		// [[BPR-1121]]. The descendant writes it; owned from here, so a failure
+		// below removes it.
+		const bpr::tests::scratch_guard ownedMarker{ marker };
 
 		auto launched = request(core::agent_protocol::external_terminal);
 		launched.Arguments.insert(
@@ -924,6 +925,9 @@ namespace {
 		const auto root = std::filesystem::temp_directory_path()
 			/ ("bpr-agent-breakaway-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 		std::filesystem::create_directory(root);
+		// [[BPR-1121]]. Owned from here, so a failure below removes it.
+		const bpr::tests::scratch_guard ownedRoot{ root };
+
 		const auto marker               = root / "heartbeat";
 		auto       launched             = request(core::agent_protocol::external_terminal);
 		launched.WorkspaceLifetimeGuard = make_workspace_guard(root / "guard");
@@ -982,6 +986,9 @@ namespace {
 
 		launched.Arguments.insert(launched.Arguments.end(), { "--spawn-descendant", (aRoot / "heartbeat").string(), "--report-process-id", "--wait-forever" });
 		static_cast<void>(launcher.run(launched, 60'000, [&](const application::agent_stream_event& aEvent) {
+			// [[BPR-1121]]. The launcher calls this and catches what it throws, so a
+			// failure here still ends the process rather than a launch.
+			const bpr::tests::exit_on_failure insideTheLauncher;
 			if (aEvent.Text.starts_with("supervisor-id\t")) {
 				std::ofstream supervisor{ aRoot / "supervisor.pid" };
 				supervisor << aEvent.Text.substr(std::string_view{ "supervisor-id\t" }.size());
@@ -1040,6 +1047,9 @@ namespace {
 				   std::chrono::steady_clock::now().time_since_epoch().count()));
 		std::error_code ignored;
 		std::filesystem::remove(marker, ignored);
+		// [[BPR-1121]]. Owned from here, so a failure below removes it.
+		const bpr::tests::scratch_guard ownedMarker{ marker };
+
 		auto launched = request(core::agent_protocol::external_terminal);
 		launched.Arguments.insert(
 			launched.Arguments.end(),
@@ -1068,7 +1078,7 @@ namespace {
 } // namespace
 
 auto main(int argc, char** argv) -> int
-{
+try {
 	QCoreApplication application{ argc, argv };
 	if (argc == 3) {
 #if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
@@ -1097,4 +1107,6 @@ auto main(int argc, char** argv) -> int
 #endif
 	std::cout << "agent-launch-canary-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

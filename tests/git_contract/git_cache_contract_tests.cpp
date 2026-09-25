@@ -1,5 +1,6 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 
+#include "../support/test_expectation.hpp"
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/core/epoch_model.hpp"
@@ -323,10 +324,7 @@ namespace {
 
 	auto require(const bool aCondition, const std::string_view aMessage) -> void
 	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(1);
-		}
+		bpr::tests::expect(aCondition, aMessage);
 	}
 
 	class temporary_root final
@@ -341,11 +339,14 @@ namespace {
 			Path = std::filesystem::temp_directory_path()
 				/ ("bpr-git-cache-" + seed);
 			std::filesystem::create_directories(Path);
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			std::filesystem::permissions(
 				Path,
 				std::filesystem::perms::owner_all,
 				std::filesystem::perm_options::replace);
 			Path = std::filesystem::canonical(Path);
+			made.release();
 		}
 
 		temporary_root(const temporary_root&)                    = delete;
@@ -4880,7 +4881,7 @@ namespace {
 }
 
 auto main(int argc, char** argv) -> int
-{
+try {
 #if defined(_WIN32)
 	// As the fake Git this executable writes what Git writes: bytes with
 	// `\n`, not the `\r\n` the CRT's text mode would substitute (BPR-0437).
@@ -4932,4 +4933,6 @@ auto main(int argc, char** argv) -> int
 	run_cache_contract();
 	std::cout << "Git cache contract passed\n";
 	return 0;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

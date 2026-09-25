@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_public_path_fixture.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -27,13 +28,7 @@ namespace {
 	using namespace adapters::github::detail;
 	using app::detail::github_application_fixture_access;
 
-	void expect(bool aCondition, const char* aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
 	{
@@ -246,7 +241,7 @@ namespace {
 }
 
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	strict_replay_contract(false);
@@ -255,4 +250,6 @@ auto main(int aArgc, char** aArgv) -> int
 	recent_resume_course(false);
 	std::cout << "ATTENDED_RECENT_REPLAY_OK\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

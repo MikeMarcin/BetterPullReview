@@ -21,6 +21,7 @@
 /// search does. Offscreen, every combination passes.
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -44,13 +45,7 @@
 namespace {
 	using namespace bpr;
 
-	void expect(const bool aCondition, const char* const aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	void wait_for(const std::function<bool()>& aCondition, const char* const aMessage, const int aTimeoutMs = 30'000)
 	{
@@ -134,6 +129,8 @@ namespace {
 		auto attempts = 0;
 		auto poll     = std::function<void()>{ };
 		poll          = [&] {
+			// [[BPR-1121]]. The event loop calls this, and a throw may not cross it, so a failure here exits.
+			const bpr::tests::exit_on_failure inTheEventLoop;
 			if (auto* const popup = qobject_cast<QMenu*>(QApplication::activePopupWidget()); popup != nullptr) {
 				ran = true;
 				accessible_item(*popup, owning->menuAction())->actionInterface()->doAction(QAccessibleActionInterface::showMenuAction());
@@ -160,7 +157,7 @@ namespace {
 } // namespace
 
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
@@ -233,4 +230,6 @@ auto main(int aArgc, char** aArgv) -> int
 	desktop.reset();
 	std::cout << "profile-second-window-close:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

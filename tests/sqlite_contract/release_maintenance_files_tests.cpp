@@ -1,4 +1,5 @@
 #include "../../src/adapters/native/windows_private_storage.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
@@ -22,21 +23,19 @@ namespace {
 	using reason  = core::release_maintenance_reason;
 	using command = core::release_maintenance_command;
 	namespace fs  = std::filesystem;
-	void expect(bool aCondition, std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	struct scratch
 	{
 		fs::path Path;
 		scratch()
 		{
 			Path = fs::temp_directory_path() / ("bpr-maintenance-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-			expect(fs::create_directory(Path) && adapters::sqlite::make_storage_root_owner_private(Path), "private disposable root");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			const auto created = fs::create_directory(Path);
+			auto       made    = bpr::tests::scratch_guard{ created ? Path : fs::path{ } };
+			expect(created && adapters::sqlite::make_storage_root_owner_private(Path), "private disposable root");
 			Path = fs::canonical(Path);
+			made.release();
 		}
 		~scratch()
 		{
@@ -286,7 +285,8 @@ namespace {
 		const auto child = ::fork();
 		expect(child >= 0, "fork journal interruption fixture");
 		if (child == 0) {
-			interrupt_journal(root.Path);
+			// [[BPR-1121]]. The child never unwinds into this process's frames.
+			bpr::tests::end_forked_child([&] { interrupt_journal(root.Path); });
 		}
 		int status = 0;
 		expect(::waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 17, "process died after durable journal and before file deletion");
@@ -452,7 +452,7 @@ namespace {
 	}
 }
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	if (aArgc == 3 && std::string_view{ aArgv[1] } == "--interrupt-journal") {
 		interrupt_journal(fs::path{ aArgv[2] });
 	}
@@ -466,4 +466,7 @@ auto main(int aArgc, char** aArgv) -> int
 #endif
 	test_recovery_refuses_replaced_objects();
 	std::cout << "release-maintenance-files-tests:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

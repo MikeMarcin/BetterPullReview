@@ -1,4 +1,5 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
@@ -20,13 +21,7 @@
 
 namespace {
 	using namespace bpr;
-	void expect(bool aCondition, std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	auto record(std::uint64_t aProfile = 1U) -> application::device_binding_record
 	{
 		return { .Authority = { .Profile = core::host_profile_id{ aProfile }, .ProfileRevision = application::github_profile_revision{ 2U }, .Host = core::git_host_id{ 3U }, .Hostname = application::github_canonical_hostname{ "github.com" }, .Account = core::github_account_id{ 4U } }, .Lifetime = { .IssuedAt = 1000, .AccessExpiresAt = 4600, .RefreshExpiresAt = 10000 } };
@@ -533,8 +528,8 @@ namespace {
 		const auto child = fork();
 		expect(child >= 0, "spawn metadata-only process");
 		if (child == 0) {
-			aPhase(aRoot);
-			_exit(EXIT_SUCCESS);
+			// [[BPR-1121]]. The child never unwinds into this process's frames.
+			bpr::tests::end_forked_child([&] { aPhase(aRoot); });
 		}
 		int status = 0;
 		expect(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS, "metadata-only child passes");
@@ -542,9 +537,11 @@ namespace {
 #endif
 }
 int main()
-{
+try {
 	const auto root = std::filesystem::canonical(std::filesystem::temp_directory_path()) / ("bpr-device-binding-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 	std::filesystem::create_directory(root);
+	// [[BPR-1121]]. Owned from here, so a failure anywhere below removes it.
+	const bpr::tests::scratch_guard owned{ root };
 	expect(bpr::adapters::sqlite::make_storage_root_owner_private(root), "scratch root is owner-private under the canonical storage policy");
 #if !defined(_WIN32)
 	in_child(seed, root);
@@ -568,4 +565,7 @@ int main()
 	expect(!std::filesystem::exists(root), "cancelled load creates no root");
 	nested_progress_scopes();
 	std::cout << "device-binding-storage-tests:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

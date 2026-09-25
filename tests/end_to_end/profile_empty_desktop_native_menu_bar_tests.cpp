@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
@@ -93,8 +94,7 @@ namespace {
 		if (!aCondition) {
 			note(std::string{ "main menu now: " } + native::describe_main_menu());
 			print_trace();
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
+			bpr::tests::fail(aMessage);
 		}
 	}
 	void pump()
@@ -302,7 +302,7 @@ namespace {
 }
 
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	course_clock.start();
 	QApplication qtApplication{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
@@ -569,4 +569,6 @@ auto main(int aArgc, char** aArgv) -> int
 	note(native_key_windows ? "key windows were native throughout" : "key windows were delivered by the course; the activation gesture was not run");
 	std::cout << "profile-empty-desktop-native-menu-bar:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

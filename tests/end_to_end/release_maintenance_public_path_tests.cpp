@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -40,13 +41,7 @@
 namespace {
 	using namespace bpr;
 	using command = core::release_maintenance_command;
-	void expect(bool aValue, const char* aMessage)
-	{
-		if (!aValue) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void until(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aReport = { })
 	{
 		QElapsedTimer timer;
@@ -98,7 +93,7 @@ namespace {
 }
 
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
@@ -295,11 +290,18 @@ auto main(int aArgc, char** aArgv) -> int
 	bool refused = false;
 	desktop      = app::detail::github_application_fixture_access::start_desktop(
 		app::detail::github_public_path_fixture::profile_window_restoration_v1, options,
-		[&](auto aResult) { expect(!aResult, "unrecovered profile must never be admitted"); refused = true; });
+		[&](auto aResult) {
+			// [[BPR-1121]]. The event loop calls this, and a throw may not cross it, so a failure here exits.
+			const bpr::tests::exit_on_failure inTheEventLoop;
+			expect(!aResult, "unrecovered profile must never be admitted");
+			refused = true;
+		});
 	until([&] { return refused && desktop->is_quiescent(); }, "startup executes maintenance recovery before any fresh producer");
 	expect(!std::filesystem::exists(root / "logs/diagnostics.log") && !std::filesystem::exists(root / "state/v1/review-queue.sqlite3"), "failed recovery opens neither profile stores nor logger");
 	expect(read(root / ".bpr-maintenance-v1") == "interrupted invalid journal", "failed recovery preserves evidence without fallback deletion");
 	desktop.reset();
 	std::cout << "release-maintenance-public-path:pass real-settings signed-out-preview exact-local-export exclusive-destination no-model-reset selected-fixture-diff shared-settings-owner two-window-retirement cancel-no-restart stale-inventory clear purge retained-lease startup-recovery-refusal\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

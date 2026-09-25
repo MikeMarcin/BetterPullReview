@@ -6,6 +6,7 @@
 // Git server does. Everything else is the production composition: the epoch
 // application host, the protocol request and parser, the installed Git cache
 // and its process runner, and the SQLite epoch catalog.
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -47,10 +48,7 @@ namespace {
 
 	auto require(const bool aCondition, const std::string_view aMessage) -> void
 	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
+		bpr::tests::expect(aCondition, aMessage);
 	}
 
 	template <typename Identity>
@@ -199,6 +197,8 @@ namespace {
 			for (const auto* child : { "git", "catalog", "server", "home", "xdg" }) {
 				std::filesystem::create_directories(Path / child);
 			}
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			for (const auto* child : { "", "git", "catalog" }) {
 				std::filesystem::permissions(Path / child, std::filesystem::perms::owner_all,
 											 std::filesystem::perm_options::replace);
@@ -206,6 +206,7 @@ namespace {
 			require(sqlite_adapter::make_storage_root_owner_private(Path / "catalog"),
 					"narrow the catalog root to owner-private");
 			Path = std::filesystem::canonical(Path);
+			made.release();
 		}
 
 		~temporary_root()
@@ -825,7 +826,7 @@ namespace {
 } // namespace
 
 auto main(int argc, char** argv) -> int
-{
+try {
 	QCoreApplication application{ argc, argv };
 	const auto       course = argc == 2 ? std::string_view{ argv[1] } : std::string_view{ };
 	if (course.empty() || course == "--update") {
@@ -838,4 +839,6 @@ auto main(int argc, char** argv) -> int
 		verify_unconnected_residency_refused();
 	}
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

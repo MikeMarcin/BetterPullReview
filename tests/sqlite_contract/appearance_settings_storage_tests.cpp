@@ -1,5 +1,6 @@
 #include "../../src/adapters/sqlite/src/appearance_settings_database.hpp"
 
+#include "../support/test_expectation.hpp"
 #include "bpr/core/theme_exchange.hpp"
 
 #include <sqlite3.h>
@@ -19,13 +20,7 @@ namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::sqlite::detail;
 
-	auto expect(const bool aCondition, const std::string_view aMessage) -> void
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_directory final
 	{
@@ -1370,7 +1365,7 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 	test_absent_is_distinguishable_from_stored_defaults();
 	test_every_domain_round_trips();
 	test_every_theme_round_trips_independently();
@@ -1395,4 +1390,6 @@ auto main() -> int
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

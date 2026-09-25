@@ -1,5 +1,6 @@
 #include "../../src/adapters/sqlite/src/queue_enrollment_database.hpp"
 #include "../../src/adapters/sqlite/src/review_ledger_database.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 
@@ -26,13 +27,7 @@ namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::sqlite::detail;
 
-	auto expect(const bool aCondition, const std::string_view aMessage) -> void
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_directory final
 	{
@@ -193,7 +188,8 @@ namespace {
 		const auto child = ::fork();
 		expect(child >= 0, "the child process starts");
 		if (child == 0) {
-			write_in_a_child(path, marker);
+			// [[BPR-1121]]. The child never unwinds into this process's frames.
+			bpr::tests::end_forked_child([&] { write_in_a_child(path, marker); });
 		}
 		auto status = 0;
 		expect(::waitpid(child, &status, 0) == child, "the child is reaped");
@@ -1091,7 +1087,7 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 	test_collection_limits_on_load_and_write();
 #if !defined(_WIN32)
 	test_enrollment_survives_a_separate_process();
@@ -1115,4 +1111,6 @@ auto main() -> int
 
 	std::cout << "queue-enrollment-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

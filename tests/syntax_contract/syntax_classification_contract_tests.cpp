@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 
 #include <KSyntaxHighlighting/Definition>
@@ -28,13 +29,7 @@ namespace {
 	namespace core   = bpr::core;
 	namespace syntax = bpr::adapters::syntax;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	[[nodiscard]] auto fixture_root() -> std::filesystem::path
 	{
@@ -210,7 +205,7 @@ namespace {
 				std::cerr << "FAILED: " << expected.Fixture << " selected '"
 						  << selected.Name << "' rather than '"
 						  << expected.Definition << "'\n";
-				std::exit(EXIT_FAILURE);
+				bpr::tests::fail();
 			}
 			const auto plain = expected.Definition
 				== syntax::plain_text_definition_name;
@@ -466,7 +461,7 @@ namespace {
 			std::cerr << "FAILED: the generic data location '"
 					  << writable.toStdString() << "' is outside the Qt test sandbox '"
 					  << sandbox.toStdString() << "'\n";
-			std::exit(EXIT_FAILURE);
+			bpr::tests::fail();
 		}
 		expect(QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation)
 				   .contains(writable),
@@ -544,7 +539,7 @@ namespace {
 		}
 		if (column == std::string_view::npos) {
 			std::cerr << "FAILED: '" << aWord << "' is not on line " << aLine << "\n";
-			std::exit(EXIT_FAILURE);
+			bpr::tests::fail();
 		}
 		const auto matches = std::count_if(
 			aSpans.begin(),
@@ -991,7 +986,7 @@ namespace {
 } // namespace
 
 int main()
-{
+try {
 	QStandardPaths::setTestModeEnabled(true);
 
 	const auto catalog = syntax::packaged_definition_catalog{ };
@@ -1006,4 +1001,6 @@ int main()
 
 	std::cout << "syntax-classification-contract-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

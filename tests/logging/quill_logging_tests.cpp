@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
@@ -18,13 +19,7 @@
 	#include <unistd.h>
 #endif
 namespace {
-	void expect(bool aCondition, const char* aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << aMessage << '\n';
-			std::exit(1);
-		}
-	}
+	using bpr::tests::expect;
 	auto read(const std::filesystem::path& aPath) -> std::string
 	{
 		std::ifstream stream{ aPath };
@@ -38,7 +33,7 @@ namespace {
 	}
 }
 int main(int aArgc, char** aArgv)
-{
+try {
 	if (aArgc == 4 && std::string_view{ aArgv[1] } == "--failure-child") {
 		const auto                        root = std::string_view{ aArgv[3] } == "full" ? std::filesystem::path{ aArgv[2] } : std::filesystem::path{ "relative" };
 		bpr::adapters::logging::quill_log log{ root, 1U };
@@ -267,4 +262,7 @@ int main(int aArgc, char** aArgv)
 	}
 #endif
 	std::cout << "quill-logging-tests:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

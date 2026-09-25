@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "github_cli_process_runner.hpp"
 
 #include <QCoreApplication>
@@ -61,13 +62,7 @@ namespace {
 			github_cli_process_result::error_type,
 			github_cli_process_failure>);
 
-	auto expect(const bool aCondition, const std::string_view aMessage) -> void
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	[[nodiscard]] auto utf8(const QString& aValue) -> std::string
 	{
@@ -1226,6 +1221,10 @@ namespace {
 			});
 		blockerRequest.Timeout = 2s;
 
+		// [[BPR-1121]]. Until the call below is joined, unwinding would destroy a
+		// joinable thread, so a failure in this window exits, as it always did.
+		auto untilJoined = bpr::tests::exit_on_failure{ };
+
 		std::stop_source                         blockerCancellation;
 		std::optional<github_cli_process_result> blockerResult;
 		std::thread                              blocker{
@@ -1266,6 +1265,7 @@ namespace {
 
 		blockerCancellation.request_stop();
 		blocker.join();
+		untilJoined.end();
 		expect(
 			blockerResult.has_value()
 				&& !blockerResult->has_value()
@@ -1349,6 +1349,10 @@ namespace {
 		blockedRequest.Timeout     = 20ms;
 		blockedRequest.ReapTimeout = 1ms;
 
+		// [[BPR-1121]]. Until the call below is joined, unwinding would destroy a
+		// joinable thread, so a failure in this window exits, as it always did.
+		auto untilJoined = bpr::tests::exit_on_failure{ };
+
 		std::optional<github_cli_process_result> blockedResult;
 		std::thread                              blockedCaller{
 			[&] {
@@ -1361,6 +1365,7 @@ namespace {
 			workerStalled,
 			"test seam stalls the sole worker before execution");
 		blockedCaller.join();
+		untilJoined.end();
 		expect(
 			blockedResult.has_value()
 				&& !blockedResult->has_value()
@@ -1671,7 +1676,7 @@ namespace {
 }
 
 auto main(int argc, char* argv[]) -> int
-{
+try {
 #if defined(Q_OS_UNIX)
 	if (
 		argc >= 2
@@ -1722,4 +1727,6 @@ auto main(int argc, char* argv[]) -> int
 #endif
 	std::cout << "GitHub CLI process runner tests passed\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

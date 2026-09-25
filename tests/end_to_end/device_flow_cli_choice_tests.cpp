@@ -16,6 +16,7 @@
 // The device fixture answers `authorization_pending` until the course lets
 // the browser finish. No live GitHub, credential or device-flow request.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/server_card.hpp"
@@ -48,13 +49,7 @@ namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void wait_for(const std::function<bool()>& aCondition, const std::string_view aMessage, const qint64 aTimeoutMs = 15000)
 	{
 		QElapsedTimer elapsed;
@@ -157,6 +152,8 @@ namespace {
 		auto   codeBehindOptIn = false;
 		QTimer consent;
 		QObject::connect(&consent, &QTimer::timeout, [&] {
+			// [[BPR-1121]]. The event loop calls this, and a throw may not cross it, so a failure here exits.
+			const bpr::tests::exit_on_failure inTheEventLoop;
 			if (auto* const prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
 				++optIns;
 				codeBehindOptIn = codeInView();
@@ -219,11 +216,13 @@ namespace {
 }
 
 int main(int aArgc, char** aArgv)
-{
+try {
 	QApplication qt{ aArgc, aArgv };
 	run(ending::cli_connects_at_once);
 	run(ending::cli_chosen_first);
 	run(ending::device_first);
 	std::cout << "device-flow-cli-choice-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

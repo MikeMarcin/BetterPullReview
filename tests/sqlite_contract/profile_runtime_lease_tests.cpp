@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 
@@ -19,13 +20,7 @@ namespace {
 	using namespace bpr::adapters::sqlite;
 	using failure = bpr::application::profile_runtime_lease_failure;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_directory final
 	{
@@ -34,8 +29,11 @@ namespace {
 		{
 			Path = std::filesystem::temp_directory_path() / ("bpr-runtime-lease-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 			expect(std::filesystem::create_directory(Path), "create scratch");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			expect(make_storage_root_owner_private(Path), "private scratch");
 			Path = std::filesystem::canonical(Path);
+			made.release();
 		}
 		~scratch_directory()
 		{
@@ -86,8 +84,11 @@ namespace {
 		const auto contender = ::fork();
 		expect(contender >= 0, "fork contender");
 		if (contender == 0) {
-			const auto lease = acquire_profile_runtime_lease(root.Path);
-			::_exit(!lease && lease.error() == failure::busy ? 0 : 1);
+			// [[BPR-1121]]. The child never unwinds into this process's frames.
+			bpr::tests::end_forked_child([&] {
+				const auto lease = acquire_profile_runtime_lease(root.Path);
+				return !lease && lease.error() == failure::busy ? 0 : 1;
+			});
 		}
 		int status = 0;
 		expect(::waitpid(contender, &status, 0) == contender && WIFEXITED(status) && WEXITSTATUS(status) == 0, "other process refused busy");
@@ -97,14 +98,17 @@ namespace {
 		const auto child = ::fork();
 		expect(child >= 0, "fork owner");
 		if (child == 0) {
-			::close(ready[0]);
-			const auto lease  = acquire_profile_runtime_lease(root.Path);
-			const char result = lease ? 'y' : 'n';
-			(void)::write(ready[1], &result, 1);
-			::close(ready[1]);
-			for (;;) {
-				::pause();
-			}
+			// [[BPR-1121]]. The child never unwinds into this process's frames.
+			bpr::tests::end_forked_child([&] {
+				::close(ready[0]);
+				const auto lease  = acquire_profile_runtime_lease(root.Path);
+				const char result = lease ? 'y' : 'n';
+				(void)::write(ready[1], &result, 1);
+				::close(ready[1]);
+				for (;;) {
+					::pause();
+				}
+			});
 		}
 		::close(ready[1]);
 		char result = 0;
@@ -151,7 +155,7 @@ namespace {
 }
 
 int main(const int aArgumentCount, char** aArguments)
-{
+try {
 #if !defined(_WIN32)
 	if (aArgumentCount == 4 && std::string_view{ aArguments[1] } == "--exec-child") {
 		int        ready         = -1;
@@ -183,4 +187,7 @@ int main(const int aArgumentCount, char** aArguments)
 	test_exec_does_not_inherit();
 #endif
 	std::cout << "profile-runtime-lease-tests:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

@@ -4,6 +4,7 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "../../src/adapters/sqlite/src/state_directory.hpp"
 
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 
 #include <sqlite3.h>
@@ -92,13 +93,7 @@ namespace {
 		return aOpened.has_value();
 	}
 
-	auto expect(const bool aCondition, const std::string_view aMessage) -> void
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_directory final
 	{
@@ -2098,7 +2093,8 @@ namespace {
 		const auto child = ::fork();
 		expect(child >= 0, "the child process starts");
 		if (child == 0) {
-			hold_an_uncommitted_write(path, marker, abandoned);
+			// [[BPR-1121]]. The child never unwinds into this process's frames.
+			bpr::tests::end_forked_child([&] { hold_an_uncommitted_write(path, marker, abandoned); });
 		}
 
 		// Wait for the child to reach the open transaction rather than racing it.
@@ -2195,7 +2191,8 @@ namespace {
 		const auto child = ::fork();
 		expect(child >= 0, "the private crash child starts");
 		if (child == 0) {
-			hold_uncommitted_private_records(path, marker);
+			// [[BPR-1121]]. The child never unwinds into this process's frames.
+			bpr::tests::end_forked_child([&] { hold_uncommitted_private_records(path, marker); });
 		}
 		auto waited = 0;
 		while (!std::filesystem::exists(marker) && waited < 200) {
@@ -2702,7 +2699,7 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 	test_simultaneous_note_edits_have_one_winner();
 	test_version_five_note_migration_is_atomic_and_repeatable();
 	test_two_connections_compare_note_revisions_without_aba();
@@ -2747,4 +2744,6 @@ auto main() -> int
 
 	std::cout << "review-ledger-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

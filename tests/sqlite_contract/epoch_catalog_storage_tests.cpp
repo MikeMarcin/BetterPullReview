@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
 #include "platform_test_support.hpp"
@@ -34,13 +35,7 @@ namespace {
 	constexpr std::uint64_t HighPullRequest     = 0xF102030405060707ULL;
 	constexpr std::uint64_t HighSession         = 0xF102030405060708ULL;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	template <typename Value>
 	void expect_failure(
@@ -74,11 +69,14 @@ namespace {
 				auto            candidate = base / name;
 				std::error_code error;
 				if (std::filesystem::create_directory(candidate, error)) {
+					// [[BPR-1121]]. Removed again if the rest of construction fails.
+					auto made = bpr::tests::scratch_guard{ candidate };
 					expect(
 						test_platform::make_owner_private(candidate, true),
 						"temporary root becomes owner-private");
 					PresentedPath = candidate;
 					Path          = std::filesystem::canonical(candidate);
+					made.release();
 					return;
 				}
 				expect(
@@ -140,6 +138,8 @@ namespace {
 		~direct_database()
 		{
 			if (Handle != nullptr) {
+				// [[BPR-1121]]. A destructor must not throw, so a failure here exits.
+				const bpr::tests::exit_on_failure inDestructor;
 				expect(
 					::sqlite3_close_v2(Handle) == SQLITE_OK,
 					"direct SQLite inspection closes cleanly");
@@ -157,7 +157,7 @@ namespace {
 													   : std::string{ message };
 				::sqlite3_free(message);
 				std::cerr << "FAIL: SQLite execution: " << detail << '\n';
-				std::exit(EXIT_FAILURE);
+				bpr::tests::fail();
 			}
 		}
 
@@ -1409,7 +1409,7 @@ namespace {
 } // namespace
 
 int main()
-{
+try {
 	bootstrap_authority_and_storage_contract();
 	cancellation_and_path_contract();
 	permission_and_symlink_contract();
@@ -1425,4 +1425,6 @@ int main()
 	bootstrap_publication_fault_contract();
 	std::cout << "sqlite-epoch-catalog-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

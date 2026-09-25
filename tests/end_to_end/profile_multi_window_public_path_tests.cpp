@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/logging/quill_log.hpp"
@@ -57,13 +58,7 @@
 
 namespace {
 	using namespace bpr;
-	void expect(const bool aCondition, const char* aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { }, const int aTimeoutMs = 15000)
 	{
 		QElapsedTimer elapsed;
@@ -306,7 +301,7 @@ namespace {
 }
 
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
@@ -792,4 +787,6 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	std::cout << "profile-multi-window-public-path:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

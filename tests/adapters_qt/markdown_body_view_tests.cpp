@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <QApplication>
@@ -31,13 +32,7 @@
 namespace {
 	using namespace bpr;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	constexpr auto corpus = R"MD(# Native Markdown
 
@@ -323,7 +318,7 @@ Final content: Ω 日本語 😀
 } // namespace
 
 int main(int aArgc, char** aArgv)
-{
+try {
 	QApplication                app{ aArgc, aArgv };
 	bpr::qt::markdown_body_view view;
 	view.resize(740, 900);
@@ -337,4 +332,6 @@ int main(int aArgc, char** aArgv)
 	check_appearance_and_overflow(view);
 	std::cout << "markdown-body-view-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

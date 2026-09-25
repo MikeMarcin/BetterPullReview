@@ -8,6 +8,7 @@
 // treats an escaped exception as the failure it is. On the other
 // platforms the sandbox leaves the chain readable and the same probe
 // asserts the constructive answer arrives just as promptly.
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 
 #include <chrono>
@@ -20,17 +21,11 @@
 #include <system_error>
 
 namespace {
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 } // namespace
 
 int main()
-{
+try {
 	namespace sqlite_adapter = bpr::adapters::sqlite;
 	std::error_code error;
 	const auto      base = std::filesystem::temp_directory_path(error);
@@ -40,6 +35,8 @@ int main()
 		   + std::to_string(
 			   std::chrono::steady_clock::now().time_since_epoch().count()));
 	std::filesystem::create_directories(root, error);
+	// [[BPR-1121]]. Owned from here, so every way out removes it.
+	const bpr::tests::scratch_guard owned{ root };
 	expect(!error, "probe root creates");
 
 	const auto started = std::chrono::steady_clock::now();
@@ -70,8 +67,9 @@ int main()
 		elapsed < std::chrono::seconds{ 20 },
 		"the catalog answers in bounded time rather than hanging");
 
-	std::filesystem::remove_all(root, error);
 	std::cout << "CONTAINED_CATALOG_PROBE_OK:" << code << ":"
 			  << elapsed.count() << "s\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "windows_system_root.hpp"
 
@@ -314,10 +315,7 @@ namespace {
 
 	auto require(const bool aCondition, const std::string_view aMessage) -> void
 	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(1);
-		}
+		bpr::tests::expect(aCondition, aMessage);
 	}
 
 	class temporary_root final
@@ -332,11 +330,14 @@ namespace {
 			Path = std::filesystem::temp_directory_path()
 				/ ("bpr-" + std::string{ aLabel } + "-" + seed);
 			std::filesystem::create_directories(Path);
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			std::filesystem::permissions(
 				Path,
 				std::filesystem::perms::owner_all,
 				std::filesystem::perm_options::replace);
 			Path = std::filesystem::canonical(Path);
+			made.release();
 		}
 
 		temporary_root(const temporary_root&)                    = delete;
@@ -2720,6 +2721,11 @@ namespace {
 			*adapter,
 			operation,
 			std::as_bytes(std::span{ std::string_view{ "BPR_BLOCK" } }));
+		// [[BPR-1121]]. Until the calls below are joined, unwinding would destroy a
+		// joinable thread, and they wait on a cancellation that comes after the
+		// checks in between; so a failure in this window exits, as it always did.
+		auto untilJoined = bpr::tests::exit_on_failure{ };
+
 		std::stop_source cancellation;
 		std::optional<
 			application::git_process_result<
@@ -2789,6 +2795,7 @@ namespace {
 #if defined(Q_OS_UNIX)
 		swappedCall.join();
 #endif
+		untilJoined.end();
 		require(
 			cancelled.has_value()
 				&& !cancelled->has_value()
@@ -3139,6 +3146,11 @@ namespace {
 			.IsolationRoot     = root.Path,
 			.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 		};
+		// [[BPR-1121]]. Until the calls below are joined, unwinding would destroy a
+		// joinable thread, and they wait on a cancellation that comes after the
+		// checks in between; so a failure in this window exits, as it always did.
+		auto untilJoined = bpr::tests::exit_on_failure{ };
+
 		using factory_result = decltype(git_adapter::make_installed_git_process(configuration));
 		std::optional<factory_result> probing;
 		std::optional<factory_result> waiting;
@@ -3203,6 +3215,7 @@ namespace {
 
 		probeCancellation.request_stop();
 		probe.join();
+		untilJoined.end();
 		require(
 			probing.has_value()
 				&& !probing->has_value()
@@ -4147,7 +4160,7 @@ namespace {
 }
 
 auto main(int argc, char** argv) -> int
-{
+try {
 #if defined(_WIN32)
 	// As the fake Git this executable writes what Git writes: bytes with
 	// `\n`, not the `\r\n` the CRT's text mode would substitute (BPR-0437).
@@ -4192,4 +4205,6 @@ auto main(int argc, char** argv) -> int
 #endif
 	std::cout << "Git process contract passed\n";
 	return 0;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

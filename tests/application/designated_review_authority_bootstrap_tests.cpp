@@ -1,6 +1,7 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "review_mutation_execution_authority.hpp"
 
+#include "../support/test_expectation.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <array>
@@ -41,13 +42,7 @@
 namespace {
 	using namespace bpr;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	[[nodiscard]] auto hex_digest(const std::string_view aValue) -> std::string
 	{
@@ -100,16 +95,24 @@ namespace {
 				   + "-" + std::to_string(Next.fetch_add(1U)));
 			expect(std::filesystem::create_directory(Root),
 				   "create owner-private bootstrap directory");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Root };
+
 			Root = std::filesystem::canonical(Root);
+			made.release();
 #else
 			Root = std::filesystem::temp_directory_path()
 				/ ("bpr-attended-bootstrap-" + std::to_string(::getpid()) + "-"
 				   + std::to_string(Next.fetch_add(1U)));
 			expect(std::filesystem::create_directory(Root),
 				   "create owner-private bootstrap directory");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Root };
+
 			Root = std::filesystem::canonical(Root);
 			expect(::chmod(Root.c_str(), 0700) == 0,
 				   "set exact owner-private bootstrap directory permissions");
+			made.release();
 #endif
 		}
 
@@ -921,23 +924,26 @@ namespace {
 			children[index] = ::fork();
 			expect(children[index] >= 0, "fork cross-process replay spender");
 			if (children[index] == 0) {
-				static_cast<void>(::close(startPipe[1]));
-				static_cast<void>(::close(resultPipe[0]));
-				auto signal = char{ };
-				if (::read(startPipe[0], &signal, 1U) != 1) {
-					::_exit(3);
-				}
-				auto        observer = fake_observer{ };
-				const auto& request  = index == 0U ? fixture.Request : second;
-				const auto  granted
-					= application::detail::designated_review_authority_bootstrap::run(
-						  request, observer)
-						  .has_value();
-				const auto result = granted ? '1' : '0';
-				if (::write(resultPipe[1], &result, 1U) != 1) {
-					::_exit(4);
-				}
-				::_exit(0);
+				// [[BPR-1121]]. The child never unwinds into this process's frames.
+				bpr::tests::end_forked_child([&] {
+					static_cast<void>(::close(startPipe[1]));
+					static_cast<void>(::close(resultPipe[0]));
+					auto signal = char{ };
+					if (::read(startPipe[0], &signal, 1U) != 1) {
+						return 3;
+					}
+					auto        observer = fake_observer{ };
+					const auto& request  = index == 0U ? fixture.Request : second;
+					const auto  granted
+						= application::detail::designated_review_authority_bootstrap::run(
+							  request, observer)
+							  .has_value();
+					const auto result = granted ? '1' : '0';
+					if (::write(resultPipe[1], &result, 1U) != 1) {
+						return 4;
+					}
+					return 0;
+				});
 			}
 		}
 		static_cast<void>(::close(startPipe[0]));
@@ -1104,7 +1110,7 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 #if defined(_WIN32)
 	std::cout << "designated-review-authority-bootstrap-tests:platform-deferred\n";
 #else
@@ -1130,4 +1136,6 @@ auto main() -> int
 	std::cout << "designated-review-authority-bootstrap-tests:pass\n";
 #endif
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

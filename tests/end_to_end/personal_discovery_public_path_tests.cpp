@@ -6,6 +6,7 @@
 // and a pull request opened by link is neither enrolled nor saved until the
 // reviewer follows it or saves its repository. Nothing mutates GitHub.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
@@ -38,13 +39,7 @@
 namespace {
 	using namespace bpr;
 
-	void expect(const bool aCondition, const char* aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { }, const int aTimeoutMs = 20000)
 	{
@@ -143,7 +138,7 @@ namespace {
 }
 
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
@@ -364,4 +359,6 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(e2e::remove_course_root(temporary), "the course's temporary root is removed");
 	std::cout << "personal-discovery-public-path:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

@@ -1,4 +1,5 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 
@@ -19,13 +20,7 @@
 namespace {
 	using namespace bpr;
 	using namespace bpr::application;
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class scratch_directory final
 	{
@@ -34,10 +29,17 @@ namespace {
 		{
 			Root = std::filesystem::temp_directory_path() / ("bpr-0691-registry-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 			std::filesystem::create_directory(Root);
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Root };
 			expect(bpr::adapters::sqlite::make_storage_root_owner_private(Root), "scratch root is owner-private under the canonical storage policy");
 			Root = std::filesystem::canonical(Root);
+			made.release();
 		}
-		~scratch_directory() { std::filesystem::remove_all(Root); }
+		~scratch_directory()
+		{
+			std::error_code ignored;
+			std::filesystem::remove_all(Root, ignored);
+		}
 		scratch_directory(const scratch_directory&)                                     = delete;
 		auto                  operator=(const scratch_directory&) -> scratch_directory& = delete;
 		std::filesystem::path Root;
@@ -426,7 +428,7 @@ namespace {
 }
 
 int main()
-{
+try {
 	expect(adapters::sqlite::detail::sqlite_runtime_ready(), "SQLite runtime initializes");
 	test_window_migration_and_rollback();
 	test_retained_windows();
@@ -438,4 +440,6 @@ int main()
 	test_hostile_preflight_has_bounded_materialization_and_work();
 	std::cout << "profile-registry-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

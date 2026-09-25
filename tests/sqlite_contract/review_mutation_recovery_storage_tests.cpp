@@ -1,5 +1,6 @@
 #include "platform_test_support.hpp"
 
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 
@@ -25,13 +26,7 @@ namespace {
 
 	namespace test_platform = bpr::tests::sqlite_contract;
 
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 
 	class temporary_directory final
 	{
@@ -534,7 +529,7 @@ namespace {
 } // namespace
 
 auto main() -> int
-{
+try {
 	test_durable_unresolved_and_success_reopen();
 	test_schema_identity_is_fail_closed_and_credential_free();
 	test_version_one_migration_preserves_success_and_guards_unresolved();
@@ -543,4 +538,6 @@ auto main() -> int
 	test_baseline_capacity_and_integrity_fail_closed();
 	std::cout << "review-mutation-recovery-storage-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

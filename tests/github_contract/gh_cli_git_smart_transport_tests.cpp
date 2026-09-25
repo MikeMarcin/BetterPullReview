@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "gh_cli_git_smart_transport.hpp"
 #include "github_cli_process_runner.hpp"
@@ -19,13 +20,7 @@ namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::github;
 	using namespace bpr::adapters::github::detail;
-	void expect(bool value, std::string_view message)
-	{
-		if (!value) {
-			std::cerr << "FAILED: " << message << '\n';
-			std::exit(1);
-		}
-	}
+	using bpr::tests::expect;
 	template <typename Identity>
 	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
 	{
@@ -480,11 +475,13 @@ namespace {
 	}
 }
 int main(int argc, char** argv)
-{
+try {
 	QCoreApplication app{ argc, argv };
 	if (std::filesystem::path{ argv[0] }.filename() == "gh") {
 		return fake_gh(app.arguments());
 	}
 	contract();
 	return 0;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

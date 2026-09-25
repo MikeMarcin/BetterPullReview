@@ -1,5 +1,6 @@
 #include "../sqlite_contract/epoch_catalog_legacy_fixture.hpp"
 #include "../sqlite_contract/platform_test_support.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
@@ -280,10 +281,7 @@ namespace {
 
 	auto require(const bool aCondition, const std::string_view aMessage) -> void
 	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
+		bpr::tests::expect(aCondition, aMessage);
 	}
 
 	template <typename Identity>
@@ -569,6 +567,9 @@ namespace {
 			Path = aExisting ? *aExisting : std::filesystem::temp_directory_path() / (std::string{ "bpr-maintenance-" } + std::string{ aLabel } + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 			std::filesystem::create_directories(Path / "git");
 			std::filesystem::create_directories(Path / "catalog");
+			// [[BPR-1121]]. A root made here is removed again if the rest of
+			// construction fails; an existing one is left, as its owner is.
+			auto made = bpr::tests::scratch_guard{ Owned ? Path : std::filesystem::path{ } };
 			std::filesystem::permissions(Path,
 										 std::filesystem::perms::owner_all,
 										 std::filesystem::perm_options::replace);
@@ -583,6 +584,7 @@ namespace {
 			require(sqlite_adapter::make_storage_root_owner_private(Path / "catalog"),
 					"narrow the catalog root to owner-private");
 			Path = std::filesystem::canonical(Path);
+			made.release();
 		}
 
 		~temporary_root()
@@ -1181,7 +1183,7 @@ namespace {
 } // namespace
 
 auto main(int argc, char** argv) -> int
-{
+try {
 	QCoreApplication application{ argc, argv };
 	if (argc == 3) {
 		const auto phase = std::string_view{ argv[1] };
@@ -1200,4 +1202,6 @@ auto main(int argc, char** argv) -> int
 	verify_real_cache_delete();
 	std::cout << "Epoch maintenance integration passed\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

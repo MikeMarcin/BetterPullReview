@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include <QCoreApplication>
@@ -10,16 +11,10 @@
 
 namespace {
 	using namespace bpr;
-	void expect(bool aValue, const char* aMessage)
-	{
-		if (!aValue) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 }
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QCoreApplication application{ aArgc, aArgv };
 	QTemporaryDir    temporary;
 #if defined(_WIN32)
@@ -61,4 +56,7 @@ auto main(int aArgc, char** aArgv) -> int
 	const std::string text{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 	expect(text == "untouched foreign file", "foreign data is unchanged");
 	std::cout << "release-update-recovery:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

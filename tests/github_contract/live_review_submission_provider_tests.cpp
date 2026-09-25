@@ -1,3 +1,4 @@
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "live_review_submission_provider.hpp"
@@ -21,13 +22,7 @@
 namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::github::detail;
-	void expect(bool aCondition, std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
 	{
 		auto bytes = std::array<std::uint8_t, 32>{ };
@@ -268,6 +263,10 @@ namespace {
 		std::function<void()>                  OnPublished;
 		auto                                   perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
+			// [[BPR-1121]]. The session calls this and catches what it throws, so a
+			// failure here, or in the hooks it calls, still ends the process rather
+			// than unwinding into a typed transport failure ([[BPR-0904]]).
+			const bpr::tests::exit_on_failure insideTheSession;
 			expect(validate_outbound_review_mutation_request(aRequest.Wire).has_value(), "all session requests are canonical");
 			++Requests;
 			Trace.push_back(aRequest.Wire.Operation);
@@ -330,10 +329,10 @@ namespace {
 			fail_unscripted(aRequest.Wire, key);
 		}
 		// The row fails here, at the request the product made, with the
-		// requests the transport does answer beside it. Exiting is what
-		// `expect` does; unwinding would be caught by the session and reported
-		// as a typed transport failure, which is the silence [[BPR-0904]]
-		// names.
+		// requests the transport does answer beside it. It exits, as `expect`
+		// does inside the transport; unwinding would be caught by the session
+		// and reported as a typed transport failure, which is the silence
+		// [[BPR-0904]] names.
 		[[noreturn]] void fail_unscripted(const review_mutation_wire_request& aWire, const scripted_request& aKey) const
 		{
 			std::cerr << "FAILED: unscripted request #" << Requests << ": " << describe(aKey) << " (operation " << operation_name(aWire.Operation) << ", body " << (aWire.Body.empty() ? "empty" : "of " + std::to_string(aWire.Body.size()) + " bytes") << ")\n  this transport answers:";
@@ -341,7 +340,8 @@ namespace {
 				std::cerr << "\n    " << describe(answered);
 			}
 			std::cerr << '\n';
-			std::exit(EXIT_FAILURE);
+			const bpr::tests::exit_on_failure insideTheSession;
+			bpr::tests::fail();
 		}
 	};
 	struct temporary_directory
@@ -350,7 +350,10 @@ namespace {
 		temporary_directory()
 		{
 			expect(std::filesystem::create_directory(Path), "temporary root created");
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			expect(adapters::sqlite::make_storage_root_owner_private(Path), "temporary root private");
+			made.release();
 		}
 		~temporary_directory()
 		{
@@ -724,7 +727,7 @@ namespace {
 	};
 }
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	static_assert(std::is_base_of_v<application::review_submission_port, bpr::adapters::github::live_review_submission_provider>);
 	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--list") {
 		for (const auto& selected : rows) {
@@ -758,4 +761,6 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	std::cout << "live-review-submission-provider-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

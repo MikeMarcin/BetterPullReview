@@ -9,6 +9,7 @@
 // credential discovery is structurally impossible rather than merely
 // unconfigured. A signed-out materialization runs under exactly that
 // environment.
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
@@ -39,10 +40,7 @@ namespace {
 
 	void require(const bool aCondition, const std::string_view aMessage)
 	{
-		if (!aCondition) {
-			std::cerr << "FAIL: " << aMessage << '\n';
-			std::exit(1);
-		}
+		bpr::tests::expect(aCondition, aMessage);
 	}
 
 	template <typename Identity>
@@ -63,11 +61,14 @@ namespace {
 			Path = std::filesystem::temp_directory_path()
 				/ ("bpr-git-anon-" + seed);
 			std::filesystem::create_directories(Path);
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			std::filesystem::permissions(
 				Path,
 				std::filesystem::perms::owner_all,
 				std::filesystem::perm_options::replace);
 			Path = std::filesystem::canonical(Path);
+			made.release();
 		}
 
 		temporary_root(const temporary_root&)                    = delete;
@@ -303,11 +304,13 @@ namespace {
 } // namespace
 
 auto main(int aCount, char** aArguments) -> int
-{
+try {
 	QCoreApplication application{ aCount, aArguments };
 	authority_identity_contract();
 	cache_namespace_contract();
 	credential_free_process_contract();
 	std::cout << "git-anonymous-public-read-tests:pass\n";
 	return 0;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

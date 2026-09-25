@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -21,13 +22,7 @@
 namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
-	void expect(bool aCondition, std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void wait_for(const std::function<bool()>& aCondition, std::string_view aMessage)
 	{
 		QElapsedTimer elapsed;
@@ -45,7 +40,7 @@ namespace {
 	}
 }
 int main(int aArgc, char** aArgv)
-{
+try {
 	QApplication  qt{ aArgc, aArgv };
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private temporary application root");
@@ -214,4 +209,7 @@ int main(int aArgc, char** aArgv)
 		shutdown(*preview);
 	}
 	std::cout << "REFRESH_RESUMES:1\ndevice-binding-restart-tests:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

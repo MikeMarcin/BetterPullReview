@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/adapters/sqlite/release_update_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
@@ -38,13 +39,7 @@ namespace {
 	using phase   = core::release_update_phase;
 	using command = core::release_update_command;
 	using reason  = core::release_update_reason;
-	void expect(bool aValue, const char* aMessage)
-	{
-		if (!aValue) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void until(const std::function<bool()>& aCondition, const char* aMessage, int aMilliseconds = 12000)
 	{
 		QElapsedTimer timer;
@@ -145,7 +140,13 @@ namespace {
 			if (!failedSave && !faultPending) {
 				faultPending = true;
 				faultStarted = false;
-				desktop->quit_for_update([&](bool aAccepted) { expect(!aAccepted, "failed draft save refuses Quit"); failedSave = faultStarted; faultPending = false; });
+				desktop->quit_for_update([&](bool aAccepted) {
+					// [[BPR-1121]]. The event loop calls this, and a throw may not cross it, so a failure here exits.
+					const bpr::tests::exit_on_failure inTheEventLoop;
+					expect(!aAccepted, "failed draft save refuses Quit");
+					failedSave   = faultStarted;
+					faultPending = false;
+				});
 				// A synchronous busy refusal is not the injected save-failure course.
 				faultStarted = !window->isEnabled();
 			}
@@ -453,7 +454,7 @@ namespace {
 #endif
 }
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QApplication::setApplicationVersion(QStringLiteral("2.3.3"));
@@ -471,4 +472,7 @@ auto main(int aArgc, char** aArgv) -> int
 	gestures_restart_and_staging();
 	unavailable_installations();
 	std::cout << "release-update-public-path:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

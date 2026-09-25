@@ -5,6 +5,7 @@
 // review ledger, its appearance preference, and a sign-out with a held late
 // read completion in one profile that must leave the other profile untouched.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
@@ -43,13 +44,7 @@ namespace {
 	constexpr auto default_login = "octo-reviewer";
 	constexpr auto work_login    = "other-profile-reviewer";
 
-	void expect(const bool aCondition, const char* aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { }, const int aTimeoutMs = 15000)
 	{
 		auto elapsed = QElapsedTimer{ };
@@ -199,7 +194,7 @@ namespace {
 }
 
 auto main(int aArgc, char** aArgv) -> int
-{
+try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
@@ -308,4 +303,7 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(!original.Runtime->status().Closing && original.session() == core::github_status::pull_request_ready, "closing Work leaves Default usable");
 	stop(original);
 	std::cout << "profile-two-account-isolation-public-path:pass\n";
+	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }

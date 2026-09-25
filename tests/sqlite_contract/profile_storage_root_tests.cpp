@@ -1,4 +1,5 @@
 #include "../../src/adapters/sqlite/src/storage_internal.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 
@@ -19,13 +20,7 @@ namespace {
 	using namespace bpr;
 	using namespace bpr::application;
 	using namespace bpr::adapters::sqlite;
-	void expect(const bool aCondition, const std::string_view aMessage)
-	{
-		if (!aCondition) {
-			std::cerr << "FAILED: " << aMessage << '\n';
-			std::exit(EXIT_FAILURE);
-		}
-	}
+	using bpr::tests::expect;
 	class scratch_directory final
 	{
 	public:
@@ -33,8 +28,11 @@ namespace {
 		{
 			Path = std::filesystem::temp_directory_path() / ("bpr-0694-roots-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 			std::filesystem::create_directory(Path);
+			// [[BPR-1121]]. Removed again if the rest of construction fails.
+			auto made = bpr::tests::scratch_guard{ Path };
 			expect(make_storage_root_owner_private(Path), "new test root uses canonical private storage policy");
 			Path = std::filesystem::canonical(Path);
+			made.release();
 		}
 		~scratch_directory()
 		{
@@ -138,9 +136,11 @@ namespace {
 }
 
 int main()
-{
+try {
 	test_roots_are_private_distinct_and_stable();
 	test_refusal_and_cancellation();
 	std::cout << "profile-storage-root-tests:pass\n";
 	return EXIT_SUCCESS;
+} catch (...) {
+	return bpr::tests::failing_exit();
 }
