@@ -65,3 +65,28 @@ unknown-error usefulness and omission of unclassifiable private spans, make both
 This is remaining engineering, not a request for the owner to waive privacy or
 a ready human-review criterion. See the
 [handoff](../../rfcs/plans/bpr0971-diagnostics/HANDOFF-2026-09-25.md).
+
+## Classifier investigation checkpoint — 2026-09-25
+
+Assignment `classifier-20260925` at `daaa2023`; test candidate `161b988b`.
+The [classification investigation](../../verification/bpr0971-capability-classifier.md)
+extends the canaries to schema-shaped names and uppercase code/type identifiers.
+All eight cases survive the sanitizer, provider facade and actual Quill file;
+none survives export and the active credential is absent. Exact useful-unknown
+regressions remain passing (focused CTest 3/3, 15.61 s).
+
+The adapter has no provenance that distinguishes arbitrary new public error
+symbols from content with the same syntax. A shape filter cannot prove AC2.
+A closed explanation grammar with request-bound public symbols and explicit
+unknown-span omission is feasible, but it changes BPR0602's current exact
+unknown-value expectations. That contract interpretation needs resolution
+before changing the classifier. The evidence records the precise choice; no
+privacy waiver or claim that all engineering is blocked is requested.
+
+Product policy is unchanged and AC2 still fails. The card stays In Progress.
+Strict tidy has ten reproduced baseline findings in the capability-test unit/
+helpers; provider and logging units pass. No rule suppression was added.
+The [new handoff](../../rfcs/plans/bpr0971-diagnostics/CLASSIFIER-HANDOFF-2026-09-25.md)
+releases the isolated writer and identifies direct terminal-output bounds and
+failure isolation as the next independent engineering slice. Earlier remaining
+obligations and owner-deferred Windows/Linux verification are preserved.
