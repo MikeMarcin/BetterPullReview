@@ -7,7 +7,8 @@ rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129", "BPR-1131"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
-metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v8.html","criteria":["AC-05","AC-06","AC-07","AC-10"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
+platforms: ["mac", "win", "linux"]
+metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v8.html","criteria":["AC-05","AC-06","AC-07","AC-10"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json","milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
 ---
 
 # BPR-1132: The document tab strip in the comparison's header

@@ -5,6 +5,7 @@ status: "Proposed"
 area: "BPR"
 milestone: "Review workbench scaffolding"
 depends_on: ["RFC-BPR-0025", "RFC-BPR-0028", "RFC-BPR-0029", "RFC-BPR-0037"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0052: Review Workbench Scaffolding: Title Row, Review Bar, Folding Updates Line and Document Tabs
@@ -39,6 +40,20 @@ whose tour tab and Conventional Comments labels build on the tray and bar
 drawn here. It starts in canonical order, after RFC-BPR-0028 to RFC-BPR-0038
 close (the owner's decision `1d9104f8`, "Not yet: finish RFC-0028 to RFC-0038
 first"). Registration baseline: `0453103ddd11337ee8b3adf5053b25149104acd8`. Registration is not implementation.
+
+**Owner amendment, 2026-09-25: activated ahead of canonical order.** The
+owner, verbatim: "The design session is complete, add RFC-BPR-0052 to the
+active work which should include BPR-1129 to BPR-1135". This RFC is active
+work now, although the index still lists it after RFC-BPR-0038, and its
+slices start without waiting for RFC-BPR-0028 to RFC-BPR-0038 to close. The
+amendment names this RFC only: decision `1d9104f8` still holds for
+RFC-BPR-0039 to RFC-BPR-0051, which stay Proposed with their cards in Backlog
+until RFC-BPR-0028 to RFC-BPR-0038 close. Nothing else changes: the criteria,
+the cards' boundaries, and the owner's attended look at the built chrome on
+macOS and Windows stand as written. The [milestone
+plan](plans/rfc-bpr-0052-review-workbench-scaffolding/MILESTONES.md) groups
+the slices by their dependencies: BPR-1129, BPR-1131 and BPR-1134 first, then
+BPR-1130, BPR-1132 and BPR-1133, then BPR-1135's closeout.
 
 ## Problem and outcome
 

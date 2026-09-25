@@ -6,7 +6,9 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134"]
 milestone: "Review workbench scaffolding"
+platforms: ["mac", "win", "linux"]
 closeout_for: ["RFC-BPR-0052"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0052

@@ -1,0 +1,65 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0052-review-workbench-scaffolding",
+  "scope": {
+    "rfcs": ["RFC-BPR-0052"],
+    "issues": ["BPR-1129", "BPR-1130", "BPR-1131", "BPR-1132", "BPR-1133", "BPR-1134", "BPR-1135"]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "m1-title-row-bar-tab-model-tray",
+      "outcome": "The three slices with no prerequisite land together: a calm title row and a full-width review bar replace the composition entry row, the core and the host hold each window's document tabs with their own comparisons, and the right tray's header becomes Comments and Findings tabs.",
+      "work": [
+        {"issue": "BPR-1129"},
+        {"issue": "BPR-1131"},
+        {"issue": "BPR-1134"}
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The title row holds only Home, the drawer toggles, the pull request's name, and at its right the modality beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls; no navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor.",
+        "The review bar sits directly under the title row at full width and reads, from its left, Updates and the comparison with its dates and menu, previous and next change with the position, previous and next file with the position, and private progress as an icon whose tooltip names the file's state; Compose review and Comment are icons at its right whose tooltips name the command and its key, Compose review marks a kept review draft, and Review details opens from the comparison's menu.",
+        "The composition entry row is gone and nothing else sits between the title row, the review bar and the Updates line in any state or modality; Option-R (Alt+R), Option-C (Alt+C) and Esc back from a composition page work, both commands are in the Pull Request menu, and no key sequence is used twice in the assembled window.",
+        "BPR-0940's window course, the focus-order and unique-shortcut course, the UIforETW capture's exact rows and the height floors in the capture and its course script follow the new arrangement with measured stacks, the composition pins are resealed with a recorded review, and the Windows and Linux measurements and width sweep are recorded as owed station runs with exact commands.",
+        "Core transition tests cover every document-tab operation, host tests cover per-tab completion routing and stale rejection, and restoration keeps tab order, the active tab, each tab's comparison and position and the window's comparison, with two tabs on one file and different pairs staying distinct and exact through refresh and restart.",
+        "The right tray's header holds Comments and Findings tabs, each showing only its own content with its tools beneath the tabs; switching keeps each tab's scroll and selection, keyboard and accessibility reach every tab, the Comments tab keeps the aligned cards exactly, and the drawer's toggle, width and modality presets are unchanged.",
+        "Rendered evidence at 100, 125 and 200 percent covers the visual changes, focused courses pass with negative controls on the exact candidate, the workbench specification describes the built chrome, the documentation gate passes, and task-owned commands are quiescent."
+      ],
+      "boundary": "BPR-1129, BPR-1131 and BPR-1134 only. The Updates line's fold and caption (BPR-1130), the tab strip (BPR-1132) and Comment and Reply targets (BPR-1133) belong to m2. Windows and Linux station runs and the owner's attended look at the built chrome on macOS and Windows stay pending until actually supplied."
+    },
+    {
+      "id": "m2-fold-tab-strip-comment-reply",
+      "outcome": "The slices that build on the review bar and the tab model land: the Updates line folds and loses its permanent caption, the comparison's header becomes the document tab strip, and Comment and Reply act where the line and the thread are.",
+      "work": [
+        {"issue": "BPR-1130"},
+        {"issue": "BPR-1132"},
+        {"issue": "BPR-1133"}
+      ],
+      "depends_on": ["m1-title-row-bar-tab-model-tray"],
+      "exit_criteria": [
+        "The owner's answer on where the readiness words go is recorded before BPR-0795's row changes; the Updates line folds from the review bar's disclosure and by keyboard without moving the bar, a new window starts folded, each window restores its own choice, and nothing folds or opens on its own.",
+        "The Updates line carries no permanent caption; its tooltip carries the history statement and a mark shows whenever history is incomplete or ambiguous, in every modality.",
+        "The comparison's header is the tab strip: names elide from the left, a tab with its own pair shows it, the width floor shows the active tab and a count, the tab menu offers Duplicate, Close, Close others, returning to the window's comparison and making the tab's pair the window's; Cmd-click (Ctrl-click) and Open in New Tab open tabs, and Ctrl+Tab, Ctrl+Shift+Tab and Cmd-W (Ctrl+W) are bound uniquely.",
+        "The Updates line shows the active tab's pair and Overview and Discuss the window's; a tab over an older pair places only its own revisions' threads, says how many are on later updates and routes to them, and offers no new comment off the current head; the composed course opens a file in a new tab, compares two pairs of one file side by side, closes, restarts and returns.",
+        "Comment starts a comment on the current line or a reply to the selected thread and its menu names the target; thread cards beside the code offer Reply through the Discuss path; nothing publishes without the existing explicit Publish.",
+        "The height floors are re-taken with the Updates line open and folded and the tab strip in place, the width floors are swept again, focus, accessibility-name and 100 to 200 percent scale checks pass at narrow and wide windows, and the documentation gate passes."
+      ],
+      "boundary": "BPR-1130, BPR-1132 and BPR-1133 only. Conventional Comments labels (RFC-BPR-0048) and the Tour tab (RFC-BPR-0039) are not invented here. Station runs and attended acceptance stay pending until supplied."
+    },
+    {
+      "id": "m3-verify-and-close",
+      "outcome": "RFC-BPR-0052 is reconciled against its linked cards, direct evidence, the Windows and Linux station runs and the owner's attended look at the built chrome on macOS and Windows.",
+      "work": [
+        {"issue": "BPR-1135"}
+      ],
+      "depends_on": ["m2-fold-tab-strip-comment-reply"],
+      "exit_criteria": [
+        "Each of AC-01 to AC-11 has a direct check, result and producing commit on BPR-1135, re-run at closeout where the candidate changed.",
+        "The measured stacks and width sweeps are recorded from every supported platform, and the owner's attended look at macOS and Windows is recorded as supplied or explicitly pending.",
+        "The documentation gate passes, and the RFC and index statuses change only as the owner's activation and the RFC's dependencies allow."
+      ],
+      "boundary": "One closeout boundary; no new product scope. Required human, native and station evidence cannot be self-certified."
+    }
+  ],
+  "unplanned_work": []
+}
