@@ -1013,6 +1013,9 @@ namespace bpr::qt {
 		++Statistics.SemanticIndexAdoptions;
 		Statistics.SemanticIndexEntries
 			= SemanticIndex->statistics().IndexEntries;
+		// A document's revision does not identify its content ([[BPR-1123]]).
+		LeftHeights.clear();
+		RightHeights.clear();
 		Left->setPlainText(text_document(CurrentResult->LeftDocument));
 		Right->setPlainText(text_document(CurrentResult->RightDocument));
 		rebuild_unified_document();
@@ -1524,8 +1527,8 @@ namespace bpr::qt {
 		if (!PendingMeasurement) {
 			PendingMeasurement = std::make_shared<geometry_measurement>(geometry_measurement{
 				.Result = CurrentResult,
-				.Left   = plain_text_pane_measurement{ *Left, CurrentResult->Alignment.LeftLineCount },
-				.Right  = plain_text_pane_measurement{ *Right, CurrentResult->Alignment.RightLineCount },
+				.Left   = plain_text_pane_measurement{ *Left, CurrentResult->Alignment.LeftLineCount, LeftHeights },
+				.Right  = plain_text_pane_measurement{ *Right, CurrentResult->Alignment.RightLineCount, RightHeights },
 			});
 			Statistics.PaneMeasurements += 2U;
 		}
@@ -1591,6 +1594,7 @@ namespace bpr::qt {
 									  diff_geometry_rebuild_trigger::pane_viewport_resize);
 			return;
 		}
+		Statistics.MeasurementLinesReused += measurement->Left.reused_lines() + measurement->Right.reused_lines();
 		const auto changes  = AxisCache.pending_changes();
 		const auto triggers = PendingGeometryTriggers;
 		if (AxisCache.rebuild(CurrentResult->Alignment, *leftResult, *rightResult)
@@ -2821,6 +2825,8 @@ namespace bpr::qt {
 		MovedSegments.clear();
 		Interaction.Selection.reset();
 		ConversationAnchor.reset();
+		LeftHeights.clear();
+		RightHeights.clear();
 		Left->clear();
 		Right->clear();
 		Detail->setPlainText(QStringLiteral("No change selected"));

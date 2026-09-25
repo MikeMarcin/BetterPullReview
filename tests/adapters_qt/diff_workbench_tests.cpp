@@ -481,7 +481,9 @@ namespace {
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		}));
-		process_events();
+		// The shared bar moves the panes only once their measured axis exists,
+		// and measuring is sliced across event turns ([[BPR-1123]]).
+		settle_geometry(workbench);
 		expect(workbench.left_pane()->blockCount() > 1
 				   && workbench.right_pane()->blockCount() > 1,
 			   "the panes really hold the fixture's source");
@@ -526,6 +528,14 @@ namespace {
 		auto* const shared = workbench.shared_scrollbar();
 		shared->setValue(shared->maximum());
 		process_events();
+		// [[BPR-1123]]. The shared bar's end is both panes' end. A jump made
+		// before the measured axis existed was dropped, and the bar settled
+		// wherever the selection was later revealed, a quarter of the way down.
+		const auto atEnd = [](const QPlainTextEdit* aPane) {
+			return aPane->verticalScrollBar()->value() == aPane->verticalScrollBar()->maximum();
+		};
+		expect(shared->value() == shared->maximum() && atEnd(workbench.left_pane()) && atEnd(workbench.right_pane()),
+			   "the shared bar's end brings both panes to their own last page");
 		const auto leftScrolled
 			= gutter_of(workbench.left_pane())->grab().toImage();
 		const auto rightScrolled
@@ -718,7 +728,9 @@ namespace {
 			.Context = firstContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		}));
-		process_events();
+		// A rebuild is attributed when its measurement completes, and measuring
+		// is sliced across event turns ([[BPR-1123]]).
+		settle_geometry(workbench);
 		const auto  statisticsAfterFirstPublish = workbench.statistics();
 		const auto& firstGeometryCause
 			= statisticsAfterFirstPublish.GeometryRebuildHistory[0U];
@@ -1034,7 +1046,9 @@ namespace {
 		auto font = workbench.left_pane()->font();
 		font.setPointSizeF(font.pointSizeF() + 2.0);
 		workbench.setFont(font);
-		process_events();
+		// The panes' font changed, so every line is measured again: a full
+		// pass, sliced across event turns ([[BPR-1123]]).
+		settle_geometry(workbench);
 		expect(
 			workbench.statistics().GeometryRebuilds > rebuildsBeforeMetrics
 				&& workbench.selection() == selectionBeforeMetrics
@@ -1070,6 +1084,11 @@ namespace {
 					!= qt::diff_geometry_rebuild_trigger::none
 				&& workbench.selection() == selectionBeforeMetrics,
 			"detail-divider resize coalesces one attributed viewport-axis rebuild without changing selection");
+		// [[BPR-1123]]. A divider moves no line, so its rebuild takes every
+		// line from the recorded heights rather than shaping each one again.
+		expect(workbench.statistics().MeasurementLinesReused
+				   == statisticsBeforeDivider.MeasurementLinesReused + diff.Alignment.LeftLineCount + diff.Alignment.RightLineCount,
+			   "the divider's rebuild reuses every recorded line height");
 		send_key(*workbench.right_pane(), Qt::Key_End);
 		process_events();
 		expect(
@@ -2605,7 +2624,7 @@ namespace {
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		}));
-		process_events();
+		settle_geometry(workbench);
 
 		const auto bare
 			= profile.color(core::appearance_role::diff_intraline_added_background);
@@ -2744,7 +2763,7 @@ namespace {
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		}));
-		process_events();
+		settle_geometry(workbench);
 
 		// Selecting through the ribbon, because that is the gesture that
 		// produces a group selection; setting one directly would prove the
@@ -2879,7 +2898,7 @@ namespace {
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		}));
-		process_events();
+		settle_geometry(workbench);
 
 		auto* const map    = workbench.link_map();
 		auto* const pane   = workbench.left_pane();
@@ -2959,7 +2978,7 @@ namespace {
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		}));
-		process_events();
+		settle_geometry(workbench);
 
 		auto& leftPane = *workbench.left_pane();
 

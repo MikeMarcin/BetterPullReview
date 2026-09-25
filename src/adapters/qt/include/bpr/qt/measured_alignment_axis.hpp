@@ -76,6 +76,44 @@ namespace bpr::qt {
 		invalidated,
 	};
 
+	/// \brief The block heights one unwrapped pane's measurements found, kept
+	/// for its next measurement.
+	///
+	/// \details [[BPR-1123]]. An unwrapped pane measures each block in a
+	/// transient layout ([[BPR-1032]]), so, unlike a native layout, nothing
+	/// keeps the answer. Every later measurement of the pane (after a viewport
+	/// or divider change, a restarted measurement, a style or DPI event) would
+	/// otherwise shape every block again, although an unwrapped block's height
+	/// and natural width do not depend on the viewport.
+	///
+	/// The owner keeps one of these per pane and gives it to each measurement
+	/// of that pane. A measurement reads the heights an earlier one recorded
+	/// and records the ones it measures. A recorded block is reused only while
+	/// every fact its height depends on is unchanged: the document and its
+	/// revision and block count, the pane's and the document's fonts, the
+	/// device pixel ratio, the margin, the tab stop, and the block's own
+	/// additional formats. Anything else starts it empty again. The owner
+	/// clears it whenever it replaces the pane's text, because a document's
+	/// revision alone does not identify its content.
+	class pane_block_heights final
+	{
+	public:
+		pane_block_heights();
+		~pane_block_heights();
+		pane_block_heights(pane_block_heights&&) noexcept;
+		auto operator=(pane_block_heights&&) noexcept -> pane_block_heights&;
+		pane_block_heights(const pane_block_heights&)                    = delete;
+		auto operator=(const pane_block_heights&) -> pane_block_heights& = delete;
+
+		/// \brief Forgets every recorded block.
+		void clear() noexcept;
+
+	private:
+		friend class plain_text_pane_measurement;
+		struct state;
+		std::unique_ptr<state> State;
+	};
+
 	/// Measures a bounded number of native blocks per GUI-thread call. The
 	/// caller owns scheduling and comparison/presentation-generation checks.
 	/// No partial measurements are exposed as a usable pane geometry.
@@ -83,6 +121,11 @@ namespace bpr::qt {
 	{
 	public:
 		plain_text_pane_measurement(const QPlainTextEdit& aPane, std::uint32_t aLogicalLineCount);
+		/// \brief Measures with the pane's recorded block heights.
+		///
+		/// \details `aHeights` must outlive the measurement. It is emptied first
+		/// if it was recorded under different facts (see `pane_block_heights`).
+		plain_text_pane_measurement(const QPlainTextEdit& aPane, std::uint32_t aLogicalLineCount, pane_block_heights& aHeights);
 		~plain_text_pane_measurement();
 		plain_text_pane_measurement(plain_text_pane_measurement&&) noexcept;
 		auto operator=(plain_text_pane_measurement&&) noexcept -> plain_text_pane_measurement&;
@@ -91,6 +134,8 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto advance(std::uint32_t aMaximumLines) -> pane_measurement_progress;
 		[[nodiscard]] auto measured_lines() const noexcept -> std::uint32_t;
+		/// \brief How many of the measured lines took a recorded height.
+		[[nodiscard]] auto reused_lines() const noexcept -> std::uint32_t;
 		[[nodiscard]] auto result() const -> const pane_line_measurements*;
 
 	private:

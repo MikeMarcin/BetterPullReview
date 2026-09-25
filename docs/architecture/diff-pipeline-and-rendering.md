@@ -454,6 +454,14 @@ stable IDs and remeasures pixel geometry after explicit layout invalidation.
 Ordinary frames reuse the cached axis extents and do not walk either pane's
 text blocks.
 
+An unwrapped pane measures each block in a transient layout that keeps no
+shaped text ([[BPR-1032]]), so each source pane keeps the block heights it
+found ([[BPR-1123]]). A later measurement, after a divider, viewport, style or
+DPI event, takes a block's height from that record while the document and its
+revision, the fonts, the device pixel ratio, the margin, the tab stop and the
+block's own formats are unchanged, and shapes only the blocks that changed.
+Replacing a pane's text empties its record.
+
 ## 10. Complexity targets
 
 Let `B` be retained source bytes, `R` the total retained semantic record count

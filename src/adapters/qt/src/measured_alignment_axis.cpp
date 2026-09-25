@@ -15,11 +15,26 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <limits>
+#include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
+		/// \brief One unwrapped block as a transient layout measured it.
+		///
+		/// \details [[BPR-1123]]. A NaN height marks a block that was measured
+		/// natively (hidden, or not unwrapped), which is never reused.
+		struct recorded_block
+		{
+			qreal                           Height = std::numeric_limits<qreal>::quiet_NaN();
+			qreal                           Width  = 0.0;
+			QList<QTextLayout::FormatRange> Formats;
+		};
+
 		/// \brief Measures pane blocks without keeping a shaped layout in each one.
 		///
 		/// \details [[BPR-1032]]. Since Qt 6.11 (qtbase 8209078e0e) a
@@ -44,6 +59,14 @@ namespace bpr::qt {
 		/// natively left it. Wrapping panes and hidden blocks are measured
 		/// natively as before: there, laying a block out also sets its line
 		/// count, which the pane's own scrolling reads.
+		///
+		/// [[BPR-1123]]. Nothing keeps a transient answer, so a pane's next
+		/// measurement would shape every block again. Given the pane's
+		/// recorded blocks, this reuses a block's recorded height and width
+		/// while its additional formats are the ones it was measured with, and
+		/// records every block it shapes. A reused width still goes through the
+		/// widest-line rule, so a relayout that emptied the pane's own layouts
+		/// gets its horizontal range back exactly as a fresh measurement would.
 		class pane_block_measurer final
 		{
 		public:
@@ -55,32 +78,79 @@ namespace bpr::qt {
 			{
 			}
 
-			[[nodiscard]] auto height(const QTextBlock& aBlock) -> qreal
+			/// Reads and records blocks in `aRecorded`, which outlives this.
+			void record_into(std::vector<recorded_block>& aRecorded) noexcept
 			{
-				if (Plain == nullptr || !aBlock.isVisible()
+				Recorded = &aRecorded;
+			}
+
+			[[nodiscard]] auto reused() const noexcept -> std::uint32_t
+			{
+				return Reused;
+			}
+
+			/// \param aIndex The block's number, which is also its line.
+			[[nodiscard]] auto height(const QTextBlock& aBlock, const std::size_t aIndex) -> qreal
+			{
+				if (Plain == nullptr) {
+					return Native->blockBoundingRect(aBlock).height();
+				}
+				if (!aBlock.isVisible()
 					|| aBlock.document()->defaultTextOption().wrapMode() != QTextOption::NoWrap) {
+					record(aIndex, recorded_block{ });
 					return Native->blockBoundingRect(aBlock).height();
 				}
-				auto       width  = qreal{ 0.0 };
-				const auto extent = transient_height(aBlock, width);
-				if (width > Widest) {
-					Widest = width;
+				// A block's layout exists whenever a highlighter has styled it,
+				// and asking for it shapes nothing.
+				auto formats = aBlock.layout()->formats();
+				auto block   = recorded_block{ };
+				if (const auto* const known = recorded(aIndex, formats); known != nullptr) {
+					block = *known;
+					++Reused;
+				} else {
+					block.Height  = transient_height(aBlock, formats, block.Width);
+					block.Formats = std::move(formats);
+					record(aIndex, block);
+				}
+				if (block.Width > Widest) {
+					Widest = block.Width;
 					return Native->blockBoundingRect(aBlock).height();
 				}
-				return extent;
+				return block.Height;
 			}
 
 		private:
-			[[nodiscard]] auto transient_height(const QTextBlock& aBlock, qreal& aNaturalWidth) const -> qreal
+			/// The recorded block, if it was measured with these formats. The
+			/// comparison is a pointer check while the list is the same one.
+			[[nodiscard]] auto recorded(const std::size_t aIndex, const QList<QTextLayout::FormatRange>& aFormats) const -> const recorded_block*
+			{
+				if (Recorded == nullptr || aIndex >= Recorded->size()) {
+					return nullptr;
+				}
+				const auto& block = (*Recorded)[aIndex];
+				return !std::isnan(block.Height) && block.Formats == aFormats ? &block : nullptr;
+			}
+
+			void record(const std::size_t aIndex, const recorded_block& aBlock)
+			{
+				if (Recorded == nullptr) {
+					return;
+				}
+				if (aIndex < Recorded->size()) {
+					(*Recorded)[aIndex] = aBlock;
+				} else if (aIndex == Recorded->size()) {
+					Recorded->push_back(aBlock);
+				}
+			}
+
+			[[nodiscard]] static auto transient_height(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats, qreal& aNaturalWidth) -> qreal
 			{
 				const auto* const document = aBlock.document();
 				const auto        margin   = document->documentMargin();
 				const auto        option   = document->defaultTextOption();
 				auto              layout   = QTextLayout{ aBlock };
 				layout.setTextOption(option);
-				// A block's layout exists whenever a highlighter has styled it,
-				// and asking for it shapes nothing.
-				layout.setFormats(aBlock.layout()->formats());
+				layout.setFormats(aFormats);
 				auto extraMargin = 0;
 				if (option.flags().testFlag(QTextOption::AddSpaceForLineAndParagraphSeparators)) {
 					extraMargin += QFontMetrics{ aBlock.charFormat().font() }.horizontalAdvance(QChar{ 0x21B5 });
@@ -109,9 +179,11 @@ namespace bpr::qt {
 				return extent;
 			}
 
-			const QAbstractTextDocumentLayout* Native = nullptr;
-			const QPlainTextDocumentLayout*    Plain  = nullptr;
-			qreal                              Widest = 0.0;
+			const QAbstractTextDocumentLayout* Native   = nullptr;
+			const QPlainTextDocumentLayout*    Plain    = nullptr;
+			qreal                              Widest   = 0.0;
+			std::vector<recorded_block>*       Recorded = nullptr;
+			std::uint32_t                      Reused   = 0U;
 		};
 
 		[[nodiscard]] auto finite_nonnegative(const qreal aValue) noexcept -> bool
@@ -168,6 +240,57 @@ namespace bpr::qt {
 			};
 		}
 	} // namespace
+
+	/// [[BPR-1123]]. The recorded blocks and every fact their heights depend on.
+	struct pane_block_heights::state
+	{
+		QPointer<const QTextDocument> Document;
+		int                           Revision   = 0;
+		int                           BlockCount = 0;
+		QFont                         Font;
+		QFont                         DocumentFont;
+		qreal                         DevicePixelRatio = 0.0;
+		qreal                         Margin           = 0.0;
+		qreal                         TabDistance      = 0.0;
+		std::vector<recorded_block>   Blocks;
+
+		/// Keeps the recorded blocks only if the pane's facts are the ones they
+		/// were measured under; otherwise empties them and takes these facts.
+		void bind(const QPlainTextEdit& aPane)
+		{
+			const auto* const document = aPane.document();
+			if (Document == document && Revision == document->revision() && BlockCount == document->blockCount()
+				&& Font == aPane.font() && DocumentFont == document->defaultFont()
+				&& DevicePixelRatio == aPane.devicePixelRatioF() && Margin == document->documentMargin()
+				&& TabDistance == aPane.tabStopDistance()) {
+				return;
+			}
+			Blocks.clear();
+			Document         = document;
+			Revision         = document->revision();
+			BlockCount       = document->blockCount();
+			Font             = aPane.font();
+			DocumentFont     = document->defaultFont();
+			DevicePixelRatio = aPane.devicePixelRatioF();
+			Margin           = document->documentMargin();
+			TabDistance      = aPane.tabStopDistance();
+		}
+	};
+
+	pane_block_heights::pane_block_heights()
+		: State{ std::make_unique<state>() }
+	{
+	}
+	pane_block_heights::~pane_block_heights()                                                = default;
+	pane_block_heights::pane_block_heights(pane_block_heights&&) noexcept                    = default;
+	auto pane_block_heights::operator=(pane_block_heights&&) noexcept -> pane_block_heights& = default;
+
+	void pane_block_heights::clear() noexcept
+	{
+		if (State) {
+			State->Blocks.clear();
+		}
+	}
 
 	struct plain_text_pane_measurement::state
 	{
@@ -244,6 +367,17 @@ namespace bpr::qt {
 		value.Progress = pane_measurement_progress::pending;
 	}
 
+	plain_text_pane_measurement::plain_text_pane_measurement(
+		const QPlainTextEdit& aPane, const std::uint32_t aLogicalLineCount, pane_block_heights& aHeights)
+		: plain_text_pane_measurement{ aPane, aLogicalLineCount }
+	{
+		if (State->Progress != pane_measurement_progress::pending || !aHeights.State) {
+			return;
+		}
+		aHeights.State->bind(aPane);
+		State->Measurer.record_into(aHeights.State->Blocks);
+	}
+
 	plain_text_pane_measurement::~plain_text_pane_measurement()                                                         = default;
 	plain_text_pane_measurement::plain_text_pane_measurement(plain_text_pane_measurement&&) noexcept                    = default;
 	auto plain_text_pane_measurement::operator=(plain_text_pane_measurement&&) noexcept -> plain_text_pane_measurement& = default;
@@ -268,7 +402,7 @@ namespace bpr::qt {
 				return value.Progress;
 			}
 			value.Measurements.Boundaries.push_back(value.Measurements.Boundaries.back()
-													+ value.Measurer.height(value.Block));
+													+ value.Measurer.height(value.Block, value.NextLine));
 			value.Block = value.Block.next();
 			++value.NextLine;
 		}
@@ -289,6 +423,11 @@ namespace bpr::qt {
 	auto plain_text_pane_measurement::measured_lines() const noexcept -> std::uint32_t
 	{
 		return State ? State->NextLine : 0U;
+	}
+
+	auto plain_text_pane_measurement::reused_lines() const noexcept -> std::uint32_t
+	{
+		return State ? State->Measurer.reused() : 0U;
 	}
 
 	auto plain_text_pane_measurement::result() const -> const pane_line_measurements*
@@ -339,7 +478,7 @@ namespace bpr::qt {
 			if (!block.isValid()) {
 				return std::nullopt;
 			}
-			documentY += measurer.height(block);
+			documentY += measurer.height(block, line);
 			measurements.Boundaries.push_back(documentY);
 			block = block.next();
 		}

@@ -94,9 +94,12 @@ namespace bpr::qt {
 		std::uint64_t MeasurementBatches           = 0U;
 		std::uint64_t MeasurementRestarts          = 0U;
 		std::uint32_t MaximumMeasurementBatchLines = 0U;
-		std::uint64_t TokenSpanAdoptions           = 0U;
-		std::uint64_t RejectedTokenSpans           = 0U;
-		std::uint64_t SyntaxBlocksFormatted        = 0U;
+		/// [[BPR-1123]]. Lines a completed measurement took from the pane's
+		/// recorded block heights instead of shaping them again.
+		std::uint64_t MeasurementLinesReused = 0U;
+		std::uint64_t TokenSpanAdoptions     = 0U;
+		std::uint64_t RejectedTokenSpans     = 0U;
+		std::uint64_t SyntaxBlocksFormatted  = 0U;
 		/// Classified spans the painter stepped over or consumed. Counted
 		/// separately from the blocks it formatted because those two can come
 		/// apart: a painter that scanned the list from the front would format
@@ -415,8 +418,12 @@ namespace bpr::qt {
 		std::function<void()>                FrameObserver;
 		std::optional<core::source_line_ref> ConversationAnchor;
 		measured_alignment_axis_cache        AxisCache;
-		diff_workbench_statistics            Statistics;
-		QString                              LastAnnouncement;
+		/// [[BPR-1123]]. Each source pane's recorded block heights, cleared
+		/// whenever its text is replaced.
+		pane_block_heights        LeftHeights;
+		pane_block_heights        RightHeights;
+		diff_workbench_statistics Statistics;
+		QString                   LastAnnouncement;
 		/// The last published tab stop. Absent until the first publication, so
 		/// adopting the initial typography is not mistaken for a change.
 		std::optional<qreal>          AppliedTabStopDistance;

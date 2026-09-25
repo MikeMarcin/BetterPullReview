@@ -25,6 +25,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -644,6 +645,114 @@ namespace {
 			   "the pane's horizontal range already covered its widest line");
 	}
 
+	/// \brief Every boundary equals the pane's native one, or names the first
+	/// that does not.
+	void expect_native_boundaries(const std::vector<qreal>& aMeasured, const QPlainTextEdit& aPane, const std::uint32_t aLines, const std::string_view aMessage)
+	{
+		const auto native = native_boundaries(aPane, aLines);
+		for (std::size_t index = 0U; index < std::max(native.size(), aMeasured.size()); ++index) {
+			if (index >= native.size() || index >= aMeasured.size() || native[index] != aMeasured[index]) {
+				std::cerr << "boundary " << index << " differs from the native one\n";
+				expect(false, aMessage);
+			}
+		}
+	}
+
+	/// [[BPR-1123]]. A transient layout keeps nothing, so every measurement of
+	/// an unwrapped pane would shape every block again ([[BPR-1032]]). With the
+	/// pane's recorded block heights, a measurement after a viewport change
+	/// reuses every block, and still lands on the pane's native boundaries and
+	/// its horizontal range, even after a width change emptied the pane's own
+	/// layouts. A font change, a block's changed formats, a text edit and an
+	/// explicit clear each measure again.
+	auto test_recorded_block_heights() -> void
+	{
+		auto pane = QPlainTextEdit{ };
+		pane.resize(260, 160);
+		pane.setLineWrapMode(QPlainTextEdit::NoWrap);
+		// A scroll bar that appears mid-measurement would invalidate it.
+		pane.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+		pane.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+		QString        source;
+		constexpr auto lines = 120U;
+		for (auto line = 0U; line < lines; ++line) {
+			switch (line % 5U) {
+			case 0U: source += QStringLiteral("fallback 日本語 αβγ 😀 line\n"); break;
+			case 1U: source += QStringLiteral("a wide word in a larger font\n"); break;
+			// Widest in the middle, far below the viewport.
+			case 2U: source += QStringLiteral("x").repeated(static_cast<int>(20U + std::min(line, lines - line))) + QChar{ '\n' }; break;
+			default: source += QStringLiteral("plain ascii source line\n"); break;
+			}
+		}
+		source.chop(1);
+		pane.setPlainText(source);
+		pane.show();
+		QApplication::processEvents();
+		set_larger_word_formats(*pane.document());
+		QApplication::processEvents();
+
+		auto       heights = qt::pane_block_heights{ };
+		const auto measure = [&pane, &heights] {
+			QApplication::processEvents();
+			qt::plain_text_pane_measurement measurement{ pane, lines, heights };
+			auto                            progress = qt::pane_measurement_progress::pending;
+			while (progress == qt::pane_measurement_progress::pending) {
+				progress = measurement.advance(32U);
+			}
+			expect(progress == qt::pane_measurement_progress::complete && measurement.result() != nullptr,
+				   "a measurement with recorded block heights completes");
+			return std::pair{ measurement.result()->Boundaries, measurement.reused_lines() };
+		};
+
+		const auto [first, firstReused] = measure();
+		expect(firstReused == 0U, "the first measurement has nothing recorded to reuse");
+
+		pane.resize(260, 220);
+		const auto [taller, tallerReused] = measure();
+		expect(taller == first, "a taller viewport leaves every boundary where it was");
+		expect(tallerReused == lines, "a viewport-only change reuses every recorded block");
+
+		// A width change makes the pane lay its document out again, which
+		// empties every block's own layout and resets its widest line.
+		pane.resize(340, 220);
+		const auto [wider, widerReused] = measure();
+		expect(widerReused == lines && wider == first, "a width change reuses every recorded block, and every boundary stays");
+		QApplication::processEvents();
+		const auto measuredWidth = pane.document()->documentLayout()->documentSize().width();
+		expect_native_boundaries(first, pane, lines, "the reused boundaries are the pane's native ones");
+		QApplication::processEvents();
+		expect(pane.document()->documentLayout()->documentSize().width() == measuredWidth,
+			   "a reused width still lays the widest line out, so the pane's horizontal range already covered it");
+
+		auto font = pane.font();
+		font.setPointSizeF(font.pointSizeF() + 3.0);
+		pane.setFont(font);
+		const auto [larger, largerReused] = measure();
+		expect_native_boundaries(larger, pane, lines, "after a font change the boundaries are the pane's native ones");
+		expect(largerReused == 0U && larger != first, "a font change measures every block again");
+
+		// A highlighter's way to change a block's formats. The revision does
+		// not move, so only the block's own formats say its height may have.
+		const auto restyled = pane.document()->findBlockByNumber(3);
+		auto       format   = QTextCharFormat{ };
+		format.setFontPointSize(30);
+		restyled.layout()->setFormats({ QTextLayout::FormatRange{ .start = 0, .length = 5, .format = format } });
+		pane.document()->markContentsDirty(restyled.position(), restyled.length());
+		const auto [reformatted, reformattedReused] = measure();
+		expect_native_boundaries(reformatted, pane, lines, "a block whose formats changed is measured again");
+		expect(reformattedReused == lines - 1U && reformatted != larger, "only the block whose formats changed is measured again");
+
+		auto edit = QTextCursor{ pane.document()->findBlockByNumber(7) };
+		edit.insertText(QStringLiteral("edited "));
+		const auto [edited, editedReused] = measure();
+		expect_native_boundaries(edited, pane, lines, "after an edit the boundaries are the pane's native ones");
+		expect(editedReused == 0U, "a text edit measures every block again");
+
+		heights.clear();
+		const auto [cleared, clearedReused] = measure();
+		expect(clearedReused == 0U && cleared == edited, "a cleared record measures every block again, to the same boundaries");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -659,6 +768,7 @@ auto main(int argc, char** argv) -> int
 	test_bounded_native_measurement();
 	test_transient_no_wrap_measurement(true);
 	test_transient_no_wrap_measurement(false);
+	test_recorded_block_heights();
 
 	std::cout << "measured-alignment-axis-tests:pass\n";
 	return EXIT_SUCCESS;
