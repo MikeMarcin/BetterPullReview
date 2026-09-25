@@ -341,3 +341,108 @@ reads the name back (lines 1396 to 1398), and removes the file at its end
 removed, and a failing course leaves the file. Nothing removes the name
 before the descendant writes, so it is not this card's marker. It needs the
 fixture and the end-to-end course to change together.
+
+## macOS, AC4 (bpr-main-mac, 2026-09-25)
+
+The station runs macOS 26.6.2 (25G83) on Apple Silicon, with Apple clang
+21.0.0 (`clang-2100.1.1.101`), Qt 6.11.2, and `build/dev` Debug with
+warnings as errors. This entry supplies the macOS half of AC4. It does not
+move the card, which stays on bpr-main-linux's claim. The Windows run is
+still owed.
+
+### The build and the rows
+
+At `06e578de`, which contains `b16bf039` and `11465a0b`, an incremental
+`cmake --build --preset dev` exited 0 after 97 steps and printed no
+`warning:` line. The rows below then ran the card's macOS command, serially
+and verbosely, from 05:21:55Z to 05:36:49Z.
+
+| Rows | Result |
+| --- | --- |
+| Rows 1 to 7: `sqlite_review_mutation_recovery_storage`, `contained_catalog_probe`, `sqlite_private_store_open`, `sqlite_device_binding_storage`, `sqlite_profile_registry_storage`, `sqlite_profile_storage_root`, `sqlite_window_review_restoration_storage` | 7 of 7 pass, in 0.28 to 2.78 s. The probe prints `CONTAINED_CATALOG_PROBE_OK:constructed:0s`, the line AC3 changed on purpose |
+| `qt_agent_launch_canary`, `agent_parent_death` | pass, 85.32 and 28.88 s |
+| Rows 8 to 12, and `epoch_kill_recovery` and `epoch_transaction_kill_recovery` | 9 of 9 pass. `git_cache_contract` is the slowest, at 274.34 s |
+| In all | **18 of 18 pass**, 894.10 s |
+| `/private/tmp` and the user's `$TMPDIR`, listed before and after | No entry named in "Evidence owed elsewhere" appeared. `/private/tmp` gained one `bpr-net-*` root. It belonged to another agent's run of an end-to-end course, which started at 05:34Z and was still running at the listing. `$TMPDIR` gained only a desktop indexer's `att-*-postings` files and the editor's `preamble-*.pch` files |
+
+On macOS a ctest run cannot show a leftover in its own root
+([[BPR-1047]]). The runner gives each row `/private/tmp/bpr-net-*/fixture`
+as `TMPDIR` and removes it when the row ends. The direct run below keeps the
+root, so it can show what a row leaves.
+
+### Direct sandboxed runs: rows 1 and 7 and the canary's marker, with `TMPDIR` through a link
+
+**Why.** Before this card, rows 1 and 7 and the canary's marker named their
+roots under `temp_directory_path()` as given. `make_scratch_directory` now
+returns `canonical()` of what it made. Under ctest the two are the same,
+because the runner resolves the `TMPDIR` it gives each row. On macOS the
+user's own temporary directory is `/var/folders/…/T`, and `/var` and `/tmp`
+are links into `/private`. There, `canonical()` returns a different path
+from `TMPDIR`. No run had covered that case.
+
+**Method.** A scratch driver, not committed, ran each row's command the way
+`scripts/run_network_isolated_test.py` does. It used the runner's own
+`write_profile()` to write the profile. It gave the child the row's
+environment and environment changes, read from `ctest --show-only=json-v1`,
+and the runner's four variables. It ran `/usr/bin/sandbox-exec -f <profile>
+<command>` from the row's working directory, and judged the row by CTest's
+rule. Unlike the runner, it kept its root, `bpr1128-direct-XXXXXXXX/`, and
+gave `TMPDIR` as `fixture/` (mode `0700`) through a link. It did that once
+under `/tmp` and once under the user's `/var/folders/…/T`.
+
+**Plants.** Before each run, the driver checked that each name below was
+absent, then planted at it, in `fixture/`. For each row's stem `S`:
+
+- a sentinel directory, mode `0755`, at `S-PLNTDR` and at `S-4242420000`,
+  a clock-style name. Each held a `sentinel.txt` and a `heartbeat` file;
+- a link at `S-PLNTLK` to a sentinel directory outside `fixture/`.
+
+For the marker's stem, it also planted a sentinel file at
+`bpr-agent-descendant-4242420001`, and a link at `…-4242420002` to a sentinel
+file outside `fixture/`. A thread listed `fixture/` every 2 ms while the row
+ran. Afterwards, every entry under `fixture/` and under the link targets was
+compared with its state before the run: type, inode, mode, and bytes or link
+target.
+
+| Row | `TMPDIR` | Result | Made during the run | Plants | Left |
+| --- | --- | --- | --- | --- | --- |
+| `sqlite_review_mutation_recovery_storage` (row 1) | under `/tmp` and under `/var/folders`, through the link | pass, both | six `bpr-mutation-recovery-XXXXXX` directories in each run, mode `0700`, this user's | all 7 unchanged | nothing |
+| `contained_catalog_probe` (row 7) | the same | pass, both, `CONTAINED_CATALOG_PROBE_OK:constructed:0s` | one `bpr-contained-catalog-probe-XXXXXX`, `0700` | all 7 unchanged | nothing |
+| `qt_agent_launch_canary`, as built | the same | **fails, both,** at "the child reports the exact request working directory, not the parent cwd", 28 s in, before the marker's course | `bpr-agent-cwd-<clock>`, `0755` | all 9 unchanged | nothing |
+| The same, with `TMPDIR` resolved, as the runner gives it | `/private/tmp/…` and `/private/var/…` | pass, both, 69 s | `bpr-agent-cwd-<clock>` (`0755`) and `bpr-agent-descendant-XXXXXX` (`0700`) | all 9 unchanged | nothing |
+| The same, built with a trial hook that skips the working-directory course, with `TMPDIR` through the link | under `/tmp` and under `/var/folders` | pass, both, 68 to 72 s | `bpr-agent-descendant-XXXXXX`, `0700` | all 9 unchanged | nothing |
+
+**Why the canary fails through a link, and why that is not this card's.**
+`test_real_child_receives_no_parent_credential_or_context_in_argv` makes its
+working directory at `temp_directory_path()/bpr-agent-cwd-<clock>` (lines
+365 to 371 at `06e578de`). It then compares, lexically, the working
+directory the child reports with that path (lines 416 to 421). The child's `getcwd` answers with the resolved
+`/private/…` path, so under a `TMPDIR` reached through a link the two
+differ. `b16bf039` does not touch that course: in this file it changes only
+the marker's course and adds an include. The course is outside this card's
+class, as "AC1, the roots as made" already says. Under ctest the row passes,
+because `TMPDIR` is resolved there. The canary runs this course before the
+marker's, so the direct run needed the hook to reach the marker. The hook
+wrapped that one call in a check of `BPR_TRIAL_SKIP_CWD_COURSE`. It was made
+only in a scratch `git archive` of `06e578de`, built in a directory of its
+own, and never in the shared tree. That scratch tree has been removed.
+
+**So on macOS:** rows 1 and 7 and the marker's course pass with the
+canonical path the helper returns, whether `TMPDIR` is resolved or reached
+through a link. Every plant beside their names was left exactly as it was,
+and nothing was left behind. Each driver root was removed by its exact name
+after its comparison. The logs, the driver, the hook's diff and the results
+are station records in `build/logs/bpr-1128-mac/`, not committed.
+
+### Seen, not changed (title given)
+
+"The agent canary's working-directory check compares paths lexically, so it
+fails when `TMPDIR` is reached through a link." It matters only outside
+ctest, such as a direct run with the user's own `TMPDIR` on macOS. It could
+compare `canonical()` of both sides. It is left to the coordinator whether
+this needs a card.
+
+### Acceptance state after this run
+
+- **AC4 on macOS: met.** The sources build with no warning, and all 18 rows
+  pass. The Windows half is still owed, and the card stays In Progress.
