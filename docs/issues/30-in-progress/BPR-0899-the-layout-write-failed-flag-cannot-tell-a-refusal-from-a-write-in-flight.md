@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0899"
 title: "The durable layout port's write-failed flag cannot tell a refusal from a write still in flight"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
