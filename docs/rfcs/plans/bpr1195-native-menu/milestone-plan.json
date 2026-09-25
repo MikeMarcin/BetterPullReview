@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1195-native-menu",
+  "scope": {
+    "issues": [
+      "BPR-1195"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "resident-menu-parity",
+      "outcome": "Closing the last window retains the scaffolding menu commands in their native order, disabled while no window exists.",
+      "work": [
+        {
+          "issue": "BPR-1195"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The exact native menu comparison fails before the change and passes after it, including every later assertion.",
+        "The resident Close Tab, Updates Line, tab navigation and composition commands preserve titles and shortcuts, remain disabled, and cause no effect.",
+        "Focused Qt and profile-management composition checks, documentation and touched-file format pass; all task commands finish and the isolated writer is released."
+      ],
+      "boundary": "BPR-1195 only, assigned baseline f6de40b6, mandate r1. No primary checkout edits, push, remote runs or new attended session. Existing RFC0052 and prior native activation limitations remain pending."
+    }
+  ],
+  "unplanned_work": []
+}
