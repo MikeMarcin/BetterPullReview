@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1107"
 title: "Draw white space the Sublime Text way, dots for spaces and lines for tabs, with a setting for when"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
