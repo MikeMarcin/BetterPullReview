@@ -187,6 +187,10 @@ namespace bpr::app::detail {
 		/// [[BPR-0644]]. The token endpoint cannot be reached: every renewal
 		/// attempt answers a network failure, as an offline launch does.
 		bool OfflineDeviceRefresh = false;
+		/// [[BPR-0644]]. `/user` answers as an account no binding names, on the
+		/// bootstrap and the account transports alike: the stored or rotated
+		/// token now signs in as someone else.
+		bool ViewerNamesAnotherAccount = false;
 		/// [[BPR-0803]]. While this holds true, the device flow's poll answers
 		/// `authorization_pending`, as GitHub does until the reviewer finishes
 		/// in the browser; the course sets it false to finish. Absent, the first

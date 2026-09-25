@@ -15,6 +15,9 @@ namespace bpr::application {
 		github_rate_limit_state                 RateLimits;
 		std::optional<github_rate_limit_record> RateLimitCause;
 		github_capability_diagnostic            CapabilityDetail = github_capability_diagnostic::none;
+		/// [[BPR-0644]]. The credential signed in as an account other than the
+		/// one its binding named.
+		bool AccountMismatch = false;
 
 		auto operator<=>(const github_host_diagnostic&) const = default;
 	};

@@ -234,9 +234,10 @@ namespace bpr::application {
 		/// refresh-expired binding and a composition with no sink fail the held
 		/// session visibly with the failure they name and keep the grant: the
 		/// row stays live, both slots stay, and the next launch tries again.
-		/// Only a rotated grant whose `/user` names a different account erases
-		/// both slots of the renewal's authority, because that material
-		/// signs in as someone the binding never named.
+		/// A rotated grant whose `/user` names a different account is kept the
+		/// same way (the owner's decision of 2026-09-24): its failure says the
+		/// account differs, and the Accounts page shows it as an error until
+		/// the person signs out or signs in again.
 		void configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock, device_launch_renewal_sink aLaunchRenewal = { });
 		/// \brief Loads the trusted device binding for a compiled native profile, then resumes normally.
 		/// \details An admitted observer receives one terminal on the decision lane

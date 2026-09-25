@@ -447,6 +447,7 @@ namespace bpr::application {
 			.RateLimits        = project(aDiagnostic.RateLimits),
 			.RateLimitCause    = project(aDiagnostic.RateLimitCause),
 			.CapabilityDetail  = aDiagnostic.CapabilityDetail == github_capability_diagnostic::none ? github_capability_diagnostic::none : bounded_capability_diagnostic(aDiagnostic.CapabilityDetail),
+			.AccountMismatch   = aDiagnostic.AccountMismatch,
 		};
 	}
 }

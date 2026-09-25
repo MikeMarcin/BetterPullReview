@@ -2200,22 +2200,24 @@ namespace bpr::application {
 					const auto adopted = credential_key(BprProfile, authority, success->Viewer.Account);
 					// [[BPR-0644]]. A renewed grant resumes only the account its
 					// binding named. Any other account's token is refused before
-					// it reaches the vault, and the renewal's own slot is erased.
+					// it reaches the vault.
 					if (LaunchRenewal && LaunchRenewalEnrolled) {
 						const auto renewal = *LaunchRenewal;
 						LaunchRenewal.reset();
 						LaunchRenewalEnrolled = false;
 						LaunchRenewalBegun    = false;
 						if (adopted != renewal.Authority) {
-							// The one ending that still erases the grant on its own
-							// ([[BPR-0644]]): the refresh slot now holds material that
-							// signs in as an account the binding never named, so
-							// keeping it would keep someone else's credential.
+							// The owner's decision of 2026-09-24: material that
+							// signs in as an account the binding never named is
+							// kept like every other failure, not erased on its
+							// own. The renewal's slot stays the remembered grant,
+							// the failure says the account differs, and Sign out
+							// or a new sign-in is what removes it.
 							SessionEnrollment.reset();
 							SessionEnrollmentProvenance = github_credential_provenance::manual;
 							release_launch_renewal();
-							adopt_launch_renewal_slot(renewal.Authority, context);
-							fail_session(context, core::github_failure::malformed_response, true, github_bootstrap_failure_stage::account_identity);
+							keep_launch_renewal_slot(renewal.Authority, context);
+							fail_session(context, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::account_identity, account_mismatch());
 							return;
 						}
 						// Until it is accepted, a failure keeps this grant as the
@@ -2244,9 +2246,16 @@ namespace bpr::application {
 				if (ViewerMode == viewer_mode::account) {
 					if (!CredentialAuthority.has_value()
 						|| success->Viewer.Account != CredentialAuthority->Account) {
+						// [[BPR-0644]]. A remembered device grant whose `/user`
+						// answers another account is kept, as the owner decided
+						// on 2026-09-24, and the failure says the account
+						// differs. Anything else is erased as before: a
+						// provisional credential never became anyone's
+						// remembered sign-in.
 						fail_session(context,
 									 core::github_failure::malformed_response,
-									 true, github_bootstrap_failure_stage::account_identity);
+									 !remembered_device_grant(), github_bootstrap_failure_stage::account_identity,
+									 CredentialAuthority.has_value() ? std::optional{ account_mismatch() } : std::nullopt);
 						return;
 					}
 					if (BootstrapViewer.has_value()
@@ -2301,6 +2310,10 @@ namespace bpr::application {
 											  .RetryAfterSeconds = error->Error.RetryAfterSeconds,
 											  .RateLimits        = RateLimits,
 											  .RateLimitCause    = error->Error.RateLimitCause,
+											  // [[BPR-0644]]. The provider's own account
+											  // check refused a stored credential that
+											  // answered as another account.
+											  .AccountMismatch = error->Error.AccountMismatch,
 										  } }
 										: std::nullopt);
 				return;
@@ -3738,7 +3751,8 @@ namespace bpr::application {
 		// failed. The owner's rule of 2026-09-24 is that a remembered grant is
 		// removed only when the person removes it or a new sign-in replaces
 		// it. The callers that still ask are the ones whose material is not
-		// the binding's: an account or profile the binding never named.
+		// the binding's: a profile the binding never named. An account it never
+		// named is kept too, since the owner's decision of 2026-09-24.
 		void fail_session(const core::github_session_request_context& aContext,
 						  const core::github_failure                  aFailure,
 						  const bool                                  aDeletePersistentCredential = false,
@@ -3785,6 +3799,23 @@ namespace bpr::application {
 							  .Failure = aFailure,
 						  },
 						  aStage == github_bootstrap_failure_stage::none && !kept ? std::nullopt : std::optional{ std::move(diagnostic) });
+		}
+
+		// [[BPR-0644]]. What a failure says when its credential signed in as an
+		// account other than the one its binding named.
+		[[nodiscard]] static auto account_mismatch() -> github_host_diagnostic
+		{
+			return github_host_diagnostic{ .Reason = core::reason_for(core::github_failure::malformed_response), .AccountMismatch = true };
+		}
+
+		// [[BPR-0644]]. The selected credential is a device grant someone
+		// signed in with before this session: restored or resumed from its
+		// binding, or a launch renewal's rotated grant. A failure keeps it.
+		[[nodiscard]] auto remembered_device_grant() const noexcept -> bool
+		{
+			return CredentialAuthority.has_value() && CredentialSessionContext.has_value() && !AcceptedSession.has_value()
+				&& CredentialProvenance == github_credential_provenance::device_grant
+				&& (CredentialLifecycle == credential_lifecycle::persistent || LaunchRenewedGrant);
 		}
 
 		// A restored device grant that failed before acceptance and was not

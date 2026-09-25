@@ -12,6 +12,12 @@
 // during a lifetime whose own renewal gives up, offline or refused, keeps its
 // grant the same way, and the next launch restores it. Those lifetimes use a
 // data root and a vault of their own.
+//
+// [[BPR-0644]], the owner's decision of 2026-09-24. Remembered material that
+// signs in as an account its binding never named is kept too. The Accounts
+// page shows it as an error, a new sign-in replaces it, and Sign out removes
+// it. Both paths that reach it run here: a restored access slot, and a launch
+// renewal's rotated grant. They also use a data root and a vault of their own.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -235,6 +241,100 @@ namespace {
 			shutdown(*removed);
 		}
 	}
+
+	// [[BPR-0644]]. The failed launch's card says the kept grant signs in as
+	// another account, as its consequence and as its Last problem, and the
+	// capture is named for it.
+	void expect_another_account(app::github_application& aApp, const app::detail::github_public_path_fixture_evidence& aBefore, std::string_view aMessage, const QString& aCapture)
+	{
+		expect_grant_kept(aApp, aBefore, qt::kept_grant::another_account, aMessage);
+		auto* const github = github_card(aApp);
+		expect(github->consequence_label()->text().contains(QStringLiteral("different GitHub account")), aMessage);
+		expect(github->presentation().LastProblem.contains(QStringLiteral("different GitHub account")), aMessage);
+		expect(github->sign_in_button()->isVisibleTo(github) && github->sign_out_button()->isVisibleTo(github), aMessage);
+		std::cout << "ANOTHER_ACCOUNT_PROBLEM:" << github->presentation().LastProblem.toStdString() << '\n';
+		const auto directory = qEnvironmentVariable("BPR_KEPT_GRANT_CAPTURE_DIR");
+		if (!directory.isEmpty()) {
+			expect(github->grab().save(QStringLiteral("%1/%2.png").arg(directory, aCapture), "PNG"), "the another-account capture is written");
+		}
+	}
+	void account_mismatch(app::detail::github_public_path_fixture_options aOptions)
+	{
+		aOptions.RejectDeviceRefresh  = false;
+		aOptions.OfflineDeviceRefresh = false;
+		// A restored access slot, still inside its lifetime, whose /user now
+		// answers another account. The next launch meets it again; a new
+		// sign-in replaces it.
+		{
+			QTemporaryDir root;
+			expect(root.isValid(), "private temporary application root for the restored mismatch");
+			aOptions.ApplicationDataRoot = e2e::private_data_root(root);
+			expect(aOptions.ApplicationDataRoot.has_value(), "private desktop test root under the canonical storage policy");
+			aOptions.SharedDeviceVault         = app::detail::make_shared_github_fixture_vault();
+			aOptions.ViewerNamesAnotherAccount = false;
+			auto ledger                        = seed(aOptions);
+			aOptions.DeviceWallOffsetSeconds   = 600;
+			aOptions.ViewerNamesAnotherAccount = true;
+			{
+				auto other = launch(aOptions);
+				wait_for([&other] { return other->window().session_panel()->status() == core::github_status::session_failed; }, "a restored grant whose /user answers another account fails its session visibly");
+				wait_for([&other] { return github_application_fixture_access::device_binding_store_idle(*other); }, "the mismatched launch completes its metadata work");
+				settle(500);
+				expect(github_application_fixture_access::evidence(*other).DeviceTransportSubmissions == 0U, "a fresh restored grant spends nothing at the token endpoint");
+				expect_another_account(*other, ledger, "a restored grant that signs in as another account is kept and shown as an error", QStringLiteral("kept-grant-another-account-restored"));
+				shutdown(*other);
+				ledger = github_application_fixture_access::evidence(*other);
+				expect(ledger.SecretRetained && ledger.RefreshRetained, "an orderly quit keeps it too");
+			}
+			{
+				auto again = launch(aOptions);
+				wait_for([&again] { return again->window().session_panel()->status() == core::github_status::session_failed; }, "the next launch meets the other account again");
+				wait_for([&again] { return github_application_fixture_access::device_binding_store_idle(*again); }, "that launch completes its metadata work");
+				settle(500);
+				expect_another_account(*again, ledger, "and keeps it, and says so again", QStringLiteral("kept-grant-another-account-again"));
+				// Repairing it is signing in again: Begin reaches a fresh device
+				// grant that replaces the mismatched one.
+				again->window().device_authorization()->begin_button()->click();
+				wait_for([&again] { return github_application_fixture_access::device_binding_durable(*again); }, "Begin reaches a fresh device grant that replaces the mismatched one");
+				wait_for([&again] { return again->window().session_panel()->status() == core::github_status::session_ready; }, "and signs in");
+				expect(github_application_fixture_access::evidence(*again).LastEnrollmentDigest.empty(), "Begin took no pasted credential");
+				expect(github_card(*again)->presentation().KeptGrant == qt::kept_grant::none, "and the card no longer shows the error");
+				shutdown(*again);
+			}
+		}
+		// A launch renewal's rotated grant whose /user answers another
+		// account. It is kept, and Sign out removes it.
+		{
+			QTemporaryDir root;
+			expect(root.isValid(), "private temporary application root for the renewed mismatch");
+			aOptions.ApplicationDataRoot = e2e::private_data_root(root);
+			expect(aOptions.ApplicationDataRoot.has_value(), "private desktop test root under the canonical storage policy");
+			aOptions.SharedDeviceVault         = app::detail::make_shared_github_fixture_vault();
+			aOptions.ViewerNamesAnotherAccount = false;
+			auto ledger                        = seed(aOptions);
+			aOptions.DeviceWallOffsetSeconds   = access_lifetime_seconds + 600;
+			aOptions.ViewerNamesAnotherAccount = true;
+			{
+				auto renewed = launch(aOptions);
+				wait_for([&renewed] { return github_application_fixture_access::evidence(*renewed).DeviceTransportSubmissions == 1U; }, "the launch renews the expired grant once");
+				wait_for([&renewed] { return renewed->window().session_panel()->status() == core::github_status::session_failed; }, "the rotated grant's /user answers another account and the session fails visibly");
+				wait_for([&renewed] { return github_application_fixture_access::device_binding_store_idle(*renewed); }, "the renewed mismatch completes its metadata work");
+				settle(500);
+				expect(github_application_fixture_access::evidence(*renewed).VaultStores == ledger.VaultStores, "the other account's access token never reaches the vault");
+				expect_another_account(*renewed, ledger, "a renewed grant that signs in as another account is kept and shown as an error", QStringLiteral("kept-grant-another-account-renewed"));
+				github_card(*renewed)->sign_out_button()->click();
+				wait_for([&renewed] { const auto evidence = github_application_fixture_access::evidence(*renewed); return !evidence.SecretRetained && !evidence.RefreshRetained; },
+						 "Sign out on the card erases both slots of the mismatched grant");
+				wait_for([&renewed] { return github_application_fixture_access::device_binding_store_idle(*renewed); }, "the sign-out completes its metadata work");
+				shutdown(*renewed);
+			}
+			auto removed = launch(aOptions);
+			wait_for([&removed] { return github_application_fixture_access::device_binding_store_idle(*removed); }, "the launch after Sign out completes its metadata work");
+			settle(500);
+			expect(removed->window().session_panel()->status() == core::github_status::no_profile, "after Sign out the mismatched grant is gone and the launch is signed out");
+			shutdown(*removed);
+		}
+	}
 }
 
 int main(int aArgc, char** aArgv)
@@ -389,5 +489,6 @@ int main(int aArgc, char** aArgv)
 
 	options.RejectDeviceRefresh = false;
 	in_process_renewals(options);
+	account_mismatch(options);
 	std::cout << "device-binding-launch-renewal-tests:pass\n";
 }

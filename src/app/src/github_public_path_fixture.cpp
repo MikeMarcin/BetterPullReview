@@ -1183,6 +1183,7 @@ namespace bpr::app::detail {
 			// served with the mutation overlay rather than refused.
 			bool                                        RepeatReads          = false;
 			bool                                        DistinctAccount      = false;
+			bool                                        UnboundViewer        = false;
 			std::size_t                                 AccountReadCalls     = 0U;
 			std::size_t                                 SmartAcquireCalls    = 0U;
 			std::size_t                                 SmartAcquireRefusals = 0U;
@@ -1783,6 +1784,15 @@ namespace bpr::app::detail {
 					identity.insert(QStringLiteral("id"), static_cast<qint64>(State->Descriptor.AccountId.value()));
 					identity.insert(QStringLiteral("node_id"), QStringLiteral("U_fixture_other_profile_viewer"));
 					identity.insert(QStringLiteral("login"), QStringLiteral("other-profile-reviewer"));
+					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				// [[BPR-0644]]. The token signs in as an account no binding names:
+				// a different actor, whatever the recorded viewer was.
+				if (State->UnboundViewer && aRequest.Wire.Operation == read_operation::get_viewer_identity) {
+					auto identity = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					identity.insert(QStringLiteral("id"), static_cast<qint64>(9'106'440));
+					identity.insert(QStringLiteral("node_id"), QStringLiteral("U_fixture_unbound_viewer"));
+					identity.insert(QStringLiteral("login"), QStringLiteral("unbound-reviewer"));
 					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (aRequest.Wire.Operation == read_operation::list_review_threads
@@ -3367,6 +3377,7 @@ namespace bpr::app::detail {
 				|| aOptions.IndependentWindowReads;
 			Recording->RepeatReads             = aOptions.RepeatReadSessions;
 			Recording->DistinctAccount         = distinctAccount;
+			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;

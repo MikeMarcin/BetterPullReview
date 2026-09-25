@@ -1467,15 +1467,20 @@ namespace bpr::adapters::github::detail {
 						}
 						const auto observed = normalize_observed_github_viewer(
 							success->Response, *server);
-						if (!observed.has_value()
-							|| (accountContext.has_value()
-								&& observed->Viewer.Account
-									!= accountContext->Authority.Account)) {
-							failed(observed.has_value()
-									   ? provider_error(
-											 application::github_provider_failure::
-												 authentication)
-									   : observed.error());
+						if (!observed.has_value()) {
+							failed(observed.error());
+							return;
+						}
+						if (accountContext.has_value()
+							&& observed->Viewer.Account
+								!= accountContext->Authority.Account) {
+							// The stored credential signs in as someone its
+							// binding never named. Refused as before, and said
+							// as such ([[BPR-0644]]): the host keeps a
+							// remembered grant through it and shows why.
+							auto mismatch            = provider_error(application::github_provider_failure::authentication);
+							mismatch.AccountMismatch = true;
+							failed(std::move(mismatch));
 							return;
 						}
 						if (request.Authority.Authentication

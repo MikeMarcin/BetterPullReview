@@ -947,6 +947,31 @@ namespace {
 			"account job captures the exact enterprise profile");
 		const auto enterpriseLease = accountSuccess.AccountTransport;
 
+		// [[BPR-0644]]. A stored credential whose /user answers another account
+		// than the one it is bound to is refused as an authentication failure
+		// that says why, and no account lease is issued for it.
+		{
+			const auto otherRequest = viewer_request_for(enterprise);
+			const auto boundAccount = core::github_account_id{ viewer_record().Account.value() + 1U };
+			auto       completions  = std::vector<application::github_viewer_completion>{ };
+			(*provider)->observe_viewer(
+				application::github_viewer_submission{
+					.Request        = otherRequest,
+					.Authentication = application::github_credential_retrieve_success{
+						.Context    = credential_context_for(enterprise, otherRequest.Context, boundAccount),
+						.Credential = credential_material(),
+					},
+				},
+				[&completions](auto aCompletion) { completions.push_back(std::move(aCompletion)); });
+			effects.run_next();
+			const auto& refused = require_one<application::github_viewer_error>(completions, "a viewer of another account is refused once");
+			expect(refused.Error.Failure == application::github_provider_failure::authentication && refused.Error.AccountMismatch && application::valid(refused.Error),
+				   "as an authentication failure that names the account mismatch");
+			auto misfiled    = refused.Error;
+			misfiled.Failure = application::github_provider_failure::network;
+			expect(!application::valid(misfiled), "only an authentication failure may carry the account mismatch");
+		}
+
 		auto capabilityResponse = supported_capability_response();
 		capabilityResponse.Body = read_file(
 			capability_fixture_root() / "ghes-3.18/supported.json");

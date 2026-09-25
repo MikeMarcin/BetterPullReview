@@ -266,6 +266,12 @@ namespace bpr::application {
 		/// this machine: nothing erased it, and the next launch tries it again.
 		/// Only the person's Sign out, or a new sign-in, removes it.
 		bool GrantKept = false;
+		/// [[BPR-0644]]. The session failed because its credential signed in as
+		/// a GitHub account other than the one its binding named. Under the
+		/// owner's decision of 2026-09-24 a remembered device grant is kept
+		/// through this like every other failure (`GrantKept`), and the Accounts
+		/// page says it as an error until the person signs out or signs in again.
+		bool AccountMismatch = false;
 
 		auto operator<=>(const github_host_diagnostic_projection&) const = default;
 	};

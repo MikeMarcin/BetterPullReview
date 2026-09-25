@@ -258,6 +258,7 @@ namespace bpr::qt {
 	{
 		CurrentStatus = aStatus;
 		KeptGrantReason.reset();
+		KeptGrantAccountMismatch = false;
 		const auto hasPullRequest
 			= Environment.HasPullRequest && Environment.HasPullRequest();
 		if (aStatus == core::github_status::loading_pull_request && hasPullRequest) {
@@ -312,14 +313,19 @@ namespace bpr::qt {
 		const std::optional<application::github_rate_limit_projection>& aRateLimit,
 		const bool                                                      aHostDetail,
 		const application::github_bootstrap_failure_stage               aBootstrapStage,
-		const application::github_capability_diagnostic                 aCapabilityDetail)
+		const application::github_capability_diagnostic                 aCapabilityDetail,
+		const bool                                                      aAccountMismatch)
 	{
 		if (
 			!aHostDetail && LastDiagnosticHasHostDetail
 			&& LastDiagnosticReason == aReason) {
 			return;
 		}
-		auto message = reason_text(aReason, aRetryAfter, aRateLimit);
+		// [[BPR-0644]]. The host names this failure itself: the credential
+		// answered as a GitHub account other than the one it was saved for.
+		auto message = aAccountMismatch
+			? QStringLiteral("The sign-in answered as a different GitHub account than the one it was saved for.")
+			: reason_text(aReason, aRetryAfter, aRateLimit);
 		if (!message.isEmpty()) {
 			switch (aBootstrapStage) {
 			case application::github_bootstrap_failure_stage::none:
@@ -544,18 +550,24 @@ namespace bpr::qt {
 		return CurrentStatus;
 	}
 
-	void github_session_panel::apply_kept_grant(const core::github_reason_code aReason)
+	void github_session_panel::apply_kept_grant(const core::github_reason_code aReason, const bool aAccountMismatch)
 	{
 		if (CurrentStatus != core::github_status::session_failed) {
 			return;
 		}
-		KeptGrantReason = aReason;
+		KeptGrantReason          = aReason;
+		KeptGrantAccountMismatch = aAccountMismatch;
 	}
 
 	auto github_session_panel::kept_grant_reason() const noexcept
 		-> std::optional<core::github_reason_code>
 	{
 		return KeptGrantReason;
+	}
+
+	auto github_session_panel::kept_grant_names_another_account() const noexcept -> bool
+	{
+		return KeptGrantReason.has_value() && KeptGrantAccountMismatch;
 	}
 
 	auto github_session_panel::statistics() const noexcept

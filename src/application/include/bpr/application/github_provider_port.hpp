@@ -107,6 +107,10 @@ namespace bpr::application {
 		std::optional<github_rate_limit_record> RateLimitCause;
 		std::uint16_t                           HttpStatus             = 0;
 		diagnostic_transport_failure_source     TransportFailureSource = diagnostic_transport_failure_source::none;
+		/// [[BPR-0644]]. An authentication failure whose cause is known: the
+		/// stored credential answered `/user` as an account other than the one
+		/// it is bound to. Only an `authentication` failure carries it.
+		bool AccountMismatch = false;
 
 		auto operator<=>(const github_provider_error&) const = default;
 	};
@@ -118,6 +122,9 @@ namespace bpr::application {
 		const github_provider_error& aError) noexcept -> bool
 	{
 		if (!valid(aError.Failure)) {
+			return false;
+		}
+		if (aError.AccountMismatch && aError.Failure != github_provider_failure::authentication) {
 			return false;
 		}
 		if (aError.HttpStatus != 0U && (aError.HttpStatus < 100U || aError.HttpStatus > 599U)) {

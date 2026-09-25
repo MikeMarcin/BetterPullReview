@@ -55,6 +55,10 @@ namespace bpr::qt {
 		/// GitHub refused the grant, or it can no longer renew; it needs signing
 		/// in again.
 		needs_sign_in,
+		/// The grant signed in as a GitHub account other than the one it was
+		/// saved for. The owner's decision of 2026-09-24: it is kept and shown
+		/// as an error; the person signs in again to replace it, or signs out.
+		another_account,
 	};
 
 	/// \brief The window's decision about one host, as its card presents it.

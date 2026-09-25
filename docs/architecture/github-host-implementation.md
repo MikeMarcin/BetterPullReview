@@ -1461,9 +1461,17 @@ refused, or quit while it retries leaves the row live. A refresh-expired
 binding is held and failed at once, asking for signing in again, without
 spending anything. The failure's diagnostic carries `GrantKept`, and the
 server card offers Sign out beside Begin with a sentence saying how the grant
-ends. The one ending that still erases on its own is material that signs in
-as an account the binding never named: a rotated grant whose `/user` differs,
-or a restored access slot that answers for another account.
+ends. Material that signs in as an account the binding never named is kept
+too, by the owner's decision of 2026-09-24. There are two paths to it: a
+rotated grant whose `/user` differs, which the host's bootstrap check catches,
+and a restored access slot that answers for another account, which the
+provider refuses as an `authentication` failure carrying `AccountMismatch`.
+A renewal's rotated access token for the other account is never stored. The failure's diagnostic
+carries `AccountMismatch` beside `GrantKept`, and the Accounts page shows it as
+the card's error: the remembered sign-in signs in to a different account than
+the one it was saved for, with Sign in to replace it and Sign out to forget
+it. Only the profile-mismatch erasures, where the compiled profile changed
+under a binding, still remove material on their own.
 
 The same rule holds while the application runs ([[BPR-1116]]). An accepted
 session's renewal that gives up, whether out of network attempts, unable to

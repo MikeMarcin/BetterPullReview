@@ -758,6 +758,21 @@ namespace {
 			return reason;
 		}
 
+		/// \brief [[BPR-0644]]. Whether the last failure a remembered grant was
+		/// kept through was the grant signing in as another account.
+		[[nodiscard]] auto kept_grant_names_another_account() const -> bool
+		{
+			auto another = false;
+			for (const auto& update : Updates) {
+				for (const auto& diagnostic : update.HostDiagnostics) {
+					if (diagnostic.GrantKept) {
+						another = diagnostic.AccountMismatch;
+					}
+				}
+			}
+			return another;
+		}
+
 		[[nodiscard]] auto host_diagnostic_count() const noexcept -> std::size_t
 		{
 			std::size_t count = 0U;
@@ -6089,8 +6104,9 @@ namespace {
 	// refresh lifetime already gone, the rotated grant's own `/user` -- keeps
 	// the grant: no slot is erased, the row stays live, the held session fails
 	// saying why, and Sign out afterwards erases both slots. Only the person's
-	// own endings erase it -- Sign out, a replacing token -- and a rotated
-	// grant that names another account, whose material is not the binding's.
+	// own endings erase it -- Sign out, a replacing token. Since the owner's
+	// decision of 2026-09-24 that includes a rotated grant that names another
+	// account: it is kept, and its failure says the account differs.
 	void test_restore_device_profile_renews_an_access_expired_grant_before_its_session()
 	{
 		using status                                     = application::device_profile_restore_status;
@@ -6208,11 +6224,11 @@ namespace {
 					} else {
 						expect(fixture.Vault.Stores.empty(), "another account's token is refused before it reaches the vault");
 						expect(renewals.size() == 2U && !renewals.back().has_value(), "and the device host's renewal is released");
-						expect(fixture.Vault.Deletes.size() == 1U && names_only_the_renewal(fixture) && store.Rows.front().Tombstone, "the one ending that still erases on its own: the renewal's exact slot, behind a tombstone");
-						complete_deletes(fixture);
-						expect(fixture.Vault.RefreshDeletes.size() == 1U && names_only_the_renewal(fixture), "both slots of the renewal's authority leave in order");
-						expect(!fixture.Host.accepted_session() && !fixture.Host.state().PendingSession, "the refused grant fails its session");
-						expect(!fixture.Projections.kept_grant_reason().has_value(), "and says nothing was kept");
+						// [[BPR-0644]]. The owner's decision of 2026-09-24: kept
+						// like every other failure, not erased on its own, and
+						// said as the account differing.
+						expect(fixture.Projections.kept_grant_names_another_account(), "the failure says the rotated grant signs in as an account the binding never named");
+						expect_kept(fixture, store, effects, core::github_reason_code::malformed_response, "a rotated grant that signs in as another account");
 					}
 				}
 			} else if (end == ending::network_failure || end == ending::refused) {
@@ -6429,7 +6445,9 @@ namespace {
 		enum class answer { locked_vault,
 							denied_vault,
 							network,
-							authentication };
+							authentication,
+							other_account,
+							refused_other_account };
 		const auto reason_of = [](const answer aAnswer) {
 			switch (aAnswer) {
 			case answer::locked_vault:
@@ -6438,6 +6456,10 @@ namespace {
 			case answer::network:
 				return core::github_reason_code::network_unavailable;
 			case answer::authentication:
+				return core::github_reason_code::authentication_failed;
+			case answer::other_account:
+				return core::github_reason_code::malformed_response;
+			case answer::refused_other_account:
 				return core::github_reason_code::authentication_failed;
 			}
 			return core::github_reason_code::none;
@@ -6464,13 +6486,20 @@ namespace {
 					attempt.Completion(application::github_credential_retrieve_success{ .Context = attempt.Context, .Credential = credential() });
 					aFixture.Lane.drain();
 					const auto call = aFixture.Provider.Viewers.at(answered);
-					if (!aGiven.has_value()) {
-						call.Completion(application::github_viewer_success{ .Request = call.Request, .Viewer = viewer(core::github_account_id{ 51U }), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = std::make_shared<fake_lease>() });
+					if (!aGiven.has_value() || aGiven == answer::other_account) {
+						// The binding's own account, or ([[BPR-0644]]) one it
+						// never named: the restored access slot's /user answers
+						// account 52.
+						const auto account = aGiven.has_value() ? core::github_account_id{ 52U } : core::github_account_id{ 51U };
+						call.Completion(application::github_viewer_success{ .Request = call.Request, .Viewer = viewer(account), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = std::make_shared<fake_lease>() });
 						aFixture.Lane.drain();
 						break;
 					}
+					// The provider's own account check refuses another
+					// account's /user as an authentication failure that says
+					// so ([[BPR-0644]]), which is the production path.
 					call.Completion(application::github_viewer_error{
-						.Request = call.Request, .Error = { .Failure = aGiven == answer::network ? application::github_provider_failure::network : application::github_provider_failure::authentication } });
+						.Request = call.Request, .Error = { .Failure = aGiven == answer::network ? application::github_provider_failure::network : application::github_provider_failure::authentication, .AccountMismatch = aGiven == answer::refused_other_account } });
 					aFixture.Lane.drain();
 					++answered;
 				}
@@ -6479,7 +6508,7 @@ namespace {
 			aEffects.drain();
 			aFixture.Lane.drain();
 		};
-		for (const auto given : { answer::locked_vault, answer::denied_vault, answer::network, answer::authentication }) {
+		for (const auto given : { answer::locked_vault, answer::denied_vault, answer::network, answer::authentication, answer::other_account, answer::refused_other_account }) {
 			binding_store store;
 			store.Rows = { record };
 			{
@@ -6490,17 +6519,28 @@ namespace {
 				expect(!store.Rows.front().Tombstone && fixture.Vault.Deletes.empty() && fixture.Vault.RefreshDeletes.empty(), "a failed restore keeps the grant: no tombstone, no erasure");
 				expect(!fixture.Host.accepted_session() && !fixture.Host.state().PendingSession, "every failed restore fails the session visibly");
 				expect(fixture.Projections.kept_grant_reason() == std::optional{ reason_of(given) }, "and says the grant was kept, beside the failure's own reason");
+				// [[BPR-0644]]. The owner's decision of 2026-09-24: material that
+				// signs in as another account is kept like every other failure,
+				// and the failure says so.
+				expect(fixture.Projections.kept_grant_names_another_account() == (given == answer::other_account || given == answer::refused_other_account),
+					   "only the other account's answer says the kept grant signs in as an account its binding never named");
+				expect(fixture.Vault.Stores.empty(), "and nothing is stored under the binding's key for the account it never named");
 				fixture.Host.shutdown();
 				effects.drain();
 				fixture.Lane.drain();
 				expect(fixture.Vault.Deletes.empty() && !store.Rows.front().Tombstone && fixture.Host.is_quiescent(), "an orderly quit keeps the grant too");
 			}
-			if (given == answer::authentication) {
-				// A refused grant needs signing in again; Sign out removes it.
+			if (given == answer::authentication || given == answer::other_account || given == answer::refused_other_account) {
+				// A refused grant needs signing in again, and one that answers as
+				// another account is met again at the next launch; Sign out
+				// removes either.
 				host_fixture                            fixture{ application::github_credential_shutdown_policy::retain_accepted_device_grants };
 				application::manual_executor            effects;
 				application::device_binding_persistence persistence{ store, effects, fixture.Lane };
 				launch(fixture, persistence, effects, given);
+				expect(fixture.Vault.Deletes.empty() && !store.Rows.front().Tombstone && fixture.Projections.kept_grant_reason() == std::optional{ reason_of(given) }
+						   && fixture.Projections.kept_grant_names_another_account() == (given == answer::other_account || given == answer::refused_other_account),
+					   "the next launch meets the kept grant's failure again, keeps it, and says so again");
 				fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
 				fixture.Lane.drain();
 				effects.drain();

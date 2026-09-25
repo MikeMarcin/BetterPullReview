@@ -6534,14 +6534,14 @@ namespace bpr::qt {
 		// [[BPR-0644]]. Before the diagnostic, whose presentation change is
 		// what redraws the cards.
 		if (aDiagnostic.GrantKept) {
-			SessionPanel->apply_kept_grant(aDiagnostic.Reason);
+			SessionPanel->apply_kept_grant(aDiagnostic.Reason, aDiagnostic.AccountMismatch);
 		}
 		SessionPanel->apply_diagnostic(
 			aDiagnostic.Reason,
 			aDiagnostic.RetryAfterSeconds,
 			aDiagnostic.RateLimitCause,
 			true,
-			aDiagnostic.BootstrapStage, aDiagnostic.CapabilityDetail);
+			aDiagnostic.BootstrapStage, aDiagnostic.CapabilityDetail, aDiagnostic.AccountMismatch);
 	}
 
 	void workbench_window::set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch)
@@ -7022,12 +7022,13 @@ namespace bpr::qt {
 						? QString::fromStdString(SessionPanel->diagnostic_text())
 						: QString::fromStdString(SessionPanel->status_text());
 					// [[BPR-0644]]. The host kept the remembered grant through
-					// this failure: a refused one needs signing in again, and
-					// anything else is tried again at the next launch.
+					// this failure: one that answered as another account says
+					// so as its error, a refused one needs signing in again,
+					// and anything else is tried again at the next launch.
 					if (const auto kept = SessionPanel->kept_grant_reason(); kept.has_value()) {
-						shown.KeptGrant = *kept == core::github_reason_code::authentication_failed
-							? kept_grant::needs_sign_in
-							: kept_grant::retried_next_launch;
+						shown.KeptGrant = SessionPanel->kept_grant_names_another_account() ? kept_grant::another_account
+							: *kept == core::github_reason_code::authentication_failed     ? kept_grant::needs_sign_in
+																						   : kept_grant::retried_next_launch;
 					}
 					break;
 				case core::github_status::session_ready:

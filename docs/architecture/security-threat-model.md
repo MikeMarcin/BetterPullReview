@@ -76,8 +76,12 @@ material the server refuses keeps both slots and the live row, and fails
 visibly. Nothing resumes from the kept material until the next launch
 validates it again through the same checks. Only Sign out or a replacing
 sign-in removes it. Material that signs in as an account the binding never
-named is still erased at once, because keeping it would keep another person's
-credential; that exception is put to the owner on BPR-0644. The same holds
+named is kept too, by the owner's decision of 2026-09-24 on BPR-0644. The
+residual is accepted: until the person acts, the slot keeps a credential that
+answers for someone else, under a key that names their own account. Nothing
+uses it. The session is refused before any read, a renewal's rotated access
+token for the other account is never stored, and the Accounts page shows the
+mismatch as an error with Sign in and Sign out beside it. The same holds
 while the application runs ([[BPR-1116]]). An accepted session whose renewal
 gives up ends visibly and keeps its grant. A restored session whose refresh
 slot is missing stays signed in on its access token without renewing.

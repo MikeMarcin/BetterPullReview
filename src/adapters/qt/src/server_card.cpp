@@ -169,6 +169,11 @@ namespace bpr::qt {
 			case kept_grant::needs_sign_in:
 				return QStringLiteral("Your sign-in on %1 needs signing in again. It stays remembered until you sign in or sign out.")
 					.arg(this_machine_text());
+			case kept_grant::another_account:
+				return QStringLiteral(
+						   "Your remembered sign-in on %1 signs in to a different GitHub account than the one it was saved for. "
+						   "Sign in again to replace it, or sign out to forget it.")
+					.arg(this_machine_text());
 			}
 			return { };
 		}

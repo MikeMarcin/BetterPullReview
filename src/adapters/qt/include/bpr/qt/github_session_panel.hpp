@@ -96,13 +96,15 @@ namespace bpr::qt {
 				application::github_rate_limit_projection>& aRateLimit        = std::nullopt,
 			bool                                            aHostDetail       = false,
 			application::github_bootstrap_failure_stage     aBootstrapStage   = application::github_bootstrap_failure_stage::none,
-			application::github_capability_diagnostic       aCapabilityDetail = application::github_capability_diagnostic::none);
+			application::github_capability_diagnostic       aCapabilityDetail = application::github_capability_diagnostic::none,
+			bool                                            aAccountMismatch  = false);
 		/// \brief Adopts that the failed session's remembered grant was kept.
 		///
 		/// \details [[BPR-0644]]. Said by the host beside the failure it kept the
-		/// grant through, with that failure's reason. Forgotten again on the
+		/// grant through, with that failure's reason, and whether that failure
+		/// was the grant signing in as another account. Forgotten again on the
 		/// next status, which a new session or a sign-out always brings.
-		void apply_kept_grant(core::github_reason_code aReason);
+		void apply_kept_grant(core::github_reason_code aReason, bool aAccountMismatch = false);
 		void apply_session(
 			const application::github_session_projection& aSession);
 		void apply_capabilities(const core::github_capabilities& aCapabilities);
@@ -171,6 +173,9 @@ namespace bpr::qt {
 		/// session it failed is the one presented; none otherwise.
 		[[nodiscard]] auto kept_grant_reason() const noexcept
 			-> std::optional<core::github_reason_code>;
+		/// \brief Whether the kept grant signed in as a GitHub account other than
+		/// the one it was saved for ([[BPR-0644]]); false when none is kept.
+		[[nodiscard]] auto kept_grant_names_another_account() const noexcept -> bool;
 		[[nodiscard]] auto statistics() const noexcept
 			-> github_session_panel_statistics;
 
@@ -197,6 +202,7 @@ namespace bpr::qt {
 		QString                                               DiagnosticText;
 		std::optional<core::github_reason_code>               LastDiagnosticReason;
 		std::optional<core::github_reason_code>               KeptGrantReason;
+		bool                                                  KeptGrantAccountMismatch    = false;
 		bool                                                  LastDiagnosticHasHostDetail = false;
 		bool                                                  ConnectCommandEnabled       = true;
 		core::github_reason_code                              ConnectDisabledReason       = core::github_reason_code::none;
