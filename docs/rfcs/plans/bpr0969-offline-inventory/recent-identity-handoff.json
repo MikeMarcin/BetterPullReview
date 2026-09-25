@@ -1,0 +1,202 @@
+{
+  "schema": "bpr0969.recent-identity-handoff.v1",
+  "assignment": "/root/bpr0969_recent_identity; bounded Recent account-switch and restart isolation repair only",
+  "mandate_revision": "r4-standalone-recent-identity-20260925",
+  "owner": "/root/bpr0969_recent_identity",
+  "status": "Assigned bounded repair complete; canonical AC2 partial/pending and AC3 unfinished; BPR-0969 returned to Backlog.",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0969-recent-identity",
+  "branch": "main",
+  "baseline": "566b7802a989718de5d5fe3734a9997230a3d612",
+  "source_candidate": "da3eea5c5691661fa90058735b8cfa119c6be9f9",
+  "checkpoint_revision": "da3eea5c5691661fa90058735b8cfa119c6be9f9",
+  "documentation_commit": "The explicit documentation-only commit containing this handoff records final tracker and verification state. Runtime evidence is bound to the source candidate above.",
+  "completed_commits": [
+    "d91d7079ef6d9d26cdbae1cbe0456b2b09bddac0",
+    "55cefbf24f90191e8f2b8f3c1f4586fa696c3de5",
+    "a2c65b7159e7e15752fcff7290029ef13e2ebd05",
+    "da3eea5c5691661fa90058735b8cfa119c6be9f9"
+  ],
+  "selection": "coordinator-implementer recipe revision 2; native Codex rfc-implementer leaf; no delegation",
+  "setup": {
+    "banner": "Role: rfc-implementer | Model: gpt-6-astra | Effort: xhigh",
+    "host_load": "not_verified",
+    "inherited_preflight": "Prior handoffs record MASK readiness drift/artifact.corrupt and workflow not_declared. This slice performs no skill repair or independent observed-serving claim."
+  },
+  "product_change": "Core destinations include exact accepted account IDs. Schema v5 transactionally preserves v1\u2013v4 data as unknown-account authenticated rows. Composition filters/rechecks current identity for Recent, Open and Resume, including sign-out and stale projected gestures. Source/epoch authority and exact anchor/position/tab identities remain unchanged.",
+  "changed_source_paths": [
+    "src/adapters/sqlite/src/window_review_restoration_store.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/core/include/bpr/core/window_review_restoration.hpp",
+    "src/core/src/window_review_restoration.cpp",
+    "tests/application/window_review_restoration_host_tests.cpp",
+    "tests/core/window_review_restoration_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/offline_inventory_contract.py",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp",
+    "tests/sqlite_contract/window_review_restoration_storage_tests.cpp"
+  ],
+  "source_hashes": {
+    "src/adapters/sqlite/src/window_review_restoration_store.cpp": "a3e45c761074281f3c4e78988f0a0c3ce680c181bf350100753b0a1d2676e768",
+    "src/app/src/github_application.cpp": "e15b96c344c8c719110a5e3e589b40fd979211b5f20e051732d8a28f0651bc15",
+    "src/app/src/github_application_fixture_access.hpp": "f2688a6f137759b397273a33857cdfd7296d290e0a39c1f63a319a7942935653",
+    "src/app/src/github_public_path_fixture.cpp": "b7b8bcf973bad13bda2dc03bad82b917ee7179debc7bc1365efa6c290e502a0c",
+    "src/core/include/bpr/core/window_review_restoration.hpp": "af07fe57e250bbbc51b253b9cb14dc65b2490ac727e118fca80f399a805be5a5",
+    "src/core/src/window_review_restoration.cpp": "5a2c5ce548adf6b5208a3d0411ac787116b8d72265d4cb13810df0247ff353d1",
+    "tests/application/window_review_restoration_host_tests.cpp": "4809ee163b0072dc3ab3d6fe38bf45571cdf1fb97b6e4e986a8d7ed88adb944a",
+    "tests/core/window_review_restoration_tests.cpp": "f8606296c4e15d1a29662e76fe661ef109920e24af6e2193830aeed3de47613d",
+    "tests/end_to_end/CMakeLists.txt": "70553297b28c9a7121dfef1aa47ef078f1fc4a91d8fa687104b79accb49af232",
+    "tests/end_to_end/offline_inventory_contract.py": "bda0fc0ef8b921e7b63c04d5fae91451c7887604b2b5313b249eb63fc742c1c9",
+    "tests/end_to_end/offline_inventory_public_path_tests.cpp": "9213f26a0fc527a78589e484d08b98677288ca1485ec7ef775dab2a7ac1aae46",
+    "tests/sqlite_contract/window_review_restoration_storage_tests.cpp": "ce02b4564dab140eaa22db13bf14a37996aeed35cfe4d96df818168046d1ebf5"
+  },
+  "executable": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/tests/end_to_end/offline_inventory_public_path",
+    "sha256": "8101ec96ad65950cd7b0c803bf5a62b86b43bccb87238ff4883930080f32bc39"
+  },
+  "verification": {
+    "integration": "13/13 pass in 888.62 s against da3eea5c5691661fa90058735b8cfa119c6be9f9. Final account-isolation course 61.32 s; original offline inventory 25.24 s; full restoration 564.73 s; document tabs 92.98 s.",
+    "direct_course": "Store and four-process identity course 2/2 pass in 64.52 s; identity course 63.66 s. Final integration below supersedes this intermediate candidate run.",
+    "core_only": "Configure/build core-only; architecture_boundaries and core_window_review_restoration 2/2 pass in 25.35 s.",
+    "failing_before": "Old product from a2c65b71 with new fixture/course fails in 22.32 s. Settled sign-out retains one authenticated Recent row; account B sees A title/destination. B snapshot/source/comparison are absent; demonstrated leak is persisted Recent metadata.",
+    "rendered": "Inspected generated Home rasters for B with no A row, B-only offline Resume with unavailable notice, and authenticated v4 migration with no legacy row. Qt6.11.2 offscreen/macOS arm64; no human or native compositor verdict. Final source-candidate B offline Resume raster re-inspected after the final course; B PR18/title and unavailable notice agree.",
+    "format": "Ten touched C++ files pass canonical clang-format23.1.1 format check; git diff --check passes.",
+    "documentation": "DOCUMENTATION_OK; 64/64 documentation regression tests pass in 1.913 s (negative fixtures intentionally print ERROR); scoped board valid with 1,186 cards.",
+    "self_review": "Reviewed exact-account equality and current-core identity retirement, stale projection map/gesture checks, accepted unknown-owner refusal, migration rollback and COMMIT winning late cancellation, anonymous compatibility, unchanged source/epoch authority, closed read-only catalog checks and public Quit-to-quiescence.",
+    "checkpoint": "Shared consistency checker: action=stop, engineering_acceptance=not-evaluated. Observation disposition continue-milestone, AC2 pending, four bounded repair exits pass; stop at the explicitly assigned boundary. No whole-AC2 or whole-card acceptance claimed.",
+    "local_logs": [
+      "failing-before.log",
+      "candidate-first.log",
+      "extended-course.log",
+      "build-final.log",
+      "integration.log",
+      "core-checks.log",
+      "format-check.log",
+      "documentation.log",
+      "documentation-tests.log",
+      "board-validation.log",
+      "integration-details.log"
+    ],
+    "integration_rows": [
+      {
+        "test": "architecture_boundaries",
+        "seconds": 20.39,
+        "result": "pass"
+      },
+      {
+        "test": "architecture_boundary_contract",
+        "seconds": 99.94,
+        "result": "pass"
+      },
+      {
+        "test": "test_network_isolation_manifest",
+        "seconds": 5.32,
+        "result": "pass"
+      },
+      {
+        "test": "core_window_review_restoration",
+        "seconds": 0.46,
+        "result": "pass"
+      },
+      {
+        "test": "application_github_window_read_host",
+        "seconds": 0.33,
+        "result": "pass"
+      },
+      {
+        "test": "application_window_review_restoration",
+        "seconds": 0.32,
+        "result": "pass"
+      },
+      {
+        "test": "sqlite_window_review_restoration_storage",
+        "seconds": 0.71,
+        "result": "pass"
+      },
+      {
+        "test": "qt_composed_github_scale_100",
+        "seconds": 3.45,
+        "result": "pass"
+      },
+      {
+        "test": "application_profile_two_account_isolation_public_path",
+        "seconds": 13.4,
+        "result": "pass"
+      },
+      {
+        "test": "application_profile_window_review_restoration_public_path",
+        "seconds": 564.73,
+        "result": "pass"
+      },
+      {
+        "test": "application_document_tabs_restoration_public_path",
+        "seconds": 92.98,
+        "result": "pass"
+      },
+      {
+        "test": "application_offline_inventory",
+        "seconds": 25.24,
+        "result": "pass"
+      },
+      {
+        "test": "application_recent_account_isolation",
+        "seconds": 61.32,
+        "result": "pass"
+      }
+    ]
+  },
+  "commands": [
+    "cmake --build --preset dev --target test_offline_inventory_public_path test_better_pull_review_window_review_restoration_core_tests test_better_pull_review_window_review_restoration_storage_tests test_better_pull_review_window_review_restoration_host_tests test_better_pull_review_application_github_window_read_host_tests test_better_pull_review_qt_github_tests test_profile_two_account_isolation_public_path test_profile_window_review_restoration_public_path",
+    "ctest --preset dev -R '^(architecture_boundaries|architecture_boundary_contract|test_network_isolation_manifest|core_window_review_restoration|application_window_review_restoration|application_github_window_read_host|sqlite_window_review_restoration_storage|qt_composed_github_scale_100|application_profile_two_account_isolation_public_path|application_offline_inventory|application_recent_account_isolation|application_document_tabs_restoration_public_path|application_profile_window_review_restoration_public_path)$' --output-on-failure",
+    "cmake --preset core-only",
+    "cmake --build --preset core-only --target test_better_pull_review_window_review_restoration_core_tests",
+    "ctest --preset core-only -R 'core_window_review_restoration|architecture_boundaries|architecture_selected_graph' --output-on-failure (two matching tests; architecture_selected_graph is not a registered test)",
+    "python3 scripts/verify_documentation.py --root .",
+    "python3 tests/scripts/verify_documentation_tests.py",
+    "shared issue_board.py validate --include BPR-0969 --json",
+    "shared milestone_checkpoint.py check --execution quiescent --accepted-milestone inventory-offline-reopen"
+  ],
+  "evidence": "docs/verification/BPR-0969-recent-identity-2026-09-25.md",
+  "pending": [
+    "Full BPR-0969 AC2/AC3 remain unfinished; no canonical AC4 was retained.",
+    "Durable PR snapshots, offline authority admission and freshness design remain pending. Persisted Git/catalog content does not authorize offline account access.",
+    "Broader changed-head/revision/authority reconnection, active Git outage/cancellation, public-preview offline behavior, accepted empty threads and crash restart remain unobserved.",
+    "Required native/human acceptance remains unsupplied; Windows/Linux are owner-deferred."
+  ],
+  "next_action": "Coordinator may accept the explicitly assigned Recent repair exits. Assign a new bounded design/implementation milestone for durable review snapshot, offline admission and freshness; keep full AC2/AC3 pending until their actual acceptance evidence exists.",
+  "review_handoff": {
+    "required_new_session": false,
+    "url": null,
+    "session_identity": null,
+    "event_cursor": null,
+    "candidate_identities": [],
+    "pending_decisions": [],
+    "protected": "Existing RFC0052 14-question attended session/server/waiter untouched."
+  },
+  "ownership": {
+    "writer": "Release exclusive main writer to coordinator after the documentation commit and final status. No other main writer assigned during this slice.",
+    "commands": "All task-owned build/test/board/checkpoint commands completed and all returned sessions were collected. No task-owned server or background process is handed off.",
+    "temporary_work": "Private driver roots were removed after process exit. Five consumed task-owned candidate backups/proposal were removed. Ignored logs, worktree inventory and generated rasters remain under the named runtime root.",
+    "other_worktrees": "Other worktrees untouched; final inventory recorded locally. No comparative head audit against an unrecorded baseline is claimed.",
+    "remote_effects": "No live account, live network, remote mutation, push, release or Claude Code.",
+    "protection": "RFC0052 protected candidate/session/server/waiter not changed or stopped."
+  },
+  "documentation_paths": [
+    "docs/architecture/github-host-implementation.md",
+    "docs/architecture/system-architecture.md",
+    "docs/issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md",
+    "docs/issues/30-in-progress/BPR-0969-verify-cached-review-offline-restart-freshness.md (returned to Backlog)",
+    "docs/verification/RFC-BPR-0013.md",
+    "docs/verification/fixture-catalog.md",
+    "docs/verification/BPR-0969-recent-identity-2026-09-25.md",
+    "docs/rfcs/plans/bpr0969-offline-inventory/MILESTONES.md",
+    "docs/rfcs/plans/bpr0969-offline-inventory/milestone-plan.json",
+    "docs/rfcs/plans/bpr0969-offline-inventory/recent-identity-checkpoint.json",
+    "docs/rfcs/plans/bpr0969-offline-inventory/recent-identity-observation.json",
+    "docs/rfcs/plans/bpr0969-offline-inventory/recent-identity-check-result.json",
+    "docs/rfcs/plans/bpr0969-offline-inventory/recent-identity-handoff.json"
+  ]
+}

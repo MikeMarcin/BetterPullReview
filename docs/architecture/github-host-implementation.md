@@ -1692,10 +1692,15 @@ that previously loaded review data has unknown freshness. A successful new
 observation clears this notice. Recent titles/destinations and exact reading
 positions persist separately from the snapshot, Git objects and epoch catalog.
 They do not make PR metadata or conversations reopenable offline after restart.
-Recent navigation records are profile-private and filtered by host/access mode;
-they do not carry an account key. Same-profile account-switch title isolation
-remains an explicit limitation in the
-[BPR-0969 inventory](../verification/BPR-0969-offline-inventory-2026-09-25.md).
+The initial [BPR-0969 inventory](../verification/BPR-0969-offline-inventory-2026-09-25.md)
+found profile-private Recent records filtered by host/access mode without an
+account key.
+The subsequent [Recent account-isolation slice](../verification/BPR-0969-recent-identity-2026-09-25.md)
+binds persisted destination/title/reading to the accepted account. Projection
+and Open/Resume check that account against the current core identity, including
+the sign-out interval before the old accepted model is released. Legacy
+unattributed entries cannot acquire a current account merely by loading. This
+changes restoration metadata admission, not Git/cache or epoch authority.
 
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's

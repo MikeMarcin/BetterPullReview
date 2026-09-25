@@ -1720,6 +1720,21 @@ navigation from snapshots, and profile-private Recent titles from account-bound
 epoch content. This regression inventories current limits; it does not certify
 complete BPR-0969 AC2/AC3 or offline restart content availability.
 
+
+`application_recent_account_isolation` (BPR-0969) extends the same offline
+inventory executable through four actual process lifetimes. It generates two
+viewers in one profile, drives public Sign out/Sign in, Open and Resume, and
+checks both switch directions, settled sign-out, a held old-account completion,
+each account's title/destination after restart, offline Resume and unavailable
+content, and a v4 database with unknown account ownership. Closed-store reads
+check durable account/destination/position rows and unchanged Git packs and exact
+epoch authority/anchor rows. Synthetic vault material stays in bounded memory
+pipes. The old product fails the account exposure assertion. Offscreen QWidget
+rasters are deterministic presentation evidence; native appearance/human
+acceptance and complete cached-review mode remain pending. See the
+[bounded evidence](BPR-0969-recent-identity-2026-09-25.md).
+
+
 BPR-0624 records the initial Mac baseline; BPR-0627 tracks its measured UI stalls.
 These checks do not establish 32 application epochs, memory/pruning ceilings,
 scrolling responsiveness during active work, universal timing budgets or native

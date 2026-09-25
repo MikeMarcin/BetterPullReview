@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0969"
 title: "Verify cached-review offline and restart freshness"
-status: "In Progress"
+status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -49,7 +49,17 @@ changed-server-thread recovery. It adds no offline account authority or durable
 PR snapshot. The second and third acceptance criteria remain pending; this card
 is unfinished.
 
-Next, diagnose same-profile Recent account-switch title/destination isolation:
-those profile-private records currently lack an account key. Then define the
-durable snapshot/admission/freshness contract needed for cached-review restart.
-Reuse relevant passing evidence with its actual input limits.
+The next bounded [Recent isolation slice](../../verification/BPR-0969-recent-identity-2026-09-25.md)
+under `r4-standalone-recent-identity-20260925` repairs demonstrated same-profile
+account exposure. Schema five keeps exact accepted account IDs; older rows
+remain unattributed and cannot inherit a login. Both switch directions, restart,
+offline Resume and delayed old-account completion are exercised through safe
+composition. This is partial AC2 evidence and a bounded AC3 repair; the canonical
+acceptance criteria are unchanged and unfinished. The
+[current handoff](../../rfcs/plans/bpr0969-offline-inventory/recent-identity-handoff.json)
+retains the exact candidate, verification and remaining obligations.
+
+Next, define the durable snapshot/admission/freshness contract needed for
+cached-review restart. Existing retained Git/catalog records must not grant
+offline account authority. Reuse relevant passing evidence with its actual
+input limits.

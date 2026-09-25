@@ -195,6 +195,21 @@ Actual-process destination acceptance is recorded by BPR-0709; BPR-0710 records
 the bounded exact-reading course and its fixture limitations. Native window
 geometry and target-native packaged activation remain open RFC-BPR-0024 work.
 
+BPR-0969's version-five restoration store adds the accepted numeric account ID
+to every saved destination and Recent entry. The core admits authenticated
+metadata and saved reading only for that exact account, host and access mode;
+new authenticated reads cannot record unknown ownership. The composition
+checks the current core identity during sign-out as well as the accepted session,
+filters Recent before Qt receives it, and rechecks Open and Resume admission.
+Versions one through four migrate transactionally with account zero (unknown).
+Their authenticated titles, destinations and saved reading remain private in the
+store but are hidden until a newly accepted read creates an account-bound entry;
+the current login never claims the old rows. Anonymous rows keep their anonymous
+identity. Comparison anchors, source/cache scopes, positions and document-tab
+payloads are unchanged. The ten-entry bound remains shared by the profile.
+The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
+does not establish durable PR snapshots or offline account authority.
+
 [[BPR-1131]] adds RFC-BPR-0052's document tabs to the same authority. The
 core's `document_tabs_state` holds one window's tabs for the pull request it
 shows: the window's comparison, which new tabs take, and each tab's identity
