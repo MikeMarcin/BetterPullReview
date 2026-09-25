@@ -5,6 +5,7 @@
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -396,6 +397,32 @@ namespace bpr::e2e::large_review {
 			&& status.ClassificationTerminals == status.ClassificationSubmissions;
 	}
 
+	void verify_initial_read_identities(app::github_application&                         aApplication,
+										const application::github_pull_request_snapshot& aSnapshot)
+	{
+		const auto* cards = aApplication.window().conversation_panel()->cards();
+		auto        byId  = std::map<std::string, const qt::thread_card*>{ };
+		for (const auto& card : cards->cards()) {
+			require(byId.emplace(card.Id, &card).second, "duplicate presented conversation identity");
+		}
+		for (const auto& thread : aSnapshot.ReviewThreads) {
+			const auto found = byId.find("review-thread:" + std::string{ thread.Thread.value() });
+			require(found != byId.end(), "accepted thread missing from initial read projection");
+			auto unread = std::size_t{ 0U };
+			for (const auto& comment : thread.Comments) {
+				if (comment.Deleted) {
+					continue;
+				}
+				const auto& posts = found->second->Posts;
+				const auto  post  = std::ranges::find(posts, "review-comment:" + std::string{ comment.Comment.value() }, &qt::card_post::Id);
+				const auto  mine  = comment.Author && comment.Author->Login == aSnapshot.Viewer.Login;
+				require(post != posts.end() && post->Unread == !mine, "read state joined to wrong exact post identity");
+				unread += mine ? 0U : 1U;
+			}
+			require(found->second->UnreadCount == unread, "thread unread count lost exact post state");
+		}
+	}
+
 	void verify_snapshot(app::github_application& aApplication, const fixture_manifest& aManifest, benchmark_report& aReport)
 	{
 		const auto snapshot = access::large_review_snapshot(aApplication);
@@ -406,6 +433,7 @@ namespace bpr::e2e::large_review {
 					&& snapshot->PullRequest.BaseOid.value() == aManifest.base && snapshot->PullRequest.HeadOid.value() == aReport.Head,
 				"snapshot authority/head");
 		require(aManifest.files.size() == 515U && snapshot->Files.size() == 515U && snapshot->ReviewThreads.size() == 1000U, "accepted workload counts");
+		verify_initial_read_identities(aApplication, *snapshot);
 		std::map<std::string, const application::github_file_record*> files;
 		for (const auto& file : snapshot->Files) {
 			require(files.emplace(file.Path, &file).second, "duplicate normalized file");

@@ -1175,6 +1175,9 @@ namespace bpr::qt {
 		Files->setFrameShape(QFrame::NoFrame);
 		Files->setEditTriggers(QAbstractItemView::NoEditTriggers);
 		Files->header()->setStretchLastSection(true);
+		// Size from the visible rows. Measuring every column of the complete
+		// review here blocks the first Overview show on the GUI lane.
+		Files->header()->setResizeContentsPrecision(0);
 		Files->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 		Files->header()->setSectionResizeMode(overview_file_model::note_column, QHeaderView::Stretch);
 		connect(Model, &QAbstractItemModel::rowsInserted, this,

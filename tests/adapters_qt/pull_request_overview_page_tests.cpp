@@ -7,6 +7,7 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
+#include <QHeaderView>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
@@ -14,6 +15,8 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
 #include <QTextDocument>
 #include <QTreeView>
 #include <QWheelEvent>
@@ -22,6 +25,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <set>
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -656,6 +660,63 @@ namespace {
 		expect(scroll->viewport()->rect().contains(page.entry_button()->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
 			   "review entry remains reachable after the complete participant list");
 	}
+	class observed_overview_delegate final : public QStyledItemDelegate
+	{
+	public:
+		observed_overview_delegate(QAbstractItemDelegate& aDelegate, QObject* aParent)
+			: QStyledItemDelegate{ aParent }
+			, Delegate{ aDelegate }
+		{ }
+		auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
+		{
+			const auto path = aIndex.data(qt::overview_file_model::path_role).toString();
+			if (!path.isEmpty()) {
+				Paths.insert(path);
+			}
+			return Delegate.sizeHint(aOption, aIndex);
+		}
+		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+		{
+			Delegate.paint(aPainter, aOption, aIndex);
+		}
+		mutable std::set<QString> Paths;
+
+	private:
+		QAbstractItemDelegate& Delegate;
+	};
+
+	void test_column_sizing_measures_visible_files()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1200, 800);
+		auto projected = projection();
+		projected.Files.clear();
+		for (auto index = 0; index < 1000; ++index) {
+			projected.Files.push_back(row("src/file_" + std::to_string(index) + ".cpp",
+										  application::overview_file_operation::modified,
+										  application::overview_change_since_review::unchanged, std::nullopt));
+		}
+		projected.Progress.FilesTotal = projected.Files.size();
+		auto* const view              = page.files_view();
+		auto* const delegate          = new observed_overview_delegate{ *view->itemDelegate(), view };
+		view->setItemDelegate(delegate);
+		page.present(projected);
+		page.show();
+		settle();
+		expect(!delegate->Paths.empty() && delegate->Paths.size() < 100U,
+			   "initial Overview sizes columns from visible files, not the complete thousand-file table");
+		expect(page.file_model()->file_count() == 1000U, "column sampling retains every exact file row");
+		const auto last = page.file_model()->index_for_path(QStringLiteral("src/file_999.cpp"));
+		view->scrollTo(last, QAbstractItemView::PositionAtBottom);
+		delegate->Paths.clear();
+		view->header()->resizeSections(QHeaderView::ResizeToContents);
+		settle();
+		expect(view->viewport()->rect().intersects(view->visualRect(last))
+				   && delegate->Paths.contains(QStringLiteral("src/file_999.cpp"))
+				   && delegate->Paths.size() < 100U,
+			   "scrolling sizes the newly visible last file without measuring the whole review");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -665,6 +726,7 @@ auto main(int argc, char** argv) -> int
 	if (scale > 0) {
 		expect(qFuzzyCompare(application.devicePixelRatio(), scale), "the requested display scale is effective");
 	}
+	test_column_sizing_measures_visible_files();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_compact_descriptions();
