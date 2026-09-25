@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0644"
 title: "Renew expired device grants at launch instead of forgetting them"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0016"]
 depends_on: []
 priority: "P1"
 metadata: {"owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0644-grant-policy-v001","decision":"3c46d164-e405-4c6c-bcd3-2f3b0c3b757c"},"supersedes_for_these_faults":"BPR-0541 fail-closed erasure","related_cards":["BPR-0541","BPR-0884","BPR-1048"],"account_mismatch_decision":{"date":"2026-09-24","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-0644-account-mismatch-erasure-v001","decision":"7a0a6d09-4643-4481-a807-684a3ac9563d","recorded_as":"keep the grant on account mismatch, show the mismatch as an error on the Accounts page, and let the user remove or repair it"}}
-acceptance: [{"criterion":"A fixture course restores a binding whose access lifetime elapsed while the app was closed by rotating with the refresh token, without a prompt","outcome":"pass","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"command","detail":"application_device_binding_launch_renewal passes at the integrated head (19.99 s, build/r2-logs/dsp2-int9-courses.log) and fails with the product change reverted (dsp2-0644-negative-control.log). The rotated grant resumes only the binding's exact account; the account-guard unit case fails without the guard (dsp2-0644c-control-*.log). Rerun at 1347f776: application_device_binding_launch_renewal passes (36 s) with its criterion 1 phase unchanged."}},{"criterion":"A refresh-expired or rejected binding offers Begin. Amended 2026-09-24 by the owner's rule that a remembered grant is removed only when the person removes it in Settings: such a binding is no longer erased on its own; it stays, says that it needs signing in again, and offers Begin until the person removes it or a new sign-in replaces it","outcome":"pass","revision":"1347f776","evidence":{"kind":"command","detail":"Built at 1347f776. A refresh-expired binding is held and failed at once as authentication, spending nothing; a refused refresh is kept the same way. Both keep both slots and a live row, publish GrantKept, and the Settings card says it needs signing in again, offers Begin and Sign out. application_device_binding_launch_renewal: refresh-expired kept at two launches, Sign out on the card erases both slots, the next launch is signed out; a refused renewal kept at two launches, then Begin replaces it with a fresh grant. application_github_host covers refused, refresh-expired and the backward/expired lifetime, each kept and removed by Sign out. No security reason to erase a refused, spent or expired refresh token was found (recorded on the card); the one exception kept, material naming another account, is the owner question.","path":"docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md#the-keep-grant-policy-built-mac-batch-7-2026-09-24"}},{"criterion":"Restoration across an orderly quit and SIGTERM (Further observation)","outcome":"pass","revision":"1347f776","evidence":{"kind":"command","detail":"application_device_binding_relaunch at 1347f776 (10.9 s): real processes over one data root run seed, orderly quit, quit, SIGTERM, verify, then a locked-keychain launch that keeps the grant (no delete attempts, both slots retained, live row, kept reason vault_unavailable) and a relaunch after it that restores the session. The recorded mechanism of the observation (a locked Keychain or a /user network failure sending restore cleanup into erasure) is what the owner's policy removes; with the old delete condition restored the locked phase fails at 'a locked vault erases neither slot of the restored grant'."}},{"criterion":"The tests-disabled Mac app relaunched more than eight hours after a device sign-in resumes the session with no credential prompt (attended)","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"observation","detail":"Fingerprint-valid owner accept at attended session cbd48b91000b00f1e72e1ad62c7c384c event 405, 2026-09-20T03:52:48.224084+00:00; candidate rfc0013-r17-7b591faa-ad50fe5d, fingerprint a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb. Accepted tests-disabled r17 relaunch criterion only; preserved through r18, not rebound to its new diff/loading bundle. Other pending restoration observation unchanged."}},{"criterion":"Owner policy, 2026-09-24: a launch whose Keychain answers locked or denied, or whose network is down, including an offline launch after the access token expired, keeps the remembered device grant, shows the failure, and retries at the next launch; the grant's material is removed only when the person removes it in Settings","outcome":"pending","revision":"1347f776","evidence":{"kind":"command","detail":"Built at 1347f776 for every fault the criterion names: locked, denied, missing or unreadable access slot, network, /user refusal, an offline launch after access expiry (the launch renewal no longer tombstones before its first attempt), refresh-expired and refused refresh. Each fails visibly, keeps both slots and a live row, and the next launch retries; Sign out or a new sign-in removes it. Negative controls: the old delete condition fails application_github_host, the renewal course and the relaunch course; the launch tombstone restored fails application_github_host and the renewal course at 'the next launch, online, renews the kept grant'. Pending on one owner question, prepared on the card and not asked: material that signs in as a different account than the remembered one is still erased at once (security reason recorded); keep that exception or keep even that until Sign out? The in-process renewal's erasure is carded as BPR-1116.","path":"docs/issues/40-parked/BPR-0644-renew-expired-device-grants-at-launch.md#the-one-automatic-erasure-left-and-why-the-owners-question"}}]
+acceptance: [{"criterion":"A fixture course restores a binding whose access lifetime elapsed while the app was closed by rotating with the refresh token, without a prompt","outcome":"pass","revision":"75fab2d448fd6b4d2b092ed0385db435de446520","evidence":{"kind":"command","detail":"application_device_binding_launch_renewal passes at the integrated head (19.99 s, build/r2-logs/dsp2-int9-courses.log) and fails with the product change reverted (dsp2-0644-negative-control.log). The rotated grant resumes only the binding's exact account; the account-guard unit case fails without the guard (dsp2-0644c-control-*.log). Rerun at 1347f776: application_device_binding_launch_renewal passes (36 s) with its criterion 1 phase unchanged."}},{"criterion":"A refresh-expired or rejected binding offers Begin. Amended 2026-09-24 by the owner's rule that a remembered grant is removed only when the person removes it in Settings: such a binding is no longer erased on its own; it stays, says that it needs signing in again, and offers Begin until the person removes it or a new sign-in replaces it","outcome":"pass","revision":"1347f776","evidence":{"kind":"command","detail":"Built at 1347f776. A refresh-expired binding is held and failed at once as authentication, spending nothing; a refused refresh is kept the same way. Both keep both slots and a live row, publish GrantKept, and the Settings card says it needs signing in again, offers Begin and Sign out. application_device_binding_launch_renewal: refresh-expired kept at two launches, Sign out on the card erases both slots, the next launch is signed out; a refused renewal kept at two launches, then Begin replaces it with a fresh grant. application_github_host covers refused, refresh-expired and the backward/expired lifetime, each kept and removed by Sign out. No security reason to erase a refused, spent or expired refresh token was found (recorded on the card); the one exception kept, material naming another account, is the owner question.","path":"docs/issues/60-done/BPR-0644-renew-expired-device-grants-at-launch.md#the-keep-grant-policy-built-mac-batch-7-2026-09-24"}},{"criterion":"Restoration across an orderly quit and SIGTERM (Further observation)","outcome":"pass","revision":"1347f776","evidence":{"kind":"command","detail":"application_device_binding_relaunch at 1347f776 (10.9 s): real processes over one data root run seed, orderly quit, quit, SIGTERM, verify, then a locked-keychain launch that keeps the grant (no delete attempts, both slots retained, live row, kept reason vault_unavailable) and a relaunch after it that restores the session. The recorded mechanism of the observation (a locked Keychain or a /user network failure sending restore cleanup into erasure) is what the owner's policy removes; with the old delete condition restored the locked phase fails at 'a locked vault erases neither slot of the restored grant'."}},{"criterion":"The tests-disabled Mac app relaunched more than eight hours after a device sign-in resumes the session with no credential prompt (attended)","outcome":"pass","revision":"7b591faae6c1a746998ade8b49f87d88145fcf6b","evidence":{"kind":"observation","detail":"Fingerprint-valid owner accept at attended session cbd48b91000b00f1e72e1ad62c7c384c event 405, 2026-09-20T03:52:48.224084+00:00; candidate rfc0013-r17-7b591faa-ad50fe5d, fingerprint a7aeb7b9c836181406cf1b45c8ee0465c67612639a5759345c149724ebc90cbb. Accepted tests-disabled r17 relaunch criterion only; preserved through r18, not rebound to its new diff/loading bundle. Other pending restoration observation unchanged."}},{"criterion":"Owner policy, 2026-09-24: a launch whose Keychain answers locked or denied, or whose network is down, including an offline launch after the access token expired, keeps the remembered device grant, shows the failure, and retries at the next launch; the grant's material is removed only when the person removes it in Settings; and (owner decision 2026-09-24, attended session 70834742, decision 7a0a6d09) material that signs in as an account the binding never named is kept too, shown on the Accounts page as an error, and ended only by Sign out or replaced by a new sign-in","outcome":"pass","revision":"518fcc37","evidence":{"kind":"command","detail":"Built at 1347f776 for every fault the rule names (locked, denied, missing or unreadable access slot, network, /user refusal, offline launch after access expiry, refresh-expired, refused refresh): each fails visibly, keeps both slots and a live row, and the next launch retries; Sign out or a new sign-in removes it. The owner's account-mismatch decision (session 7083474240820608cdf9ff551ddd298f, decision 7a0a6d09-4643-4481-a807-684a3ac9563d, 2026-09-24T23:45:42Z, actor human, 'keeping it, noting the mismatch as an error on the accounts page and letting the user decide to remove it manually or repair it themselves') is built at 518fcc37: a launch renewal's rotated grant whose /user names another account keeps the renewal's slot (host bootstrap check); a restored access slot that answers as another account is refused by the provider as authentication with github_provider_error::AccountMismatch; the host diagnostic carries AccountMismatch beside GrantKept and the card shows kept_grant::another_account ('Your remembered sign-in on this Mac signs in to a different GitHub account than the one it was saved for. Sign in again to replace it, or sign out to forget it.') with the Last problem saying the same, Sign in and Sign out beside it. application_github_host (restored, provider-refused and renewal endings), github_provider and application_device_binding_launch_renewal's new phases (kept and shown; repaired by Begin; removed by Sign out) pass; the old erasure and the provider's missing flag each fail their rows. Regression selection 58 of 58 including application_composition_contract.","path":"docs/issues/60-done/BPR-0644-renew-expired-device-grants-at-launch.md#kept-on-an-account-mismatch-and-shown-as-an-error-built-mac-2026-09-25-518fcc37"}}]
 ---
 
 # Renew expired device grants at launch instead of forgetting them
@@ -477,3 +477,123 @@ compiled profile changed under a binding) were not asked about and stay.
 The policy criterion now also requires the mismatch to be kept, shown as an
 error, and ended only by Sign out or a new sign-in. The card leaves
 human-review for **Ready** on macOS.
+
+## Kept on an account mismatch and shown as an error, built (Mac, 2026-09-25, `518fcc37`)
+
+The owner's decision of 2026-09-24 (session `70834742`, decision
+`7a0a6d09`) is now the product's behaviour. Material that signs in as an
+account the binding never named is **kept**. The Accounts page shows it as
+**an error**, and the person **removes it** with Sign out or **repairs it**
+by signing in again. The one automatic erasure "The one automatic erasure
+left" described is gone.
+
+### Both paths, and where each is caught
+
+Building the composed course found that the two paths reach the host
+differently:
+
+- **A launch renewal's rotated grant.** Its `/user` is the bootstrap read,
+  which has no bound account yet, so the host's own check catches it: the
+  rotated grant is compared with the renewal's authority. That branch now
+  keeps the renewal's slot as the remembered grant (`keep_launch_renewal_slot`)
+  instead of erasing it. The rotated access token for the other account is
+  still refused before the vault.
+- **A restored access slot.** Its `/user` is the account read. The GitHub
+  provider (`github_provider.cpp`, the viewer job) refuses a viewer whose
+  account differs from the credential's bound account, before the host sees
+  it, as an `authentication` failure. So in the product this path never
+  reached the host's account-mode mismatch branch that the card described.
+  It met the keep-grant rule as a refused grant ("needs signing in again"),
+  with nothing saying why. The provider's refusal now carries
+  `github_provider_error::AccountMismatch`. The failure is still
+  `authentication`, so no consumer's switch changes, and `valid()` admits the
+  fact only on an `authentication` failure. The host's own account-mode
+  branch, which a fake provider can still reach, keeps a remembered device
+  grant too and erases anything else, as before.
+
+### What the person sees
+
+The host's failure diagnostic carries `AccountMismatch` beside `GrantKept`.
+The session panel words it, and the card adds a third kept-grant sentence
+(`kept_grant::another_account`):
+
+- **State:** Could not connect.
+- **Sentence:** "Your remembered sign-in on this Mac signs in to a different
+  GitHub account than the one it was saved for. Sign in again to replace it,
+  or sign out to forget it."
+- **Details, Last problem:** "Account identity observation: The sign-in
+  answered as a different GitHub account than the one it was saved for."
+- **Sign in** and **Sign out** stand beside it.
+
+Capture: [kept-grant-another-account.png](../../verification/BPR-0644-kept-grant/kept-grant-another-account.png),
+the composed Settings card as the course draws it.
+
+### Verification (macOS 26.6.2 arm64, `build/dev`)
+
+- `application_github_host`:
+  - `test_restored_binding_launch_failures_keep_the_grant` gains two answers.
+    One is a restored access slot whose `/user` answers account 52, the
+    host's own branch. The other is the provider's refusal carrying
+    `AccountMismatch`, the production path. Both keep both slots and the live
+    row, and store nothing. Both say the account differs. The next launch
+    meets it again and says so again, and Sign out erases both slots behind
+    a tombstone.
+  - `test_restore_device_profile_renews_an_access_expired_grant_before_its_session`:
+    the `other_account` ending is now kept like the others. Its failure says
+    the account differs, and Sign out removes exactly the renewal's two
+    slots.
+- `github_provider`: a stored credential whose `/user` answers another
+  account is refused once, as `authentication` with `AccountMismatch`. The
+  same fact on a `network` failure is not `valid`.
+- `application_device_binding_launch_renewal`: new phases over their own data
+  roots and vaults. The fixture option `ViewerNamesAnotherAccount` makes
+  `/user` answer an account no binding names.
+  1. A restored grant inside its lifetime fails visibly and keeps both slots,
+     with no erasure attempted. The card shows the sentence, the Last problem,
+     Sign in and Sign out, and an orderly quit keeps the grant.
+  2. The next launch meets it again and says so again. Begin then reaches a
+     fresh device grant that replaces it (repair), the session is ready, and
+     the error is gone.
+  3. A launch renewal's rotated grant that answers another account renews
+     once and fails visibly. It stores no access token and is kept, with the
+     same error. Sign out on the card erases both slots, and the next launch
+     is signed out (removal).
+- **Negative controls.** Each change undone fails its rows, and each passes
+  restored:
+
+  | Change undone | Row that fails | Assertion |
+  |---|---|---|
+  | The old erasure at both host sites | `application_github_host` | "the failure says the rotated grant signs in as an account the binding never named" |
+  | The old erasure at the renewal site | Composed course | "a renewed grant that signs in as another account is kept and shown as an error" |
+  | The provider's `AccountMismatch` | `github_provider` | "as an authentication failure that names the account mismatch" |
+  | The provider's `AccountMismatch` | Composed course | "a restored grant that signs in as another account is kept and shown as an error" |
+
+- The regression selection passes, 58 of 58, on the tree committed as
+  `518fcc37`. It is the card's earlier set (`device`, `github_host`,
+  `composed_github`, `session_panel`, `composition_contract`, `restart`,
+  `relaunch`, `two_account`, `sign_in`, `account`, `credential`, `vault`,
+  `core_github`), plus `github_provider`, both architecture rows,
+  `server_card` and `settings_window`. `application_composition_contract` took
+  255.5 s and `application_device_binding_launch_renewal` 88.9 s.
+- The composition pins need no reseal. `github_application.cpp` is
+  untouched, and the fixture sources are in the pin contract's file inventory,
+  not its content digest. `application_review_round_trip_composition_contract`
+  passes.
+- clang-format 23.1.1 passes every touched file. The project tidy script
+  reports nothing on touched lines. Its findings are pre-existing: lambda
+  names in `github_application_host_tests.cpp`, a `std::endl` in the
+  course's startup message, `home_view_state.hpp:35` and `dif_runtime.hpp`.
+- The architecture notes
+  ([github-host-implementation](../../architecture/github-host-implementation.md),
+  [security-threat-model](../../architecture/security-threat-model.md)) state
+  the decision and the residual the owner accepted.
+
+Every criterion is met, and the card is **Done**.
+
+**Owed elsewhere, ordinary confirmation.** On Linux and Windows:
+`application_github_host`, `github_provider` and
+`application_device_binding_launch_renewal` (now about 85 s on macOS; its
+Windows TIMEOUT is 180 s and it took 86 s there before these phases, so
+watch it). On Windows Debug, `application_github_host` currently ends in
+`std::terminate` in [[BPR-1112]]'s allocation sweeps (reserved as BPR-1124),
+before these tests run.
