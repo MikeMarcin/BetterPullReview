@@ -26,6 +26,7 @@
 #include <QTemporaryDir>
 #include <QThread>
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -315,8 +316,10 @@ try {
 	auto* desktopMenu = resident_menu_bar();
 	expect(desktopMenu->profiles_menu()->actions().size() == 5,
 		   "which lists the three profiles, New Window and management");
-	expect(desktopMenu->view_menu() != nullptr && desktopMenu->view_menu()->actions().size() == 4
-			   && !desktopMenu->view_menu()->actions().front()->isEnabled(),
+	expect(desktopMenu->view_menu() != nullptr && desktopMenu->view_menu()->actions().size() == 7
+			   && std::ranges::all_of(desktopMenu->view_menu()->actions(), [](const auto* aAction) {
+					  return aAction->isSeparator() || !aAction->isEnabled();
+				  }),
 		   "and carries the window menu's View, offered and disabled, so the close takes no menu off the bar");
 
 	// B3 with no window to carry a refusal: the chooser is presented for it, which is

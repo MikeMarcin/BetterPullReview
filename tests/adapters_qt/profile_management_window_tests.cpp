@@ -349,17 +349,21 @@ namespace {
 		auto* const view = menu.view_menu();
 		expect(view != nullptr && view->title() == QStringLiteral("&View"), "the desktop bar offers View");
 		const auto viewActions = view->actions();
-		expect(viewActions.size() == 4 && viewActions[0]->text() == QStringLiteral("&Line numbers")
-				   && viewActions[1]->text() == QStringLiteral("&One pane") && viewActions[2]->isSeparator()
-				   && viewActions[3]->text() == QStringLiteral("&Settings…"),
+		expect(viewActions.size() == 7 && viewActions[0]->text() == QStringLiteral("&Line numbers")
+				   && viewActions[1]->text() == QStringLiteral("&One pane")
+				   && viewActions[2]->text() == QStringLiteral("&Updates Line") && viewActions[2]->isCheckable()
+				   && viewActions[3]->text() == QStringLiteral("Next Tab")
+				   && viewActions[4]->text() == QStringLiteral("Previous Tab") && viewActions[5]->isSeparator()
+				   && viewActions[6]->text() == QStringLiteral("&Settings…"),
 			   "with the window menu's own commands, in the window menu's own order");
-		expect(!viewActions[0]->isEnabled() && !viewActions[1]->isEnabled() && !viewActions[3]->isEnabled(),
+		expect(!viewActions[0]->isEnabled() && !viewActions[1]->isEnabled() && !viewActions[2]->isEnabled()
+				   && !viewActions[3]->isEnabled() && !viewActions[4]->isEnabled() && !viewActions[6]->isEnabled(),
 			   "none of them actionable, because no window's presentation is theirs to change");
-		expect(viewActions[3]->menuRole() == QAction::PreferencesRole,
+		expect(viewActions[6]->menuRole() == QAction::PreferencesRole,
 			   "and Settings keeps the preferences role, so the application menu keeps its merged item");
 
 		// [[BPR-1035]]. And the window's Pull Request menu, between Profiles and
-		// View as the window has it, with both of its gestures offered and disabled.
+		// View as the window has it, with its gestures offered and disabled.
 		auto* const pullRequest = menu.pull_request_menu();
 		expect(pullRequest != nullptr && pullRequest->title() == QStringLiteral("P&ull Request"), "the desktop bar offers Pull Request");
 		const auto titles = [&menu] {
@@ -372,10 +376,45 @@ namespace {
 		expect(titles == QStringList{ QStringLiteral("&File"), QStringLiteral("&Profiles"), QStringLiteral("P&ull Request"), QStringLiteral("&View") },
 			   "in the window bar's order: File, Profiles, Pull Request, View");
 		const auto pullRequestActions = pullRequest->actions();
-		expect(pullRequestActions.size() == 2 && pullRequestActions[0]->text() == QStringLiteral("&Follow")
+		expect(pullRequestActions.size() == 5 && pullRequestActions[0]->text() == QStringLiteral("&Follow")
 				   && pullRequestActions[1]->text() == QStringLiteral("&Save Repository")
-				   && !pullRequestActions[0]->isEnabled() && !pullRequestActions[1]->isEnabled(),
-			   "with Follow and Save Repository, neither actionable with no pull request open");
+				   && pullRequestActions[2]->isSeparator()
+				   && pullRequestActions[3]->text() == QStringLiteral("Compose &review")
+				   && pullRequestActions[4]->text() == QStringLiteral("Co&mment")
+				   && !pullRequestActions[0]->isEnabled() && !pullRequestActions[1]->isEnabled()
+				   && !pullRequestActions[3]->isEnabled() && !pullRequestActions[4]->isEnabled(),
+			   "with Follow, Save Repository and composition, none actionable with no pull request open");
+
+		// [[BPR-1195]]. File survives Quit's merge into the macOS application
+		// menu, and the scaffolding's commands keep their discoverable shortcuts.
+		auto* const file = menu.actions()[0]->menu();
+		expect(file != nullptr && file->accessibleName() == QStringLiteral("File")
+				   && view->accessibleName() == QStringLiteral("View")
+				   && pullRequest->accessibleName() == QStringLiteral("Pull Request"),
+			   "the resident menus retain their accessible names");
+		const auto fileActions = file->actions();
+		expect(fileActions.size() == 2 && fileActions[0] == menu.quit_action()
+				   && fileActions[1]->text() == QStringLiteral("Close Tab") && !fileActions[1]->isEnabled(),
+			   "File retains Close Tab after Quit, disabled without an open tab");
+		expect(fileActions[1]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
+				   && pullRequestActions[3]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
+				   && pullRequestActions[4]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
+				   && viewActions[2]->shortcut().isEmpty(),
+			   "Close Tab and composition retain their keys, and Updates Line claims none");
+#if defined(Q_OS_MACOS)
+		expect(viewActions[3]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
+				   && viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
+			   "tab navigation keeps the physical Control key on macOS");
+#else
+		expect(viewActions[3]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
+				   && viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
+			   "tab navigation keeps the Control key");
+#endif
+		for (auto* const action : { fileActions[1], viewActions[2], viewActions[3], viewActions[4], pullRequestActions[3], pullRequestActions[4] }) {
+			action->trigger();
+		}
+		expect(managed == 1U && quit == 1U && intents.size() == 2U,
+			   "the disabled scaffolding commands cause no desktop effect");
 	}
 }
 

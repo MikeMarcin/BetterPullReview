@@ -27,6 +27,12 @@ namespace bpr::qt {
 				QuitProfiles();
 			}
 		});
+		// [[BPR-1195]]. Keep the workbench's tab command after Quit moves to
+		// the macOS application menu; otherwise the now-empty File menu vanishes.
+		auto* const closeTab = fileMenu->addAction(tr("Close Tab"));
+		closeTab->setObjectName(QStringLiteral("desktopCloseDocumentTabAction"));
+		closeTab->setShortcut(QKeySequence{ QStringLiteral("Ctrl+W") });
+		closeTab->setEnabled(false);
 		ProfilesMenu = addMenu(QStringLiteral("&Profiles"));
 		ProfilesMenu->setObjectName(QStringLiteral("desktopProfilesMenu"));
 		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
@@ -63,6 +69,15 @@ namespace bpr::qt {
 		auto* const saveRepository = PullRequestMenu->addAction(QStringLiteral("&Save Repository"));
 		saveRepository->setObjectName(QStringLiteral("desktopSavePullRequestRepositoryAction"));
 		saveRepository->setEnabled(false);
+		PullRequestMenu->addSeparator();
+		auto* const composeReview = PullRequestMenu->addAction(tr("Compose &review"));
+		composeReview->setObjectName(QStringLiteral("desktopComposeReviewAction"));
+		composeReview->setShortcut(QKeySequence{ QStringLiteral("Alt+R") });
+		composeReview->setEnabled(false);
+		auto* const comment = PullRequestMenu->addAction(tr("Co&mment"));
+		comment->setObjectName(QStringLiteral("desktopComposeInlineDraftAction"));
+		comment->setShortcut(QKeySequence{ QStringLiteral("Alt+C") });
+		comment->setEnabled(false);
 		// [[BPR-0796]]. The workbench window's View menu, offered here and disabled.
 		// Without it the last close took View off the bar and the merged Preferences
 		// item out of the application menu, leaving one visible menu where
@@ -85,6 +100,23 @@ namespace bpr::qt {
 		onePane->setObjectName(QStringLiteral("desktopToggleOnePaneAction"));
 		onePane->setCheckable(true);
 		onePane->setEnabled(false);
+		auto* const updatesLine = ViewMenu->addAction(QStringLiteral("&Updates Line"));
+		updatesLine->setObjectName(QStringLiteral("desktopToggleUpdatesLineAction"));
+		updatesLine->setCheckable(true);
+		updatesLine->setEnabled(false);
+		auto* const nextTab = ViewMenu->addAction(tr("Next Tab"));
+		nextTab->setObjectName(QStringLiteral("desktopNextDocumentTabAction"));
+		nextTab->setEnabled(false);
+		auto* const previousTab = ViewMenu->addAction(tr("Previous Tab"));
+		previousTab->setObjectName(QStringLiteral("desktopPreviousDocumentTabAction"));
+		previousTab->setEnabled(false);
+#if defined(Q_OS_MACOS)
+		nextTab->setShortcut(QKeySequence{ QStringLiteral("Meta+Tab") });
+		previousTab->setShortcut(QKeySequence{ QStringLiteral("Meta+Shift+Tab") });
+#else
+		nextTab->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Tab") });
+		previousTab->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") });
+#endif
 		// [[BPR-0646]] gives Settings the preferences role, which macOS merges into
 		// the application menu. Offered so that menu keeps every item it had while a
 		// window was open; disabled because Settings is a window's, and no window is

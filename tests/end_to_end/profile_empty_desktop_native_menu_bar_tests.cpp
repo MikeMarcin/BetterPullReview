@@ -417,7 +417,13 @@ try {
 		   "and no item out of the application menu, the merged Preferences item included");
 	expect(resident.ViewItems == windowed.ViewItems, "View and its commands are still offered with no window open");
 	expect(!native::main_menu_item_is_enabled("View", "Line numbers")
-			   && !native::main_menu_item_is_enabled("View", "One pane"),
+			   && !native::main_menu_item_is_enabled("View", "One pane")
+			   && !native::main_menu_item_is_enabled("View", "Updates Line")
+			   && !native::main_menu_item_is_enabled("View", "Next Tab")
+			   && !native::main_menu_item_is_enabled("View", "Previous Tab")
+			   && !native::main_menu_item_is_enabled("File", "Close Tab")
+			   && !native::main_menu_item_is_enabled("Pull Request", "Compose review")
+			   && !native::main_menu_item_is_enabled("Pull Request", "Comment"),
 		   "offered and not actionable, because no window's presentation is theirs to change");
 	expect(resident.Description == windowed.Description,
 		   "the bar a reviewer reads is the same bar before and after the last close");
