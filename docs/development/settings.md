@@ -169,7 +169,10 @@ Accounts/Appearance and update work has its own acceptance; this guide does not
 turn those RFCs into closed work or imply release approval. The RFC-0014
 foundation dependency is accepted; its remaining qualification is RFC-0038.
 Owner amendment r2 closes the recorded Settings scope while BPR-0974 remains
-Blocked for the Windows Defender/security disposition, complete native course
-and current inventory, and BPR-0975 remains Blocked for the Linux native
-focus/lifetime course. The finding is not declared a false positive and the
-Linux inventory-only pass is not a complete native course.
+open for the Windows complete native course and current inventory; on
+2026-09-25 the owner chose its Defender disposition (lower the image's static
+signals) and it is Ready. BPR-0975 is Done by a 2026-09-25 owner amendment
+that accepts WSLg's refusal of application activation, and BPR-1122 (Blocked,
+`upstream-wslg`) reruns the Linux full focus/lifetime course once WSLg ships
+the fix. The finding is not declared a false positive, and neither the Linux
+inventory-only pass nor the WSLg diagnosis course is a complete native course.

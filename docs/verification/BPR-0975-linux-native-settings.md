@@ -13,6 +13,15 @@ reused, and WSLg's window manager refuses every application activation request.
 A labelled diagnosis course that records each refusal and continues passes every
 other step on the same candidate, including native Quit with exit 0.
 
+**2026-09-25, owner amendment.** The owner accepted WSLg's refusal of
+application activation as the current behaviour, with no product change
+(decision `dce91e77`, recorded on [BPR-0975](../issues/60-done/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md)). AC2 and AC3 are
+amended to the refused-activation diagnosis below, and BPR-0975 is Done. The
+full default course still fails here, and that is not called a pass. The
+recheck, carrying the upstream change below, is
+[BPR-1122](../issues/50-blocked/BPR-1122-wslg-refuses-application-window-activation-so-a-reused-settings-window-cant-take-focus.md), Blocked on `upstream-wslg`. No upstream report was
+prepared (decision `c5d0e284`).
+
 ## Why WSLg refuses activation, 2026-09-24
 
 The owner rejected both options offered below (decision `35aa7cb0`) and
@@ -290,6 +299,8 @@ The Atspi and freedesktop typelibs were unpacked into the owned root with
 exited or were stopped and waited.
 
 ## Remaining obligation
+
+Superseded again on 2026-09-25 by the owner amendment at the top of this note.
 
 Superseded on 2026-09-24. The owner rejected both options below, and
 [Why WSLg refuses activation](#why-wslg-refuses-activation-2026-09-24) records

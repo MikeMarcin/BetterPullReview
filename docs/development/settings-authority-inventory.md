@@ -122,6 +122,12 @@ Blocked BPR-0975. BPR-0593 closes only the amended accepted scope. The original
 observations retain these precise limits; old comparable evidence remains valid
 only for its original source, not a new security verdict or native course pass.
 
+Since then, on 2026-09-25: BPR-0974 is Ready with the owner's disposition
+(lower the image's static signals and go ahead). BPR-0975 is Done by owner
+amendment: WSLg's refusal of application activation is accepted with no
+product change, and BPR-1122 (Blocked, `upstream-wslg`) runs the full course
+again once WSLg ships the upstream fix.
+
 ## Integrated Settings surfaces
 
 BPR-0678 through BPR-0682 now compose all seven categories in the Default

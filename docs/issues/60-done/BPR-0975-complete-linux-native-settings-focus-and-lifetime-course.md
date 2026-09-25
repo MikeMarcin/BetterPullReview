@@ -2,16 +2,70 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0975"
 title: "Complete Linux native Settings focus and window-lifetime course"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-0731"]
 priority: "P2"
 platforms: ["linux"]
-metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961","BPR-1024"],"station":"bpr-main-linux","candidate":"b651554ff50bdde1c5a41fd9a77f6c0e075b16c8","evidence":"docs/verification/BPR-0975-linux-native-settings.md","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0975-wslg-activation-v001","decision":"35aa7cb0-1d37-4588-b8ad-3cdf2764a9e4","outcome":"reject","direction":"find why GUI activation does not work on WSLg and fix it"}}
-parked_on: "human-review"
+metadata: {"origin_rfc":"RFC-BPR-0018","origin_card":"BPR-0593","mandate_revision":"r2","disposition":"owner-deferred standalone follow-up; not an RFC0018 closeout dependency","source_candidate":"2d3bdbdfdef1951c3c2732d5c20d6ba65be9e273","transferred_criteria":["AC-01 Linux full native menu/shortcut/window-lifetime course"],"related_cards":["BPR-0961","BPR-1024"],"station":"bpr-main-linux","candidate":"b651554ff50bdde1c5a41fd9a77f6c0e075b16c8","evidence":"docs/verification/BPR-0975-linux-native-settings.md","owner_decision":{"date":"2026-09-24","session":"cbd48b91000b00f1e72e1ad62c7c384c","candidate":"BPR-0975-wslg-activation-v001","decision":"35aa7cb0-1d37-4588-b8ad-3cdf2764a9e4","outcome":"reject","direction":"find why GUI activation does not work on WSLg and fix it"},"owner_amendment":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-0975-wslg-choice-v001","decision":"dce91e77-3dc2-49c4-b29e-fb81ca541b82","amended":["AC2","AC3"],"accepted":"WSLg's refusal of application activation, no product change","follow_up":"BPR-1122"},"upstream_report_decision":{"candidate":"BPR-0975-upstream-report-v001","decision":"c5d0e284-d3f6-4563-ac30-abccbe01a6d2","selected":"No: do not prepare it"}}
+acceptance: [{"criterion":"AC1 Attribute or bound the exact native focus failure and demonstrate that the bare two-window control can focus each mapped window while its sibling stays open, then close both cleanly","outcome":"pass","revision":"b651554f","evidence":{"kind":"artifact","detail":"linux-focus-control-b651554f.json and its clear-window repeat, guard passed with 8/8 live files unchanged: the Qt and Xlib controls each focus A with B mapped and B with A mapped through Windows' own RAIL foreground activation, focus A after B closes, and exit 0; the X11-only failure (FocusOut(B) FocusIn(A) FocusOut(A) FocusIn(B); _NET_ACTIVE_WINDOW: no event) is preserved. Attributed to WSLg's Weston WM (weston-mirror 04d436c7, WSLg 1.0.73.2), which drops _NET_ACTIVE_WINDOW and reverts client focus; the 2026-09-24 probe (d24223f2) found every X11 and Wayland activation request refused.","path":"docs/verification/BPR-0975-linux-native-settings.md#ac1--bare-two-window-controls"}},{"criterion":"AC2 (amended by the owner, 2026-09-25: WSLg's refusal of application activation is accepted as current behaviour, with no product change) On the actual tests-disabled application, complete View/Settings, Ctrl-comma, modeless workbench focus, singleton Settings identity, Escape, same-profile sibling close/reopen and native Quit with terminal process exit 0","outcome":"pass","revision":"b651554f","evidence":{"kind":"freeform","detail":"Owner amendment, attended session 7083474240820608cdf9ff551ddd298f, packet docs/verification/reviews/owner-decisions-20260924-scoped-v001, candidate BPR-0975-wslg-choice-v001 (revision 2e6e64d4; probe d24223f2), fingerprint a06ac5daf8eeedef2a5b622c23b5d54c261e28b6c4170d3dba355ba4e5493f7b equal to the prepared candidate's in session-identity.json, decision dce91e77-3dc2-49c4-b29e-fb81ca541b82, sequence 26, 2026-09-25T00:12:30Z, actor human, note verbatim 'No product change, accept the current behavior and file a focused blocked card for the settings activation issue in WSL to recheck when the upstream ships a fix.' The full default course still fails on WSLg at Ctrl-comma (linux-full-course-b651554f.json, and the clear-window repeat); this is an amendment, not a pass of that course. Accepted in its place: the refused-activation diagnosis linux-bounded-course-b651554f.json and its clear-window repeat on executable 13c59e94f66ea52c963cfd290b5664d272473f2d1674b1742481fc2086bcb984 record both refusals (Ctrl-comma's 6291484 and Settings close's ReturnFocus) and pass every other step: Escape and Ctrl-comma reopen, New Window, sibling menu reuse, native close, sibling Ctrl-comma reopen, first-workbench retirement keeping Settings, seven showing pages and native File > Quit with process exit 0. The activation itself is BPR-1122, Blocked on upstream-wslg.","path":"docs/issues/60-done/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md#owner-decisions-2026-09-25-no-product-change-wslgs-refusal-is-accepted-and-bpr-1122-rechecks-it-attended-session-70834742"}},{"criterion":"AC3 (amended by the owner, 2026-09-25, with AC2) Bind source/build flags, executable digest, native environment and observed image/PID to the capture; retain all seven category assertions and explicit capability differences; rerun the inventory comparison where inputs changed","outcome":"pass","revision":"b651554f","evidence":{"kind":"freeform","detail":"Owner amendment, attended session 7083474240820608cdf9ff551ddd298f, packet docs/verification/reviews/owner-decisions-20260924-scoped-v001, candidate BPR-0975-wslg-choice-v001 (revision 2e6e64d4; probe d24223f2), fingerprint a06ac5daf8eeedef2a5b622c23b5d54c261e28b6c4170d3dba355ba4e5493f7b equal to the prepared candidate's in session-identity.json, decision dce91e77-3dc2-49c4-b29e-fb81ca541b82, sequence 26, 2026-09-25T00:12:30Z, actor human, note verbatim 'No product change, accept the current behavior and file a focused blocked card for the settings activation issue in WSL to recheck when the upstream ships a fix.' The capture AC3 binds is the accepted diagnosis, not a full-course capture: revision b651554f clean source, Release with BUILD_TESTING=OFF and BPR_DISTRIBUTION_BUILD=OFF, GCC 15.2 -Werror with no first-party -Wno-error, executable sha256 13c59e94f66ea52c963cfd290b5664d272473f2d1674b1742481fc2086bcb984, observed PID and image, Weston WM, WSLg 1.0.73.2, kernel 6.18.33.2-microsoft-standard-WSL2. Its seven pages are node-for-node equal to the 2d3bdbdf Linux inventory ([21, 26, 66, 334, 12, 15, 24]); settings_inventory_comparison_tests.py reran the comparison (16 tests) with its negative controls failing. The capability difference is WSLg's refused activation, carried by BPR-1122.","path":"docs/issues/60-done/BPR-0975-complete-linux-native-settings-focus-and-lifetime-course.md#owner-decisions-2026-09-25-no-product-change-wslgs-refusal-is-accepted-and-bpr-1122-rechecks-it-attended-session-70834742"}},{"criterion":"AC4 Use fresh mode-0700 XDG data/config/cache/state/TMP roots, the station lease and unchanged-live-state guard; wait all children and release the lease; no personal profile, authentication, provider mutation, setting-change, maintenance operation or host security/display-policy change","outcome":"pass","revision":"b651554f","evidence":{"kind":"observation","detail":"Every run used station_lease.py run --role station-writer --station bpr-main-linux and qualification_guard.py with allowed root /home/mmarcin/bpr0975-native; fresh mode-0700 roots with separate XDG data, config, cache, state and TMP; guard 8/8 live files unchanged; no sign-in, setting, maintenance or provider operation; no display, security or foreground-lock change (ForegroundLockTimeout only read); typelibs unpacked into the owned root, not installed; every application, control and observer process exited or was stopped and waited. The 2026-09-24 probe held the same limits in a desktop hold bpr-main-win acknowledged.","path":"docs/verification/BPR-0975-linux-native-settings.md#ac4--isolation-and-state"}}]
 ---
 
 # Complete Linux native Settings focus and window-lifetime course
+
+## Owner decisions, 2026-09-25: no product change; WSLg's refusal is accepted, and BPR-1122 rechecks it (attended session 70834742)
+
+Source: attended session `7083474240820608cdf9ff551ddd298f`, packet
+[owner-decisions-20260924-scoped-v001](../../verification/reviews/owner-decisions-20260924-scoped-v001/operator-packet.md),
+hand-back at sequence 32. Both verdicts are `actor: human` and carry their
+prepared candidate's fingerprint in
+[session-identity.json](../../verification/reviews/owner-decisions-20260924-scoped-v001/session-identity.json).
+
+**The WSLg choice.** Candidate `BPR-0975-wslg-choice-v001`, revision
+"2e6e64d4 (WSLg diagnosis; probe d24223f2)", fingerprint `a06ac5da…`,
+decision `dce91e77-3dc2-49c4-b29e-fb81ca541b82`, sequence 26,
+2026-09-25T00:12:30Z: **select** "Other: my answer is in the note", with this
+note, verbatim:
+
+> No product change, accept the current behavior and file a focused blocked
+> card for the settings activation issue in WSL to recheck when the upstream
+> ships a fix.
+
+**The upstream report.** Candidate `BPR-0975-upstream-report-v001`, revision
+"2e6e64d4 (the upstream change text in the BPR-0975 evidence note)",
+fingerprint `e381fc9c…`, decision `c5d0e284-d3f6-4563-ac30-abccbe01a6d2`,
+sequence 25, 2026-09-25T00:02:26Z: **select**, verbatim:
+
+> No: do not prepare it
+
+The note is empty.
+
+**What they settle.**
+
+- **No product change.** Option A, the WSLg-only remap, is not made. Nothing
+  under `src/` changes for this card.
+- **Owner amendment: WSLg's refusal of application activation is accepted as
+  the current behaviour.** On this host a reused Settings window cannot take
+  focus through Ctrl-comma or the menu. Closing Settings cannot return focus
+  to a sibling workbench used later. This is recorded as an amendment, not as
+  a pass of the full default course, which still fails on WSLg.
+  - **AC2, amended.** The refused-activation diagnosis
+    (`linux-bounded-course-b651554f.json`, and its clear-window repeat) is the
+    accepted course on WSLg. Every other step passes in it, including native
+    Quit with exit 0, and it records both refusals.
+  - **AC3, amended.** The binding is to that capture: source `b651554f`, the
+    build flags, executable `13c59e94…b984`, the observed PID and image, and
+    the seven pages node-for-node equal to the 2d3bdbdf Linux inventory, with
+    the comparison rerun (16 tests).
+  - AC1 and AC4 stand as recorded at `b651554f`.
+- **The activation itself moves to
+  [BPR-1122](../50-blocked/BPR-1122-wslg-refuses-application-window-activation-so-a-reused-settings-window-cant-take-focus.md),**
+  Blocked on `upstream-wslg`. It carries the upstream change from the
+  evidence note and the recheck: the probe, then the full default course,
+  once a WSLg release ships the fix (microsoft/wslg#1022).
+- **No upstream report** is prepared or filed.
+
+The card is **Done** by this amendment. [[BPR-1024]]'s correction stays.
 
 ## Diagnosis, 2026-09-24: WSLg has no activation path to use; the owner decides between two options
 
