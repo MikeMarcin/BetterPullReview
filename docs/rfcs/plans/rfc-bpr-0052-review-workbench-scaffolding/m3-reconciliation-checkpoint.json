@@ -1,0 +1,666 @@
+{
+  "schema": "bpr.rfc0052.closeout-reconciliation.v1",
+  "assignment": "RFC-BPR-0052 m3/BPR-1135 closeout reconciliation only",
+  "run_id": "rfc0052-20260925",
+  "segment_id": "m3-reconciliation",
+  "mandate_revision": "owner-20260925-unattended-parallel",
+  "mandate": {
+    "standing": "implement available unattended work, focus on closing out rfcs. You can revise and update the cards and rfcs if they have gone stale.",
+    "scope": "Reconcile AC-01 to AC-11 against exact existing Mac evidence; commit bounded partial documentation; no RFC close, attended interpretation, remote execution, product changes or other card ownership.",
+    "coordinator_clarification": "Record the Mac AC evidence and explicit pending exits without claiming m3 acceptance or inventing eligibility. Preserve one frozen 14-question owner session and deferred Windows/Linux.",
+    "parallel_worktrees": "Explicitly authorized; other repository writers and the frozen attended candidate are outside this writer scope."
+  },
+  "source_root": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+  "tracker_root": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+  "runtime_root": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m3-y_n6l44l",
+  "branch": "codex/rfc0052-m3",
+  "base_revision": "aa59606ae2352298dbd6545bacd294f7eef8af74",
+  "rfc_base_revision": "0453103ddd11337ee8b3adf5053b25149104acd8",
+  "selection": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/strategy-selection.json",
+  "plan": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json",
+  "milestone": "m3-verify-and-close",
+  "status": "partial reconciliation; milestone not eligible or accepted",
+  "binding": {
+    "state": "refused",
+    "detail": "milestone is unknown, accepted or has unmet prerequisites",
+    "reason": "m2 required owner readiness-placement and human/native exits remain pending",
+    "accepted_milestone_flags": [],
+    "prior_binding": "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/m2-checkpoint.json"
+  },
+  "workflow": {
+    "board": "BPR-1135 remains Backlog; six Done dependencies do not establish m2 exit acceptance",
+    "queue_next": null,
+    "claim": "not attempted: no eligible milestone",
+    "finish": "not attempted: required acceptance pending",
+    "isolated_preflight": {
+      "state": "incomplete",
+      "detail": "project.not_registered: Project is not registered.",
+      "host_load": "not_verified"
+    },
+    "preflight_disposition": "Coordinator dispatched this bounded isolated continuation under existing main ready_pinned setup. No registration, route or MASK state changed. No fresh-worktree readiness claimed."
+  },
+  "candidate": {
+    "product": "0994aa0ee80e542e980c5b5b8682e1aac0161ec0",
+    "integrated_source": "a39cfc91b45e497a09f1d4da08f4d04f71b3720d",
+    "integrated_pins": "f530e08b8296034a237c2c21ff2722a7a3caceb0",
+    "reconciliation_base": "aa59606ae2352298dbd6545bacd294f7eef8af74",
+    "frozen_review": {
+      "source_revision": "ba9d272339ad235f1d99688c5c1af198b0c9c7ef",
+      "binary_sha256": "a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83",
+      "app": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app",
+      "executable": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/BetterPullReview-m2.app/Contents/MacOS/better_pull_review",
+      "candidate_ids": [
+        "BPR-1130-readiness",
+        "BPR-1129-title",
+        "BPR-1129-bar",
+        "BPR-1129-kept",
+        "BPR-1134-tray",
+        "BPR-1134-voiceover",
+        "BPR-1130-fold",
+        "BPR-1130-history",
+        "BPR-1130-pair-ready",
+        "BPR-1133-default-reply",
+        "BPR-1133-arrow",
+        "BPR-1133-card-reply",
+        "BPR-1132-plus",
+        "BPR-1132-later"
+      ]
+    }
+  },
+  "criterion_records": [
+    {
+      "criterion": "AC-01",
+      "outcome": "pending",
+      "direct_check": "E0/E1: `qt_workbench_window_scale_{100,125,200}` (BPR-0940 arrangement and fold), `core_workbench_interaction`, `application_workbench_host`, `sqlite_workbench_settings_storage`; E4 geometry.",
+      "result": "Partial on macOS: loaded arrangement, tab header and per-window fold verified. **Unsatisfied during loading:** BPR-0795 readiness row remains above the comparison pending `BPR-1130-readiness`; the test explicitly permits it. Owner/native/station acceptance pending.",
+      "producing_commits": "`96a86433`, `fb4b8364`, `0994aa0e`"
+    },
+    {
+      "criterion": "AC-02",
+      "outcome": "pending",
+      "direct_check": "E0: `qt_workbench_title_row_scale_{100,125,200}`, `qt_workbench_window_scale_{100,125,200}`; exact title controls and 1920-to-900 width sweep.",
+      "result": "Mac automated checks pass. Owner title-row judgment, Windows 902-width sweep and native controls, and Linux station evidence remain pending.",
+      "producing_commits": "`96a86433`; retained through `0994aa0e`"
+    },
+    {
+      "criterion": "AC-03",
+      "outcome": "pending",
+      "direct_check": "E0/E1: window scales, `qt_epoch_comparison_scale_{100,125,200}`, `core_review_submission`; E4 exact 14-action review-bar order and full-width open timeline.",
+      "result": "Mac automated checks pass, including active-file progress, kept-draft mark and Review details. Owner review-bar/kept-mark judgments and station evidence remain pending.",
+      "producing_commits": "`96a86433`, `fb4b8364`, `0994aa0e`"
+    },
+    {
+      "criterion": "AC-04",
+      "outcome": "pending",
+      "direct_check": "E0/E1: epoch/window scales assert no caption, history tooltip/description and incomplete/ambiguous-history marks in every modality.",
+      "result": "Mac automated checks pass. Owner history-mark and pair-ready-tooltip judgments and station evidence remain pending.",
+      "producing_commits": "`fb4b8364`; retained through `0994aa0e`"
+    },
+    {
+      "criterion": "AC-05",
+      "outcome": "pending",
+      "direct_check": "E0: core/host/restoration/store tab suites; E1: tab scales, Files tree and `application_document_tabs_restoration_public_path`; E2: full profile-window restoration.",
+      "result": "Mac automated checks pass: exact pairs/positions, background file open, duplicate, neighbour close, restart, Resume and explicit reopen. Owner plus-button choice and native/station acceptance remain pending.",
+      "producing_commits": "`e94e67f1`, `0994aa0e`"
+    },
+    {
+      "criterion": "AC-06",
+      "outcome": "pending",
+      "direct_check": "E0: `core_document_tabs`, `application_document_tab_host`; E1: exact two-pair tab/restart course, tab scales and single-request workbench composition.",
+      "result": "Mac automated checks pass: window versus tab pair, menu actions, modality return, exact reading and stale rejection. Required station/attended acceptance remains pending.",
+      "producing_commits": "`e94e67f1`, `0994aa0e`"
+    },
+    {
+      "criterion": "AC-07",
+      "outcome": "pending",
+      "direct_check": "E1: `qt_document_tabs_scale_{100,125,200}` tests exact revision placement, later-thread count, three Show them routes and disabled Comment off current head.",
+      "result": "Mac automated checks pass. Later threads remain listed but unplaced; owner listed-versus-hidden decision and native/station acceptance remain pending.",
+      "producing_commits": "`0994aa0e`"
+    },
+    {
+      "criterion": "AC-08",
+      "outcome": "pending",
+      "direct_check": "E0/E1: window scales and conversation cards; E2: `application_threaded_reply_contract` and `application_review_submission_composition_public_path`; E5 combined mutation composition.",
+      "result": "Mac automated checks pass: named line/reply target, own-thread Reply and no automatic Publish. Three owner Comment/Reply choices and native/station acceptance pending. RFC-0048 labels remain future conditional scope.",
+      "producing_commits": "`7c99a1eb`, `0994aa0e`; later diagnostics `9734f0cb`, `12830eff`"
+    },
+    {
+      "criterion": "AC-09",
+      "outcome": "pending",
+      "direct_check": "E0/E1: window scales (tray content, scroll/selection, keyboard and accessibility names), focus-order scales, composed GitHub, conversation panel/cards/reveal.",
+      "result": "Mac automated checks pass. Owner tray-header judgment, native VoiceOver/Narrator and Windows/Linux evidence remain pending. Tour is conditional on RFC-0039, which remains unstarted.",
+      "producing_commits": "`2770ebb1`; retained through `0994aa0e`"
+    },
+    {
+      "criterion": "AC-10",
+      "outcome": "pending",
+      "direct_check": "E0/E1: window/focus-order/tab scales deliver composition and tab keys and assert unique assembled bindings; source inspection finds no Alt-bracket tour binding.",
+      "result": "Mac synthetic Qt key delivery passes; no existing Cmd-W window binding required a move. Native/platform delivery remains pending. Tour-stop keys stay reserved for RFC-0040.",
+      "producing_commits": "`96a86433`, `7c99a1eb`, `0994aa0e`"
+    },
+    {
+      "criterion": "AC-11",
+      "outcome": "pending",
+      "direct_check": "E0/E1: BPR-0940 window arrangement, title/tab width sweeps; E4: `application_uiforetw_selected_diff_contract` raw v7 geometry in all four appearance profiles.",
+      "result": "Partial: Mac measured 872 folded / 838 open at 1280x1000; tab strip 28 px. Linux 876/842 is derived; Windows 884/850 is unmeasured. Both station runs deferred by owner; Windows 850 open budget unchanged.",
+      "producing_commits": "`0994aa0e`"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E0",
+      "inventory": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/verification.json",
+      "inventory_sha256": "b8705f57fbaa3a4511316c4ea485b2328f3d5132b36951a493839eba8111e7e8",
+      "name": "integration",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "-j1",
+        "-R",
+        "^(core_document_tabs|application_document_tab_host|core_window_review_restoration|application_window_review_restoration|sqlite_window_review_restoration_storage|sqlite_private_store_open|core_workbench_interaction|application_workbench_host|sqlite_workbench_settings_storage|qt_document_tabs_scale_(100|125|200)|qt_workbench_window_scale_(100|125|200)|qt_workbench_title_row_scale_(100|125|200)|qt_workbench_focus_order_scale_(100|125|200)|qt_composed_github_scale_(100|125|200)|qt_epoch_comparison_scale_(100|125|200)|qt_review_submission_editor_scale_(100|125|200)|qt_workbench_conversation_reveal|qt_github_conversation_panel|qt_conversation_cards_view|qt_files_tree|application_uiforetw_selected_diff_contract|application_review_round_trip_composition_contract|application_composition_contract|application_github_public_path_uiforetw_74|application_diff_workbench_public_path|application_setup_destination_public_path|application_threaded_reply_contract|application_review_submission_composition_public_path|application_profile_multi_window_public_path|application_document_tabs_restoration_public_path|application_profile_window_review_restoration_public_path|application_agent_finding_composition_contract|application_agent_invocation_composition_contract|application_workbench_composition_contract|test_network_isolation_manifest|architecture_boundaries|core_dependency_boundary|core_review_submission)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 8,
+      "elapsed_seconds": 1006.04,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/m2-integration.log",
+      "log_sha256": "34bc56803bfc63ec9a9eac625e82e9286a8318261fa962f5fd8d5f65ad3cbb9d",
+      "revision_basis": "m2 working candidate and recorded corrections; final product 0994aa0ee80e542e980c5b5b8682e1aac0161ec0; unchanged passing inputs reused"
+    },
+    {
+      "id": "E1",
+      "inventory": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/reopen-verification.json",
+      "inventory_sha256": "7298b93a1caedfe296409389a466a17fb9ac4e529ec4aa68a22ead68dd437a3e",
+      "name": "reopen-tests",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "-j1",
+        "-R",
+        "^(qt_workbench_window_scale_(100|125|200)|application_workbench_composition_contract|qt_files_tree|qt_document_tabs_scale_(100|125|200)|application_document_tabs_restoration_public_path)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 179.47,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/m2-reopen-tests.log",
+      "log_sha256": "e053a5e05a0ea7068e3024fb9c893062d81ac6ae5b6dfbcb49370f5cde28f75e",
+      "revision_basis": "m2 working candidate and recorded corrections; final product 0994aa0ee80e542e980c5b5b8682e1aac0161ec0; unchanged passing inputs reused"
+    },
+    {
+      "id": "E2",
+      "inventory": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/correction-verification.json",
+      "inventory_sha256": "00c2bb8a831961008b8b4eba522e149d51899ee9a8aaea16bf2716ae671b423d",
+      "name": "correction-integration",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "-j1",
+        "-R",
+        "^(architecture_boundaries|application_composition_contract|application_diff_workbench_public_path|application_workbench_composition_contract|application_review_round_trip_composition_contract|application_threaded_reply_contract|application_review_submission_composition_public_path|application_setup_destination_public_path|application_profile_multi_window_public_path|application_profile_window_review_restoration_public_path|application_document_tabs_restoration_public_path)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 8,
+      "elapsed_seconds": 1116.41,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/m2-correction-integration.log",
+      "log_sha256": "df9351d8eb0db1f3f3b4f39766f8b72a091f3989d2c507676e17461c0940f079",
+      "revision_basis": "m2 working candidate and recorded corrections; final product 0994aa0ee80e542e980c5b5b8682e1aac0161ec0; unchanged passing inputs reused"
+    },
+    {
+      "id": "E3",
+      "inventory": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/pin-verification.json",
+      "inventory_sha256": "8ad6741690f1b3c249a16b3851d4e4c022b3c8b230b8991f259c22336c614cfe",
+      "name": "final-pins",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/dev",
+        "-j1",
+        "-R",
+        "^(architecture_boundaries|application_composition_contract|application_review_round_trip_composition_contract)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 237.29,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/m2-final-pins.log",
+      "log_sha256": "017eafa216ae4d765306729e2493e50d53ff5dd28c19b064c1f78e09a2d9f6fd",
+      "revision_basis": "m2 working candidate and recorded corrections; final product 0994aa0ee80e542e980c5b5b8682e1aac0161ec0; unchanged passing inputs reused"
+    },
+    {
+      "id": "E4",
+      "course": "application_uiforetw_selected_diff_contract",
+      "result": "pass in E0; unchanged geometry inputs through final m2 product",
+      "measurements": [
+        {
+          "profile": "dark",
+          "path": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/uiforetw/dark/capture-facts.json",
+          "sha256": "8d0ba8d6a114953db3f0a42f25305a842efdd86b2fc504086e00980936607b38",
+          "schema": "bpr.uiforetw_intraline_capture.v7",
+          "initially_folded": true,
+          "comparison": {
+            "x": 0,
+            "y": 106,
+            "width": 1262,
+            "height": 872
+          },
+          "open_line": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 34
+          },
+          "open_comparison_height": 838,
+          "document_tabs": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row": {
+            "x": 0,
+            "y": 20,
+            "width": 1280,
+            "height": 30
+          },
+          "review_bar": {
+            "x": 0,
+            "y": 50,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row_exact_order": true,
+          "review_bar_exact_order": true
+        },
+        {
+          "profile": "high-contrast-dark",
+          "path": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/uiforetw/high-contrast-dark/capture-facts.json",
+          "sha256": "dcc15e658421d3c17ccded2c159fadcf0bbbe4495f8bc3d9bdf5c33b27554ea1",
+          "schema": "bpr.uiforetw_intraline_capture.v7",
+          "initially_folded": true,
+          "comparison": {
+            "x": 0,
+            "y": 106,
+            "width": 1262,
+            "height": 872
+          },
+          "open_line": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 34
+          },
+          "open_comparison_height": 838,
+          "document_tabs": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row": {
+            "x": 0,
+            "y": 20,
+            "width": 1280,
+            "height": 30
+          },
+          "review_bar": {
+            "x": 0,
+            "y": 50,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row_exact_order": true,
+          "review_bar_exact_order": true
+        },
+        {
+          "profile": "high-contrast-light",
+          "path": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/uiforetw/high-contrast-light/capture-facts.json",
+          "sha256": "4bf521d2a3c6ba475621fe2ae6af5357674c3e990dea8b63d7b276c44ee0fd99",
+          "schema": "bpr.uiforetw_intraline_capture.v7",
+          "initially_folded": true,
+          "comparison": {
+            "x": 0,
+            "y": 106,
+            "width": 1262,
+            "height": 872
+          },
+          "open_line": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 34
+          },
+          "open_comparison_height": 838,
+          "document_tabs": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row": {
+            "x": 0,
+            "y": 20,
+            "width": 1280,
+            "height": 30
+          },
+          "review_bar": {
+            "x": 0,
+            "y": 50,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row_exact_order": true,
+          "review_bar_exact_order": true
+        },
+        {
+          "profile": "light",
+          "path": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/evidence/uiforetw/light/capture-facts.json",
+          "sha256": "4137d2594776e7e493c85cbf16b2a735a02a14ed73c60419dd73bba01bc8ee51",
+          "schema": "bpr.uiforetw_intraline_capture.v7",
+          "initially_folded": true,
+          "comparison": {
+            "x": 0,
+            "y": 106,
+            "width": 1262,
+            "height": 872
+          },
+          "open_line": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 34
+          },
+          "open_comparison_height": 838,
+          "document_tabs": {
+            "x": 0,
+            "y": 78,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row": {
+            "x": 0,
+            "y": 20,
+            "width": 1280,
+            "height": 30
+          },
+          "review_bar": {
+            "x": 0,
+            "y": 50,
+            "width": 1280,
+            "height": 28
+          },
+          "title_row_exact_order": true,
+          "review_bar_exact_order": true
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "card": "BPR-0898",
+      "checkpoint": "docs/issues/_checkpoints/BPR-0898/checkpoint.json",
+      "integration": {
+        "source_revision": "a39cfc91",
+        "reviewed_app_commit": "12830eff",
+        "build": "cmake --build --preset dev --parallel 4: pass",
+        "ctest": "ctest --test-dir build/dev -j1 -R ^(application_composition_contract|application_review_round_trip_composition_contract|application_review_mutation_application_host|application_review_mutation|qt_review_draft_editor|github_mutation_contract)$ --output-on-failure: 6/6 pass, 223.30 s",
+        "pin_full_application": "f8d04c4eff35dc98e377ac7038d18f73e3453e394f671c4bef4d06b0439c68b6",
+        "pin_production_manifest": "af474811f3ed788dbb34a5182d1280c66688d3e71c33c1aa4ea63c7b4650492b",
+        "pin_mutation_branch": "a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a (unchanged)",
+        "tidy_disposition": "Raw isolated tidy exited 1 on 13 baseline-only diagnostics present at fc4b39e8; no changed-line diagnostic and no rule disabled."
+      },
+      "pin_contract_commit": "f530e08b8296034a237c2c21ff2722a7a3caceb0"
+    }
+  ],
+  "source_audit": {
+    "product_changes_after_m2": [
+      "src/adapters/github/src/github_mutation_contract.cpp",
+      "src/adapters/github/src/github_mutation_contract.hpp",
+      "src/adapters/github/src/native_https_transport.cpp",
+      "src/adapters/qt/src/review_draft_editor.cpp",
+      "src/app/src/github_application.cpp",
+      "src/application/include/bpr/application/review_mutation_port.hpp",
+      "src/application/src/review_mutation_contract.cpp",
+      "tests/adapters_qt/review_draft_editor_tests.cpp",
+      "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+      "tests/github_contract/github_mutation_contract_tests.cpp",
+      "tests/github_contract/live_review_mutation_provider_tests.cpp",
+      "tests/github_contract/native_https_transport_tests.cpp"
+    ],
+    "assessment": "Only BPR-0898 publication failure vocabulary, parser/transport mapping, editor messages, preserved retry predicate and corresponding tests/pins changed. Chrome/tab/geometry behavior is unchanged; E5 covers combined composition.",
+    "source_equality_command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "a39cfc91",
+      "HEAD",
+      "--",
+      "src",
+      "cmake",
+      "CMakeLists.txt",
+      "CMakePresets.json"
+    ],
+    "final_inputs_equality_command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "f530e08b",
+      "HEAD",
+      "--",
+      "src",
+      "tests",
+      "cmake",
+      "CMakeLists.txt",
+      "CMakePresets.json"
+    ],
+    "ac01_exception": "tests/adapters_qt/workbench_window_tests.cpp test_the_epoch_row_spans_the_window_in_every_modality permits reviewReadiness during loading. AC-01 is not fully satisfied even on macOS."
+  },
+  "milestone_exits": [
+    {
+      "id": "m3-verify-and-close:exit:1",
+      "outcome": "partial",
+      "detail": "AC-01 to AC-11 now have direct check, result and producing commit. No fresh product rerun needed for docs-only changes; required acceptance remains pending."
+    },
+    {
+      "id": "m3-verify-and-close:exit:2",
+      "outcome": "pending",
+      "detail": "Mac four-profile measurements recorded. Windows/Linux measurements and station runs deferred; native/owner decisions unsupplied."
+    },
+    {
+      "id": "m3-verify-and-close:exit:3",
+      "outcome": "pass for this partial documentation scope",
+      "detail": "Documentation gate passed with installed skill import path; RFC/index remain Proposed. This does not accept m3 or the RFC."
+    }
+  ],
+  "review_handoff": {
+    "session_id": "60bd1ed56e768d60a40b104920641436",
+    "event_cursor": 42,
+    "snapshot_basis": "m2 handoff; no later events read by this round",
+    "ready": 14,
+    "decisions": 0,
+    "state": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/attended-review",
+    "server_pid": 25339,
+    "server_tool_session": "27978",
+    "url_file": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe/review-server.json",
+    "coordinator_watch": "already armed before this assignment",
+    "interpretation": "next engineering round after hand-back",
+    "resource_policy": "Existing frozen app, linked Qt installation and six fixture directories remain protected. This round writes none of them."
+  },
+  "changed_paths": [
+    "docs/issues/10-backlog/BPR-1135-close-rfc-0052.md",
+    "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/m3-reconciliation-checkpoint.json",
+    "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m3-2026-09-25.md"
+  ],
+  "verification": [
+    {
+      "name": "source-equality",
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "a39cfc91",
+        "HEAD",
+        "--",
+        "src",
+        "cmake",
+        "CMakeLists.txt",
+        "CMakePresets.json"
+      ],
+      "cwd": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 0.01,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m3-y_n6l44l/source-equality.log",
+      "output": "",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "final-inputs-equality",
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "f530e08b",
+        "HEAD",
+        "--",
+        "src",
+        "tests",
+        "cmake",
+        "CMakeLists.txt",
+        "CMakePresets.json"
+      ],
+      "cwd": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 0.01,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m3-y_n6l44l/final-inputs-equality.log",
+      "output": "",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "documentation",
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "cwd": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+      "exit_code": 1,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 0.03,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m3-y_n6l44l/documentation.log",
+      "output": "Traceback (most recent call last):\n  File \"/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview/scripts/verify_documentation.py\", line 38, in <module>\n    import board_model  # noqa: E402\n    ^^^^^^^^^^^^^^^^^^\nModuleNotFoundError: No module named 'board_model'",
+      "disposition": "Initial invocation failed before validation because the new worktree has no .agents skill deployment. Rerun uses the installed scripts through PYTHONPATH; no repository or MASK setup changed.",
+      "log_sha256": "78b4b7a4923db2dec83062506385632ff3c4175f4da13acb3f8a7ba6f86aaf67"
+    },
+    {
+      "name": "board",
+      "command": [
+        "/usr/bin/env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/Users/jaeger/.agents/skills/implement-rfc/scripts/issue_board.py",
+        "--repo-root",
+        "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+        "validate",
+        "--rfc",
+        "RFC-BPR-0052",
+        "--json"
+      ],
+      "cwd": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 0.26,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m3-y_n6l44l/board.log",
+      "output": "{\"schema\":\"implement-rfc.validation.v1\",\"valid\":true,\"card_count\":1182,\"errors\":[]}",
+      "log_sha256": "f53792e97a9a4ae3360cc4b4f26d45b47603f2151893145d6ccabed2b5869ce3"
+    },
+    {
+      "name": "milestone-bind",
+      "command": [
+        "/usr/bin/env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/Users/jaeger/.agents/skills/implement-rfc/scripts/milestone_checkpoint.py",
+        "bind",
+        "--repo-root",
+        "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+        "--target",
+        "RFC-BPR-0052",
+        "--selection",
+        "docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/strategy-selection.json",
+        "--run-id",
+        "rfc0052-20260925",
+        "--segment-id",
+        "m3-reconciliation",
+        "--mandate-revision",
+        "owner-20260925-unattended-parallel",
+        "--milestone",
+        "m3-verify-and-close",
+        "--json"
+      ],
+      "cwd": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+      "exit_code": 2,
+      "expected_exit_code": 2,
+      "elapsed_seconds": 0.18,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m3-y_n6l44l/milestone-bind.log",
+      "output": "{\"state\": \"invalid\", \"detail\": \"milestone is unknown, accepted or has unmet prerequisites\"}",
+      "disposition": "Expected prerequisite refusal; no binding or accepted-milestone flag was created.",
+      "log_sha256": "cbcae3ff6af9a3c10298739a09facdf68b8db22f20616249b27de4a1cb637c89"
+    },
+    {
+      "name": "documentation-installed-skill",
+      "command": [
+        "/usr/bin/env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "PYTHONPATH=/Users/jaeger/.agents/skills/implement-rfc/scripts",
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "cwd": "/Users/jaeger/.codex/worktrees/rfc0052-m3/BetterPullReview",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 0.57,
+      "log": "/Users/jaeger/.codex/tmp/bpr-rfc0052-m3-y_n6l44l/documentation-installed-skill.log",
+      "output": "DOCUMENTATION_OK",
+      "log_sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    {
+      "name": "criterion-and-measurement-audit",
+      "command": "Python read-only assertions: closeout criteria equal all 11 RFC strings; four retained capture files match SHA-256, schema and 872/838 heights with 28-pixel document strip.",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "11/11 criterion strings unchanged; four measured profiles verified."
+    }
+  ],
+  "pending_obligations": [
+    "AC-01 and m2 exit 1: owner readiness placement, then scoped engineering if required.",
+    "All 14 owner decisions and macOS native VoiceOver.",
+    "Windows native appearance/Narrator and 902-width sweep; measured 884/850 budget without lowering the open floor.",
+    "Linux measured folded/open floors (876/842 currently derived).",
+    "Windows/Linux station courses remain deferred by owner.",
+    "m2 acceptance before m3 claim; full RFC acceptance and canonical dependency conditions remain unsatisfied."
+  ],
+  "ownership": {
+    "writer": "/root/rfc0052_m3",
+    "exclusive_scope": "Three changed documentation paths in codex/rfc0052-m3 only",
+    "other_writers": "Primary checkout, RFC-0019 and BPR-0966 branches are separately owned. No edits in them.",
+    "commands": "All task-owned inspection/documentation commands completed; no background commands started. Existing attended server/watch are coordinator-owned and untouched.",
+    "writer_release": "Released on final report after the explicit-path commit and clean-status check; no further edits without coordinator reassignment.",
+    "cleanup": "Only task runtime script/logs retained under the named runtime root. No task-created build, bytecode, repository scratch file or new review resources remain. Existing installed bytecode predates this assignment and was not removed."
+  },
+  "next_action": "Coordinator cherry-picks returned documentation commit after writer release. Preserve current session and watch. Fresh implementer consumes verdicts after hand-back; remote work resumes only if owner changes its deferral. Rebind m3 only when m2 exits actually hold.",
+  "self_review": [
+    "All 11 canonical criterion texts unchanged; results distinguish automated Mac evidence, explicit AC-01 gap and pending native/owner/platform acceptance.",
+    "No product, test, authored plan, prior handoff, RFC/index status or protected candidate change.",
+    "BPR-0898 source and final pin identities audited against exact current candidate; passing affected composition evidence reused.",
+    "Session counts are labeled as the cursor-42 handoff snapshot, not a fresh status or verdict read.",
+    "No claim/finish issued for ineligible m3. Expected binder refusal retained."
+  ],
+  "setup_observations": [
+    "The first verification harness expected bind exit 1; actual documented refusal exit is 2. The assertion expectation was corrected and the refusal retained; no eligibility bypass.",
+    "No 64-test verifier rerun: verifier implementation unchanged and its passing m2 regression evidence is retained. The repository documentation gate was run against these edits."
+  ]
+}

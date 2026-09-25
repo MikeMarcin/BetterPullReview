@@ -26,19 +26,19 @@ this list and dependencies before closeout. Registration is not implementation.
 
 ## Closeout checklist
 
-| Criterion | Planned direct check | Result | Producing commit |
+| Criterion | Direct check / evidence | Result at the reconciliation | Producing commit |
 |---|---|---|---|
-| AC-01 The chrome above the comparison is the title row, then the review bar, then the Updates line's timeline while it is open, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar without moving it, a new window starts with it folded, and each window restores its own choice. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next change with the position, previous and next file with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-07 A tab over an older pair places only the threads that belong to its revisions, says how many are on later updates with a way to show them, and offers no new comment off the current head. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-08 Comment starts a comment on the current line, or a reply to the selected thread, and its menu names the target; its arrow is where RFC-BPR-0048's labels are offered. Every thread card offers Reply, beside the code as in Discuss. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-09 The right tray's header holds tabs, Comments and Findings, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-10 Option-R (Alt+R) composes the review, Option-C (Alt+C) comments or replies, Ctrl+Tab and Ctrl+Shift+Tab move between tabs, Cmd-W (Ctrl+W) closes the tab, with the window moving to Cmd-Shift-W (Ctrl+Shift+W) if the tab takes its key, Esc returns from a composition page, and Option-] and Option-[ are reserved for RFC-BPR-0040's tour stops. Both composition commands are in the Pull Request menu, and no key sequence is used twice in the assembled window. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
-| AC-11 The rows are measured on every supported platform and the tests follow them: application_uiforetw_selected_diff_contract and its course script take the measured stacks with the Updates line open and folded, BPR-0940's window course asserts the new arrangement, and each platform's width floor is swept again. | The linked cards' focused courses and the composed course, re-run at closeout | Not run; not started | None |
+| AC-01 The chrome above the comparison is the title row, then the review bar, then the Updates line's timeline while it is open, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar without moving it, a new window starts with it folded, and each window restores its own choice. | E0/E1: `qt_workbench_window_scale_{100,125,200}` (BPR-0940 arrangement and fold), `core_workbench_interaction`, `application_workbench_host`, `sqlite_workbench_settings_storage`; E4 geometry. | Partial on macOS: loaded arrangement, tab header and per-window fold verified. **Unsatisfied during loading:** BPR-0795 readiness row remains above the comparison pending `BPR-1130-readiness`; the test explicitly permits it. Owner/native/station acceptance pending. | `96a86433`, `fb4b8364`, `0994aa0e` |
+| AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor. | E0: `qt_workbench_title_row_scale_{100,125,200}`, `qt_workbench_window_scale_{100,125,200}`; exact title controls and 1920-to-900 width sweep. | Mac automated checks pass. Owner title-row judgment, Windows 902-width sweep and native controls, and Linux station evidence remain pending. | `96a86433`; retained through `0994aa0e` |
+| AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then previous and next change with the position, previous and next file with the position, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu. | E0/E1: window scales, `qt_epoch_comparison_scale_{100,125,200}`, `core_review_submission`; E4 exact 14-action review-bar order and full-width open timeline. | Mac automated checks pass, including active-file progress, kept-draft mark and Review details. Owner review-bar/kept-mark judgments and station evidence remain pending. | `96a86433`, `fb4b8364`, `0994aa0e` |
+| AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires. | E0/E1: epoch/window scales assert no caption, history tooltip/description and incomplete/ambiguous-history marks in every modality. | Mac automated checks pass. Owner history-mark and pair-ready-tooltip judgments and station evidence remain pending. | `fb4b8364`; retained through `0994aa0e` |
+| AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart. | E0: core/host/restoration/store tab suites; E1: tab scales, Files tree and `application_document_tabs_restoration_public_path`; E2: full profile-window restoration. | Mac automated checks pass: exact pairs/positions, background file open, duplicate, neighbour close, restart, Resume and explicit reopen. Owner plus-button choice and native/station acceptance remain pending. | `e94e67f1`, `0994aa0e` |
+| AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted. | E0: `core_document_tabs`, `application_document_tab_host`; E1: exact two-pair tab/restart course, tab scales and single-request workbench composition. | Mac automated checks pass: window versus tab pair, menu actions, modality return, exact reading and stale rejection. Required station/attended acceptance remains pending. | `e94e67f1`, `0994aa0e` |
+| AC-07 A tab over an older pair places only the threads that belong to its revisions, says how many are on later updates with a way to show them, and offers no new comment off the current head. | E1: `qt_document_tabs_scale_{100,125,200}` tests exact revision placement, later-thread count, three Show them routes and disabled Comment off current head. | Mac automated checks pass. Later threads remain listed but unplaced; owner listed-versus-hidden decision and native/station acceptance remain pending. | `0994aa0e` |
+| AC-08 Comment starts a comment on the current line, or a reply to the selected thread, and its menu names the target; its arrow is where RFC-BPR-0048's labels are offered. Every thread card offers Reply, beside the code as in Discuss. | E0/E1: window scales and conversation cards; E2: `application_threaded_reply_contract` and `application_review_submission_composition_public_path`; E5 combined mutation composition. | Mac automated checks pass: named line/reply target, own-thread Reply and no automatic Publish. Three owner Comment/Reply choices and native/station acceptance pending. RFC-0048 labels remain future conditional scope. | `7c99a1eb`, `0994aa0e`; later diagnostics `9734f0cb`, `12830eff` |
+| AC-09 The right tray's header holds tabs, Comments and Findings, and Tour once RFC-BPR-0039 provides it, with each tab's tools beneath the tabs rather than stacked in one column. | E0/E1: window scales (tray content, scroll/selection, keyboard and accessibility names), focus-order scales, composed GitHub, conversation panel/cards/reveal. | Mac automated checks pass. Owner tray-header judgment, native VoiceOver/Narrator and Windows/Linux evidence remain pending. Tour is conditional on RFC-0039, which remains unstarted. | `2770ebb1`; retained through `0994aa0e` |
+| AC-10 Option-R (Alt+R) composes the review, Option-C (Alt+C) comments or replies, Ctrl+Tab and Ctrl+Shift+Tab move between tabs, Cmd-W (Ctrl+W) closes the tab, with the window moving to Cmd-Shift-W (Ctrl+Shift+W) if the tab takes its key, Esc returns from a composition page, and Option-] and Option-[ are reserved for RFC-BPR-0040's tour stops. Both composition commands are in the Pull Request menu, and no key sequence is used twice in the assembled window. | E0/E1: window/focus-order/tab scales deliver composition and tab keys and assert unique assembled bindings; source inspection finds no Alt-bracket tour binding. | Mac synthetic Qt key delivery passes; no existing Cmd-W window binding required a move. Native/platform delivery remains pending. Tour-stop keys stay reserved for RFC-0040. | `96a86433`, `7c99a1eb`, `0994aa0e` |
+| AC-11 The rows are measured on every supported platform and the tests follow them: application_uiforetw_selected_diff_contract and its course script take the measured stacks with the Updates line open and folded, BPR-0940's window course asserts the new arrangement, and each platform's width floor is swept again. | E0/E1: BPR-0940 window arrangement, title/tab width sweeps; E4: `application_uiforetw_selected_diff_contract` raw v7 geometry in all four appearance profiles. | Partial: Mac measured 872 folded / 838 open at 1280x1000; tab strip 28 px. Linux 876/842 is derived; Windows 884/850 is unmeasured. Both station runs deferred by owner; Windows 850 open budget unchanged. | `0994aa0e` |
 
 ## Completion rules
 
@@ -48,6 +48,76 @@ Use focused changed-surface checks and a composed public path. Limit native
 and attended claims to actual evidence. Run the documentation gate, then
 reconcile the RFC's index status only when canonical order and its
 dependencies allow.
+
+## Current reconciliation — partial, 2026-09-25
+
+Assignment `rfc0052-20260925 / m3-reconciliation`, mandate
+`owner-20260925-unattended-parallel`: reconcile existing evidence in the isolated
+`codex/rfc0052-m3` worktree from `aa59606ae2352298dbd6545bacd294f7eef8af74`.
+The coordinator confirmed that this is documentation-only partial work and does
+not establish m3 eligibility. BPR-1135 stays **Backlog**, with no claim or finish:
+the six implementation cards are Done on macOS, but m2's readiness-placement
+exit and required human/native evidence are still pending. The installed
+milestone binder refuses m3 with `milestone is unknown, accepted or has unmet
+prerequisites`. No accepted-milestone flag was supplied to bypass that guard.
+RFC-BPR-0052 and its index stay Proposed under the existing activation amendment.
+
+The table replaces the stale “Not run; not started” entries with the actual Mac
+checks and their limits. **AC-01 is not fully satisfied even on macOS:**
+`test_the_epoch_row_spans_the_window_in_every_modality` explicitly allows
+`reviewReadiness` while loading. The owner must decide its placement before
+BPR-0795 changes; a passing loaded-state course does not accept “in any state.”
+
+### Reused evidence and candidate identity
+
+Exact command arrays, log hashes, source comparisons, measurements, pending
+criteria and this round's checks are in
+[m3-reconciliation-checkpoint.json](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/m3-reconciliation-checkpoint.json).
+The [m3 handoff](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m3-2026-09-25.md)
+is the current continuation. The earlier milestone records below remain history.
+
+All E0–E4 courses ran on macOS 26.6.2 arm64, Qt 6.11.2, `build/dev` Debug,
+offscreen and serial, during m2; the final product is
+`0994aa0ee80e542e980c5b5b8682e1aac0161ec0`. This round re-read the actual logs
+and four capture-facts files. It reuses unchanged passing inputs and records
+failed intermediate runs rather than presenting them as an all-green matrix.
+
+| Evidence | Actual result and use |
+|---|---|
+| E0: `verification.json`, `integration-tests.json`, `evidence/m2-integration.log` | Initial integration 50/52. The selected-diff request count and Home-during-Resume checks failed; E1/E2 supersede those results. The unchanged core/host/store, focus/title/epoch, conversation and geometry rows passed. |
+| E1: `reopen-verification.json`, `evidence/m2-reopen-tests.log` | Final affected set 9/9, 179.47 s; includes window/tab scales, Files, exact-request workbench and full tab/restart/reopen (94.10 s). |
+| E2: `correction-verification.json`, `evidence/m2-correction-integration.log` | 10/11, with full profile restoration passing in 557.70 s. Its tab-return failure and the later 5/6 gesture run's repeat-click failure are superseded by E1. |
+| E3: `pin-verification.json`, `evidence/m2-final-pins.log` | Final architecture, tests-disabled Release composition and review round trip: 3/3, 237.29 s. |
+| E4: `evidence/uiforetw/{light,dark,high-contrast-light,high-contrast-dark}/capture-facts.json` | All four: schema v7, initial fold true, comparison height 872, open timeline y=78/height=34, open comparison 838; document strip height 28. The capture course passed in E0. |
+| E5: [[BPR-0898]] and its checkpoint | Combined source at `a39cfc91`, with pins committed by `f530e08b`: build and six serial refusal/editor/composition rows pass in 223.30 s. Source at this reconciliation is identical; the final pin contract is also identical to `f530e08b`. |
+
+E0–E4 artifacts live in `/Users/jaeger/.codex/tmp/bpr-rfc0052-m2-yzl4rfoe`.
+The later changes between m2 and this candidate are BPR-0898's typed publication
+failure diagnostics, editor messages and exact-draft retry retention; the tab,
+chrome and geometry inputs are unchanged. E5 covers the changed composition.
+The 0052 Mac passes are therefore reused, with no fresh build or product-test
+rerun for this documentation-only reconciliation. The m2 idle large-history
+rerun also passed (309.55 s); its former follow-up obligation is resolved.
+
+### Pending acceptance and retained session
+
+One existing session, `60bd1ed56e768d60a40b104920641436`, was handed off at
+cursor **42** with **14 ready / 0 decisions**. That is the m2 handoff snapshot,
+not a fresh read of attendance. Its frozen app remains at
+`ba9d272339ad235f1d99688c5c1af198b0c9c7ef`, executable SHA-256
+`a2e5128a8990ccf35cda27b5bebfbbc2c76c2096d97c0fd85e3e7857a0fd8a83`.
+The coordinator owns the already armed hand-back watch and loopback server.
+This round neither reads new verdicts nor prepares another candidate.
+
+The 14 pending choices remain readiness placement; title row; review bar;
+kept-draft mark; tray header; VoiceOver/Right Arrow; Updates fold; incomplete
+history mark; pair-ready tooltip; default Comment/Reply; Comment arrow; Reply
+beside code; plus duplication; and listed/hidden later threads. The pending
+native VoiceOver listen is not supplied by QAccessible names or synthetic key
+delivery. Windows appearance/Narrator, Windows/Linux courses, Linux measured
+876/842 floors, Windows width sweep and measured 884/850 budget are still owed.
+The owner deferred remote execution, not its evidence; never lower Windows'
+850 open budget to pass. These obligations keep m2 and m3 unaccepted.
 
 ## Milestone checkpoints
 
