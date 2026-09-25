@@ -15160,6 +15160,7 @@ namespace bpr::app {
 			return result;
 		}
 		result.SelectedFile       = implementation->WorkbenchHost->selected();
+		result.TabModality        = github_application::implementation::tab_modality(implementation->WorkbenchHost->state().Modality);
 		const auto& epoch         = implementation->EpochHost->state();
 		result.AcceptedComparison = epoch.AcceptedComparison;
 		result.ComparisonPending  = epoch.PendingComparison.has_value();

@@ -123,6 +123,7 @@ namespace bpr::app::detail {
 		std::optional<core::file_identity>   PublishedFile;
 		bool                                 ComparisonPending    = false;
 		bool                                 TabPending           = false;
+		bool                                 TabModality          = false;
 		bool                                 PublicationDisplayed = false;
 	};
 

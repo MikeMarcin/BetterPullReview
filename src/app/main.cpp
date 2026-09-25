@@ -2771,7 +2771,7 @@ namespace {
 		};
 		const auto context = aWindow.comparison_surface()->current_context();
 		const auto anchor  = aWindow.conversation_panel()->anchor_line();
-		return QStringLiteral("host_file=%1 tab_id=%2 tab_file=%3 tab_pair=%4 tab_state=%5 tab_pending=%6 accepted_pair=%7 comparison_pending=%8 published_file=%9 published_pair=%10 displayed_file=%11 publication_displayed=%12 anchor_file=%13 anchor_line=%14 displayed_pair=%15 exact_tab_pair=%16 exact_published_pair=%17")
+		return QStringLiteral("host_file=%1 tab_id=%2 tab_file=%3 tab_pair=%4 tab_state=%5 tab_pending=%6 accepted_pair=%7 comparison_pending=%8 published_file=%9 published_pair=%10 displayed_file=%11 publication_displayed=%12 anchor_file=%13 anchor_line=%14 displayed_pair=%15 exact_tab_pair=%16 exact_published_pair=%17 tab_modality=%18 window_modality=%19")
 			.arg(file(aIdentity.SelectedFile))
 			.arg(aIdentity.ActiveTab ? QString::number(aIdentity.ActiveTab->Id.value()) : QStringLiteral("none"))
 			.arg(file(aIdentity.ActiveTab ? aIdentity.ActiveTab->View.File : std::nullopt))
@@ -2788,7 +2788,9 @@ namespace {
 			.arg(anchor ? QStringLiteral("%1/%2").arg(static_cast<int>(anchor->Side)).arg(anchor->Line) : QStringLiteral("none"))
 			.arg(pair(aIdentity.PublicationDisplayed ? aIdentity.PublishedComparison : std::nullopt))
 			.arg(aIdentity.ActiveTab && aIdentity.AcceptedComparison == std::optional{ aIdentity.ActiveTab->View.Comparison })
-			.arg(aIdentity.PublishedComparison.has_value() && aIdentity.PublishedComparison == aIdentity.AcceptedComparison);
+			.arg(aIdentity.PublishedComparison.has_value() && aIdentity.PublishedComparison == aIdentity.AcceptedComparison)
+			.arg(aIdentity.TabModality)
+			.arg(static_cast<int>(aWindow.current_modality()));
 	}
 
 	/// \brief [[BPR-1198]]. A refreshed tab must finish presenting its exact
@@ -2797,17 +2799,21 @@ namespace {
 		const bpr::app::detail::epoch_refresh_identity_evidence& aIdentity,
 		const bpr::qt::workbench_window&                         aWindow) -> bool
 	{
-		const auto& context = aWindow.comparison_surface()->current_context();
-		const auto* panel   = aWindow.conversation_panel();
-		if (aIdentity.ComparisonPending || aIdentity.TabPending || panel->anchor_line()) {
+		const auto& context     = aWindow.comparison_surface()->current_context();
+		const auto* panel       = aWindow.conversation_panel();
+		const auto  tabModality = aWindow.current_modality() == bpr::qt::review_modality::read
+			|| aWindow.current_modality() == bpr::qt::review_modality::review;
+		if (aIdentity.ComparisonPending || panel->anchor_line() || tabModality != aIdentity.TabModality) {
 			return false;
 		}
-		if (!aIdentity.ActiveTab) {
+		// Overview and Discuss retain the tab collection without presenting
+		// it. Their unselected refresh still owes all review-wide roots.
+		if (!aIdentity.TabModality || !aIdentity.ActiveTab) {
 			return !aIdentity.SelectedFile && !aIdentity.PublishedFile
 				&& !context && !panel->anchor_file();
 		}
 		const auto& tab = *aIdentity.ActiveTab;
-		return tab.State == bpr::core::document_tab_view_state::ready
+		return !aIdentity.TabPending && tab.State == bpr::core::document_tab_view_state::ready
 			&& tab.View.File == std::optional{ bpr::core::file_identity_of("review.cpp") }
 		&& aIdentity.SelectedFile == tab.View.File
 			&& aIdentity.PublishedFile == aIdentity.SelectedFile
@@ -6471,7 +6477,7 @@ namespace {
 			case automated_run::stage::epoch_refresh: {
 				const auto identity            = bpr::app::detail::github_application_fixture_access::epoch_refresh_identity(aApplication);
 				aRun->LastEpochRefreshIdentity = fixture_epoch_refresh_identity_text(identity, window);
-				aRun->LastEpochRefreshFocused  = identity.ActiveTab.has_value();
+				aRun->LastEpochRefreshFocused  = identity.TabModality && identity.ActiveTab.has_value();
 				const auto evidence            = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
 				if (fixture_epoch_refresh_identity_passed(identity, window)

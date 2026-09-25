@@ -304,7 +304,9 @@ endfunction()
 # reconciles the automated course's expected roots with the exact ready tab,
 # selected file, accepted/published pair and rendered publication, and reports
 # the last pre-shutdown identity. Production control flow and the mutation
-# branch are unchanged. Complete scope review is recorded on BPR-1198.
+# branch are unchanged. The 8ebf9e6c follow-up also observes whether the
+# host/window modality presents tabs; Overview retains a tab without showing
+# its file. Complete scope review is recorded on BPR-1198.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -323,7 +325,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0bcd0185d53661b46b87a182797b5e32fabb11624e2e8302eec12959726ea6d6"
+		"f5e60f57cd82235d2b27276d1f7d8e1bcb10b9815f656d965e7cae3092c68b63"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest

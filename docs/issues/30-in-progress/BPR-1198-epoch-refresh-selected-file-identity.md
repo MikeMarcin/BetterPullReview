@@ -36,7 +36,7 @@ The original course could pass only in the temporary empty gap before the tab lo
 - tab, accepted and displayed publication all on base `757e8f259231f0cb31b6774c14e6acdbf54b48f3` / second head `6458d96bf0ccddc1ef2fcf60e61c93a28e69d665`;
 - the exact published comparison key displayed, no line anchor, and all four expected file roots and their children.
 
-The corrected epoch-refresh stage waits for the tab to be ready, then requires the full typed comparison identities, selected/published/displayed file, displayed publication key and drawer anchor to agree before checking all expected focused identities. With no active tab it requires no selected/published/displayed file or anchor and all six review-wide roots. The review-behaviour driver additionally requires a focused seed marker, so a transient unselected pass cannot satisfy its Start review course. The first corrected GHES seed passed in 30967 ms. Both the 120000 ms phase budget and the parent/child timeout registrations are unchanged.
+The corrected epoch-refresh stage waits for the tab to be ready, then requires the full typed comparison identities, selected/published/displayed file, displayed publication key and drawer anchor to agree before checking all expected focused identities. In Overview/Discuss, or with no active tab in Read/Review, it requires no selected/published/displayed file or anchor and all six review-wide roots. The host and window must agree on whether the modality presents tabs. The review-behaviour driver additionally requires a focused seed marker, so a transient unselected pass cannot satisfy its Start review course. The first corrected GHES seed passed in 30967 ms. Both the 120000 ms phase budget and the parent/child timeout registrations are unchanged.
 
 ## Source-pin review
 
@@ -45,3 +45,9 @@ Reviewed the complete pinned-scope delta from `f6de40b6` to this implementation 
 Resealed the full application digest from `5bc3de4d81fc806d9ad3a1b9dd0470200e5b00030daaddd0edc2345aea6cbbb6` to `fd60006f81dc815a9c43dd875dfc0865b9224cd8076bb651d4b93912393d1ab6`, and production source manifest from `394acf6599072cf46bd80e45a56d0ce1557bf0d15b56ab41892d5695c535fb47` to `392d25853d021fc300a86002297cfa5e676ab293877e819b7c1528929c25bd43`. Mutation-branch digest remains `a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a`.
 
 Runtime-only evidence: `/Users/jaeger/.codex/tmp/bpr1198-my4d8usp/`, including the observation-only patch, `before.log`, `before-settled.log`, and `after.log`. Final verification and command state follow in the milestone handoff.
+
+### Modality refinement after the first candidate
+
+The shared plain seed rejected `8ebf9e6c` at 120060 ms because Overview correctly retained tab #1 on its older pair without presenting it: host selection, published/displayed file and anchor were all absent, and all six review-wide roots were present. The course must distinguish a retained tab from a presented tab. The follow-up observes the host's Read/Review modality, checks that the window agrees, and applies focused identity reconciliation only there. Overview/Discuss keep the original unselected contract. This refinement changes only the same test accessor and course guard; the full pinned scope `f6de40b6..8ebf9e6c` plus this follow-up has been reviewed, with no product policy or mutation-branch change.
+
+Final reseal after the modality refinement: full application `4f5514d0792433b199f7181f82d5f8153387b07c6dbec9453f7389600194ad5f`, production source manifest `f0e1b80eaaf3d3307f851fd7b36c794f5576ccc64faa95b246163ebb867cb593`; mutation branch remains unchanged. The earlier hashes above describe the first candidate, whose Overview case was corrected before integration.
