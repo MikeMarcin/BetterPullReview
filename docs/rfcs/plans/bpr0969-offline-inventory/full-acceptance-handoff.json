@@ -7,7 +7,7 @@
   "milestone": "durable-cached-overview",
   "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
   "source_candidate": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
-  "status": "Full supported AC2/AC3 verified at committed source candidate; card/checkpoint documentary closure in progress.",
+  "status": "BPR-0969 supported AC1/AC2/AC3 accepted and card Done; durable-cached-overview milestone and the BPR-0969 plan target complete. Final checkpoint action report-closeout.",
   "inherited_preflight": {
     "status": "incomplete",
     "reason": "state.drift",
@@ -71,7 +71,7 @@
     },
     "format": "22 C++ files passed clang-format 23.1.1; git diff --check passed",
     "tidy": "Five changed core/host/SQLite units checked; epoch parameter naming corrected and focused rerun passed. Other four passed initial strict run; non-user warnings suppressed.",
-    "documentation": "DOCUMENTATION_OK before card closure; unchanged 64-test verifier regression evidence reused from thread candidate.",
+    "documentation": "DOCUMENTATION_OK before and after official card closure; unchanged 64-test verifier regression evidence reused from thread candidate. Final metadata closure gate recorded with the handoff commit.",
     "self_review": "Reviewed atomic revision/availability encoding, exact current-reader admission, cancellation/identity retirement, existing-only catalogue paths, physical shared-actor cache reuse, no live authority minting, endpoint and payload bounds, inert rendering and reconnect clearing. Corrected sibling-window application-session overrestriction. No independent review claim.",
     "exact_candidate": {
       "candidate": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
@@ -81,15 +81,16 @@
       "log": "build/bpr0969-conversations/committed-tests.log"
     }
   },
-  "ownership": "active",
+  "ownership": "quiescent; final documentary commit completes task-owned writes; writer released by the accompanying final handoff to /root",
   "commands": {
     "reproduce_focused": "ctest --preset dev -R '^(application_offline_inventory|application_recent_account_isolation|application_epoch_host|sqlite_epoch_catalog_storage_contract|application_github_window_read_host|sqlite_cached_review_overview|core_github_window_read|qt_pull_request_overview_page)$' --output-on-failure",
     "build": "cmake --build --preset dev --target test_offline_inventory_public_path test_better_pull_review_application_github_window_read_host_tests test_better_pull_review_application_epoch_host_tests test_better_pull_review_sqlite_storage_contract_tests test_cached_review_overview_storage test_better_pull_review_github_window_read_tests test_better_pull_review_qt_pull_request_overview_page_tests",
     "documentation": "python3 scripts/verify_documentation.py --root .",
-    "quiescence": "All implementation builds, tests, tidy and architecture commands collected; final documentary closure remains."
+    "quiescence": "All task-owned builds, tests, tidy and documentation commands collected. No background process, server or child agent is handed off. Protected RFC0052 resources are not owned by this assignment and remain untouched.",
+    "checkpoint": "python3 .agents/skills/implement-rfc/scripts/milestone_checkpoint.py check --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --checkpoint docs/rfcs/plans/bpr0969-offline-inventory/full-acceptance-checkpoint.json --observation docs/rfcs/plans/bpr0969-offline-inventory/full-acceptance-observation.json --accepted-milestone inventory-offline-reopen --execution quiescent --json"
   },
   "protected": "RFC0052 candidate/session/server/waiter unchanged. No live/private target/remote mutation/push/release/delegation/new attended session.",
-  "next_action": "Collect final candidate gates, finish card with exact acceptance records, bind milestone checkpoint, release writer to coordinator.",
+  "next_action": "Coordinator receives the clean main writer scope and may perform authorized push. No successor slice is required for this card. A future disconnected-identity or expanded-source extension requires a separately defined mandate and policy; unsupported cases are explicit.",
   "review_handoff": {
     "new_session": false,
     "reason": "No explicit human criterion; rendered Mac offscreen evidence and automation fulfill visual requirement. New attended session unauthorized."
@@ -145,5 +146,16 @@
     "existing_decision": "Current-process independently accepted authenticated identity is required; unreachable /user refuses cached access.",
     "future_decision_if_extension_requested": "Which local identity/credential proof, revocation model, account selection and disclosure rules may authorize cached authenticated content without current server identity? Cached credential metadata, Recent, Git or overview alone remain forbidden.",
     "blocking_current_scope": false
+  },
+  "card_closeout_commit": "baf5671cca80535f592472f9d7bb58626c9911c4",
+  "checkpoint": {
+    "candidate_revision": "baf5671cca80535f592472f9d7bb58626c9911c4",
+    "observation": "docs/rfcs/plans/bpr0969-offline-inventory/full-acceptance-observation.json",
+    "result": "docs/rfcs/plans/bpr0969-offline-inventory/full-acceptance-check-result.json",
+    "action": "report-closeout",
+    "engineering_acceptance": "not-evaluated by structural checkpoint helper; acceptance supplied by the implementer evidence and card decision",
+    "required_pending": [],
+    "scope": "BPR-0969 only; no broader RFC closeout",
+    "source_unchanged": "git diff --exit-code 5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7 HEAD -- src tests passed at the card-closeout frontier. The final handoff commit changes documentation only."
   }
 }
