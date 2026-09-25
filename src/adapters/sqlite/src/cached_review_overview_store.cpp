@@ -35,7 +35,7 @@ namespace bpr::adapters::sqlite {
 				}
 				aValue = 0;
 				for (auto value : Input.first(8)) {
-					aValue = (aValue << 8) | value;
+					aValue = (aValue << 8U) | static_cast<std::uint64_t>(value);
 				}
 				Input = Input.subspan(8);
 			}
