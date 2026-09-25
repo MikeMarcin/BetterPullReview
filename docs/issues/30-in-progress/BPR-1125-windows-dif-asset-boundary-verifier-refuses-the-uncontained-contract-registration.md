@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1125"
 title: "Windows: verify_dif_asset_boundaries.py refuses the dev and core-only graphs because dif_assets_contract runs uncontained there"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
