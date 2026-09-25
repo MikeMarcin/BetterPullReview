@@ -9,8 +9,8 @@
   "coverage": "complete",
   "milestones": [
     {
-      "id": "mac-active-work",
-      "outcome": "Measure Mac input and cancellation while real composed large-review work is outstanding; repair only demonstrated failures and retain explicit partial coverage when continuous activity or other work categories remain unobserved.",
+      "id": "mac-full-remaining",
+      "outcome": "Complete all independently eligible remaining Mac BPR-0967 measurements and justified repairs in one engineering milestone: initial-load responsiveness, process/Qt/metadata/render boundaries, continuous active-work and cancellation where observable, generated/pathological fallback, and peak live heap; retain exact limitations and defer Windows/Linux.",
       "work": [
         {
           "issue": "BPR-0967"
@@ -30,9 +30,13 @@
         "Preserve the 100 ms input target, prior exact source/cache/history and lifetime-peak evidence, protected RFC0052 session, all other worktrees and every outstanding platform or acceptance obligation.",
         "Exercise public input and supersession or cancellation during observed outstanding work in the safe network-isolated Mac composition, recording precise endpoints and sampled job identities/counts without inferring continuous CPU occupancy.",
         "Preserve exact source, authority, anchors, epoch and cache assertions; any repair has a failing-before control and focused verification against the exact candidate.",
-        "Justify any new completion bounds from measured work while keeping the 100 ms input target and prior 108.139 ms initial-load miss explicit; finish independent unattended work and report remaining active-work coverage honestly."
+        "Justify any new completion bounds from measured work while keeping the 100 ms input target and prior 108.139 ms initial-load miss explicit; finish independent unattended work and report remaining active-work coverage honestly.",
+        "Resolve the unchanged 100 ms initial-load input miss with owning-boundary controls and exact public verification, or preserve a demonstrated external limitation; do not stop at a constituent commit.",
+        "Measure process-entry/QApplication and provisional versus accepted metadata and rendered-widget boundaries through the existing safe composition; distinguish any unavailable production/native compositor endpoint explicitly.",
+        "Exercise generated and pathological fallback with preserved source/metadata identity and exact recovery, measured completion/input budgets, and controls that fail when fallback or recovery is false.",
+        "Measure peak live heap with a declared observation method and justified budget where safely supported, classify unobserved intervals or instrumentation effects honestly, and reconcile all Mac dimensions plus deferred platform/native decisions in one durable handoff."
       ],
-      "boundary": "Coordinator assignment /root/bpr0967_active_work; mandate r4-standalone-mac-20260925; baseline b104c7bcf02dd1c0f3eaf4506a1f9a83faac8bcb on main. Source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-active-work. Prior exits 1-10 preserve historical candidate-specific evidence and unfinished obligations, not a request to repeat prior slices. Own active-work input/cancellation measurements and demonstrated repairs only. A bounded partial result is permitted when full active-work coverage cannot honestly be observed. No threshold relaxation or claim that the 108.139 ms initial-load miss is solved. No delegation, push, live accounts, remote mutation, release or Claude Code. Windows/Linux deferred. Preserve RFC0052 protected 14-question review and all other worktrees."
+      "boundary": "Coordinator assignment /root/bpr0967_full_mac; mandate r4-standalone-mac-20260925 amended by full-remaining-Mac instruction on 2026-09-25; baseline 964e9e5d662ce67d9b9a67e60fe2580c0f1550f8 on main. Exclusive source/tracker writer /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-full-mac. Continue every eligible constituent dimension in this same implementer until Mac acceptance or concrete external blocker. Prior partial stopping boundaries in historical exit text and handoffs are superseded by this assignment; historical observations remain candidate-specific. No threshold relaxation without measured documented justification. No delegation, push, live account/private target/remote mutation, release, extra agents or new attended session. Windows/Linux deferred; all-platform AC3 cannot close. Preserve protected RFC0052 review candidate/session/server/waiter and all other worktrees. Preflight incomplete/state.drift, host_load not_verified; no readiness repair or loading claim."
     }
   ],
   "unplanned_work": []
