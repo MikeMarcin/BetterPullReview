@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1196"
 title: "First tab keeps the selected comparison"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
