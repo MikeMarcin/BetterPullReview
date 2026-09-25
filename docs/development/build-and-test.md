@@ -12,6 +12,17 @@
 - On Linux, stable `libsecret-1>=0.20.0` and its development metadata
 - On Linux, libxcb's development metadata (`xcb` in `pkg-config`), for the
   application's X11 activation host ([[BPR-1024]])
+- On Linux, `dbus-daemon`, `dbus-send` and `gnome-keyring-daemon` in
+  `/usr/bin` or `/bin` (on Ubuntu, the `dbus-daemon`, `dbus-bin` and
+  `gnome-keyring` packages), for the native Secret Service rows
+  ([[BPR-1117]]). Each of those rows starts its own private bus and test-only
+  keyring from these tools and never uses the desktop session. Without them,
+  `linux_secret_service_native_setup`, `linux_secret_service_native` and
+  `linux_secret_service_native_cleanup` fail with
+  `linux-secret-service-private-session:unavailable:<tool>-missing`, and
+  `linux_secret_service_refusal_control`, which needs only `dbus-daemon`, fails
+  the same way. The fake-backed `linux_secret_service_contract` needs none of
+  them. See "Dependency boundary" below
 
 The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
