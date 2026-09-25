@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BPR-1107 — White space, the Sublime Text way (v2)</title>
+<style>
+  :root { --ink: #1d232b; --quiet: #5d6773; --rule: #d8dde3; --card: #ffffff; --ground: #f3f5f7; --accent: #2f6fd6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 1320px; margin: 0 auto; padding: 32px 28px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 36px 0 10px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; }
+  p, li { max-width: 78ch; }
+  .lede { color: var(--quiet); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .quad { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .stack { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  figure { margin: 0; }
+  figure img { width: 100%; display: block; border: 1px solid var(--rule); border-radius: 6px; background: #000; }
+  figcaption { font-size: 13px; color: var(--quiet); margin-top: 4px; }
+  blockquote { margin: 8px 0; padding: 8px 14px; border-left: 3px solid var(--accent); background: #eef3fb; border-radius: 0 6px 6px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--rule); }
+  th { color: var(--quiet); font-weight: 600; }
+  code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; background: #eef0f3; padding: 1px 4px; border-radius: 4px; }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: #e7f0ff; color: var(--accent); }
+  .note { font-size: 13px; color: var(--quiet); }
+</style>
+</head>
+<body>
+<main>
+  <h1>White space, the Sublime Text way</h1>
+  <p class="lede">BPR-1107, design v2 &mdash; as accepted by the owner on 2026-09-25, with his two corrections.
+  Every picture below is the real product drawing, captured offscreen from the review panes and the Appearance page
+  as built; nothing is mocked. <a href="BPR-1107-white-space-v1.html">v1</a> is the page he reviewed.</p>
+
+  <div class="card">
+    <h3>What changed from v1 (attended session 70834742, decisions 5a19ba24 and 0eb6d682)</h3>
+    <p>The owner accepted the drawing and the six choices, and wrote two notes:</p>
+    <blockquote>I think I had inadventently put a space after the tab in my sublime example [&hellip;] Just be sure tab
+    renders as line not a line + dot, dot is space</blockquote>
+    <blockquote>"Under the selection" is weird phrasing, made me want to look at lines beneath the selection. Just call it
+    selection.</blockquote>
+    <ul>
+      <li><b>A tab is a line alone.</b> v1's captures copied the reference picture, stray spaces included
+        (<code>\t\t 2 tabs.</code>, <code>\t 1 tab.</code>), so each run of tabs ended in a dot. The painter was
+        already right: one mark per character, a line for a tab, a dot for a space. The captures below use the owner's
+        own text from his note, byte for byte (two trailing spaces are added to its first line so Trailing has something
+        to draw), and <code>qt_code_sample_painter</code> now checks that exact text pixel by pixel.</li>
+      <li><b>The default is called Selection.</b> The stored value is unchanged (ordinal 1, stable name
+        <code>selection</code>, appearance store version 8), so nothing is migrated. The preview's caption says
+        "white space drawn in the selection".</li>
+    </ul>
+    <div class="pair">
+      <figure><img src="../verification/BPR-1107-white-space-drawing/v2/owner-text-light-zoom.png" alt="The owner's lines, light, enlarged">
+        <figcaption>The owner's three lines, Light, <b>All</b>, enlarged 2&times;: two lines, then "2 tabs."; a line,
+        "1 tab.", a short line to the stop, then "Another tab".</figcaption></figure>
+      <figure><img src="../verification/BPR-1107-white-space-drawing/v2/owner-text-dark-zoom.png" alt="The owner's lines, dark, enlarged">
+        <figcaption>The same, Dark.</figcaption></figure>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>What the owner asked for (attended session cbd48b91, decision 6b7243c3)</h3>
+    <blockquote>Should follow the sublime text model with dots and lines and have settings to control white space.
+    We don't need to support all their settings but at least easy and impactful ones.</blockquote>
+    <p>The full note quotes Sublime Text's <code>draw_white_space</code> documentation; it is on the card.</p>
+  </div>
+
+  <h2>1. The drawing, beside the owner's reference</h2>
+  <p>A space is a small dot centred in its cell. A tab is a thin line from where it starts to its tab stop, so a tab
+  that begins partway to a stop is shorter ("Another tab, smaller because of spacing"). Both are drawn in the
+  <code>code_line_number_text</code> role at a faint alpha, the colour the old tab markers used; no new role.
+  The review panes, the Appearance preview and the theme tiles all draw through one shared painter.</p>
+  <div class="pair">
+    <figure><img src="../verification/BPR-1107-white-space-drawing/owner-sublime-reference-2026-09-24.png" alt="The owner's Sublime Text reference">
+      <figcaption>The owner's reference: Sublime Text, Tab Size 4.</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-all.png" alt="The review panes, dark, All">
+      <figcaption>The review panes, Dark, <b>All</b>: the owner's three lines side by side, the third changed.
+      Tab width 4.</figcaption></figure>
+  </div>
+
+  <h3>The four themes (All)</h3>
+  <div class="stack">
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-light-all.png" alt="Light"><figcaption>Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-all.png" alt="Dark"><figcaption>Dark</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-high_contrast_light-all.png" alt="High contrast light"><figcaption>High contrast light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-high_contrast_dark-all.png" alt="High contrast dark"><figcaption>High contrast dark</figcaption></figure>
+  </div>
+  <p class="note">The offscreen test host resolves the code font to a proportional face, so letter widths differ
+  from a real monospaced setup; the dots and lines are placed wherever the editor puts each character, so they follow
+  whatever font is in effect.</p>
+
+  <h2>2. The setting: when white space is drawn</h2>
+  <p>One row on the Type card, directly beneath Tab width, in RFC-BPR-0034's row language: label, info glyph,
+  control. It is typography, kept per profile in the appearance store (schema version 8, with a migration).</p>
+  <div class="quad">
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/type-card-light.png" alt="Type card, light"><figcaption>Type card, Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/type-card-dark.png" alt="Type card, dark"><figcaption>Type card, Dark</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/type-card-high_contrast_light.png" alt="Type card, high contrast light"><figcaption>Type card, High contrast light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/type-card-high_contrast_dark.png" alt="Type card, high contrast dark"><figcaption>Type card, High contrast dark</figcaption></figure>
+  </div>
+
+  <h3>The six choices</h3>
+  <table>
+    <tr><th>Choice</th><th>Sublime Text</th><th>Draws</th></tr>
+    <tr><td>None</td><td><code>[]</code></td><td>Nothing.</td></tr>
+    <tr><td>Selection <span class="tag">default</span></td><td><code>["selection"]</code> (Sublime's default)</td><td>Every space and tab on the lines the selection washes, nothing elsewhere.</td></tr>
+    <tr><td>Leading</td><td><code>["leading"]</code></td><td>Indentation: from the start of a line to its first other character.</td></tr>
+    <tr><td>Trailing</td><td><code>["trailing"]</code></td><td>From a line's last other character to its end: the stray white space a review most often wants to see.</td></tr>
+    <tr><td>Leading and trailing</td><td><code>["leading", "trailing"]</code></td><td>Both, and so a line of white space alone (Sublime's "isolated").</td></tr>
+    <tr><td>All</td><td><code>["all"]</code></td><td>Everything, including white space enclosed between words.</td></tr>
+  </table>
+
+  <h3>Each choice, Light and Dark</h3>
+  <p class="note">The reader is on line 1, so Selection draws on line 1 of both sides.</p>
+  <div class="stack">
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-light-none.png" alt="Light none"><figcaption>None, Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-none.png" alt="Dark none"><figcaption>None, Dark</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-light-selection.png" alt="Light selection"><figcaption>Selection, Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-selection.png" alt="Dark selection"><figcaption>Selection, Dark</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-light-leading.png" alt="Light leading"><figcaption>Leading, Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-leading.png" alt="Dark leading"><figcaption>Leading, Dark</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-light-trailing.png" alt="Light trailing"><figcaption>Trailing, Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-trailing.png" alt="Dark trailing"><figcaption>Trailing, Dark</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-light-boundary.png" alt="Light boundary"><figcaption>Leading and trailing, Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-boundary.png" alt="Dark boundary"><figcaption>Leading and trailing, Dark</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-light-all.png" alt="Light all"><figcaption>All, Light</figcaption></figure>
+    <figure><img src="../verification/BPR-1107-white-space-drawing/v2/panes-dark-all.png" alt="Dark all"><figcaption>All, Dark</figcaption></figure>
+  </div>
+
+  <h2>3. The default: Selection</h2>
+  <p>It is Sublime Text's own default, which the owner pointed to. It keeps a review calm: nothing is drawn until
+  the reader selects, and then every tab and space of what they selected shows, which is where the question
+  "is that a tab or spaces?" is asked. A profile saved before this change takes the same default when its store is
+  migrated. The alternative offered was <b>Trailing</b>, which would flag stray end-of-line white space in
+  every diff without a gesture. The owner kept Selection.</p>
+
+  <h2>4. What is left out, and why</h2>
+  <ul>
+    <li><b>Combining choices</b> (Sublime's list, e.g. <code>["all_tabs", "selection"]</code>): one choice at a time
+      keeps the row one line and legible. "Leading and trailing" is the one combination that earns its own entry.</li>
+    <li><b>Enclosed and isolated on their own</b>: enclosed alone answers no review question All does not; isolated
+      is already drawn by Leading, Trailing and Leading and trailing, because a line of white space alone is both.</li>
+    <li><b>The <code>_tabs</code>, <code>_spaces</code> and <code>_none</code> refinements</b>: each would multiply the
+      six choices by three for a small gain; add them later if the owner asks.</li>
+    <li><b>The <code>_mixed</code> refinements</b>: they need an indentation style ("translate tabs to spaces"), which
+      a review window reading someone else's code does not have.</li>
+    <li><b>Indentation guides</b> (the faint vertical lines in the reference): a separate Sublime setting, not white
+      space; not built here.</li>
+  </ul>
+
+  <h2>5. What the owner decided (2026-09-25)</h2>
+  <ol>
+    <li>The drawing, a dot per space and a line to the stop per tab: accepted, provided a tab is a line alone.</li>
+    <li>The six choices with Selection as the default: accepted, with the default renamed from "Under the selection".</li>
+  </ol>
+</main>
+</body>
+</html>

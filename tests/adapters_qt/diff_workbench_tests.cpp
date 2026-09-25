@@ -1959,7 +1959,7 @@ namespace {
 			   "all: fifteen tabs and spaces on the left, seventeen on the right with its introduction's two spaces");
 		expect(drawnWith(core::white_space_drawing::trailing) == 0U, "trailing: these lines have none");
 		expect(drawnWith(core::white_space_drawing::selection) == 2U,
-			   "under the selection: the selected change, the right-only introduction, shows its two spaces and nothing else does");
+			   "selection: the selected change, the right-only introduction, shows its two spaces and nothing else does");
 		expect(drawnWith(core::white_space_drawing::none) == 0U, "none: nothing");
 		codeFont.WhiteSpace = core::white_space_drawing::leading;
 		expect(profile.select_code_font(codeFont).accepted(), "leading is accepted again");
@@ -3294,10 +3294,12 @@ namespace {
 	/// the other capture courses do; the assertions run either way.
 	void test_white_space_design_captures()
 	{
-		// The reference's three lines, with two trailing spaces added to the
-		// first so trailing has something to draw.
-		constexpr auto leftText  = "    4 spaces.        8 more spaces  \n\t\t 2 tabs.\n\t 1 tab.\tAnother tab, smaller because of spacing\n";
-		constexpr auto rightText = "    4 spaces.        8 more spaces  \n\t\t 2 tabs.\n\t 1 tab.\tAnother tab, smaller because of spacing!\n";
+		// The owner's example from his note of 2026-09-25, byte for byte, with
+		// two trailing spaces added to the first line so Trailing has something
+		// to draw. v1 copied the reference picture instead, and with it a stray
+		// space after each run of tabs, so every tab run ended in a dot.
+		constexpr auto leftText  = "     4 spaces.          8 more spaces  \n\t\t2 tabs.\n\t1 tab.\tAnother tab, smaller because of spacing\n";
+		constexpr auto rightText = "     4 spaces.          8 more spaces  \n\t\t2 tabs.\n\t1 tab.\tAnother tab, smaller because of spacing!\n";
 		const auto     diff      = computed(leftText, rightText, { }, 51U);
 		const auto     directory = qEnvironmentVariable("BPR_WHITE_SPACE_CAPTURE_DIR");
 		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
@@ -3324,7 +3326,7 @@ namespace {
 				profile.apply_to(workbench);
 				workbench.adopt_appearance(profile);
 				profile.apply_code_font_to(workbench);
-				// The reader on the first line, so under the selection has a
+				// The reader on the first line, so Selection has a
 				// selected line to draw on.
 				static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 0U));
 				QApplication::processEvents();

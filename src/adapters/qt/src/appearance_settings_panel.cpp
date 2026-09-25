@@ -602,7 +602,7 @@ namespace bpr::qt {
 		WhiteSpace->setAccessibleName(QStringLiteral("Draw white space"));
 		for (const auto& [drawing, text] : std::array{
 				 std::pair{ core::white_space_drawing::none, QStringLiteral("None") },
-				 std::pair{ core::white_space_drawing::selection, QStringLiteral("Under the selection") },
+				 std::pair{ core::white_space_drawing::selection, QStringLiteral("Selection") },
 				 std::pair{ core::white_space_drawing::leading, QStringLiteral("Leading") },
 				 std::pair{ core::white_space_drawing::trailing, QStringLiteral("Trailing") },
 				 std::pair{ core::white_space_drawing::boundary, QStringLiteral("Leading and trailing") },

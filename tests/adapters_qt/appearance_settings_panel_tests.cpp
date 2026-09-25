@@ -582,7 +582,7 @@ namespace {
 		auto* const selector = panel.white_space_selector();
 		expect(selector != nullptr && selector->count() == static_cast<int>(core::white_space_drawing_count),
 			   "the row offers one item per choice the core declares");
-		const auto labels = std::array{ QStringLiteral("None"), QStringLiteral("Under the selection"), QStringLiteral("Leading"),
+		const auto labels = std::array{ QStringLiteral("None"), QStringLiteral("Selection"), QStringLiteral("Leading"),
 										QStringLiteral("Trailing"), QStringLiteral("Leading and trailing"), QStringLiteral("All") };
 		for (auto index = 0; index < selector->count(); ++index) {
 			expect(selector->itemData(index).toInt() == index && selector->itemText(index) == labels.at(static_cast<std::size_t>(index)),

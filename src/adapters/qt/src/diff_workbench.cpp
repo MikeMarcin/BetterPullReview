@@ -306,7 +306,7 @@ namespace bpr::qt {
 			///
 			/// \details The Appearance preview draws through the same shared helper
 			/// in the same `code_line_number_text` role, so the preview shows what
-			/// the review window shows. A line is under the selection when the
+			/// the review window shows. A line is in the selection when the
 			/// pane's washed lines hold it. Only the blocks the viewport can show
 			/// are walked.
 			void paint_white_space_of_visible_lines(QPainter& aPainter)

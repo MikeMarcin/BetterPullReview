@@ -20,7 +20,9 @@
 #include <QImage>
 #include <QPainter>
 #include <QPlainTextEdit>
+#include <QRectF>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextLayout>
 
 #include <algorithm>
@@ -530,6 +532,95 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1107]]. The owner's own example from his note of
+	/// 2026-09-25, byte for byte, drawn the way the review panes draw it: each
+	/// tab is a line and nothing else, each space a dot and nothing else, and
+	/// nothing lands on a letter. v1's design captures had copied a stray space
+	/// after the reference's tabs, so each tab run ended in a dot, and he asked
+	/// to be sure a tab is never a line and a dot.
+	void test_the_owners_example_draws_a_tab_as_a_line_alone()
+	{
+		// Large enough that a line (one pixel thick) and a dot (a radius of
+		// 1.6) differ in height by whole pixels. The letter spacing widens every
+		// cell whatever face the host resolves: offscreen macOS answers the
+		// fixed font with its proportional system face, whose space is 6 px.
+		constexpr auto spacing = 12.0;
+		auto           font    = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+		font.setPixelSize(28);
+		font.setLetterSpacing(QFont::AbsoluteSpacing, spacing);
+		auto editor = QPlainTextEdit{ };
+		editor.setFont(font);
+		editor.setLineWrapMode(QPlainTextEdit::NoWrap);
+		editor.setTabStopDistance((QFontMetricsF{ font }.horizontalAdvance(QLatin1Char{ ' ' }) + spacing) * 4.0);
+		editor.setPlainText(QStringLiteral("     4 spaces.          8 more spaces\n\t\t2 tabs.\n\t1 tab.\tAnother tab, smaller because of spacing"));
+		editor.resize(1'600, 240);
+		editor.show();
+		QApplication::processEvents();
+
+		auto image = QImage{ editor.viewport()->size(), QImage::Format_ARGB32 };
+		image.fill(Qt::transparent);
+		auto painted = std::uint32_t{ 0U };
+		{
+			auto painter = QPainter{ &image };
+			for (auto block = editor.document()->firstBlock(); block.isValid(); block = block.next()) {
+				painted += qt::paint_white_space_of_block(painter, editor, block, core::white_space_drawing::all, false, QColor{ 255, 255, 255 });
+			}
+		}
+		expect(painted == 18U + 3U + 8U, "one mark per white space character: 18 spaces, then 2 tabs and a space, then 2 tabs and 6 spaces");
+
+		const auto lit = [&image](const int aX, const int aY) {
+			return aX >= 0 && aY >= 0 && aX < image.width() && aY < image.height() && image.pixelColor(aX, aY).alpha() > 0;
+		};
+		// The rows lit in one column around the row's middle: a line is one
+		// or two (its antialiased edge), a dot of radius 1.6 at least three.
+		const auto height = [&lit](const int aX, const int aMiddle) {
+			auto rows = 0;
+			for (auto y = aMiddle - 6; y <= aMiddle + 6; ++y) {
+				rows += lit(aX, y) ? 1 : 0;
+			}
+			return rows;
+		};
+		auto tabs = 0;
+		auto dots = 0;
+		for (auto block = editor.document()->firstBlock(); block.isValid(); block = block.next()) {
+			const auto text = block.text();
+			auto       at   = QTextCursor{ block };
+			for (auto index = 0; index < text.size(); ++index) {
+				at.setPosition(block.position() + index);
+				const auto start = editor.cursorRect(at);
+				at.setPosition(block.position() + index + 1);
+				const auto end    = editor.cursorRect(at);
+				const auto left   = start.left();
+				const auto right  = end.left();
+				const auto middle = static_cast<int>(QRectF{ start }.center().y());
+				if (right - left < 12) {
+					continue; // Too narrow to tell a line from a dot.
+				}
+				auto tallest = 0;
+				auto across  = 0;
+				for (auto x = left + 2; x < right - 2; ++x) {
+					tallest = std::max(tallest, height(x, middle));
+					across += height(x, middle) > 0 ? 1 : 0;
+				}
+				const auto character = text.at(index);
+				if (character == QLatin1Char{ '\t' }) {
+					++tabs;
+					expect(across == right - left - 4, "a tab is a line all the way across its cell, to its stop");
+					expect(tallest <= 2, "a tab is a line alone: no dot anywhere on it");
+				} else if (character == QLatin1Char{ ' ' }) {
+					++dots;
+					const auto centre = (left + right) / 2;
+					expect(lit(centre, middle) && tallest >= 3, "a space is a dot at the middle of its cell");
+					expect(!lit(left + 2, middle) && !lit(right - 3, middle), "and not a line across it");
+				} else {
+					expect(across == 0, "nothing is drawn on a letter, so no dot follows a tab where the owner's text has none");
+				}
+			}
+		}
+		expect(tabs >= 3 && dots == 25, "every space of the owner's text was read, and his tabs (the partial one when it has room)");
+		editor.hide();
+	}
+
 	/// \brief [[BPR-1107]]. A sample painted directly draws its white space
 	/// for each choice, and a text editor's line through the same helper.
 	void test_each_choice_draws_the_white_space_it_names()
@@ -559,7 +650,7 @@ namespace {
 		};
 		expect(painted(core::white_space_drawing::none, true) == 0U, "none draws nothing");
 		expect(painted(core::white_space_drawing::selection, false) == 0U && painted(core::white_space_drawing::selection, true) == 4U,
-			   "under the selection draws every white space character of a selected row and nothing on another");
+			   "selection draws every white space character of a selected row and nothing on another");
 		expect(painted(core::white_space_drawing::leading, false) == 1U, "leading draws the indenting tab");
 		expect(painted(core::white_space_drawing::trailing, false) == 2U, "trailing draws the two trailing spaces");
 		expect(painted(core::white_space_drawing::boundary, false) == 3U, "leading and trailing draws both");
@@ -638,6 +729,7 @@ auto main(int argc, char** argv) -> int
 	test_a_sample_becomes_a_document_and_a_classification();
 	test_painting_a_sample_directly_uses_the_supplied_palette();
 	test_white_space_is_dots_and_lines_to_the_stop();
+	test_the_owners_example_draws_a_tab_as_a_line_alone();
 	test_each_choice_draws_the_white_space_it_names();
 	test_the_gutter_paints_the_numbers_it_was_given();
 	std::cout << "code-sample-painter-tests:pass\n";

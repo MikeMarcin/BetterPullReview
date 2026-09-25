@@ -462,7 +462,7 @@ namespace bpr::qt {
 			case core::white_space_drawing::none:
 				return QStringLiteral("white space not drawn");
 			case core::white_space_drawing::selection:
-				return QStringLiteral("white space drawn under the selection");
+				return QStringLiteral("white space drawn in the selection");
 			case core::white_space_drawing::leading:
 				return QStringLiteral("leading white space drawn");
 			case core::white_space_drawing::trailing:

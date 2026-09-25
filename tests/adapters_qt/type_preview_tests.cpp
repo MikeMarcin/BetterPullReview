@@ -232,11 +232,15 @@ namespace {
 			"the wash is laid over the added band rather than under it, which is "
 			"the order the comparison panes lay them in");
 
-		// [[BPR-1107]]. The default draws white space under the selection: the
-		// selected added row's two tabs and the three spaces between its words.
+		// [[BPR-1107]]. The default, Selection, draws white space in the
+		// selection: the selected added row's two tabs and the three spaces
+		// between its words. The caption names it in the row's word, never
+		// "under the selection", which the owner read as the lines beneath it.
 		expect(
-			preview.statistics().WhiteSpacePainted == 5U,
-			"under the selection, the selected row's two tabs and three spaces");
+			preview.statistics().WhiteSpacePainted == 5U
+				&& preview.caption_text().contains(QStringLiteral("white space drawn in the selection"))
+				&& !preview.caption_text().contains(QStringLiteral("under the selection")),
+			"selection, the selected row's two tabs and three spaces, and the caption says so");
 		const auto drawnWith = [&preview, &profile](const core::white_space_drawing aDrawing) {
 			auto code       = profile.typography().Code;
 			code.WhiteSpace = aDrawing;

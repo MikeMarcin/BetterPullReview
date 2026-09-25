@@ -108,7 +108,7 @@ namespace bpr::adapters::sqlite::detail {
 		constexpr std::string_view WhiteSpaceColumn = "code_white_space";
 
 		/// \brief What a version-7 record carries into version 8: the default a
-		/// fresh installation has, Sublime Text's own "under the selection".
+		/// fresh installation has, Selection, which is Sublime Text's own.
 		constexpr auto MigratedWhiteSpace = core::code_font_settings{ }.WhiteSpace;
 
 		/// \brief Returns every column the settings table declares, in order.

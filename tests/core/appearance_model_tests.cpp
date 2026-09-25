@@ -580,7 +580,7 @@ namespace {
 		}
 		std::ranges::sort(names);
 		expect(std::ranges::adjacent_find(names) == names.end(), "no two choices share a durable name");
-		expect(code_font_settings{ }.WhiteSpace == white_space_drawing::selection, "the default is Sublime Text's own: under the selection");
+		expect(code_font_settings{ }.WhiteSpace == white_space_drawing::selection, "the default is Sublime Text's own: selection");
 		expect(bounds_of(typography_field::white_space).Minimum == 0U
 				   && bounds_of(typography_field::white_space).Maximum == white_space_drawing_count - 1U,
 			   "the bounds are the vocabulary's ordinals");

@@ -1297,7 +1297,7 @@ namespace {
 			auto       expected                 = original;
 			expected.Typography.Code.WhiteSpace = core::white_space_drawing::selection;
 			expect(loaded.has_value() && loaded->has_value() && **loaded == expected,
-				   "it keeps every value it had and takes the fresh default for white space, under the selection");
+				   "it keeps every value it had and takes the fresh default for white space, selection");
 		}
 		{
 			const auto path = scratch.file("corrupt-white-space.sqlite3");

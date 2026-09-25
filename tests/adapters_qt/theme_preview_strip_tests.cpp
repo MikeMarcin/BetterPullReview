@@ -301,7 +301,7 @@ namespace {
 		};
 		expect(drawn(core::white_space_drawing::none) == 0U, "none draws no white space on any tile");
 		expect(drawn(core::white_space_drawing::all) > 0U, "all draws the snippet's spaces on the tiles");
-		expect(drawn(core::white_space_drawing::selection) == 0U, "the tile snippet selects nothing, so under the selection draws nothing");
+		expect(drawn(core::white_space_drawing::selection) == 0U, "the tile snippet selects nothing, so Selection draws nothing");
 	}
 
 	/// \brief C2's pixel comparison: both halves of both System tiles.

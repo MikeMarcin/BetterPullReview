@@ -49,11 +49,12 @@ candidate built from `ed2b3f14`.
 the owner's white-space model. The preview and the review panes draw a space
 as a dot and a tab as a line to its stop, through one shared painter. The Type
 card gains a twelfth row, White space, directly beneath Tab width. It offers
-None, Under the selection, Leading, Trailing, Leading and trailing, and All,
-and is persisted with the typography (appearance store version 8). C3 and the
-Type paragraph below say twelve rows accordingly. The owner's acceptance of
-the drawing, the choices and the default is BPR-1107's own criterion. It is
-pending, and it does not reopen C1 to C6.
+None, Selection, Leading, Trailing, Leading and trailing, and All, with
+Selection the default, and is persisted with the typography (appearance store
+version 8). C3 and the Type paragraph below say twelve rows accordingly. The
+owner's acceptance of the drawing, the choices and the default is BPR-1107's
+own criterion. He accepted all three on 2026-09-25, renaming the default from
+"Under the selection" to Selection, and it does not reopen C1 to C6.
 
 ## Summary and scope
 
