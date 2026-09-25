@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
-metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v7.html","criteria":["AC-08","AC-10"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
+metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v8.html","criteria":["AC-08","AC-10"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
 ---
 
 # BPR-1133: Comment and Reply where the line and the thread are
@@ -35,7 +35,7 @@ line.
 ## Boundaries
 
 This card implements [RFC-BPR-0052](../../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)
-AC-08, AC-10 as drawn in [round v7](../../design/BPR-1106-scaffolding-v7.html). The
+AC-08, AC-10 as drawn in [round v8](../../design/BPR-1106-scaffolding-v8.html). The
 core decides, the host performs, Qt presents. It changes no publication,
 authority or review semantics and no provider, Git or storage capability. It
 starts in canonical order, after RFC-BPR-0028 to RFC-BPR-0038 close. Run the

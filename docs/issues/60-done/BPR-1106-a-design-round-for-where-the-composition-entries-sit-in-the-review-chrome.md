@@ -6,7 +6,7 @@ status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"Done: the owner's scaffolding decision is recorded here; RFC-BPR-0052 (BPR-1129 to BPR-1135) implements it; RFC-BPR-0028 closes on what it built","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1106-placement-v001","decision":"ece7a6f3-3e54-459f-9c41-eba06732a91d","selected":"Other: discuss outside the attended review flow in a separate session"},"owner_design_decision":{"date":"2026-09-24","session":"Claude Code design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, the separate session decision ece7a6f3 asked for","design":"docs/design/BPR-1106-scaffolding-v7.html","rounds":["docs/design/BPR-1106-composition-entries-v2.html","docs/design/BPR-1106-scaffolding-v4.html","docs/design/BPR-1106-scaffolding-v5.html","docs/design/BPR-1106-scaffolding-v6.html","docs/design/BPR-1106-scaffolding-v7.html"],"open":"none: the default fold (folded), the keys (as proposed) and where the work lives (an RFC of its own) were answered on 2026-09-24","revised":"2026-09-24: the review bar reads Updates and the comparison first, then the tab's controls; open, the timeline runs the full width above it"},"successor_rfc":"RFC-BPR-0052"}
+metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"Done: the owner's scaffolding decision is recorded here; RFC-BPR-0052 (BPR-1129 to BPR-1135) implements it; RFC-BPR-0028 closes on what it built","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1106-placement-v001","decision":"ece7a6f3-3e54-459f-9c41-eba06732a91d","selected":"Other: discuss outside the attended review flow in a separate session"},"owner_design_decision":{"date":"2026-09-24","session":"Claude Code design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, the separate session decision ece7a6f3 asked for","design":"docs/design/BPR-1106-scaffolding-v8.html","rounds":["docs/design/BPR-1106-composition-entries-v2.html","docs/design/BPR-1106-scaffolding-v4.html","docs/design/BPR-1106-scaffolding-v5.html","docs/design/BPR-1106-scaffolding-v6.html","docs/design/BPR-1106-scaffolding-v7.html","docs/design/BPR-1106-scaffolding-v8.html"],"open":"none: the default fold (folded), the keys (as proposed) and where the work lives (an RFC of its own) were answered on 2026-09-24","revised":"2026-09-24, twice: the review bar reads Updates and the comparison first, then the tab's controls (v7); open, the timeline sits just below the bar (v8)"},"successor_rfc":"RFC-BPR-0052"}
 acceptance: [{"criterion":"AC1 The design page shows at least three placements with the current row as the baseline, each with its stated costs, rendered and inspected headless at both sizes in both appearances","outcome":"pass","revision":"4e9037e6","evidence":{"kind":"artifact","detail":"docs/design/BPR-1106-composition-entries-v1.html: five placements on the accepted RFC-BPR-0028 full review surface (A the current row as baseline, B the strip's review menu, C the Updates line's right end with the readiness wording in its track, D the conversation drawer's foot, E a Compose control in the strip), each with its height from the comparison, Windows strip width at the 902 floor, clicks to each entry, keyboard reach and readiness line, drawn to scale and side by side. 50 frames from docs/design/BPR-1106-composition-entries-frames-v1.html (every placement at 1280x852 and 1920x1080, light and dark, macOS and Windows chrome, plus loading at 1280x852 on macOS in both appearances) and 8 close-ups under docs/verification/BPR-1106-composition-entries/, rendered with Chrome --headless=new --screenshot at exact window size and inspected; the page itself rendered headless at 1360 px and inspected. No product source changed.","path":"docs/design/BPR-1106-composition-entries-v1.html"}},{"criterion":"AC2 (form amended by the owner's decision ece7a6f3, 2026-09-25: recorded from the owner's own design session rather than one attended candidate) The owner's choice is recorded here","outcome":"pass","revision":"053abefe","evidence":{"kind":"observation","detail":"The owner's answers in design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, 2026-09-24, verbatim in the section 'Owner decision, 2026-09-24: the review workbench's scaffolding': modality right; a review bar with the active tab's controls on its left and a collapsible Updates line fully above it when expanded; T; icons with tooltips for Compose review, Comment and the progress control; Comment in the review bar; and RFC-BPR-0025's tabs brought back. Drawn as docs/design/BPR-1106-scaffolding-v6.html from 13 frames under docs/verification/BPR-1106-scaffolding-v6/. Not fingerprint-bound: decision ece7a6f3 took the question out of attended review. The default fold and the keys were answered afterwards, with where the work lives (section 'Where it lives, the default fold and the keys').","path":"docs/issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md#owner-decision-2026-09-24-the-review-workbenchs-scaffolding"}},{"criterion":"AC3 Whatever the owner chooses is reflected in RFC-BPR-0028 AC-01 and its chrome paragraph, and any implementation is carded, not done on this card","outcome":"pass","revision":"053abefe","evidence":{"kind":"artifact","detail":"The owner chose an RFC of its own. RFC-BPR-0052 carries the decided scaffolding: eleven acceptance criteria, a closeout card and six Backlog slices, BPR-1129 to BPR-1134 (with BPR-1135 closing it). It supersedes RFC-BPR-0028's chrome where they conflict and schedules RFC-BPR-0025's tab contract. RFC-BPR-0028 AC-01 keeps the owner's 2026-09-24 wording, so RFC-BPR-0028 closes on what it built; its current-state section, chrome paragraph and non-goals name the successor. RFC-BPR-0025's status and docs/ux/workbench-specification.md say the same. No implementation was done on this card.","path":"docs/rfcs/RFC-BPR-0052-review-workbench-scaffolding.md"}}]
 ---
 
@@ -429,4 +429,37 @@ Windows. [Round v7](../../design/BPR-1106-scaffolding-v7.html), with 13 renders
 under `docs/verification/BPR-1106-scaffolding-v7/`, draws it. RFC-BPR-0052's
 AC-03 and its closeout checklist are reworded to match, and so are BPR-1129,
 BPR-1130 and RFC-BPR-0028's successor note.
+
+## Second revision, 2026-09-24: the timeline below the bar
+
+Having seen round v7 (`a53ee9cc`), the owner asked, verbatim:
+
+> hmm maybe it makes more sense if the epoch line is below that bar instead of
+> above it, what do you think
+
+The answer given was yes, for four reasons:
+
+- The bar no longer moves when the timeline opens or folds. With the timeline
+  above it, opening pushed the bar, its disclosure, the tab tools and both
+  icons down 34 pixels, out from under the pointer.
+- A disclosure opens what is beneath it.
+- The bar's summary reads first, and the timeline under it is that summary's
+  detail.
+- The timeline that picks the active tab's pair sits right above the tabs it
+  changes.
+
+The costs named were none in height, and the tab tools sitting one row
+further from the tabs while the timeline is open. The owner answered,
+verbatim:
+
+> ya do below
+
+So the chrome, open, is the title row, the review bar, the timeline, then the
+tabs. Folded, it is the title row, the review bar, then the tabs. The heights
+are unchanged: 710 open and 744 folded at 1280×852 on macOS, 712 and 746 on
+Windows. [Round v8](../../design/BPR-1106-scaffolding-v8.html), with 13
+renders under `docs/verification/BPR-1106-scaffolding-v8/`, draws it.
+RFC-BPR-0052's AC-01 and AC-03 and its closeout checklist are reworded to
+match. BPR-1129, BPR-1130, RFC-BPR-0028's successor note, the RFC index and
+the workbench specification follow.
 

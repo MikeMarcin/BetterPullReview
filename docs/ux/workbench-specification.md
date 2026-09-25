@@ -49,8 +49,8 @@ the composition entry row, **Compose review** and **Draft comment or reply**
 line ([[BPR-0795]]). Nothing else sits between the strip and the epoch line.
 [[BPR-1106]]'s design round decided their successor on 2026-09-24:
 [RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md).
-It puts a calm title row with the modality at its right, above a folding
-Updates line and a review bar. The bar holds the active tab's controls and
+It puts a calm title row with the modality at its right, above a review bar
+and, below that, a folding Updates line. The bar holds the active tab's controls and
 Compose review and Comment. Document tabs fill the comparison's header. Until
 that lands, the chrome is as described here.
 

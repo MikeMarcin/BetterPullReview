@@ -744,8 +744,9 @@ composition entries sit to the workbench's outer scaffolding. The decision,
 verbatim on BPR-1106, has five parts:
 
 - the modality at the title row's right;
-- the Updates line kept full width, without its permanent caption, folding,
-  and fully above a review bar;
+- the Updates line kept full width, without its permanent caption, and
+  folding, its timeline opening just below a review bar (the owner's second
+  same-day revision; round v6 had it above);
 - the review bar reading, from its left, Updates and the comparison, then
   the active tab's controls, with Compose review and Comment as icons with
   tooltips on its right (the owner's same-day revision);

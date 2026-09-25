@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
 milestone: "Review workbench scaffolding"
-metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v7.html","criteria":["AC-01","AC-02","AC-03","AC-10","AC-11"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
+metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v8.html","criteria":["AC-01","AC-02","AC-03","AC-10","AC-11"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
 ---
 
 # BPR-1129: The title row and the review bar replace the composition entry row
@@ -16,7 +16,7 @@ metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/desi
 
 The title row keeps Home, the drawer toggles, the pull request's name, the
 modality at its right, refresh, the comments toggle with the new-comment
-count, account and settings. A full-width review bar under the Updates line
+count, account and settings. A full-width review bar directly under the title row
 takes what leaves it and replaces the composition entry row:
 
 - from its left, the Updates disclosure with the comparison and its dates,
@@ -52,8 +52,9 @@ commands join the Pull Request menu.
 
 ## Acceptance
 
-- The chrome is the title row, the Updates line while open, then the review
-  bar, and nothing else sits between them in any state or modality.
+- The chrome is the title row, the review bar, then the Updates line's
+  timeline while open, and nothing else sits between them in any state or
+  modality.
 - The title row holds only the listed controls, with the modality at its
   right; every control stays top level at each platform's width floor, swept
   again on Windows.
@@ -68,7 +69,7 @@ commands join the Pull Request menu.
 ## Boundaries
 
 This card implements [RFC-BPR-0052](../../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)
-AC-01, AC-02, AC-03, AC-10, AC-11 as drawn in [round v7](../../design/BPR-1106-scaffolding-v7.html). The
+AC-01, AC-02, AC-03, AC-10, AC-11 as drawn in [round v8](../../design/BPR-1106-scaffolding-v8.html). The
 core decides, the host performs, Qt presents. It changes no publication,
 authority or review semantics and no provider, Git or storage capability. It
 starts in canonical order, after RFC-BPR-0028 to RFC-BPR-0038 close. Run the

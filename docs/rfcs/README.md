@@ -258,7 +258,7 @@ RFC-BPR-0052 is the review workbench's scaffolding, from the owner's design
 session on [BPR-1106](../issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md)
 (2026-09-24). It has a calm title row with the modality at its right, and a
 review bar that holds the active tab's controls and Compose review and
-Comment. Above the bar is an Updates line that folds, and RFC-BPR-0025's
+Comment. Below the bar is an Updates line that folds, and RFC-BPR-0025's
 document tabs fill the comparison's header. Asked where it should live, the
 owner chose an RFC of its own. It stands after RFC-BPR-0038 and before the
 review-tour pack, whose tour tab and Conventional Comments labels fill places

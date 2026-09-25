@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
-metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v7.html","criteria":["AC-01","AC-04","AC-11"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
+metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/design/BPR-1106-scaffolding-v8.html","criteria":["AC-01","AC-04","AC-11"],"reservation":"docs/issues/_reservations/BPR-1129--BPR-1135--89a65c75ff1a.json"}
 ---
 
 # BPR-1130: The Updates line folds and loses its permanent caption
@@ -15,8 +15,9 @@ metadata: {"origin":"owner decision on BPR-1106, 2026-09-24","design":"docs/desi
 ## Outcome
 
 The Updates line folds from the review bar's disclosure. Open, its timeline
-runs alone across the whole window above the bar; folded, it leaves no row.
-The bar names the comparison and its dates either way. A new window starts folded, and each
+runs alone across the whole window just below the bar; folded, it leaves no
+row. The bar does not move either way, and it names the comparison and its
+dates in both states. A new window starts folded, and each
 window restores its own choice through the existing window restoration.
 Nothing folds or opens on its own.
 
@@ -45,7 +46,7 @@ that from v2 on, but it was never asked separately. Without an answer,
 ## Boundaries
 
 This card implements [RFC-BPR-0052](../../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md)
-AC-01, AC-04, AC-11 as drawn in [round v7](../../design/BPR-1106-scaffolding-v7.html). The
+AC-01, AC-04, AC-11 as drawn in [round v8](../../design/BPR-1106-scaffolding-v8.html). The
 core decides, the host performs, Qt presents. It changes no publication,
 authority or review semantics and no provider, Git or storage capability. It
 starts in canonical order, after RFC-BPR-0028 to RFC-BPR-0038 close. Run the
