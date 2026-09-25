@@ -42,3 +42,14 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 bpr_enable_hardening(better_pull_review_adapter_syntax)
 bpr_enable_warnings(better_pull_review_adapter_syntax)
+
+# [[BPR-0974]]. The packaged definitions this adapter classifies with. Where the
+# image keeps its Qt resources beside it, the framework is built without them
+# and they reach the application through the resource bundle, from the
+# framework's own collection; everywhere else the framework embeds them.
+get_property(bpr_syntax_collection GLOBAL PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_COLLECTION)
+get_property(bpr_syntax_index GLOBAL PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_INDEX)
+bpr_add_qt_resource_collection(
+    QRC "${bpr_syntax_collection}"
+    DEPENDS "${bpr_syntax_index}"
+)

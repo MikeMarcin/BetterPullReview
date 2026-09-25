@@ -150,7 +150,15 @@ class AppIconAssetsTests(unittest.TestCase):
             / "linux/io.github.MikeMarcin.BetterPullReview.desktop"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("qt6_add_resources", cmake)
+        # [[BPR-0974]]. Embedded through qt6_add_resources in every graph but
+        # the tests-disabled Windows one, which carries the same icon in its
+        # resource bundle.
+        resources = (REPOSITORY_ROOT / "cmake/BprQtResources.cmake").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("bpr_add_qt_resources(\n        app_better_pull_review", cmake)
+        self.assertIn("bpr_add_qt_resource_bundle(app_better_pull_review)", cmake)
+        self.assertIn("qt6_add_resources(", resources)
         self.assertIn("windows/better_pull_review.rc", cmake)
         self.assertIn("macos/better_pull_review.icns", cmake)
         self.assertIn('OUTPUT_NAME "BetterPullReview"', cmake)

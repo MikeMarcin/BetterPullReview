@@ -25,9 +25,11 @@ from scripts.verify_live_mutation_isolation import (  # noqa: E402
     POSITIVE_CONTROL_SYMBOL,
     REQUIRED_PORT_IMPLEMENTATION,
     _check_binaries,
+    COMPILED_RESOURCE_HEADER,
     construction_site_counts,
     construction_sites,
     forbidden_symbols_in,
+    is_compiled_resource,
     object_manifest_entries,
     port_implementations,
     symbol_command,
@@ -186,6 +188,24 @@ class ObjectInspectionTests(unittest.TestCase):
                     "C:/b/two.exe": ["C:/b/c.obj"],
                 },
             )
+
+    def test_only_a_real_compiled_resource_is_passed_over(self) -> None:
+        # BPR-0974. A helper's version resource links as a .res, which dumpbin
+        # cannot read and which holds no code. Recognised by content: a COFF
+        # object or a /bigobj object renamed .res is still read.
+        with contained_temporary_directory() as directory:
+            root = Path(directory)
+            resource = root / "version.rc.res"
+            resource.write_bytes(COMPILED_RESOURCE_HEADER + bytes(16) + b"VS_VERSION_INFO")
+            renamed_object = root / "renamed.res"
+            renamed_object.write_bytes(b"\x64\x86" + bytes(30))
+            renamed_bigobj = root / "bigobj.res"
+            renamed_bigobj.write_bytes(b"\x00\x00\xff\xff" + bytes(28))
+            named_object = root / "version.obj"
+            named_object.write_bytes(resource.read_bytes())
+            self.assertTrue(is_compiled_resource(str(resource)))
+            for path in (renamed_object, renamed_bigobj, named_object, root / "absent.res"):
+                self.assertFalse(is_compiled_resource(str(path)), path.name)
 
     def test_a_binary_with_no_objects_recorded_is_not_silently_clean(
         self,

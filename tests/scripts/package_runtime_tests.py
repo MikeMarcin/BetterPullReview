@@ -48,6 +48,25 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
         self.assertNotIn("LibArchive", {item["name"] for item in runtime.components({"platform": "Windows"})})
 
+    def test_windows_runtime_declares_its_resource_bundle(self):
+        # [[BPR-0974]]. The bundle is installed before deployment, is not a PE
+        # image to inspect, and its absence refuses the runtime.
+        self.assertEqual(runtime.RUNTIME_DATA, {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []})
+        config = (ROOT / "packaging/Install.cmake").read_text()
+        self.assertLess(config.index("${BPR_QT_RESOURCE_BUNDLE_NAME}"), config.index("install(SCRIPT"))
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            for system in ("Darwin", "Linux"):
+                self.assertEqual(runtime.runtime_data(root, system), set())
+            with self.assertRaisesRegex(ValueError, "declared runtime data missing: better_pull_review.rcc"):
+                runtime.runtime_data(root, "Windows")
+            (root / "better_pull_review.rcc").mkdir()
+            with self.assertRaisesRegex(ValueError, "declared runtime data missing"):
+                runtime.runtime_data(root, "Windows")
+            (root / "better_pull_review.rcc").rmdir()
+            (root / "better_pull_review.rcc").write_bytes(b"qres")
+            self.assertEqual(runtime.runtime_data(root, "Windows"), {root / "better_pull_review.rcc"})
+
     def test_runtime_module_allowlist(self):
         for name in ("Qt6Core.dll", "libQt6Network.so.6", "libQt6XcbQpa.so.6.11.2"):
             self.assertTrue(runtime.qt_library(name))

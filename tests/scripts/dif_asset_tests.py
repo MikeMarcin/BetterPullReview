@@ -1087,6 +1087,46 @@ class DifAssetTests(unittest.TestCase):
         with self.assertRaisesRegex(BOUNDARY.BoundaryError, "accepted ten strips"):
             BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "dev")
 
+    def test_boundary_verifier_accepts_the_windows_resource_bundle(self) -> None:
+        # [[BPR-0974]]. The tests-disabled Windows image carries the strips in
+        # a bundle beside it, uncompressed, and no longer in itself.
+        build = make_selected_build(Path(self.temporary.name) / "bundled", "app-release")
+        (build / ".qt/rcc/bpr_dif.qrc").unlink()
+        application = build / "src/app/better_pull_review"
+        strips = [REPOSITORY_ROOT / BOUNDARY.PRODUCTION_ROOT / name for name in BOUNDARY.PRODUCTION_STRIPS]
+        application.write_bytes(b"BPR_SYNTHETIC_APPLICATION\0")
+        bundle = application.parent / BOUNDARY.EXTERNAL_BUNDLE
+        bundle.write_bytes(b"qres" + b"".join(path.read_bytes() for path in strips))
+        collection = build / "src/app/_bpr_resources" / BOUNDARY.EXTERNAL_COLLECTION
+        collection.parent.mkdir(parents=True)
+
+        def write_collection(attributes: str = ' compression-algorithm="none"', extra: str = "") -> None:
+            collection.write_text(
+                '<RCC><qresource prefix="/icons"><file alias="16x16/better_pull_review.png">icon.png</file></qresource>'
+                '<qresource prefix="/bpr/dif">' + "".join(
+                    f'<file alias="{path.name}"{attributes}>{path}</file>' for path in strips
+                ) + extra + '</qresource></RCC>', encoding="utf-8")
+
+        write_collection()
+        self.assertEqual(
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")["accepted_compiled_strips"],
+            len(BOUNDARY.PRODUCTION_STRIPS),
+        )
+        write_collection(attributes="")
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "entry is invalid"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")
+        write_collection(extra='<file alias="raw.png" compression-algorithm="none">raw.png</file>')
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "accepted ten strips"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")
+        write_collection()
+        bundle.write_bytes(b"qres")
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "bundle lacks accepted bytes"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")
+        bundle.write_bytes(b"qres" + b"".join(path.read_bytes() for path in strips))
+        application.write_bytes(b"BPR_SYNTHETIC_APPLICATION\0" + strips[0].read_bytes())
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "still embeds"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")
+
     def test_boundary_verifier_allows_exact_generated_graph_paths(self) -> None:
         build = make_selected_build(Path(self.temporary.name) / "accepted-graph", "dev")
         graph = build / "build.ninja"

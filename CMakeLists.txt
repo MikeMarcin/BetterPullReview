@@ -76,8 +76,14 @@ option(
     "Enable BetterPullReview coding-standard utility targets"
     "${BUILD_TESTING}"
 )
+# The publisher the Windows installer and version resources name.
+set(BPR_VENDOR_NAME "GameCoreTech")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Hardening.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Warnings.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprWindowsImage.cmake")
+# Before the dependencies: whether the syntax definitions are embedded in
+# KSyntaxHighlighting depends on where this graph keeps its Qt resources.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprQtResources.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprDependencies.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprSQLiteProvider.cmake")
 

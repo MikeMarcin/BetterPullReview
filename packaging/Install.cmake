@@ -36,12 +36,19 @@ endif()
 install(TARGETS app_better_pull_review tool_better_pull_review_agent_supervisor
     tool_better_pull_review_mcp_context_helper
     RUNTIME DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime)
+if(BPR_EXTERNAL_QT_RESOURCES)
+    # [[BPR-0974]]. The image's Qt resources ship beside it, and it refuses to
+    # start without exactly this file (cmake/BprQtResources.cmake). Installed
+    # before the deployment script, which declares it as runtime data.
+    install(FILES "$<TARGET_FILE_DIR:app_better_pull_review>/${BPR_QT_RESOURCE_BUNDLE_NAME}"
+        DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime)
+endif()
 configure_file("${PROJECT_SOURCE_DIR}/packaging/DeployRuntime.cmake.in"
     "${CMAKE_BINARY_DIR}/_bpr/DeployRuntime.cmake" @ONLY)
 install(SCRIPT "${CMAKE_BINARY_DIR}/_bpr/DeployRuntime.cmake" COMPONENT Runtime)
 
 set(CPACK_PACKAGE_NAME BetterPullReview)
-set(CPACK_PACKAGE_VENDOR "GameCoreTech")
+set(CPACK_PACKAGE_VENDOR "${BPR_VENDOR_NAME}")
 set(CPACK_PACKAGE_CONTACT "https://github.com/MikeMarcin/BetterPullReview")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Native GitHub pull-request review workbench")

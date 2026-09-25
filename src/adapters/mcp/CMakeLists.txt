@@ -36,6 +36,7 @@ bpr_add_executable(
     tool_better_pull_review_mcp_context_helper
     src/mcp_context_helper_main.cpp
 )
+bpr_add_windows_version_resource(tool_better_pull_review_mcp_context_helper "BetterPullReview MCP context helper")
 target_link_libraries(
     tool_better_pull_review_mcp_context_helper
     PRIVATE

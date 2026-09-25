@@ -16,7 +16,11 @@
 
 static void initialize_dif_resources()
 {
+#if !defined(BPR_EXTERNAL_QT_RESOURCES)
 	Q_INIT_RESOURCE(bpr_dif);
+#endif
+	// [[BPR-0974]]. Otherwise the application registered its resource bundle,
+	// strips included, before it read any resource.
 }
 
 namespace bpr::qt {

@@ -193,12 +193,39 @@ def object_manifest_entries(manifest: pathlib.Path) -> dict[str, list[str]]:
     return entries
 
 
+# The null resource entry that begins every compiled resource script (`rc.exe`'s
+# `.res`): no data, a 32-byte header, ordinal type 0 and ordinal name 0. A COFF
+# object begins with its machine type, and a /bigobj one with 00 00 FF FF, so
+# neither can be mistaken for it.
+COMPILED_RESOURCE_HEADER = b"\x00\x00\x00\x00\x20\x00\x00\x00\xff\xff\x00\x00\xff\xff\x00\x00"
+
+
+def is_compiled_resource(item: str) -> bool:
+    """True for a `.res` that really is a compiled resource script.
+
+    It holds resources and no code, so it has no symbol table for dumpbin to
+    read and nothing a live provider could be linked through. The shipped
+    helpers carry one since BPR-0974 (their version resource). It is recognised
+    by its content, never by its name alone: anything else named `.res` is
+    read like every other object.
+    """
+    path = pathlib.Path(item)
+    if path.suffix.lower() != ".res":
+        return False
+    try:
+        with path.open("rb") as stream:
+            return stream.read(len(COMPILED_RESOURCE_HEADER)) == COMPILED_RESOURCE_HEADER
+    except OSError:
+        return False
+
+
 def object_symbols(objects: Sequence[str]) -> str | None:
     """Concatenated symbol tables of a binary's objects, or None if unreadable.
 
     Every object must be readable. A partial table would let the forbidden-symbol
     scan stay silent about the one translation unit it could not open, which is
-    exactly the failure the positive control exists to catch.
+    exactly the failure the positive control exists to catch. Only a compiled
+    resource script, which has no symbols, is passed over.
     """
     if not objects:
         return None
@@ -207,6 +234,8 @@ def object_symbols(objects: Sequence[str]) -> str | None:
         return None
     tables: list[str] = []
     for item in objects:
+        if is_compiled_resource(item):
+            continue
         listed = subprocess.run(
             [inspector, "/symbols", item],
             capture_output=True,

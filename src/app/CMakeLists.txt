@@ -134,8 +134,10 @@ if(BPR_BUILD_QT)
     bpr_add_executable(
         app_better_pull_review
         main.cpp
+        src/installed_resources.cpp
         src/installed_runtime.cpp
     )
+    bpr_add_windows_version_resource(app_better_pull_review "BetterPullReview")
     if(BPR_DISTRIBUTION_BUILD)
         target_compile_definitions(app_better_pull_review PRIVATE BPR_DISTRIBUTION_BUILD=1)
     endif()
@@ -316,7 +318,7 @@ if(BPR_BUILD_QT)
         "${bpr_app_icon_root}/png/256x256/better_pull_review.png"
         "${bpr_app_icon_root}/png/512x512/better_pull_review.png"
     )
-    qt6_add_resources(
+    bpr_add_qt_resources(
         app_better_pull_review
         better_pull_review_app_icon
         PREFIX
@@ -326,6 +328,12 @@ if(BPR_BUILD_QT)
         FILES
             ${bpr_app_icon_pngs}
     )
+    # [[BPR-0974]]. Last of the resource collections: the icon above, the Dif
+    # strips and the syntax definitions. A tests-disabled Windows image ships
+    # them in this bundle beside it and registers it before any resource is
+    # read (src/installed_resources.cpp); a tests-enabled Windows graph builds
+    # the same bundle for its contract and embeds as before.
+    bpr_add_qt_resource_bundle(app_better_pull_review)
 
     if(WIN32)
         enable_language(RC)

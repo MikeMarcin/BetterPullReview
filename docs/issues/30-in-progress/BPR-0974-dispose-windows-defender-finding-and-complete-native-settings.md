@@ -272,3 +272,118 @@ called a false positive.
 the card leaves Blocked for **Ready** on Windows, for bpr-main-win.
 [[BPR-0653]]'s Windows capture waited on this answer and needs the same kind
 of image.
+
+## The three static-signal changes, bpr-main-win, 2026-09-24
+
+Run `bpr-main-win-20260923`, `main`, dispatched by the coordinator under the
+integrator's relay of decision `5c30287a`. Windows only: macOS and Linux build,
+embed and package exactly as before.
+
+**`VERSIONINFO`.** `cmake/BprWindowsImage.cmake` gives the application and both
+helpers a version resource from `packaging/windows/version.rc.in`:
+
+- `CompanyName` GameCoreTech, the vendor CPack already names (now one
+  `BPR_VENDOR_NAME` for both);
+- `ProductName` BetterPullReview, and a `FileDescription` per image;
+- `FileVersion` and `ProductVersion` 0.1.3, the project version (numeric
+  0,1,3,0);
+- `InternalName` and `OriginalFilename`, for example `better_pull_review.exe`.
+
+It states no copyright or licence, because the owner has not approved
+distribution terms.
+
+**A program database reference in Release.** `cmake/Hardening.cmake` links the
+Release configuration of every first-party executable with `/DEBUG
+/PDBALTPATH:%_PDB%`. It adds `/OPT:REF /OPT:ICF`, because `/DEBUG` alone would
+turn off unreferenced-code removal and folding. The image gets a CodeView
+record naming only `better_pull_review.pdb`. The database stays in the build
+tree and is not installed. The Debug link is unchanged, and so is its
+`/INCREMENTAL:NO` ([[BPR-1027]]).
+
+**The compressed Qt resources out of the executable.**
+`cmake/BprQtResources.cmake` builds one binary resource file,
+`better_pull_review.rcc`, and in the tests-disabled Windows graph it ships
+beside the executable. It holds:
+
+- the application icon;
+- the ten Dif strips, stored uncompressed as the runtime requires;
+- KSyntaxHighlighting's syntax definitions. That graph now builds the framework
+  with `QRC_SYNTAX=OFF` and bundles the framework's own `syntax-data.qrc`
+  instead.
+
+The build compiles the bundle's SHA-256 into the image.
+`src/app/src/installed_resources.cpp` reads the bundle once, before
+QApplication, and requires that digest. It then registers the bundle and keeps
+it registered until QApplication is gone. A missing, unreadable, altered or
+foreign file ends startup with exit 1 and this line on standard error, instead
+of an image without its icon, Dif or highlighting:
+
+```text
+INSTALLED_RESOURCES_REFUSED:better_pull_review.rcc:<missing|unreadable|digest-mismatch|not-a-resource-file>
+```
+
+KSyntaxHighlighting's theme data, 53,776 of BPR-1110's 3,572,480 bytes, stays
+in the image. The pinned framework initializes it unconditionally, and moving
+it would mean patching the upstream library.
+
+**Packaging and audits.**
+
+- `packaging/Install.cmake` installs the bundle beside the image, before the
+  deployment script.
+- `packaging/package_runtime.py` declares it as Windows runtime data. It
+  refuses a runtime without it, does not inspect it as a PE image, and records
+  it under `data` in the runtime closure. The SBOM hashes it like every
+  installed file.
+- `scripts/verify_release_package.py` requires it in a Windows package and gives
+  it the fixture and canary byte controls.
+- `scripts/verify_dif_asset_boundaries.py` accepts the bundled layout: exactly
+  the ten strips, uncompressed, with their bytes in the bundle and not in the
+  image.
+- `scripts/verify_live_mutation_isolation.py` passes over a helper's compiled
+  version resource (`.res`), which has no symbols for `dumpbin` to read. It
+  recognises one by its content, never by its name.
+
+**Debug stays embedded, deliberately.** Every tests-enabled Windows graph, Debug
+and `windows-dev` Release alike, still embeds its resources, so no existing
+resource-dependent row changes. Those graphs also build the same bundle, and
+the new contained row `application_installed_resources_contract` holds it:
+
+- the digest the image compiles in is the bundle's;
+- a missing file, a directory, an empty file, one bit altered, a truncated
+  file, and a foreign file named by its own digest are each refused for the
+  right reason, and none registers anything;
+- the bundle beside the executable registers through `load_image_resources()`,
+  the function the image calls;
+- it carries the nine icon PNGs, the ten strips uncompressed and byte for
+  byte, and every file KSyntaxHighlighting's collection names, index included;
+- releasing the owner unregisters it.
+
+**Reseal.** `application_review_round_trip_composition_contract`'s
+production-manifest pin, for `main.cpp` and the two new sources. The review is
+in the contract's header. The full-application and mutation-branch pins are
+unchanged.
+
+**Verification** (`dev` Debug and `core-only` builds on JaegAW, MSVC 19.51,
+Qt 6.11.2). All pass:
+
+- `application_installed_resources_contract`, `application_icon`,
+  `qt_dif_runtime`, `qt_syntax_pane_composition` and
+  `syntax_classification_contract`;
+- `application_icon_assets_contract` and `dif_assets_contract` (with a new
+  bundled-layout case);
+- `package_runtime_contract`, `release_package_audit_contract` and
+  `release_source_assets_contract`;
+- `cfg_complete_link_contract`, `platform_configuration_contract` and
+  `dependency_modernization_contract`;
+- `live_mutation_isolation` and `live_mutation_isolation_contract`;
+- `architecture_boundaries`, `architecture_boundary_contract` and
+  `application_review_round_trip_composition_contract`.
+
+`test_network_isolation_manifest` fails only on its known [[BPR-1108]] rows,
+and none of them is new.
+
+**The remaining lever.** The owner has deferred Authenticode signing ("We will
+do the authentiode signing eventually, but not at this moment"). It stays
+RFC-BPR-0038's release work ([[BPR-0960]]). These three changes lower the
+static signals, and BPR-1110 already found they cannot remove the risk:
+reputation and a signer are what the cloud verdict leans on.

@@ -55,6 +55,10 @@ def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
                 and identity.get("CFBundleShortVersionString") == info["version"], "invalid-package-identity")
     for path in (app, *helpers):
         require(path.is_file() and not path.is_symlink(), f"required-packaged-capability-missing:{path.name}")
+    # [[BPR-0974]]. Declared runtime data the image refuses to start without.
+    for name in runtime.RUNTIME_DATA[info["platform"]]:
+        path = directory / name
+        require(path.is_file() and not path.is_symlink(), f"required-packaged-capability-missing:{name}")
     plugins = root / "Contents/PlugIns" if info["platform"] == "Darwin" else root / "plugins"
     actual = {path.relative_to(plugins).as_posix() for path in plugins.rglob("*") if path.is_file()}
     require(actual == set(runtime.PLUGINS[info["platform"]]), "package-plugin-set-mismatch")
@@ -139,6 +143,12 @@ def check_payload(payload: bytes, symbols: tuple[str, ...]) -> None:
     require(bool(symbols), "empty-symbol-evidence")
     table = "\n".join(symbols)
     require(not any(value in table for value in FORBIDDEN_SYMBOLS), "fixture-symbol-in-package")
+    check_data_payload(payload)
+
+
+def check_data_payload(payload: bytes) -> None:
+    # The byte controls a binary gets, for declared runtime data: the Windows
+    # resource bundle holds what the image embedded before BPR-0974.
     require(not any(value.encode() in payload for value in FORBIDDEN_BYTES), "fixture-or-canary-bytes-in-package")
     for pattern, _description, permitted in device_inventory.FORBIDDEN_PATTERNS:
         require(all(match.group() in permitted for match in re.finditer(pattern, payload.decode("latin-1"))), "secret-shaped-bytes-in-package")
@@ -203,8 +213,15 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
         binaries.append(path.relative_to(root).as_posix())
         symbol_evidence[path.relative_to(root).as_posix()] = table.inspector
     require(all(path.relative_to(root).as_posix() in binaries for path in (app, *helpers)), "required-capability-not-a-binary")
+    data = {}
+    for name in runtime.RUNTIME_DATA[info["platform"]]:
+        path = app.parent / name
+        payload = path.read_bytes()
+        require(not payload.startswith(BINARY_MAGICS), "declared-runtime-data-is-a-binary")
+        check_data_payload(payload)
+        data[path.relative_to(root).as_posix()] = runtime.digest(path)
     return {**evidence, "source_revision": revision, "executable_sha256": runtime.digest(app),
-            "binaries": binaries, "symbol_evidence": symbol_evidence,
+            "binaries": binaries, "runtime_data": data, "symbol_evidence": symbol_evidence,
             "trust": "not-assessed", "license_approval": "pending"}
 
 

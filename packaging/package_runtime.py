@@ -31,6 +31,10 @@ PLUGINS = {
     "Linux": ["platforms/libqxcb.so", "tls/libqopensslbackend.so"],
 }
 CRT = re.compile(r"(?:msvcp140(?:_1|_2|_atomic_wait|_codecvt_ids)?|vcruntime140(?:_1|_threads)?|concrt140)\.dll", re.I)
+# Declared non-binary runtime files beside the application. [[BPR-0974]]: the
+# Windows image keeps its Qt resources in one bundle and refuses to start
+# without it; see cmake/BprQtResources.cmake.
+RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []}
 
 
 def run(*arguments: str | Path, env: dict | None = None) -> str:
@@ -316,6 +320,15 @@ def qt_library(name: str) -> bool:
     return bool(match and match[1] in QT_LIBRARIES)
 
 
+def runtime_data(root: Path, target: str) -> set[Path]:
+    """The declared data files of an installed runtime; each must be a real file."""
+    declared = {root / name for name in RUNTIME_DATA[target]}
+    for path in sorted(declared):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"declared runtime data missing: {path.name}")
+    return declared
+
+
 def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = None) -> None:
     target = info["platform"]
     if target == "Darwin":
@@ -327,7 +340,8 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
         destination = root / "plugins" / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
-    pending = [path for path in root.rglob("*") if path.is_file()]
+    data = runtime_data(root, target)
+    pending = [path for path in root.rglob("*") if path.is_file() and path not in data]
     processed = set()
     system = set()
     while pending:
@@ -401,8 +415,11 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
                 raise ValueError(f"ELF exceeds the glibc 2.39 floor: {binary}")
         baseline["requiredGLIBCXX"] = sorted({value for binary in processed for value in re.findall(r"\bGLIBCXX_([0-9.]+)", run("readelf", "--version-info", binary))}, key=lambda value: tuple(map(int, value.split("."))))
     (root / "qt.conf").write_text("[Paths]\nPlugins=plugins\n", encoding="utf-8")
-    write_json(root / "runtime-closure.json", {"schema": "bpr.runtime-closure.v1", "baseline": baseline,
-               "systemDependencies": sorted(system), "files": sorted(str(path.relative_to(root)) for path in processed), "plugins": PLUGINS[target]})
+    closure = {"schema": "bpr.runtime-closure.v1", "baseline": baseline,
+               "systemDependencies": sorted(system), "files": sorted(str(path.relative_to(root)) for path in processed), "plugins": PLUGINS[target]}
+    if RUNTIME_DATA[target]:
+        closure["data"] = RUNTIME_DATA[target]
+    write_json(root / "runtime-closure.json", closure)
     notices(build, info, root, source_archive)
     audit(build, info, root, root / "sbom.spdx.json", source_archive)
 

@@ -33,17 +33,23 @@ class ReleasePackageTests(unittest.TestCase):
                     identity.write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.gamecoretech.betterpullreview", "CFBundleExecutable": app.name, "CFBundleShortVersionString": "1.2.3"}))
                 for path in (app, *helpers):
                     path.touch()
+                # [[BPR-0974]]. The Windows image's resource bundle, and nothing
+                # declared on the other platforms.
+                data = [binaries / name for name in audit.runtime.RUNTIME_DATA[system]]
+                self.assertEqual([path.name for path in data], ["better_pull_review.rcc"] if system == "Windows" else [])
+                for path in data:
+                    path.touch()
                 plugins = root / "Contents/PlugIns" if system == "Darwin" else root / "plugins"
                 for name in audit.runtime.PLUGINS[system]:
                     path = plugins / name
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.touch()
                 self.assertEqual(audit.package_paths(root, info), (app, helpers))
-                for helper in helpers:
-                    helper.unlink()
-                    with self.assertRaisesRegex(ValueError, "capability-missing"):
+                for required in (*helpers, *data):
+                    required.unlink()
+                    with self.assertRaisesRegex(ValueError, "capability-missing:" + required.name):
                         audit.package_paths(root, info)
-                    helper.touch()
+                    required.touch()
                 (plugins / "untrusted-plugin").touch()
                 with self.assertRaisesRegex(ValueError, "plugin-set-mismatch"):
                     audit.package_paths(root, info)
@@ -107,6 +113,11 @@ class ReleasePackageTests(unittest.TestCase):
             audit.check_payload(b"", ())
         with self.assertRaisesRegex(ValueError, "fixture-symbol"):
             audit.check_payload(b"production", ("bpr::app::detail::github_application_fixture_access::start",))
+        # [[BPR-0974]]. Declared runtime data gets the same byte controls
+        # without a symbol table.
+        audit.check_data_payload(b"qres production resources")
+        with self.assertRaisesRegex(ValueError, "fixture-or-canary-bytes"):
+            audit.check_data_payload(b"qres BPR_CANARY_SECRET_private")
 
     def test_static_dependency_omission_and_wrong_provenance_fail(self):
         with ContainedTemporaryDirectory() as directory:

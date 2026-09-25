@@ -162,7 +162,11 @@ The contract is network-isolated and uses only the configured C++ compiler and
 Python standard library. Ordinary configure and build steps do not run the
 generator or require ImageGen, ImageMagick, Pillow, a model, or network access.
 Both the tests-enabled application and the tests-disabled `app-release`
-application select the same ten accepted generated strips. `core-only` selects
+application select the same ten accepted generated strips. On Windows the
+tests-disabled image carries them, uncompressed, in its resource bundle
+`better_pull_review.rcc` beside the executable rather than in itself
+([[BPR-0974]]); the verifier then checks the bundle's collection and bytes, and
+that the image no longer embeds a strip. `core-only` selects
 neither those resources nor Qt, the platform motion observer, or the generator.
 
 Before closing an asset or consuming application revision, build the affected

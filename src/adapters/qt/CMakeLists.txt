@@ -100,10 +100,15 @@ if(APPLE)
 endif()
 
 # Accepted committed production products only; no asset generation in ordinary builds.
-qt6_add_resources(better_pull_review_adapter_qt bpr_dif
+# Stored uncompressed, which the runtime requires. [[BPR-0974]]: a tests-disabled
+# Windows image carries them in its resource bundle instead (cmake/BprQtResources.cmake).
+if(BPR_EXTERNAL_QT_RESOURCES)
+    target_compile_definitions(better_pull_review_adapter_qt PRIVATE BPR_EXTERNAL_QT_RESOURCES=1)
+endif()
+bpr_add_qt_resources(better_pull_review_adapter_qt bpr_dif
     PREFIX "/bpr/dif"
     BASE "assets/dif/generated"
-    OPTIONS --no-compress
+    NO_COMPRESS
     FILES
         assets/dif/generated/dif-rest.png
         assets/dif/generated/dif-calm-idle.png

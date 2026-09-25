@@ -2728,6 +2728,49 @@ if(WIN32)
         TIMEOUT 60
         PASS_REGULAR_EXPRESSION "windows-title-row-host-tests:pass")
     set_property(TEST application_windows_title_row APPEND PROPERTY LABELS "BPR-0653;target-native-windows")
+
+    # [[BPR-0974]]. The tests-disabled image keeps its Qt resources in a bundle
+    # beside it and has no tests of its own. This holds the same bundle, built by
+    # the same rule here, and the image's own registration code, compiled as the
+    # image compiles it: the compiled digest, every refusal, the bundle beside the
+    # executable and every resource the application reads from it. It links Qt
+    # Core and nothing that embeds a resource.
+    get_target_property(bpr_resource_bundle better_pull_review_resource_bundle BPR_BUNDLE_FILE)
+    get_target_property(bpr_resource_bundle_header better_pull_review_resource_bundle BPR_BUNDLE_HEADER_DIRECTORY)
+    get_property(bpr_syntax_collection GLOBAL PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_COLLECTION)
+    get_property(bpr_syntax_index GLOBAL PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_INDEX)
+    bpr_add_executable(
+        test_better_pull_review_installed_resources_contract
+        installed_resources_contract_tests.cpp
+        "${PROJECT_SOURCE_DIR}/src/app/src/installed_resources.cpp"
+    )
+    target_link_libraries(test_better_pull_review_installed_resources_contract PRIVATE Qt6::Core)
+    target_include_directories(test_better_pull_review_installed_resources_contract PRIVATE "${bpr_resource_bundle_header}")
+    target_compile_definitions(
+        test_better_pull_review_installed_resources_contract
+        PRIVATE
+            BPR_EXTERNAL_QT_RESOURCES=1
+            "BPR_TEST_RESOURCE_BUNDLE=\"${bpr_resource_bundle}\""
+            "BPR_TEST_IMAGE_BUNDLE=\"$<TARGET_FILE_DIR:test_better_pull_review_installed_resources_contract>/${BPR_QT_RESOURCE_BUNDLE_NAME}\""
+            "BPR_TEST_ICON_ROOT=\"${PROJECT_SOURCE_DIR}/packaging/icons/png\""
+            "BPR_TEST_DIF_ROOT=\"${PROJECT_SOURCE_DIR}/src/adapters/qt/assets/dif/generated\""
+            "BPR_TEST_SYNTAX_COLLECTION=\"${bpr_syntax_collection}\""
+            "BPR_TEST_SYNTAX_INDEX=\"${bpr_syntax_index}\""
+    )
+    target_compile_features(test_better_pull_review_installed_resources_contract PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_better_pull_review_installed_resources_contract)
+    bpr_enable_warnings(test_better_pull_review_installed_resources_contract)
+    add_dependencies(test_better_pull_review_installed_resources_contract better_pull_review_resource_bundle)
+    add_custom_command(TARGET test_better_pull_review_installed_resources_contract POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${bpr_resource_bundle}"
+            "$<TARGET_FILE_DIR:test_better_pull_review_installed_resources_contract>/${BPR_QT_RESOURCE_BUNDLE_NAME}"
+        VERBATIM)
+    bpr_add_network_isolated_test(NAME application_installed_resources_contract COMMAND test_better_pull_review_installed_resources_contract)
+    set_tests_properties(application_installed_resources_contract PROPERTIES
+        TIMEOUT 60
+        PASS_REGULAR_EXPRESSION "installed-resources-contract:pass")
+    set_property(TEST application_installed_resources_contract APPEND PROPERTY LABELS "BPR-0974;target-native-windows")
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

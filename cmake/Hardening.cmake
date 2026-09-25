@@ -16,6 +16,21 @@ function(bpr_enable_hardening target)
         if(target_type STREQUAL "EXECUTABLE")
             # Keep complete public/static link evidence outside the installed payload.
             target_link_options("${target}" PRIVATE /MAP)
+            # [[BPR-0974]]. A Release image names its program database, as the
+            # Debug image and every Qt DLL beside it do: a CodeView record whose
+            # path is the bare file name (/PDBALTPATH), so no build path ships,
+            # and the database itself stays in the build tree. /DEBUG would
+            # otherwise turn off unreferenced-code removal and folding, so
+            # /OPT:REF and /OPT:ICF keep the Release layout; the incremental
+            # choice above still ends on /INCREMENTAL:NO.
+            target_link_options(
+                "${target}"
+                PRIVATE
+                    "$<$<CONFIG:Release>:/DEBUG>"
+                    "$<$<CONFIG:Release>:/PDBALTPATH:%_PDB%>"
+                    "$<$<CONFIG:Release>:/OPT:REF>"
+                    "$<$<CONFIG:Release>:/OPT:ICF>"
+            )
         endif()
         return()
     endif()

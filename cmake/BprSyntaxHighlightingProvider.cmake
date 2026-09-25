@@ -410,6 +410,17 @@ function(bpr_acquire_syntax_highlighting)
         string(APPEND signature "${argument}\n")
     endforeach()
 
+    # [[BPR-0974]]. A graph that keeps its Qt resources outside the image
+    # (cmake/BprQtResources.cmake) builds the framework without its syntax
+    # resource, and the application bundles the same definitions from the
+    # framework's own collection instead. Every other graph embeds them as
+    # before, and its signature, and so its staged build, is unchanged.
+    set(qrc_syntax ON)
+    if(BPR_EXTERNAL_QT_RESOURCES)
+        set(qrc_syntax OFF)
+        string(APPEND signature "QRC_SYNTAX=OFF\n")
+    endif()
+
     set(staged FALSE)
     if(EXISTS "${stamp}")
         file(READ "${stamp}" recorded_signature)
@@ -496,7 +507,7 @@ function(bpr_acquire_syntax_highlighting)
             -DDISABLE_ALL_OPTIONAL_SUBDIRECTORIES=TRUE
             -DKF_SKIP_PO_PROCESSING=ON
             -DKSYNTAXHIGHLIGHTING_USE_GUI=ON
-            -DQRC_SYNTAX=ON
+            "-DQRC_SYNTAX=${qrc_syntax}"
             -DNO_STANDARD_PATHS=ON
         )
 
@@ -561,4 +572,27 @@ function(bpr_acquire_syntax_highlighting)
             "'KF6::SyntaxHighlighting'"
         )
     endif()
+
+    # [[BPR-0974]]. The framework's own syntax collection -- the index and the
+    # compressed definitions its build generates in both modes -- for the
+    # external Qt resource bundle (cmake/BprQtResources.cmake).
+    set(syntax_data "${root}/syntax-highlighting-build/data")
+    foreach(generated IN ITEMS syntax-data.qrc index.katesyntax)
+        if(BPR_QT_RESOURCE_BUNDLE AND NOT EXISTS "${syntax_data}/${generated}")
+            message(
+                FATAL_ERROR
+                "KSyntaxHighlighting did not generate '${syntax_data}/${generated}'"
+            )
+        endif()
+    endforeach()
+    set_property(
+        GLOBAL
+        PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_COLLECTION
+            "${syntax_data}/syntax-data.qrc"
+    )
+    set_property(
+        GLOBAL
+        PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_INDEX
+            "${syntax_data}/index.katesyntax"
+    )
 endfunction()

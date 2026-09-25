@@ -12,6 +12,7 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "src/installed_resources.hpp"
 #include "src/installed_runtime.hpp"
 #if defined(__linux__)
 	#include "src/xcb_activation_host.hpp"
@@ -7536,6 +7537,21 @@ auto main(int argc, char** argv) -> int
 #endif
 	if (!bpr::app::restrict_installed_runtime(argc, argv)) {
 		std::fputs("INSTALLED_RUNTIME_REFUSED\n", stderr);
+		return EXIT_FAILURE;
+	}
+	// [[BPR-0974]]. A tests-disabled Windows image keeps its Qt resources in a
+	// bundle beside it. Registered here, before anything reads a resource, and
+	// declared before QApplication so the registration outlives every Qt
+	// object. A missing or different bundle ends startup instead of leaving
+	// the window without its icon, Dif or syntax highlighting. A graph that
+	// embeds its resources gets an empty owner.
+	const auto installedResources = bpr::app::load_image_resources();
+	if (!installedResources) {
+		const auto file    = bpr::app::installed_resources_file_name;
+		const auto refusal = bpr::app::installed_resources_refusal_name(installedResources.error());
+		QTextStream{ stderr } << "INSTALLED_RESOURCES_REFUSED:"
+							  << QLatin1StringView{ file.data(), static_cast<qsizetype>(file.size()) } << ':'
+							  << QLatin1StringView{ refusal.data(), static_cast<qsizetype>(refusal.size()) } << '\n';
 		return EXIT_FAILURE;
 	}
 	QApplication qtApplication{ argc, argv };

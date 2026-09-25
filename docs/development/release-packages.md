@@ -104,6 +104,22 @@ executable, with the platform-emitted filenames. macOS additionally carries
 plugin-path overrides are removed, and arbitrary plugin-loading CLI options are
 refused. The app never uses developer Qt paths as a fallback.
 
+On Windows the tests-disabled image keeps its compressed Qt resources outside
+itself ([[BPR-0974]]): the application icon, the Dif strips and the
+KSyntaxHighlighting syntax definitions ship as `better_pull_review.rcc` beside
+the executable, and the installer and runtime inventory carry it as declared
+runtime data. The image registers that file before it reads any resource and
+refuses to start, printing `INSTALLED_RESOURCES_REFUSED:better_pull_review.rcc:`
+and `missing`, `unreadable`, `digest-mismatch` or `not-a-resource-file`, unless
+the file is byte for byte the one it was built with. KSyntaxHighlighting's 54 KB
+theme data stays inside the image, because the pinned framework initializes it
+unconditionally. Each shipped Windows image (application and both helpers) has
+a `VERSIONINFO` resource naming the vendor, product, description, version and
+original file name, and a Release image names its program database by file name
+only (`/DEBUG /PDBALTPATH:%_PDB%`). The database stays in the build tree and is
+not installed. None of this is a signature: the images remain unsigned until
+Authenticode signing, which the owner has deferred.
+
 The Windows MSI remembers its selected per-user directory in its own HKCU
 installer value so repair/uninstall resolve the same directory, including a
 custom location. CPack supplies the normal installed-location metadata. Use

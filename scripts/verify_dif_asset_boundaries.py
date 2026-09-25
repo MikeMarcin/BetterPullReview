@@ -69,8 +69,50 @@ def _without_accepted_products(content: str) -> str:
     return content
 
 
+# [[BPR-0974]]. A tests-disabled Windows image keeps its Qt resources in one
+# bundle beside it (cmake/BprQtResources.cmake); its collection names the strips.
+EXTERNAL_BUNDLE = "better_pull_review.rcc"
+EXTERNAL_COLLECTION = "better_pull_review_resources.qrc"
+
+
+def _validate_bundled_resources(source: Path, build: Path, application: Path, bundle: Path) -> None:
+    collections = list(build.rglob(EXTERNAL_COLLECTION))
+    if len(collections) != 1:
+        raise BoundaryError("selected application bundle requires exactly one resource collection")
+    try:
+        document = ET.parse(collections[0]).getroot()
+    except (OSError, ET.ParseError) as error:
+        raise BoundaryError("production resource bundle collection is unreadable") from error
+    blocks = [resource for resource in document if resource.tag == "qresource" and resource.get("prefix") == "/bpr/dif"]
+    if len(blocks) != 1 or blocks[0].attrib != {"prefix": "/bpr/dif"}:
+        raise BoundaryError("production Dif resource namespace differs")
+    expected = {name: (source / PRODUCTION_ROOT / name).resolve() for name in PRODUCTION_STRIPS}
+    actual: dict[str, Path] = {}
+    for entry in blocks[0]:
+        alias = entry.get("alias", "")
+        if (entry.tag != "file" or alias in actual or not entry.text
+                or entry.attrib != {"alias": alias, "compression-algorithm": "none"}):
+            raise BoundaryError("production Dif resource entry is invalid or duplicated")
+        actual[alias] = (collections[0].parent / entry.text).resolve()
+    if actual != expected:
+        raise BoundaryError("production Dif resource selection must equal the accepted ten strips")
+    _validate_runtime_markers(bundle, "selected application resource bundle", production=True)
+    data = bundle.read_bytes()
+    image = application.read_bytes()
+    for name, path in expected.items():
+        strip = path.read_bytes()
+        if strip not in data:
+            raise BoundaryError(f"selected application bundle lacks accepted bytes for {name}")
+        if strip in image:
+            raise BoundaryError(f"selected application still embeds {name} beside its bundle")
+
+
 def _validate_compiled_resources(source: Path, build: Path, application: Path) -> None:
+    bundle = application.parent / EXTERNAL_BUNDLE
     qrcs = list(build.rglob("bpr_dif.qrc"))
+    if bundle.is_file() and not qrcs:
+        _validate_bundled_resources(source, build, application, bundle)
+        return
     if len(qrcs) != 1:
         raise BoundaryError("selected application requires exactly one production Dif resource collection")
     try:

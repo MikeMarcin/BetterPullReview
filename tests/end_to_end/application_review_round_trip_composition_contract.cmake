@@ -226,6 +226,19 @@ endfunction()
 # are untouched and the mutation-branch pin is unchanged. Covers d3b583d0..the
 # BPR-0644 commit; nothing else touched the pinned scope. Review recorded on
 # BPR-0644.
+# BPR-0974 reseal: the owner's decision 5c30287a moves the tests-disabled
+# Windows image's Qt resources into a bundle beside it. The new
+# src/installed_resources.cpp and .hpp read the bundle once, compare its SHA-256
+# with the one the build compiled in, register it with QResource, and
+# unregister it when the owner is destroyed; they take no credential, provider,
+# vault, transport or mutation path. main.cpp gains one owner, declared after
+# restrict_installed_runtime and before QApplication, and one refusal line,
+# INSTALLED_RESOURCES_REFUSED:<file>:<reason>, that ends startup; every graph
+# that embeds its resources gets an empty owner and behaves as before. Both
+# files join the source inventory and the production manifest. The
+# full-application and mutation-branch pins are unchanged. Covers 1347f776..the
+# BPR-0974 commit; 9577a516 touched only fixture sources outside the manifest.
+# Review recorded on BPR-0974.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -274,6 +287,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"src/designated_live_macos_supervisor_launch.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/installed_resources.cpp"
+        "src/installed_resources.hpp"
         "src/installed_runtime.cpp"
         "src/installed_runtime.hpp"
         "src/platform_credential_vault.cpp"
@@ -339,6 +354,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application_fixture_access.hpp"
         "src/github_public_path_fixture.cpp"
         "src/github_public_path_fixture.hpp"
+        "src/installed_resources.cpp"
+        "src/installed_resources.hpp"
         "src/installed_runtime.cpp"
         "src/installed_runtime.hpp"
         "src/large_review_fixture.hpp"
@@ -383,7 +400,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2edb8d2de16ceb8a19358011113c8067718a92100f81921d9d8876e885f5da9d"
+        "cda616e0eb98e9cda18e09dc6e6fda7876367140999a43fa8363398b4e7ba5a1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
