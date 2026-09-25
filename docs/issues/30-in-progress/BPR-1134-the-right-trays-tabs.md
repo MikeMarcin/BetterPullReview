@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1134"
 title: "The right tray's tabs"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
