@@ -606,3 +606,87 @@ real input desktop:
 
 The card stays **In Progress**: AC1 is met, and AC2 to AC4 wait for a cleared
 foreground window.
+
+### Checkpoint, 2026-09-25T04:00Z: AC2 and AC3 prepared headless, waiting for the foreground
+
+Run `bpr-main-win-20260923`, segment 11. No foreground was used: the
+candidate was not launched. Its three files were only read.
+
+**The course takes the foreground as [[BPR-0980]]'s activation course
+does.** [`windows_settings_inventory.ps1`](../../../tests/scripts/windows_settings_inventory.ps1)
+was reworked:
+
+- **The launch.** It launches the image itself, once, as the child of a small
+  launcher window of its own. The launcher is put in front and gets one F24
+  press first, so the image starts with the foreground right.
+- **Focus.** Each `Focus` then puts one of the image's windows in front by
+  sharing the foreground thread's input state for the call (`Front`). The
+  old `SetForegroundWindow` from a background process could not do that
+  under this host's foreground lock (2147483647 ms).
+- **No pointer.** Clicks are posted messages, menus go through UI
+  Automation, and a key is sent only while one of the image's windows is in
+  front.
+- **Bound to the image.** The image is bound to its SHA-256 and its bundle's,
+  and to its PID once the window is up. It runs with `--render-evidence` and
+  no value, so a private temporary profile is used.
+- **Windows found by title.** They are matched as `BetterPullReview — …
+  profile` and `Settings — … profile`, which is what the product sets.
+  Qt's appended display name no longer breaks the match.
+- **Two modes.**
+  - `course`: AC2 with AC3's seven pages, in one launch. Quit must exit 0.
+  - `inventory`: AC3 alone, for when the course stops first. It ends with
+    `WM_CLOSE`.
+- **The record.** The JSON is written whatever happens: pages so far,
+  checks, PIDs, exit code, standard output and error, failure, and leftover
+  processes. `-DryRun` checks everything short of launching.
+
+The Quit defect this card named is gone: [[BPR-1028]] (`e08a0409`).
+
+**Checked headless.**
+
+- The script parses (PowerShell parser, 2,911 tokens).
+- Its dry run against `installed\` binds both digests, `6aa27c8d…` and
+  `ca3bc2b1…`. It reads session 1, `JAEGAW\mikem`, not elevated, system DPI
+  144 (150%), and the foreground lock timeout 2147483647. It launched
+  nothing.
+- A dry run with a wrong image digest is refused with exit 1, and writes no
+  record.
+
+**AC3's comparison is staged,** in the station's helper folder until the
+capture exists, because a committed test cannot name a file that is not
+there yet. It adds four tests to `settings_inventory_comparison_tests.py`:
+
+- the capture binds `85e522d8`, both digests, the course's five checks, exit
+  0, the private profile and no process left;
+- page by page, it matches the Linux `b651554f` capture except for named
+  deltas. Known in advance: [[BPR-1107]]'s `Draw white space` selector on
+  Appearance. The updater, CLI and maintenance deltas are filled from the
+  capture itself;
+- it inventories the updater, CLI and seven maintenance rows;
+- missing-control and changed-state negative controls on the Windows pages.
+
+Run against a synthetic capture (the Linux pages plus the new selector), the
+staged tests pass 3 of 3. Without the stated delta, the comparison fails.
+
+**Read-only state at 03:54Z.**
+
+- Still the same 3 detections; the newest operational record is 6552.
+- Signatures 1.459.384.0; real-time and tamper protection are on.
+- The candidate's files are unchanged: `6aa27c8d…`, `ca3bc2b1…`, and the
+  build copy `6aa27c8d…`.
+
+[[BPR-1125]] is Done, so the Dif boundary verifier's `dev` and `core-only`
+profiles now pass on Windows too.
+
+**Next: the foreground runs, after the coordinator's clearance.**
+
+1. `check`.
+2. `defender before` and `digests before`.
+3. `ac2-ac3`, about 3 to 5 minutes.
+4. 20 seconds later, `defender after-course <record>` and `digests after`.
+5. `ac3-inventory`, only if the course stopped before the pages.
+
+Each launch is its own Defender verdict. If one is flagged, the runs stop,
+and the detection is recorded here the way the first was. AC4's accounting
+(private profile, unchanged digests, no process left) comes from the same
+records.
