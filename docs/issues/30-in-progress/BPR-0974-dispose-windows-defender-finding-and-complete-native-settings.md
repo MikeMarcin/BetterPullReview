@@ -564,3 +564,45 @@ Defender did not detect that digest.
 
 **The candidate goes to [[BPR-0653]]** for the integrator's attended capture;
 the paths and digests are on that card.
+
+### After the launch, 2026-09-25T02:32Z
+
+**`application_composition_contract` passes.** Run alone, headless, on
+`build/dev` at `85e522d8` plus its record commits: 7 of 7 cases in 565 s,
+close to its 600 s limit. It configures and builds its own tests-disabled
+Release graph, which now carries the external bundle. It runs that image's
+`--self-test` twice and a failing `--render-evidence`, offscreen, and checks
+its production composition and fixture-free bytes. That is a second, separate
+first launch of a new tests-disabled image. Afterwards there were still 3
+detections and no operational event after record 6548, and the candidate was
+still present. The nested build's `vctip` and `mspdbsrv` were stopped.
+
+**AC2 to AC4 need the foreground; none of them was run.** Each drives the
+real input desktop:
+
+- **AC2**, the native Settings course on this image (`installed\`, PID-bound,
+  terminal exit 0):
+  - the menu and Ctrl+comma;
+  - modeless focus;
+  - the singleton;
+  - Escape;
+  - closing and reopening a same-profile sibling;
+  - Quit.
+
+  It needs about 3 to 5 minutes of the desktop. Before it runs,
+  [`windows_settings_inventory.ps1`](../../../tests/scripts/windows_settings_inventory.ps1)'s
+  `Focus` must take the foreground the way
+  [`windows_profile_activation_course.ps1`](../../../tests/scripts/windows_profile_activation_course.ps1)'s
+  `Front` does. That adaptation can be prepared headless. The Quit defect this
+  card named is fixed: [[BPR-1028]]'s `popup()` (`e08a0409`) replaced the strip
+  menu's stack `exec()`.
+- **AC3**, a UI Automation capture of the seven Settings pages from the same
+  image. It needs about 2 minutes of the desktop. Extending
+  `settings_inventory_comparison_tests.py` with the new capture is headless
+  afterwards.
+- **AC4**, private-profile isolation, unchanged live-station hashes and
+  accounting for every process and lease. It rides with the AC2 and AC3 runs
+  and needs no foreground of its own.
+
+The card stays **In Progress**: AC1 is met, and AC2 to AC4 wait for a cleared
+foreground window.
