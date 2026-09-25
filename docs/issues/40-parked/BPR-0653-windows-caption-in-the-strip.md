@@ -968,3 +968,70 @@ of criteria 2 and 4, left for the integrator:
   flagged, the capture stops and the detection is recorded on BPR-0974.
 
 Criteria 2 and 4 stay pending, and the card stays parked on human-review.
+
+## The capture, staged for the station, 2026-09-25 (bpr-main-win)
+
+The owner cannot reach JaegAW, so the station takes criteria 2 and 4's
+captures itself, and the owner reviews them remotely. The capture is the
+script [`windows_caption_capture.ps1`](../../../tests/scripts/windows_caption_capture.ps1).
+It was prepared headless and has not run: it needs a cleared foreground
+window, after [[BPR-0974]]'s AC2 and AC3 runs and before any rebuild.
+
+**What it captures**, from `installed\` only, with the image's and the
+bundle's SHA-256 checked first. It runs with `--render-evidence` and no
+value: signed out, on a private temporary profile, so no account and no
+repository content can appear. At the display scale Windows is set to,
+never changed:
+
+1. the three caption buttons at rest;
+2. each one hovered;
+3. each one pressed and held;
+4. the snap layouts flyout, from hovering Maximize;
+5. a drag of empty strip space with real pointer input (`SendInput`):
+   before, mid-drag with the button held, and after;
+6. the maximized state, after a click on Maximize;
+7. the restored state, after a double-click on empty strip space. That is
+   criterion 2's "double-click maximises and restores".
+
+**Pointer rules**, from the coordinator, and how the script keeps them:
+
+- **The pointer is saved first and restored at the end.** It moves only
+  inside the window.
+- **Every move and every press has a guard.** The window must be in front,
+  it must be the window under the target point, and the point must answer
+  the expected `WM_NCHITTEST` code: `HTMINBUTTON`, `HTMAXBUTTON`, `HTCLOSE`
+  or `HTCAPTION`. The script asks the window itself, which has no side
+  effect. If any check fails, the capture stops.
+- **A press never ends over Close or Minimize.** The title row host
+  (`windows_title_row_host.cpp`) acts only on a release over the same part
+  that was pressed. So the script moves the held button onto empty strip
+  space before releasing it. There the release is the platform's no-op.
+  A button still held when anything fails is taken to that point, or to the
+  middle of the window, before its release. The one release on a button is
+  step 6's click on Maximize.
+- **The drag stays small.** 160 by 120 physical pixels, towards the
+  monitor's middle, inside the work area.
+
+**What it writes.**
+
+- **Images.** Each image is the window's visible frame only (DWM's extended
+  frame bounds), never the desktop. The full-window PNG is downscaled to at
+  most 1920 pixels wide; the strip and the caption-button area are also
+  saved at full resolution.
+- **`index.json`.** It records each state's rects, DPI and scale, the
+  pointer, the time and every image's SHA-256. Other windows are listed by
+  class and rect only, because another application's title may be private.
+- **Afterwards.** The images are looked at before any is committed, under
+  `docs/verification/BPR-0653-<date>/` with a short index.
+
+**Checked headless.**
+
+- The script parses.
+- Its dry run against the candidate binds both digests and runs per-monitor
+  DPI aware, so rects, points and pixels are physical. It reads the display
+  at DPI 144, which is 150%, the scale under review, so no
+  `QT_SCALE_FACTOR=1.5` set is needed.
+- A dry run with a wrong bundle digest is refused, and creates no folder.
+
+Criteria 2 and 4 stay pending, and the card stays parked on human-review,
+now for the owner's remote review of these captures once they exist.
