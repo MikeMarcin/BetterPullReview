@@ -127,6 +127,110 @@ namespace {
 		};
 	}
 
+	struct overview_cache final : application::cached_review_overview_port
+	{
+		std::optional<core::cached_review_overview> Value;
+		std::size_t                                 Saves = 0, Loads = 0;
+		auto                                        load(const core::cached_review_key&, std::stop_token) -> std::optional<core::cached_review_overview> override
+		{
+			++Loads;
+			return Value;
+		}
+		auto save(const core::cached_review_overview& aValue, std::stop_token) -> bool override
+		{
+			++Saves;
+			Value = aValue;
+			return true;
+		}
+	};
+	void test_durable_overview_lifecycle()
+	{
+		reads                                               provider;
+		application::manual_executor                        lane, effects;
+		overview_cache                                      cache;
+		epoch_handoffs                                      epochs;
+		std::vector<application::github_window_read_update> updates;
+		application::github_window_read_host                host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&](const auto& aUpdate) { updates.push_back(aUpdate); },
+			&epochs,
+			nullptr,
+			nullptr,
+			nullptr,
+			&cache,
+			&effects
+		};
+		auto identity = session();
+		expect(host.adopt(identity), "cache course adopts authenticated account");
+		const auto open    = [&] { host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } }); };
+		const auto succeed = [&] {
+			const auto call = provider.Calls.back();
+			call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+			lane.drain();
+		};
+		const auto fail = [&](application::github_provider_failure aFailure = application::github_provider_failure::network) {
+			for (unsigned attempt = 0; attempt < 3; ++attempt) {
+				const auto call = provider.Calls.back();
+				call.Complete(application::github_pull_request_error{ .Request = call.Request, .Error = { .Failure = aFailure } });
+				lane.drain();
+				if (!host.state().PendingPullRequest || effects.pending()) {
+					break;
+				}
+			}
+		};
+		const auto cached = [&] { return !updates.empty() && updates.back().Presentation.CachedOverview.has_value(); };
+		open();
+		succeed();
+		expect(host.accepted_snapshot() && cache.Saves == 0 && effects.pending() == 1, "only accepted snapshot schedules off-lane persistence");
+		effects.drain();
+		lane.drain();
+		expect(cache.Saves == 1 && cache.Value && cache.Value->HeadOid == std::string(40, '2'), "saved overview retains exact accepted revision");
+		open();
+		fail();
+		expect(!host.accepted_snapshot() && effects.pending() == 1 && !cached(), "failed read waits for off-lane cache observation");
+		effects.drain();
+		lane.drain();
+		expect(cached() && !host.state().AcceptedSnapshot && !host.mutation_transport() && epochs.AcceptCount == 1,
+			   "cached metadata publishes without current snapshot, mutation or epoch authority");
+		open();
+		fail(application::github_provider_failure::permission);
+		expect(!cached() && effects.pending() == 0, "permission failure cannot expose historical metadata");
+		open();
+		fail();
+		host.cancel();
+		effects.drain();
+		lane.drain();
+		expect(!cached() && host.is_quiescent(), "cancelled cache completion drains without publishing");
+		open();
+		fail();
+		expect(host.retire(identity), "identity retirement cancels delayed cached result");
+		effects.drain();
+		lane.drain();
+		expect(!cached() && host.is_quiescent(), "retired cache result cannot reach another session");
+		identity.Generation = core::github_identity_generation{ 2 };
+		expect(host.adopt(identity), "replacement generation adopted");
+		cache.Value->Key.Account = core::github_account_id{ 99 };
+		open();
+		fail();
+		effects.drain();
+		lane.drain();
+		expect(!cached(), "core refuses a cache port returning foreign account data");
+		open();
+		succeed();
+		effects.drain();
+		lane.drain();
+		expect(host.accepted_snapshot() && !cached(), "reconnection adopts new server truth and clears cached presentation");
+		open();
+		fail();
+		host.shutdown();
+		effects.drain();
+		lane.drain();
+		expect(!cached() && host.is_quiescent(), "shutdown drains cached read and prevents presentation");
+	}
+
 	void test_provisional_overview_is_bounded_and_never_authority()
 	{
 		reads                                               provider;
@@ -575,6 +679,7 @@ namespace {
 }
 int main()
 {
+	test_durable_overview_lifecycle();
 	test_markdown_link_admission();
 	test_provisional_overview_is_bounded_and_never_authority();
 	test_loading_budget_shape();

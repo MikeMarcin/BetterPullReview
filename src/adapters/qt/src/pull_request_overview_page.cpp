@@ -1437,6 +1437,8 @@ namespace bpr::qt {
 	{
 		clear();
 		Title->setText(text(aObservation.Title));
+		Summary->setToolTip({ });
+		Summary->setAccessibleDescription({ });
 		auto state = aObservation.Draft ? QStringLiteral("Draft") : QStringLiteral("Open");
 		if (aObservation.State == application::github_pull_request_state_projection::merged) {
 			state = QStringLiteral("Merged");
@@ -1458,6 +1460,22 @@ namespace bpr::qt {
 		Entry->setText(QStringLiteral("Review data loading…"));
 		Entry->setAccessibleName(Entry->text());
 		Entry->setEnabled(false);
+	}
+
+	void pull_request_overview_page::present_cached(const application::github_cached_overview_projection& aOverview)
+	{
+		present_observation(aOverview.Overview);
+		Summary->setText(QStringLiteral("Cached overview · freshness unknown. Open this pull request again to retry."));
+		Summary->setToolTip(QStringLiteral("Previously accepted base %1\nPreviously accepted head %2")
+								.arg(text(aOverview.BaseOid), text(aOverview.HeadOid)));
+		Summary->setAccessibleDescription(Summary->toolTip());
+		FilesHeading->setText(QStringLiteral("Source and file catalogue unavailable offline"));
+		SinceHeading->setText(QStringLiteral("Review state unavailable offline"));
+		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
+			none->setText(QStringLiteral("Conversations unavailable offline"));
+		}
+		Entry->setText(QStringLiteral("Review data unavailable offline"));
+		Entry->setAccessibleName(Entry->text());
 	}
 
 	void pull_request_overview_page::set_description_expanded(const bool aExpanded)

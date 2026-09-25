@@ -158,6 +158,26 @@ namespace {
 			   "Recent title and destination belong to accepted account");
 	}
 
+	auto cached_visible(qt::workbench_window& aWindow) -> bool
+	{
+		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
+		return summary && summary->isVisible() && summary->text().contains(QStringLiteral("Cached overview"));
+	}
+	void expect_cached(qt::workbench_window& aWindow, std::uint64_t aAccount = 0)
+	{
+		expect(cached_visible(aWindow) && !aWindow.showing_home(), "durable cached overview is actually visible after offline reopen");
+		auto* summary = aWindow.findChild<QLabel*>(QStringLiteral("overviewSummary"));
+		expect(summary->text().contains(QStringLiteral("freshness unknown")), "cached metadata never implies fresh server truth");
+		expect(summary->toolTip().contains(QStringLiteral("a61a212aa0484929bc5f20a26e9a7c1c6541c726"))
+				   && summary->toolTip().contains(QStringLiteral("3b60c8324eee117ce72e6446fe640d85a60b37a2")),
+			   "cached overview retains the exact accepted base and head");
+		auto* title = aWindow.findChild<QLabel*>(QStringLiteral("overviewTitle"));
+		expect(title && !title->text().isEmpty(), "cached title is populated");
+		if (aAccount) {
+			expect(title->text() == QStringLiteral("Private title for account %1").arg(aAccount), "cached title belongs to the exact current account");
+		}
+		std::cerr << "cached_overview=visible exact_revisions=1 freshness=unknown source=unavailable conversations=unavailable\n";
+	}
 	void expect_unavailable(app::github_application& aOwner, qt::workbench_window& aWindow)
 	{
 		expect(!access::large_review_snapshot(aOwner), "failed open has no accepted observation, not an empty review");
@@ -175,7 +195,7 @@ try {
 	const auto argument       = std::string_view{ aArgv[1] };
 	const bool identityCourse = argument.starts_with("identity-");
 	const auto phase          = identityCourse ? argument.substr(9) : argument;
-	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || (identityCourse && phase == "legacy"), "known offline phase");
+	expect(phase == "seed" || phase == "restart-read" || phase == "restart-offline" || phase == "restart-corrupt" || (identityCourse && phase == "legacy"), "known offline phase");
 	std::array<char, 2049U> bytes{ };
 	std::cin.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 	expect(std::cin.gcount() <= 2048, "synthetic vault pipe bounded");
@@ -223,7 +243,7 @@ try {
 			expect_unavailable(*owner, window);
 			report(*owner, window, "identity-legacy");
 		}
-		if (phase == "restart-read") {
+		if (phase == "restart-read" || phase == "restart-corrupt") {
 			wait_for([&] { return window.home_recent_list()->count() == 1; }, "Recent metadata survives process restart");
 			expect(!access::large_review_snapshot(*owner), "Recent title is not a cached PR snapshot");
 			if (identityCourse) {
@@ -237,14 +257,30 @@ try {
 			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "offline Resume reaches wire failure");
 			expect(offline->WireRefusals.load() > 0U, "Resume actually attempts provider read");
 			expect_unavailable(*owner, window);
-			report(*owner, window, "restart-read-offline");
+			if (phase == "restart-corrupt") {
+				expect(!cached_visible(window), "corrupt overview refuses visible metadata through real composition");
+				report(*owner, window, "restart-corrupt-offline");
+			} else {
+				expect_cached(window, identityCourse ? 910001U : 0U);
+				report(*owner, window, "restart-read-offline");
+				window.home_action()->trigger();
+				expect(window.showing_home(), "cached overview can return to Home");
+				window.home_landing()->primary_button()->click();
+				expect_cached(window, identityCourse ? 910001U : 0U);
+				if (!identityCourse) {
+					open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
+					wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "cached view replaced by foreign offline failure");
+					expect_unavailable(*owner, window);
+					expect(!cached_visible(window) && window.showing_home(), "new failed destination clears previous cached metadata and its marker");
+				}
+			}
 			offline->Offline = false;
 		}
 		open(window, locator);
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "online original review accepted");
 		select_source(*owner, window);
 		const auto snapshot = access::large_review_snapshot(*owner);
-		expect(!visible_freshness_notice(window), "accepted online data clears failed-refresh notice");
+		expect(!visible_freshness_notice(window) && !cached_visible(window), "accepted online data clears cached and failed-refresh notices");
 		const auto key   = window.comparison_surface()->current_context()->Key;
 		const auto left  = window.comparison_surface()->left_pane()->toPlainText();
 		const auto right = window.comparison_surface()->right_pane()->toPlainText();
@@ -261,6 +297,11 @@ try {
 			QApplication::processEvents();
 			report(*owner, window, "identity-other-account");
 			expect(window.home_recent_list()->count() == 0, "another account cannot see the first account's title or destination");
+			offline->Offline = true;
+			open(window, locator);
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "foreign account offline open completes");
+			expect(!cached_visible(window), "other account cannot borrow the cached overview by known locator");
+			offline->Offline = false;
 			expect_unavailable(*owner, window);
 			open(window, QStringLiteral("https://github.com/octo-org/review-repository/pull/18"));
 			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "second account review accepted");
@@ -283,6 +324,7 @@ try {
 			window.home_recent_resume_action()->trigger();
 			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "second account offline Resume fails visibly");
 			expect_unavailable(*owner, window);
+			expect_cached(window, 910002U);
 			report(*owner, window, "identity-second-account-offline");
 			offline->Offline = false;
 			switch_account(window, options.RecentAccount, 910001U);
@@ -315,6 +357,7 @@ try {
 			open(window, QStringLiteral("https://github.com/octo-org/another-repository/pull/17"));
 			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_failed; }, "other repository offline terminal");
 			expect_unavailable(*owner, window);
+			expect(!cached_visible(window), "foreign repository cannot borrow a cached overview");
 			report(*owner, window, "other-repository-offline");
 			offline->Offline = false;
 			open(window, locator);

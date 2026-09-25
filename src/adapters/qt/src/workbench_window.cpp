@@ -5665,7 +5665,7 @@ namespace bpr::qt {
 		// selection. Discuss borrows the same panel used beside the code.
 		const auto overview = Modality != nullptr
 			&& Modality->current() == review_modality::overview
-			&& (OverviewPage->presented() || (SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request));
+			&& (OverviewPage->presented() || HasCachedOverview || (SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request));
 		const auto discuss         = Modality != nullptr && Modality->current() == review_modality::discuss;
 		const auto enteringDiscuss = discuss && ConversationPanel != nullptr && ConversationPanel->parentWidget() != DiscussPage;
 		if (ConversationPanel != nullptr) {
@@ -6196,9 +6196,9 @@ namespace bpr::qt {
 				? QStringLiteral("file %1 of %2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: QString{ });
 		HomeLanding->set_state(
-			HasGithubPullRequest ? landing_state::back_to_review
-				: account        ? landing_state::choose_pull_request
-								 : landing_state::sign_in);
+			(HasGithubPullRequest || HasCachedOverview) ? landing_state::back_to_review
+				: account                               ? landing_state::choose_pull_request
+														: landing_state::sign_in);
 		place_home_landing();
 		// [[BPR-0775]]. Signed out, the bar reads a public pull request without
 		// an account and says so; with an account it names any pull request.
@@ -6229,7 +6229,7 @@ namespace bpr::qt {
 		// bar and diagnostic are available; a retained review stays in place.
 		const auto readUnavailable = status == core::github_status::pull_request_failed
 			|| status == core::github_status::pull_request_cancelled;
-		const auto nothing = !HasGithubPullRequest && !comparing && !loading && (!active || readUnavailable);
+		const auto nothing = !HasGithubPullRequest && !HasCachedOverview && !comparing && !loading && (!active || readUnavailable);
 		const auto home    = nothing || HomeRequested || SetupDestinationNeedsHome;
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
@@ -6935,6 +6935,14 @@ namespace bpr::qt {
 			&& SessionPanel->status() == core::github_status::loading_pull_request) {
 			OverviewPage->present_observation(*aUpdate.LoadingOverview);
 		}
+		if (aUpdate.CachedOverview && !HasGithubPullRequest) {
+			HasCachedOverview = true;
+			HomeRequested     = false;
+			OverviewPage->present_cached(*aUpdate.CachedOverview);
+			update_status_text();
+			choose_modality(review_modality::overview);
+			apply_modality_surface();
+		}
 		if (aUpdate.Session.has_value()) {
 			// [[BPR-0803]]. A device flow still asking for its code when some
 			// other way in -- GitHub CLI above all -- has signed in is ended
@@ -7025,6 +7033,7 @@ namespace bpr::qt {
 		}
 		if (aTransition.Identity.has_value()) {
 			SessionPanel->apply_identity(*aTransition.Identity);
+			HasCachedOverview = false;
 			// An accepted identity moves the picker with its signals blocked,
 			// so the rebind the picker's own change would have performed has to
 			// be performed here as well. Both paths end at the same profile.
@@ -7043,7 +7052,8 @@ namespace bpr::qt {
 			ReadProgress.reset();
 			SessionPanel->apply_status(aTransition.Status->Status);
 			if (aTransition.Status->Status == core::github_status::loading_pull_request && !HasGithubPullRequest) {
-				HomeRequested = false;
+				HasCachedOverview = false;
+				HomeRequested     = false;
 				OverviewPage->present_loading();
 				choose_modality(review_modality::overview);
 			}
@@ -7133,6 +7143,7 @@ namespace bpr::qt {
 		refresh_cards();
 		update_defect_surface();
 		HasGithubPullRequest = true;
+		HasCachedOverview    = false;
 		update_pull_request_queue_actions();
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
@@ -7212,6 +7223,7 @@ namespace bpr::qt {
 		RefreshConversationContext.reset();
 		LastWorkbenchContext.reset();
 		HasGithubPullRequest = false;
+		HasCachedOverview    = false;
 		ReviewThreadTotal    = 0U;
 		IdentityText.clear();
 		IdentityOwner.clear();
@@ -10205,6 +10217,8 @@ namespace bpr::qt {
 		// the owner the product was broken and gave them nothing to do.
 		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
 			status = ReviewReadinessText != nullptr ? ReviewReadinessText->text() : QStringLiteral("Loading pull request…");
+		} else if (!home && HasCachedOverview) {
+			status = QStringLiteral("Cached overview; freshness unknown. Source and conversations are unavailable offline.");
 		} else if (!home && HasGithubPullRequest && SessionPanel->status() == core::github_status::pull_request_failed) {
 			// A failed refresh retains the accepted observation. State its
 			// freshness beside the content, including when its diff is ready.

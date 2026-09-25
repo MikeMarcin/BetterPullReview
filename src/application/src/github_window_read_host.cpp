@@ -356,7 +356,8 @@ namespace bpr::application {
 		implementation(core::bpr_window_context aWindow, core::application_session_id aSession,
 					   github_pull_request_port& aReads, decision_executor& aLane, publication aPublish,
 					   github_epoch_handoff_port* aEpochs, github_pull_request_port* aNonymous,
-					   git_smart_transport_factory_port* aGit, diagnostic_log_port* aLog)
+					   git_smart_transport_factory_port* aGit, diagnostic_log_port* aLog,
+					   cached_review_overview_port* aOverviews, effect_executor* aCacheEffects)
 			: Policy{ aWindow, aSession }
 			, State{ Policy.state() }
 			, DiagnosticWindowSession{ aSession }
@@ -367,6 +368,8 @@ namespace bpr::application {
 			, AnonymousPullRequests{ aNonymous }
 			, AnonymousSmartGit{ aGit }
 			, DiagnosticLog{ aLog }
+			, Overviews{ aOverviews }
+			, CacheEffects{ aCacheEffects }
 		{ }
 		void record_pull_request(const diagnostic_outcome aOutcome, const core::request_id aRequest,
 								 const std::optional<core::github_failure>         aFailure            = std::nullopt,
@@ -410,14 +413,16 @@ namespace bpr::application {
 		}
 		void publish_transition(const core::github_transition_output& aOutput,
 								const github_session_read_model* aSession = nullptr, const github_pull_request_snapshot* aSnapshot = nullptr,
-								const bool aPreserveWindowNavigation = false)
+								const bool                                       aPreserveWindowNavigation = false,
+								std::optional<github_cached_overview_projection> aCached                   = std::nullopt)
 		{
 			if (!Publish || Closing || SuppressPublication) {
 				return;
 			}
 			try {
-				auto error        = std::exchange(LastError, std::nullopt);
-				auto presentation = github_presentation_update{ .Transition = project_github_transition(aOutput), .PreserveWindowNavigation = aPreserveWindowNavigation };
+				auto error                  = std::exchange(LastError, std::nullopt);
+				auto presentation           = github_presentation_update{ .Transition = project_github_transition(aOutput), .PreserveWindowNavigation = aPreserveWindowNavigation };
+				presentation.CachedOverview = std::move(aCached);
 				if (aSession != nullptr) {
 					presentation.Session = project_github_session(*aSession);
 				}
@@ -953,6 +958,90 @@ namespace bpr::application {
 				ProjectionDeliveryFailed = true;
 			}
 		}
+		auto overview_key(const core::pull_request_request_context& aRequest) const -> core::cached_review_key
+		{
+			return { host_authority_fingerprint(*AcceptedProfileAuthority).bytes(),
+					 aRequest.Profile, aRequest.Host, aRequest.Account, aRequest.Repository, aRequest.Number };
+		}
+		void retain_overview(const core::pull_request_request_context& aRequest)
+		{
+			if (!Overviews || !CacheEffects || CacheWritePending || !AcceptedSnapshot
+				|| !AcceptedProfileAuthority || aRequest.Mode != core::github_access_mode::authenticated) {
+				return;
+			}
+			const auto& snapshot = *AcceptedSnapshot;
+			if (snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size()) > 1000000) {
+				return;
+			}
+			auto retained = core::cached_review_overview{
+				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft
+			};
+			if (!core::valid(retained)) {
+				return;
+			}
+			CacheWritePending = true;
+			++Outstanding;
+			auto self = shared_from_this();
+			try {
+				CacheEffects->post([self, overview = std::move(retained)] {
+					try {
+						static_cast<void>(self->Overviews->save(overview, { }));
+					} catch (...) { }
+					self->DecisionLane.post([self] { --self->Outstanding; self->CacheWritePending = false; });
+				});
+			} catch (...) {
+				--Outstanding;
+				CacheWritePending = false;
+			}
+		}
+		auto load_cached_overview(const github_pull_request_error& aError) -> bool
+		{
+			if (!Overviews || !CacheEffects || !AcceptedProfileAuthority || AcceptedSnapshot
+				|| aError.Request.Mode != core::github_access_mode::authenticated
+				|| aError.Error.Failure != github_provider_failure::network || aError.Error.HttpStatus != 0) {
+				return false;
+			}
+			const auto key   = overview_key(aError.Request.Context);
+			CacheReadStop    = std::stop_source{ };
+			const auto stop  = CacheReadStop.get_token();
+			const auto token = ProviderOperationToken;
+			++Outstanding;
+			auto self = shared_from_this();
+			try {
+				CacheEffects->post([self, key, stop, token, error = aError] {
+					std::optional<core::cached_review_overview> loaded;
+					try {
+						loaded = self->Overviews->load(key, stop);
+					} catch (...) { }
+					self->DecisionLane.post([self, key, stop, token, error, cached = std::move(loaded)] {
+						--self->Outstanding;
+						if (self->Closing || stop.stop_requested() || token != self->ProviderOperationToken
+							|| !self->PendingProvider || *self->PendingProvider != error.Request) {
+							return;
+						}
+						const auto admitted = cached && core::admit_cached_overview(self->State, error.Request.Context, core::github_failure::network, key, *cached);
+						self->PendingProvider.reset();
+						self->publish_error_advisory(error.Error);
+						auto                                             output = self->decide(core::pull_request_load_failed_event{ error.Request.Context, core::github_failure::network });
+						std::optional<github_cached_overview_projection> projection;
+						if (admitted) {
+							projection = github_cached_overview_projection{
+								.Overview = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft },
+								.BaseOid  = cached->BaseOid,
+								.HeadOid  = cached->HeadOid
+							};
+						}
+						self->publish_transition(output, nullptr, nullptr, false, std::move(projection));
+					});
+				});
+				record_pull_request(diagnostic_outcome::failed, aError.Request.Context.Request,
+									core::github_failure::network, std::nullopt, aError.LastReadOperation);
+				return true;
+			} catch (...) {
+				--Outstanding;
+				return false;
+			}
+		}
 		void handle_pull_request_now(const std::uint64_t            aToken,
 									 github_pull_request_completion aCompletion)
 		{
@@ -1029,6 +1118,7 @@ namespace bpr::application {
 										success->Request.Context.Request, std::nullopt, std::nullopt,
 										success->LastReadOperation);
 					install_snapshot(std::move(*StagedSnapshot));
+					retain_overview(success->Request.Context);
 					StagedSnapshot.reset();
 					publish_transition(
 						output,
@@ -1100,6 +1190,9 @@ namespace bpr::application {
 					submit_pull_request(retry);
 					return;
 				}
+				if (errorValid && load_cached_overview(*error)) {
+					return;
+				}
 				PendingProvider.reset();
 				if (errorValid) {
 					publish_error_advisory(error->Error);
@@ -1132,6 +1225,7 @@ namespace bpr::application {
 
 		void cancel()
 		{
+			CacheReadStop.request_stop();
 			if (!PendingProvider) {
 				return;
 			}
@@ -1213,6 +1307,10 @@ namespace bpr::application {
 		github_pull_request_port*                           AnonymousPullRequests;
 		git_smart_transport_factory_port*                   AnonymousSmartGit;
 		diagnostic_log_port*                                DiagnosticLog;
+		cached_review_overview_port*                        Overviews;
+		effect_executor*                                    CacheEffects;
+		std::stop_source                                    CacheReadStop;
+		bool                                                CacheWritePending = false;
 		std::optional<github_profile_session>               Session;
 		std::optional<github_session_read_model>            AcceptedSession;
 		std::optional<github_profile_authority>             AcceptedProfileAuthority;
@@ -1248,8 +1346,8 @@ namespace bpr::application {
 	github_window_read_host::github_window_read_host(core::bpr_window_context     aWindow,
 													 core::application_session_id aSession, github_pull_request_port& aReads,
 													 decision_executor& aDecision, publication aPublication, github_epoch_handoff_port* aEpochs,
-													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog)
-		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog) }
+													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects)
+		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog, aOverviews, aCacheEffects) }
 	{ }
 	github_window_read_host::~github_window_read_host()
 	{

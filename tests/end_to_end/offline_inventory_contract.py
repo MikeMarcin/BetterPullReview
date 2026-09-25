@@ -63,8 +63,14 @@ def main():
         vault = b""
         objects = None
         catalog = None
-        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-offline")
+        phases = ("seed", "restart-read", "restart-offline", "legacy") if arguments.identity else ("seed", "restart-read", "restart-corrupt", "restart-offline")
         for phase in phases:
+            if phase == "restart-corrupt":
+                databases = list(root.rglob("review-overviews.sqlite3"))
+                if len(databases) != 1:
+                    raise SystemExit("expected one private overview database")
+                with store_connection(databases[0]) as connection:
+                    connection.execute("UPDATE overviews SET digest=zeroblob(32)")
             if phase == "legacy":
                 databases = list(root.rglob("window-restoration.sqlite3"))
                 if len(databases) != 1:

@@ -1,3 +1,4 @@
+#include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/github_window_read.hpp"
 #include <cstdlib>
 int main()
@@ -21,6 +22,49 @@ int main()
 	}
 	const auto read = lane.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 1 } });
 	if (!read.Fetch || !read.Projection.Requests.empty() || lane.adoption()) {
+		return EXIT_FAILURE;
+	}
+	const auto&            cachedRequest = read.Fetch->Context;
+	cached_review_overview cached{
+		.Key         = { .Authority = { 1 }, .Profile = cachedRequest.Profile, .Host = cachedRequest.Host, .Account = cachedRequest.Account, .Locator = cachedRequest.Repository, .Number = cachedRequest.Number },
+		.Repository  = repository_id{ 5 },
+		.PullRequest = pull_request_id{ 6 },
+		.BaseOid     = std::string(40, '1'),
+		.HeadOid     = std::string(40, '2')
+	};
+	const auto admits = [&](const auto& aState, const auto& aRecord) {
+		return admit_cached_overview(aState, cachedRequest, github_failure::network, cached.Key, aRecord);
+	};
+	if (!admits(lane.state(), cached)) {
+		return EXIT_FAILURE;
+	}
+	for (auto failure : { github_failure::authentication, github_failure::permission, github_failure::certificate,
+						  github_failure::redirect, github_failure::malformed_response, github_failure::rate_limit }) {
+		if (admit_cached_overview(lane.state(), cachedRequest, failure, cached.Key, cached)) {
+			return EXIT_FAILURE;
+		}
+	}
+	const auto refuses = [&](auto aChange) { auto candidate = cached; aChange(candidate); return !admits(lane.state(), candidate); };
+	if (!refuses([](auto& aValue) { aValue.Key.Account = github_account_id{ 9 }; })
+		|| !refuses([](auto& aValue) { aValue.Key.Authority[0] = 9; })
+		|| !refuses([](auto& aValue) { aValue.Key.Locator.Name = "foreign"; })
+		|| !refuses([](auto& aValue) { aValue.Key.Number = pull_request_number{ 9 }; })
+		|| !refuses([](auto& aValue) { aValue.HeadOid = "invalid"; })) {
+		return EXIT_FAILURE;
+	}
+	auto changedState             = lane.state();
+	changedState.AcceptedSnapshot = provider_snapshot_id{ 1 };
+	if (admits(changedState, cached)) {
+		return EXIT_FAILURE;
+	}
+	changedState                    = lane.state();
+	changedState.IdentityGeneration = github_identity_generation{ 2 };
+	if (admits(changedState, cached)) {
+		return EXIT_FAILURE;
+	}
+	changedState = lane.state();
+	changedState.PendingPullRequest.reset();
+	if (admits(changedState, cached)) {
 		return EXIT_FAILURE;
 	}
 	const auto beforeObservation = lane.state();

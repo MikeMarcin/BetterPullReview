@@ -159,6 +159,14 @@ namespace bpr::application {
 		auto                                 operator<=>(const github_loading_overview_projection&) const = default;
 	};
 
+	/// \brief Previously accepted overview; freshness is unknown and all other review data is unavailable.
+	struct github_cached_overview_projection
+	{
+		github_loading_overview_projection Overview;
+		std::string                        BaseOid, HeadOid;
+		auto                               operator<=>(const github_cached_overview_projection&) const = default;
+	};
+
 	enum class github_conversation_kind : std::uint8_t {
 		review,
 		review_thread,
@@ -287,7 +295,8 @@ namespace bpr::application {
 		std::optional<github_loading_overview_projection> LoadingOverview = std::nullopt;
 		/// A sibling's server observation updates content, not Home/modality,
 		/// first-open filters or the window's chosen comparison.
-		bool PreserveWindowNavigation = false;
+		bool                                             PreserveWindowNavigation = false;
+		std::optional<github_cached_overview_projection> CachedOverview           = std::nullopt;
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};

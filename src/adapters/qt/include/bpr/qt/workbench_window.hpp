@@ -1634,6 +1634,7 @@ namespace bpr::qt {
 		std::uint64_t                                      PublicPreviewNow       = 0;
 		bool                                               PublicPreviewSignedOut = false;
 		bool                                               HasGithubPullRequest   = false;
+		bool                                               HasCachedOverview      = false;
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
 		std::string                                                                  MarkdownAuthority;

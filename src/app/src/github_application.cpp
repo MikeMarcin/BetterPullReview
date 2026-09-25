@@ -77,6 +77,7 @@
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
 
+#include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
 #include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
@@ -4056,6 +4057,7 @@ namespace bpr::app {
 		bool                                                                     RememberedStartupStarted = false;
 		bool                                                                     RestorationOrderly       = false;
 		std::unique_ptr<effect_window_review_store>                              ReviewRestorationStore;
+		std::unique_ptr<application::cached_review_overview_port>                CachedOverviews;
 		std::unique_ptr<application::window_review_restoration_host>             ReviewRestoration;
 		std::optional<core::window_review_startup_request>                       RestorationStartup;
 		std::map<core::bpr_window_context, QString, detail::window_context_less> RestorationNotices;
@@ -6493,15 +6495,18 @@ namespace bpr::app {
 		void start()
 		{
 			ReadDecision = std::make_unique<window_read_decision_lane>(DecisionLane);
-			auto weak    = std::weak_ptr<const int>{ WindowLifetime };
-			WindowRead   = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
+			if (!Profile->CachedOverviews) {
+				Profile->CachedOverviews = adapters::sqlite::make_cached_review_overview_store(Profile->ApplicationDataRoot);
+			}
+			auto weak  = std::weak_ptr<const int>{ WindowLifetime };
+			WindowRead = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
 					Window->publish(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
-					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get());
+					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects);
 			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? WindowRead->open_markdown_link(aIntent, Profile->ComposedBrowser)

@@ -19,6 +19,7 @@ add_library(
         src/github_model.cpp
         src/github_transition.cpp
         src/github_window_read.cpp
+        src/cached_review_overview.cpp
         src/markdown_navigation.cpp
         src/model.cpp
         src/review_ledger.cpp

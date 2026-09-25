@@ -201,8 +201,10 @@ namespace bpr::qt {
 		/// \brief Clears text and local reading state on the owner's exact authority invalidation.
 		void clear();
 		/// \brief Presents a pending overview without manufacturing accepted rows.
-		void               present_loading();
-		void               present_observation(const application::github_loading_overview_projection& aObservation);
+		void present_loading();
+		void present_observation(const application::github_loading_overview_projection& aObservation);
+		/// \brief Shows bounded historical metadata with explicit unavailable review content.
+		void               present_cached(const application::github_cached_overview_projection& aOverview);
 		[[nodiscard]] auto presented() const noexcept -> bool;
 		/// \brief [[BPR-0671]]. Takes the commit-oid disclosure the drawer's
 		/// summary box used to carry, and puts it under the branches.
