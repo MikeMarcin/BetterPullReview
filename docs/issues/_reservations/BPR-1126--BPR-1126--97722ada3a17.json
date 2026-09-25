@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1126"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "sqlite storage contracts delete fixed /tmp paths",
+  "created": "2026-09-25T02:37:46.383898+00:00",
+  "base": "5506257b45481fbf522f7dd2edbf183d6def0d38"
+}
