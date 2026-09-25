@@ -4,9 +4,10 @@ RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
 ## Ordinary closeout audit — 2026-09-25
 
-**RFC-BPR-0019 remains Deferred; BPR-0295 awaits independent ordinary review
-and final closeout verification.** Run `rfc0019-20260925-parallel`, mandate
-`r1`, selects only its authored final stage. The entry/product candidate is
+**RFC-BPR-0019 remains Deferred; BPR-0295 is blocked on AC1 provenance
+completeness after independent review and current graph verification.** The
+`rfc0019-20260925-parallel` run, mandate `r1`, selected only its authored final
+stage. The entry/product candidate is
 `fc4b39e8c3a54ecf931d74071d7793e5e4112496`; the claimed audit revision is
 `07f41e25d4bd0793839f15c084e5d2d1e53ee251`. No product, generated asset,
 protected historical review or RFC-0052 path changes in this run.
@@ -43,8 +44,8 @@ rows on BPR-0295. They are not seven new acceptance criteria.
 | 3 — Exactly three clips | Current 63-case contract passes, including generated C++ descriptor consumers and hostile schema/identity/return/digest cases. | Actual schema 2 admits the ten clips authorized by RFC-0030. The literal original three-clip assertion is false for the successor pack and is not marked passing. |
 | 4 — Original bounds | Current validator accepts registered 256-square RGBA cells, geometry, alpha/gutters, timing and revised bounds. Measured content: 71 cells, 18,612,224 bytes; 20 gutters; complete strips 23,855,104 bytes; maximum 10 fps. | The original 48-cell, six-gutter, 12/13.5-MiB limits are superseded. Current 17.75/22.75-MiB use satisfies RFC-0030's 19/24-MiB ceilings, not the old numeric assertion. |
 | 5 — Mechanical and attended motion | Current mechanical validation passes. v008 session `7e489c0dd362c256bc28715a16892b65`, hand-back 123, has twelve accepts and no pending decision; the reviewed manifest and all source bytes match. | Historical BPR-0291's fifteen bound source/generated files, manifest, provenance and tool all differ now. Its unchanged receipt is historical proof only; the successor verdict supplies current scoped art/derivative acceptance. No new human verdict is inferred. |
-| 6 — Build/tool isolation | Current offline-tool import/capability audit passes, and current source/resource selection scan checks 565 files. The 63-case suite includes graph-registration, art-tool-dependency, core asset, runtime-resource and missing-selection negatives. | This is source/fixture evidence. Actual fresh dev, core-only and tests-disabled graphs and binaries were not built or audited here. BPR-0292 and RFC-0031 graph/native results remain valid only for their recorded candidates. Current runtime assets are intentionally present under RFC-0031. |
-| 7 — Honest documentation | The current documentation structure gate, all 64 documentation tests and whitespace check pass. This ledger separates old claims from the accepted current implementation. | Current architecture/asset docs truthfully describe runtime composition. The original no-runtime statement applies to RFC-0019's authored stage; final independent review must judge the explicit successor reconciliation. |
+| 6 — Build/tool isolation | Current offline-tool import/capability audit passes, and current source/resource selection scan checks 565 files. The 63-case suite includes graph-registration, art-tool-dependency, core asset, runtime-resource and missing-selection negatives. | Current Mac dev and tests-disabled application builds pass; core-only builds and passes 163/163 tests. The selected graph/binary verifier passes on those exact profiles. The original no-runtime clause is superseded by RFC-0031, whose ten strips are intentionally compiled into the application. |
+| 7 — Honest documentation | The current documentation structure gate, all 64 documentation tests and whitespace check pass. This ledger separates old claims from the accepted current implementation. | Current architecture/asset docs truthfully describe runtime composition. Independent reviews confirmed the explicit successor reconciliation; the original no-runtime statement applies to RFC-0019's authored stage. Terminal status still depends on AC1. |
 
 ### Commands and artifact identities
 
@@ -80,23 +81,27 @@ The audit record includes additional exact test, boundary and resource-selector
 hashes. Both historical manifest/verdict pairs still match their durable
 validation receipts; the removed historical validator was not rerun.
 
-### Stop boundary and next action
+### Current graph replay and stop boundary — 2026-09-25
 
-The selected coordinator-implementer recipe forbids nested reviewers. No
-separately authorized independent ordinary RFC-0019 report was supplied, and
-the historical RFC-0030/0031 review cannot be silently broadened to satisfy it.
-The 63-case test suite and this implementer's self-review do not close that gate.
-Actual final-candidate graph/runtime verification also remains open; application
-builds were not launched for this bounded mechanical audit after the formal
-closeout distinction was established.
+After this audit was integrated, the coordinator built the current Mac
+developer and tests-disabled application graphs, built core-only and passed
+all 163 core-only tests. The selected graph and binary verifier returned
+`DIF_ASSET_BOUNDARIES_OK`; [graph-verification-r2.json](../rfcs/plans/rfc-bpr-0019-closeout/graph-verification-r2.json)
+records the commands, binary digests and exact profile selections. An
+independent ordinary review reproduced the asset audit and found the premature
+`exit:1` pass, since corrected to pending. A separate critical review
+confirmed the current v008 assets and successor authority.
 
-Resume BPR-0295 with this existing-successor mapping, obtain the separately
-authorized independent acceptance and select the remaining final-candidate
-build/runtime checks. Keep BPR-0295 incomplete and RFC-0019 Deferred until all
-required obligations are satisfied. The existing accepted v008 art is unchanged,
-so this run creates no new art review session, server or watch. The
-[durable handoff](../rfcs/plans/rfc-bpr-0019-closeout/handoff-r1.json) records
-writer release, command quiescence, candidate identities and branch integration.
+The surviving blocker is AC1's requirement for complete creator and tool
+provenance. Current `provenance.json` explicitly records unknown creator and
+generator details. The v008 verdict authorized distribution with those gaps
+disclosed, but did not amend AC1's completeness requirement. The owner must
+supply the missing facts or a scoped amendment accepting those recorded
+unknowns for AC1. No new visual or rights verdict is required for unchanged
+v008 bytes. Keep BPR-0295 Blocked and RFC-0019 Deferred until that criterion
+and terminal reconciliation are resolved. The original
+[durable handoff](../rfcs/plans/rfc-bpr-0019-closeout/handoff-r1.json) remains
+the audit history; the r2 graph record is the subsequent current evidence.
 
 ## Historical implementation evidence
 
