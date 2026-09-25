@@ -237,3 +237,39 @@ Windows the injection runs over `win32-longpath`:
 ```sh
 ctest --test-dir <build> --output-on-failure -R "^(sqlite_device_binding_storage|sqlite_private_store_open|application_github_host|application_device_binding_restart|application_device_binding_launch_renewal|application_device_binding_relaunch)$"
 ```
+
+## Post-close: Linux at `39460e81` (bpr-main-linux, 2026-09-24)
+
+**The Linux confirmation this card asked for passes: its six rows, 6 of 6,
+within a nine-row run.** On Linux the fault injection wraps the default Unix
+VFS's I/O methods. Windows, over `win32-longpath`, is still owed.
+
+The run was in the station's main checkout, with a clean tree, at
+`39460e81` ("Checkpoint Mac batch 8: complete"). WSL2 Ubuntu 26.04, GCC 15.2,
+Qt 6.11.2, `build/dev` (Debug, `-Werror`), rebuilt at `39460e81` with no
+`warning:` line. The run began straight after that build, at a load average
+of 10.95. `ctest --test-dir build/dev -j1 --output-on-failure`, offscreen,
+with `DISPLAY`, `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset and
+fresh absolute `HOME` and XDG roots. The coordinator's nine rows ran together
+for [[BPR-1116]], [[BPR-1111]] and [[BPR-1112]], and this station's own
+uncommitted [[BPR-1121]] edits to two of these tests were set aside for it,
+so the result is the Mac's change alone.
+
+| Row | Result |
+| --- | --- |
+| `application_github_host` | pass, 0.03 s |
+| `application_device_authorization_host` | pass, 0.00 s |
+| `application_device_authorization_refresh` | pass, 0.00 s |
+| `application_device_authorization_public_path` | pass, 0.39 s |
+| `sqlite_device_binding_storage` | pass, 2.98 s |
+| `sqlite_private_store_open` | pass, 0.07 s |
+| `application_device_binding_restart` | pass, 29.01 s |
+| `application_device_binding_launch_renewal` | pass, 66.61 s |
+| `application_device_binding_relaunch` | pass, 8.14 s |
+
+The runs added nothing to `/tmp` and no `bpr-` name to `/run/user/1000`.
+
+The acceptance record above is unchanged. The logs are station records under
+`build/logs/bpr-main-linux-20260924/batch7-linux/` and are not committed:
+`batch8-rows.log`, `batch8-github-host-verbose.log` and
+`build-dev-39460e81.log`.
