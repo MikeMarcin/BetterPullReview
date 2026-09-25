@@ -280,3 +280,69 @@ tests/fixtures`). The fix belongs with [[BPR-1138]]'s Windows access work,
 or with a card of its own; the title was given to the coordinator. The
 POSIX design, a marker beside the executable in the course's data root,
 needs the canary to have access to that root on Windows.
+
+The coordinator decided on 2026-09-25 that the Windows half folds into
+[[BPR-1138]]. That card was not yet written when this note was added.
+
+## macOS, AC5 (bpr-main-mac, 2026-09-25)
+
+The station runs macOS 26.6.2 (25G83) on Apple Silicon, with Apple clang
+21.0.0, Qt 6.11.2, and `build/dev` Debug with warnings as errors. This entry
+supplies the macOS half of AC5. It does not move the card, which stays on
+bpr-main-linux's claim. The Windows run is still owed.
+
+**The build.** At `0f33ad29`, which contains `c11929e2`,
+`cmake --build --preset dev` exited 0 after 305 steps and printed no
+`warning:` line. It recompiled `agent_canary_main.cpp` and the invocation
+course.
+
+**The rows**, run with the card's macOS command from 05:50:38Z to 05:55:35Z:
+
+| Rows | Result |
+| --- | --- |
+| The eight `application_agent_invocation_*_contract` rows | 8 of 8 pass. `application_agent_invocation_cancellation_contract` took 19.96 s |
+| `application_agent_crash_recovery`, `application_agent_materialization_crash_recovery` | pass, 45.14 and 42.04 s |
+| `application_agent_finding_protocol`, `qt_agent_launch_canary`, `agent_parent_death` | pass, 2.15, 72.51 and 24.35 s |
+| In all | **13 of 13 pass**, 296.34 s |
+| `ls "${TMPDIR:-/tmp}" \| grep '^bpr-agent-descendant-'`, and the same on `/private/tmp` | nothing printed. `/private/tmp` gained no entry. The user's `$TMPDIR` gained only a desktop indexer's and the editor's files |
+
+That `ls` cannot see a row's marker on macOS ([[BPR-1047]]). Under ctest,
+each row gets its own `/private/tmp/bpr-net-*/fixture` as `TMPDIR`, and the
+runner removes it when the row ends. So the check that matters is a direct
+run.
+
+**The direct sandboxed run.** It used [[BPR-1128]]'s macOS driver, which
+runs a row's command as `scripts/run_network_isolated_test.py` does, but
+keeps the root and makes `fixture/` (mode `0700`) the `TMPDIR`. The driver
+first checked each name below was absent, then planted at it in `fixture/`:
+
+- sentinel directories at `bpr-agent-descendant-PLNTDR` and
+  `bpr-agent-descendant-4242420000`, each holding a `heartbeat` file;
+- a link at `bpr-agent-descendant-PLNTLK` to a sentinel directory outside
+  `fixture/`;
+- a sentinel file at `bpr-agent-descendant-4242420001`;
+- a link at `bpr-agent-descendant-4242420002` to a sentinel file outside
+  `fixture/`.
+
+A thread listed `fixture/` every 2 ms while the row ran. Afterwards, every
+entry under `fixture/` and under the link targets was compared with its
+state before the run.
+
+| Row | `TMPDIR` | Result | Top-level entries made during the run | Plants | Left |
+| --- | --- | --- | --- | --- | --- |
+| `application_agent_invocation_cancellation_contract` | resolved, under `/private/tmp` and `/private/var/folders` | pass, both, 19.9 s | only the course's own root, `better_pull_review_agent_invocation_composition_public_path-XXXXXX`, mode `0700`. **No `bpr-agent-descendant-` entry** | all 9 unchanged | nothing |
+| The same | through the `/tmp` and `/var` links | pass, both | the same | all 9 unchanged | nothing |
+| `qt_agent_launch_canary` | resolved, under `/private/tmp` | pass, 72.2 s | `bpr-agent-cwd-<clock>`, and `bpr-agent-descendant-XXXXXX`, mode `0700` | all 9 unchanged | nothing |
+
+In the canary's row, `bpr-agent-descendant-XXXXXX` is [[BPR-1128]]'s
+directory. The course makes it with `mkdtemp` for the path it passes as
+`--spawn-descendant`, and removes it. It is not this card's default marker.
+Only the cancellation course uses the default marker. Its course passes, so
+the descendant wrote the marker and the course read it back. The marker was
+never at the top of `TMPDIR`, and nothing was written through a plant. Each
+driver root was removed by its exact name after its comparison. The logs,
+the driver and the results are station records in
+`build/logs/bpr-1126-1139-mac/`, not committed.
+
+**AC5 on macOS: met.** The canary builds with no warning, and the 13 rows
+pass. The Windows run is still owed.
