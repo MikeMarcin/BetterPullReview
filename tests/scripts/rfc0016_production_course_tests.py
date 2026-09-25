@@ -538,7 +538,8 @@ class PublishedEvidenceTests(unittest.TestCase):
             course, probes = publish(evidence, directory)
             self.assertEqual(probes, 10)
             self.assertEqual(
-                sorted(str(path.relative_to(course)) for path in course.rglob("*")),
+                # as_posix(): str() would give backslashes on Windows (BPR-1119).
+                sorted(path.relative_to(course).as_posix() for path in course.rglob("*")),
                 [
                     "course-execution.json",
                     "outcomes",
