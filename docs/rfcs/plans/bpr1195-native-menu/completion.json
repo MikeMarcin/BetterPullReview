@@ -1,0 +1,112 @@
+{
+  "run_id": "bpr1195-native-menu-20260925",
+  "segment_id": "native-menu-resident-fix",
+  "mandate_revision": "r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:1ca88dfb502f12d72e9c547d366cd7c2e619504f6fb7f832eb9f2a691b8e27f7",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "resident-menu-parity",
+  "binding": {
+    "plan_id": "bpr1195-native-menu",
+    "plan_path": "docs/rfcs/plans/bpr1195-native-menu/milestone-plan.json",
+    "milestone_id": "resident-menu-parity",
+    "definition_fingerprint": "sha256:79f4652e2611b6aca8c1db8459daa36d50d01b12cd57bf3c373155b7addd63aa",
+    "obligations": [
+      {
+        "id": "BPR-1195:*",
+        "source": "BPR-1195",
+        "selector": null,
+        "source_fingerprint": "sha256:f8b4a3bb4c4b9727941ccd6dd9956b3c77fd6ffe55418152cd7f752b0ba66681"
+      }
+    ],
+    "obligation_fingerprint": "sha256:d7d8caace52b8caa4dc6dc6e3680ff29e397f59619889466f017d7047dc8a7fc",
+    "exit_criteria": [
+      {
+        "id": "resident-menu-parity:exit:1",
+        "text": "The exact native menu comparison fails before the change and passes after it, including every later assertion."
+      },
+      {
+        "id": "resident-menu-parity:exit:2",
+        "text": "The resident Close Tab, Updates Line, tab navigation and composition commands preserve titles and shortcuts, remain disabled, and cause no effect."
+      },
+      {
+        "id": "resident-menu-parity:exit:3",
+        "text": "Focused Qt and profile-management composition checks, documentation and touched-file format pass; all task commands finish and the isolated writer is released."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "milestone-complete",
+  "candidate_revision": "da2f03c95155fa17a6afd273861b75d9579585e0",
+  "handoff_ref": "docs/rfcs/plans/bpr1195-native-menu/HANDOFF-2026-09-25.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/bpr1195-native-menu/HANDOFF-2026-09-25.md",
+    "docs/rfcs/plans/bpr1195-native-menu/verification.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1195:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1195-native-menu/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr1195-native-menu/verification.json"
+      ]
+    },
+    {
+      "id": "resident-menu-parity:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1195-native-menu/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr1195-native-menu/verification.json"
+      ]
+    },
+    {
+      "id": "resident-menu-parity:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1195-native-menu/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr1195-native-menu/verification.json"
+      ]
+    },
+    {
+      "id": "resident-menu-parity:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1195-native-menu/HANDOFF-2026-09-25.md",
+        "docs/rfcs/plans/bpr1195-native-menu/verification.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "BPR-1195 is complete in the isolated branch; coordinator integration is next."
+  },
+  "ownership": "quiescent"
+}
