@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr0966-dif-cues",
+  "scope": {
+    "issues": [
+      "BPR-0966"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "workshop-cue-reconciliation",
+      "outcome": "Resolve BPR-0966 against approved RFC0031/0037 contracts, correct authorized defects with direct evidence, and preserve an explicit owner decision whenever placement or accepted requirements must change.",
+      "work": [
+        {
+          "issue": "BPR-0966"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: Resolve the workshop cue expectation against the dedicated editor page, documenting the approved behavior and any required owner amendment without silently rewriting terminal RFC0031 acceptance. Coordinate with BPR-0800's separate placement decision if the chosen behavior affects it.",
+        "AC2: Correct the identified stale expectation or product regression with a focused failing-before check; preserve exact session/action/draft identity, single-sprite ownership, explicit acceptance and zero publication effects.",
+        "AC3: Run the Dif context course and the affected router/editor/public composition checks at the exact candidate. Record native or human decisions separately if the resolved presentation contract requires them."
+      ],
+      "boundary": "Only BPR-0966 source, tests, card and checkpoint in codex/bpr0966-dif-cues. Existing r4 follow-up authority plus coordinator unattended Mac assignment of 2026-09-25 (local segment r1). BPR-0800 placement changes require its unresolved owner decision. Windows verification explicitly deferred; no claim of Windows acceptance."
+    }
+  ],
+  "unplanned_work": []
+}
