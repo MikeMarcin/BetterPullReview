@@ -545,6 +545,35 @@ namespace {
 				   .find(aMode)
 			!= std::string::npos;
 	}
+
+	/// \brief The heartbeat marker of a `…-descendant-wait` run that was
+	/// given no `--spawn-descendant`.
+	/// \details [[BPR-1139]]. The application starts these runs with no
+	/// arguments and an allowlisted environment, so the course cannot pass a
+	/// marker. It chooses where the canary's copy lives: in its owner-private
+	/// data root. So the marker is beside the executable, in a directory the
+	/// course made and removes, when it fails as when it passes. It was
+	/// `bpr-agent-descendant-<pid>` in the temporary directory, and the
+	/// descendant appended to whatever was at that name, through a link.
+	/// \returns Nothing when the executable's path is relative, because then
+	/// it names no directory the caller chose.
+	[[nodiscard]] auto default_descendant_marker(char** const aArguments) -> std::string
+	{
+		if (executable_mode(aArguments, "crash-descendant-wait")) {
+			return (std::filesystem::current_path() / ".bpr-crash-heartbeat").string();
+		}
+#if defined(_WIN32)
+		// [[BPR-1139]]. Windows keeps its marker as it was until the canary is
+		// known to have access to the course's root there.
+		return (std::filesystem::temp_directory_path() / ("bpr-agent-descendant-" + std::to_string(::_getpid()))).string();
+#else
+		const auto executable = std::filesystem::path{ aArguments[0] };
+		if (!executable.is_absolute()) {
+			return { };
+		}
+		return (executable.parent_path() / ".bpr-descendant-heartbeat").string();
+#endif
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -712,19 +741,10 @@ auto main(int argc, char** argv) -> int
 		|| executable_mode(argv, "descendant-wait")) {
 		auto marker = argument_after(argc, argv, "--spawn-descendant");
 		if (marker.empty()) {
-			marker = (std::filesystem::temp_directory_path()
-					  / ("bpr-agent-descendant-" + std::to_string(
-#if defined(_WIN32)
-							 ::_getpid()
-#else
-							 ::getpid()
-#endif
-								 )))
-						 .string();
-			if (executable_mode(argv, "crash-descendant-wait")) {
-				marker = (std::filesystem::current_path() / ".bpr-crash-heartbeat").string();
+			marker = default_descendant_marker(argv);
+			if (!marker.empty()) {
+				emit(protocol, "descendant-marker\t" + marker);
 			}
-			emit(protocol, "descendant-marker\t" + marker);
 		}
 		long childId = 0;
 		if (marker.empty() || !spawn_descendant(argv[0], marker, childId)) {

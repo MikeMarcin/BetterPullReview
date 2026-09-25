@@ -31,8 +31,10 @@ Tests are direct evidence, not naming evidence.
   (BPR-1126). Never name a root from the clock, a counter or the process id
   and then use whatever is already at that name. A file that a child process
   writes goes inside such a root, not directly in the temporary directory
-  (BPR-1128). On Windows a root must also carry the access its row needs: a
-  row inside the AppContainer needs the container's SID.
+  (BPR-1128). A fixture that the application launches cannot be given a
+  path, so it writes beside its own executable, which the course copies into
+  such a root (BPR-1139). On Windows a root must also carry the access its
+  row needs: a row inside the AppContainer needs the container's SID.
 - A course's application data root is the `data` child of a temporary
   directory the course has narrowed to owner-private, made by that language's
   helper (`docs/development/build-and-test.md`, "A course's data root sits one
