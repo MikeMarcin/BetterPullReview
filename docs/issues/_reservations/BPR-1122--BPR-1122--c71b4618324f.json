@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1122"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "WSLg activation recheck card from BPR-0975 owner verdict (session 70834742)",
+  "created": "2026-09-25T00:53:54.932662+00:00",
+  "base": "a8c36152121c5fd849eb88ed85fcf3084f64556c"
+}
