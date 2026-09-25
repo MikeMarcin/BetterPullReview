@@ -46,7 +46,7 @@ criterion text.
 | [BPR-0968](../issues/10-backlog/BPR-0968-verify-rendered-primary-and-secondary-rate-limit-recovery.md) | Backlog, standalone: complete rendered primary/secondary backoff and recovery. |
 | [BPR-0969](../issues/10-backlog/BPR-0969-verify-cached-review-offline-restart-freshness.md) | Backlog, standalone: cached-review offline/restart and visible freshness. |
 | [BPR-0970](../issues/10-backlog/BPR-0970-cover-custom-parser-and-mapping-boundaries-with-fuzzing.md) | Backlog, standalone: full diff/mapping, Markdown, settings/theme, API, Git-output and AI-output fuzz targets/corpora/campaigns. |
-| [BPR-0971](../issues/20-ready/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md) | Backlog, standalone: complete pathological diagnostic/privacy inventory and large/error courses. |
+| [BPR-0971](../issues/30-in-progress/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md) | Backlog, standalone: complete pathological diagnostic/privacy inventory and large/error courses. |
 | [BPR-0972](../issues/10-backlog/BPR-0972-verify-application-wide-active-set-and-changed-set-scaling.md) | Backlog, standalone: broader active/changed-set, structural and concurrent-work evidence. |
 | [BPR-0817](../issues/60-done/BPR-0817-a-linux-close-exits-1-when-the-app-created-its-data-folder-group-writable.md) | Parked, RFC0033 association retained: existing writable-parent visibility and orderly-exit policy. Prior native successes and unanswered questions unchanged. |
 | [BPR-0825](../issues/60-done/BPR-0825-harden-the-windows-workspace-supervisor-after-its-critical-review.md) | Parked, standalone: shared Windows private-descriptor ownership decision. Native supervisor/ACE/junction fixes remain accepted only as recorded. |
