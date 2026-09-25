@@ -1,0 +1,99 @@
+{
+  "schema": "bpr.rfc_engineering_handoff",
+  "schema_version": 1,
+  "assignment": "Only BPR-0966 isolated Mac follow-up: reconcile workshop cues against RFC0031/0037 and BPR0800; correct safely resolvable defects, preserve identity and zero publication; record any owner amendment needed. Windows explicitly deferred. No primary/frozen-app/other-agent writes.",
+  "child": "/root/bpr0966_dif_cues",
+  "mandate_revision": "r4-with-unattended-mac-20260925-r1",
+  "mandate_note": "Existing r4 follow-up plus coordinator unattended Mac assignment of 2026-09-25; r1 identifies this local execution segment, not a new product-owner amendment.",
+  "run_id": "bpr0966-mac-20260925",
+  "segment_id": "isolated-diagnosis-r1",
+  "effective_route": "rfc-implementer | gpt-6-astra | xhigh",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
+  "tracker_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview",
+  "runtime_root": "/Users/jaeger/.codex/worktrees/bpr0966-dif-cues/BetterPullReview/build",
+  "branch": "codex/bpr0966-dif-cues",
+  "entry_revision": "f530e08b8296034a237c2c21ff2722a7a3caceb0",
+  "product_revision": "f530e08b8296034a237c2c21ff2722a7a3caceb0",
+  "test_candidate_revision": "12ea8646b9175a32abfa396eb502a2c09007c088",
+  "documentation_candidate_revision": "512d147ee39a3ee847ed3fbb88d6ca0d85d0cc36",
+  "milestone": "workshop-cue-reconciliation",
+  "result": {
+    "disposition": "blocked",
+    "card": "BPR-0966",
+    "status": "Blocked",
+    "blocked_by": "owner-dif-workshop-placement",
+    "AC1": "pending owner decision",
+    "AC2": "partial: expose sprite and observe paints; two workshop failures retained",
+    "AC3": "four focused Mac checks pass; Dif fails the two original workshop assertions; Windows deferred"
+  },
+  "checkpoint": "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-current.json",
+  "checkpoint_reconciliation": {
+    "entry_requirement_fingerprint": "sha256:3b820d68d9f76e7199f57f7796076e379f5ec11de019bd8af9f892107b1e1bdd",
+    "current_requirement_fingerprint": "sha256:f9bdb3250651b64f0ca152020331e2af922db0a3e2edafb52eb81d6c8276d538",
+    "detail": "Refreshed after guarded claim/block move and appended evidence. Original acceptance and authored exits are unchanged."
+  },
+  "changed_paths": [
+    "docs/issues/50-blocked/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md",
+    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-entry.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/evidence.md",
+    "docs/rfcs/plans/bpr0966-dif-cues/execution-selection.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/source.json",
+    "tests/end_to_end/agent_finding_composition_public_path.cpp",
+    "docs/rfcs/plans/bpr0966-dif-cues/checkpoint-current.json",
+    "docs/rfcs/plans/bpr0966-dif-cues/handoff.json"
+  ],
+  "verification": {
+    "evidence": "docs/rfcs/plans/bpr0966-dif-cues/evidence.md",
+    "baseline": "Dif fail, 20.72 s, ready and acknowledge only; original 1:1:1:0:0:1:0.",
+    "failing_before": "Paint observer without viewport exposure misses consider too (17.82 s). Probe measures empty visible region; exposing existing viewport yields nonempty region and a consider paint.",
+    "candidate": "Exact 12ea8646: qt_dif_runtime, qt_review_draft_editor, finding_composition, workshop_press pass; dif_context fails ready and acknowledge only. 4/5, 45.71 s. New draft identity/one-intent/single-sprite checks pass, zero publication.",
+    "documentation": "Gate passes with installed skill scripts on PYTHONPATH; regression suite 64/64 passes.",
+    "board": "Scoped validate passes, 1182 cards, zero errors.",
+    "format": "clang-format --dry-run --Werror on touched C++, git diff --check pass.",
+    "limits": "Mac offscreen fixture evidence only. No new native/human verdict; Windows deferred; no paid model/live PR."
+  },
+  "candidate_artifacts": [
+    {
+      "path": "build/dev/tests/end_to_end/better_pull_review_agent_finding_composition_public_path",
+      "sha256": "86de5254fc1a2859fba471bae1ef132def5d12a8d4420a0bc7518bc75f7b85be"
+    },
+    {
+      "path": "build/dev/tests/end_to_end/better_pull_review_agent_finding_canary",
+      "sha256": "109315a6ee7d4f519e3b49b33577d62b6794be4d7a796b59869b07c46df24ccc"
+    }
+  ],
+  "review_handoff": {
+    "state": "owner-contract-decision-required",
+    "url": null,
+    "session": null,
+    "event_cursor": null,
+    "question": "While a workshop proposal is displayed and accepted on Compose, should the single Dif widget use a workshop slot, the corner coordinated with BPR-0800, or remain absent with an explicit B7 amendment? Establish whether both workshop cues remain required there.",
+    "reason": "No resolved visual implementation is ready for attended acceptance; neither deleting existing assertions nor inventing placement is authorized."
+  },
+  "ownership": {
+    "repository_writer": "released on return",
+    "active_commands": [],
+    "review_server": null,
+    "descendants": [],
+    "primary_checkout": "untouched",
+    "rfc0052_frozen_app": "untouched",
+    "publication": "none",
+    "protected_candidates": "Existing primary/frozen review resources and historical packets untouched."
+  },
+  "commands": {
+    "finished_exec_sessions": [
+      63474,
+      99258,
+      41644,
+      1321,
+      99589,
+      5945,
+      15877,
+      76439
+    ],
+    "process_audit": "No worktree-bound process except the audit shell/rg; all build and CTest commands exited.",
+    "runtime_evidence": "Ignored build/bpr0966-*.log; own build retained for reproduction. Disposable source probes removed."
+  },
+  "continuation": "Coordinator may integrate the partial test/evidence slice. Keep BPR-0966 Blocked until the owner selects the workshop placement/contract and any BPR0800 amendment. Resume bounded implementation then direct public-path verification; do not claim Windows or historical acceptance was supplied."
+}
