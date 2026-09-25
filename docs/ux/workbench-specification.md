@@ -7,7 +7,8 @@ for the scopes reconciled under RFC-BPR-0028:
 [Settings and direct sign-in](../rfcs/RFC-BPR-0018-robust-settings-center.md),
 [BPR profiles and independent windows](../rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md),
 [review drawers and navigation](../rfcs/RFC-BPR-0025-review-workspace-navigation-browser-tabs.md)
-(browser-style tabs stay registered but unscheduled),
+(browser-style tabs stay registered but unscheduled until
+[RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md) schedules them),
 and [personal Home and PR URL navigation](../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
 Their entry and closeout cards, [[BPR-0592]] through [[BPR-0599]], are Done.
 Home, the Accounts & hosts card page, the empty desktop and the Profiles sheet
@@ -46,7 +47,12 @@ and the epoch line, with no scroll area and no separate title bar
 the composition entry row, **Compose review** and **Draft comment or reply**
 (RFC-BPR-0037, [[BPR-0929]]), and, while a pull request loads, the readiness
 line ([[BPR-0795]]). Nothing else sits between the strip and the epoch line.
-Where the entries finally sit is [[BPR-1106]]'s design round.
+[[BPR-1106]]'s design round decided their successor on 2026-09-24:
+[RFC-BPR-0052](../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md).
+It puts a calm title row with the modality at its right, above a folding
+Updates line and a review bar. The bar holds the active tab's controls and
+Compose review and Comment. Document tabs fill the comparison's header. Until
+that lands, the chrome is as described here.
 
 The entry row is inside the review state's space budget ([[BPR-0246]]). In
 Review at 1280x1000 with every drawer collapsed, the comparison takes 842/1000
@@ -882,7 +888,7 @@ accessibility, vault, purge or uninstall qualification.
 
 ## Command placement
 
-Review submission actions remain visible in a persistent action region but do not displace file/change navigation. Private receipt progress stays available through the compact keyboard-operable popup beside Review details. Destructive or shared mutations require clear target and state presentation.
+Review submission actions remain visible in a persistent action region but do not displace file/change navigation. RFC-BPR-0052 makes that region the review bar. Private receipt progress stays available through the compact keyboard-operable popup beside Review details. Destructive or shared mutations require clear target and state presentation.
 
 ## Empty, loading, and failure states
 

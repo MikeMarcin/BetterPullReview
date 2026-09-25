@@ -26,7 +26,10 @@ things that held it open:
   request loads, [[BPR-0795]]'s readiness line. The chrome paragraph says the
   same. [[BPR-0940]]'s window course already asserts that arrangement. Where
   the entries should finally sit is a UX design follow-up, [[BPR-1106]], which
-  does not hold this RFC; if it moves them, it amends AC-01 again.
+  does not hold this RFC. It is Done. The owner's decision moves the
+  scaffolding to RFC-BPR-0052, which supersedes this RFC's chrome where they
+  conflict, so AC-01 keeps its 2026-09-24 wording and this RFC closes on what
+  it built.
 - **[[BPR-0746]] is Done** by an owner amendment that withdraws its
   unobtainable AC1 and AC2. The amendment is recorded as an amendment, not as
   a pass.
@@ -61,7 +64,8 @@ It is the owner-directed replacement for the workbench presentation and is
 the frontier exception the deferred UX RFCs name. It supersedes the layout and
 chrome sections of RFC-BPR-0025 and the Home presentation of RFC-BPR-0026 where
 they conflict; RFC-BPR-0025's browser-style file tabs are not part of this
-direction and stay registered but unscheduled. The drawers and the first three
+direction and stay registered but unscheduled (the owner brought them back on
+2026-09-24; RFC-BPR-0052 schedules them). The drawers and the first three
 Settings pages are fixed below; RFC-BPR-0018 keeps the remaining pages.
 
 The architecture rule is unchanged: the core decides, the host performs, Qt
@@ -97,8 +101,9 @@ widths and the modality ([[BPR-0737]], owner direction 2026-09-11). Between
 the strip and the epoch line sit the review surface's entry rows and nothing
 else: the composition entry row (Compose review, Draft comment or reply,
 RFC-BPR-0037) and, while a pull request loads, the readiness line
-([[BPR-0795]]) (owner amendment, 2026-09-24; where the entries finally sit is
-[[BPR-1106]]'s design round). No toolbar with labels, no menu bar rows.
+([[BPR-0795]]) (owner amendment, 2026-09-24). [[BPR-1106]]'s design round
+decided the successor on 2026-09-24: RFC-BPR-0052's review bar, folding
+Updates line and document tabs. No toolbar with labels, no menu bar rows.
 Nothing in the strip may read as disabled.
 
 The strip is the title row. The owner's references (Fork and Visual Studio
@@ -231,7 +236,9 @@ Column headings are one word; actions are two.
 
 ## Non-goals
 
-Browser-style file tabs; the lane-rail conversation drawer rejected earlier;
+Browser-style file tabs (scheduled again by RFC-BPR-0052 on the owner's
+2026-09-24 decision, outside this RFC); the lane-rail conversation drawer
+rejected earlier;
 changes to the diff themes or the link map, except that the link map may be
 extended to the one-pane Read presentation, which is the same map at its limit
 with one column instead of two (owner direction 2026-09-11, rejecting
@@ -728,3 +735,28 @@ Three of them bear on this RFC.
 Windows build at or after `e08a0409`. The owner also answered
 `RFC-0039-0051-start-v001` with "Not yet: finish RFC-0028 to RFC-0038 first",
 recorded in the [RFC index](README.md).
+
+## Owner decision, 2026-09-24: the scaffolding moves to RFC-BPR-0052
+
+[[BPR-1106]]'s design round ran in the separate session that decision
+`ece7a6f3` asked for. The owner widened the question there from where the
+composition entries sit to the workbench's outer scaffolding. The decision,
+verbatim on BPR-1106, has five parts:
+
+- the modality at the title row's right;
+- the Updates line kept full width, without its permanent caption, folding,
+  and fully above a review bar;
+- the review bar holding the active tab's controls on its left and Compose
+  review and Comment as icons with tooltips on its right;
+- private progress as an icon;
+- RFC-BPR-0025's document tabs brought back, each with its own comparison.
+
+Asked where that work should live, the owner chose "Its own RFC". It is
+[RFC-BPR-0052](RFC-BPR-0052-review-workbench-scaffolding.md), which follows
+RFC-BPR-0038 in the index and supersedes this RFC's chrome where they
+conflict. It records the owner's answers on the default fold (folded) and the
+keys (as proposed).
+
+This RFC's criteria are unchanged. AC-01 keeps the owner's 2026-09-24 wording,
+and this RFC closes on what it built.
+

@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1106"
 title: "A design round for where the composition entries sit in the review chrome"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"standalone follow-up; not an RFC-BPR-0028 closeout dependency","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1106-placement-v001","decision":"ece7a6f3-3e54-459f-9c41-eba06732a91d","selected":"Other: discuss outside the attended review flow in a separate session"},"owner_design_decision":{"date":"2026-09-24","session":"Claude Code design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, the separate session decision ece7a6f3 asked for","design":"docs/design/BPR-1106-scaffolding-v6.html","rounds":["docs/design/BPR-1106-composition-entries-v2.html","docs/design/BPR-1106-scaffolding-v4.html","docs/design/BPR-1106-scaffolding-v5.html","docs/design/BPR-1106-scaffolding-v6.html"],"open":"whether a new window starts with the Updates line open or folded"}}
-parked_on: "owner-design-discussion"
-acceptance: [{"criterion":"AC1 The design page shows at least three placements with the current row as the baseline, each with its stated costs, rendered and inspected headless at both sizes in both appearances","outcome":"pass","revision":"4e9037e6","evidence":{"kind":"artifact","detail":"docs/design/BPR-1106-composition-entries-v1.html: five placements on the accepted RFC-BPR-0028 full review surface (A the current row as baseline, B the strip's review menu, C the Updates line's right end with the readiness wording in its track, D the conversation drawer's foot, E a Compose control in the strip), each with its height from the comparison, Windows strip width at the 902 floor, clicks to each entry, keyboard reach and readiness line, drawn to scale and side by side. 50 frames from docs/design/BPR-1106-composition-entries-frames-v1.html (every placement at 1280x852 and 1920x1080, light and dark, macOS and Windows chrome, plus loading at 1280x852 on macOS in both appearances) and 8 close-ups under docs/verification/BPR-1106-composition-entries/, rendered with Chrome --headless=new --screenshot at exact window size and inspected; the page itself rendered headless at 1360 px and inspected. No product source changed.","path":"docs/design/BPR-1106-composition-entries-v1.html"}},{"criterion":"AC2 (form amended by the owner's decision ece7a6f3, 2026-09-25: recorded from the owner's own design session rather than one attended candidate) The owner's choice is recorded here","outcome":"pass","revision":"053abefe","evidence":{"kind":"observation","detail":"The owner's answers in design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, 2026-09-24, verbatim in the section 'Owner decision, 2026-09-24: the review workbench's scaffolding': modality right; a review bar with the active tab's controls on its left and a collapsible Updates line fully above it when expanded; T; icons with tooltips for Compose review, Comment and the progress control; Comment in the review bar; and RFC-BPR-0025's tabs brought back. Drawn as docs/design/BPR-1106-scaffolding-v6.html from 13 frames under docs/verification/BPR-1106-scaffolding-v6/. Not fingerprint-bound: decision ece7a6f3 took the question out of attended review. One point was asked and not answered: whether a new window starts with the Updates line open or folded.","path":"docs/issues/40-parked/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md#owner-decision-2026-09-24-the-review-workbenchs-scaffolding"}},{"criterion":"AC3 Whatever the owner chooses is reflected in RFC-BPR-0028 AC-01 and its chrome paragraph, and any implementation is carded, not done on this card","outcome":"pending","revision":"053abefe","evidence":{"kind":"observation","detail":"Waits on one scheduling answer from the owner: whether the decided scaffolding amends RFC-BPR-0028 AC-01 now (so RFC-BPR-0028's closeout, BPR-1021, waits for the build, tabs included) or goes into an RFC of its own that supersedes RFC-BPR-0028's chrome where they conflict, leaving AC-01 as amended on 2026-09-24. The cards and amendments follow the answer."}}]
+metadata: {"origin":"owner note on attended candidate BPR-0653-entry-row-v001, session cbd48b91000b00f1e72e1ad62c7c384c, decision 007a6eb5-adf3-427c-8473-547f9d0c4d9e, 2026-09-24","origin_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-0653","BPR-0929","BPR-0940","BPR-0795","BPR-1036","BPR-1021","BPR-0737"],"reservation":"docs/issues/_reservations/BPR-1106--BPR-1110--72437bc3b205.json","disposition":"Done: the owner's scaffolding decision is recorded here; RFC-BPR-0052 (BPR-1129 to BPR-1135) implements it; RFC-BPR-0028 closes on what it built","owner_decision":{"date":"2026-09-25","session":"7083474240820608cdf9ff551ddd298f","candidate":"BPR-1106-placement-v001","decision":"ece7a6f3-3e54-459f-9c41-eba06732a91d","selected":"Other: discuss outside the attended review flow in a separate session"},"owner_design_decision":{"date":"2026-09-24","session":"Claude Code design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, the separate session decision ece7a6f3 asked for","design":"docs/design/BPR-1106-scaffolding-v6.html","rounds":["docs/design/BPR-1106-composition-entries-v2.html","docs/design/BPR-1106-scaffolding-v4.html","docs/design/BPR-1106-scaffolding-v5.html","docs/design/BPR-1106-scaffolding-v6.html"],"open":"none: the default fold (folded), the keys (as proposed) and where the work lives (an RFC of its own) were answered on 2026-09-24"},"successor_rfc":"RFC-BPR-0052"}
+acceptance: [{"criterion":"AC1 The design page shows at least three placements with the current row as the baseline, each with its stated costs, rendered and inspected headless at both sizes in both appearances","outcome":"pass","revision":"4e9037e6","evidence":{"kind":"artifact","detail":"docs/design/BPR-1106-composition-entries-v1.html: five placements on the accepted RFC-BPR-0028 full review surface (A the current row as baseline, B the strip's review menu, C the Updates line's right end with the readiness wording in its track, D the conversation drawer's foot, E a Compose control in the strip), each with its height from the comparison, Windows strip width at the 902 floor, clicks to each entry, keyboard reach and readiness line, drawn to scale and side by side. 50 frames from docs/design/BPR-1106-composition-entries-frames-v1.html (every placement at 1280x852 and 1920x1080, light and dark, macOS and Windows chrome, plus loading at 1280x852 on macOS in both appearances) and 8 close-ups under docs/verification/BPR-1106-composition-entries/, rendered with Chrome --headless=new --screenshot at exact window size and inspected; the page itself rendered headless at 1360 px and inspected. No product source changed.","path":"docs/design/BPR-1106-composition-entries-v1.html"}},{"criterion":"AC2 (form amended by the owner's decision ece7a6f3, 2026-09-25: recorded from the owner's own design session rather than one attended candidate) The owner's choice is recorded here","outcome":"pass","revision":"053abefe","evidence":{"kind":"observation","detail":"The owner's answers in design session e76905d2-b5a2-4e58-8edd-c07bdcacd7a8, 2026-09-24, verbatim in the section 'Owner decision, 2026-09-24: the review workbench's scaffolding': modality right; a review bar with the active tab's controls on its left and a collapsible Updates line fully above it when expanded; T; icons with tooltips for Compose review, Comment and the progress control; Comment in the review bar; and RFC-BPR-0025's tabs brought back. Drawn as docs/design/BPR-1106-scaffolding-v6.html from 13 frames under docs/verification/BPR-1106-scaffolding-v6/. Not fingerprint-bound: decision ece7a6f3 took the question out of attended review. The default fold and the keys were answered afterwards, with where the work lives (section 'Where it lives, the default fold and the keys').","path":"docs/issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md#owner-decision-2026-09-24-the-review-workbenchs-scaffolding"}},{"criterion":"AC3 Whatever the owner chooses is reflected in RFC-BPR-0028 AC-01 and its chrome paragraph, and any implementation is carded, not done on this card","outcome":"pass","revision":"053abefe","evidence":{"kind":"artifact","detail":"The owner chose an RFC of its own. RFC-BPR-0052 carries the decided scaffolding: eleven acceptance criteria, a closeout card and six Backlog slices, BPR-1129 to BPR-1134 (with BPR-1135 closing it). It supersedes RFC-BPR-0028's chrome where they conflict and schedules RFC-BPR-0025's tab contract. RFC-BPR-0028 AC-01 keeps the owner's 2026-09-24 wording, so RFC-BPR-0028 closes on what it built; its current-state section, chrome paragraph and non-goals name the successor. RFC-BPR-0025's status and docs/ux/workbench-specification.md say the same. No implementation was done on this card.","path":"docs/rfcs/RFC-BPR-0052-review-workbench-scaffolding.md"}}]
 ---
 
 # BPR-1106: A design round for where the composition entries sit in the review chrome
@@ -362,6 +361,43 @@ lives decides what RFC-BPR-0028 says:
   supersedes RFC-BPR-0028's chrome where they conflict, as RFC-BPR-0028 did for
   RFC-BPR-0025.
 
-That question is put to the owner next. The card stays Parked on
-`owner-design-discussion` until it is answered, and then AC3's amendments and
-cards follow.
+That question was put to the owner next; the answer follows.
+
+## Where it lives, the default fold and the keys, 2026-09-24
+
+After the decision was recorded (`666daf1c`), three questions went to the
+owner in the same session. Answers, verbatim:
+
+- "Where should the decided scaffolding (review bar, fold, tabs, modality
+  right) be implemented?" **"Its own RFC (Recommended)"**. The option read:
+  RFC-0028 closes on what is built (AC-01 as amended 2026-09-24) and records
+  this decision as its successor. A new RFC, ordered after RFC-0038 and before
+  the tour pack, supersedes RFC-0028's chrome where they conflict and holds
+  the cards.
+- "When a window opens for the first time, should the Updates line start
+  open or folded?" **"Folded (Recommended)"**.
+- "Should the proposed keys go into the implementation?" **"Accept as proposed
+  (Recommended)"**: Option-R Compose review, Option-C Comment or Reply,
+  Option-] and Option-[ the next and previous tour stop, Ctrl+Tab and
+  Ctrl+Shift+Tab the next and previous tab, Cmd-W Close tab (the window moving
+  to Cmd-Shift-W if Cmd-W closes it today), and Esc back from a page.
+
+So:
+
+- [RFC-BPR-0052](../../rfcs/RFC-BPR-0052-review-workbench-scaffolding.md) is
+  registered, Proposed, after RFC-BPR-0038 in the index. Its slices are
+  [[BPR-1129]] (the title row and the review bar), [[BPR-1130]] (the fold and
+  the caption), [[BPR-1131]] and [[BPR-1132]] (the tabs, in the core and the
+  host, then the strip), [[BPR-1133]] (Comment and Reply) and [[BPR-1134]]
+  (the right tray's tabs). [[BPR-1135]] closes it.
+- RFC-BPR-0028 AC-01 keeps the owner's 2026-09-24 wording, so this card no
+  longer amends it again. Its current state, its chrome paragraph and its
+  tabs non-goal now name RFC-BPR-0052 as the successor. RFC-BPR-0025's status
+  and `docs/ux/workbench-specification.md` say the same. AC3 passes on that
+  answer: the choice is reflected where the owner chose it to live, and the
+  implementation is carded, not done here.
+- One point is carried to [[BPR-1130]] rather than decided. The rounds moved
+  the loading line's words into the Updates line, but the owner was never
+  asked that separately, so BPR-1130 asks before it removes [[BPR-0795]]'s row.
+
+The card is Done.

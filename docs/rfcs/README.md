@@ -170,6 +170,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0036](RFC-BPR-0036-native-markdown-rendering.md) | Native Markdown Rendering for Review Content | Proposed | Technical implementation accepted at `a3ab46ee`; native overview/public conversations and md4qt comparison recorded on BPR-0917; RFC-BPR-0008 is now closed, while canonical predecessor eligibility remains pending |
 | [RFC-BPR-0037](RFC-BPR-0037-first-pr-review-workflow.md) | First-PR Review Workflow: Navigation, Source Loading and Conversations | Proposed | Original technical closeout accepted at `e4096e05`; BPR-0934/AC-10 folder controls accepted at `a88c0d19` and landed on main by merge `0ddf929b`, with test-only correction `b6e14081`. RFC-BPR-0008, RFC-BPR-0013, RFC-BPR-0015 and RFC-BPR-0029 are now closed, while RFC-BPR-0028 must still become Auto-Verified; Markdown remains separate under RFC-BPR-0036 |
 | [RFC-BPR-0038](RFC-BPR-0038-native-package-release-security-qualification.md) | Native Package and Release Security Qualification | Proposed | Owner r4 successor to RFC0014: unchanged Blocked BPR0958–0962 retain all native/trust/license/privacy/security gaps; BPR0973 owns closeout after actual qualification and canonical predecessors |
+| [RFC-BPR-0052](RFC-BPR-0052-review-workbench-scaffolding.md) | Review Workbench Scaffolding: Title Row, Review Bar, Folding Updates Line and Document Tabs | Proposed | Registered 2026-09-24 from the owner's decision on [BPR-1106](../issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md): ordered after RFC-BPR-0038 and before the review-tour pack, which builds on it; supersedes RFC-BPR-0028's chrome where they conflict and schedules RFC-BPR-0025's tabs; BPR-1129 to BPR-1134 are Backlog slices and BPR-1135 owns the closeout |
 | [RFC-BPR-0039](RFC-BPR-0039-manual-first-review-tour-authoring.md) | Manual-First Review Tour Authoring | Proposed | Imported 2026-09-23 from the review-tour pack for later implementation; author prepares Problem, Solution and ordered tour stops without AI; RFC-BPR-0003, 0008, 0024, 0036 and 0037 |
 | [RFC-BPR-0040](RFC-BPR-0040-github-native-tour-format-import-and-navigation.md) | GitHub-Native Tour Format, Import, and Navigation | Proposed | Imported 2026-09-23; the published tour is ordinary GitHub comments with a Start here index and Previous/Next/overview links, re-importable without hidden metadata |
 | [RFC-BPR-0041](RFC-BPR-0041-staged-tour-publication-and-recovery.md) | Staged Tour Publication and Recovery | Proposed | Imported 2026-09-23; one native pending review staged, wired and submitted as COMMENT, with unknown outcomes reconciled rather than retried |
@@ -252,6 +253,16 @@ plan](plans/bpr-dif-integration-v1/milestone-plan.json) retain the source and
 execution order. At import all eighteen cards were Backlog and both RFCs were
 Proposed. BPR-0769 now records their dependency-ordered `Auto-Verified`
 closeout without rewriting the immutable imported packet.
+
+RFC-BPR-0052 is the review workbench's scaffolding, from the owner's design
+session on [BPR-1106](../issues/60-done/BPR-1106-a-design-round-for-where-the-composition-entries-sit-in-the-review-chrome.md)
+(2026-09-24). It has a calm title row with the modality at its right, and a
+review bar that holds the active tab's controls and Compose review and
+Comment. Above the bar is an Updates line that folds, and RFC-BPR-0025's
+document tabs fill the comparison's header. Asked where it should live, the
+owner chose an RFC of its own. It stands after RFC-BPR-0038 and before the
+review-tour pack, whose tour tab and Conventional Comments labels fill places
+it draws. RFC-BPR-0028 closes on what it built.
 
 RFC-BPR-0039 through RFC-BPR-0043 are the imported review-tour pack: an
 author-prepared guided review whose published form is ordinary GitHub comments,

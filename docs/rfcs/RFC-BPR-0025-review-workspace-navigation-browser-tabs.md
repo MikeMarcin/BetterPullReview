@@ -42,7 +42,11 @@ superseded or unscheduled under the owner-locked RFC-BPR-0028 direction. They
 are not implemented and not passed. The rest of those criteria and all of
 AC-02 and AC-08 pass as shipped in the RFC-BPR-0028 composition. RFC-BPR-0028
 keeps browser-style file tabs registered but unscheduled; the tab design below
-remains that registration, and scheduling it needs a new card or RFC. No
+remains that registration, and scheduling it needs a new card or RFC. On
+2026-09-24 the owner brought the tabs back ([[BPR-1106]]).
+[RFC-BPR-0052](RFC-BPR-0052-review-workbench-scaffolding.md) schedules them
+against this contract. This RFC's closed status and recorded evidence are
+unchanged. No
 native, attended or live-GitHub evidence is claimed or required by the
 surviving criteria.
 
