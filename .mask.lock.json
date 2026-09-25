@@ -14,12 +14,12 @@
       "source": "agentskills"
     },
     {
-      "commit": "2028080e397e17175b33c80fc82156e2934fcc2b",
+      "commit": "4d194a1cd14ca4af6a0e3cbe59a4fad486c7dd86",
       "git_object_format": "sha1",
       "id": "implement-rfc",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/implement-rfc",
-      "payload_digest": "sha256:9d91c4bb4bac9606e06f06011e5e504381d0e061856d36379e63d13235b820e9",
+      "payload_digest": "sha256:6ad19f0fc539b9b393a02dbeff6bf0745f83ac499d7c953cba4d9236bf667832",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
