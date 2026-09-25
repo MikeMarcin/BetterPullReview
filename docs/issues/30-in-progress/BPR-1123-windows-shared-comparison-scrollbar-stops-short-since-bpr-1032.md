@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1123"
 title: "Windows: since BPR-1032 the shared comparison scrollbar stops short of the end, and qt_diff_workbench_scale_100/125/200 fail"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
