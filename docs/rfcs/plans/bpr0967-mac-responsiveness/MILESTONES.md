@@ -6,9 +6,9 @@ Plan: **bpr0967-mac-responsiveness** · Coverage: **complete**
 
 These are integration outcomes, not compulsory agent-launch boundaries.
 
-## mac-stall-repair
+## mac-load-gap
 
-Attribute and repair the three measured Mac GUI input gaps through the owning boundary; retain earlier measurement exits and all wider BPR-0967 obligations.
+Attribute and, where justified, repair the remaining initial metadata/Git load input gap on the rendered network-isolated Mac public course, preserving the prior source/revisit repairs and broader unfinished obligations.
 
 **Work:** `BPR-0967`
 
@@ -23,4 +23,4 @@ Attribute and repair the three measured Mac GUI input gaps through the owning bo
 - Repair justified owning-boundary causes with failing-before controls and affected composed verification, without raising existing thresholds; retain exact diagnosis for any unresolved gap.
 - Record exact candidate, unchanged cache/source/cleanup invariants, command quiescence and remaining acceptance in a durable coordinator handoff.
 
-**Boundary:** Coordinator assignment /root/bpr0967_stall_repair; mandate r4-standalone-mac-20260925; new bounded milestone at main baseline 75044f93a6ffdb4a0bd4367d1f05b864935250f5. Prior measurement exits are reused at 9d1cfa62. Only source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-stall-repair. Mac synthetic local fixtures, no delegation, push, live account, private target, remote mutation or release. Windows/Linux explicitly deferred; RFC0052 14-question attended candidate protected. Full BPR-0967 acceptance remains pending.
+**Boundary:** Coordinator assignment /root/bpr0967_load_gap; mandate r4-standalone-mac-20260925; bounded successor at main baseline e944da20b0dce838dc4a26c4e13615473ce0d06b. Prior measurement and source/revisit repair exits reused at f3f2c6eed52c364e716f3157d1dba6f05af3ba35. Source/tracker /Users/jaeger/Documents/GitHub/BetterPullReview; runtime build/bpr0967-load-gap. Attribute workbench projection, Overview, host/ledger/read-state and event-loop scheduling; repair only justified causes, otherwise return precise partial diagnosis. Mac network-denied synthetic fixtures; no delegation, push, live account, remote mutation or release. Windows/Linux explicitly deferred. Coordinator-owned RFC0052 14-question attended candidate, state and server protected. Full BPR-0967 stays unfinished.
