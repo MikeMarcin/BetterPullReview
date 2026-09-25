@@ -302,6 +302,41 @@ namespace {
 		parent.hide();
 	}
 
+	/// \brief [[BPR-1140]]. The GitHub CLI read opt-in names the machine the
+	/// way the rest of the product does ([[BPR-0773]]): "this Mac" on macOS,
+	/// "this computer" on Windows and Linux. The sentence is otherwise
+	/// [[BPR-0933]]'s, word for word. Each platform's build checks its own
+	/// sentence, so the Windows and Linux wording is proved on those platforms.
+	auto test_cli_read_consent_names_this_machine() -> void
+	{
+		QWidget    parent;
+		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), QStringLiteral("ghe.example.invalid"));
+#if defined(__APPLE__)
+		const auto expected = QStringLiteral(
+			"BetterPullReview will read as the account gh is signed in to, and that account can change "
+			"outside this app. You trust this Mac's gh executable, configuration and certificates as they "
+			"are set up. Connecting for reads does not authorize publishing; each review or comment asks "
+			"separately.");
+#else
+		const auto expected = QStringLiteral(
+			"BetterPullReview will read as the account gh is signed in to, and that account can change "
+			"outside this app. You trust this computer's gh executable, configuration and certificates as "
+			"they are set up. Connecting for reads does not authorize publishing; each review or comment "
+			"asks separately.");
+#endif
+		const auto said = question->informativeText();
+		if (said != expected) {
+			std::cerr << "The GitHub CLI read consent says: " << said.toStdString() << '\n';
+		}
+		expect(said == expected, "the GitHub CLI read consent names this platform's machine in the accepted sentence");
+#if !defined(__APPLE__)
+		// A word, so that "Machine configuration" in the details is not one.
+		const QRegularExpression mac{ QStringLiteral("\\bMac\\b") };
+		expect(!question->text().contains(mac) && !said.contains(mac) && !question->detailedText().contains(mac),
+			   "off macOS the GitHub CLI read consent does not say Mac");
+#endif
+	}
+
 	[[nodiscard]] auto conversation(
 		std::string                                 aId,
 		const application::github_conversation_kind aKind,
@@ -7421,6 +7456,13 @@ auto main(int argc, char** argv) -> int
 		std::cout << "home-sign-in:pass\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1140]]. The GitHub CLI read consent's sentence on this platform,
+	// alone, as the first-launch card's is above.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--cli-read-consent"))) {
+		test_cli_read_consent_names_this_machine();
+		std::cout << "cli-read-consent:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-0981]]. The resident drawer filters' composed gesture path alone;
 	// the full run stops later at the card assertion [[BPR-0940]] owns.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--resident-drawer-filters"))) {
@@ -7431,6 +7473,7 @@ auto main(int argc, char** argv) -> int
 
 	test_cli_warning_lives_on_its_servers_card();
 	test_cli_read_consent_is_a_short_decision();
+	test_cli_read_consent_names_this_machine();
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_held_read_paints_loading();

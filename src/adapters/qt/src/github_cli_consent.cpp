@@ -1,5 +1,7 @@
 #include "bpr/qt/github_cli_consent.hpp"
 
+#include "this_machine_text.hpp"
+
 #include <QAbstractButton>
 #include <QObject>
 #include <QWidget>
@@ -44,11 +46,14 @@ namespace bpr::qt {
 			QMessageBox::Yes | QMessageBox::Cancel,
 			aParent);
 		question->setTextFormat(Qt::PlainText);
-		question->setInformativeText(QObject::tr(
+		// [[BPR-1140]]. The machine is named by the product's one rule:
+		// "this Mac" on macOS, "this computer" on Windows and Linux.
+		const auto informative = QObject::tr(
 			"BetterPullReview will read as the account gh is signed in to, and that account can change "
-			"outside this app. You trust this Mac's gh executable, configuration and certificates as they "
+			"outside this app. You trust %1's gh executable, configuration and certificates as they "
 			"are set up. Connecting for reads does not authorize publishing; each review or comment asks "
-			"separately."));
+			"separately.");
+		question->setInformativeText(informative.arg(detail::this_machine_text()));
 		question->setDetailedText(github_cli_read_consent_details());
 		question->button(QMessageBox::Yes)->setText(QObject::tr("Connect"));
 		question->setDefaultButton(QMessageBox::Cancel);

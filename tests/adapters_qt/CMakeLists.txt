@@ -116,6 +116,20 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+# [[BPR-1140]]. The GitHub CLI read consent names this platform's machine:
+# "this Mac's gh executable" on macOS, "this computer's" on Windows and Linux.
+bpr_add_network_isolated_test(
+    NAME qt_composed_cli_read_consent
+    COMMAND test_better_pull_review_qt_github_tests --cli-read-consent
+)
+set_tests_properties(
+    qt_composed_cli_read_consent
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+        PASS_REGULAR_EXPRESSION "cli-read-consent:pass"
+        TIMEOUT 30
+)
+
 # [[BPR-0981]]. RFC-BPR-0025 AC-02 through the composed window, alone.
 bpr_add_network_isolated_test(
     NAME qt_composed_resident_drawer_filters
