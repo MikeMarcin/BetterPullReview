@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1139"
 title: "The agent canary's default heartbeat marker is a pid-named file in the temporary directory, written through whatever is at that name"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
