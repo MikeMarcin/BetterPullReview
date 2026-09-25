@@ -255,3 +255,16 @@ platform's DirectWrite fonts rather than offscreen FreeType. The measured-axis
 suite and the workbench suite, run directly with `QT_QPA_PLATFORM=windows` at
 the display's 150%, take about 2 minutes of the desktop and open their own
 windows. Their commands are with the coordinator's foreground list.
+
+## Post-close: the real `windows` platform (bpr-main-win, 2026-09-25T04:32:28Z to 04:32:48Z)
+
+AC5's optional run, in a foreground block the coordinator cleared. The
+measured-axis suite and the diff workbench suite ran directly from
+`build/dev`, at `91f193a5`, which carries this fix, with `QT_QPA_PLATFORM=windows`,
+at the display's own 150% (DPI 144), with DirectWrite fonts in place of the
+offscreen FreeType ones. Both pass: `measured-alignment-axis-tests:pass`
+(every transient boundary equals the pane's native one, and the recorded
+heights are reused as the offscreen run showed) and `diff-workbench-tests:pass`
+(the shared bar's end brings both panes to their last page). They opened their
+own windows and sent no input. The logs are station records under
+`build/logs/bpr-1123-main-win/realplatform-*.log`, not committed.
